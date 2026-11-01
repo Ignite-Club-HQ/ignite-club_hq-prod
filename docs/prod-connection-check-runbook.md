@@ -13,7 +13,7 @@ This check reads existing infrastructure with the existing encrypted PROD govern
 
 ### Group readiness correction (1 November 2026)
 
-The earlier “All readable connections confirmed” result was not completion of PROD setup. The check now prints base connection health separately from missing group prerequisites and reads a bounded consensus registry page (up to 100 groups). An incomplete/truncated registry, unpinned identity, missing independent g2 or missing/stale configuration-bound approval fails overall readiness. The artifact also contains a **non-executable** setup proposal. It cannot authorize payment, settings, registration, lifecycle release, opening or publication.
+The earlier “All readable connections confirmed” result was not completion of PROD setup. The check now prints base connection health separately from missing group prerequisites and reads a bounded consensus registry page (up to 64 groups, the deployed router's actual page maximum). An incomplete/truncated registry, unpinned identity, missing independent g2 or missing/stale configuration-bound approval fails overall readiness. The artifact also contains a **non-executable** setup proposal. It cannot authorize payment, settings, registration, lifecycle release, opening or publication.
 
 Four zero-link comparisons (insights, media metadata, timer and router) mean only that this checker defines no expected service-link keys there. They are not exemptions from service configuration or group readiness. Identity access's missing trusted registry is a setup gap, not a successful configuration.
 

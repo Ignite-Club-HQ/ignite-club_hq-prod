@@ -3,7 +3,9 @@
 ## Current request — PROD group parity with DEV (1 Nov 2026)
 - [x] Compared DEV group architecture and PROD provisioning: DEV records base + g2; PROD has 18 independent base services but registration/approval and identity registry binding remain incomplete. Zero-link audit rows do not prove group readiness.
 - [x] Prepared bounded consensus PROD registry readback, separate group-readiness assessment and non-executable coherent setup proposal; 33 tests pass. Live typed reader decoded an anonymous Authentication required refusal as expected; no governor session is available here.
-- [ ] Prepare executable PROD base/g2 setup after signed current inventories/module/settings evidence and exact supported bound-deletion lifecycle approval. Existing TEST tools hardcode DEV bindings and cannot safely be reused; no mutation runner or opening grant was introduced.
+- [x] Prepared standalone PROD base plan/closed-registration workflow: certified 18-service modules/controllers/subnets, exact reviewed hash, revision-CAS calls, remote intent acknowledgements/readback and no replay. Verified real PROD registry empty at revision 0 and certified whole inventory with an unrelated read-only identity; 48 tests pass. No live writes or governor impersonation.
+- [ ] Owner: promote new closed-base tooling through REPO workflow, then run [PROD] Prepare and register base group (closed), prod, action plan; review printed hash/evidence before exact closed-registration confirmation. Signed governor execution remains GitHub-only.
+- [ ] Independent PROD g2 creation/configuration and identity lifecycle/approval setup: blocked on reviewed signed plan, exact supported bound-deletion release approval and current funding shortfall; no new spending or opening authorized. Existing TEST tools hardcode DEV bindings and cannot be reused.
 - [ ] Execute signed PROD setup/readback only through owner-authorized GitHub runs; the governor key is held in GitHub, not this sandbox.
 
 ## Current request — read-only PROD connections/routing and DEV separation (31 Oct 2026)
