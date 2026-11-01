@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { assertCheckContext, readerSpec, checkCalls, assessLinks, failureReason, internalReason, evidenceText } from './prod-connection-check-policy.mjs';
+import { assessGroupReadiness, setupProposal } from './prod-group-readiness.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -13,7 +14,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export async function runCheck({ ids, env, principal, invoke, save }) {
   assertCheckContext(ids, env, principal);
   const report = { checkedAt: new Date().toISOString(), commit: env.GITHUB_SHA,
-    scope: 'PROD infrastructure readback only; no activation or business records', rows: [], complete: true };
+    scope: 'PROD infrastructure readback only; no activation or business records', rows: [], complete: false, connectionsComplete: true };
   for (const call of checkCalls(ids)) {
     const row = { name: call.name, id: call.id, method: call.method, query: call.query };
     try {
@@ -25,11 +26,14 @@ export async function runCheck({ ids, env, principal, invoke, save }) {
         row.verdict = bad.length ? 'LINK_MISMATCH' : 'READBACK';
         row.reason = bad.length
           ? bad.map(l => `${l.key}: ${l.observed.length ? l.observed.join(',') : 'not set'}`).join('; ').slice(0, 300)
-          : `${row.links.length} link(s) confirmed`;
+          : row.links.length ? `${row.links.length} link(s) confirmed` : 'Configuration read; no service-link comparisons defined (not a readiness pass)';
       } else {
         const text = evidenceText(value);
         if (text.length > 262144) throw new Error('Infrastructure reply exceeded evidence bound');
         row.evidence = text;
+        // Keep typed infrastructure evidence for bounded readiness assessment.
+        if (call.method === 'read_group_registry_page') row.registry = value;
+        if (call.method === 'read_routing_approval') row.approval = value;
         if (value && typeof value === 'object' && 'Err' in value) {
           row.verdict = 'READER_DENIED';
           row.reason = `Canister refused: ${String(value.Err).slice(0, 160)}`;
@@ -37,8 +41,9 @@ export async function runCheck({ ids, env, principal, invoke, save }) {
           row.verdict = 'REVIEW_ROUTING_EVIDENCE';
           const ok = value?.Ok;
           row.reason = call.method === 'read_routing_approval'
-            ? (Array.isArray(ok) && ok.length ? 'approval recorded' : 'no approval recorded yet (expected before opening)')
-            : Array.isArray(ok) ? `${ok.length} group(s) registered` : 'reply received';
+            ? (Array.isArray(ok) && ok.length ? 'approval recorded; revision/inventory must match' : 'no approval recorded — group setup incomplete')
+            : call.method === 'read_group_registry_page' ? `${ok?.groups?.length ?? 0} group(s) in bounded registry page`
+              : Array.isArray(ok) ? `${ok.length} group(s) registered` : 'reply received';
         }
       }
     } catch (error) {
@@ -46,17 +51,17 @@ export async function runCheck({ ids, env, principal, invoke, save }) {
       // canister reason from failureReason explains the failure.
       row.verdict = 'UNREADABLE';
       row.reason = error?.stderr ? failureReason(error.stderr) : (internalReason(error) || failureReason(''));
-      // A fresh identity_access has no router pin until the separately
-      // approved opening step; it carries no expected links, so this exact
-      // refusal is the expected pre-opening state, not a wiring failure.
+      // A fresh-install state is not readiness for independent PROD groups.
       if (call.name === 'identity_access' && call.method === 'read_group_opening_configuration' &&
           row.reason === 'Canister refused: Deletion registry not pinned') {
         row.verdict = 'NOT_PINNED_YET';
-        row.reason = 'Router pin not set yet (expected before opening; separate approval)';
+        row.reason = 'Trusted PROD registry not pinned — group setup incomplete';
       }
     }
-    if (['UNREADABLE', 'READER_DENIED', 'LINK_MISMATCH'].includes(row.verdict)) report.complete = false;
+    if (['UNREADABLE', 'READER_DENIED', 'LINK_MISMATCH'].includes(row.verdict)) report.connectionsComplete = false;
     report.rows.push(row);
+    report.readiness = assessGroupReadiness(report);
+    report.complete = report.readiness.infrastructureComplete;
     await save(report);
   }
   return report;
@@ -65,7 +70,10 @@ export async function runCheck({ ids, env, principal, invoke, save }) {
 export function summaryLines(report) {
   return ['### PROD connection check', '', '| Service | Check | Result | Reason |', '|---|---|---|---|',
     ...report.rows.map(r => `| ${r.name} | ${r.method} | ${r.verdict} | ${String(r.reason ?? '').replace(/\|/g, '/')} |`), '',
-    report.complete ? 'All readable connections confirmed.' : 'Some connections need attention (see Result/Reason).',
+    report.connectionsComplete ? 'Base connection reads passed; this alone does not complete group setup.' : 'Some base connections need attention.',
+    '', '### PROD group readiness', '',
+    ...(report.readiness?.gaps ?? []).map(g => `- ${g.code}: ${g.detail}`),
+    report.complete ? 'Bounded infrastructure checks passed; full release/opening acceptance remains separate.' : 'PROD group setup is incomplete. Do not open groups or connect the live app yet.',
     'No routing, canister configuration, DEV connection or database changes were made.',
     'Routing replies are evidence for review, not permission to open a group.'];
 }
@@ -99,9 +107,16 @@ async function main() {
     domains: IDL.Vec(DomainCanister), target_alias: IDL.Text, min_cycles: IDL.Nat64, heap_bytes: IDL.Nat64 });
   const RoutingApproval = IDL.Record({ configuration_revision: IDL.Nat64, removal_checked_at_ms: IDL.Nat64,
     approved_configuration_sha256: IDL.Text, target_alias: IDL.Text, removal_wiring_group_ids: IDL.Vec(IDL.Text), evidence_sha256: IDL.Text });
+  const Placement = IDL.Record({ group_id: IDL.Text, deployment_id: IDL.Text, deployment_revision: IDL.Nat64,
+    host: IDL.Text, network_kind: IDL.Text, primary_subnet: IDL.Principal,
+    approved_subnets: IDL.Vec(IDL.Principal), additional_subnets_enabled: IDL.Bool,
+    domains: IDL.Vec(IDL.Record({ domain: IDL.Text, canister: IDL.Principal, subnet: IDL.Principal })) });
+  const RegistryPage = IDL.Record({ groups: IDL.Vec(ShardGroup), placements: IDL.Vec(Placement),
+    revision: IDL.Nat64, configuration_revision: IDL.Opt(IDL.Nat64), next_cursor: IDL.Opt(IDL.Text) });
   const signatures = {
     read_group_opening_configuration: variant => IDL.Func([], [variant ? Result(Pairs) : Pairs], []),
     list_groups: () => IDL.Func([], [Result(IDL.Vec(ShardGroup))], ['query']),
+    read_group_registry_page: () => IDL.Func([IDL.Text, IDL.Opt(IDL.Nat64), IDL.Opt(IDL.Text), IDL.Nat32], [Result(RegistryPage)], []),
     read_routing_approval: () => IDL.Func([IDL.Text], [Result(IDL.Opt(RoutingApproval))], []),
   };
 
@@ -127,8 +142,9 @@ async function main() {
       denied.stderr = `with message: '${String(value?.Err ?? 'denied').slice(0, 200)}'`;
       throw denied;
     },
-    save: report => writeFileSync(output, JSON.stringify(report, null, 2)),
+    save: report => writeFileSync(output, evidenceText(report)),
   });
+  writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-group-setup-proposal.json'), evidenceText(setupProposal(report.readiness)));
   const lines = summaryLines(report);
   // Printed to the log too, so the result is visible from the job screen.
   console.log(lines.join('\n'));
