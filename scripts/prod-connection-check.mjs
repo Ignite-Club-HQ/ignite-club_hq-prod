@@ -128,7 +128,7 @@ async function main() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(error => {
-    const reason = internalReason(error) || (/^(Connection check requires|Unsupported governor key type|PROD governor|PROD must not|Governor principal|Repository variable)/.test(String(error?.message)) ? String(error.message).slice(0, 200) : failureReason(error?.stderr ?? ''));
+    const reason = typeof error?.code === 'string' && error.path ? `${error.code} ${path.basename(error.path)}` : internalReason(error) || (/^(Connection check requires|Unsupported governor key type|PROD governor|PROD must not|Governor principal|Repository variable)/.test(String(error?.message)) ? String(error.message).slice(0, 200) : failureReason(error?.stderr ?? ''));
     console.error(`PROD connection check stopped before finishing: ${reason}. No configuration changes were attempted.`);
     process.exitCode = 1;
   });
