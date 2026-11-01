@@ -10,9 +10,17 @@ The existing Supabase push path and both delivery workflows are unchanged.
    branch **main**, mode **plan**; review differences, then **apply**. Allow differing
    files only after reviewing the listed files. This copies code, not data.
 2. In the live repository, save a new dedicated six-word Bitwarden passphrase
-   (at least 32 characters) as GitHub Actions secret **PROD_ICP_PUSH_WORKER_PASSPHRASE**.
-   Keep it in Bitwarden too. Never enter it into a workflow input or chat.
+   (at least 32 characters) as an Actions **environment secret in environment
+   `production`** (Settings → Environments → production → Environment secrets) named
+   **PROD_ICP_PUSH_WORKER_PASSPHRASE**. The live repository has only `production` and
+   `group-2-admin-controls`; there is no `prod` environment, so a secret saved under a
+   `prod` name would never be seen by the run. Keep it in Bitwarden too. Never enter it
+   into a workflow input or chat.
 3. Run **[PROD] Create notification signing key (delivery off)** on **prod**.
+   Open it directly at
+   `https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/workflows/prod-create-push-key.yml`
+   in a desktop browser — GitHub Mobile has no Run workflow control, and a workflow that
+   has never run sits at the bottom of the live repository's long Actions list.
    Confirmation: **CREATE PROD PUSH KEY**.
 4. From its Summary, save the encrypted block as GitHub Actions secret
    **PROD_ICP_PUSH_WORKER_SEED_ENC** and the public address as repository variable
