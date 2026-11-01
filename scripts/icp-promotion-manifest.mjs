@@ -54,6 +54,9 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-g2-create.mjs',
   'scripts/prod-g2-create.test.mjs',
   'scripts/prod-g2-idl.mjs',
+  'scripts/prod-g2-register-policy.mjs',
+  'scripts/prod-g2-register.mjs',
+  'scripts/prod-g2-register.test.mjs',
   'scripts/enlarge-photo-store-policy.mjs',
   'scripts/stage-group-wasm.mjs',
   'scripts/resolve-group-push-worker.sh',
@@ -66,6 +69,7 @@ export const ICP_SOURCE_FILES = [
   '.github/workflows/setup-prod-base-group.yml',
   '.github/workflows/plan-prod-second-group.yml',
   '.github/workflows/create-prod-second-group.yml',
+  '.github/workflows/register-prod-second-group.yml',
   '.github/workflows/prod-create-push-key.yml',
 ];
 
