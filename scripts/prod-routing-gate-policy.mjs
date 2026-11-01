@@ -178,7 +178,8 @@ export function reviewRoutingGate({ ids = PROD_CHECK_IDS, principal, pushWorker,
     add('IDENTITY_REGISTRY_NOT_BOUND', 'Account service is not pinned to this independent PROD registry/deployment.');
   if (one(identityConfig, 'bound_deletion_released') !== 'true')
     add('DELETION_RELEASE_UNVERIFIED', 'Bound-deletion protocol has not read back as released.');
-  const admissionServices = services.filter(s => envValue(s.environment, ADMISSION_FLAG) === '1');
+  const checksAdmission = s => ADMISSION_DOMAINS.includes(s.name) || s.name === 'media_blob_store';
+  const admissionServices = services.filter(s => checksAdmission(s) && envValue(s.environment, ADMISSION_FLAG) === '1');
   if (admissionServices.length) {
     if (one(identityConfig, 'account_admission_released') !== 'true')
       add('ADMISSION_RELEASE_UNVERIFIED', 'The account service has not released account admission; group settings alone cannot authorize membership reads.');
