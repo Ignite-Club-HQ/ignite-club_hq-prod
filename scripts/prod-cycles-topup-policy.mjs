@@ -202,10 +202,10 @@ export function planDeposits({ plan, liveBalances, accountBalance }) {
  */
 export async function runCyclesTopup({ plan, receipt, checkpoint, calls, nowNs }) {
   if (receipt.pending) throw new Error('Unresolved intent; reconcile without replay');
+  if (receipt.phase === 'fueled') throw new Error('Top-up already completed; this tool never replays a finished run');
   if (!['planned', 'topping', 'verifying'].includes(receipt.phase) ||
       receipt.planHash !== hashTopupPlan(receipt.plan))
     throw new Error('Reviewed top-up plan receipt required');
-  if (receipt.phase === 'fueled') throw new Error('Top-up already completed; this tool never replays a finished run');
 
   let current = { ...receipt, phase: 'topping', completed: receipt.completed ?? [], deposits: receipt.deposits ?? null };
   const save = async next => { current = next; await checkpoint(current); };

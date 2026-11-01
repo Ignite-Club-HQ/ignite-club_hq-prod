@@ -142,8 +142,8 @@ test('topup-closed requires the exact confirmation', () => {
 
 test('the reviewed hash binds the receipt and the stable plan fields', () => {
   const plan = plannedPlan();
+  // Only the volatile fields differ: observation time and live account balance.
   const current = planCyclesTopup({ ...plannedInput, checkedAt: '2026-11-02T01:00:00.000Z',
-    services: allServices({ base: String(T / 2n - 5n), g2: String(T - 3n) }),
     signingAccount: { balance: String(39n * T / 10n), balanceRead: 'readback' } });
   assert.doesNotThrow(() => assertReviewedTopupPlan(plan, plan.planHash, current));
   assert.throws(() => assertReviewedTopupPlan(plan, 'not-a-hash', current), /64 lowercase hex/);
