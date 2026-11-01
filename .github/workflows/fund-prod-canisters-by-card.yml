@@ -18,7 +18,7 @@ on:
         description: 'Unique payment ID (reconcile: the same ID from the stuck run)'
         required: true
       target_t:
-        description: 'Cycles to hold, in trillions (2–20). Provisioning 18 canisters needs about 20T.'
+        description: 'Cycles to hold, in trillions (2–22). Second group needs about 20.8T — use 21.'
         required: true
         default: '20'
       mode:
