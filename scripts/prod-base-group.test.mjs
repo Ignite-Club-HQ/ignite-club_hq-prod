@@ -65,6 +65,15 @@ const runFixture = overrides => {
 };
 test('both intents are durably recorded before calls and closed state read back', async () => {
   const f = runFixture();
+  f.args.registerGroup = async () => {
+    assert.equal(f.receipts.at(-1).pending, 'register_group');
+    f.calls.push('group'); return 1n;
+  };
+  f.args.registerPlacement = async () => {
+    assert.equal(f.receipts.at(-1).pending, 'register_group_placement');
+    assert.equal(f.receipts.at(-1).groupRevision, '1');
+    f.calls.push('placement'); return 2n;
+  };
   const r = await registerClosedBase(f.args);
   assert.deepEqual(f.calls, ['group', 'placement']);
   assert.deepEqual(f.receipts.map(r => r.pending), ['register_group', 'register_group_placement', 'readback', null]);
