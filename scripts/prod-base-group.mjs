@@ -56,9 +56,10 @@ export function githubJournal(env, fetcher = fetch) {
   };
   let stored;
   return {
-    async load() {
+    async load({ readOnly = false } = {}) {
       let ref = await api(`git/ref/heads/${RECEIPTS_BRANCH}`, 'GET', undefined, true);
       if (!ref) {
+        if (readOnly) return null;
         ref = await api('git/refs', 'POST', { ref: `refs/heads/${RECEIPTS_BRANCH}`, sha: env.GITHUB_SHA });
         if (ref.object?.sha !== env.GITHUB_SHA) throw new Error('Receipt branch acknowledgement mismatch');
       }
@@ -100,7 +101,7 @@ async function main() {
   stage = 'certified infrastructure readback';
   const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
   const contract = groupContract(IDL);
-  const router = Actor.createActor(action === 'plan' ? contract.reader : contract.closedRegistrar,
+  const router = Actor.createActor(action === 'register-closed' ? contract.closedRegistrar : contract.reader,
     { agent, canisterId: ids.shard_router });
   const readRegistry = async revision => unwrap(await router.read_group_registry_page('mainnet', revision === undefined ? [] : [revision], [], 64));
   const observations = [];
@@ -113,8 +114,18 @@ async function main() {
   const page = await readRegistry();
   stage = 'load durable receipt';
   const journal = githubJournal(env);
-  const receipt = await journal.load();
+  const receipt = await journal.load({ readOnly: action === 'inspect' });
   if (receipt) writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-base-receipt.json'), evidenceText(receipt));
+  if (action === 'inspect') {
+    const report = { receiptPhase: receipt?.phase ?? 'missing', pending: receipt?.pending ?? null,
+      savedSourceCommit: receipt?.plan?.sourceCommit ?? null, currentSourceCommit: env.GITHUB_SHA,
+      sourceChanged: receipt?.plan?.sourceCommit !== env.GITHUB_SHA,
+      registry: page, observations, registrationAuthorized: false };
+    writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-base-inspection.json'), evidenceText(report));
+    const message = `### PROD base read-only inspection\n\nReceipt: ${report.receiptPhase}; pending: ${report.pending ?? 'none'}.\nSource commit changed: ${report.sourceChanged ? 'yes' : 'no'}.\nRegistry groups: ${page.groups.length}; placements: ${page.placements.length}.\nNo journal or canister configuration writes. Review evidence before registration.\n`;
+    console.log(message); if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, message);
+    return;
+  }
   if (receipt?.pending || (receipt && receipt.phase !== 'planned')) throw new Error('Existing receipt requires read-only reconciliation; no replay');
   stage = 'build current closed plan';
   const plan = buildBasePlan({ ids, principal, sourceCommit: env.GITHUB_SHA, page, observations,

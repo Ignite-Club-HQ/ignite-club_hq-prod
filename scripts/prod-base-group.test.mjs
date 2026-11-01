@@ -47,6 +47,18 @@ test('closed registration requires exact owner confirmation', () => {
   assertBaseContext(ids, { ...env, CONFIRMATION: ` ${BASE_CONFIRMATION} ` }, principal, 'register-closed');
   assert.throws(() => assertBaseContext(ids, env, principal, 'open'), /Only plan/);
 });
+test('inspection requires PROD context but no registration confirmation', () => {
+  assertBaseContext(ids, env, principal, 'inspect');
+  assert.throws(() => assertBaseContext(ids, { ...env, GITHUB_REF: 'refs/heads/main' }, principal, 'inspect'), /prod branch/);
+});
+test('read-only journal inspection never creates a missing receipt branch', async () => {
+  const methods = [];
+  const journal = githubJournal({ ...env, GH_TOKEN: 'synthetic-test-token' }, async (_url, options) => {
+    methods.push(options.method); return { ok: false, status: 404 };
+  });
+  assert.equal(await journal.load({ readOnly: true }), null);
+  assert.deepEqual(methods, ['GET']);
+});
 test('changed module invalidates reviewed plan', () => {
   const p = buildBasePlan(input()), i = input(); i.observations[0].moduleHash = 'c'.repeat(64);
   assert.throws(() => assertReviewedPlan(p, hashPlan(p), buildBasePlan(i)), /changed/);

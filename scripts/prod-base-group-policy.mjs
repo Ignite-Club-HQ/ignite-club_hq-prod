@@ -14,7 +14,7 @@ export const canonical = value => {
 export const hashPlan = plan => createHash('sha256').update(canonical(plan)).digest('hex');
 export function assertBaseContext(ids, env, principal, action) {
   assertCheckContext(ids, env, principal);
-  if (!['plan', 'register-closed'].includes(action)) throw new Error('Only plan or register-closed supported');
+  if (!['plan', 'inspect', 'register-closed'].includes(action)) throw new Error('Only plan, inspect or register-closed supported');
   if (action === 'register-closed' && env.CONFIRMATION?.trim() !== BASE_CONFIRMATION)
     throw new Error(`Exact confirmation required: ${BASE_CONFIRMATION}`);
 }
