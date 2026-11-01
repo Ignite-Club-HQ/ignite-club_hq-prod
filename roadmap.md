@@ -2,7 +2,8 @@
 
 ## Current request — PROD group parity with DEV (1 Nov 2026)
 - [x] Compared DEV group architecture and PROD provisioning: DEV records base + g2; PROD has 18 independent base services but registration/approval and identity registry binding remain incomplete. Zero-link audit rows do not prove group readiness.
-- [ ] Prepare a coherent PROD-only group setup path matching DEV architecture, preserving independent IDs, keys and data; do not activate or publish from a connection audit.
+- [x] Prepared bounded consensus PROD registry readback, separate group-readiness assessment and non-executable coherent setup proposal; 33 tests pass. Live typed reader decoded an anonymous Authentication required refusal as expected; no governor session is available here.
+- [ ] Prepare executable PROD base/g2 setup after signed current inventories/module/settings evidence and exact supported bound-deletion lifecycle approval. Existing TEST tools hardcode DEV bindings and cannot safely be reused; no mutation runner or opening grant was introduced.
 - [ ] Execute signed PROD setup/readback only through owner-authorized GitHub runs; the governor key is held in GitHub, not this sandbox.
 
 ## Current request — read-only PROD connections/routing and DEV separation (31 Oct 2026)
