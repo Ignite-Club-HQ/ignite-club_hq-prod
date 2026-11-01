@@ -11,7 +11,7 @@ import { identityFromPem } from './prod-connection-check.mjs';
 import { evidenceText } from './prod-connection-check-policy.mjs';
 import { githubJournal } from './prod-base-group.mjs';
 import { groupContract } from './prod-group-contract.mjs';
-import { RECEIPT_PATH, hashPlan } from './prod-base-group-policy.mjs';
+import { hashPlan } from './prod-base-group-policy.mjs';
 import { G2_RECEIPT_PATH } from './prod-g2-create-policy.mjs';
 import { G2_REGISTRATION_RECEIPT_PATH } from './prod-g2-register-policy.mjs';
 import {
@@ -207,7 +207,7 @@ async function main() {
     if (await journal.load({ readOnly: true }))
       throw new Error('An account-service link receipt already exists; use reconcile-readback');
     const plan = buildIdentityLinkPlan(await input());
-    const planned = { version: 1, phase: 'planned', pending: null, planHash: planHash(plan), plan };
+    const planned = { version: 1, phase: 'planned', pending: null, planHash: hashPlan(plan), plan };
     await checkpoint(planned);
     await capture('plan');
     const message = `### PROD account-service link plan\n\nReviewed-plan hash: \`${planned.planHash}\`\n\nThree effects, each read back before the next: set \`${plan.environment.name}=${plan.environment.value}\` on ${plan.identityAccess}; bind the router's deletion authority to it; pin its trusted registry to ${plan.binding.registry} at revision ${plan.binding.registryRevision}.\nBoth groups stay CLOSED. No routing approval, opening, admission, rehearsal, group registration, funding, DEV or database change.\nPlan persisted; inspect before linking.\n`;
