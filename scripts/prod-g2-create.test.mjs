@@ -241,9 +241,9 @@ test('configuration resume skips completed operations and rejects receipt drift'
 });
 
 test('setter IDL subsets match the generated bindings', async (t) => {
-  const require = createRequire(import.meta.url);
   const bindingsRoot = new URL('../frontend/src/lab/bindings/', import.meta.url);
   if (!existsSync(bindingsRoot)) return t.skip('generated bindings only exist in the development layout');
+  const require = createRequire(new URL('../frontend/package.json', import.meta.url));
   const { IDL } = require('@icp-sdk/core/candid');
   const { Principal } = require('@icp-sdk/core/principal');
   const { pathToFileURL } = await import('node:url');

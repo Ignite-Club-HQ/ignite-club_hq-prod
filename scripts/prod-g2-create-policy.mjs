@@ -180,8 +180,10 @@ export function assertReviewedG2Plan(plan, rawExpectedHash, currentPlan) {
  */
 export async function runG2Creation({ plan, receipt, checkpoint, calls, nowNs }) {
   if (receipt.pending) throw new Error('Unresolved intent; reconcile without replay');
-  if (receipt.phase !== 'planned' || receipt.planHash !== hashPlan(plan))
+  const resumable = ['planned', 'creating', 'created', 'installed', 'configured', 'checked'];
+  if (!resumable.includes(receipt.phase) || receipt.planHash !== hashPlan(plan))
     throw new Error('Reviewed g2 plan receipt required');
+  if (receipt.phase === 'sized') throw new Error('Group already created; this tool never touches a completed group');
   const baseIds = new Set(Object.values(PROD_CHECK_IDS));
   const own = id => { if (baseIds.has(id)) throw new Error('Refusing existing PROD base canister'); };
   let current = { ...receipt, phase: 'creating', canisters: receipt.canisters ?? {},
