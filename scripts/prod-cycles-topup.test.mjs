@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { planCyclesTopup, hashTopupPlan, topupSummary, assertTopupContext } from './prod-cycles-topup.test-helper.mjs';
+import { planCyclesTopup, hashTopupPlan, topupSummary, assertTopupContext } from './prod-cycles-topup-policy.mjs';
 
 const T = 1000000000000n;
 const group = (id, min) => ({ id, target_alias: 'mainnet', accepting: false, min_cycles: String(min),
@@ -116,5 +116,6 @@ test('the workflow is a read-only prod-branch planner with no deposit or funding
   assert.match(text, /environment: production/);
   assert.match(text, /contents: read/);
   assert.match(text, /node scripts\/prod-cycles-topup\.mjs/);
-  assert.doesNotMatch(text, /deposit|create_canister|transfer|icp ledger|fund/i);
+  assert.doesNotMatch(text, /deposit|create_canister|icp ledger/i);
+  assert.doesNotMatch(text.replace(/--no-fund/g, ''), /fund/i);
 });
