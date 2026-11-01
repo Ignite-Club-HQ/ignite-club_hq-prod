@@ -29,10 +29,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // invoke(spec) returns the decoded reply. Configuration readers return the
 // [key, value] pairs (variant readers already unwrapped); router readers
 // return their raw variant for review.
-export async function runCheck({ ids, env, principal, invoke, save }) {
+export async function runCheck({ ids, env, principal, invoke, save, reviewedGroups = {}, inventoryEvidenceReason = '' }) {
   assertCheckContext(ids, env, principal);
   const report = { checkedAt: new Date().toISOString(), commit: env.GITHUB_SHA,
-    scope: 'PROD infrastructure readback only; no activation or business records', rows: [], complete: false, connectionsComplete: true };
+    scope: 'PROD infrastructure readback only; no activation or business records', rows: [], complete: false, connectionsComplete: true,
+    reviewedGroups: Object.keys(reviewedGroups).sort(), inventoryEvidenceReason };
   for (const call of checkCalls(ids)) {
     const row = { name: call.name, id: call.id, method: call.method, query: call.query };
     try {
@@ -78,7 +79,7 @@ export async function runCheck({ ids, env, principal, invoke, save }) {
     }
     if (['UNREADABLE', 'READER_DENIED', 'LINK_MISMATCH'].includes(row.verdict)) report.connectionsComplete = false;
     report.rows.push(row);
-    report.readiness = assessGroupReadiness(report);
+    report.readiness = assessGroupReadiness(report, reviewedGroups);
     report.complete = report.readiness.infrastructureComplete;
     await save(report);
   }
@@ -89,6 +90,8 @@ export function summaryLines(report) {
   return ['### PROD connection check', '', '| Service | Check | Result | Reason |', '|---|---|---|---|',
     ...report.rows.map(r => `| ${r.name} | ${r.method} | ${r.verdict} | ${String(r.reason ?? '').replace(/\|/g, '/')} |`), '',
     report.connectionsComplete ? 'Base connection reads passed; this alone does not complete group setup.' : 'Some base connections need attention.',
+    report.inventoryEvidenceReason ? `Independent inventory evidence unavailable: ${report.inventoryEvidenceReason}`
+      : `Independent inventory evidence: reviewed from its durable registration receipt for ${(report.reviewedGroups ?? []).join(', ') || 'no additional group'}.`,
     '', '### PROD group readiness', '',
     ...(report.readiness?.gaps ?? []).map(g => `- ${g.code}: ${g.detail}`),
     report.complete ? 'Bounded infrastructure checks passed; full release/opening acceptance remains separate.' : 'PROD group setup is incomplete. Do not open groups or connect the live app yet.',
@@ -117,6 +120,18 @@ async function main() {
   const principal = identity.getPrincipal().toText();
   console.log(`Signing as ${principal}`);
 
+  // The reviewed independent inventory comes from our acknowledged journal
+  // receipt; the router reply it checks can never vouch for itself.
+  let reviewedGroups = {}, inventoryEvidenceReason = '';
+  try {
+    const { githubJournal } = await import('./prod-base-group.mjs');
+    const receipt = await githubJournal(env, fetch, { path: G2_REGISTRATION_RECEIPT_PATH, label: 'g2 inventory evidence' })
+      .load({ readOnly: true });
+    reviewedGroups = { g2: reviewedG2Inventory(receipt) };
+  } catch (error) {
+    inventoryEvidenceReason = inventoryEvidenceFailureReason(error);
+  }
+
   const Pairs = IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text));
   const Result = ok => IDL.Variant({ Ok: ok, Err: IDL.Text });
   const DomainCanister = IDL.Record({ domain: IDL.Text, canister: IDL.Principal });
@@ -141,7 +156,7 @@ async function main() {
   const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
   const output = path.join(env.CHECK_REPORT_DIR, 'prod-connections.json');
   mkdirSync(env.CHECK_REPORT_DIR, { recursive: true });
-  const report = await runCheck({ ids, env, principal,
+  const report = await runCheck({ ids, env, principal, reviewedGroups, inventoryEvidenceReason,
     invoke: async spec => {
       const func = signatures[spec.method](spec.variant);
       const actor = Actor.createActor(() => IDL.Service({ [spec.method]: func }), { agent, canisterId: spec.canisterId });
