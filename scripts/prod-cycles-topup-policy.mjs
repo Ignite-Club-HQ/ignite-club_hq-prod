@@ -13,7 +13,13 @@ import { normalizeReviewedHash } from './prod-base-group-policy.mjs';
 import { CREATE_DEDUP_WINDOW_NS } from './prod-g2-create-policy.mjs';
 
 export const TOPUP_CONFIRMATION = 'TOP UP PROD CANISTERS';
-export const TOPUP_RECEIPT_PATH = 'prod-group-setup/cycles-topup.json';
+/** v2 receipt: the v1 file (`prod-group-setup/cycles-topup.json`) records the
+ * misdirected icrc1_transfer run of 1 Nov 2026 and is kept untouched as
+ * evidence; this tool never reads or rewrites it. */
+export const TOPUP_RECEIPT_PATH = 'prod-group-setup/cycles-topup-v2.json';
+/** Allowed burn between the pre- and post-deposit balance reads of one
+ * canister (idle group services burn well under 1B cycles per day). */
+export const LANDING_TOLERANCE = 1_000_000_000n;
 /** Conservative per-deposit ledger fee budget (actual cycles-ledger fee is 100M cycles). */
 export const DEPOSIT_FEE_BUDGET = 1_000_000_000n;
 export const DEPOSIT_DEDUP_WINDOW_NS = CREATE_DEDUP_WINDOW_NS;
@@ -58,6 +64,7 @@ export function planCyclesTopup({ page, services = [], signingAccount = {}, rese
   const gaps = [];
   let totalTopUp = 0n;
   let totalBalance = 0n;
+  let totalLedgerHeld = 0n;
   let needsFuel = 0;
   for (const group of groups) {
     const minimum = decimal(group.min_cycles);
@@ -80,7 +87,9 @@ export function planCyclesTopup({ page, services = [], signingAccount = {}, rese
       if (topUp !== '0') needsFuel += 1;
       totalTopUp += BigInt(topUp);
       totalBalance += BigInt(balance);
-      items.push({ group: group.id, name: item.name, id: item.id, balance, target, topUp, balanceRead: 'readback' });
+      const ledgerHeld = decimal(service.ledgerHeld) ?? null;
+      if (ledgerHeld) totalLedgerHeld += BigInt(ledgerHeld);
+      items.push({ group: group.id, name: item.name, id: item.id, balance, target, topUp, balanceRead: 'readback', ledgerHeld });
     }
   }
 
@@ -104,6 +113,9 @@ export function planCyclesTopup({ page, services = [], signingAccount = {}, rese
       needingFuel: needsFuel,
       totalBalance: totalBalance.toString(),
       totalTopUp: totalTopUp.toString(),
+      // Cycles on each canister's own cycles-ledger account: NOT fuel and not
+      // movable by this tool (only the canister itself can withdraw them).
+      totalLedgerHeld: totalLedgerHeld.toString(),
     },
     signingAccount: account,
     gaps,
@@ -134,6 +146,9 @@ export function topupSummary(plan) {
       : `The signing account is short by ${(-BigInt(account.remainingAfter)).toString()} cycles (${t((-BigInt(account.remainingAfter)).toString())}); more funding would be needed before any top-up.`);
   } else {
     lines.push('Signing account balance: unreadable — coverage of the plan is unknown, not assumed.');
+  }
+  if (BigInt(plan.totals.totalLedgerHeld ?? '0') > 0n) {
+    lines.push('', `Held on canister-owned ledger accounts (not usable fuel, untouched by this tool): ${plan.totals.totalLedgerHeld} cycles (${t(plan.totals.totalLedgerHeld)}).`);
   }
   if (plan.gaps.length) {
     lines.push('', '### Read gaps', ...plan.gaps.map(g => `- ${g.code}: ${g.detail}`));
@@ -223,25 +238,26 @@ export async function runCyclesTopup({ plan, receipt, checkpoint, calls, nowNs }
     await save({ ...current, deposits: planned.deposits, feeBudget: planned.feeBudget });
   }
 
+  // One deposit at a time: read the live balance, record a durable intent,
+  // deposit, then prove it landed BEFORE the next deposit. A deposit that does
+  // not raise the canister's own balance stops the run after one canister.
   for (const deposit of current.deposits) {
     const key = `${deposit.group}/${deposit.name}`;
     if (current.completed.some(c => `${c.group}/${c.name}` === key)) continue;
+    const before = BigInt(await calls.cyclesOf(deposit.id));
     const operation = nowNs().toString();
-    await save({ ...current, pending: { kind: 'deposit', service: key, operation } });
+    await save({ ...current, pending: { kind: 'deposit', service: key, operation, balanceBefore: before.toString() } });
     const result = await calls.deposit({ to: deposit.id, amount: BigInt(deposit.amount), createdAtNs: BigInt(operation) });
-    await save({ ...current, pending: null,
-      completed: [...current.completed, { ...deposit, blockIndex: result.blockIndex ?? null, duplicate: result.duplicate === true }] });
+    const after = BigInt(await calls.cyclesOf(deposit.id));
+    assertLanded(deposit, before, after);
+    await save({ ...current, pending: null, completed: [...current.completed, { ...deposit, balanceBefore: before.toString(),
+      balanceAfter: after.toString(), blockIndex: result.blockIndex ?? null, duplicate: result.duplicate === true }] });
   }
   await save({ ...current, phase: 'verifying' });
 
-  // Verify each deposit landed: balance >= binding-time balance + deposited
-  // amount. Balances drift down between planning and execution, so the stale
-  // plan target is not the bar; any canister still below target is reported.
   const stillBelow = [];
   for (const deposit of current.completed) {
-    const balance = await calls.cyclesOf(deposit.id);
-    if (balance < BigInt(deposit.balanceAtBinding) + BigInt(deposit.amount))
-      throw new Error(`${deposit.group}/${deposit.name} deposit did not land; stop without replay`);
+    const balance = BigInt(await calls.cyclesOf(deposit.id));
     const item = rows(plan.items).find(i => i.group === deposit.group && i.name === deposit.name);
     if (item && balance < BigInt(item.target))
       stillBelow.push({ service: `${deposit.group}/${deposit.name}`, balance: balance.toString(), target: item.target });
@@ -259,6 +275,11 @@ export async function runCyclesTopup({ plan, receipt, checkpoint, calls, nowNs }
  * adapter: the recorded dedup timestamp is reused, so a deposit that already
  * landed comes back as Duplicate and is recorded, never paid twice.
  */
+function assertLanded(deposit, before, after) {
+  if (after + LANDING_TOLERANCE < before + BigInt(deposit.amount))
+    throw new Error(`${deposit.group}/${deposit.name} deposit did not land; stop without replay`);
+}
+
 export async function resumeTopupIntent({ receipt, checkpoint, calls, nowNs }) {
   const pending = receipt.pending;
   if (!pending) return receipt;
@@ -268,9 +289,14 @@ export async function resumeTopupIntent({ receipt, checkpoint, calls, nowNs }) {
   const createdAtNs = BigInt(pending.operation ?? '0');
   if (nowNs() - createdAtNs > DEPOSIT_DEDUP_WINDOW_NS)
     throw new Error('Deposit intent older than the ledger dedup window; reconcile by hand');
+  const before = decimal(pending.balanceBefore);
+  if (before === undefined) throw new Error('Deposit intent inconsistent with recorded deposits; reconcile by hand');
   const result = await calls.deposit({ to: deposit.id, amount: BigInt(deposit.amount), createdAtNs });
+  const after = BigInt(await calls.cyclesOf(deposit.id));
+  assertLanded(deposit, BigInt(before), after);
   const next = { ...receipt, pending: null,
-    completed: [...(receipt.completed ?? []), { ...deposit, blockIndex: result.blockIndex ?? null, duplicate: result.duplicate === true }] };
+    completed: [...(receipt.completed ?? []), { ...deposit, balanceBefore: before, balanceAfter: after.toString(),
+      blockIndex: result.blockIndex ?? null, duplicate: result.duplicate === true }] };
   await checkpoint(next);
   return next;
 }
