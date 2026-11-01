@@ -1,9 +1,12 @@
-// Tests for the read-only PROD cycles top-up planner: exact arithmetic,
-// unreadable-balance handling, hash stability and workflow guards.
+// Tests for the PROD cycles top-up planner and its confirmation-gated
+// execution: exact arithmetic, unreadable-balance handling, hash stability,
+// checkpointed idempotent deposits and workflow guards.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { planCyclesTopup, hashTopupPlan, topupSummary, assertTopupContext } from './prod-cycles-topup-policy.mjs';
+import { planCyclesTopup, hashTopupPlan, topupSummary, assertTopupContext, assertReviewedTopupPlan,
+  planDeposits, runCyclesTopup, resumeTopupIntent, topupResultSummary,
+  TOPUP_CONFIRMATION, DEPOSIT_FEE_BUDGET } from './prod-cycles-topup-policy.mjs';
 import { PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 
 const T = 1000000000000n;
