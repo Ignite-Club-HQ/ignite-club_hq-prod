@@ -183,15 +183,16 @@ export function reviewRoutingGate({ ids = PROD_CHECK_IDS, principal, pushWorker,
   }
 
   const groupIds = groups.map(g => g.id).sort();
+  const configText = groups.length && placements.size === groups.length ? safeConfig(groups, placements) : '';
   if (!approval) add('ROUTING_APPROVAL_MISSING', 'No PROD routing approval recorded.');
   else if (approval.target_alias !== 'mainnet' || decimal(approval.configuration_revision) !== configurationRevision ||
       !isHex64(approval.approved_configuration_sha256) || !isHex64(approval.evidence_sha256) ||
       !decimal(approval.removal_checked_at_ms) || decimal(approval.removal_checked_at_ms) === '0' ||
+      approval.approved_configuration_sha256 !== sha256Hex(configText) ||
       JSON.stringify([...approval.removal_wiring_group_ids].sort()) !== JSON.stringify(groupIds))
-    add('ROUTING_APPROVAL_STALE', 'The recorded approval does not match configuration revision and the complete group inventory.');
+    add('ROUTING_APPROVAL_STALE', 'The recorded approval does not match configuration revision, the approved configuration digest or the complete group inventory.');
 
   function finish() {
-    const configText = groups.length && placements.size === groups.length ? safeConfig(groups, placements) : '';
     const evidence = { registryRevision: decimal(page?.revision), configurationRevision,
       groups: groups.map(g => ({ id: g.id, domains: rows(g.domains).map(d => ({ domain: d.domain, canisterId: d.canister })),
         photoStore: rows(g.photo_store)[0] ?? null,
