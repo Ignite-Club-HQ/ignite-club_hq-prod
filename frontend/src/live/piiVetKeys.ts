@@ -76,7 +76,7 @@ const clubMediaLockSupported = new Map<string, Promise<boolean>>();
 const clubNameKeyCache = new Map<string, Promise<VetKey>>();
 export const CLUB_NAME_SCHEME_PREFIX = 'vetkey-club-names-v1:';
 export function clubNamePiiId(club: string): string {
-  if (!club || club.length > 64 || /[\u001f/]/.test(club)) throw new Error('Invalid club name scope.');
+  if (!club || club.length > 64 || club.includes('\u001f') || club.includes('/')) throw new Error('Invalid club name scope.');
   return `clubnames:${club}`;
 }
 
@@ -469,7 +469,7 @@ export function vaultRoleScope(club: string, team: string | null | undefined, ro
 
 function validAudience(a: SharedAudience): boolean {
   return ['clubchildren', 'teamnames', 'vaultrole'].includes(a.kind) && !!a.scope && a.scope.length <= 512
-    && !!a.club && a.club.length <= 64 && !/[\u001f:\n]/.test(a.club) && !/\n/.test(a.scope);
+    && !!a.club && a.club.length <= 64 && !a.club.includes('\u001f') && !/[:\n]/.test(a.club) && !/\n/.test(a.scope);
 }
 
 export function sharedAudiencePiiId(a: SharedAudience): string {

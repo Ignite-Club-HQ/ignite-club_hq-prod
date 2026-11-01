@@ -44,6 +44,7 @@ export function claimClubDomainId(group: string): string | null {
   return spec?.canisters.find((c) => c.key === "club_domain")?.canisterId ?? null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Candid IDL factory
 const idl = ({ IDL }: { IDL: any }) => IDL.Service({
   redeem_account_claim: IDL.Func([IDL.Text], [IDL.Variant({ Ok: IDL.Record({ club_id: IDL.Text }), Err: IDL.Text })], []),
 });
