@@ -68,12 +68,13 @@ const KNOWN_FAILURES = [
 ];
 
 /**
- * A known refusal is quoted verbatim; anything else is replaced by a fixed
- * sentence so a raw provider or transport message (which can echo an argument)
- * never reaches the workflow log or the artifact.
+ * A known refusal is quoted; anything else is replaced by a fixed sentence. A
+ * provider or transport error can echo an argument, so principal-shaped tokens
+ * are redacted from every reason before it reaches the workflow log or artifact.
  */
 export function identityLinkFailureReason(text) {
-  const message = String(text ?? '').slice(0, 240).replace(/[\r\n]+/g, ' ');
+  const message = String(text ?? '').slice(0, 240).replace(/[\r\n]+/g, ' ')
+    .replace(/\b[a-z0-9]{5}(-[a-z0-9]{5})+\b/g, '[principal]');
   return KNOWN_FAILURES.some(known => message.includes(known)) ? message :
     'Account-service link stopped before completing; review the exact workflow log and receipt before retrying';
 }
