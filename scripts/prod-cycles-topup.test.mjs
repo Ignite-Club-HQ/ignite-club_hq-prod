@@ -159,8 +159,9 @@ test('the reviewed hash binds the receipt and the stable plan fields', () => {
   // A different target (reserve) or inventory still forces a re-plan.
   const retargeted = planCyclesTopup({ ...plannedInput, reserveCycles: '1' });
   assert.throws(() => assertReviewedTopupPlan(plan, plan.planHash, retargeted), /inventory, targets or amounts changed; re-plan/);
-  const missing = planCyclesTopup({ ...plannedInput, services: allServices({ base: String(T / 2n), g2: String(T) }).slice(1) });
-  assert.throws(() => assertReviewedTopupPlan(plan, plan.planHash, missing), /inventory, targets or amounts changed; re-plan/);
+  const otherPage = { ...page, groups: [group('base', 2n * T), group('g2', T)] };
+  const reinventory = planCyclesTopup({ ...plannedInput, page: otherPage });
+  assert.throws(() => assertReviewedTopupPlan(plan, plan.planHash, reinventory), /inventory, targets or amounts changed; re-plan/);
 });
 
 test('deposits are capped at reviewed amounts and never blind', () => {
