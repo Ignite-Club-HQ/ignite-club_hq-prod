@@ -164,7 +164,7 @@ test('creation runs create, install, configure, health and photo sizing, closed 
   assert.equal(result.registrationAuthorized, false);
   assert.equal(state.created.size, 13);
   assert.equal(state.installed.size, 13);
-  assert.equal(state.configured.length, 34);
+  assert.equal(state.configured.length, CONFIGURATION_RECIPE.length);
   assert.equal(state.configured[0], 'media_blob_store.set_club_domain_canister');
   assert.equal(state.stable, true);
   assert.equal(state.capacity, G2_PHOTO_STORE_BYTES);
