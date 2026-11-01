@@ -61,3 +61,22 @@ test('workflow is manual, read-only repository access with isolated key cleanup'
   assert.match(w, /environment: production/);
   assert.match(w, /@icp-sdk\/icp-cli@1\.7\.0/);
 });
+test('failure reasons keep the canister refusal but never paths, keys or encoded blobs', async () => {
+  const { failureReason, hexReply } = await import('./prod-connection-check-policy.mjs');
+  const trap = "Error: call to 'x' on tbeh7-5qaaa-aaaai-ayenq-cai was rejected: Error from Canister: Canister called `ic0.trap` with message: 'Governor required'.\nStack backtrace:\n 0: /home/runner/secret";
+  assert.equal(failureReason(trap), 'Canister refused: Governor required');
+  assert.equal(failureReason('-----BEGIN EC PRIVATE KEY-----\nabc'), 'Tool failed (details withheld)');
+  const other = failureReason('Error: failed to load identity at /home/runner/work/_temp/prod-check-identity/key.pem ' + 'A'.repeat(60));
+  assert.doesNotMatch(other, /runner|AAAAAAAAAA/);
+  assert.equal(failureReason(undefined), 'Tool failed (no details)');
+  assert.equal(hexReply('A newer version is available\n4449444c00'), '4449444c00');
+  assert.throws(() => hexReply('not hex'), /Unexpected/);
+});
+
+test('denied router readers report the refusal text', async () => {
+  const report = await runCheck({ ids: PROD_CHECK_IDS, env, principal,
+    invoke: args => args[3] === 'read_group_opening_configuration' ? '' : '(variant { Err = "Forbidden" })',
+    decode: () => { const e = new Error('x'); e.stderr = "with message: 'Governor required'"; throw e; }, save: () => {} });
+  assert.equal(report.rows.at(-1).reason, 'Canister refused: Forbidden');
+  assert.equal(report.rows[0].reason, 'Canister refused: Governor required');
+});
