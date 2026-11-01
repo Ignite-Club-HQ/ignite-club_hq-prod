@@ -52,7 +52,7 @@ fuel alone does not close it.
 
 1. Run `[PROD] Plan cycles top-up (read-only)` on branch `prod` and note the
    plan hash in the Summary. The plan is also saved as a durable receipt at
-   `prod-group-setup/cycles-topup.json` in the live repository.
+   `prod-group-setup/cycles-topup-v2.json` in the live repository.
 2. Run `[PROD] Execute cycles top-up (closed)` on branch `prod` with that
    plan hash and confirmation `TOP UP PROD CANISTERS`.
 
@@ -71,10 +71,23 @@ Execution properties:
   timestamp, so a deposit that already landed comes back as a ledger
   Duplicate and is recorded — never paid twice. An intent older than the
   ledger's 24-hour dedup window stops for manual reconciliation.
-- After the last deposit, every fueled canister is read back: the run fails
-  closed if a deposit did not land, and reports any canister still below its
-  registered minimum (balances drift down during the run; re-plan for the
-  remainder).
+- Each deposit is the cycles ledger's `withdraw` call, which puts cycles into
+  the canister's own cycle balance. The canister is read immediately before
+  and after; if its balance did not rise by the amount (minus at most 1B
+  cycles of normal burn) the run stops after that ONE canister. A final
+  pass reports any canister still below its registered minimum.
 - The run makes no registration, opening, configuration, funding-order, DEV
   or database change. Groups stay CLOSED; routing approval and admission
   remain separate reviewed steps.
+
+## Incident 1 Nov 2026: misdirected first run
+
+The first execution used `icrc1_transfer` to each canister principal. That
+moved 6.948T cycles (plus 26 x 0.1B fees) from the signing account into 26
+cycles-ledger accounts owned by the canisters, but did not raise any
+canister's fuel; verification then stopped the run. The cycles are not lost
+but are only movable by each canister itself calling the ledger's `withdraw`,
+which no group service can do today. Its receipt
+(`prod-group-setup/cycles-topup.json`) is kept untouched as evidence. The
+planner now reports these as "held on canister-owned ledger accounts", never
+as fuel. Reclaiming them needs a separately approved canister upgrade.

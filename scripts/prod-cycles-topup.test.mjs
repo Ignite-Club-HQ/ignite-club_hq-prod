@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { planCyclesTopup, hashTopupPlan, topupSummary, assertTopupContext, assertReviewedTopupPlan,
   planDeposits, runCyclesTopup, resumeTopupIntent, topupResultSummary,
-  TOPUP_CONFIRMATION, DEPOSIT_FEE_BUDGET } from './prod-cycles-topup-policy.mjs';
+  TOPUP_CONFIRMATION, DEPOSIT_FEE_BUDGET, TOPUP_RECEIPT_PATH, LANDING_TOLERANCE } from './prod-cycles-topup-policy.mjs';
 import { PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 
 const T = 1000000000000n;
@@ -213,9 +213,12 @@ test('a duplicate deposit on resume is recorded, never paid twice', async () => 
   const plan = plannedPlan();
   const deposits = [{ group: 'base', name: 'club_domain', id: 'base-club_domain', amount: String(T / 2n), balanceAtBinding: String(T / 2n) }];
   const receipt = { ...plannedReceipt(plan), phase: 'topping', deposits,
-    pending: { kind: 'deposit', service: 'base/club_domain', operation: '1000000000000000000' } };
+    pending: { kind: 'deposit', service: 'base/club_domain', operation: '1000000000000000000', balanceBefore: String(T / 2n) } };
   let depositCalls = 0;
-  const calls = { deposit: async ({ createdAtNs }) => { depositCalls += 1; assert.equal(createdAtNs, 1_000_000_000_000_000_000n); return { duplicate: true, blockIndex: '7' }; } };
+  const calls = {
+    cyclesOf: async () => T, // the earlier, interrupted deposit already landed
+    deposit: async ({ createdAtNs }) => { depositCalls += 1; assert.equal(createdAtNs, 1_000_000_000_000_000_000n); return { duplicate: true, blockIndex: '7' }; },
+  };
   const next = await resumeTopupIntent({ receipt, checkpoint: async () => {}, calls, nowNs: () => 1_000_000_000_000_000_000n + 60_000_000_000n });
   assert.equal(depositCalls, 1);
   assert.equal(next.pending, null);
@@ -232,13 +235,51 @@ test('execution refuses a finished or unverified run and a deposit that did not 
   await assert.rejects(() => runCyclesTopup({ plan, receipt: { ...plannedReceipt(plan), planHash: '0'.repeat(64) },
     checkpoint: async () => {}, calls: {}, nowNs: () => 0n }), /Reviewed top-up plan receipt required/);
   const balances = new Map(plan.items.map(i => [i.id, BigInt(i.target) - BigInt(i.topUp)]));
+  let depositCalls = 0;
   const calls = {
     cyclesOf: async id => balances.get(id),
     accountBalance: async () => 4n * T,
-    deposit: async () => ({ blockIndex: '1' }), // never credits the balance
+    // Like the 1 Nov icrc1_transfer: the ledger accepts it, the canister's own balance never rises.
+    deposit: async () => { depositCalls += 1; return { blockIndex: '1' }; },
   };
   await assert.rejects(() => runCyclesTopup({ plan, receipt: plannedReceipt(plan),
-    checkpoint: async () => {}, calls, nowNs: () => 1_000_000_000_000_000_000n }), /deposit did not land; stop without replay/);
+    checkpoint: async () => {}, calls, nowNs: () => 1_000_000_000_000_000_000n }), /base\/club_domain deposit did not land; stop without replay/);
+  // Verified per deposit: the run stops after the FIRST canister, never sends the rest.
+  assert.equal(depositCalls, 1);
+});
+
+test('normal burn between reads is tolerated, a short credit is not', async () => {
+  const plan = plannedPlan();
+  const make = credit => {
+    const balances = new Map(plan.items.map(i => [i.id, BigInt(i.target) - BigInt(i.topUp)]));
+    return { cyclesOf: async id => balances.get(id), accountBalance: async () => 4n * T,
+      deposit: async ({ to, amount }) => { balances.set(to, balances.get(to) + credit(amount)); return { blockIndex: '3' }; } };
+  };
+  const ok = await runCyclesTopup({ plan, receipt: plannedReceipt(plan), checkpoint: async () => {},
+    calls: make(a => a - LANDING_TOLERANCE / 2n), nowNs: () => 1_000_000_000_000_000_000n });
+  assert.equal(ok.deposited, 3);
+  await assert.rejects(() => runCyclesTopup({ plan, receipt: plannedReceipt(plan), checkpoint: async () => {},
+    calls: make(a => a / 2n), nowNs: () => 1_000_000_000_000_000_000n }), /deposit did not land/);
+});
+
+test('top-ups use the ledger withdraw call, never icrc1_transfer, and a fresh receipt', () => {
+  const runner = readFileSync(new URL('./prod-cycles-topup.mjs', import.meta.url), 'utf8');
+  const idl = readFileSync(new URL('./prod-g2-idl.mjs', import.meta.url), 'utf8');
+  assert.match(runner, /ledger\.withdraw\(\{ amount, from_subaccount: \[\], to: pid\(to\), created_at_time: \[createdAtNs\] \}\)/);
+  assert.doesNotMatch(runner.replace(/\/\/.*$/gm, ''), /icrc1_transfer|ledger\.deposit/);
+  const topup = idl.slice(idl.indexOf('export function topupService'), idl.indexOf('export function managementService'));
+  assert.match(topup, /withdraw: IDL\.Func/);
+  assert.doesNotMatch(topup, /icrc1_transfer:/);
+  // The misdirected v1 receipt stays untouched as evidence.
+  assert.equal(TOPUP_RECEIPT_PATH, 'prod-group-setup/cycles-topup-v2.json');
+});
+
+test('cycles held on canister-owned ledger accounts are reported, never counted as fuel', () => {
+  const services = allServices({ base: String(T / 2n), g2: String(T) }).map(s => ({ ...s, ledgerHeld: s.group === 'base' ? String(T / 2n) : '0' }));
+  const plan = planCyclesTopup({ ...plannedInput, services });
+  assert.equal(plan.totals.totalLedgerHeld, String(3n * (T / 2n)));
+  assert.equal(plan.totals.totalTopUp, String(3n * (T / 2n))); // still needs real fuel
+  assert.match(topupSummary(plan), /not usable fuel/);
 });
 
 test('the result summary is honest about scope and drift', async () => {
