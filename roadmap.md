@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — PROD group parity with DEV (1 Nov 2026)
+- [x] Investigated owner's failed base registration with receipt still planned/pending null; added credential-safe stage/error reports and early receipt artifacts without weakening hash or no-replay guards. Exact failure remains awaiting signed run diagnostics; no live mutations here.
 - [x] Compared DEV group architecture and PROD provisioning: DEV records base + g2; PROD has 18 independent base services but registration/approval and identity registry binding remain incomplete. Zero-link audit rows do not prove group readiness.
 - [x] Prepared bounded consensus PROD registry readback, separate group-readiness assessment and non-executable coherent setup proposal; 33 tests pass. Live typed reader decoded an anonymous Authentication required refusal as expected; no governor session is available here.
 - [x] Prepared standalone PROD base plan/closed-registration workflow: certified 18-service modules/controllers/subnets, exact reviewed hash, revision-CAS calls, remote intent acknowledgements/readback and no replay. Verified real PROD registry empty at revision 0 and certified whole inventory with an unrelated read-only identity; 48 tests pass. No live writes or governor impersonation.
