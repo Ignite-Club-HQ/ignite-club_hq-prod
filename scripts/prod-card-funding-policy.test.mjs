@@ -61,3 +61,11 @@ test('provisioning floor matches 18 canisters at 1T fuel plus creation fees', ()
   assert.equal(PROVISION_MINIMUM_CYCLES, 19_800_000_000_000n);
   assert.equal(PROD_CARD_GATEWAY, '2bwus-iiaaa-aaaac-bee3a-cai');
 });
+
+test('fuel target allows 21T for the second group but stays capped at 22T', () => {
+  const ok = prodCardPlan({ paymentId: 'prod-fuel-20261101-01', principal: G, expectedPrincipal: G,
+    confirm: 'CREATE CARD LINK', balance: '10361000000000', targetT: '21' });
+  assert.equal(ok.targetCycles, '21000000000000');
+  assert.throws(() => prodCardPlan({ paymentId: 'prod-fuel-20261101-01', principal: G, expectedPrincipal: G,
+    confirm: 'CREATE CARD LINK', balance: '0', targetT: '23' }), /2–22T/);
+});
