@@ -91,14 +91,15 @@ export function buildIdentityLinkPlan({ ids, env, principal, baseReceipt, g2Rece
   for (const [id, group] of byId) {
     if (group.accepting !== false) throw new Error(`${id} group must stay CLOSED before linking the account service`);
     const placement = placements.get(id);
-    if (canonical(immutableGroup(group)) !== canonical(immutableGroup(reviewed[id].group)) ||
-        canonical(immutablePlacement(placement)) !== canonical(immutablePlacement(reviewed[id].placement)))
-      throw new Error(`${id} group inventory differs from its reviewed receipt`);
+    if (!placement) throw new Error(`${id} group has no reviewed placement`);
     if (placement.deployment_id !== 'prod' || placement.host !== LINK_HOST ||
         placement.network_kind !== LINK_NETWORK_KIND || placement.additional_subnets_enabled)
       throw new Error(`${id} placement must be the reviewed public-mainnet PROD deployment`);
     if (placement.approved_subnets?.length !== 1 || placement.approved_subnets[0] !== placement.primary_subnet)
       throw new Error(`${id} placement must have exactly one approved subnet`);
+    if (canonical(immutableGroup(group)) !== canonical(immutableGroup(reviewed[id].group)) ||
+        canonical(immutablePlacement(placement)) !== canonical(immutablePlacement(reviewed[id].placement)))
+      throw new Error(`${id} group inventory differs from its reviewed receipt`);
   }
   const targetAliases = new Set(page.groups.map(g => g.target_alias));
   if (targetAliases.size !== 1) throw new Error('Groups must share one target alias');

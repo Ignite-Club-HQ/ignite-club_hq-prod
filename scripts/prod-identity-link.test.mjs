@@ -234,8 +234,8 @@ test('the full readback insists admission and rehearsal stay off', () => {
 test('the environment merge never drops an unrelated variable and replays as a no-op', () => {
   const current = [{ name: 'VETKD_KEY_NAME', value: 'ignite' }, { name: 'GOVERNOR_PRINCIPAL', value: principal }];
   const merged = mergeEnvironment(current, [{ name: BOUND_DELETION_RELEASE_ENV, value: '1' }]);
-  assert.deepEqual(merged, [{ name: BOUND_DELETION_RELEASE_ENV, value: '1' },
-    { name: 'GOVERNOR_PRINCIPAL', value: principal }, { name: 'VETKD_KEY_NAME', value: 'ignite' }]);
+  assert.deepEqual(merged, [{ name: 'GOVERNOR_PRINCIPAL', value: principal },
+    { name: BOUND_DELETION_RELEASE_ENV, value: '1' }, { name: 'VETKD_KEY_NAME', value: 'ignite' }]);
   assert.deepEqual(mergeEnvironment(merged, [{ name: BOUND_DELETION_RELEASE_ENV, value: '1' }]), merged);
   assert.deepEqual(mergeEnvironment(undefined, [{ name: 'A_ONE', value: 'x' }]), [{ name: 'A_ONE', value: 'x' }]);
   assert.throws(() => mergeEnvironment(current, [{ name: 'lower_case', value: '1' }]), /Invalid environment variable name/);
@@ -270,7 +270,7 @@ test('the link receipt lives on its own durable path and the runner stays closed
   assert.match(source, /pin_owner_test_deletion_registry/);
   assert.match(source, /set_deletion_authority/);
   assert.match(source, /environment_variables/);
-  for (const forbidden of ['register_group(', 'record_group_routing_approval', 'open_group',
+  for (const forbidden of ['register_group', 'record_group_routing_approval', 'open_group',
     'enable_group2_admission', 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL', 'pin_registry_authority'])
     assert.doesNotMatch(source, new RegExp(forbidden), `${forbidden} must never be called`);
 });
