@@ -262,10 +262,11 @@ test('setter IDL subsets match the generated bindings', async (t) => {
       // Encode the same arguments through both IDLs; encodings must be identical.
       const args = subsetMethod[1].argTypes.map(t => {
         if (t === IDL.Principal) return Principal.fromText(GOVERNOR);
-        if (t instanceof IDL.Vec) return [Principal.fromText(GOVERNOR)];
+        if (t?.constructor?.name === 'VecClass') return [Principal.fromText(GOVERNOR)];
         if (t === IDL.Nat64) return 5n;
         return undefined;
       }).filter(a => a !== undefined);
+      assert.equal(args.length, realMethod[1].argTypes.length, `${service}.${method} argument count drift`);
       const viaSubset = IDL.encode(subsetMethod[1].argTypes, args);
       const viaReal = IDL.encode(realMethod[1].argTypes, args);
       assert.deepEqual(Buffer.from(viaSubset), Buffer.from(viaReal), `${service}.${method} argument encoding drift`);
