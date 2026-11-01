@@ -29,7 +29,7 @@ const KNOWN_FAILURES = [
   `Exact confirmation required: ${G2_CREATE_CONFIRMATION}`,
   'Reviewed plan hash required (64 lowercase hex characters)',
   'Reviewed plan hash does not match the saved g2 receipt',
-  'Live inventory, modules, controller, subnet, worker or balance changed; re-plan',
+  'Live inventory, modules, controller, subnet, worker or source changed; re-plan',
   'Confirmed closed base receipt required',
   'Complete base-only registry required; existing or unknown g2 needs separate review',
   'Live closed base configuration differs from reviewed receipt',
