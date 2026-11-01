@@ -161,3 +161,46 @@ test('GitHub checkpoint verifies acknowledged commit not branch and preserves ex
   assert.equal(calls.at(-1).url.endsWith(`?ref=${commit}`), true);
   assert.equal(calls.some(c => c.method === 'PUT'), true);
 });
+// Regression: decoded router replies hold Principal objects whose toJSON runs
+// before a replacer; the live readback must still compare equal to the plan.
+const fakePrincipal = text => ({ _isPrincipal: true, toText: () => text, toJSON: () => ({ __principal__: text }) });
+const decodedPage = (plan, revision) => ({ revision: BigInt(revision), configuration_revision: [BigInt(revision)], next_cursor: [],
+  groups: [{ ...plan.group, domains: plan.group.domains.map(d => ({ ...d, canister: fakePrincipal(d.canister) })),
+    photo_store: plan.group.photo_store.map(fakePrincipal), min_cycles: BigInt(plan.group.min_cycles),
+    heap_budget_bytes: BigInt(plan.group.heap_budget_bytes), heap_bytes: 0n, cycles: 0n, observed_at_ns: 0n }],
+  placements: [{ ...plan.placement, deployment_revision: 1n, primary_subnet: fakePrincipal(plan.placement.primary_subnet),
+    approved_subnets: plan.placement.approved_subnets.map(fakePrincipal),
+    domains: plan.placement.domains.map(d => ({ ...d, canister: fakePrincipal(d.canister), subnet: fakePrincipal(d.subnet) })) }] });
+const { reconcileClosedReadback, assertClosedReadback, READBACK_CONFIRMATION } = await import('./prod-base-group-policy.mjs');
+
+test('decoded principals and Nat64 values read back equal to the reviewed plan', () => {
+  const plan = buildBasePlan(input());
+  assert.doesNotThrow(() => assertClosedReadback(decodedPage(plan, 2), plan, 2n));
+  const open = decodedPage(plan, 2); open.groups[0].accepting = true;
+  assert.throws(() => assertClosedReadback(open, plan, 2n), /readback mismatch/);
+});
+test('reconcile-readback finalizes only a pending readback and never registers', async () => {
+  const plan = buildBasePlan(input()), planHash = hashPlan(plan);
+  const receipt = { version: 1, phase: 'planned', pending: 'readback', planHash, plan, groupRevision: '1', placementRevision: '2' };
+  const saved = [];
+  const result = await reconcileClosedReadback({ receipt, expectedHash: `${planHash}\n`, readRegistry: async r => decodedPage(plan, r),
+    checkpoint: async r => saved.push(r) });
+  assert.equal(result.registeredClosed, true); assert.equal(result.openingAuthorized, false);
+  assert.equal(saved.length, 1); assert.equal(saved[0].phase, 'registered-closed'); assert.equal(saved[0].pending, null);
+});
+test('reconcile-readback refuses other pending intents, wrong hash, revision or mismatch without writing', async () => {
+  const plan = buildBasePlan(input()), planHash = hashPlan(plan);
+  const ok = { version: 1, phase: 'planned', pending: 'readback', planHash, plan, groupRevision: '1', placementRevision: '2' };
+  const saved = [];
+  const run = (receipt, hash = planHash, page = r => decodedPage(plan, r)) =>
+    reconcileClosedReadback({ receipt, expectedHash: hash, readRegistry: async r => page(r), checkpoint: async r => saved.push(r) });
+  await assert.rejects(run({ ...ok, pending: 'register_group_placement' }), /Pending readback receipt/);
+  await assert.rejects(run(ok, 'f'.repeat(64)), /Pending readback receipt/);
+  await assert.rejects(run({ ...ok, placementRevision: '3' }), /Pending readback receipt/);
+  await assert.rejects(run(ok, planHash, r => ({ ...decodedPage(plan, r), placements: [] })), /readback mismatch/);
+  assert.equal(saved.length, 0);
+});
+test('reconcile-readback needs its own exact confirmation', () => {
+  assert.throws(() => assertBaseContext(ids, { ...env, CONFIRMATION: BASE_CONFIRMATION }, principal, 'reconcile-readback'), /CONFIRM PROD BASE READBACK/);
+  assert.doesNotThrow(() => assertBaseContext(ids, { ...env, CONFIRMATION: ` ${READBACK_CONFIRMATION}\n` }, principal, 'reconcile-readback'));
+});
