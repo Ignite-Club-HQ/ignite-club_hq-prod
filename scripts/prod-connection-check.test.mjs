@@ -145,3 +145,52 @@ test('governor PEM loads as the matching agent identity', async (t) => {
   assert.equal(identityFromPem(ed, lib), 'E');
   assert.deepEqual(seen, [['secp', 32], ['ed', 32]]);
 });
+
+test('a reviewed independent inventory clears the unreviewed-group flag; without it the flag stays', async () => {
+  const { EXPECTED_LINKS } = await import('./prod-connection-check-policy.mjs');
+  const { GROUP_DOMAINS } = await import('./prod-group-readiness.mjs');
+  const nameOf = id => Object.keys(PROD_CHECK_IDS).find(n => PROD_CHECK_IDS[n] === id);
+  const g2Domains = [...GROUP_DOMAINS.map((n, i) => ({ domain: n, canister: `g2${i}-qaaaa-aaaai-ay${i}a-cai` })),
+    { domain: 'secret_workload_identity', canister: PROD_CHECK_IDS.secret_workload_identity }];
+  const photo = 'g2photo-qaaaa-aaaai-ay9a-cai';
+  const group = (id, domains, photoStore) => ({ id, target_alias: 'mainnet', accepting: false, max_clubs: 100,
+    assigned_clubs: 0, min_cycles: 1n, heap_budget_bytes: 10n, heap_bytes: 1n, cycles: 10n, observed_at_ns: 1n,
+    domains, photo_store: [photoStore] });
+  const page = { groups: [
+      group('base', [...GROUP_DOMAINS.map(n => ({ domain: n, canister: PROD_CHECK_IDS[n] })),
+        { domain: 'secret_workload_identity', canister: PROD_CHECK_IDS.secret_workload_identity }], PROD_CHECK_IDS.media_blob_store),
+      group('g2', g2Domains, photo)],
+    placements: [], revision: 9n, configuration_revision: [7n], next_cursor: [] };
+  const invoke = spec => {
+    if (spec.method === 'read_group_registry_page') return { Ok: page };
+    if (spec.method === 'read_routing_approval' || spec.method === 'list_groups') return { Ok: [] };
+    return (EXPECTED_LINKS[nameOf(spec.canisterId)] || []).map(k => [k, PROD_CHECK_IDS[k]]);
+  };
+  const without = await runCheck({ ids: PROD_CHECK_IDS, env, principal, save: () => {}, invoke });
+  assert.equal(without.readiness.gaps.some(g => g.code === 'UNREVIEWED_GROUP_INVENTORY' && g.detail.includes('g2')), true);
+  const withReview = await runCheck({ ids: PROD_CHECK_IDS, env, principal, save: () => {}, invoke,
+    reviewedGroups: { g2: { domains: Object.fromEntries(g2Domains.map(d => [d.domain, d.canister])), photoStore: photo } } });
+  assert.equal(withReview.readiness.gaps.some(g => g.code === 'UNREVIEWED_GROUP_INVENTORY'), false);
+  assert.equal(withReview.inventoryEvidenceReason, '');
+  assert.deepEqual(withReview.reviewedGroups, ['g2']);
+});
+
+test('missing inventory evidence is reported to the operator, never silently ignored', async () => {
+  const { summaryLines } = await import('./prod-connection-check.mjs');
+  const report = await runCheck({ ids: PROD_CHECK_IDS, env, principal, save: () => {}, invoke: () => ({ Ok: [] }),
+    inventoryEvidenceReason: 'Acknowledged closed g2 registration receipt required' });
+  assert.match(summaryLines(report).join('\n'),
+    /Independent inventory evidence unavailable: Acknowledged closed g2 registration receipt required/);
+  assert.deepEqual(report.reviewedGroups, []);
+});
+
+test('inventory evidence failures stay bounded and secret-free', async () => {
+  const { inventoryEvidenceFailureReason } = await import('./prod-connection-check.mjs');
+  assert.equal(inventoryEvidenceFailureReason(new Error('Live repository journal authorization required')),
+    'Live repository journal authorization required');
+  assert.equal(inventoryEvidenceFailureReason(new Error('GitHub journal GET failed (404); stop without replay')),
+    'GitHub journal GET failed (404); stop without replay');
+  const leaky = inventoryEvidenceFailureReason(new Error('HTTP 500 at /home/runner/work/_temp/prod-check-identity/key.pem ' + 'A'.repeat(60)));
+  assert.equal(leaky, 'Inventory evidence unavailable; independent review outstanding');
+  assert.doesNotMatch(leaky, /runner|AAAAAAAAAA/);
+});

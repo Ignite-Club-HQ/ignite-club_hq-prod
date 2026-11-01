@@ -10,7 +10,7 @@ import { G2_SERVICES, CONFIGURATION_RECIPE, G2_PHOTO_STORE_BYTES } from './prod-
 import {
   assertG2RegistrationContext, buildG2RegistrationPlan, assertReviewedG2RegistrationPlan,
   registerClosedG2, assertClosedG2Readback, reconcileClosedG2Readback,
-  G2_REGISTER_CONFIRMATION, G2_READBACK_CONFIRMATION,
+  G2_REGISTER_CONFIRMATION, G2_READBACK_CONFIRMATION, reviewedG2Inventory,
 } from './prod-g2-register-policy.mjs';
 import { g2RegistrationFailureReason, saveG2RegistrationFailure } from './prod-g2-register.mjs';
 
@@ -208,4 +208,24 @@ test('the shared workload identity is the only canister a group may reuse', () =
   assert.equal(GROUP_DOMAINS.length, 12);
   assert.ok(G2_SERVICES.includes('media_blob_store'));
   assert.ok(p.group.domains.some(d => d.domain === 'secret_workload_identity' && d.canister === ids.secret_workload_identity));
+});
+
+test('the acknowledged g2 receipt is the reviewed inventory the readiness audit needs', () => {
+  const plan = { groupId: 'g2', openingAuthorized: false, admissionAuthorized: false,
+    group: { accepting: false, photo_store: [g2Canisters.media_blob_store],
+      domains: [...GROUP_DOMAINS.map(n => ({ domain: n, canister: g2Canisters[n] })),
+        { domain: 'secret_workload_identity', canister: ids.secret_workload_identity }] } };
+  const receipt = { phase: 'registered-closed', pending: null, plan, planHash: hashPlan(plan) };
+  const reviewed = reviewedG2Inventory(receipt);
+  assert.equal(reviewed.photoStore, g2Canisters.media_blob_store);
+  assert.equal(reviewed.domains.club_domain, g2Canisters.club_domain);
+  assert.equal(Object.keys(reviewed.domains).length, GROUP_DOMAINS.length + 1);
+  // Nothing the router could self-attest, and nothing unfinished, counts as a review.
+  assert.throws(() => reviewedG2Inventory(null), /Acknowledged closed g2 registration receipt required/);
+  assert.throws(() => reviewedG2Inventory({ ...receipt, phase: 'planned' }), /Acknowledged closed/);
+  assert.throws(() => reviewedG2Inventory({ ...receipt, pending: 'readback' }), /Acknowledged closed/);
+  assert.throws(() => reviewedG2Inventory({ ...receipt, planHash: 'f'.repeat(64) }), /Acknowledged closed/);
+  assert.throws(() => reviewedG2Inventory({ ...receipt, plan: { ...plan, group: { ...plan.group, accepting: true } } }), /Acknowledged closed/);
+  assert.throws(() => reviewedG2Inventory({ ...receipt, plan: { ...plan, group: { ...plan.group, photo_store: [ids.media_blob_store] } } }), /independent of base/);
+  assert.throws(() => reviewedG2Inventory({ ...receipt, plan: { ...plan, group: { ...plan.group, domains: plan.group.domains.slice(0, 5) } } }), /incomplete/);
 });
