@@ -99,6 +99,22 @@ export function ledgerService(IDL) {
   });
 }
 
+/** Cycles ledger deposit: idempotent canister top-up (dedup on created_at_time). */
+export function depositService(IDL) {
+  const err = IDL.Variant({
+    InsufficientFunds: IDL.Record({ balance: IDL.Nat }), TooOld: IDL.Null,
+    CreatedInFuture: IDL.Record({ ledger_time: IDL.Nat64 }), TemporarilyUnavailable: IDL.Null,
+    Duplicate: IDL.Record({ duplicate_of: IDL.Nat }),
+    GenericError: IDL.Record({ message: IDL.Text, error_code: IDL.Nat }),
+  });
+  return () => IDL.Service({
+    icrc1_balance_of: IDL.Func([IDL.Record({ owner: IDL.Principal, subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)) })], [IDL.Nat], ['query']),
+    deposit: IDL.Func([IDL.Record({ to: IDL.Principal, amount: IDL.Nat, from_subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)),
+      memo: IDL.Opt(IDL.Vec(IDL.Nat8)), created_at_time: IDL.Opt(IDL.Nat64) })],
+      [IDL.Variant({ Ok: IDL.Record({ balance: IDL.Nat, block_index: IDL.Nat }), Err: err })], []),
+  });
+}
+
 /** Management canister: status, environment variables, chunked install (never reinstall/upgrade). */
 export function managementService(IDL) {
   const env = IDL.Vec(IDL.Record({ name: IDL.Text, value: IDL.Text }));
