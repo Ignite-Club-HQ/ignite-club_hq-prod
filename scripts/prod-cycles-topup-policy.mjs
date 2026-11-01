@@ -274,9 +274,16 @@ export async function resumeTopupIntent({ receipt, checkpoint, calls, nowNs }) {
 }
 
 export function topupResultSummary(result) {
-  return ['### PROD cycles top-up completed (groups stay CLOSED)', '',
+  const lines = ['### PROD cycles top-up completed (groups stay CLOSED)', '',
     `Deposits executed: ${result.deposited}. Canisters already at target: ${result.skipped}.`,
-    `Total deposited: ${result.totalDeposited} cycles.`,
-    'Every deposit was verified against the reviewed plan and each canister was read back at or above its registered minimum.',
-    'No registration, opening, configuration, funding order, DEV or database change was made. Routing approval and admission remain separate reviewed steps.', ''].join('\n');
+    `Total deposited: ${result.totalDeposited} cycles.`];
+  if (result.stillBelowTarget?.length) {
+    lines.push('', 'Still below the registered minimum (balances drifted during the run; re-plan for the remainder):',
+      ...result.stillBelowTarget.map(s => `- ${s.service}: ${s.balance} of ${s.target}`));
+  } else {
+    lines.push('', 'Every fueled canister was read back at or above its registered minimum.');
+  }
+  lines.push('', 'Every deposit was verified against the reviewed plan.',
+    'No registration, opening, configuration, funding order, DEV or database change was made. Routing approval and admission remain separate reviewed steps.', '');
+  return lines.join('\n');
 }
