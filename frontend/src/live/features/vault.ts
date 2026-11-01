@@ -424,7 +424,7 @@ export async function listLiveVaultFolders(
 }
 
 export async function listLiveVaultFiles(ctx: FeatureBackendContext, folderId: string) {
-  const { actor } = await connectLiveVaultDomain(ctx.target, ctx.identity);
+  await connectLiveVaultDomain(ctx.target, ctx.identity);
   return (await listLiveVaultFilesWithFolder(ctx, folderId)).map(entry => entry.file);
 }
 
@@ -453,7 +453,7 @@ export async function listLiveVaultClubFiles(
   teamId: string | null,
   miniLeagueId: string | null = null,
 ) {
-  const { actor } = await connectLiveVaultDomain(ctx.target, ctx.identity);
+  await connectLiveVaultDomain(ctx.target, ctx.identity);
   return (await readVaultPages(ctx, clubId, teamId, miniLeagueId, null, null, false)).map(entry => entry.file);
 }
 
@@ -479,7 +479,7 @@ export async function listLiveVaultClubFilesWithFolder(
   miniLeagueId: string | null = null,
   competitionId: string | null = null,
 ) {
-  const { actor } = await connectLiveVaultDomain(ctx.target, ctx.identity);
+  await connectLiveVaultDomain(ctx.target, ctx.identity);
   return readVaultPages(ctx, clubId, teamId, miniLeagueId, competitionId, null, false);
 }
 
@@ -487,12 +487,12 @@ export async function listLiveVaultTrashWithFolder(
   ctx: FeatureBackendContext,
   clubId: string,
 ) {
-  const { actor } = await connectLiveVaultDomain(ctx.target, ctx.identity);
+  await connectLiveVaultDomain(ctx.target, ctx.identity);
   return readVaultPages(ctx, clubId, null, null, null, null, true);
 }
 
 export async function listLiveVaultTrash(ctx: FeatureBackendContext, clubId: string) {
-  const { actor } = await connectLiveVaultDomain(ctx.target, ctx.identity);
+  await connectLiveVaultDomain(ctx.target, ctx.identity);
   return (await readVaultPages(ctx, clubId, null, null, null, null, true)).map(entry => entry.file);
 }
 

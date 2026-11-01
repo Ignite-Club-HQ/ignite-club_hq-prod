@@ -231,7 +231,7 @@ export async function fetchLiveHomeFeed(
         successes++;
       }
       publish();
-    } catch (error) { assertReadNotAborted(signal); failures++; }
+    } catch { assertReadNotAborted(signal); failures++; }
   });
   // Team-only grants still need their owning club verified, but do not wait
   // for unrelated clubs or the personal-team inventory.
