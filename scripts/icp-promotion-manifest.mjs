@@ -37,6 +37,8 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-connection-check-policy.mjs',
   'scripts/prod-connection-check.mjs',
   'scripts/prod-connection-check.test.mjs',
+  'scripts/prod-group-readiness.mjs',
+  'scripts/prod-group-readiness.test.mjs',
   'scripts/media-card-funding-policy.mjs',
   'frontend/scripts/media-stage-two-github.mjs',
 

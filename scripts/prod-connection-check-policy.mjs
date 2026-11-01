@@ -42,6 +42,7 @@ export function checkCalls(ids) {
   return [
     ...CONFIG_READERS.map(name => ({ name, id: ids[name], method: 'read_group_opening_configuration', args: '()', query: false })),
     { name: 'shard_router', id: ids.shard_router, method: 'list_groups', args: '()', query: true },
+    { name: 'shard_router', id: ids.shard_router, method: 'read_group_registry_page', args: '("mainnet", null, null, 100)', query: false },
     // mainnet is the deployment alias used by the existing group tooling. An absent
     // approval is reported, never repaired or interpreted as activation authority.
     { name: 'shard_router', id: ids.shard_router, method: 'read_routing_approval', args: '("mainnet")', query: false },
@@ -56,7 +57,8 @@ export function readerSpec(call, ids) {
     Object.keys(call).every(k => ['name', 'id', 'method', 'args', 'query'].includes(k));
   if (!allowed) throw new Error('Method or target is not an approved infrastructure reader');
   return { canisterId: call.id, method: call.method, query: call.query,
-    args: call.method === 'read_routing_approval' ? ['mainnet'] : [],
+    args: call.method === 'read_group_registry_page' ? ['mainnet', [], [], 100]
+      : call.method === 'read_routing_approval' ? ['mainnet'] : [],
     host: 'https://icp-api.io', variant: call.method !== 'read_group_opening_configuration' || VARIANT_CONFIG_READERS.includes(call.name) };
 }
 
