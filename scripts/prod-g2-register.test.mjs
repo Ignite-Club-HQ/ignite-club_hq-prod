@@ -95,9 +95,9 @@ test('every g2 service must run the reviewed module, under one governor, on the 
   const wrongModule = observations(); wrongModule[0].moduleHash = 'd'.repeat(64);
   assert.throws(() => build({ observations: wrongModule }), /Certified g2 evidence mismatch: club_domain/);
   const extraController = observations(); extraController[1].controllers.push('2vxsx-fae');
-  assert.throws(() => build({ observations: extraController }), /Certified g2 evidence mismatch: competition_domain/);
+  assert.throws(() => build({ observations: extraController }), /Certified g2 evidence mismatch: events_domain/);
   const wrongSubnet = observations(); wrongSubnet[2].subnet = '2vxsx-fae';
-  assert.throws(() => build({ observations: wrongSubnet }), /Certified g2 evidence mismatch: events_domain/);
+  assert.throws(() => build({ observations: wrongSubnet }), /Certified g2 evidence mismatch: messaging_domain/);
   assert.throws(() => build({ observations: observations().slice(0, 12) }), /Complete certified g2 evidence/);
 });
 
@@ -109,8 +109,13 @@ test('the reviewed hash survives a later run of identical code but not any real 
   assert.throws(() => assertReviewedG2RegistrationPlan(p, 'f'.repeat(64), build()), /does not match the saved g2 registration receipt/);
   assert.throws(() => assertReviewedG2RegistrationPlan(p, '', build()), /64 lowercase hex/);
   assert.throws(() => assertReviewedG2RegistrationPlan(p, h, build({ page: { ...registryPage(), revision: 9n } })), /re-plan/);
-  const drifted = observations(); drifted[3].moduleHash = 'e'.repeat(64);
-  assert.throws(() => assertReviewedG2RegistrationPlan(p, h, build({ observations: drifted })), /re-plan/);
+  const driftedCreation = { ...creationReceipt, plan: { ...g2CreationPlan,
+    services: g2CreationPlan.services.map(s => s.name === 'vault_domain' ? { ...s, moduleHash: 'e'.repeat(64) } : s) } };
+  driftedCreation.planHash = hashPlan(driftedCreation.plan);
+  const driftedObservations = observations();
+  driftedObservations[G2_SERVICES.indexOf('vault_domain')].moduleHash = 'e'.repeat(64);
+  assert.throws(() => assertReviewedG2RegistrationPlan(p, h,
+    build({ g2Receipt: driftedCreation, observations: driftedObservations })), /re-plan/);
 });
 
 test('closed registration compares and swaps the exact reviewed revision, then reads both groups back', async () => {
