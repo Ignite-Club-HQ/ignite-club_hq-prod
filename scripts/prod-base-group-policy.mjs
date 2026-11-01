@@ -59,9 +59,17 @@ export function buildBasePlan({ ids, principal, sourceCommit, page, observations
     expectedRevision: revision, configurationRevision, observations: ordered, group, placement,
     openingAuthorized: false, lifecycleReleaseAuthorized: false };
 }
-export function assertReviewedPlan(plan, expectedHash, currentPlan) {
-  if (!/^[a-f0-9]{64}$/.test(expectedHash ?? '') || hashPlan(plan) !== expectedHash)
-    throw new Error('Reviewed plan hash required');
+/** Only surrounding whitespace is trimmed (mobile paste adds line breaks);
+ * the hash itself must still be exactly 64 lowercase hex characters. */
+export function normalizeReviewedHash(value) {
+  return String(value ?? '').trim();
+}
+export function assertReviewedPlan(plan, rawExpectedHash, currentPlan) {
+  const expectedHash = normalizeReviewedHash(rawExpectedHash);
+  if (!/^[a-f0-9]{64}$/.test(expectedHash))
+    throw new Error('Reviewed plan hash required (64 lowercase hex characters)');
+  if (hashPlan(plan) !== expectedHash)
+    throw new Error('Reviewed plan hash does not match the saved plan receipt');
   if (hashPlan(currentPlan) !== expectedHash) throw new Error('Live inventory, modules, controller, subnet or revision changed; re-plan');
   if (plan.group.accepting !== false || plan.openingAuthorized !== false || plan.lifecycleReleaseAuthorized !== false)
     throw new Error('Closed-only plan required');
