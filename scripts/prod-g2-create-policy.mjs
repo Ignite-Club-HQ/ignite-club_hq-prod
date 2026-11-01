@@ -239,7 +239,7 @@ export async function runG2Creation({ plan, receipt, checkpoint, calls, nowNs })
   for (const op of operations) {
     if (current.configuration.completed.includes(op.name)) continue;
     await save({ ...current, pending: { kind: 'configure', domain: op.domain, operation: op.name } });
-    await calls.configure(op.canisterId, op.method, op.args);
+    await calls.configure(op.domain, op.canisterId, op.method, op.args);
     await save({ ...current, pending: null,
       configuration: { binding, completed: [...current.configuration.completed, op.name] } });
   }

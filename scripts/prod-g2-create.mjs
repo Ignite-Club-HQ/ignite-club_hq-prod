@@ -15,6 +15,7 @@ import { groupContract } from './prod-group-contract.mjs';
 import { assertG2Context, buildG2CreationPlan, assertReviewedG2Plan, runG2Creation, resumeG2Intent,
   g2PlanSummary, G2_CREATE_CONFIRMATION, G2_CYCLES_PER_CANISTER, G2_RECEIPT_PATH, G2_SERVICES } from './prod-g2-create-policy.mjs';
 import { setterService, blobStoreService, cyclesService, ledgerService, managementService } from './prod-g2-idl.mjs';
+import { hashPlan as planHashOf } from './prod-base-group-policy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CYCLES_LEDGER = 'um5iw-rqaaa-aaaaq-qaaba-cai';
