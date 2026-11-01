@@ -39,12 +39,17 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-connection-check.test.mjs',
   'scripts/prod-group-readiness.mjs',
   'scripts/prod-group-readiness.test.mjs',
+  'scripts/prod-group-contract.mjs',
+  'scripts/prod-base-group-policy.mjs',
+  'scripts/prod-base-group.mjs',
+  'scripts/prod-base-group.test.mjs',
   'scripts/media-card-funding-policy.mjs',
   'frontend/scripts/media-stage-two-github.mjs',
 
   '.github/workflows/promote-icp-prod.yml',
   '.github/workflows/fund-prod-canisters-by-card.yml',
   '.github/workflows/check-prod-canister-connections.yml',
+  '.github/workflows/setup-prod-base-group.yml',
 ];
 
 /**
