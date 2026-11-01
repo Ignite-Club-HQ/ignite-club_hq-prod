@@ -422,3 +422,5 @@ Validation budget: changed rules plus direct regressions per substantial batch; 
 
 - [x] ICP DEV/PROD split built (current canisters = DEV). Open: user adds PROD keys/variables and runs one-off provision (blocked on user)
 - [x] Auto-upgrade PROD canisters on push to prod (like DB migrations)
+- [x] PROD base group plan built and reviewed from certified live inventory (18 PROD services, closed, capacity 100); saved plan code recomputes exactly.
+- [ ] Register PROD base group closed — blocked: paste-safe registration fix must be copied to the live repo, then re-plan and register with the new code.
