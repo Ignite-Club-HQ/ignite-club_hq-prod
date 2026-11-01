@@ -5,7 +5,13 @@ import { GROUP_DOMAINS } from './prod-group-readiness.mjs';
 export const BASE_CONFIRMATION = 'REGISTER PROD BASE CLOSED';
 export const RECEIPTS_BRANCH = 'prod-group-setup-receipts';
 export const RECEIPT_PATH = 'prod-group-setup/base.json';
-export const hashPlan = plan => createHash('sha256').update(evidenceText(plan)).digest('hex');
+export const canonical = value => {
+  const plain = JSON.parse(evidenceText(value));
+  const ordered = v => Array.isArray(v) ? v.map(ordered) : v && typeof v === 'object'
+    ? Object.fromEntries(Object.keys(v).sort().map(k => [k, ordered(v[k])])) : v;
+  return JSON.stringify(ordered(plain));
+};
+export const hashPlan = plan => createHash('sha256').update(canonical(plan)).digest('hex');
 export function assertBaseContext(ids, env, principal, action) {
   assertCheckContext(ids, env, principal);
   if (!['plan', 'register-closed'].includes(action)) throw new Error('Only plan or register-closed supported');
@@ -79,11 +85,10 @@ export async function registerClosedBase({ plan, receipt, checkpoint, registerGr
   current = { ...current, placementRevision: placedRevision.toString(), pending: 'readback' };
   await checkpoint(current);
   const page = await readRegistry(placedRevision);
-  const normalize = v => JSON.parse(evidenceText(v));
   if (page.next_cursor?.length || String(page.revision) !== String(placedRevision) ||
       page.groups?.length !== 1 || page.placements?.length !== 1 ||
-      evidenceText(normalize(page.groups[0])) !== evidenceText(normalize(plan.group)) ||
-      evidenceText(normalize(page.placements[0])) !== evidenceText(normalize(plan.placement)))
+      canonical(page.groups[0]) !== canonical(plan.group) ||
+      canonical(page.placements[0]) !== canonical(plan.placement))
     throw new Error('Closed registry readback mismatch; stop without replay');
   await checkpoint({ ...current, pending: null, phase: 'registered-closed' });
   return { registeredClosed: true, openingAuthorized: false, revision: placedRevision.toString() };
