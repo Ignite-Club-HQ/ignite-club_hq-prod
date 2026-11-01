@@ -3,10 +3,10 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "plan checks existing canisters; register-closed records the reviewed base inventory only"
+        description: "inspect reads only; plan saves a proposal; register-closed records reviewed inventory"
         type: choice
         default: plan
-        options: [plan, register-closed]
+        options: [plan, inspect, register-closed]
       reviewed_plan_hash:
         description: "Hash from successful plan summary (registration only)"
         required: false

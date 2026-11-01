@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PROD_CHECK_IDS as ids } from './prod-connection-check-policy.mjs';
 import { buildBasePlan, hashPlan, assertReviewedPlan, registerClosedBase, assertBaseContext, BASE_CONFIRMATION } from './prod-base-group-policy.mjs';
-import { githubJournal } from './prod-base-group.mjs';
+import { githubJournal, baseFailureReason, saveBaseFailure } from './prod-base-group.mjs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { createHash } from 'node:crypto';
 const principal = 'kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae';
 const env = { GITHUB_REPOSITORY: 'Ignite-Club-HQ/ignite-club_hq-prod', GITHUB_REF: 'refs/heads/prod', IGNITE_ICP_ENV: 'prod', PROD_GOVERNOR_PRINCIPAL: principal };
@@ -10,6 +13,22 @@ const input = () => ({ ids, principal, sourceCommit: 'a'.repeat(40),
   page: { groups: [], placements: [], revision: 0n, configuration_revision: [0n], next_cursor: [] },
   observations: Object.keys(ids).map(name => ({ name, id: ids[name], moduleHash: 'b'.repeat(64), controllers: [principal], subnet: 'reviewed-subnet' })),
   budgets: { maxClubs: '100', minCycles: '1000000000000', heapBudgetBytes: '3221225472' } });
+
+test('failure diagnostics never expose arbitrary credential-bearing errors', () => {
+  assert.equal(baseFailureReason(new Error('private synthetic credential')), 'Unclassified failure; inspect the saved stage and receipt without retrying registration');
+  assert.equal(baseFailureReason(new Error('GitHub journal PUT failed (403); stop without replay')), 'GitHub journal PUT failed (403); stop without replay');
+});
+test('failure before registration still saves a safe downloadable report and summary', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'base-failure-'));
+  try {
+    const summary = path.join(dir, 'summary.md');
+    saveBaseFailure({ CHECK_REPORT_DIR: dir, GITHUB_STEP_SUMMARY: summary }, new Error('private synthetic credential'), 'load durable receipt');
+    const report = JSON.parse(readFileSync(path.join(dir, 'prod-base-failure.json'), 'utf8'));
+    assert.equal(report.stage, 'load durable receipt');
+    assert.equal(report.retryAuthorized, false);
+    assert.equal(readFileSync(summary, 'utf8').includes('private synthetic credential'), false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 
 test('base uses exactly 13 domains and existing independent PROD photo store, always closed', () => {
   const p = buildBasePlan(input());
@@ -27,6 +46,18 @@ test('closed registration requires exact owner confirmation', () => {
   assert.throws(() => assertBaseContext(ids, env, principal, 'register-closed'), /confirmation/);
   assertBaseContext(ids, { ...env, CONFIRMATION: ` ${BASE_CONFIRMATION} ` }, principal, 'register-closed');
   assert.throws(() => assertBaseContext(ids, env, principal, 'open'), /Only plan/);
+});
+test('inspection requires PROD context but no registration confirmation', () => {
+  assertBaseContext(ids, env, principal, 'inspect');
+  assert.throws(() => assertBaseContext(ids, { ...env, GITHUB_REF: 'refs/heads/main' }, principal, 'inspect'), /prod branch/);
+});
+test('read-only journal inspection never creates a missing receipt branch', async () => {
+  const methods = [];
+  const journal = githubJournal({ ...env, GH_TOKEN: 'synthetic-test-token' }, async (_url, options) => {
+    methods.push(options.method); return { ok: false, status: 404 };
+  });
+  assert.equal(await journal.load({ readOnly: true }), null);
+  assert.deepEqual(methods, ['GET']);
 });
 test('changed module invalidates reviewed plan', () => {
   const p = buildBasePlan(input()), i = input(); i.observations[0].moduleHash = 'c'.repeat(64);
