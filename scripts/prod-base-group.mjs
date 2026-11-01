@@ -46,7 +46,7 @@ export function saveBaseFailure(env, error, failedStage) {
 
 // GitHub journal writes are never retried. Read the acknowledged commit, not
 // a possibly lagging branch head; never log credentials or response bodies.
-export function githubJournal(env, fetcher = fetch) {
+export function githubJournal(env, fetcher = fetch, { branch = RECEIPTS_BRANCH, path: receiptPath = RECEIPT_PATH, label = 'closed base' } = {}) {
   const repo = 'Ignite-Club-HQ/ignite-club_hq-prod';
   if (env.GITHUB_REPOSITORY !== repo || !env.GH_TOKEN) throw new Error('Live repository journal authorization required');
   const api = async (endpoint, method = 'GET', body, missing = false) => {
