@@ -11,7 +11,7 @@ function input() {
   const plan = buildBasePlan({ ids, principal, sourceCommit: env.GITHUB_SHA, observations,
     page: { groups: [], placements: [], next_cursor: [], revision: 0n, configuration_revision: [0n] },
     budgets: { maxClubs: '100', minCycles: '1000000000000', heapBudgetBytes: '3221225472' } });
-  return { ids, env, principal, observations, balance: '8000000000000', checkedAt: '2026-11-01T03:45:00Z',
+  return { ids, env, principal, observations: structuredClone(observations), balance: '8000000000000', checkedAt: '2026-11-01T03:45:00Z',
     receipt: { phase: 'registered-closed', pending: null, planHash: hashPlan(plan), plan, placementRevision: '2' },
     page: { groups: [structuredClone(plan.group)], placements: [structuredClone(plan.placement)], next_cursor: [], revision: '2', configuration_revision: ['2'] } };
 }
