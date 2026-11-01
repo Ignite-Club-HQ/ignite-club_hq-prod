@@ -46,7 +46,7 @@ export function saveBaseFailure(env, error, failedStage) {
 
 // GitHub journal writes are never retried. Read the acknowledged commit, not
 // a possibly lagging branch head; never log credentials or response bodies.
-export function githubJournal(env, fetcher = fetch) {
+export function githubJournal(env, fetcher = fetch, { branch = RECEIPTS_BRANCH, path: receiptPath = RECEIPT_PATH, label = 'closed base' } = {}) {
   const repo = 'Ignite-Club-HQ/ignite-club_hq-prod';
   if (env.GITHUB_REPOSITORY !== repo || !env.GH_TOKEN) throw new Error('Live repository journal authorization required');
   const api = async (endpoint, method = 'GET', body, missing = false) => {
@@ -60,13 +60,13 @@ export function githubJournal(env, fetcher = fetch) {
   let stored;
   return {
     async load({ readOnly = false } = {}) {
-      let ref = await api(`git/ref/heads/${RECEIPTS_BRANCH}`, 'GET', undefined, true);
+      let ref = await api(`git/ref/heads/${branch}`, 'GET', undefined, true);
       if (!ref) {
         if (readOnly) return null;
-        ref = await api('git/refs', 'POST', { ref: `refs/heads/${RECEIPTS_BRANCH}`, sha: env.GITHUB_SHA });
+        ref = await api('git/refs', 'POST', { ref: `refs/heads/${branch}`, sha: env.GITHUB_SHA });
         if (ref.object?.sha !== env.GITHUB_SHA) throw new Error('Receipt branch acknowledgement mismatch');
       }
-      stored = await api(`contents/${RECEIPT_PATH}?ref=${ref.object.sha}`, 'GET', undefined, true);
+      stored = await api(`contents/${receiptPath}?ref=${ref.object.sha}`, 'GET', undefined, true);
       if (!stored) return null;
       if (stored.encoding !== 'base64') throw new Error('Unsupported receipt encoding');
       return JSON.parse(Buffer.from(stored.content, 'base64').toString('utf8'));
@@ -74,12 +74,12 @@ export function githubJournal(env, fetcher = fetch) {
     async save(receipt) {
       const bytes = Buffer.from(evidenceText(receipt));
       const sha = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
-      const ack = await api(`contents/${RECEIPT_PATH}`, 'PUT', { branch: RECEIPTS_BRANCH,
-        message: `PROD closed base ${receipt.pending ?? receipt.phase} receipt [skip ci]`, content: bytes.toString('base64'),
+      const ack = await api(`contents/${receiptPath}`, 'PUT', { branch,
+        message: `PROD ${label} ${receipt.pending ? `${receipt.pending.kind} intent` : receipt.phase} receipt [skip ci]`, content: bytes.toString('base64'),
         ...(stored ? { sha: stored.sha } : {}) });
       if (!/^[a-f0-9]{40}$/.test(ack.commit?.sha ?? '') || ack.content?.sha !== sha)
         throw new Error('Journal acknowledgement mismatch; stop without replay');
-      const readback = await api(`contents/${RECEIPT_PATH}?ref=${ack.commit.sha}`);
+      const readback = await api(`contents/${receiptPath}?ref=${ack.commit.sha}`);
       if (readback.sha !== sha || readback.encoding !== 'base64' || !Buffer.from(readback.content, 'base64').equals(bytes))
         throw new Error('Journal readback failed; stop without replay');
       stored = readback;
