@@ -1,0 +1,75 @@
+name: "[PROD] Execute cycles top-up (closed)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      plan_hash:
+        description: "Reviewed plan hash printed by [PROD] Plan cycles top-up (read-only)"
+        required: true
+      confirmation:
+        description: "Type exactly: TOP UP PROD CANISTERS"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+
+jobs:
+  topup:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    env:
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the live repository prod branch
+        run: |
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Test the top-up policy before any network call
+        run: node --test scripts/prod-cycles-topup.test.mjs
+      - name: Install isolated pinned tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/prod-topup-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Restore existing PROD key and distribute the reviewed amounts
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+          TOPUP_ACTION: topup-closed
+          TOPUP_PLAN_HASH: ${{ inputs.plan_hash }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          export ICP_HOME="$RUNNER_TEMP/prod-topup-identity"
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/prod-topup-deps"
+          export CHECK_REPORT_DIR="$RUNNER_TEMP/prod-topup-report"
+          export DO_NOT_TRACK=1
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          test -n "${PROD_GOVERNOR_PEM_ENC:-}"
+          test -n "${PROD_GOVERNOR_PASSPHRASE:-}"
+          mkdir -p "$ICP_HOME"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
+          rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
+          export CHECK_KEY_PEM="$ICP_HOME/key.pem"
+          node scripts/prod-cycles-topup.mjs
+      - name: Save the top-up evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-cycles-topup-result
+          path: ${{ runner.temp }}/prod-topup-report/*.json
+          if-no-files-found: ignore

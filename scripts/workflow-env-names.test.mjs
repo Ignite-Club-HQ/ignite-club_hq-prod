@@ -46,7 +46,7 @@ test('a bracketed tag is quoted so the file still parses as YAML', () => {
 test('only explicitly allowlisted PROD setup, checks, promotion, funding and isolated delivery may claim PROD', () => {
   const prod = workflows.filter(({ name }) => name.startsWith('[PROD] '));
   assert.deepEqual(prod.map(({ file }) => file),
-    ['check-prod-canister-connections.yml', 'check-prod-routing-gates.yml', 'create-prod-second-group.yml', 'fund-prod-canisters-by-card.yml', 'icp-push-deliver-prod.yml',
+    ['check-prod-canister-connections.yml', 'check-prod-routing-gates.yml', 'create-prod-second-group.yml', 'execute-prod-cycles-topup.yml', 'fund-prod-canisters-by-card.yml', 'icp-push-deliver-prod.yml',
       'link-prod-account-service.yml',
       'plan-prod-cycles-topup.yml', 'plan-prod-second-group.yml', 'prod-create-governor.yml', 'prod-create-push-key.yml', 'promote-icp-prod.yml',
       'register-prod-second-group.yml', 'setup-prod-base-group.yml']);

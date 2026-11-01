@@ -82,6 +82,7 @@ export const ICP_SOURCE_FILES = [
   '.github/workflows/link-prod-account-service.yml',
   '.github/workflows/check-prod-routing-gates.yml',
   '.github/workflows/plan-prod-cycles-topup.yml',
+  '.github/workflows/execute-prod-cycles-topup.yml',
   '.github/workflows/prod-create-push-key.yml',
 ];
 
