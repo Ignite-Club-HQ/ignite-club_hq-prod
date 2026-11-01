@@ -7,9 +7,6 @@
 // enables admission or rehearsal, and never touches DEV or the database.
 import { assertCheckContext, PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 import { canonical, hashPlan, normalizeReviewedHash } from './prod-base-group-policy.mjs';
-import { RECEIPT_PATH } from './prod-base-group-policy.mjs';
-import { G2_RECEIPT_PATH } from './prod-g2-create-policy.mjs';
-import { G2_REGISTRATION_RECEIPT_PATH } from './prod-g2-register-policy.mjs';
 
 export const IDENTITY_LINK_RECEIPT_PATH = 'prod-group-setup/identity-link.json';
 export const IDENTITY_LINK_CONFIRMATION = 'LINK PROD ACCOUNT SERVICE';
@@ -75,7 +72,7 @@ export function mergeEnvironment(current, patch) {
 export function buildIdentityLinkPlan({ ids, env, principal, baseReceipt, g2Receipt, page,
   routerConfig, identityConfig, identityEnv, checkedAt }) {
   if (!/^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? '')) throw new Error('Exact source commit required');
-  if (!/^[a-z0-9-]{1,40}$/.test(String(checkedAt ?? ''))) throw new Error('Exact checked-at timestamp required');
+  if (!checkedAt || !Number.isFinite(Date.parse(checkedAt))) throw new Error('Evidence timestamp required');
   if (!baseReceipt || baseReceipt.phase !== 'registered-closed' || baseReceipt.pending ||
       !g2Receipt || g2Receipt.phase !== 'registered-closed' || g2Receipt.pending)
     throw new Error('Confirmed closed base and g2 registration receipts required');
