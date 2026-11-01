@@ -132,12 +132,14 @@ test('delivery identity and account-admission release are separate named gates',
   const noGrant = review({ services: [...servicesFor('base').map(s => s.name === 'notification_queue'
       ? { ...s, configuration: s.configuration.filter(c => c[0] !== 'worker') } : s), ...servicesFor('g2')] });
   assert.match(textOf(noGrant), /NOTIFICATION_WORKER_MISSING/);
-  const held = review({ identityConfig: identityConfig().filter(r => r[0] !== 'account_admission_released')
-    .concat([['account_admission_released', 'false']]) });
-  const text = textOf(held);
-  assert.match(text, /ADMISSION_RELEASE_UNVERIFIED/);
-  assert.match(text, /ACCOUNT_ELIGIBILITY_READER_UNAUTHORIZED: base\/vault_domain/);
+  const held = review({ identityConfig: identityConfig().map(r => r[0] === 'account_admission_released'
+    ? ['account_admission_released', 'false'] : r) });
+  assert.match(textOf(held), /ADMISSION_RELEASE_UNVERIFIED/);
   assert.equal(held.approvalDraft, null);
+  const unread = review({ identityConfig: identityConfig()
+    .filter(r => !(r[0] === 'eligibility_authority' && r[1] === gid('base', 'vault_domain'))) });
+  assert.match(textOf(unread), /ACCOUNT_ELIGIBILITY_READER_UNAUTHORIZED: base\/vault_domain/);
+  assert.equal(unread.approvalDraft, null);
 });
 
 test('registry, placement and health evidence gaps are all reported, not just the first', () => {
