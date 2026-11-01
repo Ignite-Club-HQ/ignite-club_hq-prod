@@ -64,7 +64,6 @@ export function g2FailureReason(error) {
   if (/^PROD governor mismatch: key is [a-z0-9-]{5,63}, expected [a-z0-9-]{5,63}$/.test(message)) return message;
   if (/^ENOENT: no such file or directory/.test(message)) return `Missing file: ${message.slice(0, 200)}`;
   if (/^Cannot find (module|package)/.test(message)) return 'Pinned SDK module could not be loaded';
-  if (error instanceof Error) return `Unclassified failure (${error.name}: ${message.replace(/[A-Za-z0-9+/=]{48,}/g, '[redacted]').slice(0, 200)}); inspect without retrying creation`;
   if (/^Built \w+ module differs from the certified base module; review the source change first$/.test(message)) return message;
   if (/^Missing built module hash for \w+$/.test(message)) return message;
   if (/^\w+ landed on unapproved subnet; stop without replay$/.test(message)) return message;
@@ -72,6 +71,7 @@ export function g2FailureReason(error) {
   if (/^Governor does not control \w+$/.test(message)) return message;
   if (/^\w+ failed health check$/.test(message)) return message;
   if (/^GitHub journal (GET|POST|PUT) failed \([0-9]{3}\); stop without replay$/.test(message)) return message;
+  if (error instanceof Error) return `Unclassified failure (${error.name}: ${message.replace(/[A-Za-z0-9+/=]{48,}/g, '[redacted]').slice(0, 200)}); inspect without retrying creation`;
   return 'Unclassified failure; inspect the saved stage and receipt without retrying creation';
 }
 export function saveG2Failure(env, error, failedStage) {
