@@ -153,10 +153,14 @@ async function main() {
     cyclesOf: async id => Actor.createActor(cyclesService(IDL), { agent, canisterId: pid(id) }).cycles_balance(),
     accountBalance: () => ledger.icrc1_balance_of({ owner: pid(principal), subaccount: [] }),
     async deposit({ to, amount, createdAtNs }) {
-      const r = await ledger.deposit({ to: pid(to), amount, from_subaccount: [], memo: [], created_at_time: [createdAtNs] });
-      if ('Ok' in r) return { blockIndex: r.Ok.block_index.toString() };
+      // Top up via icrc1_transfer to the canister's ledger account (owner =
+      // canister id); the ledger's `deposit` method only accepts cycles
+      // attached to the call and traps from a plain agent.
+      const r = await ledger.icrc1_transfer({ from_subaccount: [], to: { owner: pid(to), subaccount: [] },
+        amount, fee: [], memo: [], created_at_time: [createdAtNs] });
+      if ('Ok' in r) return { blockIndex: r.Ok.toString() };
       if ('Duplicate' in r.Err) return { duplicate: true, blockIndex: r.Err.Duplicate.duplicate_of.toString() };
-      throw new Error('Ledger deposit refused; inspect signed readback, never replay');
+      throw new Error('Ledger transfer refused; inspect signed readback, never replay');
     },
   };
 

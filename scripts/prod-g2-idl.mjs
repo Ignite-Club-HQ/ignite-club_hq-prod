@@ -99,19 +99,27 @@ export function ledgerService(IDL) {
   });
 }
 
-/** Cycles ledger deposit: idempotent canister top-up (dedup on created_at_time). */
+/** Cycles ledger canister top-up via icrc1_transfer (dedup on created_at_time).
+ * The ledger's own `deposit` method only moves cycles ATTACHED to the call
+ * (inter-canister use) and takes no amount — from a plain agent it traps.
+ * A canister's cycle balance is its ledger account (owner = canister id), so
+ * an icrc1_transfer to that account tops the canister up with an exact
+ * amount and ledger-level dedup. Signatures match the official
+ * cycles-ledger.did (dfinity/cycles-ledger). */
 export function depositService(IDL) {
+  const account = IDL.Record({ owner: IDL.Principal, subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)) });
   const err = IDL.Variant({
+    BadFee: IDL.Record({ expected_fee: IDL.Nat }), BadBurn: IDL.Record({ min_burn_amount: IDL.Nat }),
     InsufficientFunds: IDL.Record({ balance: IDL.Nat }), TooOld: IDL.Null,
     CreatedInFuture: IDL.Record({ ledger_time: IDL.Nat64 }), TemporarilyUnavailable: IDL.Null,
     Duplicate: IDL.Record({ duplicate_of: IDL.Nat }),
     GenericError: IDL.Record({ message: IDL.Text, error_code: IDL.Nat }),
   });
   return () => IDL.Service({
-    icrc1_balance_of: IDL.Func([IDL.Record({ owner: IDL.Principal, subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)) })], [IDL.Nat], ['query']),
-    deposit: IDL.Func([IDL.Record({ to: IDL.Principal, amount: IDL.Nat, from_subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)),
-      memo: IDL.Opt(IDL.Vec(IDL.Nat8)), created_at_time: IDL.Opt(IDL.Nat64) })],
-      [IDL.Variant({ Ok: IDL.Record({ balance: IDL.Nat, block_index: IDL.Nat }), Err: err })], []),
+    icrc1_balance_of: IDL.Func([account], [IDL.Nat], ['query']),
+    icrc1_transfer: IDL.Func([IDL.Record({ from_subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)), to: account, amount: IDL.Nat,
+      fee: IDL.Opt(IDL.Nat), memo: IDL.Opt(IDL.Vec(IDL.Nat8)), created_at_time: IDL.Opt(IDL.Nat64) })],
+      [IDL.Variant({ Ok: IDL.Nat, Err: err })], []),
   });
 }
 
