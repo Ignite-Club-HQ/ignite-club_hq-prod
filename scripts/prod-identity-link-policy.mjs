@@ -88,8 +88,8 @@ export function buildIdentityLinkPlan({ ids, env, principal, baseReceipt, g2Rece
   const reviewed = { base: baseReceipt.plan, g2: g2Receipt.plan };
   const byId = new Map(page.groups.map(g => [g.id, g]));
   const placements = new Map(page.placements.map(p => [p.group_id, p]));
-  if (byId.size !== 2 || placements.size !== 2 || !reviewed[byId.keys().next().value] ||
-      ![...byId.keys()].every(id => reviewed[id] && placements.has(id)))
+  const groupIds = [...byId.keys()].sort();
+  if (byId.size !== 2 || placements.size !== 2 || JSON.stringify(groupIds) !== JSON.stringify(['base', 'g2']))
     throw new Error('The registry must hold exactly the reviewed base and g2 groups');
   for (const [id, group] of byId) {
     if (group.accepting !== false) throw new Error(`${id} group must stay CLOSED before linking the account service`);
@@ -142,7 +142,7 @@ export function buildIdentityLinkPlan({ ids, env, principal, baseReceipt, g2Rece
     routerId: ids.shard_router,
     registryRevision: revision,
     configurationRevision,
-    groups: [...byId.keys()].sort(),
+    groups: groupIds,
     binding,
     environment: { name: BOUND_DELETION_RELEASE_ENV, value: '1' },
     deletionReleaseRequired: release !== '1',
@@ -283,6 +283,7 @@ export async function reconcileIdentityLinkReadback({ receipt, expectedHash, rea
 export const identityLinkSummary = (plan, verified) => [
   `PROD account service linked and independently read back: ${plan.identityAccess}.`,
   `Router deletion authority bound; registry pinned to ${plan.binding.registry} at revision ${plan.binding.registryRevision}.`,
-  `Both groups remain CLOSED; routing approval remains a separate gate.`,
-  `Opening, admission, rehearsal, group registration, funding, deployments, DEV and database changes: none.`,
+  'Both groups remain CLOSED; routing approval remains a separate gate.',
+  'Opening, admission, rehearsal, group registration, funding, deployments, DEV and database changes: none.',
+  ...(verified ? [`Readback: ${JSON.stringify(verified)}.`] : []),
 ];
