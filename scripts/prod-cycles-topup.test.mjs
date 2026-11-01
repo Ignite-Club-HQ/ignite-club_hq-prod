@@ -266,7 +266,7 @@ test('top-ups use the ledger withdraw call, never icrc1_transfer, and a fresh re
   const runner = readFileSync(new URL('./prod-cycles-topup.mjs', import.meta.url), 'utf8');
   const idl = readFileSync(new URL('./prod-g2-idl.mjs', import.meta.url), 'utf8');
   assert.match(runner, /ledger\.withdraw\(\{ amount, from_subaccount: \[\], to: pid\(to\), created_at_time: \[createdAtNs\] \}\)/);
-  assert.doesNotMatch(runner, /icrc1_transfer|ledger\.deposit/);
+  assert.doesNotMatch(runner.replace(/\/\/.*$/gm, ''), /icrc1_transfer|ledger\.deposit/);
   const topup = idl.slice(idl.indexOf('export function topupService'), idl.indexOf('export function managementService'));
   assert.match(topup, /withdraw: IDL\.Func/);
   assert.doesNotMatch(topup, /icrc1_transfer:/);
