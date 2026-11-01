@@ -1,246 +1,286 @@
 // PROD-only account-service lifecycle link runner. Reads the live router and
 // identity canister state, then either records a reviewable plan or applies a
 // previously reviewed one: environment release, router deletion authority,
-// identity registry pin. Every stage is journalled and read back.
-import fs from 'node:fs';
+// identity registry pin. Every stage is journalled and read back before the
+// next one, so an interrupted run leaves a receipt naming the last proved stage.
+import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { Actor, HttpAgent, Principal } from '@dfinity/agent';
-import { IDL } from '@dfinity/candid';
-import { identityFromPem } from './ic-identity.mjs';
-import { githubJournal } from './github-journal.mjs';
-import { ensureIsolatedIcSdk } from './ensure-ic-sdk.mjs';
-import { groupContract, variantReaderService } from './prod-group-contract.mjs';
-import { assertCheckContext, PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
+import { identityFromPem } from './prod-connection-check.mjs';
+import { evidenceText } from './prod-connection-check-policy.mjs';
+import { githubJournal } from './prod-base-group.mjs';
+import { groupContract } from './prod-group-contract.mjs';
 import { RECEIPT_PATH } from './prod-base-group-policy.mjs';
 import { G2_RECEIPT_PATH } from './prod-g2-create-policy.mjs';
 import { G2_REGISTRATION_RECEIPT_PATH } from './prod-g2-register-policy.mjs';
 import {
   IDENTITY_LINK_RECEIPT_PATH, assertIdentityLinkContext, buildIdentityLinkPlan,
   assertReviewedIdentityLinkPlan, linkAccountService, reconcileIdentityLinkReadback,
-  readState, mergeEnvironment, identityLinkSummary, BOUND_DELETION_RELEASE_ENV,
+  readState, mergeEnvironment, identityLinkSummary,
 } from './prod-identity-link-policy.mjs';
 
-const ids = JSON.parse(fs.readFileSync(path.join(process.env.CHECK_DEPS_DIR, 'deploy/prod/identity/ic.ids.json'), 'utf8'));
-const principal = process.env.PROD_GOVERNOR_PRINCIPAL?.trim();
-const action = process.env.LINK_ACTION;
-const reviewedHash = process.env.LINK_PLAN_HASH;
-const confirmation = process.env.CONFIRMATION;
-const deps = ensureIsolatedIcSdk();
-assertIdentityLinkContext(ids, process.env, principal, action);
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+let stage = 'startup';
+const KNOWN_FAILURES = [
+  'Only plan, inspect, link or reconcile-readback supported',
+  'Exact confirmation required: LINK PROD ACCOUNT SERVICE',
+  'Exact confirmation required: CONFIRM PROD ACCOUNT SERVICE READBACK',
+  'Connection check requires the live repository prod branch',
+  'Connection check requires the exact recorded 18-service PROD inventory',
+  'Confirmed closed base and g2 registration receipts required',
+  'Reviewed closed-group receipts required',
+  'Exactly two registered groups required before linking the account service',
+  'The registry must hold exactly the reviewed base and g2 groups',
+  'group must stay CLOSED before linking the account service',
+  'group inventory differs from its reviewed receipt',
+  'must be the reviewed public-mainnet PROD deployment',
+  'must have exactly one approved subnet',
+  'Groups must share one target alias',
+  'Router deletion authority is already bound to another principal; stop and review',
+  'Account service is already pinned to a different registry or deployment; stop and review',
+  'review before linking',
+  'must stay disabled on PROD',
+  'Reviewed plan hash required (64 lowercase hex characters)',
+  'Reviewed plan hash does not match the saved account-service link receipt',
+  'changed; re-plan before linking',
+  'Closed-only account-service link required',
+  'Unresolved account-service intent; reconcile without replay',
+  'Reviewed account-service link receipt required',
+  'Account-service environment readback failed',
+  'Router deletion authority readback failed',
+  'Account-service registry pin readback failed',
+  'Bound-deletion protocol did not read back as released',
+  'Account admission must remain disabled after linking',
+  'Rehearsal must remain disabled after linking',
+  'Registry inventory changed during the account-service link',
+  'Router refused the bounded registry read',
+  'Router refused the governor-only configuration read',
+  'Account service refused the governor-only configuration read',
+  'Router refused the deletion authority bind',
+  'Account service refused the registry pin',
+  'Account service refused the environment write',
+  'An account-service link receipt already exists; use reconcile-readback',
+  'No account-service link receipt exists yet; run plan first',
+  'Reviewed account-service link receipt required for reconciliation',
+  'Account-service link is not awaiting reconciliation',
+  'must be reconciled by a fresh reviewed run, not a readback-only pass',
+];
 
-const agent = new HttpAgent({ host: 'https://icp-api.io', identity: identityFromPem(process.env.CHECK_KEY_PEM) });
-const serviceFactory = IDL => ({ IDL, service: IDL.Service({ read_group_opening_configuration: IDL.Func([], [variantReaderService(IDL, 'vec', IDL.Tuple(IDL.Text, IDL.Text))], []) }) });
-const readerService = IDL => IDL.Service({
-  read_group_registry_page: IDL.Func([IDL.Text, IDL.Opt(IDL.Nat64), IDL.Opt(IDL.Text), IDL.Nat32],
-    [IDL.Variant({ Ok: IDL.Record({
-      revision: IDL.Nat64,
-      groups: IDL.Vec(IDL.Record({ id: IDL.Text, target_alias: IDL.Text, domains: IDL.Vec(IDL.Record({
-        domain: IDL.Text, canister: IDL.Principal, deployment_id: IDL.Text, deployment_revision: IDL.Text,
-        host: IDL.Text, network_kind: IDL.Text, additional_subnets_enabled: IDL.Bool })),
-      photo_store: IDL.Vec(IDL.Principal), accepting: IDL.Bool, max_clubs: IDL.Nat32,
-      min_cycles: IDL.Nat64, heap_bytes: IDL.Nat64, cycles: IDL.Nat64, observed_at_ns: IDL.Nat64 })),
-      placements: IDL.Vec(IDL.Record({
-        group_id: IDL.Text, deployment_id: IDL.Text, deployment_revision: IDL.Text, host: IDL.Text,
-        network_kind: IDL.Text, primary_subnet: IDL.Principal, approved_subnets: IDL.Vec(IDL.Principal),
-        additional_subnets_enabled: IDL.Bool,
-        domains: IDL.Vec(IDL.Record({ domain: IDL.Text, canister: IDL.Principal, subnet: IDL.Principal })) })),
-      next_cursor: IDL.Opt(IDL.Text), configuration_revision: IDL.Opt(IDL.Nat64) })), Err: IDL.Text })], []),
-});
-const authorityService = IDL => IDL.Service({
-  set_deletion_authority: IDL.Func([IDL.Principal], [IDL.Variant({ Ok: IDL.Null, Err: IDL.Text })], []),
-});
-const pinService = IDL => {
-  const binding = IDL.Record({
-    registry: IDL.Principal, registry_revision: IDL.Nat64, target_alias: IDL.Text, deployment_id: IDL.Text,
-    deployment_revision: IDL.Nat64, host: IDL.Text, network_kind: IDL.Text,
+/**
+ * A known refusal is quoted verbatim; anything else is replaced by a fixed
+ * sentence so a raw provider or transport message (which can echo an argument)
+ * never reaches the workflow log or the artifact.
+ */
+export function identityLinkFailureReason(text) {
+  const message = String(text ?? '').slice(0, 240).replace(/[\r\n]+/g, ' ');
+  return KNOWN_FAILURES.some(known => message.includes(known)) ? message :
+    'Account-service link stopped before completing; review the exact workflow log and receipt before retrying';
+}
+
+export function saveIdentityLinkFailure(env, error, failedStage) {
+  const report = { status: 'stopped', stage: failedStage, reason: identityLinkFailureReason(error?.message),
+    action: env.LINK_ACTION ?? null, retryAuthorized: false };
+  const message = `### PROD account-service link stopped\n\nStage: ${report.stage}\n\nReason: ${report.reason}\n\nDo not retry the link until the durable receipt is reviewed.\n`;
+  console.error(message);
+  if (env.CHECK_REPORT_DIR) {
+    mkdirSync(env.CHECK_REPORT_DIR, { recursive: true });
+    writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-identity-link-failure.json'), evidenceText(report));
+  }
+  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, message);
+  return report;
+}
+
+async function main() {
+  const env = process.env, action = env.LINK_ACTION;
+  mkdirSync(env.CHECK_REPORT_DIR, { recursive: true });
+  stage = 'context and signing identity';
+  const ids = JSON.parse(readFileSync(path.join(ROOT, 'deploy/prod/.icp/data/mappings/ic.ids.json'), 'utf8'));
+  const require = createRequire(path.join(env.CHECK_DEPS_DIR, 'package.json'));
+  const { HttpAgent, Actor } = require('@icp-sdk/core/agent');
+  const { IDL } = require('@icp-sdk/core/candid');
+  const { Principal } = require('@icp-sdk/core/principal');
+  const { Ed25519KeyIdentity } = require('@icp-sdk/core/identity');
+  const { Secp256k1KeyIdentity } = require('@icp-sdk/core/identity/secp256k1');
+  const identity = identityFromPem(readFileSync(env.CHECK_KEY_PEM, 'utf8'), { Ed25519KeyIdentity, Secp256k1KeyIdentity });
+  const principal = identity.getPrincipal().toText();
+  assertIdentityLinkContext(ids, env, principal, action);
+
+  stage = 'live router and account service readback';
+  const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
+  const contract = groupContract(IDL);
+  const Pairs = IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text));
+  const Result = ok => IDL.Variant({ Ok: ok, Err: IDL.Text });
+  const configReader = () => IDL.Service({ read_group_opening_configuration: IDL.Func([], [Result(Pairs)], []) });
+  const authorityService = () => IDL.Service({ set_deletion_authority: IDL.Func([IDL.Principal], [Result(IDL.Null)], []) });
+  const pinService = () => IDL.Service({
+    pin_owner_test_deletion_registry: IDL.Func([IDL.Record({ registry: IDL.Principal, registry_revision: IDL.Nat64,
+      target_alias: IDL.Text, deployment_id: IDL.Text, deployment_revision: IDL.Nat64, host: IDL.Text,
+      network_kind: IDL.Text })], [Result(IDL.Null)], []),
   });
-  return IDL.Service({
-    pin_owner_test_deletion_registry: IDL.Func([binding], [IDL.Variant({ Ok: IDL.Null, Err: IDL.Text })], []),
-  });
-};
-const managementService = IDL => {
   const environment = IDL.Vec(IDL.Record({ name: IDL.Text, value: IDL.Text }));
-  return () => IDL.Service({
+  const managementService = () => IDL.Service({
     canister_status: IDL.Func([IDL.Record({ canister_id: IDL.Principal })], [IDL.Record({
-      status: IDL.Variant({ running: IDL.Null, stopping: IDL.Null, stopped: IDL.Null }),
-      settings: IDL.Record({ environment_variables: IDL.Opt(environment) }),
-    })], []),
-    update_settings: IDL.Func([IDL.Record({ canister_id: IDL.Principal, settings: IDL.Record({
-      environment_variables: IDL.Opt(environment) }) })], [], []),
+      settings: IDL.Record({ environment_variables: IDL.Opt(environment) }) })], []),
+    update_settings: IDL.Func([IDL.Record({ canister_id: IDL.Principal,
+      settings: IDL.Record({ environment_variables: IDL.Opt(environment) }) })], [], []),
   });
-};
+  const unwrap = r => { if ('Err' in r) throw new Error(r.Err); return r.Ok; };
+  const pid = text => Principal.fromText(text);
+  const actor = (service, canisterId) => Actor.createActor(service, { agent, canisterId });
+  const mgmt = canisterId => Actor.createActor(managementService, { agent, canisterId: 'aaaaa-aa',
+    effectiveCanisterId: pid(canisterId) });
 
-const options = canisterId => ({ agent, canisterId, effectiveCanisterId: canisterId });
-const mgmt = () => Actor.createActor(managementService(IDL), { agent, canisterId: 'aaaaa-aa', effectiveCanisterId: ids.identity_access });
-const registryPage = async () => {
-  const reply = await Actor.createActor(() => readerService(IDL), options(ids.shard_router))
-    .read_group_registry_page('mainnet', [], [], 64);
-  if ('Err' in reply) throw new Error('Router refused the bounded registry read');
-  return reply.Ok;
-};
-const openingConfiguration = canisterId => Actor.createActor(() => serviceFactory(IDL).service, options(canisterId))
-  .read_group_opening_configuration();
-const routerConfiguration = async () => {
-  const reply = await openingConfiguration(ids.shard_router);
-  if ('Err' in reply) throw new Error('Router refused the governor-only configuration read');
-  return reply.Ok;
-};
-// Unpinned identity canisters answer with this refusal; every other refusal is a
-// real stop, never silently treated as "not pinned yet".
-const identityConfiguration = async () => {
-  const reply = await openingConfiguration(ids.identity_access);
-  if ('Err' in reply) {
-    if (reply.Err === 'Deletion registry not pinned') return null;
-    throw new Error('Account service refused the governor-only configuration read');
-  }
-  return reply.Ok;
-};
-const identityEnvironment = async () => {
-  const status = await mgmt().canister_status({ canister_id: Principal.fromText(ids.identity_access) });
-  return status.settings?.environment_variables?.[0] ?? [];
-};
+  const readRegistryPage = async () => JSON.parse(evidenceText(unwrap(await actor(contract.reader, ids.shard_router)
+    .read_group_registry_page('mainnet', [], [], 64))));
+  const readRouterConfig = async () => {
+    const reply = await actor(configReader, ids.shard_router).read_group_opening_configuration();
+    if ('Err' in reply) throw new Error('Router refused the governor-only configuration read');
+    return reply.Ok;
+  };
+  // An unpinned identity canister answers with this exact refusal; every other
+  // refusal is a real stop, never silently read as "not pinned yet".
+  const readIdentityConfig = async () => {
+    const reply = await actor(configReader, ids.identity_access).read_group_opening_configuration();
+    if ('Err' in reply) {
+      if (reply.Err === 'Deletion registry not pinned') return null;
+      throw new Error('Account service refused the governor-only configuration read');
+    }
+    return reply.Ok;
+  };
+  const readIdentityEnv = async () => unwrapEnvironment(await mgmt(ids.identity_access)
+    .canister_status({ canister_id: pid(ids.identity_access) }));
+  const unwrapEnvironment = status => {
+    const rows = status?.settings?.environment_variables;
+    if (rows === undefined || rows === null || (Array.isArray(rows) && rows.length === 0)) return [];
+    const list = Array.isArray(rows) ? rows[0] : rows;
+    if (!Array.isArray(list)) throw new Error('Account service refused the environment read');
+    return list.map(({ name, value }) => ({ name, value }));
+  };
 
-const journals = {
-  base: githubJournal({ branch: 'prod-group-setup-receipts', path: RECEIPT_PATH, label: 'base group' }),
-  g2: githubJournal({ branch: 'prod-group-setup-receipts', path: G2_RECEIPT_PATH, label: 'g2 creation' }),
-  g2Registration: githubJournal({ branch: 'prod-group-setup-receipts', path: G2_REGISTRATION_RECEIPT_PATH, label: 'g2 registration' }),
-  link: githubJournal({ branch: 'prod-group-setup-receipts', path: IDENTITY_LINK_RECEIPT_PATH, label: 'account-service link' }),
-};
-const input = async () => {
-  const page = await registryPage();
-  return { ids, env: process.env, principal, baseReceipt: await journals.base.load(),
-    g2Receipt: await journals.g2Registration.load(), page, routerConfig: await routerConfiguration(),
-    identityConfig: await identityConfiguration(), identityEnv: await identityEnvironment(),
-    checkedAt: new Date().toISOString() };
-};
-const capture = async name => {
-  const reportDir = process.env.CHECK_REPORT_DIR;
-  if (!reportDir) return;
-  fs.mkdirSync(reportDir, { recursive: true });
-  fs.writeFileSync(path.join(reportDir, `${name}.json`), JSON.stringify(await (async () => ({
-    routerConfig: await routerConfiguration(), identityConfig: await identityConfiguration(),
-    identityEnv: await identityEnvironment(), page: await registryPage(),
-  }))(), null, 2));
-};
-const state = () => readState({ readRouterConfig: routerConfiguration, readIdentityConfig: identityConfiguration,
-  readEnvironment: identityEnvironment, readRegistryPage: registryPage }, null);
+  stage = 'load durable receipts';
+  const baseJournal = githubJournal(env);
+  const creationJournal = githubJournal(env, fetch, { path: G2_RECEIPT_PATH, label: 'g2 creation' });
+  const registrationJournal = githubJournal(env, fetch, { path: G2_REGISTRATION_RECEIPT_PATH, label: 'g2 registration' });
+  const journal = githubJournal(env, fetch, { path: IDENTITY_LINK_RECEIPT_PATH, label: 'account-service link' });
+  const receiptPath = () => path.join(env.CHECK_REPORT_DIR, 'prod-identity-link-receipt.json');
+  const checkpoint = async receipt => {
+    stage = `durable checkpoint: ${receipt.pending ?? receipt.phase}`;
+    await journal.save(receipt);
+    writeFileSync(receiptPath(), evidenceText(receipt));
+    stage = `after acknowledged checkpoint: ${receipt.pending ?? receipt.phase}`;
+  };
+  const capture = async name => {
+    const state = await readState({ readRouterConfig, readIdentityConfig, readEnvironment: readIdentityEnv,
+      readRegistryPage }, { identityAccess: ids.identity_access });
+    writeFileSync(path.join(env.CHECK_REPORT_DIR, `prod-identity-link-${name}.json`), evidenceText(state));
+  };
+  const input = async checkedAt => ({ ids, env, principal, baseReceipt: await baseJournal.load({ readOnly: true }),
+    g2Receipt: await registrationJournal.load({ readOnly: true }), page: await readRegistryPage(),
+    routerConfig: await readRouterConfig(), identityConfig: await readIdentityConfig(),
+    identityEnv: await readIdentityEnv(), checkedAt: checkedAt ?? new Date().toISOString() });
 
-let outcome;
-try {
   if (action === 'inspect') {
-    const current = await journals.link.load();
-    if (!current) throw new Error('No account-service link receipt exists yet; run plan first');
-    outcome = { phase: current.phase, pending: current.pending, planHash: current.planHash };
-  } else if (action === 'plan') {
-    const current = await journals.link.load();
-    if (current) throw new Error('An account-service link receipt already exists; use reconcile-readback');
-    const plan = buildIdentityLinkPlan(await input());
-    await journals.link.checkpoint({ version: 1, phase: 'planned', pending: null, planHash: planHash(plan), plan });
-    await capture('plan');
-    outcome = plan;
-  } else if (action === 'link') {
-    const receipt = await journals.link.load();
-    const current = await input();
-    assertReviewedIdentityLinkPlan(receipt?.plan, reviewedHash, buildIdentityLinkPlan({ ...current,
-      checkedAt: receipt?.plan?.checkedAt ?? current.checkedAt }));
-    const verified = await linkAccountService({
-      plan: receipt.plan, receipt, checkpoint: journals.link.checkpoint,
-      setEnvironment: async plan => {
-        const merged = mergeEnvironment(await identityEnvironment(), [plan.environment]);
-        await mgmt().update_settings({ canister_id: Principal.fromText(plan.identityAccess),
-          settings: { environment_variables: [merged] } });
-      },
-      readEnvironment: identityEnvironment,
-      setDeletionAuthority: async plan => {
-        const reply = await Actor.createActor(() => authorityService(IDL), options(ids.shard_router))
-          .set_deletion_authority(Principal.fromText(plan.identityAccess));
-        if ('Err' in reply) throw new Error('Router refused the deletion authority bind');
-      },
-      readRouterConfig: routerConfiguration,
-      pinRegistry: async plan => {
-        const binding = plan.binding;
-        const reply = await Actor.createActor(() => pinService(IDL), options(ids.identity_access))
-          .pin_owner_test_deletion_registry({ registry: Principal.fromText(binding.registry),
-            registry_revision: BigInt(binding.registryRevision), target_alias: binding.targetAlias,
-            deployment_id: binding.deploymentId, deployment_revision: BigInt(binding.deploymentRevision),
-            host: binding.host, network_kind: binding.networkKind });
-        if ('Err' in reply) throw new Error('Account service refused the registry pin');
-      },
-      readIdentityConfig: identityConfiguration,
-      readRegistryPage: registryPage,
-    });
-    await capture('linked');
-    outcome = { linked: true, verified };
-  } else if (action === 'reconcile-readback') {
-    const receipt = await journals.link.load();
-    const verified = await reconcileIdentityLinkReadback({ receipt, expectedHash: reviewedHash,
-      readState: plan => readState({ readRouterConfig: routerConfiguration, readIdentityConfig: identityConfiguration,
-        readEnvironment: identityEnvironment, readRegistryPage: registryPage }, plan),
-      checkpoint: journals.link.checkpoint });
-    if (verified.completed) await capture('reconciled');
-    outcome = verified;
+    stage = 'read-only inspection (no writes)';
+    const receipt = await journal.load({ readOnly: true });
+    const state = await readState({ readRouterConfig, readIdentityConfig, readEnvironment: readIdentityEnv,
+      readRegistryPage }, { identityAccess: ids.identity_access });
+    const report = { receiptPhase: receipt?.phase ?? 'missing', pending: receipt?.pending ?? null,
+      savedSourceCommit: receipt?.plan?.sourceCommit ?? null, currentSourceCommit: env.GITHUB_SHA,
+      sourceChanged: receipt?.plan?.sourceCommit !== env.GITHUB_SHA,
+      basePhase: (await baseJournal.load({ readOnly: true }))?.phase ?? 'missing',
+      registrationPhase: (await registrationJournal.load({ readOnly: true }))?.phase ?? 'missing',
+      environmentReleased: state.identityEnv.some(e => e.name === 'IGNITE_BOUND_DELETION_RELEASE' && e.value === '1'),
+      routerAuthority: state.routerConfig.find(([k]) => k === 'deletion_authority')?.[1] ?? 'unset',
+      registryPinned: state.identityConfig !== null,
+      registryGroups: state.page.groups.map(g => `${g.id}:${g.accepting ? 'OPEN' : 'CLOSED'}`),
+      openingAuthorized: false, admissionAuthorized: false };
+    writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-identity-link-inspection.json'), evidenceText(report));
+    const message = `### PROD account-service link read-only inspection\n\nLink receipt: ${report.receiptPhase}; pending: ${report.pending ?? 'none'}.\nBase receipt: ${report.basePhase}; g2 registration receipt: ${report.registrationPhase}.\nRouter deletion authority: ${report.routerAuthority}.\nAccount service registry pinned: ${report.registryPinned ? 'yes' : 'no'}.\nBound-deletion release environment: ${report.environmentReleased ? 'present' : 'absent'}.\nGroups: ${report.registryGroups.join(', ')}.\nNo environment write, authority bind, registry pin, approval or opening. Review evidence before linking.\n`;
+    console.log(message);
+    if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, message);
+    return;
   }
 
-  const summary = [
-    action === 'plan' ? `PROD account-service link planned; reviewed hash ${planHash(outcome)}.` :
-      action === 'inspect' ? `PROD account-service link receipt phase ${outcome.phase}.` :
-        action === 'reconcile-readback' ? `PROD account-service link reconciliation completed: ${JSON.stringify(outcome)}.` :
-          `PROD account service linked and read back: ${JSON.stringify(outcome.verified)}.`,
-    ...(action === 'plan' ? ['Nothing was written. Nothing was charged. Re-run with the exact reviewed hash.'] : []),
-    ...(action === 'plan' ? ['Routing approval, group opening and admission remain separate gates.'] : []),
-    ...(action === 'plan' ? identityLinkSummary(outcome) : []),
-  ].filter(Boolean);
-  if (process.env.GITHUB_STEP_SUMMARY)
-    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## PROD account service link\n\n${summary.map(line => `- ${line}`).join('\n')}\n`);
-  console.log(JSON.stringify(outcome, null, 2));
-} catch (error) {
-  await saveIdentityLinkFailure(error);
-  throw error;
+  if (action === 'plan') {
+    stage = 'build current closed-only link plan';
+    if (await journal.load({ readOnly: true }))
+      throw new Error('An account-service link receipt already exists; use reconcile-readback');
+    const plan = buildIdentityLinkPlan(await input());
+    const planned = { version: 1, phase: 'planned', pending: null, planHash: planHash(plan), plan };
+    await checkpoint(planned);
+    await capture('plan');
+    const message = `### PROD account-service link plan\n\nReviewed-plan hash: \`${planned.planHash}\`\n\nThree effects, each read back before the next: set \`${plan.environment.name}=${plan.environment.value}\` on ${plan.identityAccess}; bind the router's deletion authority to it; pin its trusted registry to ${plan.binding.registry} at revision ${plan.binding.registryRevision}.\nBoth groups stay CLOSED. No routing approval, opening, admission, rehearsal, group registration, funding, DEV or database change.\nPlan persisted; inspect before linking.\n`;
+    console.log(message);
+    if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, message);
+    return;
+  }
+
+  if (action === 'reconcile-readback') {
+    stage = 'reconcile pending readback (no lifecycle writes)';
+    const receipt = await journal.load({ readOnly: true });
+    const verified = await reconcileIdentityLinkReadback({ receipt, expectedHash: env.LINK_PLAN_HASH,
+      readState: plan => readState({ readRouterConfig, readIdentityConfig, readEnvironment: readIdentityEnv,
+        readRegistryPage }, plan), checkpoint });
+    writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-identity-link-result.json'), evidenceText(verified));
+    const message = `### PROD account-service link reconciliation completed\n\n${JSON.stringify(verified.verified ?? verified)}\nNo environment write, authority bind or registry pin was repeated. Routing approval, opening and admission remain separate.\n`;
+    console.log(message);
+    if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, message);
+    return;
+  }
+
+  stage = 'verify reviewed plan against current source and infrastructure';
+  const receipt = await journal.load({ readOnly: true });
+  if (!receipt) throw new Error('No account-service link receipt exists yet; run plan first');
+  assertReviewedIdentityLinkPlan(receipt.plan, env.LINK_PLAN_HASH, buildIdentityLinkPlan(await input(
+    receipt.plan.checkedAt)));
+  const verified = await linkAccountService({
+    plan: receipt.plan, receipt, checkpoint,
+    setEnvironment: async plan => {
+      stage = 'environment write: bound-deletion release';
+      const merged = mergeEnvironment(await readIdentityEnv(), [plan.environment]);
+      const reply = await mgmt(plan.identityAccess).update_settings({ canister_id: pid(plan.identityAccess),
+        settings: { environment_variables: [merged] } });
+      if (reply && typeof reply === 'object' && 'Err' in reply) throw new Error('Account service refused the environment write');
+    },
+    readEnvironment: readIdentityEnv,
+    setDeletionAuthority: async plan => {
+      stage = 'router deletion authority bind';
+      const reply = await actor(authorityService, ids.shard_router)
+        .set_deletion_authority(pid(plan.identityAccess));
+      if ('Err' in reply) throw new Error('Router refused the deletion authority bind');
+    },
+    readRouterConfig,
+    pinRegistry: async plan => {
+      stage = 'account service registry pin';
+      const binding = plan.binding;
+      const reply = await actor(pinService, ids.identity_access).pin_owner_test_deletion_registry({
+        registry: pid(binding.registry), registry_revision: BigInt(binding.registryRevision),
+        target_alias: binding.targetAlias, deployment_id: binding.deploymentId,
+        deployment_revision: BigInt(binding.deploymentRevision), host: binding.host,
+        network_kind: binding.networkKind });
+      if ('Err' in reply) throw new Error('Account service refused the registry pin');
+    },
+    readIdentityConfig,
+    readRegistryPage,
+  });
+  await capture('linked');
+  writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-identity-link-result.json'), evidenceText(verified));
+  const message = identityLinkSummary(receipt.plan, verified).map(line => `- ${line}`).join('\n');
+  console.log(`PROD account service linked and independently read back. Routing approval, opening and admission remain separate gates.`);
+  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `## PROD account service link\n\n${message}\n`);
 }
 
 const planHash = plan => {
-  // Imported lazily so the failure path below never depends on hashing helpers.
-  return hashPlanOf(plan);
+  // Imported lazily so the failure path never depends on the hashing helpers.
+  return hashPlanNow(plan);
 };
-async function saveIdentityLinkFailure(error) {
-  const reportDir = process.env.CHECK_REPORT_DIR;
-  if (!reportDir) return;
-  fs.mkdirSync(reportDir, { recursive: true });
-  const text = error?.message ? String(error.message) : 'Unknown failure';
-  const reason = identityLinkFailureReason(text);
-  fs.writeFileSync(path.join(reportDir, 'failure.json'), JSON.stringify({
-    action, reviewed: Boolean(reviewedHash), reason,
-    detail: text.slice(0, 240).replace(/[\r\n]+/g, ' '),
-  }, null, 2));
-  if (process.env.GITHUB_STEP_SUMMARY)
-    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-      `## PROD account service link stopped\n\n- Action: ${action}\n- Reason: ${reason}\n`);
+async function hashPlanNow(plan) {
+  const { hashPlan } = await import('./prod-base-group-policy.mjs');
+  return hashPlan(plan);
 }
-export function identityLinkFailureReason(text) {
-  const known = [
-    /Exact confirmation required/, /Only plan/, /live repository/, /prod branch/, /exact recorded/,
-    /confirmed closed .* receipt required/i, /reviewed closed/i, /exactly two registered groups/i,
-    /must stay CLOSED/i, /differs from its reviewed receipt/i, /reviewed public-mainnet PROD deployment/i,
-    /exactly one approved subnet/i, /share one target alias/i,
-    /already bound to another principal/i, /already pinned to a different registry/i,
-    /is set to .*review before linking/i, /must stay disabled on PROD/i,
-    /Reviewed plan hash/i, /does not match the saved/i, /changed; re-plan/i, /Closed-only/i,
-    /Unresolved account-service intent/i, /readback failed/i, /did not read back as released/i,
-    /must remain disabled after linking/i, /Registry inventory changed/i,
-    /refused the governor-only configuration read/i, /refused the bounded registry read/i,
-    /refused the deletion authority bind/i, /refused the registry pin/i,
-    /receipt already exists/i, /No account-service link receipt/i, /not awaiting reconciliation/i,
-    /readback-only pass/i, /Required for reconciliation/i,
-  ];
-  return known.some(pattern => pattern.test(text)) ? text.slice(0, 240).replace(/[\r\n]+/g, ' ') :
-    'Account-service link stopped before completing; review the exact workflow log before retrying';
-}
-function hashPlanOf(plan) {
-  const { hashPlan } = deps.require('@dfinity/agent') ? {} : {};
-  return canonicalHash(plan);
-}
-async function canonicalHash(value) {
-  const { canonical, hashPlan } = await import('./prod-base-group-policy.mjs');
-  void canonical;
-  return hashPlan(value);
-}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(error => {
+  saveIdentityLinkFailure(process.env, error, stage);
+  process.exitCode = 1;
+});
