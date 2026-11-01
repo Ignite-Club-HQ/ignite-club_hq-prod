@@ -36,7 +36,9 @@ export async function runCheck({ ids, env, principal, invoke, save }) {
         } else {
           row.verdict = 'REVIEW_ROUTING_EVIDENCE';
           const ok = value?.Ok;
-          row.reason = Array.isArray(ok) ? `${ok.length} item(s)` : 'reply received';
+          row.reason = call.method === 'read_routing_approval'
+            ? (Array.isArray(ok) && ok.length ? 'approval recorded' : 'no approval recorded yet (expected before opening)')
+            : Array.isArray(ok) ? `${ok.length} group(s) registered` : 'reply received';
         }
       }
     } catch (error) {
