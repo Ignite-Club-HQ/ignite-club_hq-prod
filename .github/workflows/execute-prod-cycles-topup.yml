@@ -11,7 +11,7 @@ on:
         required: true
 
 permissions:
-  contents: read
+  contents: write # saves deposit intents and checkpoints to the journal branch in this repository
 
 concurrency:
   group: ignite-prod-governor-deployment
