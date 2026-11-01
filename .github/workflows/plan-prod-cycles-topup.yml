@@ -9,7 +9,7 @@ on:
         default: "0"
 
 permissions:
-  contents: read
+  contents: write # saves the reviewed plan receipt to the journal branch in this repository
 
 concurrency:
   group: ignite-prod-governor-deployment

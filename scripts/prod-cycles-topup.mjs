@@ -182,7 +182,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   main().catch(error => {
     if ((process.env.TOPUP_ACTION ?? 'plan') === 'plan') {
       const reason = typeof error?.code === 'string' && error.path ? `${error.code} ${path.basename(error.path)}`
-        : internalReason(error) || (/^(Connection check requires|Unsupported governor key type|PROD governor|PROD must not|Governor principal|Repository variable|Evidence timestamp required|Only read-only|Reserve must|No group|Registry exceeds|A bounded consensus|Group .* does not|Unresolved intent|Top-up already completed|Live repository journal)/.test(String(error?.message))
+        : internalReason(error) || (/^(Connection check requires|Unsupported governor key type|PROD governor|PROD must not|Governor principal|Repository variable|Evidence timestamp required|Only read-only|Reserve must|No group|Registry exceeds|A bounded consensus|Group .* does not|Unresolved intent|Top-up already completed|Live repository journal|GitHub journal (GET|POST|PUT) failed \([0-9]{3}\)|Journal acknowledgement mismatch|Journal readback failed|Receipt branch acknowledgement mismatch|Unsupported receipt encoding)/.test(String(error?.message))
           ? String(error.message).slice(0, 200) : failureReason(error?.stderr ?? ''));
       console.error(`PROD cycles top-up planning stopped before finishing: ${reason}. No deposit or funding order was attempted.`);
     } else {

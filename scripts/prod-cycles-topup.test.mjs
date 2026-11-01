@@ -118,7 +118,10 @@ test('the workflow is a read-only prod-branch planner with no deposit or funding
   assert.match(text, /refs\/heads\/prod/);
   assert.match(text, /IGNITE_ICP_ENV:\s*prod/);
   assert.match(text, /environment: production/);
-  assert.match(text, /contents: read/);
+  // contents: write is required to save the reviewed plan receipt to the
+  // journal branch in the same repository; the planner makes no canister call.
+  assert.match(text, /contents: write/);
+  assert.match(text, /GH_TOKEN: \$\{\{ github\.token \}\}/);
   assert.match(text, /node scripts\/prod-cycles-topup\.mjs/);
   assert.doesNotMatch(text, /deposit|create_canister|icp ledger/i);
   assert.doesNotMatch(text.replace(/--no-fund/g, ''), /fund/i);
@@ -253,7 +256,9 @@ test('the execute workflow is confirmation-gated, prod-branch and deposit-only',
   assert.match(text, /refs\/heads\/prod/);
   assert.match(text, /IGNITE_ICP_ENV:\s*prod/);
   assert.match(text, /environment: production/);
-  assert.match(text, /contents: read/);
+  // contents: write is required for the deposit intents and checkpoints saved
+  // to the journal branch in the same repository.
+  assert.match(text, /contents: write/);
   assert.match(text, /TOPUP_ACTION: topup-closed/);
   assert.match(text, /TOPUP_PLAN_HASH: \$\{\{ inputs\.plan_hash \}\}/);
   assert.match(text, /CONFIRMATION: \$\{\{ inputs\.confirmation \}\}/);
