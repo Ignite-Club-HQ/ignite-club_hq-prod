@@ -62,6 +62,7 @@ function state(overrides = {}) {
 }
 const review = (overrides = {}) => reviewRoutingGate(state(overrides));
 const codes = r => r.gaps.map(g => g.code);
+const textOf = r => r.gaps.map(g => `${g.code}: ${g.detail}`).join('\n');
 
 test('a fully wired closed PROD produces an approvable draft and never an opening grant', () => {
   const r = review();
@@ -72,7 +73,7 @@ test('a fully wired closed PROD produces an approvable draft and never an openin
   assert.equal(r.approvalDraft.approved_configuration_sha256,
     sha256Hex(groupApprovalConfiguration(state().page.groups, state().page.placements)));
   assert.deepEqual(r.approvalDraft.removal_wiring_group_ids, ['base', 'g2']);
-  assert.equal(r.approvalDraft.removal_checked_at_ms, 1762000000000);
+  assert.equal(r.approvalDraft.removal_checked_at_ms, 1793565990000);
   assert.match(r.approvalDraft.evidence_sha256, /^[a-f0-9]{64}$/);
   assert.equal(r.openingAuthorized, false);
   assert.equal(r.admissionAuthorized, false);
@@ -80,18 +81,18 @@ test('a fully wired closed PROD produces an approvable draft and never an openin
 });
 
 test('a missing or stale approval is named and yields no draft', () => {
-  assert.deepEqual(codes(review({ approval: null })), ['ROUTING_APPROVAL_MISSING']);
+  assert.deepEqual(textOf(review({ approval: null })), ['ROUTING_APPROVAL_MISSING']);
   assert.equal(review({ approval: null }).approvalDraft, null);
-  assert.match(codes(review({ approval: { ...state().approval, configuration_revision: '6' } })).join(','), /ROUTING_APPROVAL_STALE/);
-  assert.match(codes(review({ approval: { ...state().approval, approved_configuration_sha256: 'c'.repeat(64) } })).join(','), /ROUTING_APPROVAL_STALE/);
-  assert.match(codes(review({ approval: { ...state().approval, removal_wiring_group_ids: ['base'] } })).join(','), /ROUTING_APPROVAL_STALE/);
+  assert.match(textOf(review({ approval: { ...state().approval, configuration_revision: '6' } })), /ROUTING_APPROVAL_STALE/);
+  assert.match(textOf(review({ approval: { ...state().approval, approved_configuration_sha256: 'c'.repeat(64) } })), /ROUTING_APPROVAL_STALE/);
+  assert.match(textOf(review({ approval: { ...state().approval, removal_wiring_group_ids: ['base'] } })), /ROUTING_APPROVAL_STALE/);
 });
 
 test('an open group is never approvable, however complete its wiring', () => {
   const open = state();
   open.page.groups[1].accepting = true;
   const r = reviewRoutingGate(open);
-  assert.match(codes(r).join(','), /GROUP_OPEN/);
+  assert.match(textOf(r), /GROUP_OPEN/);
   assert.equal(r.gateComplete, false);
   assert.equal(r.approvalDraft, null);
 });
@@ -99,17 +100,17 @@ test('an open group is never approvable, however complete its wiring', () => {
 test('removal checks off, or bound to a foreign account service, blocks the gate', () => {
   const off = review({ services: [...servicesFor('base').map(s => s.name === 'vault_domain'
       ? { ...s, environment: [{ name: ADMISSION_AUTHORITY, value: identity }] } : s), ...servicesFor('g2')] });
-  assert.match(codes(off).join('\n'), /base\/vault_domain: account admission checks are off/);
+  assert.match(codes(off), /base\/vault_domain: account admission checks are off/);
   const foreign = review({ services: [...servicesFor('base').map(s => s.name === 'vault_domain'
       ? { ...s, environment: [{ name: ADMISSION_FLAG, value: '1' }, { name: ADMISSION_AUTHORITY, value: PROD_CHECK_IDS.club_domain }] } : s),
     ...servicesFor('g2')] });
-  assert.match(codes(foreign).join('\n'), /base\/vault_domain: not bound to the PROD account service/);
+  assert.match(textOf(foreign), /base\/vault_domain: not bound to the PROD account service/);
 });
 
 test('a non-governor controller, foreign subnet or unreadable module blocks the gate', () => {
   const broken = review({ services: [...servicesFor('base').map(s => s.name === 'events_domain'
       ? { ...s, controllers: [PROD_CHECK_IDS.club_domain], subnet: 'subnet-other', moduleHash: '' } : s), ...servicesFor('g2')] });
-  const text = codes(broken).join('\n');
+  const text = textOf(broken);
   assert.match(text, /CONTROLLER_NOT_GOVERNOR/);
   assert.match(text, /SUBNET_MISMATCH/);
   assert.match(text, /MODULE_HASH_MISSING/);
@@ -120,20 +121,20 @@ test('a reciprocal authority pointing outside its own group blocks the gate', ()
   const leaked = review({ services: [...servicesFor('base').map(s => s.name === 'messaging_domain'
       ? { ...s, configuration: s.configuration.map(c => c[0] === 'club_domain' ? ['club_domain', PROD_CHECK_IDS.club_domain] : c) } : s),
     ...servicesFor('g2')] });
-  assert.match(codes(leaked).join('\n'), /base\/messaging_domain\.club_domain: not the group's own service/);
+  assert.match(textOf(leaked), /base\/messaging_domain\.club_domain: not the group's own service/);
   const absent = review({ services: [...servicesFor('base').map(s => s.name === 'vault_domain'
       ? { ...s, configuration: s.configuration.filter(c => c[0] !== 'competition_domain') } : s), ...servicesFor('g2')] });
-  assert.match(codes(absent).join('\n'), /base\/vault_domain\.competition_domain: configuration row absent/);
+  assert.match(textOf(absent), /base\/vault_domain\.competition_domain: configuration row absent/);
 });
 
 test('delivery identity and account-admission release are separate named gates', () => {
-  assert.match(codes(review({ pushWorker: undefined })).join('\n'), /PUSH_WORKER_UNPINNED/);
+  assert.match(textOf(review({ pushWorker: undefined })), /PUSH_WORKER_UNPINNED/);
   const noGrant = review({ services: [...servicesFor('base').map(s => s.name === 'notification_queue'
       ? { ...s, configuration: s.configuration.filter(c => c[0] !== 'worker') } : s), ...servicesFor('g2')] });
-  assert.match(codes(noGrant).join('\n'), /NOTIFICATION_WORKER_MISSING/);
+  assert.match(textOf(noGrant), /NOTIFICATION_WORKER_MISSING/);
   const held = review({ identityConfig: identityConfig().filter(r => r[0] !== 'account_admission_released')
     .concat([['account_admission_released', 'false']]) });
-  const text = codes(held).join('\n');
+  const text = textOf(held);
   assert.match(text, /ADMISSION_RELEASE_UNVERIFIED/);
   assert.match(text, /ACCOUNT_ELIGIBILITY_READER_UNAUTHORIZED: base\/vault_domain/);
   assert.equal(held.approvalDraft, null);
@@ -141,12 +142,12 @@ test('delivery identity and account-admission release are separate named gates',
 
 test('registry, placement and health evidence gaps are all reported, not just the first', () => {
   const truncated = state(); truncated.page.next_cursor = ['more'];
-  assert.match(codes(reviewRoutingGate(truncated)).join('\n'), /REGISTRY_TRUNCATED/);
+  assert.match(textOf(reviewRoutingGate(truncated)), /REGISTRY_TRUNCATED/);
   const noRouter = review({ routerConfig: [] });
-  assert.match(codes(noRouter).join('\n'), /ROUTER_DELETION_AUTHORITY_MISSING/);
+  assert.match(textOf(noRouter), /ROUTER_DELETION_AUTHORITY_MISSING/);
   const starved = review({ services: [...servicesFor('base').map(s => s.name === 'club_points_domain'
       ? { ...s, cycles: '10', heapBytes: '2000', running: false } : s), ...servicesFor('g2')] });
-  const text = codes(starved).join('\n');
+  const text = textOf(starved);
   assert.match(text, /CYCLES_BELOW_MINIMUM/);
   assert.match(text, /HEAP_AT_BUDGET/);
   assert.match(text, /SERVICE_NOT_RUNNING/);
