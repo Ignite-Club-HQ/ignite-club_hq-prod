@@ -103,3 +103,9 @@ export function hexReply(stdout) {
   if (!line) throw new Error('Unexpected hex reply');
   return line;
 }
+
+// Candid decoding needs a standalone Uint8Array; Node Buffers from the shared
+// pool start at a non-zero offset and fail the magic-number check.
+export function replyBytes(hex) {
+  return new Uint8Array(Buffer.from(String(hex).replace(/^0x/, ''), 'hex'));
+}
