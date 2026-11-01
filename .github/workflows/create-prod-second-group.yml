@@ -1,0 +1,105 @@
+name: "[PROD] Create second group (closed)"
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "plan saves a reviewed proposal; inspect reads only; create-closed creates, installs and configures 13 new services, kept CLOSED"
+        type: choice
+        default: plan
+        options: [plan, inspect, create-closed]
+      reviewed_plan_hash:
+        description: "Hash from a successful plan summary (create-closed only)"
+        required: false
+      confirmation:
+        description: "create-closed: CREATE PROD G2 CLOSED"
+        required: false
+permissions:
+  contents: write
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  g2:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 60
+    env:
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+      G2_ACTION: ${{ inputs.action }}
+      G2_PLAN_HASH: ${{ inputs.reviewed_plan_hash }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the live repository prod branch
+        run: |
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Install pinned tools
+        run: |
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          icp canister install --help | grep -q -- --wasm-memory-persistence
+      - name: Test closed-only creation policy and durable intent safeguards
+        run: node --test scripts/prod-g2-create.test.mjs scripts/prod-base-group.test.mjs scripts/prod-g2-plan.test.mjs
+      - name: Install isolated pinned SDK
+        run: npm install --prefix "$RUNNER_TEMP/prod-g2-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Restore existing signing key
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          export ICP_HOME="$RUNNER_TEMP/prod-g2-key"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          test -n "${PROD_GOVERNOR_PEM_ENC:-}"
+          test -n "${PROD_GOVERNOR_PASSPHRASE:-}"
+          mkdir -p "$ICP_HOME"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
+          rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
+          echo "CHECK_KEY_PEM=$ICP_HOME/key.pem" >> "$GITHUB_ENV"
+      - name: Bake the PROD governor into canister configs (this checkout only)
+        run: |
+          set -euo pipefail
+          SENTINEL='gwyap-pqop5-msidu-vlkov-zuejr-7gqjr-dwvkx-2yhgy-mdaxt-2giwn-cae'
+          grep -rl "$SENTINEL" backend deploy/prod scripts | xargs -r sed -i "s|$SENTINEL|$PROD_GOVERNOR_PRINCIPAL|g"
+      - name: Build the 13 group services with the pinned CLI
+        working-directory: deploy/prod
+        run: |
+          set -euo pipefail
+          icp build club_domain events_domain messaging_domain vault_domain competition_domain club_points_domain \
+            mini_league_domain media_metadata insights_domain notification_queue pii_access_control timer_jobs media_blob_store
+          node ../../scripts/stage-group-wasm.mjs . "$RUNNER_TEMP/g2-wasm"
+      - name: Resolve the existing push worker identity
+        env:
+          ICP_PUSH_WORKER_SEED: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED }}
+        run: |
+          set -euo pipefail
+          export PUSH_WORKER_NODE_PATH="$RUNNER_TEMP/prod-g2-deps/node_modules"
+          bash scripts/resolve-group-push-worker.sh
+      - name: Run the selected closed-only action
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/prod-g2-deps"
+          export CHECK_REPORT_DIR="$RUNNER_TEMP/prod-g2-report"
+          export G2_WASM_DIR="$RUNNER_TEMP/g2-wasm"
+          node scripts/prod-g2-create.mjs
+      - name: Save closed creation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-g2-create
+          path: ${{ runner.temp }}/prod-g2-report/*.json
+          if-no-files-found: ignore

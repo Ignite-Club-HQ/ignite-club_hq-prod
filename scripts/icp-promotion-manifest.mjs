@@ -46,6 +46,13 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-g2-plan-policy.mjs',
   'scripts/prod-g2-plan.mjs',
   'scripts/prod-g2-plan.test.mjs',
+  'scripts/prod-g2-create-policy.mjs',
+  'scripts/prod-g2-create.mjs',
+  'scripts/prod-g2-create.test.mjs',
+  'scripts/prod-g2-idl.mjs',
+  'scripts/enlarge-photo-store-policy.mjs',
+  'scripts/stage-group-wasm.mjs',
+  'scripts/resolve-group-push-worker.sh',
   'scripts/media-card-funding-policy.mjs',
   'frontend/scripts/media-stage-two-github.mjs',
 
@@ -54,6 +61,7 @@ export const ICP_SOURCE_FILES = [
   '.github/workflows/check-prod-canister-connections.yml',
   '.github/workflows/setup-prod-base-group.yml',
   '.github/workflows/plan-prod-second-group.yml',
+  '.github/workflows/create-prod-second-group.yml',
 ];
 
 /**
