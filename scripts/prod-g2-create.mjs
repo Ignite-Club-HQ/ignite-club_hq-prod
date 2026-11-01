@@ -50,9 +50,20 @@ const KNOWN_FAILURES = [
   'Journal acknowledgement mismatch; stop without replay',
   'Journal readback failed; stop without replay',
 ];
+const CONTEXT_FAILURES = [
+  'Connection check requires the live repository prod branch',
+  'Connection check requires the exact recorded 18-service PROD inventory',
+  'Governor principal required',
+  'Repository variable PROD_GOVERNOR_PRINCIPAL is not set',
+  'PROD must not use the DEV governor key',
+  'Unsupported governor key type',
+];
 export function g2FailureReason(error) {
   const message = error instanceof Error ? error.message : '';
-  if (KNOWN_FAILURES.includes(message)) return message;
+  if (KNOWN_FAILURES.includes(message) || CONTEXT_FAILURES.includes(message)) return message;
+  if (/^PROD governor mismatch: key is [a-z0-9-]{5,63}, expected [a-z0-9-]{5,63}$/.test(message)) return message;
+  if (/^ENOENT: no such file or directory/.test(message)) return `Missing file: ${message.slice(0, 200)}`;
+  if (/^Cannot find (module|package)/.test(message)) return 'Pinned SDK module could not be loaded';
   if (/^Built \w+ module differs from the certified base module; review the source change first$/.test(message)) return message;
   if (/^Missing built module hash for \w+$/.test(message)) return message;
   if (/^\w+ landed on unapproved subnet; stop without replay$/.test(message)) return message;
@@ -60,6 +71,7 @@ export function g2FailureReason(error) {
   if (/^Governor does not control \w+$/.test(message)) return message;
   if (/^\w+ failed health check$/.test(message)) return message;
   if (/^GitHub journal (GET|POST|PUT) failed \([0-9]{3}\); stop without replay$/.test(message)) return message;
+  if (error instanceof Error) return `Unclassified failure (${error.name}: ${message.replace(/[A-Za-z0-9+/=]{48,}/g, '[redacted]').slice(0, 200)}); inspect without retrying creation`;
   return 'Unclassified failure; inspect the saved stage and receipt without retrying creation';
 }
 export function saveG2Failure(env, error, failedStage) {
