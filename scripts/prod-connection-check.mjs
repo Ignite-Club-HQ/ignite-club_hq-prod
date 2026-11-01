@@ -24,6 +24,8 @@ export async function runCheck({ ids, env, principal, invoke, decode, save }) {
       } else {
         row.evidence = text;
         row.verdict = /\bErr\b/.test(text) ? 'READER_DENIED' : 'REVIEW_ROUTING_EVIDENCE';
+        const err = text.match(/Err\s*=\s*"([^"\n]{1,160})"/);
+        if (err) row.reason = `Canister refused: ${err[1]}`;
       }
     } catch (error) {
       // Raw subprocess output is never stored: only the bounded, redacted
