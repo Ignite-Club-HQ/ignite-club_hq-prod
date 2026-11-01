@@ -4,6 +4,12 @@ import { readFileSync } from 'node:fs';
 const workflow = readFileSync(new URL('../.github/workflows/fund-prod-canisters-by-card.yml', import.meta.url), 'utf8');
 const runner = readFileSync(new URL('./prod-card-funding.mjs', import.meta.url), 'utf8');
 
+test('funding resolves its temporary identity directory inside the executing step', () => {
+  const jobSettings = workflow.split('    steps:')[0];
+  assert.doesNotMatch(jobSettings, /\$\{\{\s*runner\./);
+  assert.match(workflow, /export ICP_HOME="\$RUNNER_TEMP\/prod-card-identity"/);
+});
+
 test('PROD card funding is manual, serialized, pinned and only ever temporary signing material', () => {
   assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /schedule:/);
