@@ -158,14 +158,22 @@ export function buildG2CreationPlan({ ids, env, principal, baseReceipt, page, ob
   };
 }
 
+// checkedAt and the observed balance change on every run; everything else must
+// match the reviewed plan exactly. The live balance is still enforced separately:
+// buildG2CreationPlan refuses to build a plan when funds are below the requirement.
+const stableG2Plan = p => {
+  const { checkedAt, funding, ...rest } = p;
+  const { balanceCycles, ...fundingRest } = funding ?? {};
+  return { ...rest, funding: fundingRest };
+};
 export function assertReviewedG2Plan(plan, rawExpectedHash, currentPlan) {
   const expectedHash = normalizeReviewedHash(rawExpectedHash);
   if (!/^[a-f0-9]{64}$/.test(expectedHash))
     throw new Error('Reviewed plan hash required (64 lowercase hex characters)');
   if (hashPlan(plan) !== expectedHash)
     throw new Error('Reviewed plan hash does not match the saved g2 receipt');
-  if (hashPlan(currentPlan) !== expectedHash)
-    throw new Error('Live inventory, modules, controller, subnet, worker or balance changed; re-plan');
+  if (hashPlan(stableG2Plan(plan)) !== hashPlan(stableG2Plan(currentPlan)))
+    throw new Error('Live inventory, modules, controller, subnet, worker or source changed; re-plan');
   if (plan.registrationAuthorized !== false || plan.openingAuthorized !== false ||
       plan.lifecycleReleaseAuthorized !== false)
     throw new Error('Closed-only plan required');

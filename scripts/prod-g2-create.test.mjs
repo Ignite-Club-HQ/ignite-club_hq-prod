@@ -89,7 +89,12 @@ test('reviewed plan hash must match saved receipt and current evidence', () => {
   const hash = hashPlan(p);
   assert.throws(() => assertReviewedG2Plan(p, 'nope', p), /64 lowercase hex/);
   assert.throws(() => assertReviewedG2Plan(p, 'c'.repeat(64), p), /does not match the saved g2 receipt/);
-  assert.throws(() => assertReviewedG2Plan(p, hash, plan({ checkedAt: '2026-11-01T07:00:00.000Z' })), /re-plan/);
+  // A later run rebuilds the plan with a fresh timestamp and live balance; those
+  // must not force a re-plan, but real drift still must.
+  assertReviewedG2Plan(p, hash, plan({ checkedAt: '2026-11-01T07:00:00.000Z' }));
+  assertReviewedG2Plan(p, hash, plan({ balance: '22000000000000' }));
+  assert.throws(() => assertReviewedG2Plan(p, hash, plan({ sourceCommit: '0'.repeat(40) })), /re-plan/);
+  assert.throws(() => assertReviewedG2Plan(p, hash, plan({ subnet: 'aaaaa-aa' })), /re-plan/);
   assertReviewedG2Plan(p, ` ${hash}\n`, p);
 });
 
