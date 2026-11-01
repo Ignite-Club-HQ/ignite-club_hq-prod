@@ -58,9 +58,11 @@ fuel alone does not close it.
 
 Execution properties:
 
-- The entered hash must match the saved receipt, and the live inventory,
-  targets and planned amounts must still match the reviewed plan — otherwise
-  the run refuses and asks for a re-plan.
+- The entered hash must match the saved receipt, and the live inventory and
+  targets must still match the reviewed plan — otherwise the run refuses and
+  asks for a re-plan. Live balances drift down between planning and
+  execution; the planned amounts drift with them and are recomputed from the
+  live balances, capped at the reviewed amounts.
 - Each deposit is capped at its reviewed amount: a canister that gained fuel
   since planning receives only the remainder; one already at target is
   skipped. Nothing ever receives more than reviewed.
