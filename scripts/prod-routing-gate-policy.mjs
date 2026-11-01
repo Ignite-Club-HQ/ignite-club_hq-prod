@@ -133,10 +133,15 @@ export function reviewRoutingGate({ ids = PROD_CHECK_IDS, principal, pushWorker,
         add('CYCLES_BELOW_MINIMUM', `${group.id}/${item.name}: cycles below the group minimum.`);
       if (!heap || !decimal(group.heap_budget_bytes) || BigInt(heap) >= BigInt(group.heap_budget_bytes))
         add('HEAP_AT_BUDGET', `${group.id}/${item.name}: heap at or above the group budget.`);
-      if (envValue(service.environment, ADMISSION_FLAG) !== '1')
-        add('REMOVAL_CHECKS_OFF', `${group.id}/${item.name}: account admission checks are off, so removals are not enforced.`);
-      if (envValue(service.environment, ADMISSION_AUTHORITY) !== ids.identity_access)
-        add('ADMISSION_AUTHORITY_MISSING', `${group.id}/${item.name}: not bound to the PROD account service.`);
+      // Only services that actually check account admission must carry the
+      // switch and authority (timer_jobs and the workload identity do not).
+      const checksAdmission = ADMISSION_DOMAINS.includes(item.name) || item.name === 'media_blob_store';
+      if (checksAdmission) {
+        if (envValue(service.environment, ADMISSION_FLAG) !== '1')
+          add('REMOVAL_CHECKS_OFF', `${group.id}/${item.name}: account admission checks are off, so removals are not enforced.`);
+        if (envValue(service.environment, ADMISSION_AUTHORITY) !== ids.identity_access)
+          add('ADMISSION_AUTHORITY_MISSING', `${group.id}/${item.name}: not bound to the PROD account service.`);
+      }
       for (const peer of RECIPROCAL_LINKS[item.name] ?? []) {
         const peerId = expected.find(e => e.name === peer)?.id;
         if (!peerId) { add('RECIPROCAL_TARGET_MISSING', `${group.id}/${item.name}: ${peer} is not in this group.`); continue; }
