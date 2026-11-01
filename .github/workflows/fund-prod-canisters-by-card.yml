@@ -44,7 +44,6 @@ jobs:
     environment: production
     timeout-minutes: 85
     env:
-      ICP_HOME: ${{ runner.temp }}/prod-card-identity
       IGNITE_ICP_ENV: prod
       PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
       DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
@@ -83,6 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          export ICP_HOME="$RUNNER_TEMP/prod-card-identity"
           test -n "$PAYMENT_ID"
           mkdir -p "$ICP_HOME/identity/keys"
           trap 'rm -rf "$ICP_HOME"' EXIT
