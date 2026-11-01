@@ -4,11 +4,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { planCyclesTopup, hashTopupPlan, topupSummary, assertTopupContext } from './prod-cycles-topup-policy.mjs';
+import { PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 
 const T = 1000000000000n;
 const group = (id, min) => ({ id, target_alias: 'mainnet', accepting: false, min_cycles: String(min),
-  photo_store: [`${id}-store`], domains: [{ domain: 'club_domain', canister: `${id}-club` }, { domain: 'events_domain', canister: `${id}-events` }] });
-const placement = id => ({ group_id: id, primary_subnet: 'subnet-1', domains: [{ domain: 'club_domain', canister: `${id}-club`, subnet: 'subnet-1' }, { domain: 'events_domain', canister: `${id}-events`, subnet: 'subnet-1' }] });
+  photo_store: [`${id}-store`], domains: [{ domain: 'club_domain', canister: `${id}-club_domain` }, { domain: 'events_domain', canister: `${id}-events_domain` }] });
+const placement = id => ({ group_id: id, primary_subnet: 'subnet-1', domains: [{ domain: 'club_domain', canister: `${id}-club_domain`, subnet: 'subnet-1' }, { domain: 'events_domain', canister: `${id}-events_domain`, subnet: 'subnet-1' }] });
 const page = { groups: [group('base', T), group('g2', T)], placements: [placement('base'), placement('g2')], next_cursor: [] };
 const svc = (g, name, cycles) => ({ group: g, name, id: `${g}-${name === 'media_blob_store' ? 'store' : name}`, cycles, balanceRead: cycles === null ? 'unreadable' : 'readback' });
 const allServices = cyclesOf => [
@@ -99,7 +100,7 @@ test('the summary is honest about scope and shows exact amounts', () => {
 });
 
 test('context is pinned to the live repository prod branch and plan only', () => {
-  const ids = Object.fromEntries(Object.entries(JSON.parse(readFileSync(new URL('../deploy/prod/.icp/data/mappings/ic.ids.json', import.meta.url), 'utf8'))));
+  const ids = { ...PROD_CHECK_IDS };
   const env = { GITHUB_REPOSITORY: 'Ignite-Club-HQ/ignite-club_hq-prod', GITHUB_REF: 'refs/heads/prod', IGNITE_ICP_ENV: 'prod',
     PROD_GOVERNOR_PRINCIPAL: 'kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae' };
   assert.doesNotThrow(() => assertTopupContext(ids, env, env.PROD_GOVERNOR_PRINCIPAL));

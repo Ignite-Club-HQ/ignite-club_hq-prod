@@ -20,7 +20,7 @@ export function assertTopupContext(ids, env, principal) {
  * hash binds the inventory, targets and amounts — the things a later
  * top-up step would re-verify — not the moment the plan was read. */
 export function hashTopupPlan(plan) {
-  const { checkedAt, ...stable } = plan;
+  const { checkedAt, planHash, ...stable } = plan;
   return createHash('sha256').update(JSON.stringify(stable)).digest('hex');
 }
 
