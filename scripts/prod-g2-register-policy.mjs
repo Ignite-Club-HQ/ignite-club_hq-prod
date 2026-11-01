@@ -196,3 +196,22 @@ export function g2RegistrationSummary(plan) {
     'No opening, admission, funding, DEV or database changes.', '',
     'Run `register-closed` with this hash and the exact confirmation, then `reconcile-readback` only if a run is interrupted.'].join('\n') + '\n';
 }
+
+/** The acknowledged g2 registration receipt is the reviewed independent PROD
+ * inventory the readiness audit compares the live registry against. It is
+ * accepted only when fully acknowledged, self-consistent and closed-only; a
+ * router reply is never treated as its own review. */
+export function reviewedG2Inventory(receipt) {
+  if (!receipt || receipt.phase !== 'registered-closed' || receipt.pending !== null ||
+      !receipt.plan || receipt.planHash !== hashPlan(receipt.plan) ||
+      receipt.plan.groupId !== 'g2' || receipt.plan.group?.accepting !== false ||
+      receipt.plan.openingAuthorized !== false || receipt.plan.admissionAuthorized !== false)
+    throw new Error('Acknowledged closed g2 registration receipt required');
+  const domains = Object.fromEntries((receipt.plan.group.domains ?? []).map(d => [d.domain, String(d.canister)]));
+  const photoStore = String(receipt.plan.group.photo_store?.[0] ?? '');
+  if (GROUP_DOMAINS.some(n => !domains[n]) || !domains.secret_workload_identity || !photoStore)
+    throw new Error('Reviewed g2 inventory is incomplete');
+  if ([...GROUP_DOMAINS.map(n => domains[n]), photoStore].some(id => Object.values(PROD_CHECK_IDS).includes(id)))
+    throw new Error('Reviewed g2 inventory must be independent of base');
+  return { domains, photoStore };
+}
