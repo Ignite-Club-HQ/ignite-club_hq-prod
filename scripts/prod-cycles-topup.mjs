@@ -12,7 +12,7 @@ import { identityFromPem } from './prod-connection-check.mjs';
 import { evidenceText, internalReason, failureReason } from './prod-connection-check-policy.mjs';
 import { expectedServices, readFuelBalance } from './prod-routing-gate-policy.mjs';
 import { githubJournal } from './prod-base-group.mjs';
-import { depositService, cyclesService } from './prod-g2-idl.mjs';
+import { topupService, cyclesService } from './prod-g2-idl.mjs';
 import { assertTopupContext, planCyclesTopup, topupSummary, assertReviewedTopupPlan,
   runCyclesTopup, resumeTopupIntent, topupResultSummary, TOPUP_RECEIPT_PATH } from './prod-cycles-topup-policy.mjs';
 
@@ -34,6 +34,7 @@ const KNOWN_FAILURES = [
   'Deposit intent inconsistent with recorded deposits; reconcile by hand',
   'Deposit intent older than the ledger dedup window; reconcile by hand',
   'Ledger deposit refused; inspect signed readback, never replay',
+  'Ledger withdraw to canister rejected (refunded minus fee); stop without replay',
   'Journal acknowledgement mismatch; stop without replay',
   'Journal readback failed; stop without replay',
 ];
@@ -108,16 +109,20 @@ async function main() {
   }), { agent, canisterId: ids.shard_router });
   const page = plain(unwrap(await router.read_group_registry_page('mainnet', [], [], 64)));
 
+  const ledger = Actor.createActor(topupService(IDL), { agent, canisterId: CYCLES_LEDGER });
   const services = [];
   for (const group of Array.isArray(page.groups) ? page.groups : []) {
     const placement = (Array.isArray(page.placements) ? page.placements : []).find(p => p.group_id === group.id);
     for (const item of expectedServices(group, placement)) {
       const balance = await readFuelBalance(() => fuel(item.id).cycles_balance());
-      services.push({ group: group.id, name: item.name, id: item.id, cycles: balance.cycles, balanceRead: balance.balanceRead });
+      // Read-only: cycles sitting in the canister's OWN cycles-ledger account
+      // (e.g. from the earlier misdirected icrc1_transfer run). Not fuel.
+      const held = await readFuelBalance(() => ledger.icrc1_balance_of({ owner: Principal.fromText(item.id), subaccount: [] }));
+      services.push({ group: group.id, name: item.name, id: item.id, cycles: balance.cycles, balanceRead: balance.balanceRead,
+        ledgerHeld: held.cycles });
     }
   }
 
-  const ledger = Actor.createActor(depositService(IDL), { agent, canisterId: CYCLES_LEDGER });
   const account = await readFuelBalance(() => ledger.icrc1_balance_of({ owner: Principal.fromText(principal), subaccount: [] }));
 
   const plan = planCyclesTopup({ page, services, signingAccount: { balance: account.cycles, balanceRead: account.balanceRead },
