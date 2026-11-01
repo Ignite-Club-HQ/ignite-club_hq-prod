@@ -5,6 +5,24 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { assertCheckContext, readerSpec, checkCalls, assessLinks, failureReason, internalReason, evidenceText } from './prod-connection-check-policy.mjs';
 import { assessGroupReadiness, setupProposal } from './prod-group-readiness.mjs';
+import { G2_REGISTRATION_RECEIPT_PATH, reviewedG2Inventory } from './prod-g2-register-policy.mjs';
+
+// The reviewed inventory must come from our own acknowledged journal receipt,
+// never from the router reply it is meant to check. Failures stay bounded and
+// secret-free: an unavailable review keeps the group flagged, it never passes.
+export function inventoryEvidenceFailureReason(error) {
+  const message = error instanceof Error ? error.message : '';
+  const known = [
+    'Live repository journal authorization required',
+    'Acknowledged closed g2 registration receipt required',
+    'Reviewed g2 inventory is incomplete',
+    'Reviewed g2 inventory must be independent of base',
+    'Journal readback failed; stop without replay',
+  ];
+  if (known.includes(message)) return message;
+  if (/^GitHub journal (GET|POST|PUT) failed \([0-9]{3}\); stop without replay$/.test(message)) return message;
+  return 'Inventory evidence unavailable; independent review outstanding';
+}
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
