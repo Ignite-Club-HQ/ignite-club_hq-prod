@@ -147,13 +147,15 @@ export function topupSummary(plan) {
 
 // ----- Confirmation-gated execution (topup-closed) -----
 
-/** Stable fields a later execution re-verifies: inventory, targets and planned
- * amounts. Live balances and the observation time drift between plan and
- * execution and are checked separately (balances may only drift down). */
+/** Stable fields a later execution re-verifies: inventory and targets only.
+ * Planned amounts derive from live balances, which drift down continuously
+ * (canisters burn cycles), so any delay between plan and execution changes
+ * them; the receipt hash still binds the reviewed amounts exactly, and
+ * planDeposits recomputes each deposit from the live balance capped at the
+ * reviewed amount — nothing ever gets more than reviewed. */
 const stableTopupPlan = p => ({
   kind: p.kind, reserveCycles: p.reserveCycles, groups: p.groups,
-  items: rows(p.items).map(i => ({ group: i.group, name: i.name, id: i.id, target: i.target, topUp: i.topUp })),
-  totalTopUp: p.totals?.totalTopUp,
+  items: rows(p.items).map(i => ({ group: i.group, name: i.name, id: i.id, target: i.target })),
 });
 
 export function assertReviewedTopupPlan(receiptPlan, rawExpectedHash, currentPlan) {

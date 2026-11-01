@@ -151,8 +151,17 @@ test('the reviewed hash binds the receipt and the stable plan fields', () => {
   assert.doesNotThrow(() => assertReviewedTopupPlan(plan, plan.planHash, current));
   assert.throws(() => assertReviewedTopupPlan(plan, 'not-a-hash', current), /64 lowercase hex/);
   assert.throws(() => assertReviewedTopupPlan(plan, '0'.repeat(64), current), /does not match the saved top-up receipt/);
-  const changed = planCyclesTopup({ ...plannedInput, services: allServices({ base: String(T / 4n), g2: String(T) }) });
-  assert.throws(() => assertReviewedTopupPlan(plan, plan.planHash, changed), /inventory, targets or amounts changed; re-plan/);
+  // Balances drift down between plan and execution; the derived amounts
+  // change with them and must not force a re-plan (deposits are recomputed
+  // from live balances, capped at the reviewed amounts).
+  const drifted = planCyclesTopup({ ...plannedInput, services: allServices({ base: String(T / 4n), g2: String(T) }) });
+  assert.doesNotThrow(() => assertReviewedTopupPlan(plan, plan.planHash, drifted));
+  // A different target (reserve) or inventory still forces a re-plan.
+  const retargeted = planCyclesTopup({ ...plannedInput, reserveCycles: '1' });
+  assert.throws(() => assertReviewedTopupPlan(plan, plan.planHash, retargeted), /inventory, targets or amounts changed; re-plan/);
+  const otherPage = { ...page, groups: [group('base', 2n * T), group('g2', T)] };
+  const reinventory = planCyclesTopup({ ...plannedInput, page: otherPage });
+  assert.throws(() => assertReviewedTopupPlan(plan, plan.planHash, reinventory), /inventory, targets or amounts changed; re-plan/);
 });
 
 test('deposits are capped at reviewed amounts and never blind', () => {
