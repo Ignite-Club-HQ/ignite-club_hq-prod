@@ -53,7 +53,7 @@ export function buildG2RegistrationPlan({ ids, env, principal, baseReceipt, g2Re
   if (created.some(id => Object.values(PROD_CHECK_IDS).includes(id))) throw new Error('g2 must not reuse an existing PROD base canister');
   if ((g2Receipt.installedDomains ?? []).length !== G2_SERVICES.length) throw new Error('Every g2 service must hold its reviewed module');
   if ((g2Receipt.configuration?.completed ?? []).length !== CONFIGURATION_RECIPE.length) throw new Error('Every g2 wiring operation must be complete');
-  if (g2Receipt.configuration.binding !== canonical(g2Receipt.configuration.binding === undefined ? {} : g2Receipt.configuration.binding))
+  if (typeof g2Receipt.configuration.binding !== 'string' || !g2Receipt.configuration.binding.length)
     throw new Error('g2 configuration binding unreadable');
   const registryIds = [...GROUP_DOMAINS.map(n => canisters[n]), canisters.media_blob_store];
   if (registryIds.some(id => Object.values(PROD_CHECK_IDS).includes(id))) throw new Error('g2 data canisters must be independent of base');
@@ -154,13 +154,18 @@ export async function registerClosedG2({ plan, receipt, checkpoint, registerGrou
 export function assertClosedG2Readback(page, plan, revision) {
   const basePlan = plan.basePlan;
   if (!basePlan) throw new Error('Reviewed base plan required for g2 readback');
+  const baseGroup = page.groups?.find(g => g.id === 'base');
+  const g2Group = page.groups?.find(g => g.id === 'g2');
+  const basePlacement = page.placements?.find(p => p.group_id === 'base');
+  const g2Placement = page.placements?.find(p => p.group_id === 'g2');
   if (page.next_cursor?.length || String(page.revision) !== String(revision) ||
       page.groups?.length !== 2 || page.placements?.length !== 2 ||
       page.groups.some(g => g.accepting !== false) ||
-      canonical(immutableGroup(page.groups.find(g => g.id === 'base'))) !== canonical(immutableGroup(basePlan.group)) ||
-      canonical(page.placements.find(p => p.group_id === 'base')) !== canonical(basePlan.placement) ||
-      canonical(immutableGroup(page.groups.find(g => g.id === 'g2'))) !== canonical(immutableGroup(plan.group)) ||
-      canonical(page.placements.find(p => p.group_id === 'g2')) !== canonical(plan.placement))
+      !baseGroup || !g2Group || !basePlacement || !g2Placement ||
+      canonical(immutableGroup(baseGroup)) !== canonical(immutableGroup(basePlan.group)) ||
+      canonical(basePlacement) !== canonical(basePlan.placement) ||
+      canonical(immutableGroup(g2Group)) !== canonical(immutableGroup(plan.group)) ||
+      canonical(g2Placement) !== canonical(plan.placement))
     throw new Error('Closed g2 registry readback mismatch; stop without replay');
 }
 
