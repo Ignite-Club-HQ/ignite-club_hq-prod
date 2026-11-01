@@ -103,6 +103,24 @@ test('fully wired PROD links read back complete; an unset link is named', async 
   assert.match(blob.reason, /messaging_domain: not set/);
 });
 
+test('unpinned identity_access is the expected pre-opening state; the same refusal elsewhere still fails', async () => {
+  const { EXPECTED_LINKS } = await import('./prod-connection-check-policy.mjs');
+  const nameOf = id => Object.keys(PROD_CHECK_IDS).find(n => PROD_CHECK_IDS[n] === id);
+  const run = refuser => runCheck({ ids: PROD_CHECK_IDS, env, principal, save: () => {},
+    invoke: spec => {
+      if (spec.method !== 'read_group_opening_configuration') return { Ok: [] };
+      const name = nameOf(spec.canisterId);
+      if (name === refuser) { const e = new Error('x'); e.stderr = "with message: 'Deletion registry not pinned'"; throw e; }
+      return (EXPECTED_LINKS[name] || []).map(k => [k, PROD_CHECK_IDS[k]]);
+    } });
+  const fresh = await run('identity_access');
+  assert.equal(fresh.rows.find(r => r.name === 'identity_access').verdict, 'NOT_PINNED_YET');
+  assert.equal(fresh.complete, true);
+  const other = await run('club_domain');
+  assert.equal(other.rows.find(r => r.name === 'club_domain').verdict, 'UNREADABLE');
+  assert.equal(other.complete, false);
+});
+
 test('governor PEM loads as the matching agent identity', async () => {
   const { generateKeyPairSync } = await import('node:crypto');
   const { identityFromPem } = await import('./prod-connection-check.mjs');
