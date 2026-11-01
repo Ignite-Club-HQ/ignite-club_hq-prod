@@ -109,3 +109,14 @@ export function hexReply(stdout) {
 export function replyBytes(hex) {
   return new Uint8Array(Buffer.from(String(hex).replace(/^0x/, ''), 'hex'));
 }
+
+// Failures raised inside the check (not by the CLI) map to fixed, secret-free
+// labels; arbitrary exception text is never copied into the report.
+export function internalReason(error) {
+  const message = String(error?.message ?? '');
+  if (/^Unexpected hex reply$/.test(message)) return 'Reply was not raw hex';
+  if (/^Infrastructure reply exceeded evidence bound$/.test(message)) return 'Reply too large';
+  if (/^Invalid bounded infrastructure configuration$/.test(message)) return 'Configuration reply out of bounds';
+  if (/magic number|IDL|decode|type/i.test(message)) return 'Reply could not be decoded';
+  return '';
+}

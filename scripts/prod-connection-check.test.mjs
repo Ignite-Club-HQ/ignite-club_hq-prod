@@ -80,3 +80,13 @@ test('denied router readers report the refusal text', async () => {
   assert.equal(report.rows.at(-1).reason, 'Canister refused: Forbidden');
   assert.equal(report.rows[0].reason, 'Canister refused: Governor required');
 });
+
+test('configuration replies decode with the pinned Candid library (no Buffer pool offset)', async () => {
+  const { replyBytes, internalReason } = await import('./prod-connection-check-policy.mjs');
+  const bytes = replyBytes('0x4449444c016d6c0200710171010002' + '0b636c75625f646f6d61696e' + '03616263' + '0178' + '0179');
+  assert.equal(bytes.byteOffset, 0);
+  assert.equal(Object.getPrototypeOf(bytes), Uint8Array.prototype);
+  assert.equal(bytes[0], 0x44);
+  assert.equal(internalReason(new Error('Wrong magic number: "/"')), 'Reply could not be decoded');
+  assert.equal(internalReason(new Error('SECRET diagnostic')), '');
+});

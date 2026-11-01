@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs'
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { assertCheckContext, callArguments, checkCalls, assessLinks, failureReason, hexReply, replyBytes } from './prod-connection-check-policy.mjs';
+import { assertCheckContext, callArguments, checkCalls, assessLinks, failureReason, hexReply, replyBytes, internalReason } from './prod-connection-check-policy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -31,7 +31,7 @@ export async function runCheck({ ids, env, principal, invoke, decode, save }) {
       // Raw subprocess output is never stored: only the bounded, redacted
       // canister/CLI reason from failureReason explains the failure.
       row.verdict = 'UNREADABLE';
-      row.reason = failureReason(error?.stderr || (error?.message ? `Error: ${error.message}` : ''));
+      row.reason = error?.stderr ? failureReason(error.stderr) : (internalReason(error) || failureReason(''));
     }
     if (['UNREADABLE', 'READER_DENIED', 'LINK_MISMATCH'].includes(row.verdict)) report.complete = false;
     report.rows.push(row);
