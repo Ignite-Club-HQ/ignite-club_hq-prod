@@ -181,6 +181,21 @@ test('creation runs create, install, configure, health and photo sizing, closed 
   assert.ok(saved.some(r => r.pending?.kind === 'configure'));
 });
 
+test('creation accepts the reviewed receipt when only balance and timestamp moved', async () => {
+  // Regression: runG2Creation must verify the stored receipt's own integrity, not
+  // re-hash the fresh plan — the fresh plan embeds the current balance/checkedAt,
+  // so hashing it can never match the stored planHash. Drift vs the live state is
+  // assertReviewedG2Plan's job (stable-field comparison), tested separately.
+  const p = plan();
+  const receipt = plannedReceipt(p);
+  const fresh = { ...p, checkedAt: new Date().toISOString(),
+    funding: { ...p.funding, balanceCycles: (BigInt(p.funding.balanceCycles) + 1n).toString() } };
+  const { state, calls } = fakeCalls();
+  const result = await runG2Creation({ plan: fresh, receipt, checkpoint: async () => {}, calls, nowNs: now });
+  assert.equal(result.createdClosed, true);
+  assert.equal(state.created.size, 13);
+});
+
 test('creation refuses a module that differs from the reviewed plan', async () => {
   const p = plan();
   const { calls } = fakeCalls();
