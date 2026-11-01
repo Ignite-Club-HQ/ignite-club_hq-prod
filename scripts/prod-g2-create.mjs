@@ -193,9 +193,8 @@ async function main() {
         wasm_module_hash: sha256(wasm), arg, sender_canister_version: [] });
     },
     cyclesOf: async id => Actor.createActor(cyclesService(IDL), { agent, canisterId: pid(id) }).cycles_balance(),
-    async configure(id, method, args) {
-      const service = G2_SERVICES.find(n => G2_SETTERS_SAFE[n]?.[method]);
-      const actor = Actor.createActor(setterService(IDL, service), { agent, canisterId: pid(id) });
+    async configure(domain, id, method, args) {
+      const actor = Actor.createActor(setterService(IDL, domain), { agent, canisterId: pid(id) });
       unwrap(await actor[method](...args.map(a => Array.isArray(a) ? a.map(pid) : pid(a))));
     },
     blobStableEnabled: async id => (await Actor.createActor(blobStoreService(IDL), { agent, canisterId: pid(id) }).stable_storage_status()).enabled,
@@ -221,10 +220,6 @@ async function main() {
   const message = `### PROD second group created CLOSED\n\n13 independent services created, installed with the certified base modules, configured and health-checked.\n\n${lines}\n\nThe group is NOT registered in the router, receives no clubs and stays CLOSED. Registration, routing approval and admission remain separate reviewed steps. No DEV or database changes.\n`;
   console.log(message); if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, message);
 }
-
-// Local alias to keep the policy import surface explicit.
-import { hashPlan as planHashOf } from './prod-base-group-policy.mjs';
-import { G2_SETTERS as G2_SETTERS_SAFE } from './prod-g2-idl.mjs';
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(error => {
   saveG2Failure(process.env, error, stage);
