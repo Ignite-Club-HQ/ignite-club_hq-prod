@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — PROD group parity with DEV (1 Nov 2026)
+- [ ] Prepare CI-only PROD notification key minting, encrypted browser handover and closed-g2 identity restoration; preserve existing Supabase push and leave ICP delivery disabled. Owner must promote tooling, save a dedicated passphrase and run the protected workflow.
 - [x] Checked whether closed g2 setup interferes with existing Supabase push: setup only records the ICP worker identity/grants; it does not alter Supabase delivery, Firebase credentials or enable the separate PROD ICP delivery schedule. Actual live phone delivery has not been retested.
 - [x] Investigated owner's failed base registration with receipt still planned/pending null; added credential-safe stage/error reports and early receipt artifacts without weakening hash or no-replay guards. Exact failure remains awaiting signed run diagnostics; no live mutations here.
 - [x] Compared DEV group architecture and PROD provisioning: DEV records base + g2; PROD has 18 independent base services but registration/approval and identity registry binding remain incomplete. Zero-link audit rows do not prove group readiness.
