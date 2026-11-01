@@ -20,7 +20,7 @@ const domainsFor = group => [...GROUP_DOMAINS.map(d => ({ domain: d, canister: g
   { domain: 'secret_workload_identity', canister: 'shared-workload-cai' }];
 const group = (id, accepting = false) => ({ id, target_alias: 'mainnet', accepting, max_clubs: 500, assigned_clubs: 3,
   min_cycles: '1000', heap_budget_bytes: '2000', heap_bytes: '10', cycles: '5000', observed_at_ns: '1',
-  domains: domainsFor(id), photo_store: [gid(id, 'photo')] });
+  domains: domainsFor(id), photo_store: [gid(id, 'media_blob_store')] });
 const placement = id => ({ group_id: id, deployment_id: 'prod', deployment_revision: '1', host: 'https://icp-api.io',
   network_kind: 'public_mainnet', primary_subnet: 'subnet-prod', approved_subnets: ['subnet-prod'],
   additional_subnets_enabled: false, domains: domainsFor(id).map(d => ({ ...d, subnet: 'subnet-prod' })) });
@@ -30,7 +30,7 @@ const checksAdmission = name => ADMISSION_DOMAINS.includes(name) || name === 'me
 function service(groupName, name, overrides = {}) {
   const configuration = (RECIPROCAL_LINKS[name] ?? []).map(peer => [peer, gid(groupName, peer)]);
   if (name === 'club_domain') configuration.push(['identity_access', identity],
-    ['media_store', gid(groupName, 'photo')], ['competition_authority', gid(groupName, 'competition_domain')]);
+    ['media_store', gid(groupName, 'media_blob_store')], ['competition_authority', gid(groupName, 'competition_domain')]);
   if (name === 'competition_domain') configuration.push(['participant_club_authority', gid(groupName, 'club_domain')]);
   if (name === 'notification_queue') configuration.push(['identity_access', identity], ['worker', worker]);
   if (name === 'timer_jobs') configuration.push(['worker:*', worker]);
@@ -45,7 +45,7 @@ const identityConfig = () => [['registry', routerId], ['target_alias', 'mainnet'
   ['host', 'https://icp-api.io'], ['network_kind', 'public_mainnet'], ['bound_deletion_released', 'true'],
   ['account_admission_released', 'true'],
   ...['base', 'g2'].flatMap(g => [...ADMISSION_DOMAINS.map(n => ['eligibility_authority', gid(g, n)]),
-    ['eligibility_authority', gid(g, 'photo')]])];
+    ['eligibility_authority', gid(g, 'media_blob_store')]])];
 const routerConfig = () => [['deletion_authority', identity]];
 
 function state(overrides = {}) {
@@ -168,7 +168,7 @@ test('group services are the twelve data services plus the group photo store', (
   const list = expectedServices(g, p);
   assert.equal(list.length, GROUP_DOMAINS.length + 1);
   assert.equal(list.some(s => s.name === 'secret_workload_identity'), false);
-  assert.equal(list.find(s => s.name === 'media_blob_store').id, gid('base', 'photo'));
+  assert.equal(list.find(s => s.name === 'media_blob_store').id, gid('base', 'media_blob_store'));
   assert.equal(list.find(s => s.name === 'club_domain').subnet, 'subnet-prod');
 });
 
