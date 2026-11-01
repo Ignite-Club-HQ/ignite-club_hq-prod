@@ -1,10 +1,14 @@
-# PROD cycles top-up planner (read-only)
+# PROD cycles top-up: planner (read-only) and execution (closed)
 
 `[PROD] Plan cycles top-up (read-only)` computes the exact per-canister cycle
 amounts needed to bring every registered PROD group service to its registered
 minimum, so funding decisions rest on live balances rather than estimates.
 
-## What it does
+`[PROD] Execute cycles top-up (closed)` distributes exactly the reviewed
+amounts from the signing account through the cycles ledger, behind the
+reviewed plan hash and the `TOP UP PROD CANISTERS` confirmation.
+
+## What the planner does
 
 1. Reads the bounded consensus group registry page from the PROD shard router
    (governor-signed, read-only infrastructure reader).
@@ -43,3 +47,32 @@ time), so a later top-up step can re-verify exactly what was reviewed.
 Any actual top-up is a separate, separately approved step. The routing gate
 (`[PROD] Check PROD routing gates (read-only)`) still governs readiness;
 fuel alone does not close it.
+
+## Executing a reviewed plan
+
+1. Run `[PROD] Plan cycles top-up (read-only)` on branch `prod` and note the
+   plan hash in the Summary. The plan is also saved as a durable receipt at
+   `prod-group-setup/cycles-topup.json` in the live repository.
+2. Run `[PROD] Execute cycles top-up (closed)` on branch `prod` with that
+   plan hash and confirmation `TOP UP PROD CANISTERS`.
+
+Execution properties:
+
+- The entered hash must match the saved receipt, and the live inventory,
+  targets and planned amounts must still match the reviewed plan — otherwise
+  the run refuses and asks for a re-plan.
+- Each deposit is capped at its reviewed amount: a canister that gained fuel
+  since planning receives only the remainder; one already at target is
+  skipped. Nothing ever receives more than reviewed.
+- Every deposit is preceded by a durable acknowledged intent carrying its
+  ledger dedup timestamp. If the runner is interrupted, a resume reuses that
+  timestamp, so a deposit that already landed comes back as a ledger
+  Duplicate and is recorded — never paid twice. An intent older than the
+  ledger's 24-hour dedup window stops for manual reconciliation.
+- After the last deposit, every fueled canister is read back: the run fails
+  closed if a deposit did not land, and reports any canister still below its
+  registered minimum (balances drift down during the run; re-plan for the
+  remainder).
+- The run makes no registration, opening, configuration, funding-order, DEV
+  or database change. Groups stay CLOSED; routing approval and admission
+  remain separate reviewed steps.
