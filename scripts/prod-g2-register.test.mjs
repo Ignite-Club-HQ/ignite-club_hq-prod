@@ -215,7 +215,8 @@ test('the acknowledged g2 receipt is the reviewed inventory the readiness audit 
     group: { accepting: false, photo_store: [g2Canisters.media_blob_store],
       domains: [...GROUP_DOMAINS.map(n => ({ domain: n, canister: g2Canisters[n] })),
         { domain: 'secret_workload_identity', canister: ids.secret_workload_identity }] } };
-  const receipt = { phase: 'registered-closed', pending: null, plan, planHash: hashPlan(plan) };
+  const rec = p => ({ phase: 'registered-closed', pending: null, plan: p, planHash: hashPlan(p) });
+  const receipt = rec(plan);
   const reviewed = reviewedG2Inventory(receipt);
   assert.equal(reviewed.photoStore, g2Canisters.media_blob_store);
   assert.equal(reviewed.domains.club_domain, g2Canisters.club_domain);
@@ -225,7 +226,7 @@ test('the acknowledged g2 receipt is the reviewed inventory the readiness audit 
   assert.throws(() => reviewedG2Inventory({ ...receipt, phase: 'planned' }), /Acknowledged closed/);
   assert.throws(() => reviewedG2Inventory({ ...receipt, pending: 'readback' }), /Acknowledged closed/);
   assert.throws(() => reviewedG2Inventory({ ...receipt, planHash: 'f'.repeat(64) }), /Acknowledged closed/);
-  assert.throws(() => reviewedG2Inventory({ ...receipt, plan: { ...plan, group: { ...plan.group, accepting: true } } }), /Acknowledged closed/);
-  assert.throws(() => reviewedG2Inventory({ ...receipt, plan: { ...plan, group: { ...plan.group, photo_store: [ids.media_blob_store] } } }), /independent of base/);
-  assert.throws(() => reviewedG2Inventory({ ...receipt, plan: { ...plan, group: { ...plan.group, domains: plan.group.domains.slice(0, 5) } } }), /incomplete/);
+  assert.throws(() => reviewedG2Inventory(rec({ ...plan, group: { ...plan.group, accepting: true } })), /Acknowledged closed/);
+  assert.throws(() => reviewedG2Inventory(rec({ ...plan, group: { ...plan.group, photo_store: [ids.media_blob_store] } })), /independent of base/);
+  assert.throws(() => reviewedG2Inventory(rec({ ...plan, group: { ...plan.group, domains: plan.group.domains.slice(0, 5) } })), /incomplete/);
 });
