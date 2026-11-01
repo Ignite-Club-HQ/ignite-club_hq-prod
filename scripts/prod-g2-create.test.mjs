@@ -93,8 +93,8 @@ test('reviewed plan hash must match saved receipt and current evidence', () => {
   // must not force a re-plan, but real drift still must.
   assertReviewedG2Plan(p, hash, plan({ checkedAt: '2026-11-01T07:00:00.000Z' }));
   assertReviewedG2Plan(p, hash, plan({ balance: '22000000000000' }));
-  assert.throws(() => assertReviewedG2Plan(p, hash, plan({ sourceCommit: '0'.repeat(40) })), /re-plan/);
-  assert.throws(() => assertReviewedG2Plan(p, hash, plan({ subnet: 'aaaaa-aa' })), /re-plan/);
+  assert.throws(() => assertReviewedG2Plan(p, hash, plan({ env: env({ GITHUB_SHA: '0'.repeat(40) }) })), /re-plan/);
+  assert.throws(() => assertReviewedG2Plan(p, hash, plan({ pushWorker: GOVERNOR })), /re-plan/);
   assertReviewedG2Plan(p, ` ${hash}\n`, p);
 });
 
