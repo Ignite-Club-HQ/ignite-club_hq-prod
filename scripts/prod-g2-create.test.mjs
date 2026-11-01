@@ -261,7 +261,7 @@ test('setter IDL subsets match the generated bindings', async (t) => {
       // Encode the same arguments through both IDLs; encodings must be identical.
       const args = subsetMethod[1].argTypes.map(t => {
         if (t === IDL.Principal) return Principal.fromText(GOVERNOR);
-        if (t === IDL.Vec(IDL.Principal)) return [Principal.fromText(GOVERNOR)];
+        if (t instanceof IDL.Vec) return [Principal.fromText(GOVERNOR)];
         if (t === IDL.Nat64) return 5n;
         return undefined;
       }).filter(a => a !== undefined);
