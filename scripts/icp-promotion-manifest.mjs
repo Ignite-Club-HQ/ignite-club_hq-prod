@@ -63,6 +63,9 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-routing-gate-policy.mjs',
   'scripts/prod-routing-gate.mjs',
   'scripts/prod-routing-gate.test.mjs',
+  'scripts/prod-cycles-topup-policy.mjs',
+  'scripts/prod-cycles-topup.mjs',
+  'scripts/prod-cycles-topup.test.mjs',
   'scripts/enlarge-photo-store-policy.mjs',
   'scripts/stage-group-wasm.mjs',
   'scripts/resolve-group-push-worker.sh',
@@ -78,6 +81,7 @@ export const ICP_SOURCE_FILES = [
   '.github/workflows/register-prod-second-group.yml',
   '.github/workflows/link-prod-account-service.yml',
   '.github/workflows/check-prod-routing-gates.yml',
+  '.github/workflows/plan-prod-cycles-topup.yml',
   '.github/workflows/prod-create-push-key.yml',
 ];
 
