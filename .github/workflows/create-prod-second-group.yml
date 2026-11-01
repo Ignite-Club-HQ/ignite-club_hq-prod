@@ -82,11 +82,15 @@ jobs:
           node ../../scripts/stage-group-wasm.mjs . "$RUNNER_TEMP/g2-wasm"
       - name: Resolve the existing push worker identity
         env:
-          ICP_PUSH_WORKER_SEED: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED }}
+          PROD_ICP_PUSH_WORKER_SEED: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED }}
+          PROD_ICP_PUSH_WORKER_SEED_ENC: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED_ENC }}
+          PROD_ICP_PUSH_WORKER_PASSPHRASE: ${{ secrets.PROD_ICP_PUSH_WORKER_PASSPHRASE }}
+          PROD_ICP_PUSH_WORKER_PRINCIPAL: ${{ vars.PROD_ICP_PUSH_WORKER_PRINCIPAL }}
+          DEV_PUSH_WORKER_PRINCIPAL: ${{ vars.DEV_PUSH_WORKER_PRINCIPAL }}
         run: |
           set -euo pipefail
           export PUSH_WORKER_NODE_PATH="$RUNNER_TEMP/prod-g2-deps/node_modules"
-          bash scripts/resolve-group-push-worker.sh
+          node scripts/resolve-prod-push-worker.mjs
       - name: Run the selected closed-only action
         env:
           GH_TOKEN: ${{ github.token }}

@@ -29,6 +29,10 @@ export const ICP_SOURCE_FILES = [
   'scripts/record-prod-release.mjs',
   'scripts/deploy-mainnet.sh',
   'scripts/push-worker-principal.mjs',
+  'scripts/prod-push-key-policy.mjs',
+  'scripts/prod-push-key.mjs',
+  'scripts/prod-push-key.test.mjs',
+  'scripts/resolve-prod-push-worker.mjs',
   'scripts/prod-publication-gate.mjs',
   'scripts/prod-card-funding.mjs',
   'scripts/prod-card-funding-policy.mjs',
@@ -62,6 +66,7 @@ export const ICP_SOURCE_FILES = [
   '.github/workflows/setup-prod-base-group.yml',
   '.github/workflows/plan-prod-second-group.yml',
   '.github/workflows/create-prod-second-group.yml',
+  '.github/workflows/prod-create-push-key.yml',
 ];
 
 /**
