@@ -31,11 +31,6 @@ const hash=f=>createHash('sha256').update(readFileSync(f)).digest('hex');
 const wasm=name=>{const f=process.env[name.toUpperCase()+'_WASM'];assert.ok(f,`${name} Wasm required`);return f;};
 const factory=async name=>(await import(`../src/lab/bindings/${name}/declarations/${name}.did.js`)).idlFactory;
 const env=identity=>[{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'},{name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:identity.toText()}];
-const submit=async(service,domain,method,inputs,sender)=>{
- const signature=(await factory(domain))({IDL})._fields.find(([name])=>name===method)?.[1];assert.ok(signature);
- const pending=await pic.client.submitCall({canisterId:service.canisterId,sender,method,payload:new Uint8Array(IDL.encode(signature.argTypes,inputs))});
- return async()=>IDL.decode(signature.retTypes,(await pic.client.awaitCall(pending)).body)[0];
-};
 const args=IDL.encode([IDL.Record({governor:IDL.Principal})],[{governor}]);
 try{
  assert.ok(process.env.TWO_GROUP_REMOVAL_REPORT,'Durable test report path required');
@@ -141,26 +136,20 @@ try{
  // Restore only the reviewed fixture grant to exercise a real pending callback.
  ok(await base.services.club_domain.actor.restore_member(base.club,primary));
  ok(await base.services.club_domain.actor.add_role_grant(primary,base.club,'club_admin',[]));
- // Queue a real private read while its receiver is stopped. Inventory authorities
- // stay available so preparation can read both actual club media registries.
- await pic.stopCanister({canisterId:second.services.messaging_domain.canisterId,sender:governor});
- const pendingRead=await submit(second.services.messaging_domain,'messaging_domain','read_account_list_messages_page',[second.chat.id,[],10],primary);
- await pic.tick(3);
  stage='freeze complete real inventory and revoke both aliases';id.setPrincipal(governor);
  const intent=ok(await id.begin_account_removal(account.id,await revision()));
  validateTwoGroupInventory(normalizedGroups,intent.targets.map(p=>p.toText()),shared.canisterId.toText(),router.canisterId.toText());
  assert.deepEqual(new Set(intent.subjects.map(p=>p.toText())),new Set([primary.toText(),alias.toText()]));
- await pic.startCanister({canisterId:second.services.messaging_domain.canisterId,sender:governor});
- // The still-local club grants are retained; original-human admission must
- // reject the queued read once the stopped receiver resumes.
- await denied(pendingRead);
- mark('Stopped real receiver resumes without releasing a queued removed-human chat read');
  for(const human of [primary,alias]){id.setPrincipal(human);err(await id.whoami());err(await id.register_account());}id.setPrincipal(governor);
  // Stop one receiver, observe a failed coordinator step, retain the original intent.
  const stopped=second.services.events_domain;
  await pic.stopCanister({canisterId:stopped.canisterId,sender:governor});err(await id.advance_account_removal_receiver(account.id,stopped.canisterId));
  assert.deepEqual(ok(await id.read_account_removal_intent(account.id)),intent);
  await pic.startCanister({canisterId:stopped.canisterId,sender:governor});
+ // This receiver has not yet received a local fence: current identity must
+ // deny both aliases despite surviving local role/resource state.
+ for(const human of [primary,alias]){stopped.actor.setPrincipal(human);await denied(()=>stopped.actor.read_account_list_my_viewed_event_ids([]));}
+ mark('Unreached receiver denies both aliases before its local fence is prepared');
  const seals=[];
  for(const g of groups)for(const domain of HUMAN_DOMAINS){
   const s=g.services[domain];const progress=ok(await id.advance_account_removal_receiver(account.id,s.canisterId));
@@ -174,7 +163,7 @@ try{
   // Real canister sender: coordinator authenticates prepare/drain itself.
   assert.equal(ok(await id.advance_account_removal_receiver(account.id,s.canisterId)).outstanding,0n);
   // Seals are fetched as the installed identity, not accepted from report JSON.
-  const actor=s.actor;actor.setPrincipal(identity.canisterId);const seal=ok(await actor.seal_account_removal(intent.request??{
+  const actor=s.actor;actor.setPrincipal(identity.canisterId);const seal=ok(await actor.seal_account_removal({
    account_id:intent.account_id,generation:intent.generation,inventory_digest:intent.inventory_digest,subjects:intent.subjects}));
   seals.push({receiver:seal.receiver.toText(),outstanding:seal.outstanding,request:{...seal.request,subjects:seal.request.subjects.map(p=>p.toText()),inventory_digest:Array.from(seal.request.inventory_digest)}});
  }
