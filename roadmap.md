@@ -1,5 +1,11 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — automated complete two-group removal tests (2 Nov 2026, 02:29 UTC)
+- [x] Added isolated real identity/router/base/g2 suite: 24 actual human receivers, two timers, shared workload and supplemental router; exact 28-target inventory, real encrypted photo/chat/Vault/points controls, both aliases, ordinary club-removal isolation, coordinator outage/retry, two notification leases, all-receiver upgrades, survivor access and explicit global-completion infrastructure holds. No production-code or permission changes.
+- [x] Added manual credential-free `[TEST] Check complete two-group removal (isolated)` workflow, owned bounded cleanup, module hashes, incremental reports and inventory/seal regressions. Runtime execution awaits owner native-worker run; sandbox host is incompatible and no GitHub dispatch credential is available.
+- [ ] Inspect the native-worker `two-group-removal-isolated` artifact before claiming runtime acceptance. Complete callback-path/terminal/infrastructure/non-rehearsal acceptance remains held, not silently certified by the test.
+- [x] Reviewed owner-uploaded installation artifact: unchanged pinned PocketIC/probe hashes, supported native write-fault metadata, seven receivers passed in rehearsal and production-candidate modes. This is not complete two-group acceptance or release authority.
+
 ## Current request — finish removal protections and review PROD approval (2 Nov 2026, 02:09 UTC)
 - [x] Continue 02:18 UTC: independently demonstrated gVisor missing write-fault metadata; added measured native host preflight (real rejection in 369 ms) and expanded the existing isolated TEST workflow to run the seven remaining receiver races in both modes after installation passes. Hash-bound partial reports explicitly deny release/full-inventory acceptance. 31 safeguards and 197 identity tests pass; no live changes.
 - [ ] Run `[TEST] Check isolated removal test installation` on `main` using a native Linux GitHub worker and inspect its artifacts. Blocker: no GitHub dispatch credential here; this is partial runtime evidence, not complete acceptance or PROD approval.
