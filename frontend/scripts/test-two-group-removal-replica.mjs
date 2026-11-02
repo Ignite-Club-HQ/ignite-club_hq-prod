@@ -10,7 +10,7 @@ import { Principal } from '@icp-sdk/core/principal';
 import { DerivedPublicKey, EncryptedVetKey, TransportSecretKey, IbeCiphertext, IbeIdentity, IbeSeed } from '@icp-sdk/vetkeys';
 import { removalInstallPreflight } from './removal-install-preflight.mjs';
 import { startRemovalLocalServer } from './removal-local-supervisor.mjs';
-import { HUMAN_DOMAINS, validateTwoGroupInventory, validateHumanSeals } from './two-group-removal-evidence.mjs';
+import { HUMAN_DOMAINS, validateTwoGroupInventory, validateHumanSeals, assertWorkerCapabilityDenied } from './two-group-removal-evidence.mjs';
 const p=n=>Principal.fromUint8Array(Uint8Array.from([n,1]));
 const governor=p(1),primary=p(2),alias=p(3),survivor=p(4),outsider=p(5);
 const ok=r=>{assert.ok(r&&'Ok' in r,String(r?.Err));return r.Ok;};
@@ -155,10 +155,16 @@ try{
   const s=g.services[domain];const progress=ok(await id.advance_account_removal_receiver(account.id,s.canisterId));
   assert.equal(progress.outstanding,domain==='notification_queue'?1n:0n);
   if(domain==='notification_queue'){
+   stage=`verify ${g.id} notification lease across upgrade`;
    const q=s.actor;q.setPrincipal(governor);assert.deepEqual(await q.authorize_delivery('lease','lease-key'),{Ok:false});
    assert.equal(ok(await q.recover()),0);await pic.upgradeCanister({canisterId:s.canisterId,wasm:wasm(domain),sender:governor,arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
    assert.equal(ok(await id.advance_account_removal_receiver(account.id,s.canisterId)).outstanding,1n);
-   q.setPrincipal(outsider);err(await q.acknowledge('lease','lease-key'));q.setPrincipal(governor);ok(await q.acknowledge('lease','lease-key'));
+   // A non-worker traps; this is not a Candid Err and must not abort the suite.
+   stage=`verify ${g.id} ungranted worker cannot settle notification lease`;
+   q.setPrincipal(outsider);await assertWorkerCapabilityDenied(()=>q.acknowledge('lease','lease-key'));
+   assert.equal(ok(await id.advance_account_removal_receiver(account.id,s.canisterId)).outstanding,1n);
+   stage=`settle ${g.id} notification lease as original owner`;
+   q.setPrincipal(governor);ok(await q.acknowledge('lease','lease-key'));
   }
   // Real canister sender: coordinator authenticates prepare/drain itself.
   assert.equal(ok(await id.advance_account_removal_receiver(account.id,s.canisterId)).outstanding,0n);

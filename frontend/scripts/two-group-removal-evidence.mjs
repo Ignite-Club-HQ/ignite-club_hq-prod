@@ -1,3 +1,11 @@
+import assert from 'node:assert/strict';
+
+// The queue traps before lease checks for ungranted callers; a Candid Err or
+// unrelated transport rejection must never satisfy this capability check.
+export async function assertWorkerCapabilityDenied(call) {
+  await assert.rejects(call, /Worker capability required/);
+}
+
 export const HUMAN_DOMAINS = Object.freeze(['club_domain', 'events_domain', 'messaging_domain', 'vault_domain',
   'competition_domain', 'club_points_domain', 'mini_league_domain', 'media_metadata', 'insights_domain',
   'notification_queue', 'pii_access_control', 'media_blob_store']);

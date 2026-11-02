@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HUMAN_DOMAINS, validateTwoGroupInventory, validateHumanSeals } from './two-group-removal-evidence.mjs';
+import { HUMAN_DOMAINS, validateTwoGroupInventory, validateHumanSeals, assertWorkerCapabilityDenied } from './two-group-removal-evidence.mjs';
+test('ungranted notification worker must reject with the exact capability trap',async()=>{
+ await assertWorkerCapabilityDenied(async()=>{throw new Error("Canister called ic0.trap: Worker capability required");});
+});
+test('Candid refusals, success and unrelated failures cannot satisfy worker capability denial',async()=>{
+ for(const result of [{Err:'Notification lease owner required'},{Ok:{status:{Delivered:null}}}])
+  await assert.rejects(()=>assertWorkerCapabilityDenied(async()=>result),/Missing expected rejection/);
+ for(const message of ['Connection closed','Account admission denied','Notification lease owner required'])
+  await assert.rejects(()=>assertWorkerCapabilityDenied(async()=>{throw new Error(message);}),/did not match/);
+});
 const groups = ['base','g2'].map(id => ({id, timer:`${id}/timer`, receivers:HUMAN_DOMAINS.map(domain=>({domain,id:`${id}/${domain}`}))}));
 const targets = [...groups.flatMap(g=>[g.timer,...g.receivers.map(s=>s.id)]),'shared','router'];
 test('complete installed two-group inventory is exactly 28 unique targets',()=>assert.equal(validateTwoGroupInventory(groups,targets,'shared','router'),28));
