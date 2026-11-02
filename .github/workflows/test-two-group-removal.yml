@@ -28,6 +28,8 @@ jobs:
           (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
       - name: Check host, evidence invariants and isolated cleanup
         run: node --test frontend/scripts/removal-host-preflight.test.mjs frontend/scripts/removal-local-supervisor.test.mjs frontend/scripts/two-group-removal-evidence.test.mjs
+      - name: Check exact production authorization refusal and signed scope
+        run: cargo test --locked -p identity_access -- --test-threads=1
       - name: Build disposable actors (no deployed mappings)
         run: |
           MOC="$HOME/.cache/mops/moc/1.16.1/moc"

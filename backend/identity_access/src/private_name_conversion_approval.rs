@@ -117,6 +117,22 @@ fn publish_approved_private_name(operation_id:String,account_id:String)->Outcome
 fn read_private_name_source_digest(account_id:String)->Outcome<Vec<u8>>{super::private_name_write_coordinator::access()?;source_digest(&account_id)}
 #[cfg(test)]mod tests{
     use super::*;
+    #[test] fn completion_and_authorization_do_not_share_conversion_journals() {
+        assert_ne!(super::super::MEM_REMOVAL_COMPLETIONS,31);
+        assert_ne!(super::super::MEM_REMOVAL_COMPLETIONS,32);
+        assert_eq!(super::super::MEM_REMOVAL_COMPLETIONS,33);
+        assert_eq!(super::super::MEM_PRODUCTION_ACCOUNT_AUTHORIZATION,34);
+        assert_eq!(super::super::MEM_PRODUCTION_ACCOUNT_REQUEST,35);
+        let id="partition-isolation-regression".to_string();
+        APPROVALS.with(|m|m.borrow_mut().insert(id.clone(),vec![1]));
+        WRITES.with(|m|m.borrow_mut().insert(id.clone(),vec![2]));
+        super::super::REMOVAL_COMPLETIONS.with(|m|m.borrow_mut().insert(id.clone(),vec![3]));
+        assert_eq!(APPROVALS.with(|m|m.borrow().get(&id)),Some(vec![1]));
+        assert_eq!(WRITES.with(|m|m.borrow().get(&id)),Some(vec![2]));
+        assert_eq!(super::super::REMOVAL_COMPLETIONS.with(|m|m.borrow().get(&id)),Some(vec![3]));
+        APPROVALS.with(|m|m.borrow_mut().remove(&id));WRITES.with(|m|m.borrow_mut().remove(&id));
+        super::super::REMOVAL_COMPLETIONS.with(|m|m.borrow_mut().remove(&id));
+    }
     #[test]fn absent_signer_refuses(){if option_env!("IGNITE_PRIVATE_NAME_APPROVER_PUBLIC_KEY").is_none(){assert!(key().is_err());}}
     #[test]fn forged_signature_refuses(){let mut b=[0x66;32];b[0]=0x58;let k=VerifyingKey::from_bytes(&b).unwrap();assert!(k.verify_strict(b"conversion",&Signature::from_bytes(&[0;64])).is_err());}
 }

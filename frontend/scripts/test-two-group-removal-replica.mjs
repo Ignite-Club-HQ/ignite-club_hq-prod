@@ -44,6 +44,19 @@ try{
  pic=await PocketIc.create(server.url,{fiduciary:{state:{type:'new'}},processingTimeoutMs:60000});
  const install=async(name,variables=[])=>pic.setupCanister({idlFactory:await factory(name),wasm:wasm(name),sender:governor,controllers:[governor],
   environmentVariables:variables,arg:['identity_access','shard_router'].includes(name)?args:name==='timer_jobs'?IDL.encode([],[]):IDL.encode([IDL.Principal],[governor])});
+ stage='verify default production authorization is closed without independent acceptance';
+ const productionIdentity=await install('identity_access');const closedIdentity=productionIdentity.actor;
+ closedIdentity.setPrincipal(governor);const closedAccount=ok(await closedIdentity.register_account());
+ const initialAuthorization=ok(await closedIdentity.read_production_account_authorization());
+ assert.equal(initialAuthorization.generation,0n);assert.equal(initialAuthorization.approval.length,0);
+ err(await closedIdentity.read_service_account(governor));err(await closedIdentity.read_linked_account(governor));
+ closedIdentity.setPrincipal(outsider);err(await closedIdentity.read_production_account_authorization());err(await closedIdentity.disable_production_account_readers());
+ closedIdentity.setPrincipal(governor);assert.equal(ok(await closedIdentity.disable_production_account_readers()),1n);
+ await pic.upgradeCanister({canisterId:productionIdentity.canisterId,wasm:wasm('identity_access'),sender:governor,arg:args});
+ const retainedAuthorization=ok(await closedIdentity.read_production_account_authorization());
+ assert.equal(retainedAuthorization.generation,1n);assert.equal(retainedAuthorization.approval.length,0);
+ assert.equal(ok(await closedIdentity.whoami()).id,closedAccount.id);err(await closedIdentity.read_service_account(governor));
+ mark('Non-rehearsal identity denies unaccepted alias readers; authorization disable generation survives upgrade and preserves own account');
  stage='install real identity and inventory';
  const identity=await install('identity_access',[{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'}]);
  const router=await install('shard_router');const shared=await install('secret_workload_identity');

@@ -2,6 +2,63 @@
 
 ## Scope and current evidence
 
+### Signed production account authorization implementation (2 November, 04:04 UTC)
+
+Implemented separate stable account-reader authorization, not a widened rehearsal
+or group-admission flag. Governor submission must carry an Ed25519 signature from
+the immutable `IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY`, signing the exact
+Candid body under a domain-separated SHA-256 payload. The body binds identity,
+operator, fresh generation, expiry, complete expected inventory and exact verified
+draft/lifecycle/configurations, plus independent original-inventory, runtime and
+externally fenced recovery evidence hashes and recovery epoch. These hashes are
+attested inputs, not a claim that the code itself proves evidence provenance.
+
+Installation repeats authenticated live review while both groups are closed and
+requires `IGNITE_PRODUCTION_ACCOUNT_WITNESS` to answer the exact consensus fence
+request. That witness is compiled-in, cannot be identity or a receiver, and must
+be an independently provisioned authority. There is no default signer, witness,
+fixture fallback or self-approval. Inputs are structurally bounded before cloning,
+verification or Candid serialization.
+
+`read_service_account` and `read_linked_account` use the separate production
+capability, fresh inventory/configuration/module/lifecycle collection and exact
+recovery witness, then recheck governor, capability generation, expiry and local
+history before synchronous reconstruction from the current identity index.
+Linked-account callers are further restricted to exact club services. Eligibility
+reads use this same verification when a production capability is installed;
+existing eligibility-only grants never confer alias reads. Disable retains a
+monotonic generation so old approvals cannot re-enable access. Removal begin,
+history setters, completion, erasure, recovery and routing remain separately held.
+
+**External recovery/fencing transport is still a hard blocker.** No implementation
+or live provisioning of `verify_production_account_read_fence` is asserted here.
+An echo receipt is insufficient: that authority must independently verify the
+signed acceptance, retain anti-rollback epochs and prevent relevant remote changes
+through the final release segment. A remote change during its last awaited reply
+cannot be secured by additional local samples alone. Do not set the compile pins
+or enable the capability until that transport, recovery and held-reply behavior
+are independently implemented and exercised. Thus the identity authorization
+path is implemented, but complete production authorization/release is not ready.
+
+Found and corrected a source partition collision: private-name approval/write
+journals already use 31/32. Completion now uses 33, capability 34 and request IDs
+35. A direct partition test preserves distinct values in all three journals.
+No existing partition is moved or decoded as another record type. If any older
+completion-31 candidate was installed, its inventory requires explicit recovery;
+this code does not silently relocate unknown rows or certify such an upgrade.
+
+Expanded the isolated workflow with a non-rehearsal default-closed identity,
+outsider refusal, persistent disable generation and preserved self account.
+Positive production authorization remains source-unit-tested, not verified with
+a real externally fenced transport. The native worker is still required for the
+expanded runtime artifact; no GitHub dispatch credential exists in this session.
+
+Validation: all 208 identity tests pass, including signed exact scope, missing
+signer/witness, forged/mutated evidence, expiry, disable/replay, witness request
+binding, oversized input and permanent partition isolation. Rust upgrade Wasm
+builds; all 17 active contracts match; 24 isolated/recovery safeguards pass;
+the expanded runtime script parses and preview reports build OK.
+
 ### Authenticated production review and expanded receiver tests (2 November, 03:55 UTC)
 
 Added consensus `read_account_protection_configuration` to all twelve human
@@ -48,7 +105,8 @@ Its mode is explicitly `local-rehearsal`; production release and full inventory
 acceptance remain false. Do not reinterpret this report as production-mode acceptance.
 
 Added `complete_account_removal_fencing` and authenticated completion readback.
-Completion records live in additive stable memory 31, require fresh direct
+Completion records now live in additive stable memory 33 (corrected from the
+earlier unverified 31 candidate to preserve private-name journals), require fresh direct
 zero-work seals for every frozen target, and preserve their immutable request,
 account version, exact targets and seals. Replays return the same outcome without
 advancing history. Conflicting or incomplete evidence is refused. History paging

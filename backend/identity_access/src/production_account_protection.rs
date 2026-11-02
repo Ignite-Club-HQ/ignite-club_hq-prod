@@ -106,9 +106,9 @@ pub fn verify(expected:&Expectation, observed:&RemovalInventory, before:&[Lifecy
         release_authorized:false,recovery_accepted:false })
 }
 
-#[cfg(test)] mod tests {
+#[cfg(test)] pub(crate) mod tests {
     use super::*;
-    fn fixture()->(Expectation,Vec<Lifecycle>,Vec<ReceiverConfiguration>) {
+    pub(crate) fn fixture()->(Expectation,Vec<Lifecycle>,Vec<ReceiverConfiguration>) {
         let (mut snapshot,mut binding,clubs)=group_inventory::tests::fixture();
         binding.target_alias="mainnet".into();binding.deployment_id="prod".into();binding.host="https://icp-api.io".into();
         for (n,g) in snapshot.groups.iter_mut().enumerate(){g.id=if n==0{"base"}else{"g2"}.into();g.target_alias=binding.target_alias.clone();}
