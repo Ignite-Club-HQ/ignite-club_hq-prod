@@ -74,6 +74,8 @@ try {
     arg: IDL.encode([IDL.Record({ governor: IDL.Principal, identity: IDL.Principal })], [{ governor: owner, identity: identityId }]) });
   await pic.installCode({ canisterId: participant, sender: owner, wasm: wasm('identity_access'), arg: identityArgs });
   const id = pic.createActor(identityFactory, identityId), w = pic.createActor(witnessFactory, witnessId);
+  // Actors start anonymous; governor-only witness reads must come from the governor.
+  w.setPrincipal(owner);
   id.setPrincipal(human); const account = ok(await id.register_account()); id.setPrincipal(owner);
   const lifecycle = await createLocalLifecycleReader(pic, owner);
   stage = 'arm a genuinely signed independent recovery acceptance';
