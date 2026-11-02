@@ -64,15 +64,36 @@ export async function handOverControl(pic, { canisterId, from, to }) {
   return assertExclusiveController(await readControllerStatus(pic, { canisterId, sender: to }), to);
 }
 
+// Legitimate management work — the handover itself — is recorded in the target's
+// own history, so live memory measured before fencing is not a valid comparison
+// point for a refusal. A refusal must instead leave memory exactly as the reading
+// taken immediately before it found it.
+export function assertSettledSnapshot(before, after) {
+  assert.equal(after.moduleHash, before.moduleHash, 'Repeated controller reads must agree on the module');
+  assert.equal(after.memorySize, before.memorySize, 'Repeated controller reads must agree on live memory');
+  return after;
+}
+
+// Two reads with nothing between them: if even that moves, live memory cannot be
+// used as a refusal signal and the test must say so instead of blaming a refusal.
+export async function settledControllerStatus(pic, { canisterId, fence }) {
+  const first = assertExclusiveController(await readControllerStatus(pic, { canisterId, sender: fence }), fence);
+  return assertSettledSnapshot(first,
+    assertExclusiveController(await readControllerStatus(pic, { canisterId, sender: fence }), fence));
+}
+
 // A refusal only counts when the fence it should not have moved is still exactly
-// where it was: a transport error or an unrelated rejection proves nothing.
-export async function assertRefusedWithoutControl(pic, { canisterId, fence, baseline, attempt }) {
+// where it was: a transport error or an unrelated rejection proves nothing. The
+// original module fingerprint must survive, and the refused call must not alter
+// the live memory the fence had just measured.
+export async function assertRefusedWithoutControl(pic, { canisterId, fence, moduleHash, attempt }) {
+  const baseline = await settledControllerStatus(pic, { canisterId, fence });
   let message;
   try { await attempt(); }
   catch (error) { message = String(error?.message ?? error).slice(0, 300); }
   if (message === undefined) throw new Error('Non-controller management call unexpectedly succeeded');
   const after = assertExclusiveController(await readControllerStatus(pic, { canisterId, sender: fence }), fence);
-  assert.equal(after.moduleHash, baseline.moduleHash, 'Refused call must not replace the module');
-  assert.equal(after.memorySize, baseline.memorySize, 'Refused call must not alter live memory');
+  assert.equal(after.moduleHash, moduleHash, 'Refused call must not replace the module');
+  assertSettledSnapshot(baseline, after);
   return { ...after, refused: message };
 }
