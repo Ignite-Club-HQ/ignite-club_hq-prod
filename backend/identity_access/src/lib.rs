@@ -1427,7 +1427,9 @@ fn group2_admission() -> admission::Config {
 fn production_read_configuration_clear()->Outcome<()> {
     // Unrelated account work is not a global read lock. Subject reconstruction
     // rejects local tickets/unlinks; independent tombstones reject restored state.
-    Ok(())
+    if recovery_pending() || DELETION_TICKETS.with(|m|!m.borrow().is_empty()) || !link_lifecycle().pending.is_empty() {
+        return Err("Unknown recovery or unrelated lifecycle transition pending".into());
+    } Ok(())
 }
 fn current_removal_control_access()->Outcome<()> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;

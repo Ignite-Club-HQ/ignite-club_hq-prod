@@ -127,6 +127,15 @@ pub fn verify_account_baseline(a:&SignedAcceptance,r:&AccountReadRequest,caller:
     }
     Ok(AccountReadReceipt {request:r.clone()})
 }
+pub fn subject_progress_signing_bytes(b:&Acceptance)->Outcome<Vec<u8>> {
+    let canonical=signing_bytes(b)?;
+    let mut bytes=b"ignite:subject-scoped-removal-progress:v1\0".to_vec();
+    bytes.extend(Sha256::digest(canonical));Ok(bytes)
+}
+pub fn validate_subject_progress(a:&SignedAcceptance,key:&VerifyingKey)->Outcome<()> {
+    let signature=Signature::from_slice(&a.signature).map_err(|_|"Separate subject progress signature required")?;
+    key.verify_strict(&subject_progress_signing_bytes(&a.body)?,&signature).map_err(|_|"Separate subject progress signature required".into())
+}
 
 #[cfg(test)] mod tests {
     use super::*;
@@ -191,5 +200,12 @@ pub fn verify_account_baseline(a:&SignedAcceptance,r:&AccountReadRequest,caller:
         assert!(verify_account_baseline(&a,&r,p(2),100).is_err());
         r.request.identity_version+=1;assert!(verify_account_baseline(&a,&r,p(2),1).is_err());
         r.request.identity_version-=1;r.request.history_revision=7;assert!(verify_account_baseline(&a,&r,p(2),1).is_err());
+    }
+    #[test] fn old_recovery_signature_cannot_activate_subject_progress_policy() {
+        let(_,mut a,k,_)=fixture();assert!(validate_subject_progress(&a,&k).is_err());
+        let key=SigningKey::from_bytes(&[8;32]);
+        a.signature=key.sign(&subject_progress_signing_bytes(&a.body).unwrap()).to_bytes().to_vec();
+        assert!(validate_subject_progress(&a,&k).is_ok());
+        a.body.generation+=1;assert!(validate_subject_progress(&a,&k).is_err());
     }
 }

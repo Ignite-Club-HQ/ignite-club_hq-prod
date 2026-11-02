@@ -142,9 +142,24 @@ async fn accept_recovery_fence(a:SignedAcceptance)->Outcome<u64> {
         if head()!=prior||ic_cdk::api::canister_version()!=version{return Err("Recovery changed during acceptance".into());}}
     let next=accept(&prior,&a,ic_cdk::api::canister_self(),version,ic_cdk::api::time(),&signer()?)?;
     ARMED_VERSION.with(|v|v.borrow_mut().set(version));
-    ACCOUNT_BASELINE.with(|s|s.borrow_mut().set(encode(&a)));
-    ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(version));
+    // Existing recovery signatures never opt into automatic subject progress.
+    ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(0));
     save(&next);Ok(next.epoch)
+}
+#[ic_cdk::update]
+fn subject_progress_approval_signing_bytes(body:Acceptance)->Outcome<Vec<u8>> {require_governor()?;subject_progress_signing_bytes(&body)}
+#[ic_cdk::update]
+async fn authorize_subject_removal_progress(a:SignedAcceptance)->Outcome<()> {
+    require_governor()?;validate_subject_progress(&a,&signer()?)?;
+    let captured=head();let version=ic_cdk::api::canister_version();
+    if captured.accepted.as_ref().is_none_or(|s|s.body!=a.body) || a.body.expires_at_ns<=ic_cdk::api::time() ||
+        ARMED_VERSION.with(|v|*v.borrow().get())!=version {return Err("Current independently accepted subject progress baseline required".into());}
+    check_participants(&a.body).await?;require_governor()?;
+    if head()!=captured || ic_cdk::api::canister_version()!=version || a.body.expires_at_ns<=ic_cdk::api::time() {
+        return Err("Subject progress acceptance changed".into());
+    }
+    ACCOUNT_BASELINE.with(|s|s.borrow_mut().set(encode(&a)));
+    ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(version));Ok(())
 }
 fn account_not_removed(r:&AccountReadRequest)->Outcome<()> {
     if REMOVALS.with(|m|m.borrow().contains_key(&r.account_id)) ||
