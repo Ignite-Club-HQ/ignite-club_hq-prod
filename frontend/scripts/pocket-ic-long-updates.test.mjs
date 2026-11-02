@@ -14,7 +14,6 @@ const fake = (answerAfter, reject = false) => {
     },
   } };
 };
-const submitted = { messageId: 'bWlk', effectivePrincipal: { canisterId: 'ignored' } };
 
 test('waits beyond PocketIC 100-round cap and returns the same reply', async () => {
   const f = fake(250); const pic = allowLongUpdates({ client: f.client });
@@ -33,6 +32,6 @@ test('rejections still surface unchanged', async () => {
 });
 test('stays bounded', async () => {
   const f = fake(1e9); allowLongUpdates({ client: f.client }, { maxRounds: 10 });
-  await assert.rejects(f.client.awaitCall(submitted.effectivePrincipal ? { messageId: 'bWlk', effectivePrincipal: { none: true } } : submitted), /after 10 rounds/);
+  await assert.rejects(f.client.awaitCall({ messageId: 'bWlk', effectivePrincipal: { none: true } }), /after 10 rounds/);
   assert.equal(f.ticks(), 10);
 });
