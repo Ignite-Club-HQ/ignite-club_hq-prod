@@ -47,7 +47,7 @@ fn read_recovery_head()->Outcome<Head> {require_governor()?;Ok(head())}
 #[ic_cdk::update]
 fn read_recovery_records(after:u64,limit:u16)->Outcome<Vec<(u64,Record)>> {
     require_governor()?;if limit==0||limit>200{return Err("Recovery pages are bounded to 200".into());}
-    Ok(RECORDS.with(|m|m.borrow().range((std::ops::Bound::Excluded(after),std::ops::Bound::Unbounded)).take(limit as usize).map(|e|(e.key(),decode(&e.value()))).collect()))
+    Ok(RECORDS.with(|m|m.borrow().range((std::ops::Bound::Excluded(after),std::ops::Bound::Unbounded)).take(limit as usize).map(|e|(*e.key(),decode(&e.value()))).collect()))
 }
 // Claims never authorize recovery: only independently signed decoded-history
 // acceptance can do so. Store whole replayable records, not only hashes.
