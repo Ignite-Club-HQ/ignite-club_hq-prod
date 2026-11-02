@@ -195,6 +195,20 @@ export interface timer_jobsInterface {
         __kind__: "Err";
         Err: string;
     }>;
+    read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     read_account_removal_authority(): Promise<Principal | null>;
     read_account_removal_drain(arg0: removal_request): Promise<{
         __kind__: "Ok";
@@ -337,6 +351,23 @@ export class Timer_jobs implements timer_jobsInterface {
         const result = await this.actor.purge_club_snapshot(arg0);
         return from_candid_variant_n26(result);
     }
+    async read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.read_account_protection_configuration();
+        return from_candid_variant_n41(result);
+    }
     async read_account_removal_authority(): Promise<Principal | null> {
         const result = await this.actor.read_account_removal_authority();
         return from_candid_opt_n14(result);
@@ -349,7 +380,7 @@ export class Timer_jobs implements timer_jobsInterface {
         Err: string;
     }> {
         const result = await this.actor.read_account_removal_drain(arg0);
-        return from_candid_variant_n41(result);
+        return from_candid_variant_n43(result);
     }
     async read_group_opening_configuration(): Promise<{
         __kind__: "Ok";
@@ -359,19 +390,19 @@ export class Timer_jobs implements timer_jobsInterface {
         Err: string;
     }> {
         const result = await this.actor.read_group_opening_configuration();
-        return from_candid_variant_n42(result);
+        return from_candid_variant_n44(result);
     }
     async reconcile(arg0: snapshot): Promise<result_reconciliation> {
         const result = await this.actor.reconcile(to_candid_snapshot_n27(arg0));
-        return from_candid_result_reconciliation_n43(result);
+        return from_candid_result_reconciliation_n45(result);
     }
     async recover_expired(arg0: bigint): Promise<result_nat16> {
         const result = await this.actor.recover_expired(arg0);
-        return from_candid_result_nat16_n45(result);
+        return from_candid_result_nat16_n47(result);
     }
     async recover_interrupted(): Promise<result_nat16> {
         const result = await this.actor.recover_interrupted();
-        return from_candid_result_nat16_n45(result);
+        return from_candid_result_nat16_n47(result);
     }
     async revoke_fenced_account_obligations(arg0: string): Promise<{
         __kind__: "Ok";
@@ -388,7 +419,7 @@ export class Timer_jobs implements timer_jobsInterface {
         return from_candid_result_job_n15(result);
     }
     async schedule_with_callback(arg0: string, arg1: string, arg2: Principal | null, arg3: bigint, arg4: string): Promise<result_job> {
-        const result = await this.actor.schedule_with_callback(arg0, arg1, to_candid_opt_n47(arg2), arg3, arg4);
+        const result = await this.actor.schedule_with_callback(arg0, arg1, to_candid_opt_n49(arg2), arg3, arg4);
         return from_candid_result_job_n15(result);
     }
     async seal_account_removal(arg0: removal_request): Promise<{
@@ -399,7 +430,7 @@ export class Timer_jobs implements timer_jobsInterface {
         Err: string;
     }> {
         const result = await this.actor.seal_account_removal(arg0);
-        return from_candid_variant_n41(result);
+        return from_candid_variant_n43(result);
     }
     async set_account_removal_authority(arg0: Principal): Promise<result_unit> {
         const result = await this.actor.set_account_removal_authority(arg0);
@@ -500,20 +531,44 @@ function from_candid_record_n40(value: {
         next: record_opt_to_undefined(from_candid_opt_n11(value.next))
     };
 }
+function from_candid_record_n42(value: {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority: [] | [Principal];
+    receiver: Principal;
+    rehearsal: boolean;
+}): {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority?: Principal;
+    receiver: Principal;
+    rehearsal: boolean;
+} {
+    return {
+        protocol: value.protocol,
+        admission_required: value.admission_required,
+        removal_enabled: value.removal_enabled,
+        authority: record_opt_to_undefined(from_candid_opt_n14(value.authority)),
+        receiver: value.receiver,
+        rehearsal: value.rehearsal
+    };
+}
 function from_candid_result_job_n15(value: _result_job): result_job {
     return from_candid_variant_n16(value);
 }
 function from_candid_result_jobs_n6(value: _result_jobs): result_jobs {
     return from_candid_variant_n7(value);
 }
-function from_candid_result_nat16_n45(value: _result_nat16): result_nat16 {
-    return from_candid_variant_n46(value);
+function from_candid_result_nat16_n47(value: _result_nat16): result_nat16 {
+    return from_candid_variant_n48(value);
 }
 function from_candid_result_page_n37(value: _result_page): result_page {
     return from_candid_variant_n38(value);
 }
-function from_candid_result_reconciliation_n43(value: _result_reconciliation): result_reconciliation {
-    return from_candid_variant_n44(value);
+function from_candid_result_reconciliation_n45(value: _result_reconciliation): result_reconciliation {
+    return from_candid_variant_n46(value);
 }
 function from_candid_result_snapshot_n18(value: _result_snapshot): result_snapshot {
     return from_candid_variant_n19(value);
@@ -675,6 +730,39 @@ function from_candid_variant_n38(value: {
     } : value;
 }
 function from_candid_variant_n41(value: {
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority: [] | [Principal];
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority?: Principal;
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_record_n42(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n43(value: {
     Ok: _removal_receipt;
 } | {
     Err: string;
@@ -693,7 +781,7 @@ function from_candid_variant_n41(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n42(value: {
+function from_candid_variant_n44(value: {
     Ok: Array<[string, string]>;
 } | {
     Err: string;
@@ -712,7 +800,7 @@ function from_candid_variant_n42(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n44(value: {
+function from_candid_variant_n46(value: {
     Ok: _reconciliation;
 } | {
     Err: string;
@@ -731,7 +819,7 @@ function from_candid_variant_n44(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n46(value: {
+function from_candid_variant_n48(value: {
     Ok: number;
 } | {
     Err: string;
@@ -781,7 +869,7 @@ function to_candid_opt_n22(value: bigint | null): [] | [bigint] {
 function to_candid_opt_n36(value: string | null): [] | [string] {
     return value === null ? candid_none() : candid_some(value);
 }
-function to_candid_opt_n47(value: Principal | null): [] | [Principal] {
+function to_candid_opt_n49(value: Principal | null): [] | [Principal] {
     return value === null ? candid_none() : candid_some(value);
 }
 function to_candid_queue_state_n34(value: queue_state): _queue_state {

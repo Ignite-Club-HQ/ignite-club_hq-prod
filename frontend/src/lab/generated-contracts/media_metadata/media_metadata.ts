@@ -210,6 +210,20 @@ export interface MainInterface {
     read_account_list_comments(asset_id: string): Promise<Array<Comment>>;
     read_account_list_gallery_chat_cards(club_id: string, team_id: string): Promise<Array<GalleryChatCard>>;
     read_account_list_reactions(asset_id: string): Promise<Array<Reaction>>;
+    read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     read_account_removal_drain(request: Request): Promise<{
         __kind__: "Ok";
         Ok: Receipt;
@@ -708,6 +722,23 @@ export class Media_metadata implements media_metadataInterface {
         const result = await this.actor.read_account_list_reactions(arg0);
         return result;
     }
+    async read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.read_account_protection_configuration();
+        return from_candid_variant_n38(result);
+    }
     async read_account_removal_drain(arg0: Request): Promise<{
         __kind__: "Ok";
         Ok: Receipt;
@@ -716,7 +747,7 @@ export class Media_metadata implements media_metadataInterface {
         Err: string;
     }> {
         const result = await this.actor.read_account_removal_drain(arg0);
-        return from_candid_variant_n38(result);
+        return from_candid_variant_n41(result);
     }
     async read_club_media_references(arg0: string, arg1: bigint, arg2: bigint | null): Promise<{
         __kind__: "Ok";
@@ -725,8 +756,8 @@ export class Media_metadata implements media_metadataInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.read_club_media_references(arg0, arg1, to_candid_opt_n39(arg2));
-        return from_candid_variant_n40(result);
+        const result = await this.actor.read_club_media_references(arg0, arg1, to_candid_opt_n42(arg2));
+        return from_candid_variant_n43(result);
     }
     async read_gallery_asset_for_service(arg0: Principal, arg1: string): Promise<{
         __kind__: "Ok";
@@ -746,7 +777,7 @@ export class Media_metadata implements media_metadataInterface {
         Err: string;
     }> {
         const result = await this.actor.read_gallery_view_counts(arg0);
-        return from_candid_variant_n47(result);
+        return from_candid_variant_n50(result);
     }
     async read_group_opening_configuration(): Promise<Array<[string, string]>> {
         const result = await this.actor.read_group_opening_configuration();
@@ -802,7 +833,7 @@ export class Media_metadata implements media_metadataInterface {
         Err: string;
     }> {
         const result = await this.actor.remove_gallery_asset(arg0, arg1);
-        return from_candid_variant_n48(result);
+        return from_candid_variant_n51(result);
     }
     async remove_reaction(arg0: string): Promise<{
         __kind__: "Ok";
@@ -822,7 +853,7 @@ export class Media_metadata implements media_metadataInterface {
         Err: string;
     }> {
         const result = await this.actor.save_gallery_chat_card(to_candid_opt_n6(arg0), arg1, arg2, to_candid_opt_n6(arg3), arg4, to_candid_opt_n6(arg5), to_candid_opt_n6(arg6), arg7, arg8, arg9, arg10);
-        return from_candid_variant_n49(result);
+        return from_candid_variant_n52(result);
     }
     async seal_account_removal(arg0: Request): Promise<{
         __kind__: "Ok";
@@ -832,7 +863,7 @@ export class Media_metadata implements media_metadataInterface {
         Err: string;
     }> {
         const result = await this.actor.seal_account_removal(arg0);
-        return from_candid_variant_n38(result);
+        return from_candid_variant_n41(result);
     }
     async set_asset_scope(arg0: string, arg1: string | null, arg2: string | null, arg3: string | null, arg4: string | null, arg5: string | null, arg6: string | null): Promise<{
         __kind__: "Ok";
@@ -851,7 +882,7 @@ export class Media_metadata implements media_metadataInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.set_blob_ref(arg0, to_candid_opt_n50(arg1));
+        const result = await this.actor.set_blob_ref(arg0, to_candid_opt_n53(arg1));
         return from_candid_variant_n10(result);
     }
     async set_gallery_authorities(arg0: Principal, arg1: Principal): Promise<{
@@ -897,11 +928,11 @@ function from_candid_GalleryChatCard_n21(value: _GalleryChatCard): GalleryChatCa
 function from_candid_Page__1_n34(value: _Page__1): Page__1 {
     return from_candid_record_n35(value);
 }
-function from_candid_Page_n41(value: _Page): Page {
-    return from_candid_record_n42(value);
-}
-function from_candid_Reference_n44(value: _Reference): Reference {
+function from_candid_Page_n44(value: _Page): Page {
     return from_candid_record_n45(value);
+}
+function from_candid_Reference_n47(value: _Reference): Reference {
+    return from_candid_record_n48(value);
 }
 function from_candid_Result_n32(value: _Result): Result {
     return from_candid_variant_n33(value);
@@ -924,7 +955,10 @@ function from_candid_opt_n27(value: [] | [_GalleryChatCard]): GalleryChatCard | 
 function from_candid_opt_n36(value: [] | [_Cursor]): Cursor | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n46(value: [] | [bigint]): bigint | null {
+function from_candid_opt_n40(value: [] | [Principal]): Principal | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n49(value: [] | [bigint]): bigint | null {
     return value.length === 0 ? null : value[0];
 }
 function from_candid_opt_n5(value: [] | [string]): string | null {
@@ -1113,6 +1147,30 @@ function from_candid_record_n35(value: {
         scanned: value.scanned
     };
 }
+function from_candid_record_n39(value: {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority: [] | [Principal];
+    receiver: Principal;
+    rehearsal: boolean;
+}): {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority?: Principal;
+    receiver: Principal;
+    rehearsal: boolean;
+} {
+    return {
+        protocol: value.protocol,
+        admission_required: value.admission_required,
+        removal_enabled: value.removal_enabled,
+        authority: record_opt_to_undefined(from_candid_opt_n40(value.authority)),
+        receiver: value.receiver,
+        rehearsal: value.rehearsal
+    };
+}
 function from_candid_record_n4(value: {
     id: string;
     deleted: boolean;
@@ -1140,7 +1198,7 @@ function from_candid_record_n4(value: {
         asset_id: value.asset_id
     };
 }
-function from_candid_record_n42(value: {
+function from_candid_record_n45(value: {
     references: Array<_Reference>;
     next: [] | [bigint];
     scanned: bigint;
@@ -1152,13 +1210,13 @@ function from_candid_record_n42(value: {
     revision: bigint;
 } {
     return {
-        references: from_candid_vec_n43(value.references),
-        next: record_opt_to_undefined(from_candid_opt_n46(value.next)),
+        references: from_candid_vec_n46(value.references),
+        next: record_opt_to_undefined(from_candid_opt_n49(value.next)),
         scanned: value.scanned,
         revision: value.revision
     };
 }
-function from_candid_record_n45(value: {
+function from_candid_record_n48(value: {
     url: string;
     path: [] | [string];
     content_hash: [] | [string];
@@ -1370,6 +1428,39 @@ function from_candid_variant_n37(value: {
     } : value;
 }
 function from_candid_variant_n38(value: {
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority: [] | [Principal];
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority?: Principal;
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_record_n39(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n41(value: {
     Ok: _Receipt;
 } | {
     Err: string;
@@ -1388,7 +1479,7 @@ function from_candid_variant_n38(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n40(value: {
+function from_candid_variant_n43(value: {
     Ok: _Page;
 } | {
     Err: string;
@@ -1401,13 +1492,13 @@ function from_candid_variant_n40(value: {
 } {
     return "Ok" in value ? {
         __kind__: "Ok",
-        Ok: from_candid_Page_n41(value.Ok)
+        Ok: from_candid_Page_n44(value.Ok)
     } : "Err" in value ? {
         __kind__: "Err",
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n47(value: {
+function from_candid_variant_n50(value: {
     Ok: Array<[string, bigint]>;
 } | {
     Err: string;
@@ -1426,7 +1517,7 @@ function from_candid_variant_n47(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n48(value: {
+function from_candid_variant_n51(value: {
     Ok: {
         vault_updated: boolean;
     };
@@ -1449,7 +1540,7 @@ function from_candid_variant_n48(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n49(value: {
+function from_candid_variant_n52(value: {
     Ok: _GalleryChatCard;
 } | {
     Err: string;
@@ -1543,16 +1634,16 @@ function from_candid_vec_n20(value: Array<_GalleryChatCard>): Array<GalleryChatC
 function from_candid_vec_n23(value: Array<_RoleGrant>): Array<RoleGrant> {
     return value.map((x)=>from_candid_RoleGrant_n24(x));
 }
-function from_candid_vec_n43(value: Array<_Reference>): Array<Reference> {
-    return value.map((x)=>from_candid_Reference_n44(x));
+function from_candid_vec_n46(value: Array<_Reference>): Array<Reference> {
+    return value.map((x)=>from_candid_Reference_n47(x));
 }
 function to_candid_opt_n31(value: Cursor | null): [] | [_Cursor] {
     return value === null ? candid_none() : candid_some(value);
 }
-function to_candid_opt_n39(value: bigint | null): [] | [bigint] {
+function to_candid_opt_n42(value: bigint | null): [] | [bigint] {
     return value === null ? candid_none() : candid_some(value);
 }
-function to_candid_opt_n50(value: BlobRef | null): [] | [_BlobRef] {
+function to_candid_opt_n53(value: BlobRef | null): [] | [_BlobRef] {
     return value === null ? candid_none() : candid_some(value);
 }
 function to_candid_opt_n6(value: string | null): [] | [string] {

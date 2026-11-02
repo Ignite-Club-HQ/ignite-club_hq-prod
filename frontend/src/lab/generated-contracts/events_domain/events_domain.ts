@@ -1347,6 +1347,20 @@ export interface MainInterface {
     }>;
     read_account_my_children(): Promise<Array<Child>>;
     read_account_my_rsvps(): Promise<Array<Rsvp>>;
+    read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     read_account_read_event_club(event_id: string): Promise<{
         __kind__: "Ok";
         Ok: string | null;
@@ -4051,6 +4065,23 @@ export class Events_domain implements events_domainInterface {
         const result = await this.actor.read_account_my_rsvps();
         return from_candid_vec_n97(result);
     }
+    async read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.read_account_protection_configuration();
+        return from_candid_variant_n188(result);
+    }
     async read_account_read_event_club(arg0: string): Promise<{
         __kind__: "Ok";
         Ok: string | null;
@@ -4079,7 +4110,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.read_account_removal_drain(arg0);
-        return from_candid_variant_n188(result);
+        return from_candid_variant_n191(result);
     }
     async read_competition_events(arg0: string): Promise<{
         __kind__: "Ok";
@@ -4099,7 +4130,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.read_detailed_game_player_stats(arg0);
-        return from_candid_variant_n189(result);
+        return from_candid_variant_n192(result);
     }
     async read_event_cancellation_audience(arg0: string): Promise<{
         __kind__: "Ok";
@@ -4142,7 +4173,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.read_event_honours(arg0);
-        return from_candid_variant_n197(result);
+        return from_candid_variant_n200(result);
     }
     async read_fixture_materialization(arg0: string): Promise<{
         __kind__: "Ok";
@@ -4156,7 +4187,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.read_fixture_materialization(arg0);
-        return from_candid_variant_n198(result);
+        return from_candid_variant_n201(result);
     }
     async read_group_opening_configuration(): Promise<Array<[string, string]>> {
         const result = await this.actor.read_group_opening_configuration();
@@ -4190,7 +4221,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.record_reminder_sent(arg0, arg1, arg2);
-        return from_candid_variant_n203(result);
+        return from_candid_variant_n206(result);
     }
     async rekey_principal(arg0: Principal, arg1: Principal, arg2: boolean): Promise<{
         __kind__: "ok";
@@ -4319,7 +4350,7 @@ export class Events_domain implements events_domainInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.replace_event_groups(arg0, to_candid_vec_n204(arg1), arg2);
+        const result = await this.actor.replace_event_groups(arg0, to_candid_vec_n207(arg1), arg2);
         return from_candid_variant_n30(result);
     }
     async run_photo_prompts(): Promise<{
@@ -4339,7 +4370,7 @@ export class Events_domain implements events_domainInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.save_detailed_game_player_stats(arg0, arg1, to_candid_vec_n212(arg2), to_candid_vec_n215(arg3));
+        const result = await this.actor.save_detailed_game_player_stats(arg0, arg1, to_candid_vec_n215(arg2), to_candid_vec_n218(arg3));
         return from_candid_variant_n164(result);
     }
     async save_game_player_stats(arg0: string, arg1: string, arg2: Array<GamePlayerStatInput>): Promise<{
@@ -4349,7 +4380,7 @@ export class Events_domain implements events_domainInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.save_game_player_stats(arg0, arg1, to_candid_vec_n212(arg2));
+        const result = await this.actor.save_game_player_stats(arg0, arg1, to_candid_vec_n215(arg2));
         return from_candid_variant_n164(result);
     }
     async save_game_result(arg0: string, arg1: string | null, arg2: string, arg3: string, arg4: string, arg5: number, arg6: number, arg7: string, arg8: string, arg9: string | null, arg10: string | null): Promise<{
@@ -4360,7 +4391,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.save_game_result(arg0, to_candid_opt_n3(arg1), arg2, arg3, arg4, arg5, arg6, arg7, arg8, to_candid_opt_n3(arg9), to_candid_opt_n3(arg10));
-        return from_candid_variant_n218(result);
+        return from_candid_variant_n221(result);
     }
     async save_game_summary(arg0: string, arg1: string, arg2: number, arg3: number, arg4: string | null, arg5: number): Promise<{
         __kind__: "Ok";
@@ -4370,7 +4401,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.save_game_summary(arg0, arg1, arg2, arg3, to_candid_opt_n3(arg4), arg5);
-        return from_candid_variant_n221(result);
+        return from_candid_variant_n224(result);
     }
     async save_group_duty_slot(arg0: string, arg1: string, arg2: string, arg3: string | null): Promise<{
         __kind__: "Ok";
@@ -4380,7 +4411,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.save_group_duty_slot(arg0, arg1, arg2, to_candid_opt_n3(arg3));
-        return from_candid_variant_n222(result);
+        return from_candid_variant_n225(result);
     }
     async save_lineup_snapshot(arg0: string, arg1: string | null, arg2: string | null, arg3: number, arg4: number | null, arg5: number | null, arg6: Array<LineupPlayer>): Promise<{
         __kind__: "Ok";
@@ -4389,8 +4420,8 @@ export class Events_domain implements events_domainInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.save_lineup_snapshot(arg0, to_candid_opt_n3(arg1), to_candid_opt_n3(arg2), arg3, to_candid_opt_n223(arg4), to_candid_opt_n223(arg5), to_candid_vec_n224(arg6));
-        return from_candid_variant_n227(result);
+        const result = await this.actor.save_lineup_snapshot(arg0, to_candid_opt_n3(arg1), to_candid_opt_n3(arg2), arg3, to_candid_opt_n226(arg4), to_candid_opt_n226(arg5), to_candid_vec_n227(arg6));
+        return from_candid_variant_n230(result);
     }
     async save_location(arg0: string, arg1: string, arg2: number, arg3: number): Promise<{
         __kind__: "Ok";
@@ -4400,7 +4431,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.save_location(arg0, arg1, arg2, arg3);
-        return from_candid_variant_n228(result);
+        return from_candid_variant_n231(result);
     }
     async save_pitch_board_settings(arg0: string, arg1: number, arg2: boolean, arg3: boolean, arg4: boolean, arg5: number, arg6: number, arg7: number, arg8: string | null, arg9: boolean, arg10: boolean): Promise<{
         __kind__: "Ok";
@@ -4410,7 +4441,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.save_pitch_board_settings(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, to_candid_opt_n3(arg8), arg9, arg10);
-        return from_candid_variant_n229(result);
+        return from_candid_variant_n232(result);
     }
     async schema(): Promise<string> {
         const result = await this.actor.schema();
@@ -4424,7 +4455,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.seal_account_removal(arg0);
-        return from_candid_variant_n188(result);
+        return from_candid_variant_n191(result);
     }
     async send_event_reminders(arg0: string): Promise<{
         __kind__: "Ok";
@@ -4454,7 +4485,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.set_attendance(arg0, arg1, arg2, arg3);
-        return from_candid_variant_n230(result);
+        return from_candid_variant_n233(result);
     }
     async set_child_rsvp(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string): Promise<{
         __kind__: "Ok";
@@ -4484,7 +4515,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.set_coach_note(arg0, arg1);
-        return from_candid_variant_n231(result);
+        return from_candid_variant_n234(result);
     }
     async set_competition_domain_canister(arg0: Principal): Promise<{
         __kind__: "Ok";
@@ -4513,7 +4544,7 @@ export class Events_domain implements events_domainInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.set_event_auto_reminder(arg0, to_candid_opt_n232(arg1));
+        const result = await this.actor.set_event_auto_reminder(arg0, to_candid_opt_n235(arg1));
         return from_candid_variant_n1(result);
     }
     async set_event_cancelled(arg0: string, arg1: boolean): Promise<{
@@ -4563,8 +4594,8 @@ export class Events_domain implements events_domainInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.set_event_timer(arg0, arg1, to_candid_opt_n232(arg2), to_candid_opt_n233(arg3));
-        return from_candid_variant_n234(result);
+        const result = await this.actor.set_event_timer(arg0, arg1, to_candid_opt_n235(arg2), to_candid_opt_n236(arg3));
+        return from_candid_variant_n237(result);
     }
     async set_group_duty(arg0: string, arg1: string, arg2: string | null): Promise<{
         __kind__: "Ok";
@@ -4574,7 +4605,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.set_group_duty(arg0, arg1, to_candid_opt_n3(arg2));
-        return from_candid_variant_n222(result);
+        return from_candid_variant_n225(result);
     }
     async set_match_captain(arg0: string, arg1: string, arg2: string, arg3: string): Promise<{
         __kind__: "Ok";
@@ -4584,7 +4615,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.set_match_captain(arg0, arg1, arg2, arg3);
-        return from_candid_variant_n235(result);
+        return from_candid_variant_n238(result);
     }
     async set_match_goalkeeper(arg0: string, arg1: string, arg2: string, arg3: string): Promise<{
         __kind__: "Ok";
@@ -4594,7 +4625,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.set_match_goalkeeper(arg0, arg1, arg2, arg3);
-        return from_candid_variant_n236(result);
+        return from_candid_variant_n239(result);
     }
     async set_mini_league_domain_canister(arg0: Principal): Promise<{
         __kind__: "Ok";
@@ -4613,8 +4644,8 @@ export class Events_domain implements events_domainInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.set_mini_league_rsvp(arg0, to_candid_RsvpSubject_n237(arg1), arg2);
-        return from_candid_variant_n239(result);
+        const result = await this.actor.set_mini_league_rsvp(arg0, to_candid_RsvpSubject_n240(arg1), arg2);
+        return from_candid_variant_n242(result);
     }
     async set_notification_queue_canister(arg0: Principal): Promise<{
         __kind__: "Ok";
@@ -4633,7 +4664,7 @@ export class Events_domain implements events_domainInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.set_playhq_config(to_candid_opt_n240(arg0));
+        const result = await this.actor.set_playhq_config(to_candid_opt_n243(arg0));
         return from_candid_variant_n1(result);
     }
     async set_playhq_team_sync(arg0: string, arg1: string, arg2: string | null, arg3: string | null, arg4: boolean): Promise<{
@@ -4654,7 +4685,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.set_push_reachable(arg0);
-        return from_candid_variant_n241(result);
+        return from_candid_variant_n244(result);
     }
     async set_recurrence(arg0: string, arg1: string, arg2: bigint): Promise<{
         __kind__: "Ok";
@@ -4664,7 +4695,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.set_recurrence(arg0, arg1, arg2);
-        return from_candid_variant_n242(result);
+        return from_candid_variant_n245(result);
     }
     async set_roster(arg0: string, arg1: string, arg2: string | null): Promise<{
         __kind__: "Ok";
@@ -4674,7 +4705,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.set_roster(arg0, arg1, to_candid_opt_n3(arg2));
-        return from_candid_variant_n243(result);
+        return from_candid_variant_n246(result);
     }
     async set_rsvp(arg0: string, arg1: string, arg2: string, arg3: string): Promise<{
         __kind__: "Ok";
@@ -4744,7 +4775,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.soft_delete_series(arg0);
-        return from_candid_variant_n244(result);
+        return from_candid_variant_n247(result);
     }
     async swap_group_players(arg0: string, arg1: string, arg2: string | null, arg3: string, arg4: string, arg5: string | null): Promise<{
         __kind__: "Ok";
@@ -4764,7 +4795,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.sync_active_game(to_candid_opt_n3(arg0), arg1, arg2, arg3);
-        return from_candid_variant_n245(result);
+        return from_candid_variant_n248(result);
     }
     async sync_group_state(arg0: string, arg1: bigint, arg2: string | null, arg3: string | null): Promise<{
         __kind__: "Ok";
@@ -4784,7 +4815,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.sync_shared_board(arg0, arg1, to_candid_opt_n43(arg2), arg3, arg4);
-        return from_candid_variant_n245(result);
+        return from_candid_variant_n248(result);
     }
     async transfer_governorship(arg0: Principal): Promise<{
         __kind__: "Ok";
@@ -4834,7 +4865,7 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.update_series(arg0, arg1, arg2, arg3, to_candid_opt_n3(arg4), arg5, to_candid_opt_n3(arg6), arg7, to_candid_opt_n31(arg8), to_candid_opt_n31(arg9));
-        return from_candid_variant_n244(result);
+        return from_candid_variant_n247(result);
     }
     async upsert_competition_match_events(arg0: MatchEventInput): Promise<{
         __kind__: "Ok";
@@ -4867,8 +4898,8 @@ function from_candid_Cell_n63(value: _Cell): Cell {
 function from_candid_Child_n21(value: _Child): Child {
     return from_candid_record_n22(value);
 }
-function from_candid_DetailedGamePlayerStat_n191(value: _DetailedGamePlayerStat): DetailedGamePlayerStat {
-    return from_candid_record_n192(value);
+function from_candid_DetailedGamePlayerStat_n194(value: _DetailedGamePlayerStat): DetailedGamePlayerStat {
+    return from_candid_record_n195(value);
 }
 function from_candid_EventGroupDuty_n92(value: _EventGroupDuty): EventGroupDuty {
     return from_candid_record_n93(value);
@@ -4891,14 +4922,14 @@ function from_candid_EventTimer_n119(value: _EventTimer): EventTimer {
 function from_candid_Event_n12(value: _Event): Event {
     return from_candid_record_n13(value);
 }
-function from_candid_GamePlayerDetail_n194(value: _GamePlayerDetail): GamePlayerDetail {
-    return from_candid_record_n195(value);
+function from_candid_GamePlayerDetail_n197(value: _GamePlayerDetail): GamePlayerDetail {
+    return from_candid_record_n198(value);
 }
 function from_candid_GamePlayerStat_n166(value: _GamePlayerStat): GamePlayerStat {
     return from_candid_record_n167(value);
 }
-function from_candid_GameResult_n219(value: _GameResult): GameResult {
-    return from_candid_record_n220(value);
+function from_candid_GameResult_n222(value: _GameResult): GameResult {
+    return from_candid_record_n223(value);
 }
 function from_candid_GameSummary_n128(value: _GameSummary): GameSummary {
     return from_candid_record_n129(value);
@@ -4912,8 +4943,8 @@ function from_candid_LineupPlayer_n85(value: _LineupPlayer): LineupPlayer {
 function from_candid_LineupSnapshot_n81(value: _LineupSnapshot): LineupSnapshot {
     return from_candid_record_n82(value);
 }
-function from_candid_MatchEventInput_n201(value: _MatchEventInput): MatchEventInput {
-    return from_candid_record_n202(value);
+function from_candid_MatchEventInput_n204(value: _MatchEventInput): MatchEventInput {
+    return from_candid_record_n205(value);
 }
 function from_candid_MiniLeagueRsvp_n72(value: _MiniLeagueRsvp): MiniLeagueRsvp {
     return from_candid_record_n73(value);
@@ -5014,13 +5045,16 @@ function from_candid_opt_n141(value: [] | [_PlayHQTeamSync]): PlayHQTeamSync | n
 function from_candid_opt_n19(value: [] | [boolean]): boolean | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n193(value: [] | [_GamePlayerDetail]): GamePlayerDetail | null {
-    return value.length === 0 ? null : from_candid_GamePlayerDetail_n194(value[0]);
-}
-function from_candid_opt_n196(value: [] | [Array<[string, number]>]): Array<[string, number]> | null {
+function from_candid_opt_n190(value: [] | [Principal]): Principal | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n199(value: [] | [{
+function from_candid_opt_n196(value: [] | [_GamePlayerDetail]): GamePlayerDetail | null {
+    return value.length === 0 ? null : from_candid_GamePlayerDetail_n197(value[0]);
+}
+function from_candid_opt_n199(value: [] | [Array<[string, number]>]): Array<[string, number]> | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n202(value: [] | [{
         event_ids: Array<string>;
         input: _MatchEventInput;
         revision: bigint;
@@ -5029,7 +5063,7 @@ function from_candid_opt_n199(value: [] | [{
     input: MatchEventInput;
     revision: bigint;
 } | null {
-    return value.length === 0 ? null : from_candid_record_n200(value[0]);
+    return value.length === 0 ? null : from_candid_record_n203(value[0]);
 }
 function from_candid_opt_n57(value: [] | [_Child]): Child | null {
     return value.length === 0 ? null : from_candid_Child_n21(value[0]);
@@ -5602,7 +5636,31 @@ function from_candid_record_n181(value: {
         home_team_name: record_opt_to_undefined(from_candid_opt_n7(value.home_team_name))
     };
 }
-function from_candid_record_n192(value: {
+function from_candid_record_n189(value: {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority: [] | [Principal];
+    receiver: Principal;
+    rehearsal: boolean;
+}): {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority?: Principal;
+    receiver: Principal;
+    rehearsal: boolean;
+} {
+    return {
+        protocol: value.protocol,
+        admission_required: value.admission_required,
+        removal_enabled: value.removal_enabled,
+        authority: record_opt_to_undefined(from_candid_opt_n190(value.authority)),
+        receiver: value.receiver,
+        rehearsal: value.rehearsal
+    };
+}
+function from_candid_record_n195(value: {
     stat: _GamePlayerStat;
     detail: [] | [_GamePlayerDetail];
 }): {
@@ -5611,10 +5669,10 @@ function from_candid_record_n192(value: {
 } {
     return {
         stat: from_candid_GamePlayerStat_n166(value.stat),
-        detail: record_opt_to_undefined(from_candid_opt_n193(value.detail))
+        detail: record_opt_to_undefined(from_candid_opt_n196(value.detail))
     };
 }
-function from_candid_record_n195(value: {
+function from_candid_record_n198(value: {
     position_seconds: [] | [Array<[string, number]>];
     user_id: [] | [string];
     child_id: [] | [string];
@@ -5624,12 +5682,12 @@ function from_candid_record_n195(value: {
     child_id?: string;
 } {
     return {
-        position_seconds: record_opt_to_undefined(from_candid_opt_n196(value.position_seconds)),
+        position_seconds: record_opt_to_undefined(from_candid_opt_n199(value.position_seconds)),
         user_id: record_opt_to_undefined(from_candid_opt_n7(value.user_id)),
         child_id: record_opt_to_undefined(from_candid_opt_n7(value.child_id))
     };
 }
-function from_candid_record_n200(value: {
+function from_candid_record_n203(value: {
     event_ids: Array<string>;
     input: _MatchEventInput;
     revision: bigint;
@@ -5640,11 +5698,11 @@ function from_candid_record_n200(value: {
 } {
     return {
         event_ids: value.event_ids,
-        input: from_candid_MatchEventInput_n201(value.input),
+        input: from_candid_MatchEventInput_n204(value.input),
         revision: value.revision
     };
 }
-function from_candid_record_n202(value: {
+function from_candid_record_n205(value: {
     teams: Array<_CompetitionEventTarget>;
     title: string;
     creator: Principal;
@@ -5686,7 +5744,7 @@ function from_candid_record_n22(value: {
         parent_id: record_opt_to_undefined(from_candid_opt_n7(value.parent_id))
     };
 }
-function from_candid_record_n220(value: {
+function from_candid_record_n223(value: {
     id: string;
     saved_by: Principal;
     period_scores_json: string;
@@ -7105,6 +7163,39 @@ function from_candid_variant_n187(value: {
     } : value;
 }
 function from_candid_variant_n188(value: {
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority: [] | [Principal];
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority?: Principal;
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_record_n189(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n191(value: {
     Ok: _Receipt;
 } | {
     Err: string;
@@ -7123,7 +7214,7 @@ function from_candid_variant_n188(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n189(value: {
+function from_candid_variant_n192(value: {
     Ok: Array<_DetailedGamePlayerStat>;
 } | {
     Err: string;
@@ -7136,59 +7227,7 @@ function from_candid_variant_n189(value: {
 } {
     return "Ok" in value ? {
         __kind__: "Ok",
-        Ok: from_candid_vec_n190(value.Ok)
-    } : "Err" in value ? {
-        __kind__: "Err",
-        Err: value.Err
-    } : value;
-}
-function from_candid_variant_n197(value: {
-    Ok: {
-        goalkeepers: Array<_MatchGoalkeeperAssignment>;
-        captains: Array<_MatchCaptainAssignment>;
-    };
-} | {
-    Err: string;
-}): {
-    __kind__: "Ok";
-    Ok: {
-        goalkeepers: Array<MatchGoalkeeperAssignment>;
-        captains: Array<MatchCaptainAssignment>;
-    };
-} | {
-    __kind__: "Err";
-    Err: string;
-} {
-    return "Ok" in value ? {
-        __kind__: "Ok",
-        Ok: value.Ok
-    } : "Err" in value ? {
-        __kind__: "Err",
-        Err: value.Err
-    } : value;
-}
-function from_candid_variant_n198(value: {
-    Ok: [] | [{
-            event_ids: Array<string>;
-            input: _MatchEventInput;
-            revision: bigint;
-        }];
-} | {
-    Err: string;
-}): {
-    __kind__: "Ok";
-    Ok: {
-        event_ids: Array<string>;
-        input: MatchEventInput;
-        revision: bigint;
-    } | null;
-} | {
-    __kind__: "Err";
-    Err: string;
-} {
-    return "Ok" in value ? {
-        __kind__: "Ok",
-        Ok: from_candid_opt_n199(value.Ok)
+        Ok: from_candid_vec_n193(value.Ok)
     } : "Err" in value ? {
         __kind__: "Err",
         Err: value.Err
@@ -7232,7 +7271,59 @@ function from_candid_variant_n20(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n203(value: {
+function from_candid_variant_n200(value: {
+    Ok: {
+        goalkeepers: Array<_MatchGoalkeeperAssignment>;
+        captains: Array<_MatchCaptainAssignment>;
+    };
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: {
+        goalkeepers: Array<MatchGoalkeeperAssignment>;
+        captains: Array<MatchCaptainAssignment>;
+    };
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: value.Ok
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n201(value: {
+    Ok: [] | [{
+            event_ids: Array<string>;
+            input: _MatchEventInput;
+            revision: bigint;
+        }];
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: {
+        event_ids: Array<string>;
+        input: MatchEventInput;
+        revision: bigint;
+    } | null;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_opt_n202(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n206(value: {
     Ok: _ReminderLog;
 } | {
     Err: string;
@@ -7251,7 +7342,7 @@ function from_candid_variant_n203(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n218(value: {
+function from_candid_variant_n221(value: {
     Ok: _GameResult;
 } | {
     Err: string;
@@ -7264,13 +7355,13 @@ function from_candid_variant_n218(value: {
 } {
     return "Ok" in value ? {
         __kind__: "Ok",
-        Ok: from_candid_GameResult_n219(value.Ok)
+        Ok: from_candid_GameResult_n222(value.Ok)
     } : "Err" in value ? {
         __kind__: "Err",
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n221(value: {
+function from_candid_variant_n224(value: {
     Ok: _GameSummary;
 } | {
     Err: string;
@@ -7289,7 +7380,7 @@ function from_candid_variant_n221(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n222(value: {
+function from_candid_variant_n225(value: {
     Ok: _EventGroupDuty;
 } | {
     Err: string;
@@ -7303,63 +7394,6 @@ function from_candid_variant_n222(value: {
     return "Ok" in value ? {
         __kind__: "Ok",
         Ok: from_candid_EventGroupDuty_n92(value.Ok)
-    } : "Err" in value ? {
-        __kind__: "Err",
-        Err: value.Err
-    } : value;
-}
-function from_candid_variant_n227(value: {
-    Ok: _LineupSnapshot;
-} | {
-    Err: string;
-}): {
-    __kind__: "Ok";
-    Ok: LineupSnapshot;
-} | {
-    __kind__: "Err";
-    Err: string;
-} {
-    return "Ok" in value ? {
-        __kind__: "Ok",
-        Ok: from_candid_LineupSnapshot_n81(value.Ok)
-    } : "Err" in value ? {
-        __kind__: "Err",
-        Err: value.Err
-    } : value;
-}
-function from_candid_variant_n228(value: {
-    Ok: _SavedLocation;
-} | {
-    Err: string;
-}): {
-    __kind__: "Ok";
-    Ok: SavedLocation;
-} | {
-    __kind__: "Err";
-    Err: string;
-} {
-    return "Ok" in value ? {
-        __kind__: "Ok",
-        Ok: value.Ok
-    } : "Err" in value ? {
-        __kind__: "Err",
-        Err: value.Err
-    } : value;
-}
-function from_candid_variant_n229(value: {
-    Ok: _PitchBoardSettings;
-} | {
-    Err: string;
-}): {
-    __kind__: "Ok";
-    Ok: PitchBoardSettings;
-} | {
-    __kind__: "Err";
-    Err: string;
-} {
-    return "Ok" in value ? {
-        __kind__: "Ok",
-        Ok: from_candid_PitchBoardSettings_n135(value.Ok)
     } : "Err" in value ? {
         __kind__: "Err",
         Err: value.Err
@@ -7385,6 +7419,63 @@ function from_candid_variant_n23(value: {
     } : value;
 }
 function from_candid_variant_n230(value: {
+    Ok: _LineupSnapshot;
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: LineupSnapshot;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_LineupSnapshot_n81(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n231(value: {
+    Ok: _SavedLocation;
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: SavedLocation;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: value.Ok
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n232(value: {
+    Ok: _PitchBoardSettings;
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: PitchBoardSettings;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_PitchBoardSettings_n135(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n233(value: {
     Ok: _Attendance;
 } | {
     Err: string;
@@ -7403,7 +7494,7 @@ function from_candid_variant_n230(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n231(value: {
+function from_candid_variant_n234(value: {
     Ok: _CoachNote;
 } | {
     Err: string;
@@ -7422,7 +7513,7 @@ function from_candid_variant_n231(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n234(value: {
+function from_candid_variant_n237(value: {
     Ok: _EventTimer;
 } | {
     Err: string;
@@ -7441,7 +7532,7 @@ function from_candid_variant_n234(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n235(value: {
+function from_candid_variant_n238(value: {
     Ok: _MatchCaptainAssignment;
 } | {
     Err: string;
@@ -7460,7 +7551,7 @@ function from_candid_variant_n235(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n236(value: {
+function from_candid_variant_n239(value: {
     Ok: _MatchGoalkeeperAssignment;
 } | {
     Err: string;
@@ -7474,25 +7565,6 @@ function from_candid_variant_n236(value: {
     return "Ok" in value ? {
         __kind__: "Ok",
         Ok: value.Ok
-    } : "Err" in value ? {
-        __kind__: "Err",
-        Err: value.Err
-    } : value;
-}
-function from_candid_variant_n239(value: {
-    Ok: _MiniLeagueRsvp;
-} | {
-    Err: string;
-}): {
-    __kind__: "Ok";
-    Ok: MiniLeagueRsvp;
-} | {
-    __kind__: "Err";
-    Err: string;
-} {
-    return "Ok" in value ? {
-        __kind__: "Ok",
-        Ok: from_candid_MiniLeagueRsvp_n72(value.Ok)
     } : "Err" in value ? {
         __kind__: "Err",
         Err: value.Err
@@ -7517,7 +7589,26 @@ function from_candid_variant_n24(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n241(value: {
+function from_candid_variant_n242(value: {
+    Ok: _MiniLeagueRsvp;
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: MiniLeagueRsvp;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_MiniLeagueRsvp_n72(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n244(value: {
     Ok: _PushReachability;
 } | {
     Err: string;
@@ -7536,7 +7627,7 @@ function from_candid_variant_n241(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n242(value: {
+function from_candid_variant_n245(value: {
     Ok: _Recurrence;
 } | {
     Err: string;
@@ -7555,7 +7646,7 @@ function from_candid_variant_n242(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n243(value: {
+function from_candid_variant_n246(value: {
     Ok: _RosterEntry;
 } | {
     Err: string;
@@ -7574,7 +7665,7 @@ function from_candid_variant_n243(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n244(value: {
+function from_candid_variant_n247(value: {
     Ok: _EventSeries;
 } | {
     Err: string;
@@ -7593,7 +7684,7 @@ function from_candid_variant_n244(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n245(value: {
+function from_candid_variant_n248(value: {
     Ok: _ActiveGame;
 } | {
     Err: string;
@@ -8103,8 +8194,8 @@ function from_candid_vec_n175(value: Array<_PlayHQCompetition>): Array<PlayHQCom
 function from_candid_vec_n179(value: Array<_PlayHQMatch>): Array<PlayHQMatch> {
     return value.map((x)=>from_candid_PlayHQMatch_n180(x));
 }
-function from_candid_vec_n190(value: Array<_DetailedGamePlayerStat>): Array<DetailedGamePlayerStat> {
-    return value.map((x)=>from_candid_DetailedGamePlayerStat_n191(x));
+function from_candid_vec_n193(value: Array<_DetailedGamePlayerStat>): Array<DetailedGamePlayerStat> {
+    return value.map((x)=>from_candid_DetailedGamePlayerStat_n194(x));
 }
 function from_candid_vec_n48(value: Array<_Event>): Array<Event> {
     return value.map((x)=>from_candid_Event_n12(x));
@@ -8157,43 +8248,43 @@ function from_candid_vec_n97(value: Array<_Rsvp>): Array<Rsvp> {
 function from_candid_vec_n98(value: Array<_OpenDuty>): Array<OpenDuty> {
     return value.map((x)=>from_candid_OpenDuty_n26(x));
 }
-function to_candid_GamePlayerDetail_n216(value: GamePlayerDetail): _GamePlayerDetail {
+function to_candid_GamePlayerDetail_n219(value: GamePlayerDetail): _GamePlayerDetail {
+    return to_candid_record_n220(value);
+}
+function to_candid_GamePlayerStatInput_n216(value: GamePlayerStatInput): _GamePlayerStatInput {
     return to_candid_record_n217(value);
 }
-function to_candid_GamePlayerStatInput_n213(value: GamePlayerStatInput): _GamePlayerStatInput {
-    return to_candid_record_n214(value);
-}
-function to_candid_GroupDutyInput_n211(value: GroupDutyInput): _GroupDutyInput {
+function to_candid_GroupDutyInput_n214(value: GroupDutyInput): _GroupDutyInput {
     return to_candid_record_n38(value);
 }
-function to_candid_GroupPlayerInput_n208(value: GroupPlayerInput): _GroupPlayerInput {
-    return to_candid_record_n209(value);
+function to_candid_GroupPlayerInput_n211(value: GroupPlayerInput): _GroupPlayerInput {
+    return to_candid_record_n212(value);
 }
-function to_candid_GroupSpecInput_n205(value: GroupSpecInput): _GroupSpecInput {
-    return to_candid_record_n206(value);
+function to_candid_GroupSpecInput_n208(value: GroupSpecInput): _GroupSpecInput {
+    return to_candid_record_n209(value);
 }
 function to_candid_Input_n35(value: Input): _Input {
     return to_candid_record_n36(value);
 }
-function to_candid_LineupPlayer_n225(value: LineupPlayer): _LineupPlayer {
-    return to_candid_record_n226(value);
+function to_candid_LineupPlayer_n228(value: LineupPlayer): _LineupPlayer {
+    return to_candid_record_n229(value);
 }
 function to_candid_MatchEventInput_n185(value: MatchEventInput): _MatchEventInput {
     return to_candid_record_n186(value);
 }
-function to_candid_RsvpSubject_n237(value: RsvpSubject): _RsvpSubject {
-    return to_candid_variant_n238(value);
+function to_candid_RsvpSubject_n240(value: RsvpSubject): _RsvpSubject {
+    return to_candid_variant_n241(value);
 }
-function to_candid_opt_n223(value: number | null): [] | [number] {
+function to_candid_opt_n226(value: number | null): [] | [number] {
     return value === null ? candid_none() : candid_some(value);
 }
-function to_candid_opt_n232(value: number | null): [] | [number] {
+function to_candid_opt_n235(value: number | null): [] | [number] {
     return value === null ? candid_none() : candid_some(value);
 }
-function to_candid_opt_n233(value: bigint | null): [] | [bigint] {
+function to_candid_opt_n236(value: bigint | null): [] | [bigint] {
     return value === null ? candid_none() : candid_some(value);
 }
-function to_candid_opt_n240(value: PlayHQConfig | null): [] | [_PlayHQConfig] {
+function to_candid_opt_n243(value: PlayHQConfig | null): [] | [_PlayHQConfig] {
     return value === null ? candid_none() : candid_some(value);
 }
 function to_candid_opt_n3(value: string | null): [] | [string] {
@@ -8238,7 +8329,7 @@ function to_candid_record_n186(value: {
         competition_id: value.competition_id
     };
 }
-function to_candid_record_n206(value: {
+function to_candid_record_n209(value: {
     pitch_name?: string;
     name: string;
     team_a_colour?: string;
@@ -8261,14 +8352,14 @@ function to_candid_record_n206(value: {
         pitch_name: value.pitch_name ? candid_some(value.pitch_name) : candid_none(),
         name: value.name,
         team_a_colour: value.team_a_colour ? candid_some(value.team_a_colour) : candid_none(),
-        players: to_candid_vec_n207(value.players),
+        players: to_candid_vec_n210(value.players),
         team_b_colour: value.team_b_colour ? candid_some(value.team_b_colour) : candid_none(),
-        duties: to_candid_vec_n210(value.duties),
+        duties: to_candid_vec_n213(value.duties),
         ability_band: value.ability_band ? candid_some(value.ability_band) : candid_none(),
         display_order: value.display_order
     };
 }
-function to_candid_record_n209(value: {
+function to_candid_record_n212(value: {
     account_id: string;
     team_letter?: string;
 }): {
@@ -8280,7 +8371,7 @@ function to_candid_record_n209(value: {
         team_letter: value.team_letter ? candid_some(value.team_letter) : candid_none()
     };
 }
-function to_candid_record_n214(value: {
+function to_candid_record_n217(value: {
     started_on_pitch: boolean;
     minutes_played: number;
     user_id?: string;
@@ -8310,7 +8401,7 @@ function to_candid_record_n214(value: {
         jersey_number: value.jersey_number ? candid_some(value.jersey_number) : candid_none()
     };
 }
-function to_candid_record_n217(value: {
+function to_candid_record_n220(value: {
     position_seconds?: Array<[string, number]>;
     user_id?: string;
     child_id?: string;
@@ -8325,7 +8416,7 @@ function to_candid_record_n217(value: {
         child_id: value.child_id ? candid_some(value.child_id) : candid_none()
     };
 }
-function to_candid_record_n226(value: {
+function to_candid_record_n229(value: {
     x?: number;
     y?: number;
     member: string;
@@ -8433,7 +8524,7 @@ function to_candid_record_n38(value: {
         duty: value.duty
     };
 }
-function to_candid_variant_n238(value: {
+function to_candid_variant_n241(value: {
     __kind__: "account";
     account: string;
 } | {
@@ -8450,23 +8541,23 @@ function to_candid_variant_n238(value: {
         mini_league_player: value.mini_league_player
     } : value;
 }
-function to_candid_vec_n204(value: Array<GroupSpecInput>): Array<_GroupSpecInput> {
-    return value.map((x)=>to_candid_GroupSpecInput_n205(x));
+function to_candid_vec_n207(value: Array<GroupSpecInput>): Array<_GroupSpecInput> {
+    return value.map((x)=>to_candid_GroupSpecInput_n208(x));
 }
-function to_candid_vec_n207(value: Array<GroupPlayerInput>): Array<_GroupPlayerInput> {
-    return value.map((x)=>to_candid_GroupPlayerInput_n208(x));
+function to_candid_vec_n210(value: Array<GroupPlayerInput>): Array<_GroupPlayerInput> {
+    return value.map((x)=>to_candid_GroupPlayerInput_n211(x));
 }
-function to_candid_vec_n210(value: Array<GroupDutyInput>): Array<_GroupDutyInput> {
-    return value.map((x)=>to_candid_GroupDutyInput_n211(x));
+function to_candid_vec_n213(value: Array<GroupDutyInput>): Array<_GroupDutyInput> {
+    return value.map((x)=>to_candid_GroupDutyInput_n214(x));
 }
-function to_candid_vec_n212(value: Array<GamePlayerStatInput>): Array<_GamePlayerStatInput> {
-    return value.map((x)=>to_candid_GamePlayerStatInput_n213(x));
+function to_candid_vec_n215(value: Array<GamePlayerStatInput>): Array<_GamePlayerStatInput> {
+    return value.map((x)=>to_candid_GamePlayerStatInput_n216(x));
 }
-function to_candid_vec_n215(value: Array<GamePlayerDetail>): Array<_GamePlayerDetail> {
-    return value.map((x)=>to_candid_GamePlayerDetail_n216(x));
+function to_candid_vec_n218(value: Array<GamePlayerDetail>): Array<_GamePlayerDetail> {
+    return value.map((x)=>to_candid_GamePlayerDetail_n219(x));
 }
-function to_candid_vec_n224(value: Array<LineupPlayer>): Array<_LineupPlayer> {
-    return value.map((x)=>to_candid_LineupPlayer_n225(x));
+function to_candid_vec_n227(value: Array<LineupPlayer>): Array<_LineupPlayer> {
+    return value.map((x)=>to_candid_LineupPlayer_n228(x));
 }
 function to_candid_vec_n37(value: Array<{
     account_id?: string;

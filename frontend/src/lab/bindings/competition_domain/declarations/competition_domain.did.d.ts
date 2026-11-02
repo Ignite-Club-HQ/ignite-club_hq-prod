@@ -735,6 +735,20 @@ export interface Main {
     { 'Ok' : Array<Competition> } |
       { 'Err' : string }
   >,
+  'read_account_protection_configuration' : ActorMethod<
+    [],
+    {
+        'Ok' : {
+          'protocol' : number,
+          'admission_required' : boolean,
+          'removal_enabled' : boolean,
+          'authority' : [] | [Principal],
+          'receiver' : Principal,
+          'rehearsal' : boolean,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'read_account_read_token_club' : ActorMethod<
     [string],
     { 'Ok' : [] | [string] } |

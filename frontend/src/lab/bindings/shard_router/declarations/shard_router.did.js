@@ -171,13 +171,22 @@ export const idlFactory = ({ IDL }) => {
     'subjects' : IDL.Vec(IDL.Principal),
     'generation' : IDL.Nat64,
   });
+  const Configuration = IDL.Record({
+    'protocol' : IDL.Nat32,
+    'admission_required' : IDL.Bool,
+    'removal_enabled' : IDL.Bool,
+    'authority' : IDL.Opt(IDL.Principal),
+    'receiver' : IDL.Principal,
+    'rehearsal' : IDL.Bool,
+  });
+  const Result_16 = IDL.Variant({ 'Ok' : Configuration, 'Err' : IDL.Text });
   const Receipt = IDL.Record({
     'outstanding' : IDL.Nat,
     'request' : Request,
     'receiver' : IDL.Principal,
   });
-  const Result_16 = IDL.Variant({ 'Ok' : Receipt, 'Err' : IDL.Text });
-  const Result_17 = IDL.Variant({
+  const Result_17 = IDL.Variant({ 'Ok' : Receipt, 'Err' : IDL.Text });
+  const Result_18 = IDL.Variant({
     'Ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
     'Err' : IDL.Text,
   });
@@ -186,7 +195,7 @@ export const idlFactory = ({ IDL }) => {
     'placements' : IDL.Vec(GroupPlacement),
     'revision' : IDL.Nat64,
   });
-  const Result_18 = IDL.Variant({
+  const Result_19 = IDL.Variant({
     'Ok' : GroupRegistrySnapshot,
     'Err' : IDL.Text,
   });
@@ -197,16 +206,16 @@ export const idlFactory = ({ IDL }) => {
     'next_cursor' : IDL.Opt(IDL.Text),
     'revision' : IDL.Nat64,
   });
-  const Result_19 = IDL.Variant({ 'Ok' : GroupRegistryPage, 'Err' : IDL.Text });
-  const Result_20 = IDL.Variant({
+  const Result_20 = IDL.Variant({ 'Ok' : GroupRegistryPage, 'Err' : IDL.Text });
+  const Result_21 = IDL.Variant({
     'Ok' : IDL.Vec(GroupAssignment),
     'Err' : IDL.Text,
   });
-  const Result_21 = IDL.Variant({
+  const Result_22 = IDL.Variant({
     'Ok' : IDL.Opt(OwnerOpening),
     'Err' : IDL.Text,
   });
-  const Result_22 = IDL.Variant({ 'Ok' : IDL.Bool, 'Err' : IDL.Text });
+  const Result_23 = IDL.Variant({ 'Ok' : IDL.Bool, 'Err' : IDL.Text });
   const WriterReceipt = IDL.Record({
     'active' : IDL.Nat,
     'request' : WriterRequest,
@@ -214,7 +223,7 @@ export const idlFactory = ({ IDL }) => {
     'closing' : IDL.Bool,
     'receiver' : IDL.Principal,
   });
-  const Result_23 = IDL.Variant({ 'Ok' : WriterReceipt, 'Err' : IDL.Text });
+  const Result_24 = IDL.Variant({ 'Ok' : WriterReceipt, 'Err' : IDL.Text });
   const PublicGroupTarget = IDL.Record({
     'id' : IDL.Text,
     'domains' : IDL.Vec(DomainCanister),
@@ -224,7 +233,7 @@ export const idlFactory = ({ IDL }) => {
     'configuration_revision' : IDL.Nat64,
     'next_cursor' : IDL.Opt(IDL.Text),
   });
-  const Result_24 = IDL.Variant({ 'Ok' : PublicGroupPage, 'Err' : IDL.Text });
+  const Result_25 = IDL.Variant({ 'Ok' : PublicGroupPage, 'Err' : IDL.Text });
   const RoutingApproval = IDL.Record({
     'configuration_revision' : IDL.Nat64,
     'removal_checked_at_ms' : IDL.Nat64,
@@ -233,11 +242,11 @@ export const idlFactory = ({ IDL }) => {
     'removal_wiring_group_ids' : IDL.Vec(IDL.Text),
     'evidence_sha256' : IDL.Text,
   });
-  const Result_25 = IDL.Variant({
+  const Result_26 = IDL.Variant({
     'Ok' : IDL.Opt(RoutingApproval),
     'Err' : IDL.Text,
   });
-  const Result_26 = IDL.Variant({ 'Ok' : RoutingApproval, 'Err' : IDL.Text });
+  const Result_27 = IDL.Variant({ 'Ok' : RoutingApproval, 'Err' : IDL.Text });
   
   return IDL.Service({
     'abort_domain_migration' : IDL.Func(
@@ -336,17 +345,18 @@ export const idlFactory = ({ IDL }) => {
       ),
     'place_my_new_club' : IDL.Func([IDL.Text, IDL.Text], [Result_5], []),
     'prepare_account_removal' : IDL.Func([Request], [Result_2], []),
+    'read_account_protection_configuration' : IDL.Func([], [Result_16], []),
     'read_account_removal_authority' : IDL.Func(
         [],
         [IDL.Opt(IDL.Principal)],
         ['query'],
       ),
-    'read_account_removal_drain' : IDL.Func([Request], [Result_16], []),
-    'read_group_opening_configuration' : IDL.Func([], [Result_17], []),
-    'read_group_registry' : IDL.Func([IDL.Text], [Result_18], []),
+    'read_account_removal_drain' : IDL.Func([Request], [Result_17], []),
+    'read_group_opening_configuration' : IDL.Func([], [Result_18], []),
+    'read_group_registry' : IDL.Func([IDL.Text], [Result_19], []),
     'read_group_registry_page' : IDL.Func(
         [IDL.Text, IDL.Opt(IDL.Nat64), IDL.Opt(IDL.Text), IDL.Nat32],
-        [Result_19],
+        [Result_20],
         [],
       ),
     'read_hosted_club_assignment' : IDL.Func(
@@ -356,7 +366,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'read_my_group_assignments' : IDL.Func(
         [IDL.Vec(IDL.Text), IDL.Text, IDL.Nat64],
-        [Result_20],
+        [Result_21],
         [],
       ),
     'read_my_new_club_placement' : IDL.Func(
@@ -364,29 +374,29 @@ export const idlFactory = ({ IDL }) => {
         [Result_5],
         [],
       ),
-    'read_my_owner_test_opening' : IDL.Func([IDL.Text], [Result_21], []),
+    'read_my_owner_test_opening' : IDL.Func([IDL.Text], [Result_22], []),
     'read_new_club_creation_authorized' : IDL.Func(
         [IDL.Principal, IDL.Text, IDL.Text, IDL.Text],
-        [Result_22],
+        [Result_23],
         [],
       ),
-    'read_owner_test_deletion_required' : IDL.Func([IDL.Text], [Result_22], []),
+    'read_owner_test_deletion_required' : IDL.Func([IDL.Text], [Result_23], []),
     'read_private_name_preparation' : IDL.Func(
         [WriterRequest],
-        [Result_23],
+        [Result_24],
         [],
       ),
     'read_private_name_writer_window' : IDL.Func(
         [WriterRequest],
-        [Result_23],
+        [Result_24],
         [],
       ),
     'read_public_group_targets' : IDL.Func(
         [IDL.Text, IDL.Opt(IDL.Nat64), IDL.Opt(IDL.Text), IDL.Nat32],
-        [Result_24],
+        [Result_25],
         [],
       ),
-    'read_routing_approval' : IDL.Func([IDL.Text], [Result_25], []),
+    'read_routing_approval' : IDL.Func([IDL.Text], [Result_26], []),
     'record_group_health' : IDL.Func(
         [IDL.Text, IDL.Nat64, IDL.Nat64, IDL.Nat64],
         [Result],
@@ -394,7 +404,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'record_routing_approval' : IDL.Func(
         [RoutingApproval, IDL.Nat64],
-        [Result_26],
+        [Result_27],
         [],
       ),
     'register_group' : IDL.Func([ShardGroup, IDL.Nat64], [Result], []),
@@ -409,7 +419,7 @@ export const idlFactory = ({ IDL }) => {
         [Result],
         [],
       ),
-    'seal_account_removal' : IDL.Func([Request], [Result_16], []),
+    'seal_account_removal' : IDL.Func([Request], [Result_17], []),
     'seal_private_name_writer_window' : IDL.Func(
         [WriterRequest],
         [Result_2],

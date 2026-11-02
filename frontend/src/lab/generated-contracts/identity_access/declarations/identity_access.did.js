@@ -590,9 +590,38 @@ export const idlFactory = ({ IDL }) => {
   const Result_42 = IDL.Variant({ 'Ok' : DirectoryCleanup, 'Err' : IDL.Text });
   const Result_43 = IDL.Variant({ 'Ok' : Entitlement, 'Err' : IDL.Text });
   const Result_44 = IDL.Variant({ 'Ok' : IDL.Nat64, 'Err' : IDL.Text });
-  const Result_45 = IDL.Variant({ 'Ok' : PrivacyConsent, 'Err' : IDL.Text });
-  const Result_46 = IDL.Variant({ 'Ok' : TermsAcceptance, 'Err' : IDL.Text });
-  const Result_47 = IDL.Variant({ 'Ok' : IDL.Vec(Receipt), 'Err' : IDL.Text });
+  const Expectation = IDL.Record({
+    'inventory' : RemovalInventory,
+    'identity' : IDL.Principal,
+    'modules' : IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Vec(IDL.Nat8))),
+  });
+  const ReceiverConfiguration = IDL.Record({
+    'protocol' : IDL.Nat32,
+    'admission_required' : IDL.Bool,
+    'removal_enabled' : IDL.Bool,
+    'authority' : IDL.Opt(IDL.Principal),
+    'receiver' : IDL.Principal,
+    'rehearsal' : IDL.Bool,
+  });
+  const Lifecycle = IDL.Record({
+    'canister' : IDL.Principal,
+    'module_hash' : IDL.Vec(IDL.Nat8),
+    'changes' : IDL.Nat64,
+  });
+  const Draft = IDL.Record({
+    'inventory' : RemovalInventory,
+    'recovery_accepted' : IDL.Bool,
+    'configurations' : IDL.Vec(ReceiverConfiguration),
+    'eligibility_readers' : IDL.Vec(IDL.Principal),
+    'targets' : IDL.Vec(IDL.Principal),
+    'account_readers' : IDL.Vec(IDL.Principal),
+    'lifecycle' : IDL.Vec(Lifecycle),
+    'release_authorized' : IDL.Bool,
+  });
+  const Result_45 = IDL.Variant({ 'Ok' : Draft, 'Err' : IDL.Text });
+  const Result_46 = IDL.Variant({ 'Ok' : PrivacyConsent, 'Err' : IDL.Text });
+  const Result_47 = IDL.Variant({ 'Ok' : TermsAcceptance, 'Err' : IDL.Text });
+  const Result_48 = IDL.Variant({ 'Ok' : IDL.Vec(Receipt), 'Err' : IDL.Text });
   
   return IDL.Service({
     'accept_link' : IDL.Func([IDL.Nat64], [Result], []),
@@ -858,6 +887,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'remove_verifier' : IDL.Func([IDL.Principal], [Result_2], []),
+    'review_production_account_protection' : IDL.Func(
+        [Expectation, IDL.Nat64],
+        [Result_45],
+        [],
+      ),
     'revoke' : IDL.Func([IDL.Principal, IDL.Nat64], [Result], []),
     'revoke_role' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)],
@@ -909,7 +943,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'set_privacy_consent' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Bool],
-        [Result_45],
+        [Result_46],
         [],
       ),
     'set_profile' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [Result_16], []),
@@ -923,10 +957,10 @@ export const idlFactory = ({ IDL }) => {
         [Result_2],
         [],
       ),
-    'set_terms_acceptance' : IDL.Func([IDL.Nat32], [Result_46], []),
+    'set_terms_acceptance' : IDL.Func([IDL.Nat32], [Result_47], []),
     'set_theme_preference' : IDL.Func([IDL.Opt(IDL.Text)], [Result_16], []),
     'settle_account_deletion' : IDL.Func([IDL.Text], [Result_2], []),
-    'verify_account_removal_seals' : IDL.Func([IDL.Text], [Result_47], []),
+    'verify_account_removal_seals' : IDL.Func([IDL.Text], [Result_48], []),
     'verify_private_name_preparation' : IDL.Func([IDL.Text], [Result_6], []),
     'whoami' : IDL.Func([], [Result], ['query']),
     'write_approved_private_name' : IDL.Func(

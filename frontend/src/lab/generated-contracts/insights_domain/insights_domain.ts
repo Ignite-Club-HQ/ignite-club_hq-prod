@@ -496,6 +496,20 @@ export interface MainInterface {
         __kind__: "Err";
         Err: string;
     }>;
+    read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     read_account_removal_drain(request: Request): Promise<{
         __kind__: "Ok";
         Ok: Receipt;
@@ -1529,6 +1543,23 @@ export class Insights_domain implements insights_domainInterface {
         const result = await this.actor.read_account_photo_engagement_totals(arg0);
         return from_candid_variant_n64(result);
     }
+    async read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.read_account_protection_configuration();
+        return from_candid_variant_n65(result);
+    }
     async read_account_removal_drain(arg0: Request): Promise<{
         __kind__: "Ok";
         Ok: Receipt;
@@ -1537,7 +1568,7 @@ export class Insights_domain implements insights_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.read_account_removal_drain(arg0);
-        return from_candid_variant_n65(result);
+        return from_candid_variant_n67(result);
     }
     async read_group_opening_configuration(): Promise<Array<[string, string]>> {
         const result = await this.actor.read_group_opening_configuration();
@@ -1620,7 +1651,7 @@ export class Insights_domain implements insights_domainInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.record_photo_engagement(arg0, to_candid_PhotoEngagementKind_n66(arg1));
+        const result = await this.actor.record_photo_engagement(arg0, to_candid_PhotoEngagementKind_n68(arg1));
         return from_candid_variant_n2(result);
     }
     async record_photo_upload(arg0: string, arg1: string): Promise<{
@@ -1701,7 +1732,7 @@ export class Insights_domain implements insights_domainInterface {
         err: string;
     }> {
         const result = await this.actor.rekey_principal(arg0, arg1, arg2);
-        return from_candid_variant_n68(result);
+        return from_candid_variant_n70(result);
     }
     async resolve_admin_alert(arg0: string): Promise<{
         __kind__: "Ok";
@@ -1731,7 +1762,7 @@ export class Insights_domain implements insights_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.seal_account_removal(arg0);
-        return from_candid_variant_n65(result);
+        return from_candid_variant_n67(result);
     }
     async set_ad_active(arg0: string, arg1: boolean): Promise<{
         __kind__: "Ok";
@@ -1750,7 +1781,7 @@ export class Insights_domain implements insights_domainInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.set_benchmark(arg0, arg1, arg2, to_candid_opt_n69(arg3), to_candid_opt_n69(arg4), to_candid_opt_n69(arg5), to_candid_opt_n69(arg6), to_candid_opt_n69(arg7), to_candid_opt_n70(arg8));
+        const result = await this.actor.set_benchmark(arg0, arg1, arg2, to_candid_opt_n71(arg3), to_candid_opt_n71(arg4), to_candid_opt_n71(arg5), to_candid_opt_n71(arg6), to_candid_opt_n71(arg7), to_candid_opt_n72(arg8));
         return from_candid_variant_n2(result);
     }
     async set_transfer_fence(arg0: string, arg1: boolean): Promise<{
@@ -1771,7 +1802,7 @@ export class Insights_domain implements insights_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.submit_feedback(arg0, to_candid_opt_n3(arg1), arg2, to_candid_opt_n3(arg3));
-        return from_candid_variant_n71(result);
+        return from_candid_variant_n73(result);
     }
     async transfer_governorship(arg0: Principal): Promise<{
         __kind__: "Ok";
@@ -1801,7 +1832,7 @@ export class Insights_domain implements insights_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.update_feedback_status(arg0, to_candid_FeedbackStatus_n50(arg1), to_candid_opt_n3(arg2));
-        return from_candid_variant_n71(result);
+        return from_candid_variant_n73(result);
     }
     async upsert_ad_setting(arg0: string, arg1: boolean, arg2: boolean, arg3: boolean): Promise<{
         __kind__: "Ok";
@@ -2088,6 +2119,30 @@ function from_candid_record_n62(value: {
         user_id: value.user_id,
         club_id: record_opt_to_undefined(from_candid_opt_n16(value.club_id)),
         page_label: value.page_label
+    };
+}
+function from_candid_record_n66(value: {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority: [] | [Principal];
+    receiver: Principal;
+    rehearsal: boolean;
+}): {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority?: Principal;
+    receiver: Principal;
+    rehearsal: boolean;
+} {
+    return {
+        protocol: value.protocol,
+        admission_required: value.admission_required,
+        removal_enabled: value.removal_enabled,
+        authority: record_opt_to_undefined(from_candid_opt_n23(value.authority)),
+        receiver: value.receiver,
+        rehearsal: value.rehearsal
     };
 }
 function from_candid_variant_n1(value: {
@@ -2518,6 +2573,39 @@ function from_candid_variant_n64(value: {
     } : value;
 }
 function from_candid_variant_n65(value: {
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority: [] | [Principal];
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority?: Principal;
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_record_n66(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n67(value: {
     Ok: _Receipt;
 } | {
     Err: string;
@@ -2534,25 +2622,6 @@ function from_candid_variant_n65(value: {
     } : "Err" in value ? {
         __kind__: "Err",
         Err: value.Err
-    } : value;
-}
-function from_candid_variant_n68(value: {
-    ok: bigint;
-} | {
-    err: string;
-}): {
-    __kind__: "ok";
-    ok: bigint;
-} | {
-    __kind__: "err";
-    err: string;
-} {
-    return "ok" in value ? {
-        __kind__: "ok",
-        ok: value.ok
-    } : "err" in value ? {
-        __kind__: "err",
-        err: value.err
     } : value;
 }
 function from_candid_variant_n7(value: {
@@ -2580,7 +2649,26 @@ function from_candid_variant_n7(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n71(value: {
+function from_candid_variant_n70(value: {
+    ok: bigint;
+} | {
+    err: string;
+}): {
+    __kind__: "ok";
+    ok: bigint;
+} | {
+    __kind__: "err";
+    err: string;
+} {
+    return "ok" in value ? {
+        __kind__: "ok",
+        ok: value.ok
+    } : "err" in value ? {
+        __kind__: "err",
+        err: value.err
+    } : value;
+}
+function from_candid_variant_n73(value: {
     Ok: _Feedback;
 } | {
     Err: string;
@@ -2664,8 +2752,8 @@ function to_candid_AppAdInput_n11(value: AppAdInput): _AppAdInput {
 function to_candid_FeedbackStatus_n50(value: FeedbackStatus): _FeedbackStatus {
     return to_candid_variant_n51(value);
 }
-function to_candid_PhotoEngagementKind_n66(value: PhotoEngagementKind): _PhotoEngagementKind {
-    return to_candid_variant_n67(value);
+function to_candid_PhotoEngagementKind_n68(value: PhotoEngagementKind): _PhotoEngagementKind {
+    return to_candid_variant_n69(value);
 }
 function to_candid_opt_n3(value: string | null): [] | [string] {
     return value === null ? candid_none() : candid_some(value);
@@ -2679,10 +2767,10 @@ function to_candid_opt_n43(value: Principal | null): [] | [Principal] {
 function to_candid_opt_n49(value: FeedbackStatus | null): [] | [_FeedbackStatus] {
     return value === null ? candid_none() : candid_some(to_candid_FeedbackStatus_n50(value));
 }
-function to_candid_opt_n69(value: number | null): [] | [number] {
+function to_candid_opt_n71(value: number | null): [] | [number] {
     return value === null ? candid_none() : candid_some(value);
 }
-function to_candid_opt_n70(value: number | null): [] | [number] {
+function to_candid_opt_n72(value: number | null): [] | [number] {
     return value === null ? candid_none() : candid_some(value);
 }
 function to_candid_record_n12(value: {
@@ -2750,7 +2838,7 @@ function to_candid_variant_n51(value: FeedbackStatus): {
         Resolved: null
     } : value;
 }
-function to_candid_variant_n67(value: PhotoEngagementKind): {
+function to_candid_variant_n69(value: PhotoEngagementKind): {
     View: null;
 } | {
     Comment: null;

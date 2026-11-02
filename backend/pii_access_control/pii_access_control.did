@@ -54,6 +54,8 @@ type PiiDeleteResult =
  };
 type Main = 
  service {
+  read_account_protection_configuration : () -> (variant { Ok : record { receiver : principal; authority : opt principal; protocol : nat32; admission_required : bool; removal_enabled : bool; rehearsal : bool }; Err : text });
+
    activate_private_name_preparation: (request: Request) ->
     (variant {
        Err: text;

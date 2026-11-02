@@ -1551,6 +1551,20 @@ export interface Main {
     [string],
     Array<ProfileTeamHistoryEntry>
   >,
+  'read_account_protection_configuration' : ActorMethod<
+    [],
+    {
+        'Ok' : {
+          'protocol' : number,
+          'admission_required' : boolean,
+          'removal_enabled' : boolean,
+          'authority' : [] | [Principal],
+          'receiver' : Principal,
+          'rehearsal' : boolean,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'read_account_read_competition_team_access' : ActorMethod<
     [string, Principal],
     { 'can_manage' : boolean, 'is_member' : boolean, 'club_id' : [] | [string] }

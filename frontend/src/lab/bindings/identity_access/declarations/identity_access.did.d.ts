@@ -160,6 +160,16 @@ export interface DomainPlacement {
   'subnet' : Principal,
   'canister' : Principal,
 }
+export interface Draft {
+  'inventory' : RemovalInventory,
+  'recovery_accepted' : boolean,
+  'configurations' : Array<ReceiverConfiguration>,
+  'eligibility_readers' : Array<Principal>,
+  'targets' : Array<Principal>,
+  'account_readers' : Array<Principal>,
+  'lifecycle' : Array<Lifecycle>,
+  'release_authorized' : boolean,
+}
 export type EligibilityDecision = { 'Eligible' : null } |
   { 'Denied' : null };
 /**
@@ -187,6 +197,11 @@ export interface Exclusion {
   'club' : string,
   'team' : [] | [string],
   'site_id' : [] | [string],
+}
+export interface Expectation {
+  'inventory' : RemovalInventory,
+  'identity' : Principal,
+  'modules' : Array<[Principal, Uint8Array]>,
 }
 export interface ExternalSiteBinding {
   'account_id' : string,
@@ -225,6 +240,11 @@ export interface Intent_1 {
   'prepared' : Array<Receipt_1>,
   'phase' : Phase,
   'profile_revision' : bigint,
+}
+export interface Lifecycle {
+  'canister' : Principal,
+  'module_hash' : Uint8Array,
+  'changes' : bigint,
 }
 export interface LinkChallenge {
   'id' : bigint,
@@ -337,6 +357,14 @@ export interface Receipt_1 {
   'completed' : boolean,
   'release_epoch' : bigint,
   'receiver' : Principal,
+}
+export interface ReceiverConfiguration {
+  'protocol' : number,
+  'admission_required' : boolean,
+  'removal_enabled' : boolean,
+  'authority' : [] | [Principal],
+  'receiver' : Principal,
+  'rehearsal' : boolean,
 }
 export interface ReleasedReply {
   'page' : Reply,
@@ -483,11 +511,13 @@ export type Result_43 = { 'Ok' : Entitlement } |
   { 'Err' : string };
 export type Result_44 = { 'Ok' : bigint } |
   { 'Err' : string };
-export type Result_45 = { 'Ok' : PrivacyConsent } |
+export type Result_45 = { 'Ok' : Draft } |
   { 'Err' : string };
-export type Result_46 = { 'Ok' : TermsAcceptance } |
+export type Result_46 = { 'Ok' : PrivacyConsent } |
   { 'Err' : string };
-export type Result_47 = { 'Ok' : Array<Receipt> } |
+export type Result_47 = { 'Ok' : TermsAcceptance } |
+  { 'Err' : string };
+export type Result_48 = { 'Ok' : Array<Receipt> } |
   { 'Err' : string };
 export type Result_5 = { 'Ok' : Progress } |
   { 'Err' : string };
@@ -977,6 +1007,14 @@ export interface _SERVICE {
    * Governor-only: revokes a verifier principal.
    */
   'remove_verifier' : ActorMethod<[Principal], Result_2>,
+  /**
+   * Governor-only production authorization draft. Never stores reader grants or
+   * changes release state; missing receiver/recovery evidence remains a refusal.
+   */
+  'review_production_account_protection' : ActorMethod<
+    [Expectation, bigint],
+    Result_45
+  >,
   'revoke' : ActorMethod<[Principal, bigint], Result>,
   /**
    * Mirrors `grant_role`'s auth (governor-only).
@@ -1046,7 +1084,7 @@ export interface _SERVICE {
   >,
   'set_family' : ActorMethod<[string, string], Result_2>,
   'set_group_inventory_binding' : ActorMethod<[Binding, bigint], Result_2>,
-  'set_privacy_consent' : ActorMethod<[string, string, boolean], Result_45>,
+  'set_privacy_consent' : ActorMethod<[string, string, boolean], Result_46>,
   'set_profile' : ActorMethod<[string, [] | [string]], Result_16>,
   'set_removal_supplemental_inventory' : ActorMethod<
     [Array<Supplemental>, bigint],
@@ -1059,7 +1097,7 @@ export interface _SERVICE {
    * caller's currently recorded version is rejected, so a stale client can
    * never roll the recorded acceptance backwards.
    */
-  'set_terms_acceptance' : ActorMethod<[number], Result_46>,
+  'set_terms_acceptance' : ActorMethod<[number], Result_47>,
   /**
    * Sets (or clears) the caller's UI theme preference, so it follows the
    * account across devices. Creates a blank profile entry if the caller has
@@ -1071,7 +1109,7 @@ export interface _SERVICE {
    * Fresh, authenticated full-inventory seal verification. This does not erase
    * data, release registry locks, restore histories or activate a group.
    */
-  'verify_account_removal_seals' : ActorMethod<[string], Result_47>,
+  'verify_account_removal_seals' : ActorMethod<[string], Result_48>,
   'verify_private_name_preparation' : ActorMethod<[string], Result_6>,
   'whoami' : ActorMethod<[], Result>,
   'write_approved_private_name' : ActorMethod<

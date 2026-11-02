@@ -184,6 +184,20 @@ export interface Main {
   >,
   'read_account_audit_access' : ActorMethod<[AuditFilter], Array<AuditRecord>>,
   'read_account_my_guardian_children' : ActorMethod<[], Array<string>>,
+  'read_account_protection_configuration' : ActorMethod<
+    [],
+    {
+        'Ok' : {
+          'protocol' : number,
+          'admission_required' : boolean,
+          'removal_enabled' : boolean,
+          'authority' : [] | [Principal],
+          'receiver' : Principal,
+          'rehearsal' : boolean,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'read_account_removal_drain' : ActorMethod<
     [Request__1],
     { 'Ok' : Receipt } |

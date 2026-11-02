@@ -428,6 +428,20 @@ export interface Main {
     Array<MiniLeagueSessionAvailability>
   >,
   'read_account_my_leagues' : ActorMethod<[], Array<MiniLeague>>,
+  'read_account_protection_configuration' : ActorMethod<
+    [],
+    {
+        'Ok' : {
+          'protocol' : number,
+          'admission_required' : boolean,
+          'removal_enabled' : boolean,
+          'authority' : [] | [Principal],
+          'receiver' : Principal,
+          'rehearsal' : boolean,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'read_account_removal_drain' : ActorMethod<
     [Request__1],
     { 'Ok' : Receipt } |

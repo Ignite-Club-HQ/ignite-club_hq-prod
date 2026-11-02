@@ -73,6 +73,8 @@ type PointsCooldown =
  };
 type Main = 
  service {
+  read_account_protection_configuration : () -> (variant { Ok : record { receiver : principal; authority : opt principal; protocol : nat32; admission_required : bool; removal_enabled : bool; rehearsal : bool }; Err : text });
+
    addBulkAccessPrincipal: ("principal": principal) ->
     (variant {
        Err: text;

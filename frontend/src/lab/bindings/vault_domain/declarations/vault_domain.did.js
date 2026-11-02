@@ -416,6 +416,23 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
+    'read_account_protection_configuration' : IDL.Func(
+        [],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'protocol' : IDL.Nat32,
+              'admission_required' : IDL.Bool,
+              'removal_enabled' : IDL.Bool,
+              'authority' : IDL.Opt(IDL.Principal),
+              'receiver' : IDL.Principal,
+              'rehearsal' : IDL.Bool,
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
     'read_account_removal_drain' : IDL.Func(
         [Request],
         [IDL.Variant({ 'Ok' : Receipt, 'Err' : IDL.Text })],

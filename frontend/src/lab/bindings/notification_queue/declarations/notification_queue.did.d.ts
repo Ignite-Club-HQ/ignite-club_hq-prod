@@ -178,6 +178,20 @@ export interface Main {
     [string, [] | [string]],
     ScheduledResults
   >,
+  'read_account_protection_configuration' : ActorMethod<
+    [],
+    {
+        'Ok' : {
+          'protocol' : number,
+          'admission_required' : boolean,
+          'removal_enabled' : boolean,
+          'authority' : [] | [Principal],
+          'receiver' : Principal,
+          'rehearsal' : boolean,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'read_account_removal_drain' : ActorMethod<
     [Request],
     { 'Ok' : Receipt } |

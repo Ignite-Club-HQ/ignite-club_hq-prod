@@ -547,6 +547,20 @@ export interface MainInterface {
     }>;
     read_account_my_availability(): Promise<Array<MiniLeagueSessionAvailability>>;
     read_account_my_leagues(): Promise<Array<MiniLeague>>;
+    read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     read_account_removal_drain(request: Request__1): Promise<{
         __kind__: "Ok";
         Ok: Receipt;
@@ -1598,6 +1612,23 @@ export class Mini_league_domain implements mini_league_domainInterface {
         const result = await this.actor.read_account_my_leagues();
         return from_candid_vec_n39(result);
     }
+    async read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.read_account_protection_configuration();
+        return from_candid_variant_n70(result);
+    }
     async read_account_removal_drain(arg0: Request__1): Promise<{
         __kind__: "Ok";
         Ok: Receipt;
@@ -1606,7 +1637,7 @@ export class Mini_league_domain implements mini_league_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.read_account_removal_drain(arg0);
-        return from_candid_variant_n70(result);
+        return from_candid_variant_n72(result);
     }
     async read_account_verify_child_guardian(arg0: Principal, arg1: string): Promise<boolean> {
         const result = await this.actor.read_account_verify_child_guardian(arg0, arg1);
@@ -1617,7 +1648,7 @@ export class Mini_league_domain implements mini_league_domainInterface {
         return result;
     }
     async read_account_verify_player_access(arg0: Principal, arg1: MiniLeaguePlayer): Promise<boolean> {
-        const result = await this.actor.read_account_verify_player_access(arg0, to_candid_MiniLeaguePlayer_n71(arg1));
+        const result = await this.actor.read_account_verify_player_access(arg0, to_candid_MiniLeaguePlayer_n73(arg1));
         return result;
     }
     async read_can_read_league_matches(arg0: Principal, arg1: string, arg2: string): Promise<boolean> {
@@ -1635,7 +1666,7 @@ export class Mini_league_domain implements mini_league_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.read_event_notification_subjects(arg0, arg1);
-        return from_candid_variant_n73(result);
+        return from_candid_variant_n75(result);
     }
     async read_group_opening_configuration(): Promise<Array<[string, string]>> {
         const result = await this.actor.read_group_opening_configuration();
@@ -1649,7 +1680,7 @@ export class Mini_league_domain implements mini_league_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.read_private_name_preparation(arg0);
-        return from_candid_variant_n76(result);
+        return from_candid_variant_n78(result);
     }
     async read_private_name_writer_window(arg0: Request): Promise<{
         __kind__: "Ok";
@@ -1659,7 +1690,7 @@ export class Mini_league_domain implements mini_league_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.read_private_name_writer_window(arg0);
-        return from_candid_variant_n76(result);
+        return from_candid_variant_n78(result);
     }
     async read_profile_audience_batch(arg0: Principal, arg1: string, arg2: Array<Principal>, arg3: bigint | null): Promise<{
         __kind__: "Ok";
@@ -1674,8 +1705,8 @@ export class Mini_league_domain implements mini_league_domainInterface {
         __kind__: "Err";
         Err: string;
     }> {
-        const result = await this.actor.read_profile_audience_batch(arg0, arg1, arg2, to_candid_opt_n77(arg3));
-        return from_candid_variant_n78(result);
+        const result = await this.actor.read_profile_audience_batch(arg0, arg1, arg2, to_candid_opt_n79(arg3));
+        return from_candid_variant_n80(result);
     }
     async rekey_principal(arg0: Principal, arg1: Principal, arg2: boolean): Promise<{
         __kind__: "ok";
@@ -1685,7 +1716,7 @@ export class Mini_league_domain implements mini_league_domainInterface {
         err: string;
     }> {
         const result = await this.actor.rekey_principal(arg0, arg1, arg2);
-        return from_candid_variant_n79(result);
+        return from_candid_variant_n81(result);
     }
     async remove_admin(arg0: string, arg1: Principal): Promise<{
         __kind__: "Ok";
@@ -1735,7 +1766,7 @@ export class Mini_league_domain implements mini_league_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.seal_account_removal(arg0);
-        return from_candid_variant_n70(result);
+        return from_candid_variant_n72(result);
     }
     async seal_private_name_writer_window(arg0: Request): Promise<{
         __kind__: "Ok";
@@ -1755,7 +1786,7 @@ export class Mini_league_domain implements mini_league_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.set_availability(arg0, arg1, arg2);
-        return from_candid_variant_n80(result);
+        return from_candid_variant_n82(result);
     }
     async set_club_domain_canister(arg0: Principal): Promise<{
         __kind__: "Ok";
@@ -1876,7 +1907,7 @@ export class Mini_league_domain implements mini_league_domainInterface {
         return result;
     }
     async verify_player_access(arg0: Principal, arg1: MiniLeaguePlayer): Promise<boolean> {
-        const result = await this.actor.verify_player_access(arg0, to_candid_MiniLeaguePlayer_n71(arg1));
+        const result = await this.actor.verify_player_access(arg0, to_candid_MiniLeaguePlayer_n73(arg1));
         return result;
     }
 }
@@ -2266,7 +2297,31 @@ function from_candid_record_n51(value: {
         club_id: value.club_id
     };
 }
-function from_candid_record_n75(value: {
+function from_candid_record_n71(value: {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority: [] | [Principal];
+    receiver: Principal;
+    rehearsal: boolean;
+}): {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority?: Principal;
+    receiver: Principal;
+    rehearsal: boolean;
+} {
+    return {
+        protocol: value.protocol,
+        admission_required: value.admission_required,
+        removal_enabled: value.removal_enabled,
+        authority: record_opt_to_undefined(from_candid_opt_n5(value.authority)),
+        receiver: value.receiver,
+        rehearsal: value.rehearsal
+    };
+}
+function from_candid_record_n77(value: {
     child: [] | [string];
     user: string;
 }): {
@@ -2868,6 +2923,39 @@ function from_candid_variant_n68(value: {
     } : value;
 }
 function from_candid_variant_n70(value: {
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority: [] | [Principal];
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority?: Principal;
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_record_n71(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n72(value: {
     Ok: _Receipt;
 } | {
     Err: string;
@@ -2886,7 +2974,7 @@ function from_candid_variant_n70(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n73(value: {
+function from_candid_variant_n75(value: {
     Ok: Array<{
         child: [] | [string];
         user: string;
@@ -2905,13 +2993,13 @@ function from_candid_variant_n73(value: {
 } {
     return "Ok" in value ? {
         __kind__: "Ok",
-        Ok: from_candid_vec_n74(value.Ok)
+        Ok: from_candid_vec_n76(value.Ok)
     } : "Err" in value ? {
         __kind__: "Err",
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n76(value: {
+function from_candid_variant_n78(value: {
     Ok: _Receipt__1;
 } | {
     Err: string;
@@ -2928,56 +3016,6 @@ function from_candid_variant_n76(value: {
     } : "Err" in value ? {
         __kind__: "Err",
         Err: value.Err
-    } : value;
-}
-function from_candid_variant_n78(value: {
-    Ok: {
-        requester: Principal;
-        members: Array<boolean>;
-        subjects: Array<Principal>;
-        club: string;
-        revision: bigint;
-    };
-} | {
-    Err: string;
-}): {
-    __kind__: "Ok";
-    Ok: {
-        requester: Principal;
-        members: Array<boolean>;
-        subjects: Array<Principal>;
-        club: string;
-        revision: bigint;
-    };
-} | {
-    __kind__: "Err";
-    Err: string;
-} {
-    return "Ok" in value ? {
-        __kind__: "Ok",
-        Ok: value.Ok
-    } : "Err" in value ? {
-        __kind__: "Err",
-        Err: value.Err
-    } : value;
-}
-function from_candid_variant_n79(value: {
-    ok: bigint;
-} | {
-    err: string;
-}): {
-    __kind__: "ok";
-    ok: bigint;
-} | {
-    __kind__: "err";
-    err: string;
-} {
-    return "ok" in value ? {
-        __kind__: "ok",
-        ok: value.ok
-    } : "err" in value ? {
-        __kind__: "err",
-        err: value.err
     } : value;
 }
 function from_candid_variant_n8(value: {
@@ -3000,6 +3038,56 @@ function from_candid_variant_n8(value: {
     } : value;
 }
 function from_candid_variant_n80(value: {
+    Ok: {
+        requester: Principal;
+        members: Array<boolean>;
+        subjects: Array<Principal>;
+        club: string;
+        revision: bigint;
+    };
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: {
+        requester: Principal;
+        members: Array<boolean>;
+        subjects: Array<Principal>;
+        club: string;
+        revision: bigint;
+    };
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: value.Ok
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n81(value: {
+    ok: bigint;
+} | {
+    err: string;
+}): {
+    __kind__: "ok";
+    ok: bigint;
+} | {
+    __kind__: "err";
+    err: string;
+} {
+    return "ok" in value ? {
+        __kind__: "ok",
+        ok: value.ok
+    } : "err" in value ? {
+        __kind__: "err",
+        err: value.err
+    } : value;
+}
+function from_candid_variant_n82(value: {
     Ok: _MiniLeagueSessionAvailability;
 } | {
     Err: string;
@@ -3045,17 +3133,17 @@ function from_candid_vec_n67(value: Array<_MiniLeagueSessionAvailability>): Arra
 function from_candid_vec_n69(value: Array<_MiniLeagueSession>): Array<MiniLeagueSession> {
     return value.map((x)=>from_candid_MiniLeagueSession_n17(x));
 }
-function from_candid_vec_n74(value: Array<{
+function from_candid_vec_n76(value: Array<{
     child: [] | [string];
     user: string;
 }>): Array<{
     child?: string;
     user: string;
 }> {
-    return value.map((x)=>from_candid_record_n75(x));
+    return value.map((x)=>from_candid_record_n77(x));
 }
-function to_candid_MiniLeaguePlayer_n71(value: MiniLeaguePlayer): _MiniLeaguePlayer {
-    return to_candid_record_n72(value);
+function to_candid_MiniLeaguePlayer_n73(value: MiniLeaguePlayer): _MiniLeaguePlayer {
+    return to_candid_record_n74(value);
 }
 function to_candid_MiniLeague_n37(value: MiniLeague): _MiniLeague {
     return to_candid_record_n38(value);
@@ -3066,7 +3154,7 @@ function to_candid_opt_n6(value: string | null): [] | [string] {
 function to_candid_opt_n7(value: number | null): [] | [number] {
     return value === null ? candid_none() : candid_some(value);
 }
-function to_candid_opt_n77(value: bigint | null): [] | [bigint] {
+function to_candid_opt_n79(value: bigint | null): [] | [bigint] {
     return value === null ? candid_none() : candid_some(value);
 }
 function to_candid_record_n38(value: {
@@ -3117,7 +3205,7 @@ function to_candid_record_n38(value: {
         min_players_per_side: value.min_players_per_side
     };
 }
-function to_candid_record_n72(value: {
+function to_candid_record_n74(value: {
     id: string;
     claimed_by?: Principal;
     mini_league_id: string;

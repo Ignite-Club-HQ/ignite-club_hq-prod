@@ -134,6 +134,16 @@ type DomainPlacement = record {
   subnet : principal;
   canister : principal;
 };
+type Draft = record {
+  inventory : RemovalInventory;
+  recovery_accepted : bool;
+  configurations : vec ReceiverConfiguration;
+  eligibility_readers : vec principal;
+  targets : vec principal;
+  account_readers : vec principal;
+  lifecycle : vec Lifecycle;
+  release_authorized : bool;
+};
 type EligibilityDecision = variant { Eligible; Denied };
 // A Pro entitlement granted to a principal from an IAP (App Store) receipt
 // or a governor/verifier write. `transaction_id` is the Apple transaction
@@ -158,6 +168,11 @@ type Exclusion = record {
   club : text;
   team : opt text;
   site_id : opt text;
+};
+type Expectation = record {
+  inventory : RemovalInventory;
+  identity : principal;
+  modules : vec record { principal; blob };
 };
 type ExternalSiteBinding = record {
   account_id : text;
@@ -192,6 +207,11 @@ type Intent_1 = record {
   prepared : vec Receipt_1;
   phase : Phase;
   profile_revision : nat64;
+};
+type Lifecycle = record {
+  canister : principal;
+  module_hash : blob;
+  changes : nat64;
 };
 type LinkChallenge = record {
   id : nat64;
@@ -295,6 +315,14 @@ type Receipt_1 = record {
   completed : bool;
   release_epoch : nat;
   receiver : principal;
+};
+type ReceiverConfiguration = record {
+  protocol : nat32;
+  admission_required : bool;
+  removal_enabled : bool;
+  authority : opt principal;
+  receiver : principal;
+  rehearsal : bool;
 };
 type ReleasedReply = record {
   page : Reply;
@@ -403,9 +431,10 @@ type Result_41 = variant { Ok : principal; Err : text };
 type Result_42 = variant { Ok : DirectoryCleanup; Err : text };
 type Result_43 = variant { Ok : Entitlement; Err : text };
 type Result_44 = variant { Ok : nat64; Err : text };
-type Result_45 = variant { Ok : PrivacyConsent; Err : text };
-type Result_46 = variant { Ok : TermsAcceptance; Err : text };
-type Result_47 = variant { Ok : vec Receipt; Err : text };
+type Result_45 = variant { Ok : Draft; Err : text };
+type Result_46 = variant { Ok : PrivacyConsent; Err : text };
+type Result_47 = variant { Ok : TermsAcceptance; Err : text };
+type Result_48 = variant { Ok : vec Receipt; Err : text };
 type Result_5 = variant { Ok : Progress; Err : text };
 type Result_6 = variant { Ok : WriteWindow; Err : text };
 type Result_7 = variant { Ok : CleanupAccount; Err : text };
@@ -735,6 +764,9 @@ service : (Init) -> {
   rekey_principal : (principal, principal, bool) -> (Result_44);
   // Governor-only: revokes a verifier principal.
   remove_verifier : (principal) -> (Result_2);
+  // Governor-only production authorization draft. Never stores reader grants or
+  // changes release state; missing receiver/recovery evidence remains a refusal.
+  review_production_account_protection : (Expectation, nat64) -> (Result_45);
   revoke : (principal, nat64) -> (Result);
   // Mirrors `grant_role`'s auth (governor-only).
   revoke_role : (text, text, opt text, opt text) -> (Result_2);
@@ -773,7 +805,7 @@ service : (Init) -> {
   set_exclusion_scoped : (text, opt text, text, opt text) -> (Result_2);
   set_family : (text, text) -> (Result_2);
   set_group_inventory_binding : (Binding, nat64) -> (Result_2);
-  set_privacy_consent : (text, text, bool) -> (Result_45);
+  set_privacy_consent : (text, text, bool) -> (Result_46);
   set_profile : (text, opt text) -> (Result_16);
   set_removal_supplemental_inventory : (vec Supplemental, nat64) -> (Result_2);
   set_service_authorities : (vec principal) -> (Result_2);
@@ -781,7 +813,7 @@ service : (Init) -> {
   // version. Monotonic per-account: a version lower than (or equal to) the
   // caller's currently recorded version is rejected, so a stale client can
   // never roll the recorded acceptance backwards.
-  set_terms_acceptance : (nat32) -> (Result_46);
+  set_terms_acceptance : (nat32) -> (Result_47);
   // Sets (or clears) the caller's UI theme preference, so it follows the
   // account across devices. Creates a blank profile entry if the caller has
   // never called `set_profile`.
@@ -789,7 +821,7 @@ service : (Init) -> {
   settle_account_deletion : (text) -> (Result_2);
   // Fresh, authenticated full-inventory seal verification. This does not erase
   // data, release registry locks, restore histories or activate a group.
-  verify_account_removal_seals : (text) -> (Result_47);
+  verify_account_removal_seals : (text) -> (Result_48);
   verify_private_name_preparation : (text) -> (Result_6);
   whoami : () -> (Result) query;
   write_approved_private_name : (text, text, opt text) -> (Result_2);

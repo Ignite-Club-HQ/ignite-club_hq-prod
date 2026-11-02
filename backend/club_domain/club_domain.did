@@ -486,6 +486,8 @@ type MemberPayment =
  };
 type Main = 
  service {
+  read_account_protection_configuration : () -> (variant { Ok : record { receiver : principal; authority : opt principal; protocol : nat32; admission_required : bool; removal_enabled : bool; rehearsal : bool }; Err : text });
+
    accept_identity_link: (id: nat64) -> (variant {
                                            Err: text;
                                            Ok: Account;

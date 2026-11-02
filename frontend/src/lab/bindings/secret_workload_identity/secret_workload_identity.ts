@@ -83,6 +83,20 @@ export interface MainInterface {
         __kind__: "Err";
         Err: string;
     }>;
+    read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     read_account_removal_authority(): Promise<Principal | null>;
     read_account_removal_drain(request: Request): Promise<{
         __kind__: "Ok";
@@ -231,9 +245,26 @@ export class Secret_workload_identity implements secret_workload_identityInterfa
         const result = await this.actor.prepare_account_removal(arg0);
         return from_candid_variant_n12(result);
     }
+    async read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            protocol: number;
+            admission_required: boolean;
+            removal_enabled: boolean;
+            authority?: Principal;
+            receiver: Principal;
+            rehearsal: boolean;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.read_account_protection_configuration();
+        return from_candid_variant_n13(result);
+    }
     async read_account_removal_authority(): Promise<Principal | null> {
         const result = await this.actor.read_account_removal_authority();
-        return from_candid_opt_n13(result);
+        return from_candid_opt_n15(result);
     }
     async read_account_removal_drain(arg0: Request): Promise<{
         __kind__: "Ok";
@@ -243,7 +274,7 @@ export class Secret_workload_identity implements secret_workload_identityInterfa
         Err: string;
     }> {
         const result = await this.actor.read_account_removal_drain(arg0);
-        return from_candid_variant_n14(result);
+        return from_candid_variant_n16(result);
     }
     async register_workload(arg0: Principal, arg1: string, arg2: Array<string>): Promise<{
         __kind__: "Ok";
@@ -273,7 +304,7 @@ export class Secret_workload_identity implements secret_workload_identityInterfa
         Err: string;
     }> {
         const result = await this.actor.seal_account_removal(arg0);
-        return from_candid_variant_n14(result);
+        return from_candid_variant_n16(result);
     }
     async set_account_removal_authority(arg0: Principal): Promise<{
         __kind__: "Ok";
@@ -316,11 +347,35 @@ function from_candid_SecretAccessAudit_n4(value: _SecretAccessAudit): SecretAcce
 function from_candid_WorkloadIdentity_n8(value: _WorkloadIdentity): WorkloadIdentity {
     return from_candid_record_n9(value);
 }
-function from_candid_opt_n13(value: [] | [Principal]): Principal | null {
+function from_candid_opt_n15(value: [] | [Principal]): Principal | null {
     return value.length === 0 ? null : value[0];
 }
 function from_candid_opt_n6(value: [] | [string]): string | null {
     return value.length === 0 ? null : value[0];
+}
+function from_candid_record_n14(value: {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority: [] | [Principal];
+    receiver: Principal;
+    rehearsal: boolean;
+}): {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority?: Principal;
+    receiver: Principal;
+    rehearsal: boolean;
+} {
+    return {
+        protocol: value.protocol,
+        admission_required: value.admission_required,
+        removal_enabled: value.removal_enabled,
+        authority: record_opt_to_undefined(from_candid_opt_n15(value.authority)),
+        receiver: value.receiver,
+        rehearsal: value.rehearsal
+    };
 }
 function from_candid_record_n5(value: {
     workload_name: string;
@@ -407,7 +462,40 @@ function from_candid_variant_n12(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n14(value: {
+function from_candid_variant_n13(value: {
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority: [] | [Principal];
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: {
+        protocol: number;
+        admission_required: boolean;
+        removal_enabled: boolean;
+        authority?: Principal;
+        receiver: Principal;
+        rehearsal: boolean;
+    };
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_record_n14(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n16(value: {
     Ok: _Receipt;
 } | {
     Err: string;

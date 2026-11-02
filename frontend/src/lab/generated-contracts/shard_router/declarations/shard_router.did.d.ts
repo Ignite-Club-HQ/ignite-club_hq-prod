@@ -26,6 +26,14 @@ export interface AssignRequest {
   'club_id' : string,
 }
 export interface AssignResult { 'revision' : bigint, 'route' : Route }
+export interface Configuration {
+  'protocol' : number,
+  'admission_required' : boolean,
+  'removal_enabled' : boolean,
+  'authority' : [] | [Principal],
+  'receiver' : Principal,
+  'rehearsal' : boolean,
+}
 export interface DeletionLock { 'account_id' : string, 'revision' : bigint }
 export interface DomainCanister { 'domain' : string, 'canister' : Principal }
 export interface DomainMigration {
@@ -153,29 +161,31 @@ export type Result_14 = { 'Ok' : Page } |
   { 'Err' : string };
 export type Result_15 = { 'Ok' : OwnerOpening } |
   { 'Err' : string };
-export type Result_16 = { 'Ok' : Receipt } |
+export type Result_16 = { 'Ok' : Configuration } |
   { 'Err' : string };
-export type Result_17 = { 'Ok' : Array<[string, string]> } |
+export type Result_17 = { 'Ok' : Receipt } |
   { 'Err' : string };
-export type Result_18 = { 'Ok' : GroupRegistrySnapshot } |
+export type Result_18 = { 'Ok' : Array<[string, string]> } |
   { 'Err' : string };
-export type Result_19 = { 'Ok' : GroupRegistryPage } |
+export type Result_19 = { 'Ok' : GroupRegistrySnapshot } |
   { 'Err' : string };
 export type Result_2 = { 'Ok' : null } |
   { 'Err' : string };
-export type Result_20 = { 'Ok' : Array<GroupAssignment> } |
+export type Result_20 = { 'Ok' : GroupRegistryPage } |
   { 'Err' : string };
-export type Result_21 = { 'Ok' : [] | [OwnerOpening] } |
+export type Result_21 = { 'Ok' : Array<GroupAssignment> } |
   { 'Err' : string };
-export type Result_22 = { 'Ok' : boolean } |
+export type Result_22 = { 'Ok' : [] | [OwnerOpening] } |
   { 'Err' : string };
-export type Result_23 = { 'Ok' : WriterReceipt } |
+export type Result_23 = { 'Ok' : boolean } |
   { 'Err' : string };
-export type Result_24 = { 'Ok' : PublicGroupPage } |
+export type Result_24 = { 'Ok' : WriterReceipt } |
   { 'Err' : string };
-export type Result_25 = { 'Ok' : [] | [RoutingApproval] } |
+export type Result_25 = { 'Ok' : PublicGroupPage } |
   { 'Err' : string };
-export type Result_26 = { 'Ok' : RoutingApproval } |
+export type Result_26 = { 'Ok' : [] | [RoutingApproval] } |
+  { 'Err' : string };
+export type Result_27 = { 'Ok' : RoutingApproval } |
   { 'Err' : string };
 export type Result_3 = { 'Ok' : AssignResult } |
   { 'Err' : string };
@@ -310,13 +320,14 @@ export interface _SERVICE {
    */
   'place_my_new_club' : ActorMethod<[string, string], Result_5>,
   'prepare_account_removal' : ActorMethod<[Request], Result_2>,
+  'read_account_protection_configuration' : ActorMethod<[], Result_16>,
   'read_account_removal_authority' : ActorMethod<[], [] | [Principal]>,
-  'read_account_removal_drain' : ActorMethod<[Request], Result_16>,
-  'read_group_opening_configuration' : ActorMethod<[], Result_17>,
-  'read_group_registry' : ActorMethod<[string], Result_18>,
+  'read_account_removal_drain' : ActorMethod<[Request], Result_17>,
+  'read_group_opening_configuration' : ActorMethod<[], Result_18>,
+  'read_group_registry' : ActorMethod<[string], Result_19>,
   'read_group_registry_page' : ActorMethod<
     [string, [] | [bigint], [] | [string], number],
-    Result_19
+    Result_20
   >,
   'read_hosted_club_assignment' : ActorMethod<
     [string, string, bigint],
@@ -324,7 +335,7 @@ export interface _SERVICE {
   >,
   'read_my_group_assignments' : ActorMethod<
     [Array<string>, string, bigint],
-    Result_20
+    Result_21
   >,
   /**
    * Consensus creator receipt only; never grants club membership or data access.
@@ -336,40 +347,40 @@ export interface _SERVICE {
   /**
    * Caller-scoped consensus discovery, including after stopping new placements.
    */
-  'read_my_owner_test_opening' : ActorMethod<[string], Result_21>,
+  'read_my_owner_test_opening' : ActorMethod<[string], Result_22>,
   /**
    * Only the registered destination club authority can check a creator receipt.
    * This does not authorize private reads or grant cross-club membership.
    */
   'read_new_club_creation_authorized' : ActorMethod<
     [Principal, string, string, string],
-    Result_22
+    Result_23
   >,
   /**
    * No private approval data: admins deleting a different account still need
    * the complete group inventory, even when they have no test-club membership.
    */
-  'read_owner_test_deletion_required' : ActorMethod<[string], Result_22>,
-  'read_private_name_preparation' : ActorMethod<[WriterRequest], Result_23>,
-  'read_private_name_writer_window' : ActorMethod<[WriterRequest], Result_23>,
+  'read_owner_test_deletion_required' : ActorMethod<[string], Result_23>,
+  'read_private_name_preparation' : ActorMethod<[WriterRequest], Result_24>,
+  'read_private_name_writer_window' : ActorMethod<[WriterRequest], Result_24>,
   /**
    * Anonymous infrastructure discovery only: never memberships, placements,
    * controller details or a grant to read/write any destination resource.
    */
   'read_public_group_targets' : ActorMethod<
     [string, [] | [bigint], [] | [string], number],
-    Result_24
+    Result_25
   >,
   /**
    * Consensus read for signed-in clients; infrastructure metadata only.
    */
-  'read_routing_approval' : ActorMethod<[string], Result_25>,
+  'read_routing_approval' : ActorMethod<[string], Result_26>,
   'record_group_health' : ActorMethod<[string, bigint, bigint, bigint], Result>,
   /**
    * Governor-only. Binds the exact configuration revision and approved digest;
    * any later group/placement/policy change makes clients fail closed again.
    */
-  'record_routing_approval' : ActorMethod<[RoutingApproval, bigint], Result_26>,
+  'record_routing_approval' : ActorMethod<[RoutingApproval, bigint], Result_27>,
   'register_group' : ActorMethod<[ShardGroup, bigint], Result>,
   'register_group_placement' : ActorMethod<[GroupPlacement, bigint], Result>,
   'release_deletion_lock' : ActorMethod<[string, bigint], Result_2>,
@@ -377,7 +388,7 @@ export interface _SERVICE {
     [string, string, string, bigint],
     Result
   >,
-  'seal_account_removal' : ActorMethod<[Request], Result_16>,
+  'seal_account_removal' : ActorMethod<[Request], Result_17>,
   'seal_private_name_writer_window' : ActorMethod<[WriterRequest], Result_2>,
   /**
    * Governor-only, write-once: the identity coordinator allowed to fence.
