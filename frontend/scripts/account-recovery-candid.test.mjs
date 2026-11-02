@@ -17,6 +17,15 @@ test('recovery record retains exact digest bytes and fields through the real Can
  assert.notDeepEqual(decoded,changed,'Changing even the last byte must remain detectable');
 });
 
+test('subject recovery requests preserve exact account, aliases and immutable baseline through Candid',()=>{
+ const service=idlFactory({IDL});const method=service._fields.find(([n])=>n==='verify_production_subject_read_fence')?.[1];assert.ok(method);
+ const p=n=>Principal.fromUint8Array(Uint8Array.from([n,1]));
+ const request={request:{identity:p(2),generation:3n,recovery_epoch:4n,signed_digest:new Uint8Array(32).fill(5),request_id:6n,
+  history_revision:70n,removal_generation:8n,identity_version:9n},account_id:'surviving-account',subjects:[p(10),p(11)]};
+ const [decoded]=IDL.decode(method.argTypes,IDL.encode(method.argTypes,[request]));assert.deepEqual(decoded,request);
+ decoded.subjects.pop();assert.notDeepEqual(decoded,request);
+});
+
 test('signed acceptance preserves exact lifecycle and journal bytes through the witness contract',()=>{
  const service=idlFactory({IDL});
  const type=service._fields.find(([name])=>name==='accept_recovery_fence')?.[1].argTypes;

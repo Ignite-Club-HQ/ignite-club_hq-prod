@@ -17,6 +17,12 @@ pub struct WitnessRequest {
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WitnessReceipt { pub request: WitnessRequest }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AccountReadRequest {
+    pub request: WitnessRequest, pub account_id: String, pub subjects: Vec<Principal>,
+}
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AccountReadReceipt { pub request: AccountReadRequest }
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Participant { pub canister: Principal, pub module: Vec<u8>, pub changes: u64 }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Acceptance {
@@ -108,6 +114,28 @@ pub fn verify(head:&Head,r:&WitnessRequest,caller:Principal,now:u64)->Outcome<Wi
         return Err("Current exact recovery fence required".into());
     } Ok(WitnessReceipt {request:r.clone()})
 }
+/// Ordinary journal progress cannot widen this immutable signed baseline.
+/// Subject/account tombstones are checked separately by the stable witness.
+pub fn verify_account_baseline(a:&SignedAcceptance,r:&AccountReadRequest,caller:Principal,now:u64)->Outcome<AccountReadReceipt> {
+    let b=&a.body;let q=&r.request;
+    if caller!=b.identity || caller!=q.identity || !principal_ok(caller) || q.request_id==0 ||
+        q.generation!=b.generation || q.recovery_epoch!=b.epoch || q.signed_digest!=b.signed_digest ||
+        q.identity_version!=b.identity_version || q.history_revision<b.history_revision || q.removal_generation<b.removal_generation ||
+        b.expires_at_ns<=now || r.account_id.is_empty() || r.account_id.len()>128 ||
+        r.subjects.len()>8 || !unique(&r.subjects) {
+        return Err("Current exact subject recovery baseline required".into());
+    }
+    Ok(AccountReadReceipt {request:r.clone()})
+}
+pub fn subject_progress_signing_bytes(b:&Acceptance)->Outcome<Vec<u8>> {
+    let canonical=signing_bytes(b)?;
+    let mut bytes=b"ignite:subject-scoped-removal-progress:v1\0".to_vec();
+    bytes.extend(Sha256::digest(canonical));Ok(bytes)
+}
+pub fn validate_subject_progress(a:&SignedAcceptance,key:&VerifyingKey)->Outcome<()> {
+    let signature=Signature::from_slice(&a.signature).map_err(|_|"Separate subject progress signature required")?;
+    key.verify_strict(&subject_progress_signing_bytes(&a.body)?,&signature).map_err(|_|"Separate subject progress signature required".into())
+}
 
 #[cfg(test)] mod tests {
     use super::*;
@@ -162,5 +190,22 @@ pub fn verify(head:&Head,r:&WitnessRequest,caller:Principal,now:u64)->Outcome<Wi
         }
         assert!(validate_record(&r).is_ok());
         if let Event::Removal(m)=&mut r.event {m.targets.push(p(99));}assert!(validate_record(&r).is_err());
+    }
+    #[test] fn survivor_baseline_allows_forward_progress_not_restore_expiry_or_foreign_identity() {
+        let(_,a,_,q)=fixture();let mut r=AccountReadRequest {request:q,account_id:"survivor".into(),subjects:vec![p(9)]};
+        assert!(verify_account_baseline(&a,&r,p(2),1).is_ok());
+        r.request.history_revision+=20;r.request.removal_generation+=1;
+        assert!(verify_account_baseline(&a,&r,p(2),1).is_ok());
+        assert!(verify_account_baseline(&a,&r,p(9),1).is_err());
+        assert!(verify_account_baseline(&a,&r,p(2),100).is_err());
+        r.request.identity_version+=1;assert!(verify_account_baseline(&a,&r,p(2),1).is_err());
+        r.request.identity_version-=1;r.request.history_revision=7;assert!(verify_account_baseline(&a,&r,p(2),1).is_err());
+    }
+    #[test] fn old_recovery_signature_cannot_activate_subject_progress_policy() {
+        let(_,mut a,k,_)=fixture();assert!(validate_subject_progress(&a,&k).is_err());
+        let key=SigningKey::from_bytes(&[8;32]);
+        a.signature=key.sign(&subject_progress_signing_bytes(&a.body).unwrap()).to_bytes().to_vec();
+        assert!(validate_subject_progress(&a,&k).is_ok());
+        a.body.generation+=1;assert!(validate_subject_progress(&a,&k).is_err());
     }
 }

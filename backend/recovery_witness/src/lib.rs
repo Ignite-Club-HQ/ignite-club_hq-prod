@@ -19,6 +19,10 @@ thread_local! {
     static ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(6))),0));
     static IDENTITY:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(7))),vec![]));
     static EVENTS:RefCell<StableBTreeMap<Vec<u8>,u64,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(8)))));
+    // Immutable accepted baseline survives ordinary progress, never restore/disable.
+    static ACCOUNT_BASELINE:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(9))),vec![]));
+    static ACCOUNT_ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(10))),0));
+    static DENIED_SUBJECTS:RefCell<StableBTreeMap<String,String,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(11)))));
 }
 fn event_key(event:&Event)->Vec<u8> {use sha2::{Digest,Sha256};Sha256::digest(candid::encode_one(event).expect("bounded recovery event")).to_vec()}
 fn encode<T:serde::Serialize>(v:&T)->Vec<u8> {let mut b=vec![];ciborium::ser::into_writer(v,&mut b).expect("encode witness state");b}
@@ -43,7 +47,7 @@ fn init(arg:Init) {
     IDENTITY.with(|g|g.borrow_mut().set(arg.identity.as_slice().to_vec()));save(&Head::default());
 }
 #[ic_cdk::post_upgrade]
-fn post_upgrade(){ARMED_VERSION.with(|v|v.borrow_mut().set(0));}
+fn post_upgrade(){ARMED_VERSION.with(|v|v.borrow_mut().set(0));ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(0));}
 #[ic_cdk::update]
 fn read_recovery_head()->Outcome<Head> {require_governor()?;Ok(head())}
 #[ic_cdk::update]
@@ -96,8 +100,11 @@ fn record(r:Record,witness:Principal)->Outcome<u64> {
     }
     let next=advance(&head(),&r)?;
     match &r.event {
-        Event::Disable {..}=>{},
-        Event::Removal(m)=>{REMOVALS.with(|s|s.borrow_mut().insert(m.account_id.clone(),encode(m)));},
+        Event::Disable {..}=>{ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(0));},
+        Event::Removal(m)=>{
+            REMOVALS.with(|s|s.borrow_mut().insert(m.account_id.clone(),encode(m)));
+            DENIED_SUBJECTS.with(|s|{let mut s=s.borrow_mut();for p in &m.subjects {s.insert(p.to_text(),m.account_id.clone());}});
+        },
         Event::Progress {account_id,progress,..}=>{match progress {
             Progress::Prepared {target}|Progress::Sealed {target}=>{
                 let key=format!("{}:{}",account_id,target.to_text());let phase=if matches!(progress,Progress::Sealed {..}){2}else{1};
@@ -114,7 +121,7 @@ fn record(r:Record,witness:Principal)->Outcome<u64> {
 fn close_recovery_fence(expected_epoch:u64)->Outcome<u64> {
     let caller=ic_cdk::api::msg_caller();if caller!=identity(){require_governor()?;}
     let prior=head();if prior.epoch!=expected_epoch{return Err("Exact recovery epoch required".into());}
-    let next=close(&prior)?;ARMED_VERSION.with(|v|v.borrow_mut().set(0));save(&next);Ok(next.epoch)
+    let next=close(&prior)?;ARMED_VERSION.with(|v|v.borrow_mut().set(0));ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(0));save(&next);Ok(next.epoch)
 }
 async fn check_participants(a:&Acceptance)->Outcome<()> {
     for p in &a.participants {
@@ -134,7 +141,45 @@ async fn accept_recovery_fence(a:SignedAcceptance)->Outcome<u64> {
     for _ in 0..2 {check_participants(&a.body).await?;require_governor()?;
         if head()!=prior||ic_cdk::api::canister_version()!=version{return Err("Recovery changed during acceptance".into());}}
     let next=accept(&prior,&a,ic_cdk::api::canister_self(),version,ic_cdk::api::time(),&signer()?)?;
-    ARMED_VERSION.with(|v|v.borrow_mut().set(version));save(&next);Ok(next.epoch)
+    ARMED_VERSION.with(|v|v.borrow_mut().set(version));
+    // Existing recovery signatures never opt into automatic subject progress.
+    ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(0));
+    save(&next);Ok(next.epoch)
+}
+#[ic_cdk::update]
+fn subject_progress_approval_signing_bytes(body:Acceptance)->Outcome<Vec<u8>> {require_governor()?;subject_progress_signing_bytes(&body)}
+#[ic_cdk::update]
+async fn authorize_subject_removal_progress(a:SignedAcceptance)->Outcome<()> {
+    require_governor()?;validate_subject_progress(&a,&signer()?)?;
+    let captured=head();let version=ic_cdk::api::canister_version();
+    if captured.accepted.as_ref().is_none_or(|s|s.body!=a.body) || a.body.expires_at_ns<=ic_cdk::api::time() ||
+        ARMED_VERSION.with(|v|*v.borrow().get())!=version {return Err("Current independently accepted subject progress baseline required".into());}
+    check_participants(&a.body).await?;require_governor()?;
+    if head()!=captured || ic_cdk::api::canister_version()!=version || a.body.expires_at_ns<=ic_cdk::api::time() {
+        return Err("Subject progress acceptance changed".into());
+    }
+    ACCOUNT_BASELINE.with(|s|s.borrow_mut().set(encode(&a)));
+    ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(version));Ok(())
+}
+fn account_not_removed(r:&AccountReadRequest)->Outcome<()> {
+    if REMOVALS.with(|m|m.borrow().contains_key(&r.account_id)) ||
+        DENIED_SUBJECTS.with(|m|r.subjects.iter().any(|p|m.borrow().contains_key(&p.to_text()))) {
+        return Err("Account independently removal fenced".into());
+    }Ok(())
+}
+#[ic_cdk::update]
+async fn verify_production_subject_read_fence(r:AccountReadRequest)->Outcome<AccountReadReceipt> {
+    let caller=ic_cdk::api::msg_caller();let version=ic_cdk::api::canister_version();
+    let bytes=ACCOUNT_BASELINE.with(|s|s.borrow().get().clone());
+    if bytes.is_empty() || ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get())!=version {return Err("Subject recovery baseline restored, disabled or missing".into());}
+    let baseline:SignedAcceptance=decode(&bytes);
+    verify_account_baseline(&baseline,&r,caller,ic_cdk::api::time())?;account_not_removed(&r)?;
+    check_participants(&baseline.body).await?;
+    if ACCOUNT_BASELINE.with(|s|s.borrow().get()!=&bytes) || ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get())!=version || ic_cdk::api::canister_version()!=version {
+        return Err("Subject recovery baseline changed".into());
+    }
+    account_not_removed(&r)?;
+    verify_account_baseline(&baseline,&r,caller,ic_cdk::api::time())
 }
 #[ic_cdk::update]
 async fn verify_production_account_read_fence(r:WitnessRequest)->Outcome<WitnessReceipt> {
@@ -184,5 +229,14 @@ ic_cdk::export_candid!();
         assert_eq!(record(progress("complete-retry",Progress::Completed),p(1)).unwrap(),5);
         assert_eq!(head().revision,5);assert_eq!(RECORDS.with(|m|m.borrow().len()),5);
         let bytes=REMOVALS.with(|m|m.borrow().get(&"removed".to_string())).unwrap();assert_eq!(decode::<Removal>(&bytes).subjects,vec![p(5),p(6)]);
+    }
+    #[test] fn independent_tombstones_reject_restored_accounts_and_alias_reassignment_not_survivors() {
+        let p=|n:u8|Principal::from_slice(&[n,1]);
+        let removal=Record {operation_id:"subject-remove".into(),event:Event::Removal(Removal {account_id:"subject-removed".into(),generation:8,inventory_digest:vec![9;32],subjects:vec![p(70),p(71)],targets:vec![p(72)]})};
+        record(removal,p(73)).unwrap();
+        let request=|account:&str,subjects:Vec<Principal>|AccountReadRequest {request:WitnessRequest {identity:p(1),generation:1,recovery_epoch:1,signed_digest:vec![1;32],request_id:1,history_revision:0,removal_generation:0,identity_version:1},account_id:account.into(),subjects};
+        assert!(account_not_removed(&request("subject-removed",vec![p(74)])).is_err());
+        assert!(account_not_removed(&request("new-account",vec![p(71)])).is_err());
+        assert!(account_not_removed(&request("survivor-account",vec![p(74)])).is_ok());
     }
 }

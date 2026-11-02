@@ -461,7 +461,7 @@ fn authority_eligibilities(caller: Principal, subjects: Vec<Principal>) -> Outco
 async fn read_principal_eligibility(subject: Principal) -> Outcome<PrincipalEligibility> {
     let caller=ic_cdk::api::msg_caller();
     if !account_group_rehearsal_enabled() && production_authorization().approval.is_some() {
-        verify_production_account_reader(caller,false).await?;
+        verify_production_account_reader(caller,false,&[subject]).await?;
         return Ok(principal_eligibility(subject));
     }
     authority_eligibilities(ic_cdk::api::msg_caller(), vec![subject])?.into_iter().next().ok_or("Eligibility unavailable".into())
@@ -471,7 +471,7 @@ async fn read_principal_eligibilities(subjects: Vec<Principal>) -> Outcome<Vec<P
     if !account_group_rehearsal_enabled() && production_authorization().approval.is_some() {
         let mut distinct=subjects.clone();distinct.sort();distinct.dedup();
         if subjects.is_empty() || subjects.len()>200 || distinct.len()!=subjects.len(){return Err("Distinct eligibility batch of 1 to 200 subjects required".into());}
-        verify_production_account_reader(ic_cdk::api::msg_caller(),false).await?;
+        verify_production_account_reader(ic_cdk::api::msg_caller(),false,&subjects).await?;
         return Ok(subjects.into_iter().map(principal_eligibility).collect());
     }
     authority_eligibilities(ic_cdk::api::msg_caller(), subjects)
@@ -1238,6 +1238,8 @@ async fn collect_production_account_protection_inner(expected:production_account
     -> Outcome<production_account_protection::Draft> {
     production_read_configuration_clear()?;
     let operator=state().governor;
+    let history_at_start=removal_history_revision();
+    if (closed || provision) && history_at_start!=expected_history_revision {return Err("Production acceptance history changed".into());}
     let authorization=production_authorization();
     let pinned=group_inventory_binding();let pinned_extra=supplemental_inventory();
     let (readers,targets)=production_account_protection::scope(&expected)?;
@@ -1248,7 +1250,7 @@ async fn collect_production_account_protection_inner(expected:production_account
     if extra!=expected.inventory.supplemental { return Err("Pinned supplemental expectation mismatch".into()); }
     let recheck=||->Outcome<()> {
         production_read_configuration_clear()?;
-        if state().governor!=operator || production_authorization()!=authorization || removal_history_revision()!=expected_history_revision || group_inventory_binding()!=pinned ||
+        if state().governor!=operator || production_authorization()!=authorization || removal_history_revision()!=history_at_start || group_inventory_binding()!=pinned ||
             supplemental_inventory()!=pinned_extra { return Err("Production review configuration changed".into()); }
         Ok(())
     };
@@ -1324,6 +1326,20 @@ async fn check_production_witness(approval:&production_account_authorization::Si
         ic_cdk::api::canister_version()!=request.identity_version {return Err("Identity recovery state changed during witness call".into());}
     Ok(())
 }
+async fn check_production_subject_witness(approval:&production_account_authorization::SignedApproval,account:&Account)->Outcome<()> {
+    let witness=production_account_authorization::witness()?;
+    if witness==ic_cdk::api::canister_self() || approval.body.review.targets.contains(&witness){return Err("Independent recovery witness required".into());}
+    let legacy=production_account_authorization::request(approval,next_production_request()?,removal_history_revision(),
+        REMOVAL_GENERATION.with(|m|*m.borrow().get()),ic_cdk::api::canister_version())?;
+    let request=recovery_protocol::AccountReadRequest {request:recovery_protocol::WitnessRequest {identity:legacy.identity,generation:legacy.generation,
+        recovery_epoch:legacy.recovery_epoch,signed_digest:legacy.signed_digest,request_id:legacy.request_id,history_revision:legacy.history_revision,
+        removal_generation:legacy.removal_generation,identity_version:legacy.identity_version},account_id:account.id.clone(),subjects:account.principals.clone()};
+    let reply=ic_cdk::call::Call::bounded_wait(witness,"verify_production_subject_read_fence").with_arg(&request).await.map_err(|_|"Independent subject witness unavailable")?;
+    let receipt:Outcome<recovery_protocol::AccountReadReceipt>=reply.candid().map_err(|_|"Invalid independent subject witness reply")?;
+    if receipt?.request!=request || removal_history_revision()!=request.request.history_revision || REMOVAL_GENERATION.with(|m|*m.borrow().get())!=request.request.removal_generation ||
+        ic_cdk::api::canister_version()!=request.request.identity_version {return Err("Subject recovery changed during witness read".into());}
+    Ok(())
+}
 /// Exact independent signature + live witnesses, not caller-supplied reader lists.
 /// This installs only an account-read capability, not removal, erasure or routing.
 #[ic_cdk::update]
@@ -1377,13 +1393,17 @@ fn production_account_approval_signing_bytes(body:production_account_authorizati
     require_governor(&state(),ic_cdk::api::msg_caller())?;production_account_authorization::signing_bytes(&body)
 }
 async fn production_service_account(caller:Principal,subject:Principal,club_only:bool)->Outcome<Account> {
-    verify_production_account_reader(caller,club_only).await?;
+    verify_production_account_reader(caller,club_only,&[subject]).await?;
     // No await between validation return and reconstruction/release.
     current_service_account(subject)
 }
-async fn verify_production_account_reader(caller:Principal,club_only:bool)->Outcome<()> {
+async fn verify_production_account_reader(caller:Principal,club_only:bool,subjects:&[Principal])->Outcome<()> {
     let _lease=private_name_writer_window::enter()?;
     let captured=production_authorization();let approval=production_account_authorization::reader(&captured,caller,ic_cdk::api::time())?.clone();
+    // Reconstruct identity-owned current accounts; never trust caller aliases.
+    let mut accounts=std::collections::BTreeMap::new();
+    for subject in subjects {let a=current_service_account(*subject)?;accounts.insert(a.id.clone(),a);}
+    let history=removal_history_revision();
     let operator=state().governor;
     production_account_authorization::validate(&approval,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
     if club_only && !approval.body.review.inventory.groups.snapshot.groups.iter().flat_map(|g|&g.domains)
@@ -1393,8 +1413,9 @@ async fn verify_production_account_reader(caller:Principal,club_only:bool)->Outc
     if observed!=approval.body.review {return Err("Production account protection drift".into());}
     // Last await: trusted independently fenced recovery witness, never a local
     // restored flag. Its transport/authority must be separately provisioned.
-    check_production_witness(&approval).await?;
-    if state().governor!=operator || production_authorization()!=captured || removal_history_revision()!=revision {return Err("Production account authorization changed".into());}
+    for account in accounts.values() {check_production_subject_witness(&approval,account).await?;}
+    if state().governor!=operator || production_authorization()!=captured || removal_history_revision()!=history {return Err("Production account authorization changed".into());}
+    for account in accounts.values() {for subject in &account.principals {if current_service_account(*subject)?!=*account {return Err("Subject account changed during witness check".into());}}}
     production_read_configuration_clear()?;
     production_account_authorization::reader(&captured,caller,ic_cdk::api::time())?;
     Ok(())
@@ -1404,8 +1425,10 @@ fn group2_admission() -> admission::Config {
 }
 // Retained removal locks prevent reconfiguration, not other accounts' reads.
 fn production_read_configuration_clear()->Outcome<()> {
+    // Unrelated account work is not a global read lock. Subject reconstruction
+    // rejects local tickets/unlinks; independent tombstones reject restored state.
     if recovery_pending() || DELETION_TICKETS.with(|m|!m.borrow().is_empty()) || !link_lifecycle().pending.is_empty() {
-        return Err("Independent recovery acknowledgement or unlink pending".into());
+        return Err("Unknown recovery or unrelated lifecycle transition pending".into());
     } Ok(())
 }
 fn current_removal_control_access()->Outcome<()> {
