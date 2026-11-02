@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — approved production removal safeguards (2 Nov 2026, 03:32 UTC)
+- [ ] 04:54 request: finish signed production authorization for exact base/g2 services and removal control, run the complete isolated suite on GitHub, and inspect results. No PROD activation or data changes.
 - [x] 04:47 approved next step: added signed positive isolated witness acceptance, real non-rehearsal identity disable/readback transport, interruption and restore tests to the supported-worker workflow. Separate local Wasms pin ephemeral public keys; no private keys or deployment artifacts uploaded. Full authorization/fencing/release remain explicitly false.
 - [ ] Run production-recovery-integration on the supported GitHub worker and inspect evidence. Local host remains unsupported; full positive account-reader flow additionally needs governed supplemental-inventory bootstrap and independent remote exclusive controller fencing, never a rehearsal gate bypass.
 - [x] 04:41 GitHub run 41388964233 reached actual witness installation but failed strict record comparison: Candid returns Uint8Array for vec nat8 while the test expected Array. Corrected the fixture to exact typed bytes and added real-contract roundtrip regression; safety assertions remain strict.
