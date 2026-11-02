@@ -1,0 +1,115 @@
+name: "[PROD] Inspect live control record (read-only)"
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require exact production context
+        run: |
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install isolated inspection library
+        run: npm install --prefix "$RUNNER_TEMP/control-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Read control record and receiver settings only
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+          PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+          IGNITE_ICP_ENV: prod
+        run: |
+          set -euo pipefail
+          umask 077
+          KEYDIR="$RUNNER_TEMP/control-key"
+          mkdir -p "$KEYDIR" "$RUNNER_TEMP/control-report"
+          trap 'rm -rf "$KEYDIR"' EXIT
+          test -n "$PROD_GOVERNOR_PEM_ENC"
+          test -n "$PROD_GOVERNOR_PASSPHRASE"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$KEYDIR/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$KEYDIR/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEYDIR/key.enc" -out "$KEYDIR/key.pem" -pass file:"$KEYDIR/pass"
+          export CHECK_KEY_PEM="$KEYDIR/key.pem"
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/control-deps"
+          export CHECK_REPORT_DIR="$RUNNER_TEMP/control-report"
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { createRequire } from 'node:module';
+          import { identityFromPem } from './scripts/prod-connection-check.mjs';
+          import { assertCheckContext, PROD_CHECK_IDS } from './scripts/prod-connection-check-policy.mjs';
+          const require = createRequire(process.env.CHECK_DEPS_DIR + '/package.json');
+          const { HttpAgent, Actor } = require('@icp-sdk/core/agent');
+          const { IDL } = require('@icp-sdk/core/candid');
+          const { Principal } = require('@icp-sdk/core/principal');
+          const { Ed25519KeyIdentity } = require('@icp-sdk/core/identity');
+          const { Secp256k1KeyIdentity } = require('@icp-sdk/core/identity/secp256k1');
+          const identity = identityFromPem(readFileSync(process.env.CHECK_KEY_PEM, 'utf8'), {Ed25519KeyIdentity, Secp256k1KeyIdentity});
+          const ids = JSON.parse(readFileSync('deploy/prod/.icp/data/mappings/ic.ids.json', 'utf8'));
+          assertCheckContext(ids, process.env, identity.getPrincipal().toText());
+          const agent = await HttpAgent.create({host:'https://icp-api.io',identity});
+          const result = ok => IDL.Variant({Ok:ok,Err:IDL.Text});
+          // Record-width subtyping discards signature/evidence payloads, retaining only generation and approval presence.
+          const stateType = IDL.Record({generation:IDL.Nat64,approval:IDL.Opt(IDL.Record({}))});
+          const account = Actor.createActor(()=>IDL.Service({read_production_account_authorization:IDL.Func([],[result(stateType)],[])}),{agent,canisterId:ids.identity_access});
+          const report = {checkedAt:new Date().toISOString(),commit:process.env.GITHUB_SHA,approvalPresent:null,generation:null,rows:[],changesMade:false,openingAuthorized:false};
+          try {
+            const r = await account.read_production_account_authorization();
+            if ('Ok' in r) {report.approvalPresent=r.Ok.approval.length===1;report.generation=r.Ok.generation.toString();}
+            else report.authorizationRead='REFUSED';
+          } catch {report.authorizationRead='UNREADABLE';}
+          console.log('CONTROL RECORD: '+JSON.stringify({approvalPresent:report.approvalPresent,generation:report.generation,authorizationRead:report.authorizationRead}));
+          const Group=IDL.Record({id:IDL.Text,accepting:IDL.Bool,domains:IDL.Vec(IDL.Record({domain:IDL.Text,canister:IDL.Principal})),photo_store:IDL.Opt(IDL.Principal)});
+          const router=Actor.createActor(()=>IDL.Service({list_groups:IDL.Func([],[result(IDL.Vec(Group))],['query'])}),{agent,canisterId:ids.shard_router});
+          const targets=new Map(Object.entries(ids).map(([name,id])=>[id,{name,group:'base/shared',id}]));
+          try {
+            const r=await router.list_groups();
+            if ('Ok' in r && r.Ok.length<=2) {
+              report.groups=r.Ok.map(g=>({id:g.id,accepting:g.accepting}));
+              for(const g of r.Ok) {
+                if(g.domains.length>13) throw new Error('inventory bound');
+                for(const d of g.domains) if(!targets.has(d.canister.toText())) targets.set(d.canister.toText(),{name:d.domain,group:g.id,id:d.canister.toText()});
+                for(const p of g.photo_store) if(!targets.has(p.toText())) targets.set(p.toText(),{name:'media_blob_store',group:g.id,id:p.toText()});
+              }
+            }
+          } catch {report.registryRead='UNREADABLE';}
+          if(targets.size>32) throw new Error('Inventory bound exceeded');
+          for(const t of targets.values()) {
+            const row={name:t.name,group:t.group,id:t.id,controlUse:'UNVERIFIED'};
+            if(t.name==='identity_access') row.controlUse=report.approvalPresent===false?'NO_SIGNED_CONTROL_RECORD':report.approvalPresent===true?'STORED_APPROVAL_PRESENT_NOT_LIVE_ACCEPTANCE':'UNVERIFIED';
+            else if(['placement_registry','migration_coordinator'].includes(t.name)) row.controlUse='NOT_A_CONTROL_RECEIVER';
+            else {
+              try {
+                const mgmt=Actor.createActor(()=>IDL.Service({canister_status:IDL.Func([IDL.Record({canister_id:IDL.Principal})],[IDL.Record({settings:IDL.Record({environment_variables:IDL.Vec(IDL.Record({name:IDL.Text,value:IDL.Text}))})})],[])}),{agent,canisterId:'aaaaa-aa',effectiveCanisterId:Principal.fromText(t.id)});
+                const s=await mgmt.canister_status({canister_id:Principal.fromText(t.id)});
+                const get=k=>s.settings.environment_variables.find(e=>e.name===k)?.value;
+                row.admissionEnabled=get('IGNITE_ACCOUNT_ADMISSION_RELEASE')==='1';
+                row.removalEnabled=get('IGNITE_ACCOUNT_REMOVAL_RELEASE')==='1';
+                row.rehearsal=get('IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL')==='1';
+                row.authorityMatches=get('IGNITE_ACCOUNT_SERVICE_IDENTITY')===PROD_CHECK_IDS.identity_access;
+                row.controlUse=row.rehearsal?'REHEARSAL_NOT_PRODUCTION':!row.admissionEnabled||!row.removalEnabled?'PROTECTION_NOT_ENABLED':!row.authorityMatches?'AUTHORITY_NOT_BOUND':report.approvalPresent!==true?'NO_CONFIRMED_SIGNED_CONTROL_RECORD':'CONFIGURED_EFFECTIVE_READBACK_STILL_REQUIRED';
+              } catch {row.settingsRead='UNREADABLE';}
+            }
+            report.rows.push(row);
+            console.log('SERVICE: '+JSON.stringify(row));
+          }
+          console.log('GROUPS: '+JSON.stringify(report.groups??[]));
+          console.log('No configuration, permission, grant, counter, data or admission changes were attempted.');
+          writeFileSync(process.env.CHECK_REPORT_DIR+'/control-record.json',JSON.stringify(report,null,2));
+          JS
+      - name: Save read-only evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-control-record
+          path: ${{ runner.temp }}/control-report/*.json
+          if-no-files-found: ignore

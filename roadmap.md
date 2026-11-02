@@ -1,5 +1,8 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — live control-record confirmation (2 Nov 2026, 23:51 UTC)
+- [ ] Run a protected read-only control-record inspection; report every base/shared and registered group service without changing settings, permissions, grants, data or opening.
+
 ## Current request — approved production removal safeguards (2 Nov 2026, 03:32 UTC)
 - [x] 06:17 corrected rejected canister_info ingress in both production integration and full two-group authorization using shared owner-only disposable inter-canister reader. Pinned moc 1.16.1 compiles; 45 regression checks pass; preview build OK. Worker now checks original ingress refusal, non-controller participant reads, owner guard and real upgrade change counts before signing. No production service/controller changes or release grant.
 - [x] Ran and inspected full isolated GitHub run 41416336824 on main commit 6beaa49a30349239e707c994f65246dd9ee82c36 after all 12 safeguard files matched GitHub. Local 25 checks, GitHub authorization/unit checks, compilation and real witness snapshot/upgrade suite pass; production recovery integration FAILED at forged-signature assertion, so all-28-target scenarios were skipped. PROD untouched.
