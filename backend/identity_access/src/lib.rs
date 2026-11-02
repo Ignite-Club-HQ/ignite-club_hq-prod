@@ -4228,6 +4228,13 @@ mod tests {
         assert!(deny_unlinked_principal(removed, "unrelated", 9).is_err());
     }
     #[test]
+    fn another_accounts_pending_removal_does_not_block_production_reads() {
+        DELETION_TICKETS.with(|m| m.borrow_mut().insert("removed-account".into(), vec![1]));
+        assert!(production_account_reads_clear().is_ok());
+        assert!(production_read_configuration_clear().is_err());
+        DELETION_TICKETS.with(|m| m.borrow_mut().remove(&"removed-account".to_string()));
+    }
+    #[test]
     fn rekey_and_dry_run_cannot_bypass_durable_denial() {
         let removed = principal(106); let active = principal(107);
         deny_unlinked_principal(removed, "original", 2).unwrap();
