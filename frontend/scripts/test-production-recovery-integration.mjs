@@ -12,6 +12,7 @@ import { idlFactory as witnessFactory } from '../src/lab/bindings/recovery_witne
 import { idlFactory as identityFactory } from '../src/lab/bindings/identity_access/declarations/identity_access.did.js';
 import { removalHostPreflight } from './removal-host-preflight.mjs';
 import { startRemovalLocalServer } from './removal-local-supervisor.mjs';
+import { assertCandidEqual } from './assert-candid-equal.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const report={kind:'production-identity-recovery-transport-isolated',passed:false,
@@ -84,7 +85,7 @@ try {
  w.setPrincipal(identityId);refuses(await w.verify_production_account_read_fence(request),/Recovery remains fenced/);w.setPrincipal(owner);
  const forged={...signed,signature:new Uint8Array(64)};refuses(await w.accept_recovery_fence(forged),/Independent recovery signature required/);
  assert.equal(ok(await w.accept_recovery_fence(signed)),head.epoch);
- w.setPrincipal(identityId);assert.deepEqual(ok(await w.verify_production_account_read_fence(request)).request,request);
+ w.setPrincipal(identityId);assertCandidEqual(ok(await w.verify_production_account_read_fence(request)).request,request);
  for(const [field,value] of [['generation',2n],['history_revision',1n],['removal_generation',1n],['identity_version',2n],['request_id',0n]])refuses(await w.verify_production_account_read_fence({...request,[field]:value}),/Current exact recovery fence required/);
  w.setPrincipal(outsider);refuses(await w.verify_production_account_read_fence(request),/Current exact recovery fence required/);w.setPrincipal(owner);
  mark('Signed live witness acceptance succeeds; forged signatures, wrong callers and stale request fields fail');
@@ -113,11 +114,11 @@ try {
  mark('Unavailable witness leaves local disable immediate and retry acknowledges the same generation');
  stage='restore identity while independent disable progress remains';
  await restore(identityId,identitySnapshot);
- assert.deepEqual(ok(await w.read_recovery_records(0n,200)),retained);
+ assertCandidEqual(ok(await w.read_recovery_records(0n,200)),retained);
  refuses(await id.read_service_account(human),/Service admission not released/);
  id.setPrincipal(human);assert.equal(ok(await id.whoami()).id,account.id);id.setPrincipal(owner);
  await pic.upgradeCanister({canisterId:identityId,sender:owner,wasm:wasm('identity_access'),arg:identityArgs});
- assert.deepEqual(ok(await w.read_recovery_records(0n,200)),retained);
+ assertCandidEqual(ok(await w.read_recovery_records(0n,200)),retained);
  mark('Identity restore/upgrade cannot erase independent disable progress and preserves the other user account');
  // Further positive acceptance: lifecycle changes and expiry remain live refusals.
  stage='fresh acceptance rejects participant upgrade and expiry';

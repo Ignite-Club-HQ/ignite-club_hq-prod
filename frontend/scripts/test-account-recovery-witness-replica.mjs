@@ -9,6 +9,7 @@ import { Principal } from '@icp-sdk/core/principal';
 import { idlFactory } from '../src/lab/bindings/recovery_witness/declarations/recovery_witness.did.js';
 import { startRemovalLocalServer } from './removal-local-supervisor.mjs';
 import { removalHostPreflight } from './removal-host-preflight.mjs';
+import { assertCandidEqual } from './assert-candid-equal.mjs';
 const report={kind:'account-recovery-witness-isolated',passed:false,releaseAuthorized:false,productionIntegration:false,checks:[]};
 const owner=Principal.fromUint8Array(Uint8Array.from([1,1])),identity=Principal.fromUint8Array(Uint8Array.from([2,1]));
 const base=Principal.fromUint8Array(Uint8Array.from([3,1])),g2=Principal.fromUint8Array(Uint8Array.from([4,1]));
@@ -38,7 +39,7 @@ try{
  const removal={operation_id:'remove/1',event:{Removal:{account_id:'removed',generation:1n,inventory_digest:new Uint8Array(32).fill(1),subjects:[Principal.fromUint8Array(Uint8Array.from([5,1]))],targets:[base,g2]}}};
  const revision=ok(await a.record_removal_recovery(removal));assert.equal(revision,1n);
  assert.equal(ok(await a.record_removal_recovery({...removal,operation_id:'equivalent-retry'})),1n);
- a.setPrincipal(identity);assert.deepEqual(ok(await a.read_recovery_record(revision)),removal);a.setPrincipal(owner);
+ a.setPrincipal(identity);assertCandidEqual(ok(await a.read_recovery_record(revision)),removal);a.setPrincipal(owner);
  const original=ok(await a.read_recovery_head());
  const progress=(target,phase)=>({operation_id:`${target.toText()}/${phase}`,event:{Progress:{account_id:'removed',generation:1n,progress:{[phase]:{target}}}}});
  err(await a.record_removal_recovery({operation_id:'premature-complete',event:{Progress:{account_id:'removed',generation:1n,progress:{Completed:null}}}}));
@@ -48,10 +49,10 @@ try{
  const disable={operation_id:'disable/8',event:{Disable:{identity,generation:8n}}};
  const disableRevision=ok(await a.record_removal_recovery(disable));assert.equal(disableRevision,5n);
  assert.equal(ok(await a.record_removal_recovery(disable)),5n);
- a.setPrincipal(identity);assert.deepEqual(ok(await a.read_recovery_record(5n)),disable);a.setPrincipal(owner);
+ a.setPrincipal(identity);assertCandidEqual(ok(await a.read_recovery_record(5n)),disable);a.setPrincipal(owner);
  rows.push([5n,disable]);
  assert.equal(ok(await a.record_removal_recovery(removal)),revision);
- const conflicting=structuredClone(removal);conflicting.event.Removal.generation=2n;err(await a.record_removal_recovery(conflicting));
+ const conflicting={...removal,event:{Removal:{...removal.event.Removal,generation:2n}}};err(await a.record_removal_recovery(conflicting));
  a.setPrincipal(base);err(await a.read_recovery_head());err(await a.record_removal_recovery(removal));a.setPrincipal(owner);
  report.checks.push('Immutable removal, both group seals, full completion, caller rejection and idempotent retries');
  const request={identity,generation:1n,recovery_epoch:original.epoch,signed_digest:Array(32).fill(3),request_id:1n,history_revision:1n,removal_generation:1n,identity_version:1n};
@@ -60,13 +61,13 @@ try{
  const snapshot=await take();const before=ok(await a.read_recovery_head());const version=ok(await a.read_recovery_runtime_version());
  ok(await a.close_recovery_fence(before.epoch));
  await restore(snapshot);
- assert.deepEqual(ok(await a.read_recovery_records(0n,200)),rows);
+ assertCandidEqual(ok(await a.read_recovery_records(0n,200)),rows);
  assert.ok(ok(await a.read_recovery_runtime_version())>version,'IC version must advance outside loaded application snapshot');
  a.setPrincipal(identity);err(await a.verify_production_account_read_fence(request));a.setPrincipal(owner);
  report.checks.push('Real snapshot load retains complete removal progress, advances IC version and denies restored read approval');
  stage='upgrade preserves whole journal';
  await pic.upgradeCanister({canisterId:f.canisterId,sender:owner,wasm:process.env.RECOVERY_WITNESS_WASM,arg:IDL.encode([],[])});
- assert.deepEqual(ok(await a.read_recovery_records(0n,200)),rows);
+ assertCandidEqual(ok(await a.read_recovery_records(0n,200)),rows);
  a.setPrincipal(identity);err(await a.verify_production_account_read_fence(request));
  report.checks.push('Real upgrade retains both group progress and keeps admission closed');report.passed=true;
 }catch(error){if(error.hostReport)report.host=error.hostReport;report.failure=error.name;throw error;}
