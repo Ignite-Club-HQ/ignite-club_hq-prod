@@ -7,16 +7,19 @@ import { PocketIc } from '@dfinity/pic';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 import { startRemovalLocalServer } from './removal-local-supervisor.mjs';
+import { removalHostPreflight } from './removal-host-preflight.mjs';
 
 export async function removalInstallPreflight({ binary, wasm, reportPath } = {}) {
   assert.ok(binary && wasm && reportPath, 'Pinned binary, real probe Wasm and report path required');
   const hash = value => createHash('sha256').update(readFileSync(value)).digest('hex');
   const report = { schema: 1, kind: 'local-installation-only', passed: false,
     releaseAuthorized: false, receiverAcceptance: false, binarySha256: hash(binary),
-    wasmSha256: hash(wasm), stage: 'start isolated local server' };
+    wasmSha256: hash(wasm), stage: 'verify host write-fault metadata' };
   let server;
   const started = Date.now();
   try {
+    report.host = removalHostPreflight();
+    report.stage = 'start isolated local server';
     server = await startRemovalLocalServer({ binary, hardTtlSeconds: 45 });
     report.binaryVersion = server.version;
     report.stage = 'create disposable local instance';
@@ -32,6 +35,7 @@ export async function removalInstallPreflight({ binary, wasm, reportPath } = {})
     report.stage = 'passed'; report.passed = true;
     return report;
   } catch (error) {
+    if (error.hostReport) report.host = error.hostReport;
     report.failure = error?.name ?? 'Error';
     throw new Error(`Local installation preflight failed at ${report.stage}; no receiver or release acceptance established`, { cause: error });
   } finally {

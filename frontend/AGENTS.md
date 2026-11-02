@@ -56,6 +56,7 @@
 - accountGroupAuthorities is a governor-only LOCAL composition over a supplied full deployment inventory, not completeness evidence; production group activation is blocked in routerProvisionSteps and membership paging never invokes unreleased sync. Why: callbacks and local receipt tests cannot attest authority-wide revocation.
 - domains adapts exact-signature read_account_* twins only in development on loopback targets through accountReadAdapter; remote/published actors stay identical and protected-read failures never fall back or retry. Why: rehearsal must exercise existing feature reads without releasing prototype admission.
 - Removal receiver acceptance first runs a hash-reported minimal installation probe with pinned PocketIC and an owned, deadline-bounded local process group; installation success never grants receiver acceptance or release. Why: this sandbox stalls even on a minimal actor, and cleanup must not hang or terminate unrelated servers.
+- Isolated removal runtime tests require the native x86-64 write-fault signal probe before PocketIC; seven-service reports bind Wasm hashes and explicitly deny full-inventory acceptance. Why: gVisor omits the write bit used by the IC tracker, and partial race checks cannot authorize release.
 
 - Retired URLs: App.tsx ParamRedirect, not 404.
 - Pending sends are QueryClient-scoped; settle temp IDs from server acknowledgements, not photo presence. Why: avoid duplicates after navigation.
