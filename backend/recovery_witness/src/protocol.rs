@@ -1,5 +1,5 @@
 //! Independent recovery ledger. Never included in participant backup sets.
-//! A restored ledger cannot grant reads: the host also checks its IC version.
+//! A restored ledger cannot grant reads: the host also checks its live management lifecycle count.
 use candid::{CandidType, Principal};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -93,7 +93,7 @@ pub fn signing_bytes(b: &Acceptance)->Outcome<Vec<u8>> {
         b.journal_digest.len()!=32 || !principal_ok(b.identity) || !principal_ok(b.witness) ||
         b.identity==b.witness || b.participants.iter().any(|p|p.canister==b.witness) ||
         !b.participants.iter().any(|p|p.canister==b.identity) {return Err("Exact bounded independent recovery scope required".into());}
-    let mut result=b"ignite:independent-recovery-acceptance:v1\0".to_vec();
+    let mut result=b"ignite:independent-recovery-acceptance:lifecycle-v2\0".to_vec();
     result.extend(Sha256::digest(candid::encode_one(b).map_err(|_|"Invalid recovery acceptance")?)); Ok(result)
 }
 pub fn accept(head:&Head,a:&SignedAcceptance,witness:Principal,version:u64,now:u64,key:&VerifyingKey)->Outcome<Head> {
@@ -129,7 +129,7 @@ pub fn verify_account_baseline(a:&SignedAcceptance,r:&AccountReadRequest,caller:
 }
 pub fn subject_progress_signing_bytes(b:&Acceptance)->Outcome<Vec<u8>> {
     let canonical=signing_bytes(b)?;
-    let mut bytes=b"ignite:subject-scoped-removal-progress:v1\0".to_vec();
+    let mut bytes=b"ignite:subject-scoped-removal-progress:lifecycle-v2\0".to_vec();
     bytes.extend(Sha256::digest(canonical));Ok(bytes)
 }
 pub fn validate_subject_progress(a:&SignedAcceptance,key:&VerifyingKey)->Outcome<()> {

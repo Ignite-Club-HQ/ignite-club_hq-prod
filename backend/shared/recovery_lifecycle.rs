@@ -28,7 +28,7 @@ mod tests {
         for _ in 0..100 { assert!(check_armed(4, 4).is_ok()); }
     }
     #[test]
-    fn_restore_or_same_module_upgrade_never_reuses_armed_evidence() {
+    fn restore_or_same_module_upgrade_never_reuses_armed_evidence() {
         assert!(check_armed(4, 5).is_err());
         assert!(check_armed(4, 3).is_err());
         assert!(check_armed(0, 4).is_err());
