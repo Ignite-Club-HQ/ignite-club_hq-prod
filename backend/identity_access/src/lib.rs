@@ -1234,11 +1234,18 @@ async fn review_production_account_protection(expected: production_account_prote
 }
 async fn collect_production_account_protection(expected:production_account_protection::Expectation, expected_history_revision:u64,closed:bool)
     -> Outcome<production_account_protection::Draft> {
-    collect_production_account_protection_inner(expected,expected_history_revision,closed,false).await
+    collect_production_account_protection_inner(expected,expected_history_revision,closed,false,false).await
 }
-async fn collect_production_account_protection_inner(expected:production_account_protection::Expectation, expected_history_revision:u64,closed:bool,provision:bool)
+/// Account reads only: another account's pending removal is not a global read
+/// lock; each subject is still refused by current_service_account.
+async fn collect_production_account_reader_review(expected:production_account_protection::Expectation, expected_history_revision:u64)
     -> Outcome<production_account_protection::Draft> {
-    production_read_configuration_clear()?;
+    collect_production_account_protection_inner(expected,expected_history_revision,false,false,true).await
+}
+async fn collect_production_account_protection_inner(expected:production_account_protection::Expectation, expected_history_revision:u64,closed:bool,provision:bool,reads_only:bool)
+    -> Outcome<production_account_protection::Draft> {
+    let clear=||if reads_only {production_account_reads_clear()} else {production_read_configuration_clear()};
+    clear()?;
     let operator=state().governor;
     let history_at_start=removal_history_revision();
     if (closed || provision) && history_at_start!=expected_history_revision {return Err("Production acceptance history changed".into());}
@@ -1251,7 +1258,7 @@ async fn collect_production_account_protection_inner(expected:production_account
     let extra=if provision {expected.inventory.supplemental.clone()} else {pinned_extra.clone()};
     if extra!=expected.inventory.supplemental { return Err("Pinned supplemental expectation mismatch".into()); }
     let recheck=||->Outcome<()> {
-        production_read_configuration_clear()?;
+        clear()?;
         if state().governor!=operator || production_authorization()!=authorization || removal_history_revision()!=history_at_start || group_inventory_binding()!=pinned ||
             supplemental_inventory()!=pinned_extra { return Err("Production review configuration changed".into()); }
         Ok(())
@@ -1414,14 +1421,14 @@ async fn verify_production_account_reader(caller:Principal,club_only:bool,subjec
     if club_only && !approval.body.review.inventory.groups.snapshot.groups.iter().flat_map(|g|&g.domains)
         .any(|d|d.domain=="club_domain" && d.canister==caller) {return Err("Exact production club account reader required".into());}
     let revision=approval.body.expectation.inventory.groups.history_revision;
-    let observed=collect_production_account_protection(approval.body.expectation.clone(),revision,false).await?;
+    let observed=collect_production_account_reader_review(approval.body.expectation.clone(),revision).await?;
     if observed!=approval.body.review {return Err("Production account protection drift".into());}
     // Last await: trusted independently fenced recovery witness, never a local
     // restored flag. Its transport/authority must be separately provisioned.
     for account in accounts.values() {check_production_subject_witness(&approval,account).await?;}
     if state().governor!=operator || production_authorization()!=captured || removal_history_revision()!=history {return Err("Production account authorization changed".into());}
     for account in accounts.values() {for subject in &account.principals {if current_service_account(*subject)?!=*account {return Err("Subject account changed during witness check".into());}}}
-    production_read_configuration_clear()?;
+    production_account_reads_clear()?;
     production_account_authorization::reader(&captured,caller,ic_cdk::api::time())?;
     Ok(())
 }
@@ -1429,6 +1436,13 @@ fn group2_admission() -> admission::Config {
     GROUP2_ADMISSION.with(|m| if m.borrow().get().is_empty() { admission::Config::default() } else { decode(m.borrow().get()) })
 }
 // Retained removal locks prevent reconfiguration, not other accounts' reads.
+/// Reader gate: unknown recovery and link transitions still fail closed, but a
+/// deletion ticket only blocks its own account (via current_service_account).
+fn production_account_reads_clear()->Outcome<()> {
+    if recovery_pending() || !link_lifecycle().pending.is_empty() {
+        return Err("Unknown recovery or unrelated lifecycle transition pending".into());
+    } Ok(())
+}
 fn production_read_configuration_clear()->Outcome<()> {
     // Unrelated account work is not a global read lock. Subject reconstruction
     // rejects local tickets/unlinks; independent tombstones reject restored state.
@@ -1467,7 +1481,7 @@ async fn provision_production_account_inventory(approval:production_account_auth
     }
     if approval.body.generation!=production_authorization().generation.checked_add(1).ok_or("Authorization generation exhausted")? {return Err("Fresh provisioning generation required".into());}
     let revision=expected.inventory.groups.history_revision;
-    let review=collect_production_account_protection_inner(expected.clone(),revision,true,true).await?;
+    let review=collect_production_account_protection_inner(expected.clone(),revision,true,true,false).await?;
     if review!=approval.body.review {return Err("Signed provisioning differs from live review".into());}
     check_production_witness(&approval).await?;
     require_governor(&state(),operator)?;admission_configuration_clear()?;validate()?;
@@ -4212,6 +4226,13 @@ mod tests {
         assert!(validate_denied_relink(removed, "original", 9).is_ok());
         assert!(deny_unlinked_principal(removed, "original", 7).is_err());
         assert!(deny_unlinked_principal(removed, "unrelated", 9).is_err());
+    }
+    #[test]
+    fn another_accounts_pending_removal_does_not_block_production_reads() {
+        DELETION_TICKETS.with(|m| m.borrow_mut().insert("removed-account".into(), vec![1]));
+        assert!(production_account_reads_clear().is_ok());
+        assert!(production_read_configuration_clear().is_err());
+        DELETION_TICKETS.with(|m| m.borrow_mut().remove(&"removed-account".to_string()));
     }
     #[test]
     fn rekey_and_dry_run_cannot_bypass_durable_denial() {
