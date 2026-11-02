@@ -991,6 +991,62 @@ fn removal_subject_fenced(subject: Principal) -> bool {
     REMOVAL_SUBJECTS.with(|m| m.borrow().contains_key(&subject.to_text()))
 }
 fn removal_pending() -> bool { REMOVAL_INTENTS.with(|m| !m.borrow().is_empty()) }
+fn recovery_pending()->bool {RECOVERY_PENDING.with(|m|!m.borrow().is_empty())}
+fn recovery_witness_target()->Outcome<Option<Principal>> {
+    if option_env!("IGNITE_PRODUCTION_ACCOUNT_WITNESS").is_none() {
+        if account_group_rehearsal_enabled() || production_authorization().approval.is_none() {return Ok(None);}
+        return Err("Independent recovery journal not configured".into());
+    }
+    let witness=production_account_authorization::witness()?;
+    if witness==ic_cdk::api::canister_self(){return Err("Independent recovery journal required".into());}
+    Ok(Some(witness))
+}
+fn stage_recovery_record(record:recovery_protocol::Record)->Outcome<()> {
+    if recovery_witness_target()?.is_none(){return Ok(());}
+    let key=record.operation_id.clone();
+    let prior=RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode(&b));
+    if prior.is_none() && RECOVERY_PENDING.with(|m|m.borrow().len())>=MAX_ACCOUNTS as u64 {return Err("Recovery pending capacity reached; keep admission closed".into());}
+    let pending=recovery_journal::prepare(prior,record)?;
+    RECOVERY_PENDING.with(|m|m.borrow_mut().insert(key,encode(&pending)));Ok(())
+}
+async fn settle_recovery_record(record:recovery_protocol::Record)->Outcome<()> {
+    let Some(witness)=recovery_witness_target()? else{return Ok(());};
+    stage_recovery_record(record.clone())?;
+    let key=record.operation_id.clone();
+    let captured:recovery_journal::Pending=RECOVERY_PENDING.with(|m|decode(&m.borrow().get(&key).expect("staged recovery record")));
+    let reply=ic_cdk::call::Call::bounded_wait(witness,"record_removal_recovery").with_arg(&record)
+        .await.map_err(|_|"Recovery write outcome unknown; pending intent retained")?;
+    let revision:Outcome<u64>=reply.candid().map_err(|_|"Invalid recovery acknowledgement; pending intent retained")?;
+    let revision=revision?;
+    if RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b)).as_ref()!=Some(&captured) {
+        return Err("Recovery pending operation changed".into());
+    }
+    let reply=ic_cdk::call::Call::bounded_wait(witness,"read_recovery_record").with_arg(&revision)
+        .await.map_err(|_|"Recovery readback unavailable; pending intent retained")?;
+    let observed:Outcome<recovery_protocol::Record>=reply.candid().map_err(|_|"Invalid recovery readback")?;
+    recovery_journal::acknowledge(&captured,revision,&observed?)?;
+    if RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b)).as_ref()!=Some(&captured) {
+        return Err("Recovery pending operation changed during readback".into());
+    }
+    RECOVERY_PENDING.with(|m|m.borrow_mut().remove(&key));Ok(())
+}
+fn removal_recovery_record(intent:&removal_barrier::Intent)->recovery_protocol::Record {
+    recovery_protocol::Record {operation_id:format!("removal:{}:{}",intent.account_id,intent.generation),event:recovery_protocol::Event::Removal(recovery_protocol::Removal {
+        account_id:intent.account_id.clone(),generation:intent.generation,inventory_digest:intent.inventory_digest.clone(),subjects:intent.subjects.clone(),targets:intent.targets.clone()})}
+}
+fn progress_recovery_record(intent:&removal_barrier::Intent,progress:recovery_protocol::Progress)->recovery_protocol::Record {
+    let suffix=match &progress {recovery_protocol::Progress::Prepared {target}=>format!("prepared:{}",target.to_text()),
+        recovery_protocol::Progress::Sealed {target}=>format!("sealed:{}",target.to_text()),recovery_protocol::Progress::Completed=>"completed".into()};
+    recovery_protocol::Record {operation_id:format!("progress:{}:{}:{}",intent.account_id,intent.generation,suffix),event:recovery_protocol::Event::Progress {account_id:intent.account_id.clone(),generation:intent.generation,progress}}
+}
+#[ic_cdk::update]
+async fn reconcile_pending_recovery_records(limit:u16)->Outcome<u16> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    if limit==0||limit>20{return Err("Recovery reconciliation is bounded to 20 records".into());}
+    let records:Vec<recovery_protocol::Record>=RECOVERY_PENDING.with(|m|m.borrow().iter().take(limit as usize).map(|e|decode::<recovery_journal::Pending>(&e.value()).record).collect());
+    let mut settled=0;for record in records {settle_recovery_record(record).await?;require_governor(&state(),ic_cdk::api::msg_caller())?;settled+=1;}
+    Ok(settled)
+}
 // Keep configuration locked even after completion: a sealed old inventory
 // cannot authorize replacing its authorities or moving its retained records.
 fn removal_completion(account_id: &str) -> Option<removal_barrier::Completion> {
@@ -1036,7 +1092,7 @@ async fn begin_account_removal(account_id: String, expected_history_revision: u6
 
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     // Unknown outcomes retry the original immutable intent, not today's registry.
-    if let Some(intent) = removal_intent(&account_id) { return Ok(intent); }
+    if let Some(intent) = removal_intent(&account_id) { settle_recovery_record(removal_recovery_record(&intent)).await?;return Ok(intent); }
     let account = get_account(&account_id).ok_or("Unknown account")?;
     if account.principals.contains(&state().governor) { return Err("Governor account cannot be erased".into()); }
     if link_lifecycle().pending.iter().any(|job| job.account_id == account_id) { return Err("Unlink recovery pending".into()); }
@@ -1044,7 +1100,8 @@ async fn begin_account_removal(account_id: String, expected_history_revision: u6
     if removal_history_revision() != expected_history_revision || get_account(&account_id).as_ref() != Some(&account) {
         return Err("Account or inventory changed during removal preparation".into());
     }
-    persist_removal_intent(&account, inventory, ic_cdk::api::canister_self())
+    let intent=persist_removal_intent(&account, inventory, ic_cdk::api::canister_self())?;
+    settle_recovery_record(removal_recovery_record(&intent)).await?;Ok(intent)
 }
 #[ic_cdk::update]
 fn read_account_removal_intent(account_id: String) -> Outcome<removal_barrier::Intent> {
@@ -1062,6 +1119,7 @@ async fn advance_account_removal_receiver(account_id: String, target: Principal)
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
     if !intent.targets.contains(&target) { return Err("Receiver outside frozen removal inventory".into()); }
+    settle_recovery_record(removal_recovery_record(&intent)).await?;
     let request = intent.request();
     let reply = ic_cdk::call::Call::bounded_wait(target, "prepare_account_removal")
         .with_arg(&request).await.map_err(|_| "Receiver fence unavailable; intent remains locked")?;
@@ -1074,6 +1132,8 @@ async fn advance_account_removal_receiver(account_id: String, target: Principal)
     let receipt = result?;
     if removal_intent(&account_id).as_ref() != Some(&intent) { return Err("Removal intent changed".into()); }
     intent.validate_receipt(target, &receipt)?;
+    settle_recovery_record(progress_recovery_record(&intent,recovery_protocol::Progress::Prepared {target})).await?;
+    if removal_intent(&account_id).as_ref()!=Some(&intent){return Err("Removal intent changed during recovery acknowledgement".into());}
     REMOVAL_RECEIPTS.with(|m| m.borrow_mut().insert(format!("{}:{}", account_id, target.to_text()), encode(&receipt)));
     bump_removal_history();
     Ok(receipt)
@@ -1098,6 +1158,8 @@ async fn collect_account_removal_seals(account_id: &str) -> Outcome<Vec<removal_
         let seal = result?;
         if removal_intent(account_id).as_ref() != Some(&intent) { return Err("Removal intent changed".into()); }
         intent.validate_seal(*target, &seal)?;
+        settle_recovery_record(progress_recovery_record(&intent,recovery_protocol::Progress::Sealed {target:*target})).await?;
+        if removal_intent(account_id).as_ref()!=Some(&intent){return Err("Removal intent changed during seal acknowledgement".into());}
         seals.push(seal);
     }
     intent.validate_all_seals(&seals)?;
@@ -1110,8 +1172,14 @@ async fn complete_account_removal_fencing(account_id: String) -> Outcome<removal
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
-    if let Some(completion) = removal_completion(&account_id) { completion.validate(&intent)?; return Ok(completion); }
+    settle_recovery_record(removal_recovery_record(&intent)).await?;
+    if let Some(completion) = removal_completion(&account_id) {
+        completion.validate(&intent)?;
+        for target in &intent.targets {settle_recovery_record(progress_recovery_record(&intent,recovery_protocol::Progress::Sealed {target:*target})).await?;}
+        settle_recovery_record(progress_recovery_record(&intent,recovery_protocol::Progress::Completed)).await?;return Ok(completion);
+    }
     let seals = collect_account_removal_seals(&account_id).await?;
+    settle_recovery_record(progress_recovery_record(&intent,recovery_protocol::Progress::Completed)).await?;
     persist_removal_completion(&intent, seals)
 }
 #[ic_cdk::update]
@@ -1243,6 +1311,7 @@ async fn authorize_production_account_readers(approval:production_account_author
 fn disable_production_account_readers()->Outcome<u64> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;
     let next=production_account_authorization::disable(&production_authorization())?;
+    stage_recovery_record(recovery_protocol::Record {operation_id:format!("disable:{}",next.generation),event:recovery_protocol::Event::Disable {identity:ic_cdk::api::canister_self(),generation:next.generation}})?;
     PRODUCTION_ACCOUNT_AUTHORIZATION.with(|m|m.borrow_mut().set(encode(&next)));Ok(next.generation)
 }
 #[ic_cdk::update]
@@ -1280,6 +1349,7 @@ fn group2_admission() -> admission::Config {
     GROUP2_ADMISSION.with(|m| if m.borrow().get().is_empty() { admission::Config::default() } else { decode(m.borrow().get()) })
 }
 fn admission_configuration_clear() -> Outcome<()> {
+    if recovery_pending(){return Err("Independent recovery acknowledgement pending".into());}
     if removal_pending() || DELETION_TICKETS.with(|m| !m.borrow().is_empty()) || !link_lifecycle().pending.is_empty() {
         return Err("Account removal or unlink pending".into());
     }
