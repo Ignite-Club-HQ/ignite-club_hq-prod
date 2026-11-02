@@ -65,9 +65,12 @@ test('recovery record retains exact digest bytes and fields through the real Can
  const record={operation_id:'remove/1',event:{Removal:{account_id:'removed',generation:1n,inventory_digest:new Uint8Array(32).fill(1),subjects:[Principal.fromUint8Array(Uint8Array.from([5,1]))],targets:[Principal.fromUint8Array(Uint8Array.from([3,1])),Principal.fromUint8Array(Uint8Array.from([4,1]))]}}};
  const [decoded]=IDL.decode(method.argTypes,IDL.encode(method.argTypes,[record]));
  assert.deepEqual(decoded,record);
- const changed=structuredClone(record);
+ const changed={...record,event:{Removal:{...record.event.Removal,inventory_digest:Uint8Array.from(record.event.Removal.inventory_digest)}}};
  changed.event.Removal.inventory_digest[31]=2;
  assert.notDeepEqual(decoded,changed,'Changing even the last byte must remain detectable');
+ const conflicting={...record,event:{Removal:{...record.event.Removal,generation:2n}}};
+ const [decodedConflict]=IDL.decode(method.argTypes,IDL.encode(method.argTypes,[conflicting]));
+ assert.equal(decodedConflict.event.Removal.generation,2n,'Conflicting generation must reach the canister, not fail encoding');
 });
 
 test('subject recovery requests preserve exact account, aliases and immutable baseline through Candid',()=>{
