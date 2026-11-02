@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — approved production removal safeguards (2 Nov 2026, 03:32 UTC)
+- [ ] 05:08 step 1: preserve surviving accounts during ordinary removal progress through subject-bound independent witness checks; keep module/configuration upgrades and backup recovery closed pending fresh acceptance.
 - [x] 04:54 candidate: added distinct signed inventory provisioning and full fencing control, exact live receiver checks, independent witness validation and pre-commit expiry/authorization rechecks; extended complete real two-group suite to non-rehearsal production identity. 221 identity + 12 witness + 31 JS tests and 17 contracts pass. No PROD activation or data changes.
 - [ ] Finish uninterrupted survivor admission: removal-history/module drift currently requires explicit fresh signed witness/account acceptance. Automatic governed renewal remains unimplemented; candidate must not be deployed as complete production authorization.
 - [ ] Dispatch updated full-production isolated suite on GitHub once exact changed source is available on main, inspect completed evidence and fix failures. Last check found the new helper not yet present remotely; no stale rerun counts as verification.
