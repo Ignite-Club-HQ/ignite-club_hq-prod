@@ -93,8 +93,8 @@ try{
  for(const g of groups){
   for(const s of Object.values(g.services))s.actor.setPrincipal(governor);
   const club=g.services.club_domain.actor;
-  ok(await club.create_club(g.club,g.id,g.id,[],[]));
-  for(const human of [primary,alias,survivor])ok(await club.add_role_grant(human,g.club,'club_admin',[]));
+  if(!production){ok(await club.create_club(g.club,g.id,g.id,[],[]));
+   for(const human of [primary,alias,survivor])ok(await club.add_role_grant(human,g.club,'club_admin',[]));}
   ok(await club.register_media_quota_store(g.services.media_blob_store.canisterId));
   for(const domain of ['messaging_domain','vault_domain','pii_access_control','media_blob_store'])
    ok(await g.services[domain].actor.set_club_domain_canister(g.services.club_domain.canisterId));
@@ -142,6 +142,8 @@ try{
  const refreshProduction=async()=>{if(production){id.setPrincipal(governor);inventory=await identity.authorize(inventory,productionTargets);}};
  if(production){
   inventory=await identity.authorize(inventory,productionTargets,{provision:true});
+  for(const g of groups){const club=g.services.club_domain.actor;club.setPrincipal(governor);ok(await club.create_club(g.club,g.id,g.id,[],[]));
+   for(const human of [primary,alias,survivor])ok(await club.add_role_grant(human,g.club,'club_admin',[]));}
   report.productionAuthorization=true;report.fullInventoryAcceptance=true;
   mark('Signed inventory bootstrap and production authorization cover all 28 real targets without rehearsal');
  }
