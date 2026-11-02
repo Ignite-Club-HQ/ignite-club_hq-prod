@@ -6,6 +6,9 @@ import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 import { startRemovalLocalServer } from './removal-local-supervisor.mjs';
 import { removalInstallPreflight } from './removal-install-preflight.mjs';
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
 const principal=n=>Principal.fromUint8Array(Uint8Array.from([n,1]));
 const governor=principal(1), removed=principal(2), survivor=principal(3);
 const candidate = process.env.REMOVAL_TEST_MODE === 'production-candidate';
@@ -29,6 +32,8 @@ const probes={
 };
 await removalInstallPreflight({ binary: process.env.POCKET_IC_BIN,
  wasm: process.env.REMOVAL_INSTALL_PROBE_WASM, reportPath: process.env.REMOVAL_INSTALL_REPORT });
+const report={schema:1,kind:'seven-service-receiver-races-only',mode:candidate?'production-candidate':'rehearsal',
+ releaseAuthorized:false,fullInventoryAcceptance:false,passed:false,services:[]};
 const server=await startRemovalLocalServer({binary:process.env.POCKET_IC_BIN,hardTtlSeconds:900});let pic;
 let stage='create local replica';
 try{
@@ -40,6 +45,8 @@ try{
   stage=`test ${domain}`;
   console.log('Testing',domain,candidate ? 'non-rehearsal candidate' : 'rehearsal');
   assert.ok(process.env[domain.toUpperCase()+'_WASM'],domain+' real Wasm required');
+  const evidence={domain,passed:false,wasmSha256:createHash('sha256').update(readFileSync(process.env[domain.toUpperCase()+'_WASM'])).digest('hex')};
+  report.services.push(evidence);
   const {idlFactory}=await import(`../src/lab/bindings/${domain}/declarations/${domain}.did.js`);
   const service=await pic.setupCanister({idlFactory,wasm:process.env[domain.toUpperCase()+'_WASM'],sender:governor,controllers:[governor],
    environmentVariables:[...(candidate ? [{name:'IGNITE_ACCOUNT_ADMISSION_RELEASE',value:'1'},{name:'IGNITE_ACCOUNT_REMOVAL_RELEASE',value:'1'}]
@@ -72,8 +79,11 @@ try{
     service.actor.setPrincipal(survivor);await service.actor[method](...args);
   }
   console.log('PASS',domain,'observed held admission, late eligible denial, fresh seal, upgrade fence, survivor access');
+  evidence.passed=true;
  }
+ report.passed=true;
 }catch(error){
+ report.failure=error?.name??'Error';
  console.error('Removal test stopped at:',stage);
  throw error;
 }finally{
@@ -81,5 +91,14 @@ try{
  // server even when teardown rejects; no production process is involved.
  try{if(pic)await Promise.race([pic.tearDown(),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Local replica cleanup timed out')),5000))]);}
  catch(error){console.error('Local cleanup:',error.message);}
- finally{await server.stop();}
+ finally{
+  try{await server.stop();}
+  finally{
+   report.stage=stage;
+   if(process.env.REMOVAL_RECEIVER_REPORT){
+    mkdirSync(path.dirname(process.env.REMOVAL_RECEIVER_REPORT),{recursive:true});
+    writeFileSync(process.env.REMOVAL_RECEIVER_REPORT,JSON.stringify(report,null,2)+'\n');
+   }
+  }
+ }
 }
