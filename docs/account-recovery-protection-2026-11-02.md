@@ -63,6 +63,35 @@ its report is explicitly failed and grants no runtime acceptance.
 
 ## Still held — do not configure or deploy pins
 
+## Additional production-mode isolated transport coverage
+
+The manual isolated workflow also runs `test-production-recovery-integration.mjs`.
+It preallocates local identity/witness principals, generates two ephemeral signing
+keys in memory, and compiles immutable public pins into separate artifacts under
+`target/isolated-production-recovery`. Neither private keys nor these Wasms are
+uploaded or used by deployment workflows. The identity never enables rehearsal.
+
+The suite verifies positive signed witness acceptance with live participant
+lifecycle evidence, forged/wrong/stale request refusals, restoration of an accepted
+witness snapshot, real identity-to-witness disable writes and exact readback,
+interrupted disable retry preserving generation, independent progress surviving
+identity restore/upgrade, participant upgrade drift, and expiry. Signed inventory
+and decoded-history digests in this limited tier are isolated fixtures, not
+production provenance. Witness request ingress impersonation is explicitly not
+proof of a complete real receiver-to-identity-to-witness authorization chain.
+
+Evidence is `production-recovery-integration.json`. It always records full reader
+authorization, complete inventory acceptance, external controller fencing and
+release authorization as false, even when its transport checks pass.
+
+Fresh non-rehearsal full account authorization still lacks a governed bootstrap
+for required supplemental inventory. Existing generic setters must remain gated;
+temporarily enabling rehearsal would manufacture invalid acceptance. A separate
+signed exact-scope provisioning design and actual full-service positive read flow
+are required, together with independently exclusive remote controller fencing.
+
+## Remaining production prerequisites
+
 The witness has no DEV/PROD mapping, deployment recipe, active signer or controller
 grant. No canister, database, routing, delivery or production data changed.
 
