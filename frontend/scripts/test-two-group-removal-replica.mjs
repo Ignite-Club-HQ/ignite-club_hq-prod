@@ -1,5 +1,6 @@
 // Complete installed two-group inventory, real identity coordinator and real
-// human receivers. Rehearsal APIs remain necessary; no PROD release is implied.
+// human receivers. Identity coordination remains rehearsal; receiver production
+// guards are tested separately and never imply full production authorization.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -23,14 +24,17 @@ const denied=async fn=>{
  }
  err(result);
 };
+const candidate=process.env.TWO_GROUP_RECEIVER_MODE==='production-candidate';
 const report={schema:1,kind:'two-group-complete-removal',passed:false,
- releaseAuthorized:false,fullInventoryAcceptance:false,mode:'local-rehearsal',checks:[],modules:{},unresolvedInfrastructure:[],completeSeals:0,terminalFencingCompletion:false};
+ releaseAuthorized:false,fullInventoryAcceptance:false,productionAuthorization:false,
+ identityMode:'local-rehearsal',mode:candidate?'production-receivers-rehearsal-coordinator':'local-rehearsal',checks:[],modules:{},unresolvedInfrastructure:[],completeSeals:0,terminalFencingCompletion:false};
 let server,pic,stage='validate artifact inputs';
 const mark=name=>report.checks.push({name,passed:true});
 const hash=f=>createHash('sha256').update(readFileSync(f)).digest('hex');
 const wasm=name=>{const f=process.env[name.toUpperCase()+'_WASM'];assert.ok(f,`${name} Wasm required`);return f;};
 const factory=async name=>(await import(`../src/lab/bindings/${name}/declarations/${name}.did.js`)).idlFactory;
-const env=identity=>[{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'},{name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:identity.toText()}];
+const env=identity=>[...(candidate?[{name:'IGNITE_ACCOUNT_ADMISSION_RELEASE',value:'1'},{name:'IGNITE_ACCOUNT_REMOVAL_RELEASE',value:'1'}]:
+ [{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'}]),{name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:identity.toText()}];
 const args=IDL.encode([IDL.Record({governor:IDL.Principal})],[{governor}]);
 try{
  assert.ok(process.env.TWO_GROUP_REMOVAL_REPORT,'Durable test report path required');
@@ -53,6 +57,13 @@ try{
   groups.push({id:groupId,services,timer:await install('timer_jobs'),club:`club-${groupId}`});
  }
  const receivers=groups.flatMap(g=>Object.values(g.services));
+ for(const target of receivers){
+  target.actor.setPrincipal(outsider);err(await target.actor.read_account_protection_configuration());
+  target.actor.setPrincipal(identity.canisterId);const config=ok(await target.actor.read_account_protection_configuration());
+  assert.equal(config.receiver.toText(),target.canisterId.toText());assert.equal(config.authority[0]?.toText(),identity.canisterId.toText());
+  assert.equal(config.protocol,1);assert.equal(config.admission_required,true);assert.equal(config.removal_enabled,true);assert.equal(config.rehearsal,!candidate);
+ }
+ mark('All 24 receiver effective configurations authenticate identity, reject outsiders and match selected guard mode');
  ok(await id.set_service_authorities(receivers.map(s=>s.canisterId)));
  id.setPrincipal(primary);const account=ok(await id.register_account());const challenge=ok(await id.begin_link(alias));
  id.setPrincipal(alias);ok(await id.accept_link(challenge.id));
@@ -94,6 +105,11 @@ try{
   target.actor.setPrincipal(outsider);err(await target.actor.set_account_removal_authority(identity.canisterId));
   target.actor.setPrincipal(governor);ok(await target.actor.set_account_removal_authority(identity.canisterId));
   ok(await target.actor.set_account_removal_authority(identity.canisterId));err(await target.actor.set_account_removal_authority(outsider));
+  target.actor.setPrincipal(outsider);err(await target.actor.read_account_protection_configuration());
+  target.actor.setPrincipal(identity.canisterId);const config=ok(await target.actor.read_account_protection_configuration());
+  assert.equal(config.receiver.toText(),target.canisterId.toText());assert.equal(config.authority[0]?.toText(),identity.canisterId.toText());
+  assert.equal(config.protocol,1);assert.equal(config.admission_required,false);assert.equal(config.removal_enabled,true);assert.equal(config.rehearsal,false);
+  target.actor.setPrincipal(governor);
  }
  // Positive controls: real infrastructure obligations bound to the account.
  const baseTimer=groups[0].timer.actor;baseTimer.setPrincipal(governor);ok(await baseTimer.grant_worker(alias));
