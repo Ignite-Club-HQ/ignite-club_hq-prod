@@ -1,5 +1,10 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — automated complete two-group removal tests (2 Nov 2026, 02:29 UTC)
+- [ ] Add an isolated real-actor two-group suite with exact installed inventory, positive private-data controls, removal across every human-data receiver, interruption/upgrade/retry checks and surviving access. Keep uncovered infrastructure/terminal release gates explicit rather than certifying them with fixtures.
+- [ ] Add a manual credential-free native-worker workflow, bounded cleanup and hash-bound evidence; run available local safeguards and record runtime execution separately.
+- [x] Reviewed owner-uploaded installation artifact: unchanged pinned PocketIC/probe hashes, supported native write-fault metadata, seven receivers passed in rehearsal and production-candidate modes. This is not complete two-group acceptance or release authority.
+
 ## Current request — finish removal protections and review PROD approval (2 Nov 2026, 02:09 UTC)
 - [x] Continue 02:18 UTC: independently demonstrated gVisor missing write-fault metadata; added measured native host preflight (real rejection in 369 ms) and expanded the existing isolated TEST workflow to run the seven remaining receiver races in both modes after installation passes. Hash-bound partial reports explicitly deny release/full-inventory acceptance. 31 safeguards and 197 identity tests pass; no live changes.
 - [ ] Run `[TEST] Check isolated removal test installation` on `main` using a native Linux GitHub worker and inspect its artifacts. Blocker: no GitHub dispatch credential here; this is partial runtime evidence, not complete acceptance or PROD approval.
