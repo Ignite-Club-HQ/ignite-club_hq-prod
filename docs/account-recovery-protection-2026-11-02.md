@@ -19,12 +19,20 @@ ephemeral signers, 24 human receivers and all four infrastructure targets. It
 reuses actual encrypted-photo, chat, Vault, retry and upgrade tests. Its local
 inventory evidence is not PROD provenance and never authorizes opening.
 
-Important remaining limitation: mutable removal history and participant upgrades
-invalidate the signed read acceptance. The isolated runner explicitly renews
-acceptance before checking surviving members; an automatic governed renewal
-path is not implemented. Do not deploy or claim uninterrupted production
-admission from this candidate. Full fencing retains data; it is not destructive
-account erasure. Supported-worker execution and evidence review remain required.
+Ordinary acknowledged removal progress now preserves surviving-account reads
+under a separately domain-signed subject policy. The original signed topology,
+modules, participant lifecycle and identity version remain exact; only mutable
+history counters can advance. The witness independently checks account and alias
+tombstones before/after awaits, so local restored accounts cannot bypass removal.
+This subject receipt never certifies preserved progress or authorizes recovery,
+starting removal, completion or opening. Legacy recovery signatures cannot opt in.
+
+Unknown pending acknowledgements and unrelated deletion/unlink operations remain
+fail-closed; availability during outages is not promised. Module upgrades and
+restores still require independent fresh acceptance. The isolated runner now
+checks surviving photo/chat/Vault access after ordinary removal progress without
+renewing its approval; intentional upgrades still renew explicitly. Full fencing
+retains data, not destructive erasure. Supported-worker verification is pending.
 
 - A separate Rust `recovery_witness` stores complete immutable removal subjects,
   exact targets, per-target progress and completion records outside participant
