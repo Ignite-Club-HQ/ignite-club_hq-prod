@@ -34,8 +34,12 @@ export async function createAccountRecoveryJournal(directory,binding) {
     }finally {if(file)await file.close();busy=false;}
   };
   const release=async()=>{
-    const state=await read();if(busy||state?.pending||state?.phase!=='resumed')throw Error('Unfinished recovery retains exclusive lock');
-    await assertExclusiveWriter();await rm(lock);
+    if(busy)throw Error('Concurrent recovery journal operation refused');busy=true;
+    try {
+      const state=await read();if(state?.pending||state?.phase!=='resumed')throw Error('Unfinished recovery retains exclusive lock');
+      await assertExclusiveWriter();await rm(lock);
+      const dir=await open(directory,'r');try{await dir.sync();}finally{await dir.close();}
+    }finally{busy=false;}
   };
   return {read,save,assertExclusiveWriter,release};
 }

@@ -54,7 +54,8 @@ pub fn validate_record(r: &Record) -> Outcome<()> {
     if r.operation_id.is_empty() || r.operation_id.len()>128 { return Err("Bounded immutable operation ID required".into()); }
     let (account,generation)=match &r.event {
         Event::Removal(m) => {
-            if !hash_ok(&m.inventory_digest) || !unique(&m.subjects) || !unique(&m.targets) { return Err("Exact removal inventory and subjects required".into()); }
+            if !hash_ok(&m.inventory_digest) || !unique(&m.subjects) || m.targets.is_empty() || m.targets.len()>1088 ||
+                m.targets.iter().any(|p|!principal_ok(*p)) || m.targets.iter().copied().collect::<BTreeSet<_>>().len()!=m.targets.len() { return Err("Exact removal inventory and subjects required".into()); }
             (&m.account_id,m.generation)
         },
         Event::Progress {account_id,generation,..} => (account_id,*generation),
@@ -154,5 +155,12 @@ pub fn verify(head:&Head,r:&WitnessRequest,caller:Principal,now:u64)->Outcome<Wi
         b.identity=b.participants[0].canister;assert!(signing_bytes(&b).is_ok());
         b.participants.push(Participant {canister:p(99),module:vec![4;32],changes:1});assert!(signing_bytes(&b).is_err());
         b.participants.pop();b.participants[1]=b.participants[0].clone();assert!(signing_bytes(&b).is_err());
+    }
+    #[test] fn removal_inventory_supports_1088_targets_but_not_1089() {
+        let mut r=removal();if let Event::Removal(m)=&mut r.event {
+            m.targets=(0..1088u16).map(|n|Principal::from_slice(&[9,(n/256)as u8,(n%256)as u8,1])).collect();
+        }
+        assert!(validate_record(&r).is_ok());
+        if let Event::Removal(m)=&mut r.event {m.targets.push(p(99));}assert!(validate_record(&r).is_err());
     }
 }

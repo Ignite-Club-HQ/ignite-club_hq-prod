@@ -1021,14 +1021,18 @@ async fn settle_recovery_record(record:recovery_protocol::Record)->Outcome<()> {
         .await.map_err(|_|"Recovery write outcome unknown; pending intent retained")?;
     let revision:Outcome<u64>=reply.candid().map_err(|_|"Invalid recovery acknowledgement; pending intent retained")?;
     let revision=revision?;
-    if RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b)).as_ref()!=Some(&captured) {
+    let concurrent_ack=RECOVERY_ACKS.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b));
+    if RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b)).as_ref()!=Some(&captured) &&
+        !concurrent_ack.as_ref().is_some_and(|a|a.record==captured.record&&a.revision==Some(revision)) {
         return Err("Recovery pending operation changed".into());
     }
     let reply=ic_cdk::call::Call::bounded_wait(witness,"read_recovery_record").with_arg(&revision)
         .await.map_err(|_|"Recovery readback unavailable; pending intent retained")?;
     let observed:Outcome<recovery_protocol::Record>=reply.candid().map_err(|_|"Invalid recovery readback")?;
     let acknowledged=recovery_journal::acknowledge(&captured,revision,&observed?)?;
-    if RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b)).as_ref()!=Some(&captured) {
+    let concurrent_ack=RECOVERY_ACKS.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b));
+    if RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b)).as_ref()!=Some(&captured) &&
+        concurrent_ack.as_ref()!=Some(&acknowledged) {
         return Err("Recovery pending operation changed during readback".into());
     }
     RECOVERY_ACKS.with(|m|m.borrow_mut().insert(key.clone(),encode(&acknowledged)));

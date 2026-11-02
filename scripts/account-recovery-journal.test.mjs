@@ -31,3 +31,9 @@ test('lock substitution fails closed and only finished no-pending recovery can r
  await j.save({phase:'resumed'});await j.release();
  await assert.rejects(j.read(),{code:'ENOENT'});
 });
+test('release serializes against save and another release',async t=>{
+ const dir=await fixture(t),j=await createAccountRecoveryJournal(dir,binding);await j.save({phase:'resumed'});
+ const release=j.release();
+ await assert.rejects(j.save({phase:'restore-intent'}),/Concurrent/);
+ await assert.rejects(j.release(),/Concurrent/);await release;
+});
