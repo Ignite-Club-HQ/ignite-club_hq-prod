@@ -89,3 +89,4 @@
 
 - Infrastructure removal receivers (timer_jobs, shard_router, secret_workload_identity) share the Motoko-compatible fence contract: governor sets the identity coordinator once (immutable), every caller-identified entry point refuses fenced subjects, and seals stay refused while subject-bound obligations remain; settle them only via governor calls. Why: the global seal covers every frozen target, so infrastructure can neither be omitted nor drained by inference.
 - Production account reads gate on recovery/link transitions only; a pending deletion ticket refuses its own account via current_service_account, never other members. Why: one removal must not lock survivors out.
+- Any receiver upgrade changes signed lifecycle counts: production readers must refuse with drift until a fresh signed approval; tests re-approve after deliberate upgrades. Why: restored Wasm cannot restore lifecycle evidence.
