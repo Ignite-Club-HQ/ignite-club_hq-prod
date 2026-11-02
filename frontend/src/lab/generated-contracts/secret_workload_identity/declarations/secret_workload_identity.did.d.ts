@@ -35,12 +35,36 @@ export interface Main {
     [],
     { 'memory_bytes' : bigint, 'stable_bytes' : bigint, 'heap_bytes' : bigint }
   >,
+  'prepare_account_removal' : ActorMethod<
+    [Request],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'read_account_removal_authority' : ActorMethod<[], [] | [Principal]>,
+  'read_account_removal_drain' : ActorMethod<
+    [Request],
+    { 'Ok' : Receipt } |
+      { 'Err' : string }
+  >,
   'register_workload' : ActorMethod<
     [Principal, string, Array<string>],
     { 'Ok' : WorkloadIdentity } |
       { 'Err' : string }
   >,
   'revoke_workload' : ActorMethod<
+    [Principal],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'seal_account_removal' : ActorMethod<
+    [Request],
+    { 'Ok' : Receipt } |
+      { 'Err' : string }
+  >,
+  /**
+   * / Governor-only, write-once: the identity coordinator allowed to fence.
+   */
+  'set_account_removal_authority' : ActorMethod<
     [Principal],
     { 'Ok' : null } |
       { 'Err' : string }
@@ -59,6 +83,17 @@ export interface Main {
     [Principal, string, string],
     SecretAccessResult
   >,
+}
+export interface Receipt {
+  'outstanding' : bigint,
+  'request' : Request,
+  'receiver' : Principal,
+}
+export interface Request {
+  'account_id' : string,
+  'inventory_digest' : Uint8Array,
+  'subjects' : Array<Principal>,
+  'generation' : bigint,
 }
 export interface SecretAccessAudit {
   'workload_name' : string,
@@ -90,11 +125,6 @@ export interface WorkloadIdentityFilter {
   'opt_scope' : [] | [string],
   'opt_principal' : [] | [Principal],
 }
-/**
- * / Secret Workload Identity Canister
- * / Manages workload identity registration and vault secret access control
- * / Enforces least-privilege access to vault secrets by canister principal
- */
 export interface _SERVICE extends Main {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

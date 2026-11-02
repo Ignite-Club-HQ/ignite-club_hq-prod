@@ -13,8 +13,10 @@ import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
+import Map "mo:core/Map";
+import RemovalReceiver "../../shared/RemovalReceiver";
 
-persistent actor class Main(governorInit : Principal) {
+persistent actor class Main(governorInit : Principal) = this {
   /// Public: remaining cycles (shown in admin settings).
   public query func cycles_balance() : async Nat { Cycles.balance() };
   // Live memory reading for the admin health page (public, like cycles_balance).
@@ -77,6 +79,12 @@ persistent actor class Main(governorInit : Principal) {
   var workloads : [WorkloadIdentity] = [];
   var secret_audit_log : [SecretAccessAudit] = [];
   var governor : Principal = Principal.anonymous();
+  // Account-removal fences (additive state). Governor-configured once; the
+  // gate is inactive until then and retained fences deny subjects forever.
+  var removal_authority : ?Principal = null;
+  let removal_intents = Map.empty<Text, RemovalReceiver.Request>();
+  let removal_subjects = Map.empty<Principal, Text>();
+  let removal_active = Map.empty<Principal, Nat>();
 
   if (governor.equal(Principal.anonymous()) and not governorInit.equal(Principal.anonymous())) {
     governor := governorInit;
@@ -99,10 +107,27 @@ persistent actor class Main(governorInit : Principal) {
     Nat.toNat64(Int.abs(Time.now()))
   };
 
+  func removalGate() : RemovalReceiver.Gate {
+    RemovalReceiver.Gate(removal_authority != null, removal_authority, removal_intents, removal_subjects, removal_active)
+  };
+
+  // Every caller-identified method goes through here: a fenced account
+  // subject is refused before any state is read or written.
   func auth(caller : Principal) {
     if (caller.equal(Principal.anonymous())) {
       Runtime.trap("Authenticated caller required");
     };
+    if (removal_subjects.containsKey(caller)) Runtime.trap("Account removal fenced");
+  };
+
+  // Obligations still bound to fenced subjects: workloads not yet revoked.
+  // The governor settles them with revoke_workload; seals refuse until then.
+  func removalObligations(request : RemovalReceiver.Request) : Nat {
+    var n = 0;
+    for (w in workloads.values()) {
+      if (w.status != #Revoked and request.subjects.any(func(s : Principal) : Bool = s.equal(w.workload_principal))) n += 1;
+    };
+    n
   };
 
   func isGovernor(caller : Principal) : Bool {
@@ -155,6 +180,7 @@ persistent actor class Main(governorInit : Principal) {
     if (workload_principal.equal(Principal.anonymous())) {
       return #Err("Cannot register anonymous principal");
     };
+    if (removal_subjects.containsKey(workload_principal)) return #Err("Account removal fenced");
 
     if (workload_name == "") {
       return #Err("Workload name cannot be empty");
@@ -191,6 +217,9 @@ persistent actor class Main(governorInit : Principal) {
     nonce : Text
   ) : async SecretAccessResult {
     auth(caller);
+    if (removal_subjects.containsKey(workload_principal)) {
+      return { approved = false; reason = "Account removal fenced"; timestamp = now_ns() };
+    };
     if (workload_principal.equal(Principal.anonymous()) or (not caller.equal(workload_principal) and not isGovernor(caller))) {
       log_secret_audit(caller, "invalid-caller", secret_scope, false, ?"Caller does not match workload principal", nonce);
       return {
@@ -311,6 +340,7 @@ persistent actor class Main(governorInit : Principal) {
   ) : async { #Ok : WorkloadIdentity; #Err : Text } {
     auth(caller);
     if (not isGovernor(caller)) { return #Err("Governor only") };
+    if (removal_subjects.containsKey(workload_principal)) return #Err("Account removal fenced");
 
     // Validate scopes
     for (scope in allowed_scopes.values()) {
@@ -387,6 +417,30 @@ persistent actor class Main(governorInit : Principal) {
     };
 
     #Ok
+  };
+
+  // ==================== Account removal (infrastructure receiver) ====================
+
+  /// Governor-only, write-once: the identity coordinator allowed to fence.
+  public shared ({ caller }) func set_account_removal_authority(authority : Principal) : async { #Ok; #Err : Text } {
+    auth(caller);
+    if (not isGovernor(caller)) return #Err("Governor only");
+    if (authority.equal(Principal.anonymous()) or authority == Principal.fromText("aaaaa-aa")) return #Err("Invalid removal authority");
+    switch (removal_authority) {
+      case (?existing) { if (existing.equal(authority)) #Ok else #Err("Removal authority immutable") };
+      case null { removal_authority := ?authority; #Ok };
+    }
+  };
+  public query func read_account_removal_authority() : async ?Principal { removal_authority };
+  public shared ({ caller }) func prepare_account_removal(request : RemovalReceiver.Request) : async { #Ok; #Err : Text } {
+    if (request.subjects.any(func(s : Principal) : Bool = s.equal(governor))) return #Err("Governor cannot be fenced");
+    removalGate().prepare(caller, request)
+  };
+  public shared ({ caller }) func read_account_removal_drain(request : RemovalReceiver.Request) : async { #Ok : RemovalReceiver.Receipt; #Err : Text } {
+    removalGate().receipt(caller, request, Principal.fromActor(this), removalObligations(request))
+  };
+  public shared ({ caller }) func seal_account_removal(request : RemovalReceiver.Request) : async { #Ok : RemovalReceiver.Receipt; #Err : Text } {
+    removalGate().seal(caller, request, Principal.fromActor(this), removalObligations(request))
   };
 
   public shared query ({ caller }) func get_audit_summary() : async AuditSummary {

@@ -31,6 +31,17 @@ export interface reconciliation {
   'matching_jobs' : number,
   'local_jobs' : number,
 }
+export interface removal_receipt {
+  'outstanding' : bigint,
+  'request' : removal_request,
+  'receiver' : Principal,
+}
+export interface removal_request {
+  'account_id' : string,
+  'inventory_digest' : Uint8Array,
+  'subjects' : Array<Principal>,
+  'generation' : bigint,
+}
 export type result_job = { 'Ok' : job } |
   { 'Err' : string };
 export type result_jobs = { 'Ok' : Array<job> } |
@@ -82,9 +93,16 @@ export interface _SERVICE {
     [],
     { 'memory_bytes' : bigint, 'stable_bytes' : bigint, 'heap_bytes' : bigint }
   >,
+  'prepare_account_removal' : ActorMethod<[removal_request], result_unit>,
   'purge_club_snapshot' : ActorMethod<
     [string],
     { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
+  'read_account_removal_authority' : ActorMethod<[], [] | [Principal]>,
+  'read_account_removal_drain' : ActorMethod<
+    [removal_request],
+    { 'Ok' : removal_receipt } |
       { 'Err' : string }
   >,
   'read_group_opening_configuration' : ActorMethod<
@@ -95,11 +113,22 @@ export interface _SERVICE {
   'reconcile' : ActorMethod<[snapshot], result_reconciliation>,
   'recover_expired' : ActorMethod<[bigint], result_nat16>,
   'recover_interrupted' : ActorMethod<[], result_nat16>,
+  'revoke_fenced_account_obligations' : ActorMethod<
+    [string],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
   'schedule' : ActorMethod<[string, string, bigint, string], result_job>,
   'schedule_with_callback' : ActorMethod<
     [string, string, [] | [Principal], bigint, string],
     result_job
   >,
+  'seal_account_removal' : ActorMethod<
+    [removal_request],
+    { 'Ok' : removal_receipt } |
+      { 'Err' : string }
+  >,
+  'set_account_removal_authority' : ActorMethod<[Principal], result_unit>,
   'set_transfer_fence' : ActorMethod<[string, boolean], result_unit>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;

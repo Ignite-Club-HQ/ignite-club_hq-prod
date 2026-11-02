@@ -11,6 +11,10 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
+// Permanent ids 10..=12 (authority, intents, subjects). Never reuse.
+const ACCOUNT_REMOVAL_MEMORY: u8 = 10;
+#[path = "../../shared/account_removal_receiver.rs"]
+mod account_removal_receiver;
 
 const ROOT_STATE_MAGIC: u8 = 0xA1;
 
@@ -618,8 +622,12 @@ fn is_worker_or_governor(actor: Principal, meta: &Metadata) -> bool {
         || meta.workers.iter().any(|capability| capability.worker == actor)
 }
 
+// Every caller-identified entry point goes through here: a fenced account
+// subject is refused before any state is read or written.
 fn caller() -> Principal {
-    ic_cdk::api::msg_caller()
+    let actor = ic_cdk::api::msg_caller();
+    if account_removal_receiver::denied(&actor) { ic_cdk::trap("Account removal fenced"); }
+    actor
 }
 fn authenticated() -> Outcome<()> {
     if caller() == Principal::anonymous() {
@@ -677,7 +685,7 @@ fn grant_worker_scope(worker: Principal, scope: String) -> Outcome<()> {
     if actor != expected_governor {
         return Err("Governor required".into());
     }
-    if worker == Principal::anonymous() {
+    if worker == Principal::anonymous() || account_removal_receiver::denied(&worker) {
         return Err("Invalid worker".into());
     }
     if scope.trim().is_empty() {
@@ -708,7 +716,7 @@ fn grant_callback_scope(callback: Principal, scope: String) -> Outcome<()> {
     if actor != expected_governor {
         return Err("Governor required".into());
     }
-    if callback == Principal::anonymous() {
+    if callback == Principal::anonymous() || account_removal_receiver::denied(&callback) {
         return Err("Invalid callback".into());
     }
     if scope.trim().is_empty() {
@@ -754,6 +762,9 @@ fn schedule_with_callback(
     }
     let meta = metadata();
     if let Some(callback_principal) = callback {
+        if account_removal_receiver::denied(&callback_principal) {
+            return Err("Callback capability required".into());
+        }
         if !meta.callbacks.iter().any(|capability| {
             capability.callback == callback_principal
                 && (capability.scope == scope || capability.scope == "*")
@@ -1058,6 +1069,71 @@ fn memory_stats() -> MemoryStats {
 }
 
 
+// ---- Account removal participation (infrastructure receiver) ----
+use account_removal_receiver::{Receipt as RemovalReceipt, Request as RemovalRequest};
+
+/// Obligations still bound to fenced subjects: capabilities they hold and
+/// unfinished jobs that would call them back. The governor settles these
+/// with `revoke_fenced_account_obligations`; seals stay refused until then.
+fn removal_obligations(subjects: &[Principal]) -> u64 {
+    let meta = metadata();
+    let caps = meta.workers.iter().filter(|c| subjects.contains(&c.worker)).count()
+        + meta.callbacks.iter().filter(|c| subjects.contains(&c.callback)).count();
+    let jobs = all_job_entries().into_iter().filter(|j| matches!(j.status, Status::Pending | Status::Processing)
+        && j.callback.is_some_and(|c| subjects.contains(&c))).count();
+    (caps + jobs) as u64
+}
+
+/// Governor-only, write-once: the identity coordinator allowed to fence.
+#[ic_cdk::update]
+fn set_account_removal_authority(authority: Principal) -> Outcome<()> {
+    require_governor()?;
+    account_removal_receiver::set_authority(authority)
+}
+#[ic_cdk::query]
+fn read_account_removal_authority() -> Option<Principal> { account_removal_receiver::authority() }
+
+#[ic_cdk::update]
+fn prepare_account_removal(request: RemovalRequest) -> Outcome<()> {
+    if request.subjects.iter().any(|s| Some(*s) == metadata().governor) { return Err("Governor cannot be fenced".into()); }
+    account_removal_receiver::prepare(ic_cdk::api::msg_caller(), request)
+}
+#[ic_cdk::update]
+fn read_account_removal_drain(request: RemovalRequest) -> Outcome<RemovalReceipt> {
+    let retained = removal_obligations(&request.subjects);
+    account_removal_receiver::receipt(ic_cdk::api::msg_caller(), request, ic_cdk::api::canister_self(), retained)
+}
+#[ic_cdk::update]
+fn seal_account_removal(request: RemovalRequest) -> Outcome<RemovalReceipt> {
+    let retained = removal_obligations(&request.subjects);
+    account_removal_receiver::seal(ic_cdk::api::msg_caller(), request, ic_cdk::api::canister_self(), retained)
+}
+/// Governor-only. Removes capabilities held by one fenced account and fails
+/// its unfinished callback jobs. Never touches other principals' work.
+#[ic_cdk::update]
+fn revoke_fenced_account_obligations(account_id: String) -> Outcome<u64> {
+    require_governor()?;
+    let subjects = account_removal_receiver::fenced_subjects(&account_id);
+    if subjects.is_empty() { return Err("Exact persistent removal fence required".into()); }
+    Ok(settle_removal_obligations(&subjects))
+}
+fn settle_removal_obligations(subjects: &[Principal]) -> u64 {
+    let before = removal_obligations(subjects);
+    let mut meta = metadata();
+    meta.workers.retain(|c| !subjects.contains(&c.worker));
+    meta.callbacks.retain(|c| !subjects.contains(&c.callback));
+    save_metadata(meta);
+    for mut job in all_job_entries() {
+        if matches!(job.status, Status::Pending | Status::Processing) && job.callback.is_some_and(|c| subjects.contains(&c)) {
+            job.status = Status::Failed;
+            job.lease_until_ms = None;
+            job.last_error = Some("Account removal fenced".into());
+            put_job_entry(job);
+        }
+    }
+    before
+}
+
 // ---- Club transfer fence + snapshot (governor-only operator tooling) ----
 fn is_fenced(scope: &str) -> bool {
     FENCES.with(|f| f.borrow().contains_key(&scope.to_string()))
@@ -1165,6 +1241,33 @@ mod tests {
                 next_run_at_ms: None,
             }
         });
+    }
+
+    #[test]
+    fn removal_obligations_count_and_settle_only_fenced_subjects() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        reset_with_fresh_memory();
+        let removed = Principal::from_slice(&[61; 29]);
+        let other = Principal::from_slice(&[62; 29]);
+        let mut meta = Metadata::empty();
+        meta.governor = Some(Principal::from_slice(&[60; 29]));
+        meta.workers = vec![WorkerCapability { worker: removed, scope: "*".into() }, WorkerCapability { worker: other, scope: "*".into() }];
+        meta.callbacks = vec![CallbackCapability { callback: removed, scope: "club".into() }];
+        save_metadata(meta);
+        let job = |id: &str, cb: Principal, status: Status| Job { id: id.into(), scope: "club".into(), callback: Some(cb), run_at_ms: 1,
+            lease_until_ms: None, idempotency_key: id.into(), status, attempts: 0, last_error: None };
+        put_job_entry(job("a", removed, Status::Pending));
+        put_job_entry(job("b", removed, Status::Completed));
+        put_job_entry(job("c", other, Status::Pending));
+        assert_eq!(removal_obligations(&[removed]), 3);
+        assert_eq!(settle_removal_obligations(&[removed]), 3);
+        assert_eq!(removal_obligations(&[removed]), 0);
+        let after = metadata();
+        assert_eq!(after.workers, vec![WorkerCapability { worker: other, scope: "*".into() }]);
+        assert!(after.callbacks.is_empty());
+        assert_eq!(get_job_entry("a").unwrap().status, Status::Failed);
+        assert_eq!(get_job_entry("b").unwrap().status, Status::Completed);
+        assert_eq!(get_job_entry("c").unwrap().status, Status::Pending);
     }
 
     /// Simulates a canister upgrade: drops the in-process thread-local

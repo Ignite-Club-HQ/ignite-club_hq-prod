@@ -37,7 +37,7 @@ jobs:
           (cd backend/secret_workload_identity && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) -o .mops/.build/secret_workload_identity.wasm src/main.mo)
           (cd backend/events_domain && "$MOC" $(mops sources) -o "$RUNNER_TEMP/removal-install-probe.wasm" ../shared/test/removalInstallProbe.mo)
           cargo build --locked --release --target wasm32-unknown-unknown -p identity_access -p shard_router -p timer_jobs
-      - name: Run actual two-group human removal and assert infrastructure holds
+      - name: Run actual two-group removal across all 28 frozen targets
         working-directory: frontend
         run: |
           export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
@@ -57,9 +57,9 @@ jobs:
         run: |
           echo '## Isolated two-group removal checks' >> "$GITHUB_STEP_SUMMARY"
           echo '24 actual human-data receivers; exact installed inventory includes two timers, shared workload and router.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'A green test verifies human denial/drain and asserts infrastructure still blocks global completion. It never authorizes PROD release, erasure or opening.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'A green test verifies denial, drain and fresh complete seals for all 28 targets (24 receivers, two timers, shared workload, router). It never authorizes PROD release, erasure or opening.' >> "$GITHUB_STEP_SUMMARY"
           if test -f "$RUNNER_TEMP/two-group-removal-report.json"; then
-            node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1]));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,r.checks.map(c=>"- PASS: "+c.name).join("\n")+"\nOverall test: "+r.passed+"; full acceptance: "+r.fullInventoryAcceptance+"\n")' "$RUNNER_TEMP/two-group-removal-report.json"
+            node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1]));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,r.checks.map(c=>"- PASS: "+c.name).join("\n")+"\nOverall test: "+r.passed+"; complete seals: "+r.completeSeals+"/28; release authorized: "+r.releaseAuthorized+"\n")' "$RUNNER_TEMP/two-group-removal-report.json"
           fi
       - name: Save evidence even after failure
         if: always()
