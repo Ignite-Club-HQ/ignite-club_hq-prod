@@ -135,11 +135,11 @@ try {
   stage = 'exclude the former operator from every control path';
   for (const t of targets) {
     const baseline = before.get(t.name);
-    const reclaims = await assertRefusedWithoutControl(pic, { canisterId: t.canisterId, fence, baseline,
+    const reclaims = await assertRefusedWithoutControl(pic, { canisterId: t.canisterId, fence, moduleHash: baseline.moduleHash,
       attempt: () => pic.updateCanisterSettings({ canisterId: t.canisterId, sender: owner, controllers: [owner] }) });
-    const reinstalls = await assertRefusedWithoutControl(pic, { canisterId: t.canisterId, fence, baseline,
+    const reinstalls = await assertRefusedWithoutControl(pic, { canisterId: t.canisterId, fence, moduleHash: baseline.moduleHash,
       attempt: () => pic.reinstallCode({ canisterId: t.canisterId, sender: owner, wasm: wasm(t.name === 'witness' ? 'recovery_witness' : 'identity_access'), arg: t.name === 'witness' ? IDL.encode([IDL.Record({ governor: IDL.Principal, identity: IDL.Principal })], [{ governor: owner, identity: identityId }]) : identityArgs }) });
-    const upgrades = await assertRefusedWithoutControl(pic, { canisterId: t.canisterId, fence, baseline,
+    const upgrades = await assertRefusedWithoutControl(pic, { canisterId: t.canisterId, fence, moduleHash: baseline.moduleHash,
       attempt: () => pic.upgradeCanister({ canisterId: t.canisterId, sender: owner, wasm: wasm(t.name === 'witness' ? 'recovery_witness' : 'identity_access'), arg: t.name === 'witness' ? IDL.encode([IDL.Record({ governor: IDL.Principal, identity: IDL.Principal })], [{ governor: owner, identity: identityId }]) : identityArgs }) });
     const reads = await refusedControlRead(t.canisterId, owner);
     report.targets.find(x => x.name === t.name).formerOperatorRefusals =
@@ -150,7 +150,7 @@ try {
   for (const t of targets) {
     const strangerRead = await refusedControlRead(t.canisterId, stranger);
     const strangerWrite = await assertRefusedWithoutControl(pic, { canisterId: t.canisterId, fence,
-      baseline: before.get(t.name),
+      moduleHash: before.get(t.name).moduleHash,
       attempt: () => pic.updateCanisterSettings({ canisterId: t.canisterId, sender: stranger, controllers: [stranger] }) });
     report.targets.find(x => x.name === t.name).strangerRefusals = { status: strangerRead, settings: strangerWrite.refused };
   }

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Principal } from '@icp-sdk/core/principal';
-import { assertIndependentFence, assertExclusiveController, fenceSnapshot, INDEPENDENT_FENCE } from './external-controller-fencing.mjs';
+import { assertIndependentFence, assertExclusiveController, assertSettledSnapshot, fenceSnapshot, INDEPENDENT_FENCE } from './external-controller-fencing.mjs';
 
 const p = n => Principal.fromUint8Array(Uint8Array.from([n, 1]));
 const status = controllers => ({
@@ -34,4 +34,15 @@ test('a snapshot records the exact module and live memory that a refusal must pr
   assert.equal(snapshot.running, true);
   const uninstalled = { ...status([INDEPENDENT_FENCE]), module_hash: [] };
   assert.equal(fenceSnapshot(uninstalled).moduleHash, null);
+});
+
+test('a refusal is judged against the reading taken immediately before it', () => {
+  const settled = fenceSnapshot(status([INDEPENDENT_FENCE]));
+  assert.equal(assertSettledSnapshot(settled, { ...settled }).memorySize, '4096');
+  // The handover itself is recorded in the target's history, so pre-fencing memory
+  // must never be the comparison point: a drift from the settled reading is refused.
+  assert.throws(() => assertSettledSnapshot(settled, { ...settled, memorySize: '4318' }),
+    /Repeated controller reads must agree on live memory/);
+  assert.throws(() => assertSettledSnapshot(settled, { ...settled, moduleHash: '08'.repeat(32) }),
+    /Repeated controller reads must agree on the module/);
 });
