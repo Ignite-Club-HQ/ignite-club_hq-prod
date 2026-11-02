@@ -7,6 +7,7 @@ import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 import { idlFactory as identityFactory } from '../src/lab/bindings/identity_access/declarations/identity_access.did.js';
 import { idlFactory as witnessFactory } from '../src/lab/bindings/recovery_witness/declarations/recovery_witness.did.js';
+import { createLocalLifecycleReader } from './removal-local-lifecycle.mjs';
 const ok=r=>{assert.ok(r&&'Ok'in r,String(r?.Err));return r.Ok;};
 const digest=value=>new Uint8Array(createHash('sha256').update(value).digest());
 const hex=k=>k.publicKey.export({type:'spki',format:'der'}).subarray(-32).toString('hex');
@@ -24,10 +25,10 @@ export async function createProductionIdentity(pic,governor,root,args) {
   arg:IDL.encode([IDL.Record({governor:IDL.Principal,identity:IDL.Principal})],[{governor,identity:identityId}])});
  const actor=pic.createActor(identityFactory,identityId),witness=pic.createActor(witnessFactory,witnessId);
  actor.setPrincipal(governor);witness.setPrincipal(governor);
- const management=async(method,input,value,output)=>IDL.decode(output,await pic.updateCall({canisterId:Principal.managementCanister(),sender:governor,method,arg:IDL.encode([input],[value])}));
+ const readLifecycle=await createLocalLifecycleReader(pic,governor);
  const lifecycle=async canister=>{
-  const [info]=await management('canister_info',IDL.Record({canister_id:IDL.Principal,num_requested_changes:IDL.Opt(IDL.Nat64)}),{canister_id:canister,num_requested_changes:[0n]},[IDL.Record({total_num_changes:IDL.Nat64,module_hash:IDL.Opt(IDL.Vec(IDL.Nat8))})]);
-  assert.equal(info.module_hash.length,1);return {canister,changes:info.total_num_changes,module_hash:info.module_hash[0]};
+  const info=await readLifecycle(canister);
+  return {canister:info.canister,changes:info.changes,module_hash:info.module};
  };
  const runtimeVersion=async()=>ok(await actor.read_production_account_runtime_version());
  const signed=async body=>({body,signature:new Uint8Array(sign(null,Buffer.from(ok(await actor.production_account_approval_signing_bytes(body))),approvalKey.privateKey))});

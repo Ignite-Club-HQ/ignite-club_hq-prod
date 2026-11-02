@@ -27,7 +27,7 @@ jobs:
           mops toolchain use moc 1.16.1
           (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
       - name: Check host, evidence invariants and isolated cleanup
-        run: node --test frontend/scripts/removal-host-preflight.test.mjs frontend/scripts/removal-local-supervisor.test.mjs frontend/scripts/two-group-removal-evidence.test.mjs frontend/scripts/account-recovery-candid.test.mjs
+        run: node --test frontend/scripts/removal-host-preflight.test.mjs frontend/scripts/removal-local-supervisor.test.mjs frontend/scripts/two-group-removal-evidence.test.mjs frontend/scripts/account-recovery-candid.test.mjs frontend/scripts/removal-local-lifecycle.test.mjs
       - name: Check exact production authorization refusal and signed scope
         run: |
           cargo test --locked -p identity_access -p recovery_witness -- --test-threads=1
@@ -40,6 +40,7 @@ jobs:
           done
           (cd backend/secret_workload_identity && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) -o .mops/.build/secret_workload_identity.wasm src/main.mo)
           (cd backend/events_domain && "$MOC" $(mops sources) -o "$RUNNER_TEMP/removal-install-probe.wasm" ../shared/test/removalInstallProbe.mo)
+          (cd backend/events_domain && "$MOC" $(mops sources) -o "$RUNNER_TEMP/recovery-lifecycle-probe.wasm" ../shared/test/recoveryLifecycleProbe.mo)
           cargo build --locked --release --target wasm32-unknown-unknown -p identity_access -p shard_router -p timer_jobs -p recovery_witness
       - name: Check independent recovery journal with real snapshots and upgrades
         working-directory: frontend
@@ -53,6 +54,7 @@ jobs:
         working-directory: frontend
         env:
           PRODUCTION_RECOVERY_REPORT: ${{ runner.temp }}/production-recovery-integration.json
+          REMOVAL_LIFECYCLE_PROBE_WASM: ${{ runner.temp }}/recovery-lifecycle-probe.wasm
         run: |
           export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
           timeout --kill-after=5s 1000s node scripts/test-production-recovery-integration.mjs
@@ -62,6 +64,7 @@ jobs:
           export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
           export REMOVAL_INSTALL_PROBE_WASM="$RUNNER_TEMP/removal-install-probe.wasm"
           export REMOVAL_INSTALL_REPORT="$RUNNER_TEMP/removal-install-report.json"
+          export REMOVAL_LIFECYCLE_PROBE_WASM="$RUNNER_TEMP/recovery-lifecycle-probe.wasm"
           for d in club_domain events_domain messaging_domain vault_domain competition_domain club_points_domain mini_league_domain media_metadata insights_domain notification_queue pii_access_control media_blob_store secret_workload_identity; do
             name="$(echo "$d" | tr '[:lower:]' '[:upper:]')_WASM"
             export "$name=$GITHUB_WORKSPACE/backend/$d/.mops/.build/$d.wasm"
