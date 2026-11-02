@@ -1,5 +1,10 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — remaining PROD safety gates (2 Nov 2026)
+- [ ] Address production admission/removal blockers across base and g2 without enabling rehearsal flags or weakening authorization.
+- [ ] Correct misleading routing diagnostics and verify exact inventory, release prerequisites and approval boundaries in focused tests.
+- [ ] Prepare grouped, closed-only rollout instructions; live upgrades/settings/readback require the GitHub-held governor and a reviewed owner run. Routing approval/opening remain separate.
+
 ## Current request — clearer read-only PROD report
 - [x] Add exact anonymous execution balances/minimums/shortfalls and bounded missing-setting diagnostics; unknown balances never imply low fuel or a payment requirement. No PROD/DEV/database changes or funding.
 - [x] Owner ran the read-only routing gate on prod: all 26 canisters below the 1T registered minimum (~6.93T total execution shortfall), removal-check settings and account-service bindings missing on both groups, worker grants missing, routing approval still absent. Groups stay closed; nothing was changed.
