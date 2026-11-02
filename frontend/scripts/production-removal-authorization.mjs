@@ -71,6 +71,10 @@ export async function createProductionIdentity(pic,governor,root,args) {
   }
   assert.ok('Err'in await actor.authorize_production_account_readers({...approval,signature:new Uint8Array(64)}));
   assert.equal(ok(await actor.authorize_production_account_readers(approval)),approval.body.generation);
+  // Separate signed opt-in; the ordinary recovery signature cannot activate it.
+  assert.ok('Err'in await witness.authorize_subject_removal_progress({body:acceptance,signature:recoverySignature}));
+  const progressSignature=new Uint8Array(sign(null,Buffer.from(ok(await witness.subject_progress_approval_signing_bytes(acceptance))),recoveryKey.privateKey));
+  ok(await witness.authorize_subject_removal_progress({body:acceptance,signature:progressSignature}));
   actor.setPrincipal(governor);return inventory;
  };
  return {actor,canisterId:identityId,witness,witnessId,identityWasm,authorize};

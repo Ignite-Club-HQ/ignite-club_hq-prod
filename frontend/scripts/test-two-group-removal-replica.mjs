@@ -209,6 +209,13 @@ try{
  const intent=ok(await id.begin_account_removal(account.id,await revision()));
  validateTwoGroupInventory(normalizedGroups,intent.targets.map(p=>p.toText()),shared.canisterId.toText(),router.canisterId.toText());
  assert.deepEqual(new Set(intent.subjects.map(p=>p.toText())),new Set([primary.toText(),alias.toText()]));
+ if(production){
+  const generation=ok(await id.read_production_account_authorization()).generation;
+  for(const g of groups){await g.readPhoto(survivor);g.services.messaging_domain.actor.setPrincipal(survivor);
+   assert.equal(ok(await g.services.messaging_domain.actor.read_account_list_messages_page(g.chat.id,[],10)).messages.length,1);}
+  assert.equal(ok(await id.read_production_account_authorization()).generation,generation);
+  mark('Survivor retains real two-group photo/chat access immediately after removal starts without renewed approval');
+ }
  for(const human of [primary,alias]){id.setPrincipal(human);err(await id.whoami());err(await id.register_account());}id.setPrincipal(governor);
  // Stop one receiver, observe a failed coordinator step, retain the original intent.
  const stopped=second.services.events_domain;
@@ -243,6 +250,13 @@ try{
   seals.push({receiver:seal.receiver.toText(),outstanding:seal.outstanding,request:{...seal.request,subjects:seal.request.subjects.map(p=>p.toText()),inventory_digest:Array.from(seal.request.inventory_digest)}});
  }
  validateHumanSeals(normalizedGroups,{account_id:intent.account_id,generation:intent.generation,subjects:intent.subjects.map(p=>p.toText()),inventory_digest:Array.from(intent.inventory_digest)},seals);
+ if(production){
+  const generation=ok(await id.read_production_account_authorization()).generation;
+  for(const g of groups){await g.readPhoto(survivor);g.services.vault_domain.actor.setPrincipal(survivor);
+   assert.equal(ok(await g.services.vault_domain.actor.read_account_get_folder('folder'))[0].id,'folder');}
+  assert.equal(ok(await id.read_production_account_authorization()).generation,generation);
+  mark('Prepared/sealed progress preserves survivor access without changing the signed approval');
+ }
  mark('All 24 human receivers drain both aliases; two external leases survive upgrade until authenticated settlement');
  const probes=g=>({club_domain:()=>g.services.club_domain.actor.read_account_my_role_grants(),events_domain:()=>g.services.events_domain.actor.read_account_list_my_viewed_event_ids([]),
   messaging_domain:()=>g.services.messaging_domain.actor.read_account_list_messages_page(g.chat.id,[],10),vault_domain:()=>g.services.vault_domain.actor.read_account_get_folder('folder'),
@@ -306,6 +320,15 @@ try{
  id.setPrincipal(outsider);err(await id.complete_account_removal_fencing(account.id));
  id.setPrincipal(governor);
  const terminal=ok(await id.complete_account_removal_fencing(account.id));
+ // Refresh only for the preceding intentional module upgrades, not completion.
+ if(production){
+  await refreshProduction();
+  const generation=ok(await id.read_production_account_authorization()).generation;
+  assert.deepEqual(ok(await id.complete_account_removal_fencing(account.id)),terminal);
+  for(const g of groups)await g.readPhoto(survivor);
+  assert.equal(ok(await id.read_production_account_authorization()).generation,generation);
+  mark('Completed-removal retries preserve survivor reads under the unchanged signed capability');
+ }
  assert.equal(terminal.targets.length,28);assert.equal(terminal.seals.length,28);
  assert.deepEqual(terminal.request,{account_id:intent.account_id,generation:intent.generation,inventory_digest:intent.inventory_digest,subjects:intent.subjects});
  const terminalRevision=await revision();
