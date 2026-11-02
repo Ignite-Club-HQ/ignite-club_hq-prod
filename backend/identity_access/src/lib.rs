@@ -1205,11 +1205,15 @@ fn next_production_request()->Outcome<u64> {
 async fn check_production_witness(approval:&production_account_authorization::SignedApproval)->Outcome<()> {
     let witness=production_account_authorization::witness()?;
     if witness==ic_cdk::api::canister_self() || approval.body.review.targets.contains(&witness) {return Err("Independent recovery witness required".into());}
-    let request=production_account_authorization::request(approval,next_production_request()?)?;
+    let request=production_account_authorization::request(approval,next_production_request()?,removal_history_revision(),
+        REMOVAL_GENERATION.with(|m|*m.borrow().get()),ic_cdk::api::canister_version())?;
     let response=ic_cdk::call::Call::bounded_wait(witness,"verify_production_account_read_fence").with_arg(&request)
         .await.map_err(|_|"Independent recovery witness unavailable")?;
     let receipt:Outcome<production_account_authorization::WitnessReceipt>=response.candid().map_err(|_|"Invalid independent recovery witness reply")?;
-    production_account_authorization::validate_witness(&request,&receipt?)
+    production_account_authorization::validate_witness(&request,&receipt?)?;
+    if removal_history_revision()!=request.history_revision || REMOVAL_GENERATION.with(|m|*m.borrow().get())!=request.removal_generation ||
+        ic_cdk::api::canister_version()!=request.identity_version {return Err("Identity recovery state changed during witness call".into());}
+    Ok(())
 }
 /// Exact independent signature + live witnesses, not caller-supplied reader lists.
 /// This installs only an account-read capability, not removal, erasure or routing.

@@ -30,6 +30,7 @@ pub struct State { pub generation: u64, pub approval: Option<SignedApproval> }
 pub struct WitnessRequest {
     pub identity: Principal, pub generation: u64, pub recovery_epoch: u64,
     pub signed_digest: Vec<u8>, pub request_id: u64,
+    pub history_revision: u64, pub removal_generation: u64, pub identity_version: u64,
 }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WitnessReceipt { pub request: WitnessRequest }
@@ -75,10 +76,10 @@ pub fn witness() -> Result<Principal,String> {
     if p==Principal::anonymous() || p==Principal::management_canister() {return Err("Invalid immutable recovery witness".into());}
     Ok(p)
 }
-pub fn request(a:&SignedApproval,request_id:u64) -> Result<WitnessRequest,String> {
+pub fn request(a:&SignedApproval,request_id:u64,history_revision:u64,removal_generation:u64,identity_version:u64) -> Result<WitnessRequest,String> {
     let mut bytes=signing_bytes(&a.body)?;bytes.extend(&a.signature);
     Ok(WitnessRequest {identity:a.body.identity,generation:a.body.generation,recovery_epoch:a.body.recovery_epoch,
-        signed_digest:Sha256::digest(bytes).to_vec(),request_id})
+        signed_digest:Sha256::digest(bytes).to_vec(),request_id,history_revision,removal_generation,identity_version})
 }
 pub fn validate_witness(expected:&WitnessRequest,receipt:&WitnessReceipt) -> Result<(),String> {
     if expected!=&receipt.request {return Err("Exact independent recovery witness receipt required".into());} Ok(())
@@ -166,11 +167,14 @@ pub fn disable(prior:&State) -> Result<State,String> {
         let restored:State=crate::decode(&crate::encode(&s));assert_eq!(restored,s);
     }
     #[test] fn witness_rejects_old_request_epoch_generation_or_signed_digest() {
-        let(a,_)=signed();let request=request(&a,8).unwrap();let receipt=WitnessReceipt {request:request.clone()};
+        let(a,_)=signed();let request=request(&a,8,10,3,4).unwrap();let receipt=WitnessReceipt {request:request.clone()};
         assert!(validate_witness(&request,&receipt).is_ok());
         let mut bad=receipt.clone();bad.request.request_id=7;assert!(validate_witness(&request,&bad).is_err());
         let mut bad=receipt.clone();bad.request.recovery_epoch=2;assert!(validate_witness(&request,&bad).is_err());
         let mut bad=receipt.clone();bad.request.generation=2;assert!(validate_witness(&request,&bad).is_err());
+        let mut bad=receipt.clone();bad.request.history_revision=9;assert!(validate_witness(&request,&bad).is_err());
+        let mut bad=receipt.clone();bad.request.removal_generation=2;assert!(validate_witness(&request,&bad).is_err());
+        let mut bad=receipt.clone();bad.request.identity_version=3;assert!(validate_witness(&request,&bad).is_err());
         let mut bad=receipt;bad.request.signed_digest[0]^=1;assert!(validate_witness(&request,&bad).is_err());
         if option_env!("IGNITE_PRODUCTION_ACCOUNT_WITNESS").is_none(){assert!(witness().is_err());}
     }
