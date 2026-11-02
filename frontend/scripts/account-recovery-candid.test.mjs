@@ -4,6 +4,59 @@ import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 import { idlFactory } from '../src/lab/bindings/recovery_witness/declarations/recovery_witness.did.js';
 import { generateKeyPairSync, sign, verify } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { assertCandidEqual } from './assert-candid-equal.mjs';
+
+// PocketIC loads the CommonJS decoder; this file and the replica fixtures use
+// ESM. A same-decoder roundtrip cannot reproduce distinct Principal prototypes.
+const simulatorRequire=createRequire(createRequire(import.meta.url).resolve('@dfinity/pic'));
+const { IDL: simulatorIDL }=simulatorRequire('@icp-sdk/core/candid');
+const decodeResponse=(name,value)=>{
+ const type=idlFactory({IDL:simulatorIDL})._fields.find(([n])=>n===name)?.[1].retTypes;
+ assert.ok(type);
+ return simulatorIDL.decode(type,simulatorIDL.encode(type,[value]))[0];
+};
+
+test('simulator removal readback compares identity bytes across ESM and CommonJS',()=>{
+ const p=n=>Principal.fromUint8Array(Uint8Array.from([n,1]));
+ const record={operation_id:'remove/1',event:{Removal:{account_id:'removed',generation:1n,inventory_digest:new Uint8Array(32).fill(1),subjects:[p(5)],targets:[p(3),p(4)]}}};
+ const decoded=decodeResponse('read_recovery_record',{Ok:record}).Ok;
+ assert.notEqual(Object.getPrototypeOf(decoded.event.Removal.subjects[0]),Object.getPrototypeOf(record.event.Removal.subjects[0]));
+ assert.throws(()=>assert.deepEqual(decoded,record),assert.AssertionError);
+ assertCandidEqual(decoded,record);
+ for(const change of [
+  {generation:2n}, {inventory_digest:new Uint8Array(32).fill(2)},
+  {subjects:[p(6)]}, {targets:[p(4),p(3)]}, {targets:[p(3)]}, {generation:1},
+ ]) assert.throws(()=>assertCandidEqual(decoded,{...record,event:{Removal:{...record.event.Removal,...change}}}),assert.AssertionError);
+ assert.throws(()=>assertCandidEqual(decoded,{...record,unexpected:true}),assert.AssertionError);
+ const lastByte=new Uint8Array(record.event.Removal.inventory_digest);lastByte[31]=2;
+ assert.throws(()=>assertCandidEqual(decoded,{...record,event:{Removal:{...record.event.Removal,inventory_digest:lastByte}}}),assert.AssertionError);
+});
+
+test('simulator snapshot and upgrade journal retains removal, progress and disable rows exactly',()=>{
+ const p=n=>Principal.fromUint8Array(Uint8Array.from([n,1]));
+ const rows=[
+  [1n,{operation_id:'remove/1',event:{Removal:{account_id:'removed',generation:1n,inventory_digest:new Uint8Array(32).fill(1),subjects:[p(5)],targets:[p(3),p(4)]}}}],
+  [2n,{operation_id:'seal/3',event:{Progress:{account_id:'removed',generation:1n,progress:{Sealed:{target:p(3)}}}}}],
+  [3n,{operation_id:'seal/4',event:{Progress:{account_id:'removed',generation:1n,progress:{Sealed:{target:p(4)}}}}}],
+  [4n,{operation_id:'complete',event:{Progress:{account_id:'removed',generation:1n,progress:{Completed:null}}}}],
+  [5n,{operation_id:'disable/8',event:{Disable:{identity:p(2),generation:8n}}}],
+ ];
+ const decoded=decodeResponse('read_recovery_records',{Ok:rows}).Ok;
+ assertCandidEqual(decoded,rows);
+ assertCandidEqual(decodeResponse('read_recovery_record',{Ok:rows[4][1]}).Ok,rows[4][1]);
+ assert.throws(()=>assertCandidEqual(decoded,rows.slice(0,-1)),assert.AssertionError);
+ assert.throws(()=>assertCandidEqual(decoded,[...rows].reverse()),assert.AssertionError);
+});
+
+test('simulator signed witness receipt retains exact caller and request fields',()=>{
+ const identity=Principal.fromUint8Array(Uint8Array.from([2,1]));
+ const request={identity,generation:1n,recovery_epoch:1n,signed_digest:new Uint8Array(32).fill(3),request_id:1n,history_revision:0n,removal_generation:0n,identity_version:1n};
+ const receipt={request,witness_version:1n,journal_revision:0n,journal_digest:new Uint8Array(32)};
+ const decoded=decodeResponse('verify_production_account_read_fence',{Ok:receipt}).Ok;
+ assertCandidEqual(decoded.request,request);
+ assert.throws(()=>assertCandidEqual(decoded.request,{...request,request_id:2n}),assert.AssertionError);
+});
 
 test('recovery record retains exact digest bytes and fields through the real Candid contract', () => {
  const service=idlFactory({IDL});

@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — approved production removal safeguards (2 Nov 2026, 03:32 UTC)
+- [ ] 05:21 owner-reported GitHub failure: reproduce cross-module Principal comparison, correct all affected recovery assertions with strict byte/field checks, run regressions and dispatch verified corrected source. Run 41392939473 failed witness readback before later runtime scenarios; PROD unchanged.
 - [x] 05:08 step 1 implementation: separately signed subject-disclosure baseline preserves survivors through ordinary acknowledged removal progress; exact topology/modules/runtime versions and independent account/alias tombstones remain checked. Disable/restore/upgrade and unknown pending work stay closed. 223 identity + 15 witness + 32 JS checks pass; 17 contracts and both Wasms pass. Added real-service no-renewal assertions; GitHub runtime verification remains pending.
 - [x] 04:54 candidate: added distinct signed inventory provisioning and full fencing control, exact live receiver checks, independent witness validation and pre-commit expiry/authorization rechecks; extended complete real two-group suite to non-rehearsal production identity. 221 identity + 12 witness + 31 JS tests and 17 contracts pass. No PROD activation or data changes.
 - [ ] Verify survivor access on the supported GitHub worker: run added no-renewal assertions across actual groups; intentional module/restore drift still requires separate acceptance. Local sandbox cannot supply native runtime evidence; no PROD deployment authorized.
