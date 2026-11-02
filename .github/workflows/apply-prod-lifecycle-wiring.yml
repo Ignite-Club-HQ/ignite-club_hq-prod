@@ -1,0 +1,70 @@
+name: "[PROD] Apply lifecycle wiring (closed)"
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_plan_hash:
+        description: "Lifecycle wiring plan hash from the read-only routing gate Summary"
+        required: true
+      confirmation:
+        description: "Type exactly: WIRE PROD LIFECYCLE"
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  wiring:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      PROD_ICP_PUSH_WORKER_PRINCIPAL: ${{ vars.PROD_ICP_PUSH_WORKER_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+      WIRING_PLAN_HASH: ${{ inputs.reviewed_plan_hash }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the live repository prod branch
+        run: |
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Test the wiring and gate policy before any network call
+        run: node --test scripts/prod-lifecycle-wiring-policy.test.mjs scripts/prod-routing-gate.test.mjs
+      - name: Install isolated pinned tools
+        run: npm install --prefix "$RUNNER_TEMP/prod-gate-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Restore existing PROD key and apply the reviewed wiring
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          export ICP_HOME="$RUNNER_TEMP/prod-wiring-identity"
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/prod-gate-deps"
+          export CHECK_REPORT_DIR="$RUNNER_TEMP/prod-wiring-report"
+          export DO_NOT_TRACK=1
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          test -n "${PROD_GOVERNOR_PEM_ENC:-}"
+          test -n "${PROD_GOVERNOR_PASSPHRASE:-}"
+          test -n "${PROD_ICP_PUSH_WORKER_PRINCIPAL:-}"
+          mkdir -p "$ICP_HOME"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
+          rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
+          export CHECK_KEY_PEM="$ICP_HOME/key.pem"
+          node scripts/prod-lifecycle-wiring.mjs
+      - name: Save wiring evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-lifecycle-wiring
+          path: ${{ runner.temp }}/prod-wiring-report/*.json
+          if-no-files-found: ignore
