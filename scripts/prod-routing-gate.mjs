@@ -1,6 +1,7 @@
 // Read-only PROD routing-gate review: group registry, placement, health,
 // lifecycle wiring and routing-approval evidence, nothing else. There is no
 // setter, no approval recording, no opening, no funding and no DEV access here.
+import { planLifecycleWiring, lifecycleWiringSummary } from './prod-lifecycle-wiring-policy.mjs';
 import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -119,7 +120,9 @@ async function main() {
     page, approval, services, routerConfig, identityConfig, checkedAt: new Date().toISOString() });
   mkdirSync(env.CHECK_REPORT_DIR, { recursive: true });
   writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-routing-gate.json'), evidenceText(review));
-  const lines = routingGateSummary(review).split('\n');
+  const wiring = planLifecycleWiring(review, { ids, pushWorker: env.PROD_ICP_PUSH_WORKER_PRINCIPAL ?? env.PUSH_WORKER_PRINCIPAL });
+  writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-lifecycle-wiring-plan.json'), JSON.stringify(wiring, null, 2));
+  const lines = (routingGateSummary(review) + '\n' + lifecycleWiringSummary(wiring)).split('\n');
   console.log(lines.join('\n'));
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
   if (!review.gateComplete) process.exitCode = 1;
