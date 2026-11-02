@@ -29,6 +29,8 @@ fn seal_private_name_writer_window(request: WriterRequest) -> Result<(), String>
 fn read_private_name_writer_window(request: WriterRequest) -> Result<WriterReceipt, String> { private_name_writer_window::receipt(request) }
 
 mod group_inventory;
+// Offline-only until independent pinning and production lifecycle acceptance.
+mod expected_removal_inventory;
 mod removal_barrier;
 mod deletion_timing;
 mod admission;
