@@ -234,7 +234,7 @@ try{
  baseTimer.setPrincipal(governor);assert.equal(ok(await baseTimer.revoke_fenced_account_obligations(account.id)),1n);
  shared.actor.setPrincipal(governor);ok(await shared.actor.revoke_workload(primary));
  // Upgrades preserve every infrastructure fence.
- await pic.upgradeCanister({canisterId:router.canisterId,wasm:wasm('shard_router'),sender:governor,arg:args});
+ await pic.upgradeCanister({canisterId:router.canisterId,wasm:wasm('shard_router'),sender:governor,arg:IDL.encode([],[])});
  await pic.upgradeCanister({canisterId:shared.canisterId,wasm:wasm('secret_workload_identity'),sender:governor,arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
  for(const g of groups)await pic.upgradeCanister({canisterId:g.timer.canisterId,wasm:wasm('timer_jobs'),sender:governor,arg:IDL.encode([],[])});
  for(const human of [primary,alias]){router.actor.setPrincipal(human);await assertRemovalFenced(()=>router.actor.read_my_owner_test_opening('local'));}

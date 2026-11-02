@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HUMAN_DOMAINS, validateTwoGroupInventory, validateHumanSeals, assertWorkerCapabilityDenied } from './two-group-removal-evidence.mjs';
+import { HUMAN_DOMAINS, validateTwoGroupInventory, validateHumanSeals, validateCompleteSeals, assertWorkerCapabilityDenied, assertRemovalFenced } from './two-group-removal-evidence.mjs';
 test('ungranted notification worker must reject with the exact capability trap',async()=>{
  await assertWorkerCapabilityDenied(async()=>{throw new Error("Canister called ic0.trap: Worker capability required");});
 });
@@ -27,4 +27,17 @@ test('missing, duplicate, outstanding and stale seals cannot certify complete re
   s=>s[23].request.subjects.pop(),s=>s[23].request.inventory_digest[0]=8]){
   const bad=structuredClone(seals);change(bad);assert.throws(()=>validateHumanSeals(groups,request,bad));
  }
+});const allSeals=targets.map(id=>({receiver:id,request:structuredClone(request),outstanding:0n}));
+test('complete global seals require all 28 targets including timers, shared workload and router',()=>assert.equal(validateCompleteSeals(groups,request,allSeals,'shared','router'),28));
+test('missing infrastructure, outstanding obligations or stale bindings cannot certify complete removal',()=>{
+ const at=id=>allSeals.findIndex(s=>s.receiver===id);
+ for(const change of [s=>s.splice(at('router'),1),s=>s.splice(at('base/timer'),1),s=>s[at('shared')].outstanding=1n,
+  s=>s[at('g2/timer')].request.generation=6n,s=>s[at('router')]=structuredClone(s[at('shared')]),s=>s.push({receiver:'foreign',request:structuredClone(request),outstanding:0n})]){
+  const bad=structuredClone(allSeals);change(bad);assert.throws(()=>validateCompleteSeals(groups,request,bad,'shared','router'));
+ }
+});
+test('only the exact fence trap counts as infrastructure denial',async()=>{
+ await assertRemovalFenced(async()=>{throw new Error('Canister called ic0.trap: Account removal fenced');});
+ for(const result of [{Err:'Account removal fenced'},{Ok:null}])await assert.rejects(()=>assertRemovalFenced(async()=>result),/Missing expected rejection/);
+ await assert.rejects(()=>assertRemovalFenced(async()=>{throw new Error('Connection closed');}),/did not match/);
 });

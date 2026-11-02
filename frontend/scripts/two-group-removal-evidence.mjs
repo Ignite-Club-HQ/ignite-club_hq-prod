@@ -41,3 +41,27 @@ export function validateHumanSeals(groups, request, seals) {
   }
   return true;
 }
+// Infrastructure entry points trap for fenced subjects. A Candid reply,
+// success or unrelated rejection must never count as a fence observation.
+export async function assertRemovalFenced(call) {
+  await assert.rejects(call, /Account removal fenced/);
+}
+
+// Fresh global seals: every one of the 28 frozen targets (24 human receivers,
+// both timers, shared workload, router), each drained to zero and bound to
+// the exact request. Receiver-local evidence only; never release authority.
+export function validateCompleteSeals(groups, request, seals, sharedWorkload, router) {
+  const targets = [...groups.flatMap(g => [g.timer, ...g.receivers.map(s => s.id)]), sharedWorkload, router];
+  const expected = validateTwoGroupInventory(groups, targets, sharedWorkload, router);
+  const observed = new Set();
+  if (seals.length !== expected) throw new Error(`All ${expected} receiver seals required`);
+  for (const seal of seals) {
+    const r = seal.request;
+    if (!targets.includes(seal.receiver) || observed.has(seal.receiver) || seal.outstanding !== 0n ||
+      r.account_id !== request.account_id || r.generation !== request.generation ||
+      JSON.stringify(r.subjects) !== JSON.stringify(request.subjects) ||
+      JSON.stringify(r.inventory_digest) !== JSON.stringify(request.inventory_digest)) throw new Error('Seal binding or drain mismatch');
+    observed.add(seal.receiver);
+  }
+  return observed.size;
+}
