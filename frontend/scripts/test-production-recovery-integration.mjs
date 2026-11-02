@@ -13,6 +13,7 @@ import { idlFactory as identityFactory } from '../src/lab/bindings/identity_acce
 import { removalHostPreflight } from './removal-host-preflight.mjs';
 import { startRemovalLocalServer } from './removal-local-supervisor.mjs';
 import { assertCandidEqual } from './assert-candid-equal.mjs';
+import { createLocalLifecycleReader } from './removal-local-lifecycle.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const report={kind:'production-identity-recovery-transport-isolated',passed:false,
@@ -55,10 +56,9 @@ try {
  refuses(await id.read_service_account(human),/Service admission not released/);
  mark('Real identity has immutable test pins and rejects rehearsal-only setters and unapproved reads');
  const management=async(method,input,value,output)=>IDL.decode(output,await pic.updateCall({canisterId:Principal.managementCanister(),sender:owner,method,arg:IDL.encode([input],[value])}));
- const lifecycle=async canister=>{
-  const [info]=await management('canister_info',IDL.Record({canister_id:IDL.Principal,num_requested_changes:IDL.Opt(IDL.Nat64)}),{canister_id:canister,num_requested_changes:[0n]},[IDL.Record({total_num_changes:IDL.Nat64,module_hash:IDL.Opt(IDL.Vec(IDL.Nat8))})]);
-  assert.equal(info.module_hash.length,1);return {canister,module:info.module_hash[0],changes:info.total_num_changes};
- };
+ stage='verify isolated inter-canister lifecycle evidence';
+ const lifecycle=await createLocalLifecycleReader(pic,owner);
+ mark('Owner-only disposable reader obtains real module and change-count evidence and detects upgrades');
  const snapshot=async canister=>{
   await pic.stopCanister({canisterId:canister,sender:owner});
   const [s]=await management('take_canister_snapshot',IDL.Record({canister_id:IDL.Principal,replace_snapshot:IDL.Opt(IDL.Vec(IDL.Nat8))}),{canister_id:canister,replace_snapshot:[]},[IDL.Record({id:IDL.Vec(IDL.Nat8),taken_at_timestamp:IDL.Nat64,total_size:IDL.Nat64})]);
