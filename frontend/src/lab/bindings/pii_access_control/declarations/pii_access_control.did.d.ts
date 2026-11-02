@@ -31,6 +31,14 @@ export interface ClubMediaAuthority {
   'authority' : [] | [Principal],
   'revision' : bigint,
 }
+export interface Configuration {
+  'protocol' : number,
+  'admission_required' : boolean,
+  'removal_enabled' : boolean,
+  'authority' : [] | [Principal],
+  'receiver' : Principal,
+  'rehearsal' : boolean,
+}
 export interface EncryptedPii {
   'master_key_id' : string,
   'ciphertext' : Uint8Array,
@@ -186,16 +194,7 @@ export interface Main {
   'read_account_my_guardian_children' : ActorMethod<[], Array<string>>,
   'read_account_protection_configuration' : ActorMethod<
     [],
-    {
-        'Ok' : {
-          'protocol' : number,
-          'admission_required' : boolean,
-          'removal_enabled' : boolean,
-          'authority' : [] | [Principal],
-          'receiver' : Principal,
-          'rehearsal' : boolean,
-        }
-      } |
+    { 'Ok' : Configuration } |
       { 'Err' : string }
   >,
   'read_account_removal_drain' : ActorMethod<

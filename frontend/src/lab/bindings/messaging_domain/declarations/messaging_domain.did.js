@@ -275,6 +275,14 @@ export const idlFactory = ({ IDL }) => {
     'subjects' : IDL.Vec(IDL.Principal),
     'generation' : IDL.Nat64,
   });
+  const Configuration = IDL.Record({
+    'protocol' : IDL.Nat32,
+    'admission_required' : IDL.Bool,
+    'removal_enabled' : IDL.Bool,
+    'authority' : IDL.Opt(IDL.Principal),
+    'receiver' : IDL.Principal,
+    'rehearsal' : IDL.Bool,
+  });
   const RecentConversation = IDL.Record({
     'last_message_sequence' : IDL.Nat64,
     'conversation_id' : IDL.Text,
@@ -1078,19 +1086,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'read_account_protection_configuration' : IDL.Func(
         [],
-        [
-          IDL.Variant({
-            'Ok' : IDL.Record({
-              'protocol' : IDL.Nat32,
-              'admission_required' : IDL.Bool,
-              'removal_enabled' : IDL.Bool,
-              'authority' : IDL.Opt(IDL.Principal),
-              'receiver' : IDL.Principal,
-              'rehearsal' : IDL.Bool,
-            }),
-            'Err' : IDL.Text,
-          }),
-        ],
+        [IDL.Variant({ 'Ok' : Configuration, 'Err' : IDL.Text })],
         [],
       ),
     'read_account_read_conversation_club' : IDL.Func(

@@ -48,6 +48,14 @@ export interface CleanupRecord {
     { 'complete' : null },
   'competition' : [] | [string],
 }
+export interface Configuration {
+  'protocol' : number,
+  'admission_required' : boolean,
+  'removal_enabled' : boolean,
+  'authority' : [] | [Principal],
+  'receiver' : Principal,
+  'rehearsal' : boolean,
+}
 export interface Intent { 'file' : VaultFile, 'ready' : boolean }
 export interface Main {
   'acknowledge_file_upload' : ActorMethod<
@@ -290,16 +298,7 @@ export interface Main {
   >,
   'read_account_protection_configuration' : ActorMethod<
     [],
-    {
-        'Ok' : {
-          'protocol' : number,
-          'admission_required' : boolean,
-          'removal_enabled' : boolean,
-          'authority' : [] | [Principal],
-          'receiver' : Principal,
-          'rehearsal' : boolean,
-        }
-      } |
+    { 'Ok' : Configuration } |
       { 'Err' : string }
   >,
   'read_account_removal_drain' : ActorMethod<
