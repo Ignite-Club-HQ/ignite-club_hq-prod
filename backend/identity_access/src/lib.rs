@@ -452,11 +452,22 @@ fn authority_eligibilities(caller: Principal, subjects: Vec<Principal>) -> Outco
 /// Consensus reads; never create an account or grant resource permissions.
 /// Versions are account-scoped evidence, NOT globally atomic access tokens.
 #[ic_cdk::update]
-fn read_principal_eligibility(subject: Principal) -> Outcome<PrincipalEligibility> {
+async fn read_principal_eligibility(subject: Principal) -> Outcome<PrincipalEligibility> {
+    let caller=ic_cdk::api::msg_caller();
+    if !account_group_rehearsal_enabled() && production_authorization().approval.is_some() {
+        verify_production_account_reader(caller,false).await?;
+        return Ok(principal_eligibility(subject));
+    }
     authority_eligibilities(ic_cdk::api::msg_caller(), vec![subject])?.into_iter().next().ok_or("Eligibility unavailable".into())
 }
 #[ic_cdk::update]
-fn read_principal_eligibilities(subjects: Vec<Principal>) -> Outcome<Vec<PrincipalEligibility>> {
+async fn read_principal_eligibilities(subjects: Vec<Principal>) -> Outcome<Vec<PrincipalEligibility>> {
+    if !account_group_rehearsal_enabled() && production_authorization().approval.is_some() {
+        let mut distinct=subjects.clone();distinct.sort();distinct.dedup();
+        if subjects.is_empty() || subjects.len()>200 || distinct.len()!=subjects.len(){return Err("Distinct eligibility batch of 1 to 200 subjects required".into());}
+        verify_production_account_reader(ic_cdk::api::msg_caller(),false).await?;
+        return Ok(subjects.into_iter().map(principal_eligibility).collect());
+    }
     authority_eligibilities(ic_cdk::api::msg_caller(), subjects)
 }
 
@@ -1233,6 +1244,11 @@ fn production_account_approval_signing_bytes(body:production_account_authorizati
     require_governor(&state(),ic_cdk::api::msg_caller())?;production_account_authorization::signing_bytes(&body)
 }
 async fn production_service_account(caller:Principal,subject:Principal,club_only:bool)->Outcome<Account> {
+    verify_production_account_reader(caller,club_only).await?;
+    // No await between validation return and reconstruction/release.
+    current_service_account(subject)
+}
+async fn verify_production_account_reader(caller:Principal,club_only:bool)->Outcome<()> {
     let _lease=private_name_writer_window::enter()?;
     let captured=production_authorization();let approval=production_account_authorization::reader(&captured,caller,ic_cdk::api::time())?.clone();
     let operator=state().governor;
@@ -1248,8 +1264,7 @@ async fn production_service_account(caller:Principal,subject:Principal,club_only
     if state().governor!=operator || production_authorization()!=captured || removal_history_revision()!=revision {return Err("Production account authorization changed".into());}
     admission_configuration_clear()?;
     production_account_authorization::reader(&captured,caller,ic_cdk::api::time())?;
-    // Final synchronous release: recompute aliases from current identity state.
-    current_service_account(subject)
+    Ok(())
 }
 fn group2_admission() -> admission::Config {
     GROUP2_ADMISSION.with(|m| if m.borrow().get().is_empty() { admission::Config::default() } else { decode(m.borrow().get()) })
