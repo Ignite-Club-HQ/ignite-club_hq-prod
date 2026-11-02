@@ -53,6 +53,12 @@ Positive production authorization remains source-unit-tested, not verified with
 a real externally fenced transport. The native worker is still required for the
 expanded runtime artifact; no GitHub dispatch credential exists in this session.
 
+Validation: all 208 identity tests pass, including signed exact scope, missing
+signer/witness, forged/mutated evidence, expiry, disable/replay, witness request
+binding, oversized input and permanent partition isolation. Rust upgrade Wasm
+builds; all 17 active contracts match; 24 isolated/recovery safeguards pass;
+the expanded runtime script parses and preview reports build OK.
+
 ### Authenticated production review and expanded receiver tests (2 November, 03:55 UTC)
 
 Added consensus `read_account_protection_configuration` to all twelve human
