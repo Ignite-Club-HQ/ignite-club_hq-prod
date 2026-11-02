@@ -619,6 +619,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "recovery_witness"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "ciborium",
+ "ed25519-dalek",
+ "ic-cdk",
+ "ic-stable-structures",
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "rustc_version"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

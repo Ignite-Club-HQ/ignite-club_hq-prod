@@ -3,6 +3,7 @@ members = [
 	"backend/shard_router",
 	"backend/placement_registry",
 	"backend/timer_jobs",
+	"backend/recovery_witness",
 	"backend/identity_access"
 ]
 resolver = "2"

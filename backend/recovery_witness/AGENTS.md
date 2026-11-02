@@ -1,0 +1,3 @@
+- Recovery witness is independent of every participant backup; retain whole immutable removal/progress records in dedicated stable partitions and reject conflicting retries. Why: hashes alone cannot recover missing work.
+- Every acceptance is signed by an immutable independent key and bound to witness IC version, epoch, journal, exact inventory, decoded history and participant lifecycle; restore/upgrade closes reads. Why: application state and counters roll back with backups.
+- This module is not provisioned or automatically included in DEV/PROD deployments; external exclusive controller fencing and draining remain acceptance prerequisites. Why: old binaries and jointly restored witnesses cannot enforce their own recovery exclusion.

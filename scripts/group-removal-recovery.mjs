@@ -35,6 +35,11 @@ async function stopAll(inventory, adapter) {
   for (const p of plan(inventory)) await adapter.stop(p.id);
   await stopped(inventory, adapter);
 }
+async function currentAnchor(checkpoint, adapter) {
+  const anchor = await adapter.readIndependentAnchor(checkpoint.binding);
+  if (digest(anchor) !== digest(checkpoint.anchor) || await adapter.verifyHistoryAgainstAnchor(checkpoint.semanticHistory, anchor) !== true) throw Error('Rollback checkpoint rejected');
+  return anchor;
+}
 function checkCheckpoint(inventory, checkpoint) {
   if (!checkpoint || checkpoint.version !== 1 || checkpoint.binding !== recoveryBinding(inventory) ||
       !Array.isArray(checkpoint.snapshots) || checkpoint.snapshots.length !== inventory.participants.length ||
@@ -60,6 +65,7 @@ export async function checkpointGroup(inventory, adapter, journal) {
   await record(journal, state);
   for (const p of plan(inventory)) {
     await stopped(inventory, adapter);
+    await currentAnchor(state, adapter);
     state = { ...state, pending: { kind: 'take', id: p.id } };
     await record(journal, state);
     const snapshot = await adapter.takeSnapshot(p.id);
@@ -68,6 +74,7 @@ export async function checkpointGroup(inventory, adapter, journal) {
   }
   checkCheckpoint(inventory, state);
   await stopped(inventory, adapter);
+  await currentAnchor(state, adapter);
   state = { ...state, phase: 'checkpointed' }; await record(journal, state);
   return state;
 }
@@ -77,17 +84,19 @@ export async function restoreGroup(inventory, checkpoint, adapter, journal) {
   if (!saved || saved.binding !== checkpoint.binding || saved.pending || !['checkpointed', 'restored'].includes(saved.phase)) throw Error('Unknown recovery outcome requires reconciliation');
   if (digest(saved.snapshots) !== digest(checkpoint.snapshots) || digest(saved.anchor) !== digest(checkpoint.anchor) || digest(saved.semanticHistory) !== digest(checkpoint.semanticHistory)) throw Error('Checkpoint does not match durable recovery intent');
   await stopAll(inventory, adapter);
-  const anchor = await adapter.readIndependentAnchor(checkpoint.binding);
-  if (digest(anchor) !== digest(checkpoint.anchor) || await adapter.verifyHistoryAgainstAnchor(checkpoint.semanticHistory, anchor) !== true) throw Error('Rollback checkpoint rejected');
+  const anchor = await currentAnchor(checkpoint, adapter);
   let state = { ...checkpoint, phase: 'restore-intent' };
   await record(journal, state);
-  for (const row of checkpoint.snapshots) {
+  for (const p of plan(inventory)) {
+    const row = checkpoint.snapshots.find(row => row.id === p.id);
     await stopped(inventory, adapter);
+    await currentAnchor(checkpoint, adapter);
     state = { ...state, pending: { kind: 'load', id: row.id, snapshot: row.snapshot } }; await record(journal, state);
     await adapter.loadSnapshot(row.id, row.snapshot);
     state = { ...state, pending: undefined }; await record(journal, state);
   }
   await stopped(inventory, adapter);
+  await currentAnchor(checkpoint, adapter);
   if (await adapter.verifyRestoredDecodedHistory(inventory, checkpoint.semanticHistory, anchor) !== true) throw Error('Restored permission history or ledgers mismatch');
   await record(journal, { ...state, phase: 'restored' });
 }
@@ -96,18 +105,24 @@ export async function resumeGroup(inventory, checkpoint, adapter, journal, appro
   if (!approval || approval.binding !== checkpoint.binding || approval.approved !== true) throw Error('Exact-inventory resume approval required');
   const saved = await journal.read();
   if (!saved || saved.phase !== 'restored' || saved.pending || saved.binding !== checkpoint.binding) throw Error('Verified full restore required');
+  if (digest(saved.snapshots) !== digest(checkpoint.snapshots) || digest(saved.anchor) !== digest(checkpoint.anchor) || digest(saved.semanticHistory) !== digest(checkpoint.semanticHistory)) throw Error('Checkpoint does not match durable recovery history');
   await stopped(inventory, adapter);
-  const anchor = await adapter.readIndependentAnchor(checkpoint.binding);
-  if (digest(anchor) !== digest(checkpoint.anchor) || await adapter.verifyRestoredDecodedHistory(inventory, checkpoint.semanticHistory, anchor) !== true) throw Error('History changed before resume');
+  const anchor = await currentAnchor(checkpoint, adapter);
+  if (await adapter.verifyRestoredDecodedHistory(inventory, checkpoint.semanticHistory, anchor) !== true) throw Error('History changed before resume');
   let state = { ...saved, phase: 'resume-intent' }; await record(journal, state);
   try {
     for (const p of [inventory.participants.find(p => p.id === inventory.authority), ...inventory.participants.filter(p => p.id !== inventory.authority)]) {
       await bound(inventory, adapter);
+      await currentAnchor(checkpoint, adapter);
+      if (await adapter.verifyRestoredDecodedHistory(inventory, checkpoint.semanticHistory, anchor) !== true) throw Error('History changed during resume');
       state = { ...state, pending: { kind: 'start', id: p.id } }; await record(journal, state);
       await adapter.start(p.id);
+      await currentAnchor(checkpoint, adapter);
       if (await adapter.status(p.id) !== 'running') throw Error('Participant failed to resume');
       state = { ...state, pending: undefined }; await record(journal, state);
     }
+    await bound(inventory, adapter);
+    await currentAnchor(checkpoint, adapter);
     await record(journal, { ...state, phase: 'resumed' });
   } catch (error) {
     const failures = [];
