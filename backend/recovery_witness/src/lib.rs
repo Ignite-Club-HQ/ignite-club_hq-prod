@@ -60,6 +60,9 @@ fn read_recovery_records(after:u64,limit:u16)->Outcome<Vec<(u64,Record)>> {
 #[ic_cdk::update]
 fn record_removal_recovery(r:Record)->Outcome<u64> {
     let caller=ic_cdk::api::msg_caller();if !principal_ok(caller)||(caller!=identity()&&caller!=governor()){return Err("Pinned removal coordinator required".into());}
+    record(r,ic_cdk::api::canister_self())
+}
+fn record(r:Record,witness:Principal)->Outcome<u64> {
     validate_record(&r)?;
     if let Some(revision)=OPERATIONS.with(|m|m.borrow().get(&r.operation_id)) {
         let prior:Record=RECORDS.with(|m|decode(&m.borrow().get(&revision).expect("indexed recovery record")));
@@ -70,7 +73,7 @@ fn record_removal_recovery(r:Record)->Outcome<u64> {
     if RECORDS.with(|m|m.borrow().len())>=MAX_RECORDS{return Err("Recovery journal capacity reached; keep closed".into());}
     match &r.event {
         Event::Removal(m)=>{
-            if m.subjects.contains(&identity())||m.targets.contains(&ic_cdk::api::canister_self()){return Err("Witness cannot be a removal participant".into());}
+            if m.subjects.contains(&identity())||m.targets.contains(&witness){return Err("Witness cannot be a removal participant".into());}
             if let Some(bytes)=REMOVALS.with(|s|s.borrow().get(&m.account_id)) {let prior:Removal=decode(&bytes);if prior!=*m{return Err("Immutable removal conflict".into());}}
         },
         Event::Progress {account_id,generation,progress}=>{
@@ -155,5 +158,23 @@ ic_cdk::export_candid!();
         assert_eq!(event_key(&a.event),event_key(&b.event));
         let mut other=b;other.event=Event::Progress {account_id:"removed".into(),generation:1,progress:Progress::Prepared {target:Principal::from_slice(&[3,1])}};
         assert_ne!(event_key(&a.event),event_key(&other.event));
+    }
+    #[test] fn actual_stable_journal_retries_conflicts_and_both_group_completion() {
+        let p=|n:u8|Principal::from_slice(&[n,1]);
+        let removal=Record {operation_id:"remove".into(),event:Event::Removal(Removal {account_id:"removed".into(),generation:1,inventory_digest:vec![1;32],subjects:vec![p(5),p(6)],targets:vec![p(3),p(4)]})};
+        assert_eq!(record(removal.clone(),p(1)).unwrap(),1);
+        let mut retry=removal.clone();retry.operation_id="fresh-retry".into();assert_eq!(record(retry,p(1)).unwrap(),1);assert_eq!(head().revision,1);
+        let mut conflict=removal;conflict.operation_id="changed".into();if let Event::Removal(m)=&mut conflict.event {m.generation=2;}
+        assert!(record(conflict,p(1)).is_err());assert_eq!(head().revision,1);
+        let progress=|id:&str,phase:Progress|Record {operation_id:id.into(),event:Event::Progress {account_id:"removed".into(),generation:1,progress:phase}};
+        assert!(record(progress("early",Progress::Completed),p(1)).is_err());
+        let prepared=record(progress("base-prepared",Progress::Prepared {target:p(3)}),p(1)).unwrap();
+        record(progress("base-sealed",Progress::Sealed {target:p(3)}),p(1)).unwrap();
+        assert_eq!(record(progress("old-prepared-retry",Progress::Prepared {target:p(3)}),p(1)).unwrap(),prepared);
+        record(progress("g2-sealed",Progress::Sealed {target:p(4)}),p(1)).unwrap();
+        let complete=record(progress("complete",Progress::Completed),p(1)).unwrap();assert_eq!(complete,5);
+        assert_eq!(record(progress("complete-retry",Progress::Completed),p(1)).unwrap(),5);
+        assert_eq!(head().revision,5);assert_eq!(RECORDS.with(|m|m.borrow().len()),5);
+        let bytes=REMOVALS.with(|m|m.borrow().get(&"removed".to_string())).unwrap();assert_eq!(decode::<Removal>(&bytes).subjects,vec![p(5),p(6)]);
     }
 }
