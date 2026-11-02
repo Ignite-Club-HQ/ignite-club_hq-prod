@@ -1,0 +1,1 @@
+- PocketIC long waits poll /read/ingress_status with the library's own await-request encoder (struct raw_message_id), never client.ingressStatus(). Why: the pinned library sends a bare string the server rejects.
