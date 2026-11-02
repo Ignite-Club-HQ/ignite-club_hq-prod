@@ -27,7 +27,7 @@ jobs:
           mops toolchain use moc 1.16.1
           (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
       - name: Check host, evidence invariants and isolated cleanup
-        run: node --test frontend/scripts/removal-host-preflight.test.mjs frontend/scripts/removal-local-supervisor.test.mjs frontend/scripts/two-group-removal-evidence.test.mjs
+        run: node --test frontend/scripts/removal-host-preflight.test.mjs frontend/scripts/removal-local-supervisor.test.mjs frontend/scripts/two-group-removal-evidence.test.mjs frontend/scripts/account-recovery-candid.test.mjs
       - name: Check exact production authorization refusal and signed scope
         run: |
           cargo test --locked -p identity_access -p recovery_witness -- --test-threads=1
