@@ -693,6 +693,8 @@ service : (Init) -> {
   prepare_account_deletion : (text, nat64) -> (Result_25);
   prepare_private_name_suspension_sink : (text, principal) -> (Result_11);
   production_account_approval_signing_bytes : (ApprovalBody_1) -> (Result_26);
+  // Signed closed-only inventory bootstrap: inspect candidate pins before any write.
+  provision_production_account_inventory : (SignedApproval_1) -> (Result_8);
   publish_approved_private_name : (text, text) -> (Result_17);
   read_account_removal_completion : (text) -> (Result_15);
   read_account_removal_intent : (text) -> (Result_9);
