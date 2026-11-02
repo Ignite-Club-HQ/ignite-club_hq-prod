@@ -27,6 +27,15 @@ pub struct Receipt {
     pub receiver: Principal,
     pub outstanding: Nat,
 }
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Configuration {
+    pub receiver: Principal, pub authority: Option<Principal>, pub protocol: u32,
+    pub admission_required: bool, pub removal_enabled: bool, pub rehearsal: bool,
+}
+pub fn configuration(caller:Principal,receiver:Principal)->Result<Configuration,String> {
+    authorize(caller)?;
+    Ok(Configuration {receiver,authority:authority(),protocol:1,admission_required:false,removal_enabled:true,rehearsal:false})
+}
 
 const MAX_INTENTS: u64 = 524_288;
 const MAX_SUBJECTS: u64 = 4_194_304;

@@ -432,6 +432,13 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
   public query func read_account_removal_authority() : async ?Principal { removal_authority };
+  public shared ({ caller }) func read_account_protection_configuration() : async {
+    #Ok : { receiver : Principal; authority : ?Principal; protocol : Nat32; admission_required : Bool; removal_enabled : Bool; rehearsal : Bool }; #Err : Text
+  } {
+    if (Principal.isAnonymous(caller) or removal_authority != ?caller) return #Err("Configured identity authority required");
+    #Ok({receiver = Principal.fromActor(this); authority = removal_authority; protocol = 1;
+      admission_required = false; removal_enabled = true; rehearsal = false})
+  };
   public shared ({ caller }) func prepare_account_removal(request : RemovalReceiver.Request) : async { #Ok; #Err : Text } {
     if (request.subjects.any(func(s : Principal) : Bool = s.equal(governor))) return #Err("Governor cannot be fenced");
     removalGate().prepare(caller, request)

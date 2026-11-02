@@ -1092,6 +1092,10 @@ fn set_account_removal_authority(authority: Principal) -> Outcome<()> {
 }
 #[ic_cdk::query]
 fn read_account_removal_authority() -> Option<Principal> { account_removal_receiver::authority() }
+#[ic_cdk::update]
+fn read_account_protection_configuration() -> Outcome<account_removal_receiver::Configuration> {
+    account_removal_receiver::configuration(ic_cdk::api::msg_caller(),ic_cdk::api::canister_self())
+}
 
 #[ic_cdk::update]
 fn prepare_account_removal(request: RemovalRequest) -> Outcome<()> {
