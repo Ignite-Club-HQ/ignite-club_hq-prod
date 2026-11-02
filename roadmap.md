@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — approved production removal safeguards (2 Nov 2026, 03:32 UTC)
+- [ ] 03:42 request: finish exact production authorization and run remaining isolated tests; keep closed upgrade/activation held wherever evidence is absent. Extend existing setup rather than introduce rehearsal or live-enabling shortcuts.
 - [x] Inspected uploaded two-group-removal-isolated artifact: supported installation, ten runtime checks passed, 28 complete seals, no unresolved infrastructure; mode remains local-rehearsal and release/full-inventory acceptance remain false. Earlier native-worker installation and two-group artifact blockers are resolved by these owner uploads.
 - [x] Added immutable terminal fencing completion in additive identity memory 31, exact fresh complete seals, idempotent replay, bounded completion history export and refusal tests. Intents, subjects, configuration locks and data remain retained; 197 identity tests, 30 isolated/recovery/workflow safeguards and 17 contract-drift checks pass, and the canister Wasm builds. No production release or destructive erasure.
 - [ ] Run extended isolated two-group completion scenario on the supported worker and inspect its artifact. Blocker: sandbox lacks native write-fault support and GitHub dispatch credential.
