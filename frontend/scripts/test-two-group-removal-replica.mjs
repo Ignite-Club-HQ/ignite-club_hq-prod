@@ -10,7 +10,7 @@ import { Principal } from '@icp-sdk/core/principal';
 import { DerivedPublicKey, EncryptedVetKey, TransportSecretKey, IbeCiphertext, IbeIdentity, IbeSeed } from '@icp-sdk/vetkeys';
 import { removalInstallPreflight } from './removal-install-preflight.mjs';
 import { startRemovalLocalServer } from './removal-local-supervisor.mjs';
-import { HUMAN_DOMAINS, validateTwoGroupInventory, validateHumanSeals, assertWorkerCapabilityDenied } from './two-group-removal-evidence.mjs';
+import { HUMAN_DOMAINS, validateTwoGroupInventory, validateHumanSeals, validateCompleteSeals, assertWorkerCapabilityDenied, assertRemovalFenced } from './two-group-removal-evidence.mjs';
 const p=n=>Principal.fromUint8Array(Uint8Array.from([n,1]));
 const governor=p(1),primary=p(2),alias=p(3),survivor=p(4),outsider=p(5);
 const ok=r=>{assert.ok(r&&'Ok' in r,String(r?.Err));return r.Ok;};
@@ -23,8 +23,8 @@ const denied=async fn=>{
  }
  err(result);
 };
-const report={schema:1,kind:'two-group-human-removal-with-infrastructure-holds',passed:false,
- releaseAuthorized:false,fullInventoryAcceptance:false,mode:'local-rehearsal',checks:[],modules:{},unresolvedInfrastructure:[]};
+const report={schema:1,kind:'two-group-complete-removal',passed:false,
+ releaseAuthorized:false,fullInventoryAcceptance:false,mode:'local-rehearsal',checks:[],modules:{},unresolvedInfrastructure:[],completeSeals:0};
 let server,pic,stage='validate artifact inputs';
 const mark=name=>report.checks.push({name,passed:true});
 const hash=f=>createHash('sha256').update(readFileSync(f)).digest('hex');
@@ -85,6 +85,23 @@ try{
  ok(await id.set_removal_supplemental_inventory(extra,await revision()));
  const inventory=ok(await id.read_removal_inventory_evidence(await revision()));assert.equal(inventory.media.length,2);
  mark('Real closed base/g2 registry, 24 human receivers, two timers, shared workload and supplemental router');
+ stage='configure infrastructure removal receivers';
+ const infra=[{name:'shard_router',s:router},{name:'secret_workload_identity',s:shared},...groups.map(g=>({name:`${g.id}/timer_jobs`,s:g.timer}))];
+ for(const {s:target} of infra){
+  target.actor.setPrincipal(governor);
+  // Unconfigured gates refuse every fence; only the governor configures once.
+  assert.equal((await target.actor.read_account_removal_authority()).length,0);
+  target.actor.setPrincipal(outsider);err(await target.actor.set_account_removal_authority(identity.canisterId));
+  target.actor.setPrincipal(governor);ok(await target.actor.set_account_removal_authority(identity.canisterId));
+  ok(await target.actor.set_account_removal_authority(identity.canisterId));err(await target.actor.set_account_removal_authority(outsider));
+ }
+ // Positive controls: real infrastructure obligations bound to the account.
+ const baseTimer=groups[0].timer.actor;baseTimer.setPrincipal(governor);ok(await baseTimer.grant_worker(alias));
+ baseTimer.setPrincipal(alias);ok(await baseTimer.claim(0n,1));
+ shared.actor.setPrincipal(governor);ok(await shared.actor.register_workload(primary,'removed-account-workload',['send-push-notification']));
+ shared.actor.setPrincipal(primary);assert.equal((await shared.actor.verify_secret_access(primary,'send-push-notification','before-fence')).approved,true);
+ for(const human of [primary,alias,survivor]){router.actor.setPrincipal(human);ok(await router.actor.read_my_owner_test_opening('local'));}
+ mark('Four infrastructure receivers configured once; alias timer worker and primary workload are real retained obligations');
  const normalizedGroups=groups.map(g=>({id:g.id,timer:g.timer.canisterId.toText(),receivers:HUMAN_DOMAINS.map(domain=>({domain,id:g.services[domain].canisterId.toText()}))}));
  stage='seed positive private records in both groups';
  for(const g of groups){
@@ -198,11 +215,38 @@ try{
  assert.deepEqual(ok(await id.begin_account_removal(account.id,0n)),intent);
  id.setPrincipal(survivor);assert.equal(ok(await id.whoami()).id,survivingAccount.id);id.setPrincipal(governor);
  err(await id.set_service_authorities([]));err(await id.advance_account_removal_receiver(account.id,outsider));
- // All actual infrastructure remains in the frozen targets. It cannot be
- // silently omitted just to obtain a green global-completion result.
- for(const target of [shared,router,...groups.map(g=>g.timer)]){err(await id.advance_account_removal_receiver(account.id,target.canisterId));report.unresolvedInfrastructure.push(target.canisterId.toText());}
+ stage='drain and seal four infrastructure receivers';
+ const outsiderRequest={...intent.request??{account_id:intent.account_id,generation:intent.generation,inventory_digest:intent.inventory_digest,subjects:intent.subjects}};
+ for(const {s:target} of infra){target.actor.setPrincipal(outsider);err(await target.actor.prepare_account_removal(outsiderRequest));}
+ const expectedOutstanding=new Map([[router.canisterId.toText(),0n],[shared.canisterId.toText(),1n],[groups[0].timer.canisterId.toText(),1n],[groups[1].timer.canisterId.toText(),0n]]);
+ for(const {s:target} of infra)assert.equal(ok(await id.advance_account_removal_receiver(account.id,target.canisterId)).outstanding,expectedOutstanding.get(target.canisterId.toText()));
+ // Fenced subjects are refused at every infrastructure entry point.
+ baseTimer.setPrincipal(alias);await assertRemovalFenced(()=>baseTimer.claim(0n,1));
+ shared.actor.setPrincipal(primary);await assertRemovalFenced(()=>shared.actor.verify_secret_access(primary,'send-push-notification','after-fence'));
+ shared.actor.setPrincipal(governor);assert.equal((await shared.actor.verify_secret_access(primary,'send-push-notification','governor-after-fence')).approved,false);
+ err(await shared.actor.register_workload(alias,'re-add',['send-push-notification']));
+ baseTimer.setPrincipal(governor);err(await baseTimer.grant_worker(primary));
+ for(const human of [primary,alias]){router.actor.setPrincipal(human);await assertRemovalFenced(()=>router.actor.read_my_owner_test_opening('local'));}
+ router.actor.setPrincipal(survivor);ok(await router.actor.read_my_owner_test_opening('local'));
+ // Seals stay refused while obligations remain; nothing is inferred from receipts.
  err(await id.verify_account_removal_seals(account.id));
- mark('Complete global seals remain blocked by four real infrastructure targets; no erasure or opening shortcut');
+ mark('Infrastructure fences deny both aliases while survivor keeps access; seals refuse retained obligations');
+ baseTimer.setPrincipal(governor);assert.equal(ok(await baseTimer.revoke_fenced_account_obligations(account.id)),1n);
+ shared.actor.setPrincipal(governor);ok(await shared.actor.revoke_workload(primary));
+ // Upgrades preserve every infrastructure fence.
+ await pic.upgradeCanister({canisterId:router.canisterId,wasm:wasm('shard_router'),sender:governor,arg:args});
+ await pic.upgradeCanister({canisterId:shared.canisterId,wasm:wasm('secret_workload_identity'),sender:governor,arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
+ for(const g of groups)await pic.upgradeCanister({canisterId:g.timer.canisterId,wasm:wasm('timer_jobs'),sender:governor,arg:IDL.encode([],[])});
+ for(const human of [primary,alias]){router.actor.setPrincipal(human);await assertRemovalFenced(()=>router.actor.read_my_owner_test_opening('local'));}
+ baseTimer.setPrincipal(alias);await assertRemovalFenced(()=>baseTimer.claim(0n,1));
+ shared.actor.setPrincipal(primary);await assertRemovalFenced(()=>shared.actor.verify_secret_access(primary,'send-push-notification','after-upgrade'));
+ for(const {s:target} of infra)assert.equal(ok(await id.advance_account_removal_receiver(account.id,target.canisterId)).outstanding,0n);
+ mark('Governor settles infrastructure obligations; fences survive router, workload and timer upgrades');
+ stage='verify complete 28-target seals';
+ const complete=ok(await id.verify_account_removal_seals(account.id));
+ report.completeSeals=validateCompleteSeals(normalizedGroups,{account_id:intent.account_id,generation:intent.generation,subjects:intent.subjects.map(p=>p.toText()),inventory_digest:Array.from(intent.inventory_digest)},
+  complete.map(x=>({...x,receiver:x.receiver.toText(),request:{...x.request,subjects:x.request.subjects.map(p=>p.toText()),inventory_digest:Array.from(x.request.inventory_digest)}})),shared.canisterId.toText(),router.canisterId.toText());
+ mark('Complete global seals cover all 28 frozen targets; no erasure, release or opening is implied');
  report.passed=true;
 }catch(error){report.failure=error?.name??'Error';throw error;}
 finally{
