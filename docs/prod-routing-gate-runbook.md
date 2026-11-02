@@ -50,17 +50,44 @@ comparisons only; arbitrary environment values are never exported.
 | `GROUP_OPEN` | A group is accepting clubs; this gate is closed-only. |
 | `PLACEMENT_INCOMPLETE`, `WRONG_TARGET`, `REGISTRY_TRUNCATED` | The registry or placement is not the exact PROD HTTPS/single-subnet deployment being approved. |
 | `SERVICE_NOT_RUNNING`, `CONTROLLER_NOT_GOVERNOR`, `SUBNET_MISMATCH`, `MODULE_HASH_MISSING`, `CYCLES_BELOW_MINIMUM`, `HEAP_AT_BUDGET` | A service is not healthy, not solely governor-controlled, not on the group's subnet, or out of budget. |
-| `REMOVAL_CHECKS_OFF`, `ADMISSION_AUTHORITY_MISSING` | A group service still admits everyone, or is not bound to the PROD account service, so removals are not enforced. |
+| `PRODUCTION_ADMISSION_PATH_UNRELEASED`, `REMOVAL_CHECKS_OFF`, `ADMISSION_AUTHORITY_MISSING` | Production account protection is unfinished or its verified account authority is absent. Existing resource permissions still apply; do not turn on local rehearsal to clear this warning. |
+| `PROD_REHEARSAL_FORBIDDEN` | Rehearsal is enabled on PROD. It is not production acceptance and cannot make the gate pass. |
 | `WRONG_RECIPROCAL_AUTHORITY`, `CONFIGURATION_ROW_MISSING`, `CLUB_BINDINGS_INCOMPLETE`, `COMPETITION_AUTHORITY_MISSING`, `NOTIFICATION_IDENTITY_MISSING` | A service points somewhere other than its own group's services. |
 | `PUSH_WORKER_UNPINNED`, `NOTIFICATION_WORKER_MISSING`, `TIMER_WORKER_MISSING` | The PROD delivery identity is not named or not granted. |
 | `ROUTER_DELETION_AUTHORITY_MISSING`, `IDENTITY_REGISTRY_NOT_BOUND`, `DELETION_RELEASE_UNVERIFIED` | The account-service lifecycle link is not in place (that is `[PROD] Link account service lifecycle (closed)`). |
 | `ADMISSION_RELEASE_UNVERIFIED`, `ACCOUNT_ELIGIBILITY_READER_UNAUTHORIZED` | The account service has not released account admission, or has not authorized a specific reader. |
 | `ROUTING_APPROVAL_MISSING`, `ROUTING_APPROVAL_STALE` | No approval is recorded, or the recorded one does not match this configuration revision, configuration digest and group inventory. |
 
-When nothing is outstanding, the report prints the exact approval a governor
+When all non-approval prerequisites pass, the report prints the exact approval a governor
 could record — configuration revision, approved-configuration digest, the
 complete group inventory and an evidence hash — and still states that recording
 it is a separate, separately reviewed action.
+
+`approvalReady` is separate from `gateComplete`: a missing/stale approval may
+permit a review draft, but never a green complete result. Current service code
+has only rehearsal admission, so it cannot yet produce this draft even if that
+flag and every link are set. The check deliberately keeps that blocker visible.
+
+There is no reviewed PROD approval recorder yet. Do not use
+`frontend/scripts/produce-routing-gates.ts`: it is DEV-bound. Production approval
+will require its own protected, exact-revision, journaled record/readback action;
+opening remains a separate decision.
+
+## Remaining production protection work
+
+- Independent base-group inventory acceptance, including original/shared services
+  and additional stores; the existing g2 eligibility path must not be broadened
+  into a base release by changing a group-name check.
+- Production service guards and narrow account/alias reads, without releasing
+  prototype unlink/history/erasure functions or letting disabled settings bypass
+  retained fences.
+- Complete receiver/no-human-work classification, terminal coordinator
+  completion, unknown delivery settlement and history-preserving recovery.
+- Real two-group acceptance without rehearsal: positive private-access controls,
+  removal denial during held callbacks, outages, retained obligations and upgrades.
+
+No funding or another wiring run addresses these code-level prerequisites.
+See `docs/prod-removal-implementation-2026-11-02.md` for the consolidated status.
 
 ## Standing limits
 
