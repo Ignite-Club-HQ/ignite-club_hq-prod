@@ -1,0 +1,77 @@
+type Acceptance = record {
+  participants : vec Participant;
+  inventory_digest : blob;
+  journal_digest : blob;
+  decoded_history_digest : blob;
+  removal_generation : nat64;
+  generation : nat64;
+  witness : principal;
+  journal_revision : nat64;
+  epoch : nat64;
+  signed_digest : blob;
+  witness_version : nat64;
+  identity : principal;
+  identity_version : nat64;
+  expires_at_ns : nat64;
+  history_revision : nat64;
+};
+type Event = variant {
+  Progress : record {
+    account_id : text;
+    generation : nat64;
+    progress : Progress;
+  };
+  Removal : Removal;
+};
+type Head = record {
+  epoch : nat64;
+  digest : blob;
+  accepted : opt SignedAcceptance;
+  revision : nat64;
+};
+type Init = record { governor : principal; identity : principal };
+type Participant = record {
+  canister : principal;
+  module : blob;
+  changes : nat64;
+};
+type Progress = variant {
+  Prepared : record { target : principal };
+  Sealed : record { target : principal };
+  Completed;
+};
+type Record = record { operation_id : text; event : Event };
+type Removal = record {
+  account_id : text;
+  inventory_digest : blob;
+  subjects : vec principal;
+  generation : nat64;
+  targets : vec principal;
+};
+type Result = variant { Ok : nat64; Err : text };
+type Result_1 = variant { Ok : Head; Err : text };
+type Result_2 = variant { Ok : vec record { nat64; Record }; Err : text };
+type Result_3 = variant { Ok : blob; Err : text };
+type Result_4 = variant { Ok : WitnessReceipt; Err : text };
+type SignedAcceptance = record { signature : blob; body : Acceptance };
+type WitnessReceipt = record { request : WitnessRequest };
+type WitnessRequest = record {
+  request_id : nat64;
+  removal_generation : nat64;
+  generation : nat64;
+  signed_digest : blob;
+  identity : principal;
+  identity_version : nat64;
+  recovery_epoch : nat64;
+  history_revision : nat64;
+};
+service : (Init) -> {
+  accept_recovery_fence : (SignedAcceptance) -> (Result);
+  close_recovery_fence : (nat64) -> (Result);
+  read_recovery_head : () -> (Result_1);
+  read_recovery_records : (nat64, nat16) -> (Result_2);
+  read_recovery_runtime_version : () -> (Result);
+  record_removal_recovery : (Record) -> (Result);
+  recovery_acceptance_signing_bytes : (Acceptance) -> (Result_3);
+  verify_production_account_read_fence : (WitnessRequest) -> (Result_4);
+}
