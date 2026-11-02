@@ -524,17 +524,19 @@ export type Result_43 = { 'Ok' : Principal } |
   { 'Err' : string };
 export type Result_44 = { 'Ok' : DirectoryCleanup } |
   { 'Err' : string };
-export type Result_45 = { 'Ok' : Entitlement } |
+export type Result_45 = { 'Ok' : number } |
   { 'Err' : string };
-export type Result_46 = { 'Ok' : Draft } |
+export type Result_46 = { 'Ok' : Entitlement } |
   { 'Err' : string };
-export type Result_47 = { 'Ok' : PrivacyConsent } |
+export type Result_47 = { 'Ok' : Draft } |
   { 'Err' : string };
-export type Result_48 = { 'Ok' : TermsAcceptance } |
+export type Result_48 = { 'Ok' : PrivacyConsent } |
   { 'Err' : string };
-export type Result_49 = { 'Ok' : Array<Receipt> } |
+export type Result_49 = { 'Ok' : TermsAcceptance } |
   { 'Err' : string };
 export type Result_5 = { 'Ok' : Progress } |
+  { 'Err' : string };
+export type Result_50 = { 'Ok' : Array<Receipt> } |
   { 'Err' : string };
 export type Result_6 = { 'Ok' : WriteWindow } |
   { 'Err' : string };
@@ -1011,6 +1013,7 @@ export interface _SERVICE {
    */
   'read_service_account' : ActorMethod<[Principal], Result>,
   'reclaim_membership_directory' : ActorMethod<[], Result_44>,
+  'reconcile_pending_recovery_records' : ActorMethod<[number], Result_45>,
   /**
    * Caller-authenticated: redeems a signed attestation minted by the
    * session-free IAP verification endpoint after it confirms an Apple
@@ -1026,7 +1029,7 @@ export interface _SERVICE {
    */
   'redeem_entitlement' : ActorMethod<
     [string, string, bigint, string, string],
-    Result_45
+    Result_46
   >,
   'register_account' : ActorMethod<[], Result>,
   /**
@@ -1050,7 +1053,7 @@ export interface _SERVICE {
    */
   'review_production_account_protection' : ActorMethod<
     [Expectation, bigint],
-    Result_46
+    Result_47
   >,
   'revoke' : ActorMethod<[Principal, bigint], Result>,
   /**
@@ -1112,7 +1115,7 @@ export interface _SERVICE {
    */
   'set_entitlement' : ActorMethod<
     [Principal, string, string, bigint, string],
-    Result_45
+    Result_46
   >,
   'set_exclusion' : ActorMethod<[string, string, [] | [string]], Result_2>,
   'set_exclusion_scoped' : ActorMethod<
@@ -1121,7 +1124,7 @@ export interface _SERVICE {
   >,
   'set_family' : ActorMethod<[string, string], Result_2>,
   'set_group_inventory_binding' : ActorMethod<[Binding, bigint], Result_2>,
-  'set_privacy_consent' : ActorMethod<[string, string, boolean], Result_47>,
+  'set_privacy_consent' : ActorMethod<[string, string, boolean], Result_48>,
   'set_profile' : ActorMethod<[string, [] | [string]], Result_17>,
   'set_removal_supplemental_inventory' : ActorMethod<
     [Array<Supplemental>, bigint],
@@ -1134,7 +1137,7 @@ export interface _SERVICE {
    * caller's currently recorded version is rejected, so a stale client can
    * never roll the recorded acceptance backwards.
    */
-  'set_terms_acceptance' : ActorMethod<[number], Result_48>,
+  'set_terms_acceptance' : ActorMethod<[number], Result_49>,
   /**
    * Sets (or clears) the caller's UI theme preference, so it follows the
    * account across devices. Creates a blank profile entry if the caller has
@@ -1146,7 +1149,7 @@ export interface _SERVICE {
    * Fresh, authenticated full-inventory seal verification. This does not erase
    * data, release registry locks, restore histories or activate a group.
    */
-  'verify_account_removal_seals' : ActorMethod<[string], Result_49>,
+  'verify_account_removal_seals' : ActorMethod<[string], Result_50>,
   'verify_private_name_preparation' : ActorMethod<[string], Result_6>,
   'whoami' : ActorMethod<[], Result>,
   'write_approved_private_name' : ActorMethod<

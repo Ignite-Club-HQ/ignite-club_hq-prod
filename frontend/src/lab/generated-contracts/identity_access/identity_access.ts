@@ -219,7 +219,7 @@ export interface MediaEvidence {
 }
 export type Result_48 = {
     __kind__: "Ok";
-    Ok: TermsAcceptance;
+    Ok: PrivacyConsent;
 } | {
     __kind__: "Err";
     Err: string;
@@ -411,7 +411,7 @@ export type RemovalHistoryCursor = {
 };
 export type Result_46 = {
     __kind__: "Ok";
-    Ok: Draft;
+    Ok: Entitlement;
 } | {
     __kind__: "Err";
     Err: string;
@@ -633,6 +633,13 @@ export type Result_5 = {
     __kind__: "Err";
     Err: string;
 };
+export type Result_50 = {
+    __kind__: "Ok";
+    Ok: Array<Receipt>;
+} | {
+    __kind__: "Err";
+    Err: string;
+};
 export interface Intent_1 {
     request: Request_1;
     inventory: RemovalInventory;
@@ -773,7 +780,7 @@ export type Result_17 = {
 };
 export type Result_47 = {
     __kind__: "Ok";
-    Ok: PrivacyConsent;
+    Ok: Draft;
 } | {
     __kind__: "Err";
     Err: string;
@@ -865,7 +872,7 @@ export interface ConversionPage {
 }
 export type Result_49 = {
     __kind__: "Ok";
-    Ok: Array<Receipt>;
+    Ok: TermsAcceptance;
 } | {
     __kind__: "Err";
     Err: string;
@@ -951,7 +958,7 @@ export type Result_35 = {
 };
 export type Result_45 = {
     __kind__: "Ok";
-    Ok: Entitlement;
+    Ok: number;
 } | {
     __kind__: "Err";
     Err: string;
@@ -1100,11 +1107,12 @@ export interface identity_accessInterface {
     read_secure_name_authority(): Promise<Result_43>;
     read_service_account(arg0: Principal): Promise<Result>;
     reclaim_membership_directory(): Promise<Result_44>;
-    redeem_entitlement(arg0: string, arg1: string, arg2: bigint, arg3: string, arg4: string): Promise<Result_45>;
+    reconcile_pending_recovery_records(arg0: number): Promise<Result_45>;
+    redeem_entitlement(arg0: string, arg1: string, arg2: bigint, arg3: string, arg4: string): Promise<Result_46>;
     register_account(): Promise<Result>;
     rekey_principal(arg0: Principal, arg1: Principal, arg2: boolean): Promise<Result_8>;
     remove_verifier(arg0: Principal): Promise<Result_2>;
-    review_production_account_protection(arg0: Expectation, arg1: bigint): Promise<Result_46>;
+    review_production_account_protection(arg0: Expectation, arg1: bigint): Promise<Result_47>;
     revoke(arg0: Principal, arg1: bigint): Promise<Result>;
     revoke_role(arg0: string, arg1: string, arg2: string | null, arg3: string | null): Promise<Result_2>;
     revoke_role_scoped(arg0: string, arg1: string, arg2: string | null, arg3: string | null, arg4: string | null): Promise<Result_2>;
@@ -1115,24 +1123,24 @@ export interface identity_accessInterface {
     set_attestation_secret(arg0: Uint8Array): Promise<Result_2>;
     set_club_authorities(arg0: Array<Principal>): Promise<Result_2>;
     set_club_switcher_hint_seen(): Promise<Result_17>;
-    set_entitlement(arg0: Principal, arg1: string, arg2: string, arg3: bigint, arg4: string): Promise<Result_45>;
+    set_entitlement(arg0: Principal, arg1: string, arg2: string, arg3: bigint, arg4: string): Promise<Result_46>;
     set_exclusion(arg0: string, arg1: string, arg2: string | null): Promise<Result_2>;
     set_exclusion_scoped(arg0: string, arg1: string | null, arg2: string, arg3: string | null): Promise<Result_2>;
     set_family(arg0: string, arg1: string): Promise<Result_2>;
     set_group_inventory_binding(arg0: Binding, arg1: bigint): Promise<Result_2>;
-    set_privacy_consent(arg0: string, arg1: string, arg2: boolean): Promise<Result_47>;
+    set_privacy_consent(arg0: string, arg1: string, arg2: boolean): Promise<Result_48>;
     set_profile(arg0: string, arg1: string | null): Promise<Result_17>;
     set_removal_supplemental_inventory(arg0: Array<Supplemental>, arg1: bigint): Promise<Result_2>;
     set_service_authorities(arg0: Array<Principal>): Promise<Result_2>;
-    set_terms_acceptance(arg0: number): Promise<Result_48>;
+    set_terms_acceptance(arg0: number): Promise<Result_49>;
     set_theme_preference(arg0: string | null): Promise<Result_17>;
     settle_account_deletion(arg0: string): Promise<Result_2>;
-    verify_account_removal_seals(arg0: string): Promise<Result_49>;
+    verify_account_removal_seals(arg0: string): Promise<Result_50>;
     verify_private_name_preparation(arg0: string): Promise<Result_6>;
     whoami(): Promise<Result>;
     write_approved_private_name(arg0: string, arg1: string, arg2: string | null): Promise<Result_2>;
 }
-import type { Access as _Access, Account as _Account, AccountInventoryCursor as _AccountInventoryCursor, AccountInventoryPage as _AccountInventoryPage, AccountInventoryRow as _AccountInventoryRow, AccountStatus as _AccountStatus, AdminAccountPage as _AdminAccountPage, AdminAccountRow as _AdminAccountRow, ApprovalBody_1 as _ApprovalBody_1, ApprovalReceipt as _ApprovalReceipt, Binding as _Binding, CleanupAccount as _CleanupAccount, Completion as _Completion, ConversionPage as _ConversionPage, ConversionProfileRow as _ConversionProfileRow, Cursor as _Cursor, DenialReason as _DenialReason, DirectoryAcceptanceCheck as _DirectoryAcceptanceCheck, DirectoryCleanup as _DirectoryCleanup, DirectoryConfigurationReadback as _DirectoryConfigurationReadback, Draft as _Draft, EligibilityDecision as _EligibilityDecision, Entitlement as _Entitlement, Evidence as _Evidence, Exclusion as _Exclusion, Expectation as _Expectation, ExternalSiteBinding as _ExternalSiteBinding, FamilyLink as _FamilyLink, GuardianProfilePage as _GuardianProfilePage, Intent as _Intent, Intent_1 as _Intent_1, Lifecycle as _Lifecycle, LinkChallenge as _LinkChallenge, OriginalNameAuthority as _OriginalNameAuthority, OwnershipProgress as _OwnershipProgress, Phase as _Phase, PrincipalDenial as _PrincipalDenial, PrincipalEligibility as _PrincipalEligibility, PrivacyConsent as _PrivacyConsent, Profile as _Profile, ProfileSearchResult as _ProfileSearchResult, Progress as _Progress, Receipt as _Receipt, Receipt_1 as _Receipt_1, ReceiverConfiguration as _ReceiverConfiguration, ReleasedReply as _ReleasedReply, RemovalHistoryCursor as _RemovalHistoryCursor, RemovalHistoryManifest as _RemovalHistoryManifest, RemovalHistoryPage as _RemovalHistoryPage, RemovalInventory as _RemovalInventory, Reply as _Reply, Request_1 as _Request_1, Result as _Result, Result_1 as _Result_1, Result_10 as _Result_10, Result_11 as _Result_11, Result_12 as _Result_12, Result_13 as _Result_13, Result_14 as _Result_14, Result_15 as _Result_15, Result_16 as _Result_16, Result_17 as _Result_17, Result_18 as _Result_18, Result_19 as _Result_19, Result_2 as _Result_2, Result_20 as _Result_20, Result_21 as _Result_21, Result_22 as _Result_22, Result_23 as _Result_23, Result_24 as _Result_24, Result_25 as _Result_25, Result_26 as _Result_26, Result_27 as _Result_27, Result_28 as _Result_28, Result_29 as _Result_29, Result_3 as _Result_3, Result_30 as _Result_30, Result_31 as _Result_31, Result_32 as _Result_32, Result_33 as _Result_33, Result_34 as _Result_34, Result_35 as _Result_35, Result_36 as _Result_36, Result_37 as _Result_37, Result_38 as _Result_38, Result_39 as _Result_39, Result_4 as _Result_4, Result_40 as _Result_40, Result_41 as _Result_41, Result_42 as _Result_42, Result_43 as _Result_43, Result_44 as _Result_44, Result_45 as _Result_45, Result_46 as _Result_46, Result_47 as _Result_47, Result_48 as _Result_48, Result_49 as _Result_49, Result_5 as _Result_5, Result_6 as _Result_6, Result_7 as _Result_7, Result_8 as _Result_8, Result_9 as _Result_9, RoleGrant as _RoleGrant, Row as _Row, SignedApproval_1 as _SignedApproval_1, Snapshot as _Snapshot, SourceBinding as _SourceBinding, State as _State, State_1 as _State_1, TermsAcceptance as _TermsAcceptance, Ticket as _Ticket, Token as _Token, UnlinkIntent as _UnlinkIntent, WritePhase as _WritePhase, WriteWindow as _WriteWindow, WriterReceipt as _WriterReceipt } from "./declarations/identity_access.did";
+import type { Access as _Access, Account as _Account, AccountInventoryCursor as _AccountInventoryCursor, AccountInventoryPage as _AccountInventoryPage, AccountInventoryRow as _AccountInventoryRow, AccountStatus as _AccountStatus, AdminAccountPage as _AdminAccountPage, AdminAccountRow as _AdminAccountRow, ApprovalBody_1 as _ApprovalBody_1, ApprovalReceipt as _ApprovalReceipt, Binding as _Binding, CleanupAccount as _CleanupAccount, Completion as _Completion, ConversionPage as _ConversionPage, ConversionProfileRow as _ConversionProfileRow, Cursor as _Cursor, DenialReason as _DenialReason, DirectoryAcceptanceCheck as _DirectoryAcceptanceCheck, DirectoryCleanup as _DirectoryCleanup, DirectoryConfigurationReadback as _DirectoryConfigurationReadback, Draft as _Draft, EligibilityDecision as _EligibilityDecision, Entitlement as _Entitlement, Evidence as _Evidence, Exclusion as _Exclusion, Expectation as _Expectation, ExternalSiteBinding as _ExternalSiteBinding, FamilyLink as _FamilyLink, GuardianProfilePage as _GuardianProfilePage, Intent as _Intent, Intent_1 as _Intent_1, Lifecycle as _Lifecycle, LinkChallenge as _LinkChallenge, OriginalNameAuthority as _OriginalNameAuthority, OwnershipProgress as _OwnershipProgress, Phase as _Phase, PrincipalDenial as _PrincipalDenial, PrincipalEligibility as _PrincipalEligibility, PrivacyConsent as _PrivacyConsent, Profile as _Profile, ProfileSearchResult as _ProfileSearchResult, Progress as _Progress, Receipt as _Receipt, Receipt_1 as _Receipt_1, ReceiverConfiguration as _ReceiverConfiguration, ReleasedReply as _ReleasedReply, RemovalHistoryCursor as _RemovalHistoryCursor, RemovalHistoryManifest as _RemovalHistoryManifest, RemovalHistoryPage as _RemovalHistoryPage, RemovalInventory as _RemovalInventory, Reply as _Reply, Request_1 as _Request_1, Result as _Result, Result_1 as _Result_1, Result_10 as _Result_10, Result_11 as _Result_11, Result_12 as _Result_12, Result_13 as _Result_13, Result_14 as _Result_14, Result_15 as _Result_15, Result_16 as _Result_16, Result_17 as _Result_17, Result_18 as _Result_18, Result_19 as _Result_19, Result_2 as _Result_2, Result_20 as _Result_20, Result_21 as _Result_21, Result_22 as _Result_22, Result_23 as _Result_23, Result_24 as _Result_24, Result_25 as _Result_25, Result_26 as _Result_26, Result_27 as _Result_27, Result_28 as _Result_28, Result_29 as _Result_29, Result_3 as _Result_3, Result_30 as _Result_30, Result_31 as _Result_31, Result_32 as _Result_32, Result_33 as _Result_33, Result_34 as _Result_34, Result_35 as _Result_35, Result_36 as _Result_36, Result_37 as _Result_37, Result_38 as _Result_38, Result_39 as _Result_39, Result_4 as _Result_4, Result_40 as _Result_40, Result_41 as _Result_41, Result_42 as _Result_42, Result_43 as _Result_43, Result_44 as _Result_44, Result_45 as _Result_45, Result_46 as _Result_46, Result_47 as _Result_47, Result_48 as _Result_48, Result_49 as _Result_49, Result_5 as _Result_5, Result_50 as _Result_50, Result_6 as _Result_6, Result_7 as _Result_7, Result_8 as _Result_8, Result_9 as _Result_9, RoleGrant as _RoleGrant, Row as _Row, SignedApproval_1 as _SignedApproval_1, Snapshot as _Snapshot, SourceBinding as _SourceBinding, State as _State, State_1 as _State_1, TermsAcceptance as _TermsAcceptance, Ticket as _Ticket, Token as _Token, UnlinkIntent as _UnlinkIntent, WritePhase as _WritePhase, WriteWindow as _WriteWindow, WriterReceipt as _WriterReceipt } from "./declarations/identity_access.did";
 export class Identity_access implements identity_accessInterface {
     constructor(private actor: ActorSubclass<_SERVICE>){}
     async accept_link(arg0: bigint): Promise<Result> {
@@ -1503,9 +1511,13 @@ export class Identity_access implements identity_accessInterface {
         const result = await this.actor.reclaim_membership_directory();
         return from_candid_Result_44_n197(result);
     }
-    async redeem_entitlement(arg0: string, arg1: string, arg2: bigint, arg3: string, arg4: string): Promise<Result_45> {
-        const result = await this.actor.redeem_entitlement(arg0, arg1, arg2, arg3, arg4);
+    async reconcile_pending_recovery_records(arg0: number): Promise<Result_45> {
+        const result = await this.actor.reconcile_pending_recovery_records(arg0);
         return from_candid_Result_45_n199(result);
+    }
+    async redeem_entitlement(arg0: string, arg1: string, arg2: bigint, arg3: string, arg4: string): Promise<Result_46> {
+        const result = await this.actor.redeem_entitlement(arg0, arg1, arg2, arg3, arg4);
+        return from_candid_Result_46_n201(result);
     }
     async register_account(): Promise<Result> {
         const result = await this.actor.register_account();
@@ -1519,9 +1531,9 @@ export class Identity_access implements identity_accessInterface {
         const result = await this.actor.remove_verifier(arg0);
         return from_candid_Result_2_n10(result);
     }
-    async review_production_account_protection(arg0: Expectation, arg1: bigint): Promise<Result_46> {
+    async review_production_account_protection(arg0: Expectation, arg1: bigint): Promise<Result_47> {
         const result = await this.actor.review_production_account_protection(arg0, arg1);
-        return from_candid_Result_46_n201(result);
+        return from_candid_Result_47_n203(result);
     }
     async revoke(arg0: Principal, arg1: bigint): Promise<Result> {
         const result = await this.actor.revoke(arg0, arg1);
@@ -1548,7 +1560,7 @@ export class Identity_access implements identity_accessInterface {
         return from_candid_Result_27_n106(result);
     }
     async set_account_status(arg0: string, arg1: AccountStatus): Promise<Result> {
-        const result = await this.actor.set_account_status(arg0, to_candid_AccountStatus_n203(arg1));
+        const result = await this.actor.set_account_status(arg0, to_candid_AccountStatus_n205(arg1));
         return from_candid_Result_n1(result);
     }
     async set_attestation_secret(arg0: Uint8Array): Promise<Result_2> {
@@ -1563,9 +1575,9 @@ export class Identity_access implements identity_accessInterface {
         const result = await this.actor.set_club_switcher_hint_seen();
         return from_candid_Result_17_n61(result);
     }
-    async set_entitlement(arg0: Principal, arg1: string, arg2: string, arg3: bigint, arg4: string): Promise<Result_45> {
+    async set_entitlement(arg0: Principal, arg1: string, arg2: string, arg3: bigint, arg4: string): Promise<Result_46> {
         const result = await this.actor.set_entitlement(arg0, arg1, arg2, arg3, arg4);
-        return from_candid_Result_45_n199(result);
+        return from_candid_Result_46_n201(result);
     }
     async set_exclusion(arg0: string, arg1: string, arg2: string | null): Promise<Result_2> {
         const result = await this.actor.set_exclusion(arg0, arg1, to_candid_opt_n7(arg2));
@@ -1583,9 +1595,9 @@ export class Identity_access implements identity_accessInterface {
         const result = await this.actor.set_group_inventory_binding(arg0, arg1);
         return from_candid_Result_2_n10(result);
     }
-    async set_privacy_consent(arg0: string, arg1: string, arg2: boolean): Promise<Result_47> {
+    async set_privacy_consent(arg0: string, arg1: string, arg2: boolean): Promise<Result_48> {
         const result = await this.actor.set_privacy_consent(arg0, arg1, arg2);
-        return from_candid_Result_47_n205(result);
+        return from_candid_Result_48_n207(result);
     }
     async set_profile(arg0: string, arg1: string | null): Promise<Result_17> {
         const result = await this.actor.set_profile(arg0, to_candid_opt_n7(arg1));
@@ -1599,9 +1611,9 @@ export class Identity_access implements identity_accessInterface {
         const result = await this.actor.set_service_authorities(arg0);
         return from_candid_Result_2_n10(result);
     }
-    async set_terms_acceptance(arg0: number): Promise<Result_48> {
+    async set_terms_acceptance(arg0: number): Promise<Result_49> {
         const result = await this.actor.set_terms_acceptance(arg0);
-        return from_candid_Result_48_n207(result);
+        return from_candid_Result_49_n209(result);
     }
     async set_theme_preference(arg0: string | null): Promise<Result_17> {
         const result = await this.actor.set_theme_preference(to_candid_opt_n7(arg0));
@@ -1611,9 +1623,9 @@ export class Identity_access implements identity_accessInterface {
         const result = await this.actor.settle_account_deletion(arg0);
         return from_candid_Result_2_n10(result);
     }
-    async verify_account_removal_seals(arg0: string): Promise<Result_49> {
+    async verify_account_removal_seals(arg0: string): Promise<Result_50> {
         const result = await this.actor.verify_account_removal_seals(arg0);
-        return from_candid_Result_49_n209(result);
+        return from_candid_Result_50_n211(result);
     }
     async verify_private_name_preparation(arg0: string): Promise<Result_6> {
         const result = await this.actor.verify_private_name_preparation(arg0);
@@ -1829,8 +1841,8 @@ function from_candid_Result_45_n199(value: _Result_45): Result_45 {
 function from_candid_Result_46_n201(value: _Result_46): Result_46 {
     return from_candid_variant_n202(value);
 }
-function from_candid_Result_47_n205(value: _Result_47): Result_47 {
-    return from_candid_variant_n206(value);
+function from_candid_Result_47_n203(value: _Result_47): Result_47 {
+    return from_candid_variant_n204(value);
 }
 function from_candid_Result_48_n207(value: _Result_48): Result_48 {
     return from_candid_variant_n208(value);
@@ -1840,6 +1852,9 @@ function from_candid_Result_49_n209(value: _Result_49): Result_49 {
 }
 function from_candid_Result_4_n14(value: _Result_4): Result_4 {
     return from_candid_variant_n15(value);
+}
+function from_candid_Result_50_n211(value: _Result_50): Result_50 {
+    return from_candid_variant_n212(value);
 }
 function from_candid_Result_5_n16(value: _Result_5): Result_5 {
     return from_candid_variant_n17(value);
@@ -3103,6 +3118,25 @@ function from_candid_variant_n2(value: {
     } : value;
 }
 function from_candid_variant_n200(value: {
+    Ok: number;
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: number;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: value.Ok
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n202(value: {
     Ok: _Entitlement;
 } | {
     Err: string;
@@ -3121,7 +3155,7 @@ function from_candid_variant_n200(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n202(value: {
+function from_candid_variant_n204(value: {
     Ok: _Draft;
 } | {
     Err: string;
@@ -3140,7 +3174,7 @@ function from_candid_variant_n202(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n206(value: {
+function from_candid_variant_n208(value: {
     Ok: _PrivacyConsent;
 } | {
     Err: string;
@@ -3159,7 +3193,7 @@ function from_candid_variant_n206(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n208(value: {
+function from_candid_variant_n210(value: {
     Ok: _TermsAcceptance;
 } | {
     Err: string;
@@ -3178,7 +3212,7 @@ function from_candid_variant_n208(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n210(value: {
+function from_candid_variant_n212(value: {
     Ok: Array<_Receipt>;
 } | {
     Err: string;
@@ -3662,8 +3696,8 @@ function from_candid_vec_n90(value: Array<_AdminAccountRow>): Array<AdminAccount
 function to_candid_AccountInventoryCursor_n146(value: AccountInventoryCursor): _AccountInventoryCursor {
     return to_candid_record_n147(value);
 }
-function to_candid_AccountStatus_n203(value: AccountStatus): _AccountStatus {
-    return to_candid_variant_n204(value);
+function to_candid_AccountStatus_n205(value: AccountStatus): _AccountStatus {
+    return to_candid_variant_n206(value);
 }
 function to_candid_ApprovalBody_1_n32(value: ApprovalBody_1): _ApprovalBody_1 {
     return to_candid_record_n33(value);
@@ -3871,7 +3905,7 @@ function to_candid_variant_n182(value: {
         RemovalBarriers: value.RemovalBarriers ? candid_some(value.RemovalBarriers) : candid_none()
     } : value;
 }
-function to_candid_variant_n204(value: AccountStatus): {
+function to_candid_variant_n206(value: AccountStatus): {
     Active: null;
 } | {
     Suspended: null;

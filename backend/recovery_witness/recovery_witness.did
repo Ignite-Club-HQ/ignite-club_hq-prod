@@ -21,6 +21,7 @@ type Event = variant {
     generation : nat64;
     progress : Progress;
   };
+  Disable : record { generation : nat64; identity : principal };
   Removal : Removal;
 };
 type Head = record {
@@ -50,9 +51,10 @@ type Removal = record {
 };
 type Result = variant { Ok : nat64; Err : text };
 type Result_1 = variant { Ok : Head; Err : text };
-type Result_2 = variant { Ok : vec record { nat64; Record }; Err : text };
-type Result_3 = variant { Ok : blob; Err : text };
-type Result_4 = variant { Ok : WitnessReceipt; Err : text };
+type Result_2 = variant { Ok : Record; Err : text };
+type Result_3 = variant { Ok : vec record { nat64; Record }; Err : text };
+type Result_4 = variant { Ok : blob; Err : text };
+type Result_5 = variant { Ok : WitnessReceipt; Err : text };
 type SignedAcceptance = record { signature : blob; body : Acceptance };
 type WitnessReceipt = record { request : WitnessRequest };
 type WitnessRequest = record {
@@ -69,9 +71,10 @@ service : (Init) -> {
   accept_recovery_fence : (SignedAcceptance) -> (Result);
   close_recovery_fence : (nat64) -> (Result);
   read_recovery_head : () -> (Result_1);
-  read_recovery_records : (nat64, nat16) -> (Result_2);
+  read_recovery_record : (nat64) -> (Result_2);
+  read_recovery_records : (nat64, nat16) -> (Result_3);
   read_recovery_runtime_version : () -> (Result);
   record_removal_recovery : (Record) -> (Result);
-  recovery_acceptance_signing_bytes : (Acceptance) -> (Result_3);
-  verify_production_account_read_fence : (WitnessRequest) -> (Result_4);
+  recovery_acceptance_signing_bytes : (Acceptance) -> (Result_4);
+  verify_production_account_read_fence : (WitnessRequest) -> (Result_5);
 }

@@ -444,12 +444,13 @@ type Result_41 = variant { Ok : RemovalHistoryManifest; Err : text };
 type Result_42 = variant { Ok : RemovalHistoryPage; Err : text };
 type Result_43 = variant { Ok : principal; Err : text };
 type Result_44 = variant { Ok : DirectoryCleanup; Err : text };
-type Result_45 = variant { Ok : Entitlement; Err : text };
-type Result_46 = variant { Ok : Draft; Err : text };
-type Result_47 = variant { Ok : PrivacyConsent; Err : text };
-type Result_48 = variant { Ok : TermsAcceptance; Err : text };
-type Result_49 = variant { Ok : vec Receipt; Err : text };
+type Result_45 = variant { Ok : nat16; Err : text };
+type Result_46 = variant { Ok : Entitlement; Err : text };
+type Result_47 = variant { Ok : Draft; Err : text };
+type Result_48 = variant { Ok : PrivacyConsent; Err : text };
+type Result_49 = variant { Ok : TermsAcceptance; Err : text };
 type Result_5 = variant { Ok : Progress; Err : text };
+type Result_50 = variant { Ok : vec Receipt; Err : text };
 type Result_6 = variant { Ok : WriteWindow; Err : text };
 type Result_7 = variant { Ok : CleanupAccount; Err : text };
 type Result_8 = variant { Ok : nat64; Err : text };
@@ -762,6 +763,7 @@ service : (Init) -> {
   // Subject-bound consensus ownership read; never implicitly registers an account.
   read_service_account : (principal) -> (Result);
   reclaim_membership_directory : () -> (Result_44);
+  reconcile_pending_recovery_records : (nat16) -> (Result_45);
   // Caller-authenticated: redeems a signed attestation minted by the
   // session-free IAP verification endpoint after it confirms an Apple
   // receipt/transaction with the App Store. The endpoint has no Internet
@@ -773,7 +775,7 @@ service : (Init) -> {
   // verified before the entitlement is written. A different principal cannot
   // replay the signature because it is bound to the principal that produced
   // it (changing the principal changes the signed message).
-  redeem_entitlement : (text, text, nat64, text, text) -> (Result_45);
+  redeem_entitlement : (text, text, nat64, text, text) -> (Result_46);
   register_account : () -> (Result);
   // Governor-only: moves one user's sign-in ID (`old`) to a new one (`new`).
   // Everything here except entitlements and link challenges is keyed by
@@ -788,7 +790,7 @@ service : (Init) -> {
   remove_verifier : (principal) -> (Result_2);
   // Governor-only production authorization draft. Never stores reader grants or
   // changes release state; missing receiver/recovery evidence remains a refusal.
-  review_production_account_protection : (Expectation, nat64) -> (Result_46);
+  review_production_account_protection : (Expectation, nat64) -> (Result_47);
   revoke : (principal, nat64) -> (Result);
   // Mirrors `grant_role`'s auth (governor-only).
   revoke_role : (text, text, opt text, opt text) -> (Result_2);
@@ -822,12 +824,12 @@ service : (Init) -> {
   // Governor- or verifier-only: records a Pro entitlement for an arbitrary
   // principal. Used by a trusted server-side writer; client-submitted IAP
   // receipts instead go through `redeem_entitlement` below.
-  set_entitlement : (principal, text, text, nat64, text) -> (Result_45);
+  set_entitlement : (principal, text, text, nat64, text) -> (Result_46);
   set_exclusion : (text, text, opt text) -> (Result_2);
   set_exclusion_scoped : (text, opt text, text, opt text) -> (Result_2);
   set_family : (text, text) -> (Result_2);
   set_group_inventory_binding : (Binding, nat64) -> (Result_2);
-  set_privacy_consent : (text, text, bool) -> (Result_47);
+  set_privacy_consent : (text, text, bool) -> (Result_48);
   set_profile : (text, opt text) -> (Result_17);
   set_removal_supplemental_inventory : (vec Supplemental, nat64) -> (Result_2);
   set_service_authorities : (vec principal) -> (Result_2);
@@ -835,7 +837,7 @@ service : (Init) -> {
   // version. Monotonic per-account: a version lower than (or equal to) the
   // caller's currently recorded version is rejected, so a stale client can
   // never roll the recorded acceptance backwards.
-  set_terms_acceptance : (nat32) -> (Result_48);
+  set_terms_acceptance : (nat32) -> (Result_49);
   // Sets (or clears) the caller's UI theme preference, so it follows the
   // account across devices. Creates a blank profile entry if the caller has
   // never called `set_profile`.
@@ -843,7 +845,7 @@ service : (Init) -> {
   settle_account_deletion : (text) -> (Result_2);
   // Fresh, authenticated full-inventory seal verification. This does not erase
   // data, release registry locks, restore histories or activate a group.
-  verify_account_removal_seals : (text) -> (Result_49);
+  verify_account_removal_seals : (text) -> (Result_50);
   verify_private_name_preparation : (text) -> (Result_6);
   whoami : () -> (Result) query;
   write_approved_private_name : (text, text, opt text) -> (Result_2);
