@@ -32,7 +32,7 @@ const status = async sender => {
     arg: IDL.encode([IDL.Record({ canister_id: IDL.Principal })], [{ canister_id: canister }]),
   });
   return IDL.decode([IDL.Record({
-    status: IDL.Variant({ running: IDL.Nat, stopping: IDL.Nat, stopped: IDL.Nat }),
+    status: IDL.Variant({ running: IDL.Null, stopping: IDL.Null, stopped: IDL.Null }),
     settings: IDL.Record({
       controllers: IDL.Vec(IDL.Principal), compute_allocation: IDL.Nat,
       memory_allocation: IDL.Nat, freezing_threshold: IDL.Nat,
