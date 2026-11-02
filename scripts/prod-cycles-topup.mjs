@@ -125,14 +125,21 @@ async function main() {
 
   const account = await readFuelBalance(() => ledger.icrc1_balance_of({ owner: Principal.fromText(principal), subaccount: [] }));
 
-  const plan = planCyclesTopup({ page, services, signingAccount: { balance: account.cycles, balanceRead: account.balanceRead },
-    reserveCycles: env.TOPUP_RESERVE_CYCLES ?? '0', checkedAt: new Date().toISOString() });
-  writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-cycles-topup.json'), evidenceText(plan));
-
   stage = 'load durable receipt';
   const journal = githubJournal(env, fetch, { path: TOPUP_RECEIPT_PATH, label: 'cycles top-up' });
   const receipt = await journal.load({ readOnly: action === 'plan' });
   if (receipt) writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-cycles-topup-receipt.json'), evidenceText(receipt));
+
+  // Execution re-derives targets with the REVIEWED plan's reserve, not a
+  // fresh env value: the receipt binds the reserve the owner reviewed, and
+  // the target comparison still catches a registry minimum that changed
+  // since planning. The plan action takes the reserve from its input.
+  const reserveCycles = action === 'topup-closed' && receipt?.plan
+    ? receipt.plan.reserveCycles
+    : env.TOPUP_RESERVE_CYCLES ?? '0';
+  const plan = planCyclesTopup({ page, services, signingAccount: { balance: account.cycles, balanceRead: account.balanceRead },
+    reserveCycles, checkedAt: new Date().toISOString() });
+  writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-cycles-topup.json'), evidenceText(plan));
 
   if (action === 'plan') {
     const planned = createTopupPlanReceipt(plan, receipt);

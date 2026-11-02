@@ -199,6 +199,18 @@ test('the reviewed hash binds the receipt and the stable plan fields', () => {
   assert.throws(() => assertReviewedTopupPlan(plan, plan.planHash, reinventory), /inventory, targets or amounts changed; re-plan/);
 });
 
+test('the receipt carries the reviewed reserve so execution re-derives the same targets', () => {
+  const plan = planCyclesTopup({ ...plannedInput, reserveCycles: '30000000000' });
+  const receipt = plannedReceipt(plan);
+  assert.equal(receipt.plan.reserveCycles, '30000000000');
+  // Execution rebuilds the current plan with the receipt's reserve (not the
+  // env input, which the execute workflow does not set), so only a real
+  // registry minimum change forces a re-plan — balance drift does not.
+  const current = planCyclesTopup({ ...plannedInput, reserveCycles: receipt.plan.reserveCycles,
+    checkedAt: '2026-11-02T01:05:00.000Z', services: allServices({ base: String(T / 4n), g2: String(T) }) });
+  assert.doesNotThrow(() => assertReviewedTopupPlan(receipt.plan, receipt.planHash, current));
+});
+
 test('deposits are capped at reviewed amounts and never blind', () => {
   const plan = plannedPlan();
   const live = new Map(plan.items.filter(i => i.topUp !== '0').map(i => [`${i.group}/${i.name}`, String(BigInt(i.target) - 1n)]));
