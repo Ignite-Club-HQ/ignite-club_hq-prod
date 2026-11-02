@@ -6,9 +6,8 @@ import { createHash } from 'node:crypto';
 import { assertCheckContext, PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 import { GROUP_DOMAINS } from './prod-group-readiness.mjs';
 
-/** The account-admission release switch (historical LOCAL_REHEARSAL name) is
- * the production cross-group lifecycle gate: with it off, services admit
- * everyone, so removals are not enforced and no approval may be recorded. */
+/** Current services expose only rehearsal admission. This is diagnostic
+ * evidence, NEVER a production setting recommendation or release grant. */
 export const ADMISSION_FLAG = 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL';
 export const ADMISSION_AUTHORITY = 'IGNITE_ACCOUNT_SERVICE_IDENTITY';
 /** Group services that check account admission (timer_jobs and the shared
@@ -152,7 +151,8 @@ export function reviewRoutingGate({ ids = PROD_CHECK_IDS, principal, pushWorker,
         result: actual === undefined ? 'missing' : actual === expected ? 'matched' : 'different' });
       const checksLifecycle = ADMISSION_DOMAINS.includes(item.name) || item.name === 'media_blob_store';
       if (checksLifecycle) {
-        binding(ADMISSION_FLAG, '1', envValue(service.environment, ADMISSION_FLAG));
+        binding(ADMISSION_FLAG, 'disabled in PROD', envValue(service.environment, ADMISSION_FLAG) === '1'
+          ? 'enabled' : 'disabled in PROD');
         binding(ADMISSION_AUTHORITY, ids.identity_access, envValue(service.environment, ADMISSION_AUTHORITY));
       }
       if (item.name === 'club_domain') {
@@ -180,8 +180,11 @@ export function reviewRoutingGate({ ids = PROD_CHECK_IDS, principal, pushWorker,
       // switch and authority (timer_jobs and the workload identity do not).
       const checksAdmission = ADMISSION_DOMAINS.includes(item.name) || item.name === 'media_blob_store';
       if (checksAdmission) {
+        add('PRODUCTION_ADMISSION_PATH_UNRELEASED', `${group.id}/${item.name}: current service admission is rehearsal-only; production enforcement and full removal acceptance remain required.`);
+        if (envValue(service.environment, ADMISSION_FLAG) === '1')
+          add('PROD_REHEARSAL_FORBIDDEN', `${group.id}/${item.name}: local rehearsal is enabled on PROD; it cannot authorize release.`);
         if (envValue(service.environment, ADMISSION_FLAG) !== '1')
-          add('REMOVAL_CHECKS_OFF', `${group.id}/${item.name}: account admission checks are off, so removals are not enforced.`);
+          add('REMOVAL_CHECKS_OFF', `${group.id}/${item.name}: account admission checks are off; do not enable the local-rehearsal setting in PROD. Production protection and separate approval are required.`);
         if (envValue(service.environment, ADMISSION_AUTHORITY) !== ids.identity_access)
           add('ADMISSION_AUTHORITY_MISSING', `${group.id}/${item.name}: not bound to the PROD account service.`);
       }
@@ -254,10 +257,14 @@ export function reviewRoutingGate({ ids = PROD_CHECK_IDS, principal, pushWorker,
     const fuelReview = { complete: completeBalances, totalShortfallCycles: completeBalances
       ? diagnostics.reduce((sum, d) => sum + BigInt(d.shortfallCycles), 0n).toString() : null,
       paymentAuthorized: false, note: 'Execution balances only; excludes signing-account funds, fees and reserves. Not a payment quote.' };
-    const gateComplete = gaps.length === 0 && groups.length > 0 && groups.every(g => g.accepting === false);
+    const closedInventory = groups.length > 0 && groups.every(g => g.accepting === false);
+    const approvalOnly = new Set(['ROUTING_APPROVAL_MISSING', 'ROUTING_APPROVAL_STALE']);
+    const approvalReady = closedInventory && Boolean(configText) && gaps.every(g => approvalOnly.has(g.code));
+    const gateComplete = gaps.length === 0 && closedInventory;
     return { gateComplete, openingAuthorized: false, admissionAuthorized: false, approvalRecorded: false,
+      approvalReady,
       configurationRevision, groupIds, evidence, evidenceSha256, gaps, diagnostics, fuelReview,
-      approvalDraft: gateComplete && configText ? {
+      approvalDraft: approvalReady ? {
         target_alias: 'mainnet', configuration_revision: configurationRevision,
         approved_configuration_sha256: sha256Hex(configText), removal_wiring_group_ids: groupIds,
         removal_checked_at_ms: checkedAtMs, evidence_sha256: evidenceSha256,
