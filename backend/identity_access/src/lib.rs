@@ -31,6 +31,7 @@ fn read_private_name_writer_window(request: WriterRequest) -> Result<WriterRecei
 mod group_inventory;
 // Offline-only until independent pinning and production lifecycle acceptance.
 mod expected_removal_inventory;
+mod production_account_protection;
 mod removal_barrier;
 mod deletion_timing;
 mod admission;
@@ -1097,6 +1098,77 @@ fn read_account_removal_completion(account_id: String) -> Outcome<removal_barrie
 fn group_inventory_binding() -> Option<group_inventory::Binding> {
     GROUP_INVENTORY_BINDING.with(|m| if m.borrow().get().is_empty() { None } else { Some(decode(m.borrow().get())) })
 }
+/// Governor-only production authorization draft. Never stores reader grants or
+/// changes release state; missing receiver/recovery evidence remains a refusal.
+#[ic_cdk::update]
+async fn review_production_account_protection(expected: production_account_protection::Expectation, expected_history_revision:u64)
+    -> Outcome<production_account_protection::Draft> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    admission_configuration_clear()?;
+    let (readers,targets)=production_account_protection::scope(&expected)?;
+    let binding=group_inventory_binding().ok_or("Deletion registry not pinned")?;
+    if binding!=expected.inventory.groups.binding || expected.identity!=ic_cdk::api::canister_self() ||
+        expected.inventory.groups.history_revision!=expected_history_revision { return Err("Pinned production expectation mismatch".into()); }
+    let extra=supplemental_inventory();
+    if extra!=expected.inventory.supplemental { return Err("Pinned supplemental expectation mismatch".into()); }
+    let recheck=||->Outcome<()> {
+        admission_configuration_clear()?;
+        if removal_history_revision()!=expected_history_revision || group_inventory_binding().as_ref()!=Some(&binding) ||
+            supplemental_inventory()!=extra { return Err("Production review configuration changed".into()); }
+        Ok(())
+    };
+    recheck()?;
+    review_closed_production_groups(&binding,&recheck).await?;
+    let lifecycle=async {
+        let mut result=Vec::new();
+        for (canister,_) in &expected.modules {
+            let info=ic_cdk::management_canister::canister_info(&ic_cdk::management_canister::CanisterInfoArgs {
+                canister_id:*canister,num_requested_changes:Some(0) }).await.map_err(|_|"Production lifecycle unavailable")?;
+            recheck()?;
+            result.push(production_account_protection::Lifecycle {canister:*canister,changes:info.total_num_changes,
+                module_hash:info.module_hash.ok_or("Production module missing")?});
+        }
+        Ok::<_,String>(result)
+    }.await?;
+    let mut prior=None;
+    for _ in 0..2 {
+        let snapshot=read_registry_pages(&binding,&recheck).await?;
+        let mut media=Vec::new();
+        for group in &snapshot.groups {
+            let club=group.domains.iter().find(|d|d.domain=="club_domain").ok_or("Missing expected club")?.canister;
+            let response=ic_cdk::call::Call::bounded_wait(club,"read_removal_media_registry").await.map_err(|_|"Production media inventory unavailable")?;
+            recheck()?;
+            let registry:Outcome<group_inventory::MediaRegistry>=response.candid().map_err(|_|"Invalid production media inventory")?;
+            media.push(group_inventory::MediaEvidence {club_authority:club,registry:registry?});
+        }
+        let clubs=media.iter().map(|m|m.club_authority).collect::<Vec<_>>();
+        group_inventory::validate_complete(&snapshot,&binding,&clubs,&readers,&extra,&media)?;
+        let observed=group_inventory::RemovalInventory {groups:group_inventory::Evidence {binding:binding.clone(),
+            history_revision:expected_history_revision,snapshot},supplemental:extra.clone(),media};
+        if prior.as_ref().is_some_and(|p|p!=&observed){return Err("Production inventory changed".into());}
+        prior=Some(observed);
+    }
+    let mut configurations=Vec::new();
+    for target in targets {
+        let reply=ic_cdk::call::Call::bounded_wait(target,"read_account_protection_configuration").await.map_err(|_|"Receiver production configuration unavailable")?;
+        recheck()?;
+        let config:Outcome<production_account_protection::ReceiverConfiguration>=reply.candid().map_err(|_|"Invalid receiver production configuration")?;
+        let config=config?;
+        if config.receiver!=target {return Err("Receiver configuration sender mismatch".into());}
+        configurations.push(config);
+    }
+    let mut after=Vec::new();
+    for (canister,_) in &expected.modules {
+        let info=ic_cdk::management_canister::canister_info(&ic_cdk::management_canister::CanisterInfoArgs {
+            canister_id:*canister,num_requested_changes:Some(0) }).await.map_err(|_|"Production lifecycle unavailable")?;
+        recheck()?;
+        after.push(production_account_protection::Lifecycle {canister:*canister,changes:info.total_num_changes,
+            module_hash:info.module_hash.ok_or("Production module missing")?});
+    }
+    review_closed_production_groups(&binding,&recheck).await?;
+    recheck()?;
+    production_account_protection::verify(&expected,&prior.ok_or("Production inventory missing")?,&lifecycle,&after,&configurations)
+}
 fn group2_admission() -> admission::Config {
     GROUP2_ADMISSION.with(|m| if m.borrow().get().is_empty() { admission::Config::default() } else { decode(m.borrow().get()) })
 }
@@ -1227,6 +1299,32 @@ async fn read_group_inventory_evidence(expected_history_revision: u64) -> Outcom
 #[derive(CandidType, Deserialize)]
 struct RegistryPage {
     revision: u64, groups: Vec<group_inventory::Group>, placements: Vec<group_inventory::Placement>, next_cursor: Option<String>,
+}
+#[derive(CandidType, Deserialize)]
+struct ClosedReviewGroup { id:String, accepting:bool }
+#[derive(CandidType, Deserialize)]
+struct ClosedReviewPage { revision:u64, groups:Vec<ClosedReviewGroup>, next_cursor:Option<String> }
+async fn review_closed_production_groups(binding:&group_inventory::Binding,recheck:impl Fn()->Outcome<()>) -> Outcome<()> {
+    let mut cursor:Option<String>=None;let mut ids=std::collections::BTreeSet::new();
+    loop {
+        recheck()?;
+        let response=ic_cdk::call::Call::bounded_wait(binding.registry,"read_group_registry_page")
+            .with_args(&(&binding.target_alias,Some(binding.registry_revision),&cursor,64u32))
+            .await.map_err(|_|"Closed production registry unavailable")?;
+        recheck()?;
+        let page:Outcome<ClosedReviewPage>=response.candid().map_err(|_|"Invalid closed production registry")?;
+        let page=page?;
+        if page.revision!=binding.registry_revision || page.groups.len()>64 ||
+            page.next_cursor.as_ref().is_some_and(|next|cursor.as_ref().is_some_and(|prior|next<=prior)) {
+            return Err("Closed production registry drift".into());
+        }
+        for group in page.groups {
+            if group.accepting || !ids.insert(group.id) || ids.len()>2 {return Err("Exact closed base and g2 required".into());}
+        }
+        match page.next_cursor {Some(next)=>cursor=Some(next),None=>break}
+    }
+    if ids!=std::collections::BTreeSet::from(["base".to_string(),"g2".to_string()]) {return Err("Exact closed base and g2 required".into());}
+    Ok(())
 }
 async fn read_registry_pages(binding: &group_inventory::Binding, recheck: impl Fn() -> Outcome<()>) -> Outcome<group_inventory::Snapshot> {
     let mut snapshot = group_inventory::Snapshot { revision: binding.registry_revision, groups: vec![], placements: vec![] };

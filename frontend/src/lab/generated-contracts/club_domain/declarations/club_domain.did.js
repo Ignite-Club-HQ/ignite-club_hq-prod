@@ -627,6 +627,14 @@ export const idlFactory = ({ IDL }) => {
     'club_id' : IDL.Text,
     'season_status' : IDL.Text,
   });
+  const Configuration = IDL.Record({
+    'protocol' : IDL.Nat32,
+    'admission_required' : IDL.Bool,
+    'removal_enabled' : IDL.Bool,
+    'authority' : IDL.Opt(IDL.Principal),
+    'receiver' : IDL.Principal,
+    'rehearsal' : IDL.Bool,
+  });
   const Receipt = IDL.Record({
     'outstanding' : IDL.Nat,
     'request' : Request__1,
@@ -2218,6 +2226,11 @@ export const idlFactory = ({ IDL }) => {
     'read_account_profile_team_history' : IDL.Func(
         [IDL.Text],
         [IDL.Vec(ProfileTeamHistoryEntry)],
+        [],
+      ),
+    'read_account_protection_configuration' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : Configuration, 'Err' : IDL.Text })],
         [],
       ),
     'read_account_read_competition_team_access' : IDL.Func(

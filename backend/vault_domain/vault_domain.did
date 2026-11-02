@@ -310,6 +310,11 @@ type Main =
        Err: text;
        Ok: vec VaultFileWithFolder;
      });
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_removal_drain: (request: Request) ->
     (variant {
        Err: text;
@@ -491,6 +496,15 @@ type Intent =
  record {
    file: VaultFile;
    ready: bool;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type CleanupRecord = 
  record {

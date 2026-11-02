@@ -163,6 +163,14 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : PushDeliveryHealth,
     'Err' : IDL.Text,
   });
+  const PreferencesPage = IDL.Record({
+    'total' : IDL.Nat32,
+    'items' : IDL.Vec(Preferences),
+  });
+  const PreferencesPageResult = IDL.Variant({
+    'Ok' : PreferencesPage,
+    'Err' : IDL.Text,
+  });
   const DeviceToken = IDL.Record({
     'token' : IDL.Text,
     'auth' : IDL.Opt(IDL.Text),
@@ -175,19 +183,19 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : IDL.Vec(DeviceToken),
     'Err' : IDL.Text,
   });
-  const PreferencesPage = IDL.Record({
-    'total' : IDL.Nat32,
-    'items' : IDL.Vec(Preferences),
-  });
-  const PreferencesPageResult = IDL.Variant({
-    'Ok' : PreferencesPage,
-    'Err' : IDL.Text,
-  });
   const Request = IDL.Record({
     'account_id' : IDL.Text,
     'inventory_digest' : IDL.Vec(IDL.Nat8),
     'subjects' : IDL.Vec(IDL.Principal),
     'generation' : IDL.Nat64,
+  });
+  const Configuration = IDL.Record({
+    'protocol' : IDL.Nat32,
+    'admission_required' : IDL.Bool,
+    'removal_enabled' : IDL.Bool,
+    'authority' : IDL.Opt(IDL.Principal),
+    'receiver' : IDL.Principal,
+    'rehearsal' : IDL.Bool,
   });
   const Receipt = IDL.Record({
     'outstanding' : IDL.Nat,
@@ -332,6 +340,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'list_admin_preferences' : IDL.Func(
+        [IDL.Nat32, IDL.Nat32],
+        [PreferencesPageResult],
+        [],
+      ),
     'list_device_tokens' : IDL.Func(
         [IDL.Vec(IDL.Text)],
         [DeviceTokensResult],
@@ -381,8 +394,18 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
+    'prepare_my_broadcast_erasure' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'purge_club_snapshot' : IDL.Func(
         [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'purge_my_data' : IDL.Func(
+        [],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
@@ -413,6 +436,11 @@ export const idlFactory = ({ IDL }) => {
     'read_account_list_scheduled' : IDL.Func(
         [IDL.Text, IDL.Opt(IDL.Text)],
         [ScheduledResults],
+        [],
+      ),
+    'read_account_protection_configuration' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : Configuration, 'Err' : IDL.Text })],
         [],
       ),
     'read_account_removal_drain' : IDL.Func(
@@ -490,6 +518,11 @@ export const idlFactory = ({ IDL }) => {
     'remove_device_tokens' : IDL.Func(
         [IDL.Text, IDL.Vec(IDL.Text)],
         [DeviceTokenCountResult],
+        [],
+      ),
+    'retire_competition_broadcast' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Vec(IDL.Text), IDL.Nat16],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
     'schedule_message' : IDL.Func(

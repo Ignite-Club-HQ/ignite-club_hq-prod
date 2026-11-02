@@ -1,5 +1,6 @@
 import AccountAdmission "../../shared/AccountAdmission";
 import AccountProtection "../../shared/AccountProtection";
+import AccountProtectionEndpoints "../../shared/AccountProtectionEndpoints";
 import BroadcastErasure "../../shared/BroadcastErasure";
 import OpeningConfiguration "../../shared/OpeningConfiguration";
 import RemovalReceiver "../../shared/RemovalReceiver";
@@ -36,6 +37,7 @@ persistent actor class Main(governorInit : Principal) = this {
     case (?id) ?Principal.fromText(id); case null null
   };
   transient let accountAdmission = AccountAdmission.Gate(AccountProtection.admissionRequired(accountProtectionMode), accountAdmissionAuthority);
+  include AccountProtectionEndpoints(accountProtectionMode, accountAdmissionAuthority, Principal.fromActor(this));
   var removal_intents : Map.Map<Text, RemovalReceiver.Request>;
   var removal_subjects : Map.Map<Principal, Text>;
   var removal_active : Map.Map<Principal, Nat>;

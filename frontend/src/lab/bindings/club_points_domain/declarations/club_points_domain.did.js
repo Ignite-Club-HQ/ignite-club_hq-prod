@@ -105,6 +105,14 @@ export const idlFactory = ({ IDL }) => {
     'subjects' : IDL.Vec(IDL.Principal),
     'generation' : IDL.Nat64,
   });
+  const Configuration = IDL.Record({
+    'protocol' : IDL.Nat32,
+    'admission_required' : IDL.Bool,
+    'removal_enabled' : IDL.Bool,
+    'authority' : IDL.Opt(IDL.Principal),
+    'receiver' : IDL.Principal,
+    'rehearsal' : IDL.Bool,
+  });
   const Receipt = IDL.Record({
     'outstanding' : IDL.Nat,
     'request' : Request,
@@ -391,6 +399,11 @@ export const idlFactory = ({ IDL }) => {
     'read_account_list_rewards' : IDL.Func(
         [IDL.Text, IDL.Opt(IDL.Text), IDL.Bool],
         [IDL.Variant({ 'Ok' : IDL.Vec(ClubReward), 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_account_protection_configuration' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : Configuration, 'Err' : IDL.Text })],
         [],
       ),
     'read_account_removal_drain' : IDL.Func(

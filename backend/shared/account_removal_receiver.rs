@@ -27,6 +27,15 @@ pub struct Receipt {
     pub receiver: Principal,
     pub outstanding: Nat,
 }
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Configuration {
+    pub receiver: Principal, pub authority: Option<Principal>, pub protocol: u32,
+    pub admission_required: bool, pub removal_enabled: bool, pub rehearsal: bool,
+}
+pub fn configuration(caller:Principal,receiver:Principal)->Result<Configuration,String> {
+    authorize(caller)?;
+    Ok(Configuration {receiver,authority:authority(),protocol:1,admission_required:false,removal_enabled:true,rehearsal:false})
+}
 
 const MAX_INTENTS: u64 = 524_288;
 const MAX_SUBJECTS: u64 = 4_194_304;
@@ -144,6 +153,18 @@ mod tests {
         assert!(prepare(p(2), req(vec![p(9)])).is_err());
         assert!(prepare(Principal::anonymous(), req(vec![p(9)])).is_err());
         assert!(!denied(&p(9)));
+    }
+    #[test] fn configuration_is_authenticated_effective_state_not_an_alias_grant() {
+        reset_for_tests();
+        assert!(configuration(p(1), p(3)).is_err());
+        set_authority(p(1)).unwrap();
+        assert!(configuration(p(2), p(3)).is_err());
+        assert!(configuration(Principal::anonymous(), p(3)).is_err());
+        assert_eq!(configuration(p(1), p(3)).unwrap(), Configuration {
+            receiver:p(3), authority:Some(p(1)), protocol:1,
+            admission_required:false, removal_enabled:true, rehearsal:false,
+        });
+        assert!(intent("acct").is_none() && !denied(&p(9)));
     }
     #[test] fn fence_is_immutable_denies_and_drains() {
         reset_for_tests(); set_authority(p(1)).unwrap();

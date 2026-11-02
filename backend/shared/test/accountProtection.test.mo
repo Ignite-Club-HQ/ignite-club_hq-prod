@@ -1,4 +1,5 @@
 import Protection "../AccountProtection";
+import Principal "mo:core/Principal";
 assert Protection.mode(false, false, false) == #Legacy;
 assert Protection.mode(true, false, false) == #Rehearsal;
 assert Protection.mode(false, true, false) == #ProductionAdmission;
@@ -11,3 +12,12 @@ assert Protection.removalEnabled(#ProductionRemoval);
 assert Protection.admissionRequired(#Invalid);
 assert not Protection.valid(#Invalid);
 assert not Protection.admissionRequired(#Legacy);
+let identity = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+let receiver = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
+let config = Protection.configuration(#ProductionRemoval, ?identity, receiver);
+assert config.receiver == receiver and config.authority == ?identity;
+assert config.protocol == 1 and config.admission_required and config.removal_enabled and not config.rehearsal;
+let invalid = Protection.configuration(#Invalid, ?identity, receiver);
+assert invalid.admission_required and not invalid.removal_enabled;
+let legacy = Protection.configuration(#Legacy, null, receiver);
+assert not legacy.admission_required and not legacy.removal_enabled and not legacy.rehearsal;

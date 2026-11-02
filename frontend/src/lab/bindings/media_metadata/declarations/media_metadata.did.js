@@ -61,6 +61,14 @@ export const idlFactory = ({ IDL }) => {
     'purpose' : IDL.Text,
     'expires_at_ms' : IDL.Nat64,
   });
+  const Album = IDL.Record({
+    'id' : IDL.Text,
+    'title' : IDL.Text,
+    'cover_asset_id' : IDL.Opt(IDL.Text),
+    'created_by' : IDL.Principal,
+    'created_at_ms' : IDL.Nat64,
+    'club_id' : IDL.Text,
+  });
   const GalleryChatCard = IDL.Record({
     'id' : IDL.Text,
     'uploader_id' : IDL.Principal,
@@ -85,6 +93,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const State = IDL.Record({
     'capabilities' : IDL.Vec(Capability),
+    'albums' : IDL.Vec(Album),
     'schema' : IDL.Nat32,
     'assets' : IDL.Vec(Asset),
     'governor' : IDL.Principal,
@@ -109,6 +118,14 @@ export const idlFactory = ({ IDL }) => {
     'inventory_digest' : IDL.Vec(IDL.Nat8),
     'subjects' : IDL.Vec(IDL.Principal),
     'generation' : IDL.Nat64,
+  });
+  const Configuration = IDL.Record({
+    'protocol' : IDL.Nat32,
+    'admission_required' : IDL.Bool,
+    'removal_enabled' : IDL.Bool,
+    'authority' : IDL.Opt(IDL.Principal),
+    'receiver' : IDL.Principal,
+    'rehearsal' : IDL.Bool,
   });
   const Receipt = IDL.Record({
     'outstanding' : IDL.Nat,
@@ -276,6 +293,11 @@ export const idlFactory = ({ IDL }) => {
     'read_account_list_reactions' : IDL.Func(
         [IDL.Text],
         [IDL.Vec(Reaction)],
+        [],
+      ),
+    'read_account_protection_configuration' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : Configuration, 'Err' : IDL.Text })],
         [],
       ),
     'read_account_removal_drain' : IDL.Func(

@@ -166,6 +166,8 @@ type Cursor =
           };
  };
 service : {
+  read_account_protection_configuration : () -> (variant { Ok : record { receiver : principal; authority : opt principal; protocol : nat32; admission_required : bool; removal_enabled : bool; rehearsal : bool }; Err : text });
+
   abort_upload: (upload_id: text) -> (Result);
   begin_upload: (path: text, mime: text, total_size: nat64, chunk_count:
    nat32) -> (ResultUploadId);

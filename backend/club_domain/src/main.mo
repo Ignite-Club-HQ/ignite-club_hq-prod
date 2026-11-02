@@ -2,6 +2,7 @@ import PrivateNameWriterWindow "../../shared/PrivateNameWriterWindow";
 import PrivateNameWriterEndpoints "../../shared/PrivateNameWriterEndpoints";
 import AccountAdmission "../../shared/AccountAdmission";
 import AccountProtection "../../shared/AccountProtection";
+import AccountProtectionEndpoints "../../shared/AccountProtectionEndpoints";
 import BroadcastErasure "../../shared/BroadcastErasure";
 import OpeningConfiguration "../../shared/OpeningConfiguration";
 import RemovalReceiver "../../shared/RemovalReceiver";
@@ -65,6 +66,7 @@ persistent actor class Main(governorInit : Principal) = this {
   transient let accountAdmissionAuthority = switch (Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")) {
     case (?id) ?Principal.fromText(id); case null null
   };
+  include AccountProtectionEndpoints(accountProtectionMode, accountAdmissionAuthority, Principal.fromActor(this));
   var removal_intents : Map.Map<Text, RemovalReceiver.Request>;
   var removal_subjects : Map.Map<Principal, Text>;
   var removal_active : Map.Map<Principal, Nat>;
@@ -7842,7 +7844,7 @@ persistent actor class Main(governorInit : Principal) = this {
   // Separate, read-only identity inventory relay. Never broadens the existing
   // operator endpoint and remains absent from ordinary deployment authority.
   public shared ({ caller }) func read_removal_media_registry() : async { #Ok : { active : Bool; stores : [Principal] }; #Err : Text } {
-    if (not accountAdmissionEnabled or accountAdmissionAuthority != ?caller) return #Err("Configured rehearsal identity required");
+    if (not AccountProtection.removalEnabled(accountProtectionMode) or Principal.isAnonymous(caller) or accountAdmissionAuthority != ?caller) return #Err("Configured removal identity required");
     #Ok({ active = mediaQuotaCutover.active; stores = mediaQuotaStores })
   };
   public shared ({ caller }) func reserve_media_quota(token : Text, club_id : Text, category : Text, bytes : Nat, cycle : Nat) : async MediaQuota.Result {

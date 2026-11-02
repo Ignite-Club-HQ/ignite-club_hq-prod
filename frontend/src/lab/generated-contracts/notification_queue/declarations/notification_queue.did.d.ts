@@ -18,6 +18,14 @@ export type ChatType = { 'Club' : null } |
   { 'Team' : null } |
   { 'Broadcast' : null } |
   { 'Direct' : null };
+export interface Configuration {
+  'protocol' : number,
+  'admission_required' : boolean,
+  'removal_enabled' : boolean,
+  'authority' : [] | [Principal],
+  'receiver' : Principal,
+  'rehearsal' : boolean,
+}
 export interface DeviceToken {
   'token' : string,
   'auth' : [] | [string],
@@ -134,6 +142,10 @@ export interface Main {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'list_admin_preferences' : ActorMethod<
+    [number, number],
+    PreferencesPageResult
+  >,
   'list_device_tokens' : ActorMethod<[Array<string>], DeviceTokensResult>,
   'list_inbox' : ActorMethod<[string, [] | [string], number], Results>,
   'list_preferences_by_club' : ActorMethod<
@@ -159,11 +171,17 @@ export interface Main {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  'prepare_my_broadcast_erasure' : ActorMethod<
+    [],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'purge_club_snapshot' : ActorMethod<
     [string],
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'purge_my_data' : ActorMethod<[], { 'Ok' : bigint } | { 'Err' : string }>,
   'read_account_get_digest' : ActorMethod<
     [DigestSource, string, bigint, number],
     DigestResults
@@ -177,6 +195,11 @@ export interface Main {
   'read_account_list_scheduled' : ActorMethod<
     [string, [] | [string]],
     ScheduledResults
+  >,
+  'read_account_protection_configuration' : ActorMethod<
+    [],
+    { 'Ok' : Configuration } |
+      { 'Err' : string }
   >,
   'read_account_removal_drain' : ActorMethod<
     [Request],
@@ -237,6 +260,11 @@ export interface Main {
   'remove_device_tokens' : ActorMethod<
     [string, Array<string>],
     DeviceTokenCountResult
+  >,
+  'retire_competition_broadcast' : ActorMethod<
+    [string, string, Array<string>, number],
+    { 'Ok' : null } |
+      { 'Err' : string }
   >,
   'schedule_message' : ActorMethod<
     [

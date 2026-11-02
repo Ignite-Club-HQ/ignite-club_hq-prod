@@ -340,6 +340,13 @@ export interface MainInterface {
         __kind__: "Err";
         Err: string;
     }>;
+    read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: Configuration;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     read_account_removal_drain(request: Request): Promise<{
         __kind__: "Ok";
         Ok: Receipt;
@@ -481,6 +488,14 @@ export interface ClubReward {
     is_active: boolean;
     club_id: string;
 }
+export interface Configuration {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority?: Principal;
+    receiver: Principal;
+    rehearsal: boolean;
+}
 export interface ClubPointsSettings {
     points_icon_url?: string;
     updated_at_ms: bigint;
@@ -522,7 +537,7 @@ export enum Variant_User_Child {
 }
 export interface club_points_domainInterface extends MainInterface {
 }
-import type { ChildClubPoints as _ChildClubPoints, ClubPointsSettings as _ClubPointsSettings, ClubReward as _ClubReward, HistoryPage as _HistoryPage, LeaderboardEntry as _LeaderboardEntry, PointsCooldown as _PointsCooldown, PointsHistoryEntry as _PointsHistoryEntry, Receipt as _Receipt, RewardRedemption as _RewardRedemption, RoleGrant as _RoleGrant, Subject as _Subject, UserClubPoints as _UserClubPoints } from "./declarations/club_points_domain.did";
+import type { ChildClubPoints as _ChildClubPoints, ClubPointsSettings as _ClubPointsSettings, ClubReward as _ClubReward, Configuration as _Configuration, HistoryPage as _HistoryPage, LeaderboardEntry as _LeaderboardEntry, PointsCooldown as _PointsCooldown, PointsHistoryEntry as _PointsHistoryEntry, Receipt as _Receipt, RewardRedemption as _RewardRedemption, RoleGrant as _RoleGrant, Subject as _Subject, UserClubPoints as _UserClubPoints } from "./declarations/club_points_domain.did";
 export class Club_points_domain implements club_points_domainInterface {
     constructor(private actor: ActorSubclass<_SERVICE>){}
     async addBulkAccessPrincipal(arg0: Principal): Promise<{
@@ -917,6 +932,16 @@ export class Club_points_domain implements club_points_domainInterface {
         const result = await this.actor.read_account_list_rewards(arg0, to_candid_opt_n10(arg1), arg2);
         return from_candid_variant_n43(result);
     }
+    async read_account_protection_configuration(): Promise<{
+        __kind__: "Ok";
+        Ok: Configuration;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.read_account_protection_configuration();
+        return from_candid_variant_n44(result);
+    }
     async read_account_removal_drain(arg0: Request): Promise<{
         __kind__: "Ok";
         Ok: Receipt;
@@ -925,7 +950,7 @@ export class Club_points_domain implements club_points_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.read_account_removal_drain(arg0);
-        return from_candid_variant_n44(result);
+        return from_candid_variant_n47(result);
     }
     async read_group_opening_configuration(): Promise<Array<[string, string]>> {
         const result = await this.actor.read_group_opening_configuration();
@@ -959,7 +984,7 @@ export class Club_points_domain implements club_points_domainInterface {
         err: string;
     }> {
         const result = await this.actor.rekey_principal(arg0, arg1, arg2);
-        return from_candid_variant_n45(result);
+        return from_candid_variant_n48(result);
     }
     async removeBulkAccessPrincipal(arg0: Principal): Promise<{
         __kind__: "Ok";
@@ -979,7 +1004,7 @@ export class Club_points_domain implements club_points_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.save_club_points_settings(arg0, to_candid_opt_n10(arg1), arg2, to_candid_opt_n10(arg3), arg4);
-        return from_candid_variant_n46(result);
+        return from_candid_variant_n49(result);
     }
     async seal_account_removal(arg0: Request): Promise<{
         __kind__: "Ok";
@@ -989,7 +1014,7 @@ export class Club_points_domain implements club_points_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.seal_account_removal(arg0);
-        return from_candid_variant_n44(result);
+        return from_candid_variant_n47(result);
     }
     async set_club_domain_canister(arg0: Principal): Promise<{
         __kind__: "Ok";
@@ -1037,6 +1062,9 @@ function from_candid_ClubPointsSettings_n31(value: _ClubPointsSettings): ClubPoi
 }
 function from_candid_ClubReward_n16(value: _ClubReward): ClubReward {
     return from_candid_record_n17(value);
+}
+function from_candid_Configuration_n45(value: _Configuration): Configuration {
+    return from_candid_record_n46(value);
 }
 function from_candid_HistoryPage_n40(value: _HistoryPage): HistoryPage {
     return from_candid_record_n41(value);
@@ -1282,6 +1310,30 @@ function from_candid_record_n41(value: {
     return {
         total: value.total,
         items: from_candid_vec_n26(value.items)
+    };
+}
+function from_candid_record_n46(value: {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority: [] | [Principal];
+    receiver: Principal;
+    rehearsal: boolean;
+}): {
+    protocol: number;
+    admission_required: boolean;
+    removal_enabled: boolean;
+    authority?: Principal;
+    receiver: Principal;
+    rehearsal: boolean;
+} {
+    return {
+        protocol: value.protocol,
+        admission_required: value.admission_required,
+        removal_enabled: value.removal_enabled,
+        authority: record_opt_to_undefined(from_candid_opt_n7(value.authority)),
+        receiver: value.receiver,
+        rehearsal: value.rehearsal
     };
 }
 function from_candid_variant_n1(value: {
@@ -1609,6 +1661,25 @@ function from_candid_variant_n43(value: {
     } : value;
 }
 function from_candid_variant_n44(value: {
+    Ok: _Configuration;
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: Configuration;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_Configuration_n45(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n47(value: {
     Ok: _Receipt;
 } | {
     Err: string;
@@ -1627,7 +1698,7 @@ function from_candid_variant_n44(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n45(value: {
+function from_candid_variant_n48(value: {
     ok: bigint;
 } | {
     err: string;
@@ -1646,7 +1717,7 @@ function from_candid_variant_n45(value: {
         err: value.err
     } : value;
 }
-function from_candid_variant_n46(value: {
+function from_candid_variant_n49(value: {
     Ok: _ClubPointsSettings;
 } | {
     Err: string;

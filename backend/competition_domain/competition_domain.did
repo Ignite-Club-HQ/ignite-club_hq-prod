@@ -748,6 +748,11 @@ type Main =
        Err: text;
        Ok: vec Competition;
      });
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_read_token_club: (token: text) ->
     (variant {
        Err: text;
@@ -1215,6 +1220,15 @@ type DivisionSetting =
    competition_id: text;
    division: text;
    hide_ladder: bool;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type CompetitionOfficialEmailInvite = 
  record {

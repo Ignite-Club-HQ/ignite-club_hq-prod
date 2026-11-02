@@ -149,6 +149,14 @@ export const idlFactory = ({ IDL }) => {
     'subjects' : IDL.Vec(IDL.Principal),
     'generation' : IDL.Nat64,
   });
+  const Configuration = IDL.Record({
+    'protocol' : IDL.Nat32,
+    'admission_required' : IDL.Bool,
+    'removal_enabled' : IDL.Bool,
+    'authority' : IDL.Opt(IDL.Principal),
+    'receiver' : IDL.Principal,
+    'rehearsal' : IDL.Bool,
+  });
   const Receipt = IDL.Record({
     'outstanding' : IDL.Nat,
     'request' : Request__1,
@@ -677,6 +685,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'read_account_my_leagues' : IDL.Func([], [IDL.Vec(MiniLeague)], []),
+    'read_account_protection_configuration' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : Configuration, 'Err' : IDL.Text })],
+        [],
+      ),
     'read_account_removal_drain' : IDL.Func(
         [Request__1],
         [IDL.Variant({ 'Ok' : Receipt, 'Err' : IDL.Text })],

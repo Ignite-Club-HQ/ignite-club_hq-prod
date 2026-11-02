@@ -10,6 +10,14 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface Album {
+  'id' : string,
+  'title' : string,
+  'cover_asset_id' : [] | [string],
+  'created_by' : Principal,
+  'created_at_ms' : bigint,
+  'club_id' : string,
+}
 export interface Asset {
   'id' : string,
   'storage_path' : string,
@@ -55,6 +63,14 @@ export interface Comment {
   'author' : Principal,
   'created_at_ms' : bigint,
   'asset_id' : string,
+}
+export interface Configuration {
+  'protocol' : number,
+  'admission_required' : boolean,
+  'removal_enabled' : boolean,
+  'authority' : [] | [Principal],
+  'receiver' : Principal,
+  'rehearsal' : boolean,
 }
 export interface Cursor {
   'before' : string,
@@ -194,6 +210,11 @@ export interface Main {
     Array<GalleryChatCard>
   >,
   'read_account_list_reactions' : ActorMethod<[string], Array<Reaction>>,
+  'read_account_protection_configuration' : ActorMethod<
+    [],
+    { 'Ok' : Configuration } |
+      { 'Err' : string }
+  >,
   'read_account_removal_drain' : ActorMethod<
     [Request],
     { 'Ok' : Receipt } |
@@ -346,6 +367,7 @@ export interface RoleGrant {
 }
 export interface State {
   'capabilities' : Array<Capability>,
+  'albums' : Array<Album>,
   'schema' : number,
   'assets' : Array<Asset>,
   'governor' : Principal,

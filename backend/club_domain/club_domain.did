@@ -1716,6 +1716,11 @@ type Main =
    read_account_my_role_grants: () -> (vec RoleGrant);
    read_account_profile_team_history: (profile_id: text) ->
     (vec ProfileTeamHistoryEntry);
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_read_competition_team_access: (team_id: text, user:
     principal) ->
     (record {
@@ -2660,6 +2665,15 @@ type Cursor =
    offset: nat;
    phase: nat;
    revision: nat;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type Config = 
  record {

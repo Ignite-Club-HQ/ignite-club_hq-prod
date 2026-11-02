@@ -15,6 +15,14 @@ export interface ClaimedInvite {
   'mini_league_id' : string,
   'club_id' : string,
 }
+export interface Configuration {
+  'protocol' : number,
+  'admission_required' : boolean,
+  'removal_enabled' : boolean,
+  'authority' : [] | [Principal],
+  'receiver' : Principal,
+  'rehearsal' : boolean,
+}
 export interface Main {
   'activate_private_name_preparation' : ActorMethod<
     [Request],
@@ -428,6 +436,11 @@ export interface Main {
     Array<MiniLeagueSessionAvailability>
   >,
   'read_account_my_leagues' : ActorMethod<[], Array<MiniLeague>>,
+  'read_account_protection_configuration' : ActorMethod<
+    [],
+    { 'Ok' : Configuration } |
+      { 'Err' : string }
+  >,
   'read_account_removal_drain' : ActorMethod<
     [Request__1],
     { 'Ok' : Receipt } |
