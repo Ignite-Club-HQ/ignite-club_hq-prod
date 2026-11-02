@@ -460,8 +460,11 @@ Validation budget: changed rules plus direct regressions per substantial batch; 
 - [x] Auto-upgrade PROD canisters on push to prod (like DB migrations)
 - [x] PROD base group plan built and reviewed from certified live inventory (18 PROD services, closed, capacity 100); saved plan code recomputes exactly.
 - [x] PROD base group registered closed on the live router (revision 2; group + placement verified read-only against plan 534e80f0…). Run stopped only from a comparison bug, now fixed.
-- [ ] Owner: REPO apply, then base-group workflow action reconcile-readback (same hash, CONFIRM PROD BASE READBACK) to mark the saved receipt registered-closed.
+- [x] Base receipt reconciliation superseded by recorded completed registration and later two-group readback; do not repeat the old reconciliation instruction.
 
 - [x] PROD lifecycle wiring read-only plan (in routing gate)
-- [ ] Closed runner to apply ready wiring calls — waiting on owner review of plan
+- [x] Closed runner built for the allowlisted media-store registration and worker grants; no admission switch, approval or opening. Promotion manifest includes its policy, runner, tests and manual workflow.
+- [x] Continue 2 Nov: promotion preparation checked; 42 wiring, routing-gate, promotion-manifest and workflow safeguards pass locally. No GitHub copy, live wiring, funding or database operation performed.
+- [x] Reconciled promotion handoff with newer recorded revision-5 evidence in docs/prod-removal-implementation-2026-11-02.md: no additive wiring calls or execution-fuel shortfall remained. This is recorded evidence, not a fresh live check; no repeat wiring/payment instructed.
+- [ ] Review an exact source-copy plan before any further promotion: the allowlist includes unfinished backend removal candidates, not only wiring tools. Blocker: removal engineering/local acceptance and separate owner review; source copy is not release authorization.
 - [ ] Production admission path for base group — needs backend work + owner approval
