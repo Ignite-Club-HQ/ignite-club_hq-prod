@@ -229,8 +229,6 @@ type MatchCaptainAssignment =
  };
 type Main = 
  service {
-  read_account_protection_configuration : () -> (variant { Ok : record { receiver : principal; authority : opt principal; protocol : nat32; admission_required : bool; removal_enabled : bool; rehearsal : bool }; Err : text });
-
    addBulkAccessPrincipal: ("principal": principal) ->
     (variant {
        Err: text;
@@ -1141,6 +1139,11 @@ type Main =
      });
    read_account_my_children: () -> (vec Child);
    read_account_my_rsvps: () -> (vec Rsvp);
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_read_event_club: (event_id: text) ->
     (variant {
        Err: text;
@@ -1852,6 +1855,15 @@ type DetailedGamePlayerStat =
  record {
    detail: opt GamePlayerDetail;
    stat: GamePlayerStat;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type CompetitionEventTarget = 
  record {

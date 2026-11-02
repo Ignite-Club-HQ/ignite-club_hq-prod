@@ -239,8 +239,6 @@ type Message =
  };
 type Main = 
  service {
-  read_account_protection_configuration : () -> (variant { Ok : record { receiver : principal; authority : opt principal; protocol : nat32; admission_required : bool; removal_enabled : bool; rehearsal : bool }; Err : text });
-
    activate_private_name_preparation: (request: Request) ->
     (variant {
        Err: text;
@@ -607,7 +605,7 @@ type Main =
        memory_bytes: nat;
        stable_bytes: nat;
      }) query;
-   merge_principal: (old: principal, new_principal: principal, dry_run: bool) ->
+   merge_principal: (old: principal, new: principal, dry_run: bool) ->
     (variant {
        err: text;
        ok: nat;
@@ -821,6 +819,11 @@ type Main =
           reactions: vec Reaction;
         };
      });
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_read_conversation_club: (conversation_id: text) ->
     (variant {
        Err: text;
@@ -930,7 +933,7 @@ type Main =
        Err: text;
        Ok;
      });
-   rekey_principal: (old: principal, new_principal: principal, dry_run: bool) ->
+   rekey_principal: (old: principal, new: principal, dry_run: bool) ->
     (variant {
        err: text;
        ok: nat;
@@ -1258,6 +1261,15 @@ type ContentReport =
    status: text;
    subject_id: text;
    subject_kind: text;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type CompetitionAdmin = 
  record {

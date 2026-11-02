@@ -73,8 +73,6 @@ type PointsCooldown =
  };
 type Main = 
  service {
-  read_account_protection_configuration : () -> (variant { Ok : record { receiver : principal; authority : opt principal; protocol : nat32; admission_required : bool; removal_enabled : bool; rehearsal : bool }; Err : text });
-
    addBulkAccessPrincipal: ("principal": principal) ->
     (variant {
        Err: text;
@@ -307,6 +305,11 @@ type Main =
                 Err: text;
                 Ok: vec ClubReward;
               });
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_removal_drain: (request: Request) ->
     (variant {
        Err: text;
@@ -378,6 +381,15 @@ type HistoryPage =
  record {
    items: vec PointsHistoryEntry;
    total: nat;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type ClubReward = 
  record {
