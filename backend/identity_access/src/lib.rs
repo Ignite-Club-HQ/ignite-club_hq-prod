@@ -120,6 +120,7 @@ const MEM_PRODUCTION_ACCOUNT_AUTHORIZATION: u8 = 34;
 const MEM_PRODUCTION_ACCOUNT_REQUEST: u8 = 35;
 const MEM_RECOVERY_PENDING: u8 = 36;
 const MEM_RECOVERY_ACKS: u8 = 37;
+const MEM_PRODUCTION_INVENTORY_RECEIPT: u8 = 38;
 // Directory-specific additive storage: never share lifecycle/admission maps.
 const MEM_DIRECTORY_POOL_META:u8=18;
 const MEM_DIRECTORY_POOL_BLOCKS:u8=19;
@@ -594,6 +595,8 @@ thread_local! {
         RefCell::new(StableBTreeMap::init(memory(MEM_RECOVERY_PENDING)));
     static RECOVERY_ACKS: RefCell<StableBTreeMap<String,Vec<u8>,Memory>> =
         RefCell::new(StableBTreeMap::init(memory(MEM_RECOVERY_ACKS)));
+    static PRODUCTION_INVENTORY_RECEIPT: RefCell<StableCell<Vec<u8>,Memory>> =
+        RefCell::new(StableCell::init(memory(MEM_PRODUCTION_INVENTORY_RECEIPT),Vec::new()));
     static DIRECTORY_CONFIG:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(memory(MEM_DIRECTORY_CONFIG),Vec::new()));
     static DIRECTORY_COORDINATOR:RefCell<membership_coordinator::Coordinator<Memory>>=RefCell::new(
         membership_coordinator::Coordinator::open(memory(MEM_DIRECTORY_COORDINATOR),
@@ -1428,7 +1431,9 @@ async fn provision_production_account_inventory(approval:production_account_auth
     validate()?;
     let expected=&approval.body.expectation;
     let prior=group_inventory_binding();let extra=supplemental_inventory();
-    if prior.as_ref()==Some(&expected.inventory.groups.binding) && extra==expected.inventory.supplemental {return Ok(removal_history_revision());}
+    let receipt=encode(&approval);
+    if PRODUCTION_INVENTORY_RECEIPT.with(|m|m.borrow().get()==&receipt) && prior.as_ref()==Some(&expected.inventory.groups.binding) && extra==expected.inventory.supplemental {return Ok(removal_history_revision());}
+    if PRODUCTION_INVENTORY_RECEIPT.with(|m|!m.borrow().get().is_empty()) {return Err("Production inventory already provisioned; separate extension review required".into());}
     if prior.as_ref().is_some_and(|b|b!=&expected.inventory.groups.binding) || extra.iter().any(|e|!expected.inventory.supplemental.contains(e)) {
         return Err("Production inventory cannot substitute or drop pinned authorities".into());
     }
@@ -1442,6 +1447,7 @@ async fn provision_production_account_inventory(approval:production_account_auth
     bump_removal_history();
     GROUP_INVENTORY_BINDING.with(|m|m.borrow_mut().set(encode(&expected.inventory.groups.binding)));
     SUPPLEMENTAL_INVENTORY.with(|m|m.borrow_mut().set(encode(&expected.inventory.supplemental)));
+    PRODUCTION_INVENTORY_RECEIPT.with(|m|m.borrow_mut().set(receipt));
     Ok(removal_history_revision())
 }
 fn admission_configuration_clear() -> Outcome<()> {
