@@ -8,6 +8,8 @@ use sha2::{Digest, Sha256};
 use crate::production_account_protection::{Draft, Expectation};
 
 pub const KIND: &str = "ignite-production-account-readers-v1";
+pub const FULL_KIND: &str = "ignite-production-account-protection-v1";
+pub const INVENTORY_KIND: &str = "ignite-production-account-inventory-v1";
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApprovalBody {
     pub kind: String,
@@ -91,10 +93,18 @@ fn parse_key(value:&str) -> Result<VerifyingKey,String> {
     VerifyingKey::from_bytes(&bytes).map_err(|_|"Invalid immutable production account signer".into())
 }
 pub fn validate(approval:&SignedApproval,identity:Principal,operator:Principal,now:u64,key:&VerifyingKey) -> Result<(),String> {
+    if !matches!(approval.body.kind.as_str(), KIND | FULL_KIND) { return Err("Signed account capability required".into()); }
+    validate_kind(approval,identity,operator,now,key)
+}
+pub fn validate_inventory(approval:&SignedApproval,identity:Principal,operator:Principal,now:u64,key:&VerifyingKey)->Result<(),String> {
+    if approval.body.kind!=INVENTORY_KIND {return Err("Separate signed inventory provisioning required".into());}
+    validate_kind(approval,identity,operator,now,key)
+}
+fn validate_kind(approval:&SignedApproval,identity:Principal,operator:Principal,now:u64,key:&VerifyingKey) -> Result<(),String> {
     let b=&approval.body;
     bounds(b)?;
     if approval.signature.len()!=64 {return Err("Independent production account signature required".into());}
-    if b.kind!=KIND || b.identity!=identity || b.expectation.identity!=identity ||
+    if b.identity!=identity || b.expectation.identity!=identity ||
         b.operator!=operator || operator==Principal::anonymous() || operator==Principal::management_canister() ||
         b.generation==0 || b.recovery_epoch==0 || b.expires_at_ns<=now || b.review.release_authorized || b.review.recovery_accepted ||
         [&b.original_inventory_evidence,&b.runtime_evidence,&b.fenced_recovery_evidence].iter().any(|h|h.len()!=32 || h.iter().all(|v|*v==0)) {
@@ -122,6 +132,12 @@ pub fn reader(state:&State,caller:Principal,now:u64) -> Result<&SignedApproval,S
 }
 pub fn disable(prior:&State) -> Result<State,String> {
     Ok(State {generation:prior.generation.checked_add(1).ok_or("Authorization generation exhausted")?,approval:None})
+}
+pub fn removal_control(state:&State,identity:Principal,operator:Principal,now:u64,key:&VerifyingKey)->Result<(),String> {
+    let a=state.approval.as_ref().ok_or("Signed production removal control required")?;
+    validate(a,identity,operator,now,key)?;
+    if a.body.kind!=FULL_KIND || a.body.generation!=state.generation {return Err("Signed production removal control required".into());}
+    Ok(())
 }
 
 #[cfg(test)] mod tests {
@@ -183,5 +199,19 @@ pub fn disable(prior:&State) -> Result<State,String> {
         assert!(signing_bytes(&bad.body).is_err());assert!(authorize(&State::default(),&bad,a.body.identity,a.body.operator,1,&k).is_err());
         let mut bad=a.clone();bad.body.review.configurations.resize(155,bad.body.review.configurations[0].clone());assert!(signing_bytes(&bad.body).is_err());
         let mut bad=a;bad.signature.resize(65,0);assert!(validate(&bad,bad.body.identity,bad.body.operator,1,&k).is_err());
+    }
+    #[test] fn inventory_readers_and_full_removal_are_distinct_signed_purposes() {
+        let (mut a,k)=signed();let signer=SigningKey::from_bytes(&[7;32]);
+        let readers=authorize(&State::default(),&a,a.body.identity,a.body.operator,1,&k).unwrap();
+        assert!(removal_control(&readers,a.body.identity,a.body.operator,1,&k).is_err());
+        a.body.kind=INVENTORY_KIND.into();a.signature=signer.sign(&signing_bytes(&a.body).unwrap()).to_bytes().to_vec();
+        assert!(validate_inventory(&a,a.body.identity,a.body.operator,1,&k).is_ok());
+        assert!(authorize(&State::default(),&a,a.body.identity,a.body.operator,1,&k).is_err());
+        a.body.kind=FULL_KIND.into();a.signature=signer.sign(&signing_bytes(&a.body).unwrap()).to_bytes().to_vec();
+        assert!(validate_inventory(&a,a.body.identity,a.body.operator,1,&k).is_err());
+        let full=authorize(&State::default(),&a,a.body.identity,a.body.operator,1,&k).unwrap();
+        assert!(removal_control(&full,a.body.identity,a.body.operator,1,&k).is_ok());
+        assert!(removal_control(&full,a.body.identity,a.body.operator,100,&k).is_err());
+        assert!(removal_control(&disable(&full).unwrap(),a.body.identity,a.body.operator,1,&k).is_err());
     }
 }

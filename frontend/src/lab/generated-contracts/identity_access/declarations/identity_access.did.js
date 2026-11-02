@@ -826,6 +826,11 @@ export const idlFactory = ({ IDL }) => {
         [Result_26],
         [],
       ),
+    'provision_production_account_inventory' : IDL.Func(
+        [SignedApproval_1],
+        [Result_8],
+        [],
+      ),
     'publish_approved_private_name' : IDL.Func(
         [IDL.Text, IDL.Text],
         [Result_17],
@@ -900,6 +905,9 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'read_production_account_authorization' : IDL.Func([], [Result_40], []),
+    'read_production_account_history_revision' : IDL.Func([], [Result_8], []),
+    'read_production_account_removal_generation' : IDL.Func([], [Result_8], []),
+    'read_production_account_runtime_version' : IDL.Func([], [Result_8], []),
     'read_removal_history_manifest' : IDL.Func([], [Result_41], []),
     'read_removal_history_page' : IDL.Func(
         [IDL.Nat64, RemovalHistoryCursor, IDL.Nat16],

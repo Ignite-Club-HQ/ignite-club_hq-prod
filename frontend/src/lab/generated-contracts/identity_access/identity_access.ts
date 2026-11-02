@@ -1075,6 +1075,7 @@ export interface identity_accessInterface {
     prepare_account_deletion(arg0: string, arg1: bigint): Promise<Result_25>;
     prepare_private_name_suspension_sink(arg0: string, arg1: Principal): Promise<Result_11>;
     production_account_approval_signing_bytes(arg0: ApprovalBody_1): Promise<Result_26>;
+    provision_production_account_inventory(arg0: SignedApproval_1): Promise<Result_8>;
     publish_approved_private_name(arg0: string, arg1: string): Promise<Result_17>;
     read_account_removal_completion(arg0: string): Promise<Result_15>;
     read_account_removal_intent(arg0: string): Promise<Result_9>;
@@ -1101,6 +1102,9 @@ export interface identity_accessInterface {
     read_private_name_writer_window(arg0: Request_1): Promise<Result_38>;
     read_private_profile_name_authorization(arg0: Principal, arg1: Array<Principal>, arg2: Scope): Promise<Result_27>;
     read_production_account_authorization(): Promise<Result_40>;
+    read_production_account_history_revision(): Promise<Result_8>;
+    read_production_account_removal_generation(): Promise<Result_8>;
+    read_production_account_runtime_version(): Promise<Result_8>;
     read_removal_history_manifest(): Promise<Result_41>;
     read_removal_history_page(arg0: bigint, arg1: RemovalHistoryCursor, arg2: number): Promise<Result_42>;
     read_removal_inventory_evidence(arg0: bigint): Promise<Result_39>;
@@ -1383,6 +1387,10 @@ export class Identity_access implements identity_accessInterface {
         const result = await this.actor.production_account_approval_signing_bytes(to_candid_ApprovalBody_1_n32(arg0));
         return from_candid_Result_26_n104(result);
     }
+    async provision_production_account_inventory(arg0: SignedApproval_1): Promise<Result_8> {
+        const result = await this.actor.provision_production_account_inventory(to_candid_SignedApproval_1_n30(arg0));
+        return from_candid_Result_8_n39(result);
+    }
     async publish_approved_private_name(arg0: string, arg1: string): Promise<Result_17> {
         const result = await this.actor.publish_approved_private_name(arg0, arg1);
         return from_candid_Result_17_n61(result);
@@ -1486,6 +1494,18 @@ export class Identity_access implements identity_accessInterface {
     async read_production_account_authorization(): Promise<Result_40> {
         const result = await this.actor.read_production_account_authorization();
         return from_candid_Result_40_n165(result);
+    }
+    async read_production_account_history_revision(): Promise<Result_8> {
+        const result = await this.actor.read_production_account_history_revision();
+        return from_candid_Result_8_n39(result);
+    }
+    async read_production_account_removal_generation(): Promise<Result_8> {
+        const result = await this.actor.read_production_account_removal_generation();
+        return from_candid_Result_8_n39(result);
+    }
+    async read_production_account_runtime_version(): Promise<Result_8> {
+        const result = await this.actor.read_production_account_runtime_version();
+        return from_candid_Result_8_n39(result);
     }
     async read_removal_history_manifest(): Promise<Result_41> {
         const result = await this.actor.read_removal_history_manifest();

@@ -2,6 +2,30 @@
 
 ## Implemented
 
+### Signed full-service candidate (04:54 request)
+
+The identity now supports separate signed inventory provisioning and signed full
+account-fencing control. Generic setters remain rehearsal-only. Provisioning
+checks all real closed groups, media registries, receiver configurations and
+module/lifecycle evidence before persisting pins; an independently accepted
+witness must match the inventory-purpose approval. The exact receipt is retained
+in additive memory 38. Reader-only signatures do not authorize fencing.
+
+Starting removal repeats current signature expiry and exact authorization,
+inventory and account checks immediately before persisting a fence. Existing
+frozen jobs can continue after expiry; new inventory/history requests cannot.
+The full-service isolated scenario uses real non-rehearsal identity and witness,
+ephemeral signers, 24 human receivers and all four infrastructure targets. It
+reuses actual encrypted-photo, chat, Vault, retry and upgrade tests. Its local
+inventory evidence is not PROD provenance and never authorizes opening.
+
+Important remaining limitation: mutable removal history and participant upgrades
+invalidate the signed read acceptance. The isolated runner explicitly renews
+acceptance before checking surviving members; an automatic governed renewal
+path is not implemented. Do not deploy or claim uninterrupted production
+admission from this candidate. Full fencing retains data; it is not destructive
+account erasure. Supported-worker execution and evidence review remain required.
+
 - A separate Rust `recovery_witness` stores complete immutable removal subjects,
   exact targets, per-target progress and completion records outside participant
   backups. Stable indexed pages retain replayable records, not just hashes.
