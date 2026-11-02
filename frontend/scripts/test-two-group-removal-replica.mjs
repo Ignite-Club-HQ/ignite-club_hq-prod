@@ -62,6 +62,14 @@ try{
  assert.equal(retainedAuthorization.generation,1n);assert.equal(retainedAuthorization.approval.length,0);
  assert.equal(ok(await closedIdentity.whoami()).id,closedAccount.id);err(await closedIdentity.read_service_account(governor));
  mark('Non-rehearsal identity denies unaccepted alias readers; authorization disable generation survives upgrade and preserves own account');
+ stage='legacy unfenced notification recovery positive control';
+ const legacyQueue=await install('notification_queue');legacyQueue.actor.setPrincipal(governor);
+ ok(await legacyQueue.actor.enqueue('legacy',primary.toText(),'app','event','Legacy control','legacy-key'));
+ assert.equal(ok(await legacyQueue.actor.claim(99999999999999n,1)).length,1);
+ assert.equal(ok(await legacyQueue.actor.recover()),1);
+ assert.equal(ok(await legacyQueue.actor.claim(99999999999999n,1)).length,1);
+ ok(await legacyQueue.actor.acknowledge('legacy','legacy-key'));
+ mark('Unfenced legacy queue recovery still resets one processing item for authenticated retry');
  stage='install real identity and inventory';
  const identity=production?await createProductionIdentity(pic,governor,root,args):await install('identity_access',[{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'}]);
  if(production){productionIdentityWasm=identity.identityWasm;report.modules.identity_access=hash(productionIdentityWasm);}
@@ -233,7 +241,18 @@ try{
   if(domain==='notification_queue'){
    stage=`verify ${g.id} notification lease across upgrade`;
    const q=s.actor;q.setPrincipal(governor);assert.deepEqual(await q.authorize_delivery('lease','lease-key'),{Ok:false});
-   assert.equal(ok(await q.recover()),0);await pic.upgradeCanister({canisterId:s.canisterId,wasm:wasm(domain),sender:governor,arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
+   assert.equal(ok(await q.recover()),0);
+   assert.equal(ok(await id.advance_account_removal_receiver(account.id,s.canisterId)).outstanding,1n);
+   // Retained fences must preserve the lease even with all protection flags off.
+   await pic.updateCanisterSettings({canisterId:s.canisterId,sender:governor,environmentVariables:[{name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:identity.canisterId.toText()}]});
+   await pic.upgradeCanister({canisterId:s.canisterId,wasm:wasm(domain),sender:governor,arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
+   q.setPrincipal(identity.canisterId);const disabledConfig=ok(await q.read_account_protection_configuration());
+   assert.equal(disabledConfig.admission_required,false);assert.equal(disabledConfig.removal_enabled,false);
+   q.setPrincipal(governor);assert.equal(ok(await q.recover()),0);
+   assert.equal(ok(await id.advance_account_removal_receiver(account.id,s.canisterId)).outstanding,1n);
+   await pic.updateCanisterSettings({canisterId:s.canisterId,sender:governor,environmentVariables:env(identity.canisterId)});
+   await pic.upgradeCanister({canisterId:s.canisterId,wasm:wasm(domain),sender:governor,arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
+   q.setPrincipal(governor);assert.equal(ok(await q.recover()),0);
    assert.equal(ok(await id.advance_account_removal_receiver(account.id,s.canisterId)).outstanding,1n);
    // A non-worker traps; this is not a Candid Err and must not abort the suite.
    stage=`verify ${g.id} ungranted worker cannot settle notification lease`;
