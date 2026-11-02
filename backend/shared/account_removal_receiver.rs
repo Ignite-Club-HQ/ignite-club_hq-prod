@@ -75,7 +75,7 @@ pub fn enter(subject: Principal) -> Result<Hold, String> {
     ACTIVE.with(|m| { let mut m = m.borrow_mut();
         let n = m.get(&subject).copied().unwrap_or(0);
         if n >= 200 || (n == 0 && m.len() >= 100_000) { return Err("Account operation capacity reached".into()); }
-        m.insert(subject, n + 1); Ok(()) })?;
+        m.insert(subject, n + 1); Ok::<(), String>(()) })?;
     Ok(Hold(subject))
 }
 /// Re-check after every await: a fence installed mid-call wins.
