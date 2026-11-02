@@ -1,0 +1,20 @@
+{
+  "kind": "account-recovery-witness-isolated",
+  "passed": true,
+  "releaseAuthorized": false,
+  "productionIntegration": false,
+  "checks": [
+    "Immutable removal, both group seals, full completion, caller rejection and idempotent retries",
+    "Real snapshot load retains complete removal progress, advances IC version and denies restored read approval",
+    "Real upgrade retains both group progress and keeps admission closed"
+  ],
+  "moduleSha256": "7f7b76a12c8186226caa0aee0dde0c51daa1c6ef558096a2c3aced5a6d0e59f2",
+  "host": {
+    "faults": 1,
+    "writeBit": 1,
+    "recovered": true,
+    "sourceSha256": "2cc4fde3d7846f696c53a4bcd418a03abeee0b0191dc1cd4884e42db56d7da6b",
+    "kernel": "Linux 7.0.0-1017-azure"
+  },
+  "stage": "upgrade preserves whole journal"
+}
