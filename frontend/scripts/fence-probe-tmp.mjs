@@ -26,7 +26,7 @@ const wasm = Uint8Array.from([
 
 const server = await import('/dev-server/frontend/scripts/removal-local-supervisor.mjs')
   .then(m => m.startRemovalLocalServer({ binary: process.env.POCKET_IC_BIN, hardTtlSeconds: 300 }));
-const pic = await PocketIc.create(server.url, { processingTimeoutMs: 60000 });
+const pic = await PocketIc.create(server.url, { processingTimeoutMs: 300000 });
 allowLongUpdates(pic);
 const target = await pic.createCanister({ sender: owner, controllers: [owner] });
 await pic.installCode({ canisterId: target, sender: owner, wasm, arg: new Uint8Array() });
@@ -36,14 +36,17 @@ await pic.installCode({ canisterId: target, sender: owner, wasm, arg: new Uint8A
 const readerFactory = ({ IDL: t }) => t.Service({
   read_lifecycle: t.Func([t.Principal], [t.Record({ total_num_changes: t.Nat64, module_hash: t.Opt(t.Vec(t.Nat8)) })], [])
 });
+console.log('installing disposable lifecycle reader');
 const reader = await pic.setupCanister({ sender: owner, controllers: [owner],
   wasm: process.env.REMOVAL_LIFECYCLE_PROBE_WASM, arg: IDL.encode([], []), idlFactory: readerFactory });
+console.log('reader installed', reader.canisterId.toText());
 reader.actor.setPrincipal(owner);
 const lifecycle = async canister => {
   const info = await reader.actor.read_lifecycle(canister);
   return { changes: info.total_num_changes, module: info.module_hash[0] ? Buffer.from(info.module_hash[0]).toString('hex') : null };
 };
 
+console.log('reading target lifecycle before fencing');
 const before = await lifecycle(target);
 const statusBefore = await readControllerStatus(pic, { canisterId: target, sender: owner });
 assertExclusiveController(statusBefore, owner);
