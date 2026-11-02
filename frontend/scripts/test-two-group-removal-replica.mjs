@@ -275,6 +275,11 @@ try{
  validateHumanSeals(normalizedGroups,{account_id:intent.account_id,generation:intent.generation,subjects:intent.subjects.map(p=>p.toText()),inventory_digest:Array.from(intent.inventory_digest)},seals);
  if(production){
   const generation=ok(await id.read_production_account_authorization()).generation;
+  // Diagnostic only: ask identity exactly as a configured reader would, so a
+  // refusal names its real reason instead of the receiver's generic denial.
+  for(const g of groups){const reader=g.services.pii_access_control.canisterId;id.setPrincipal(reader);
+   const e=await id.read_principal_eligibility(survivor);id.setPrincipal(governor);
+   assert.ok(e&&'Ok'in e,`Survivor eligibility refused after seals: ${JSON.stringify(e,(k,v)=>typeof v==='bigint'?v.toString():v)}`);}
   for(const g of groups){await g.readPhoto(survivor);g.services.vault_domain.actor.setPrincipal(survivor);
    assert.equal(ok(await g.services.vault_domain.actor.read_account_get_folder('folder'))[0].id,'folder');}
   assert.equal(ok(await id.read_production_account_authorization()).generation,generation);
