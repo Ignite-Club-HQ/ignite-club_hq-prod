@@ -31,6 +31,11 @@ const hash=f=>createHash('sha256').update(readFileSync(f)).digest('hex');
 const wasm=name=>{const f=process.env[name.toUpperCase()+'_WASM'];assert.ok(f,`${name} Wasm required`);return f;};
 const factory=async name=>(await import(`../src/lab/bindings/${name}/declarations/${name}.did.js`)).idlFactory;
 const env=identity=>[{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'},{name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:identity.toText()}];
+const submit=async(service,domain,method,inputs,sender)=>{
+ const signature=(await factory(domain))({IDL})._fields.find(([name])=>name===method)?.[1];assert.ok(signature);
+ const pending=await pic.client.submitCall({canisterId:service.canisterId,sender,method,payload:new Uint8Array(IDL.encode(signature.argTypes,inputs))});
+ return async()=>IDL.decode(signature.retTypes,(await pic.client.awaitCall(pending)).body)[0];
+};
 const args=IDL.encode([IDL.Record({governor:IDL.Principal})],[{governor}]);
 try{
  assert.ok(process.env.TWO_GROUP_REMOVAL_REPORT,'Durable test report path required');
@@ -94,6 +99,7 @@ try{
   a.vault_domain.setPrincipal(governor);for(const human of [primary,alias,survivor])ok(await a.vault_domain.grant_role(human,'club_admin',[g.club],[]));
   a.vault_domain.setPrincipal(primary);ok(await a.vault_domain.create_folder('folder',g.club,[],[],'Private',[],[],[],0,[],[]));
   a.competition_domain.setPrincipal(governor);g.competition=ok(await a.competition_domain.create_competition(g.club,'Kept competition','2026'));
+  for(const human of [primary,alias,survivor])ok(await a.competition_domain.grant_role(human,'competition_admin',g.competition.id,[]));
   a.mini_league_domain.setPrincipal(governor);g.league=ok(await a.mini_league_domain.create_mini_league(g.club,'Kept league',[],[],5,3,10,['red','green'],true));
   for(const human of [primary,alias,survivor]){ok(await a.mini_league_domain.grant_role(human,'league_admin',g.club,[]));ok(await a.club_points_domain.grant_role(human,'club_admin',g.club,[]));}
   a.club_points_domain.setPrincipal(primary);ok(await a.club_points_domain.award_points(g.club,{User:primary.toText()},'attendance','local',7,'Kept award',[],[],[]));
@@ -113,20 +119,42 @@ try{
    assert.deepEqual(IbeCiphertext.deserialize(Uint8Array.from(response.body)).decrypt(key),g.plaintext);};
   for(const human of [primary,alias,survivor])await g.readPhoto(human);
   for(const human of [primary,alias]){a.messaging_domain.setPrincipal(human);assert.equal(ok(await a.messaging_domain.read_account_list_messages_page(g.chat.id,[],10)).messages.length,1);}
+  a.club_domain.setPrincipal(primary);assert.ok((await a.club_domain.read_account_my_role_grants()).length>0);
+  a.events_domain.setPrincipal(primary);assert.deepEqual(ok(await a.events_domain.read_account_list_my_viewed_event_ids([])),[]);
+  a.vault_domain.setPrincipal(primary);assert.equal(ok(await a.vault_domain.read_account_get_folder('folder'))[0].id,'folder');
+  a.competition_domain.setPrincipal(primary);assert.ok(ok(await a.competition_domain.read_account_list_competitions(g.club)).some(c=>c.id===g.competition.id));
+  a.mini_league_domain.setPrincipal(primary);assert.equal(ok(await a.mini_league_domain.read_account_get_mini_league(g.league.id)).id,g.league.id);
+  a.club_points_domain.setPrincipal(primary);assert.equal(ok(await a.club_points_domain.read_account_get_user_points(g.club,primary.toText())),7);
+  a.media_metadata.setPrincipal(primary);assert.equal((await a.media_metadata.read_account_get_asset(g.asset.id))[0].id,g.asset.id);
+  a.insights_domain.setPrincipal(primary);ok(await a.insights_domain.record_web_vital('LCP',12,'good','/control'));
+  a.notification_queue.setPrincipal(primary);assert.equal(ok(await a.notification_queue.list_inbox(primary.toText(),[],10)).length,1);
  }
  mark('Both aliases and survivor read actual encrypted photos and retained club messages');
  // Club removal is not whole-account removal; the other club stays available.
  const base=groups[0],second=groups[1];base.services.club_domain.actor.setPrincipal(governor);
  ok(await base.services.club_domain.actor.remove_member(base.club,primary));
  base.services.messaging_domain.actor.setPrincipal(primary);
- let clubDenied=false;try{const r=await base.services.messaging_domain.actor.read_account_list_messages_page(base.chat.id,[],10);clubDenied=Boolean(r&&'Err'in r);}catch(e){assert.match(String(e),/Club membership|club member|Club member|Account admission/);clubDenied=true;}
+ let clubDenied=false;try{const r=await base.services.messaging_domain.actor.read_account_list_messages_page(base.chat.id,[],10);clubDenied=Boolean(r&&'Err'in r);}catch(e){assert.match(String(e),/Club chat access forbidden/);clubDenied=true;}
  assert.ok(clubDenied);await second.readPhoto(primary);
  second.services.messaging_domain.actor.setPrincipal(primary);assert.equal(ok(await second.services.messaging_domain.actor.read_account_list_messages_page(second.chat.id,[],10)).messages.length,1);
  mark('Removing one club membership preserves other-group private access');
+ // Restore only the reviewed fixture grant to exercise a real pending callback.
+ ok(await base.services.club_domain.actor.restore_member(base.club,primary));
+ ok(await base.services.club_domain.actor.add_role_grant(primary,base.club,'club_admin',[]));
+ // Stop the real delegated club authority and submit an actual chat read.
+ // The stopped authority is independently observed; no fixture returns Eligible.
+ await pic.stopCanister({canisterId:second.services.club_domain.canisterId,sender:governor});
+ const pendingRead=await submit(second.services.messaging_domain,'messaging_domain','read_account_list_messages_page',[second.chat.id,[],10],primary);
+ await pic.tick(3);
  stage='freeze complete real inventory and revoke both aliases';id.setPrincipal(governor);
  const intent=ok(await id.begin_account_removal(account.id,await revision()));
  validateTwoGroupInventory(normalizedGroups,intent.targets.map(p=>p.toText()),shared.canisterId.toText(),router.canisterId.toText());
  assert.deepEqual(new Set(intent.subjects.map(p=>p.toText())),new Set([primary.toText(),alias.toText()]));
+ await pic.startCanister({canisterId:second.services.club_domain.canisterId,sender:governor});
+ // The still-local club grants are retained; original-human admission must
+ // reject the read once the suspended remote permission resumes.
+ await denied(pendingRead);
+ mark('Stopped real delegated authority resumes without releasing a removed-human chat read');
  for(const human of [primary,alias]){id.setPrincipal(human);err(await id.whoami());err(await id.register_account());}id.setPrincipal(governor);
  // Stop one receiver, observe a failed coordinator step, retain the original intent.
  const stopped=second.services.events_domain;
