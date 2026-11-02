@@ -2,6 +2,7 @@ import PrivateNameWriterWindow "../../shared/PrivateNameWriterWindow";
 import PrivateNameWriterEndpoints "../../shared/PrivateNameWriterEndpoints";
 import AccountAdmission "../../shared/AccountAdmission";
 import AccountProtection "../../shared/AccountProtection";
+import AccountProtectionEndpoints "../../shared/AccountProtectionEndpoints";
 import OpeningConfiguration "../../shared/OpeningConfiguration";
 import RemovalReceiver "../../shared/RemovalReceiver";
 import Map "mo:core/Map";
@@ -38,13 +39,16 @@ import PrivateProfileAudience "../../shared/PrivateProfileAudience";
 persistent actor class Main(governorInit : Principal) = this {
   // Opt-in local rehearsal only; production deploy scripts must never set these.
   // Candidate protection modes; rollout tooling never enables these flags.
-  transient let accountAdmissionEnabled = Runtime.envVar<system>("IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL") == ?"1";
-  transient let accountProtectionMode = AccountProtection.mode(accountAdmissionEnabled,
+  transient let accountRehearsalEnabled = Runtime.envVar<system>("IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL") == ?"1";
+  transient let accountProtectionMode = AccountProtection.mode(accountRehearsalEnabled,
     Runtime.envVar<system>("IGNITE_ACCOUNT_ADMISSION_RELEASE") == ?"1",
     Runtime.envVar<system>("IGNITE_ACCOUNT_REMOVAL_RELEASE") == ?"1");
+  // Effective protection, not the local rehearsal flag, governs every guarded path.
+  transient let accountAdmissionEnabled = AccountProtection.admissionRequired(accountProtectionMode);
   transient let accountAdmissionAuthority = switch (Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")) {
     case (?id) ?Principal.fromText(id); case null null
   };
+  include AccountProtectionEndpoints(accountProtectionMode, accountAdmissionAuthority, Principal.fromActor(this));
   var removal_intents : Map.Map<Text, RemovalReceiver.Request>;
   var removal_subjects : Map.Map<Principal, Text>;
   var removal_active : Map.Map<Principal, Nat>;

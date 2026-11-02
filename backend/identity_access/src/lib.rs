@@ -31,6 +31,13 @@ fn read_private_name_writer_window(request: WriterRequest) -> Result<WriterRecei
 mod group_inventory;
 // Offline-only until independent pinning and production lifecycle acceptance.
 mod expected_removal_inventory;
+mod production_account_protection;
+mod production_account_authorization;
+#[path = "../../recovery_witness/src/protocol.rs"]
+mod recovery_protocol;
+#[path = "../../shared/recovery_lifecycle.rs"]
+mod recovery_lifecycle;
+mod recovery_journal;
 mod removal_barrier;
 mod deletion_timing;
 mod admission;
@@ -108,6 +115,14 @@ const MEM_REMOVAL_SUBJECTS: u8 = 14;
 const MEM_REMOVAL_RECEIPTS: u8 = 15;
 const MEM_DELETION_TICKETS: u8 = 16;
 const MEM_GROUP2_ADMISSION: u8 = 17;
+// Additive terminal fencing evidence; never reuses a history/directory partition.
+// 31/32 already belong to private-name approval/write journals. Never reuse.
+const MEM_REMOVAL_COMPLETIONS: u8 = 33;
+const MEM_PRODUCTION_ACCOUNT_AUTHORIZATION: u8 = 34;
+const MEM_PRODUCTION_ACCOUNT_REQUEST: u8 = 35;
+const MEM_RECOVERY_PENDING: u8 = 36;
+const MEM_RECOVERY_ACKS: u8 = 37;
+const MEM_PRODUCTION_INVENTORY_RECEIPT: u8 = 38;
 // Directory-specific additive storage: never share lifecycle/admission maps.
 const MEM_DIRECTORY_POOL_META:u8=18;
 const MEM_DIRECTORY_POOL_BLOCKS:u8=19;
@@ -445,11 +460,22 @@ fn authority_eligibilities(caller: Principal, subjects: Vec<Principal>) -> Outco
 /// Consensus reads; never create an account or grant resource permissions.
 /// Versions are account-scoped evidence, NOT globally atomic access tokens.
 #[ic_cdk::update]
-fn read_principal_eligibility(subject: Principal) -> Outcome<PrincipalEligibility> {
+async fn read_principal_eligibility(subject: Principal) -> Outcome<PrincipalEligibility> {
+    let caller=ic_cdk::api::msg_caller();
+    if !account_group_rehearsal_enabled() && production_authorization().approval.is_some() {
+        verify_production_account_reader(caller,false,&[subject]).await?;
+        return Ok(principal_eligibility(subject));
+    }
     authority_eligibilities(ic_cdk::api::msg_caller(), vec![subject])?.into_iter().next().ok_or("Eligibility unavailable".into())
 }
 #[ic_cdk::update]
-fn read_principal_eligibilities(subjects: Vec<Principal>) -> Outcome<Vec<PrincipalEligibility>> {
+async fn read_principal_eligibilities(subjects: Vec<Principal>) -> Outcome<Vec<PrincipalEligibility>> {
+    if !account_group_rehearsal_enabled() && production_authorization().approval.is_some() {
+        let mut distinct=subjects.clone();distinct.sort();distinct.dedup();
+        if subjects.is_empty() || subjects.len()>200 || distinct.len()!=subjects.len(){return Err("Distinct eligibility batch of 1 to 200 subjects required".into());}
+        verify_production_account_reader(ic_cdk::api::msg_caller(),false,&subjects).await?;
+        return Ok(subjects.into_iter().map(principal_eligibility).collect());
+    }
     authority_eligibilities(ic_cdk::api::msg_caller(), subjects)
 }
 
@@ -494,8 +520,9 @@ fn current_service_account(subject: Principal) -> Outcome<Account> {
 }
 /// Subject-bound consensus ownership read; never implicitly registers an account.
 #[ic_cdk::update]
-fn read_service_account(subject: Principal) -> Outcome<Account> {
-    service_account(ic_cdk::api::msg_caller(), subject)
+async fn read_service_account(subject: Principal) -> Outcome<Account> {
+    if account_group_rehearsal_enabled() {return service_account(ic_cdk::api::msg_caller(),subject);}
+    production_service_account(ic_cdk::api::msg_caller(),subject,false).await
 }
 
 fn unlink_targets(job: &UnlinkIntent) -> Outcome<Vec<Principal>> {
@@ -560,6 +587,18 @@ thread_local! {
     static GROUP2_ADMISSION: RefCell<StableCell<Vec<u8>, Memory>> = RefCell::new(StableCell::init(memory(MEM_GROUP2_ADMISSION), Vec::new()));
     static REMOVAL_RECEIPTS: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> =
         RefCell::new(StableBTreeMap::init(memory(MEM_REMOVAL_RECEIPTS)));
+    static REMOVAL_COMPLETIONS: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> =
+        RefCell::new(StableBTreeMap::init(memory(MEM_REMOVAL_COMPLETIONS)));
+    static PRODUCTION_ACCOUNT_AUTHORIZATION: RefCell<StableCell<Vec<u8>,Memory>> =
+        RefCell::new(StableCell::init(memory(MEM_PRODUCTION_ACCOUNT_AUTHORIZATION),Vec::new()));
+    static PRODUCTION_ACCOUNT_REQUEST: RefCell<StableCell<u64,Memory>> =
+        RefCell::new(StableCell::init(memory(MEM_PRODUCTION_ACCOUNT_REQUEST),0));
+    static RECOVERY_PENDING: RefCell<StableBTreeMap<String,Vec<u8>,Memory>> =
+        RefCell::new(StableBTreeMap::init(memory(MEM_RECOVERY_PENDING)));
+    static RECOVERY_ACKS: RefCell<StableBTreeMap<String,Vec<u8>,Memory>> =
+        RefCell::new(StableBTreeMap::init(memory(MEM_RECOVERY_ACKS)));
+    static PRODUCTION_INVENTORY_RECEIPT: RefCell<StableCell<Vec<u8>,Memory>> =
+        RefCell::new(StableCell::init(memory(MEM_PRODUCTION_INVENTORY_RECEIPT),Vec::new()));
     static DIRECTORY_CONFIG:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(memory(MEM_DIRECTORY_CONFIG),Vec::new()));
     static DIRECTORY_COORDINATOR:RefCell<membership_coordinator::Coordinator<Memory>>=RefCell::new(
         membership_coordinator::Coordinator::open(memory(MEM_DIRECTORY_COORDINATOR),
@@ -960,6 +999,87 @@ fn removal_subject_fenced(subject: Principal) -> bool {
     REMOVAL_SUBJECTS.with(|m| m.borrow().contains_key(&subject.to_text()))
 }
 fn removal_pending() -> bool { REMOVAL_INTENTS.with(|m| !m.borrow().is_empty()) }
+fn recovery_pending()->bool {RECOVERY_PENDING.with(|m|!m.borrow().is_empty())}
+fn recovery_witness_target()->Outcome<Option<Principal>> {
+    if option_env!("IGNITE_PRODUCTION_ACCOUNT_WITNESS").is_none() {
+        if account_group_rehearsal_enabled() || production_authorization().approval.is_none() {return Ok(None);}
+        return Err("Independent recovery journal not configured".into());
+    }
+    let witness=production_account_authorization::witness()?;
+    if witness==ic_cdk::api::canister_self(){return Err("Independent recovery journal required".into());}
+    Ok(Some(witness))
+}
+fn stage_recovery_record(record:recovery_protocol::Record)->Outcome<()> {
+    if recovery_witness_target()?.is_none(){return Ok(());}
+    let key=record.operation_id.clone();
+    let prior=RECOVERY_PENDING.with(|m|m.borrow().get(&key)).or_else(||RECOVERY_ACKS.with(|m|m.borrow().get(&key))).map(|b|decode(&b));
+    if prior.is_none() && RECOVERY_PENDING.with(|m|m.borrow().len())>=MAX_ACCOUNTS as u64 {return Err("Recovery pending capacity reached; keep admission closed".into());}
+    let pending=recovery_journal::prepare(prior,record)?;
+    RECOVERY_PENDING.with(|m|m.borrow_mut().insert(key,encode(&pending)));Ok(())
+}
+async fn settle_recovery_record(record:recovery_protocol::Record)->Outcome<()> {
+    let Some(witness)=recovery_witness_target()? else{return Ok(());};
+    stage_recovery_record(record.clone())?;
+    let key=record.operation_id.clone();
+    let captured:recovery_journal::Pending=RECOVERY_PENDING.with(|m|decode(&m.borrow().get(&key).expect("staged recovery record")));
+    let reply=ic_cdk::call::Call::bounded_wait(witness,"record_removal_recovery").with_arg(&record)
+        .await.map_err(|_|"Recovery write outcome unknown; pending intent retained")?;
+    let revision:Outcome<u64>=reply.candid().map_err(|_|"Invalid recovery acknowledgement; pending intent retained")?;
+    let revision=revision?;
+    let concurrent_ack=RECOVERY_ACKS.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b));
+    if RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b)).as_ref()!=Some(&captured) &&
+        !concurrent_ack.as_ref().is_some_and(|a|a.record==captured.record&&a.revision==Some(revision)) {
+        return Err("Recovery pending operation changed".into());
+    }
+    let reply=ic_cdk::call::Call::bounded_wait(witness,"read_recovery_record").with_arg(&revision)
+        .await.map_err(|_|"Recovery readback unavailable; pending intent retained")?;
+    let observed:Outcome<recovery_protocol::Record>=reply.candid().map_err(|_|"Invalid recovery readback")?;
+    let acknowledged=recovery_journal::acknowledge(&captured,revision,&observed?)?;
+    let concurrent_ack=RECOVERY_ACKS.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b));
+    if RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b)).as_ref()!=Some(&captured) &&
+        concurrent_ack.as_ref()!=Some(&acknowledged) {
+        return Err("Recovery pending operation changed during readback".into());
+    }
+    RECOVERY_ACKS.with(|m|m.borrow_mut().insert(key.clone(),encode(&acknowledged)));
+    RECOVERY_PENDING.with(|m|m.borrow_mut().remove(&key));Ok(())
+}
+fn removal_recovery_record(intent:&removal_barrier::Intent)->recovery_protocol::Record {
+    recovery_protocol::Record {operation_id:format!("removal:{}",hex_digest(&encode(&intent.request()))),event:recovery_protocol::Event::Removal(recovery_protocol::Removal {
+        account_id:intent.account_id.clone(),generation:intent.generation,inventory_digest:intent.inventory_digest.clone(),subjects:intent.subjects.clone(),targets:intent.targets.clone()})}
+}
+fn progress_recovery_record(intent:&removal_barrier::Intent,progress:recovery_protocol::Progress)->recovery_protocol::Record {
+    let suffix=match &progress {recovery_protocol::Progress::Prepared {target}=>format!("prepared:{}",target.to_text()),
+        recovery_protocol::Progress::Sealed {target}=>format!("sealed:{}",target.to_text()),recovery_protocol::Progress::Completed=>"completed".into()};
+    recovery_protocol::Record {operation_id:format!("progress:{}",hex_digest(&encode(&(intent.request(),suffix)))),event:recovery_protocol::Event::Progress {account_id:intent.account_id.clone(),generation:intent.generation,progress}}
+}
+fn hex_digest(bytes:&[u8])->String {Sha256::digest(bytes).iter().map(|b|format!("{b:02x}")).collect()}
+#[ic_cdk::update]
+async fn reconcile_pending_recovery_records(limit:u16)->Outcome<u16> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    if limit==0||limit>20{return Err("Recovery reconciliation is bounded to 20 records".into());}
+    let records:Vec<recovery_protocol::Record>=RECOVERY_PENDING.with(|m|m.borrow().iter().take(limit as usize).map(|e|decode::<recovery_journal::Pending>(&e.value()).record).collect());
+    let mut settled=0;for record in records {settle_recovery_record(record).await?;require_governor(&state(),ic_cdk::api::msg_caller())?;settled+=1;}
+    Ok(settled)
+}
+// Keep configuration locked even after completion: a sealed old inventory
+// cannot authorize replacing its authorities or moving its retained records.
+fn removal_completion(account_id: &str) -> Option<removal_barrier::Completion> {
+    REMOVAL_COMPLETIONS.with(|m| m.borrow().get(&account_id.to_string())).map(|bytes| decode(&bytes))
+}
+fn persist_removal_completion(intent: &removal_barrier::Intent, seals: Vec<removal_barrier::Receipt>) -> Outcome<removal_barrier::Completion> {
+    let completion = removal_barrier::Completion::from_fresh_seals(intent, seals)?;
+    if removal_intent(&intent.account_id).as_ref() != Some(intent) { return Err("Removal intent changed".into()); }
+    if let Some(prior) = removal_completion(&intent.account_id) {
+        prior.validate(intent)?;
+        if prior != completion { return Err("Immutable removal completion conflict".into()); }
+        return Ok(prior);
+    }
+    if REMOVAL_COMPLETIONS.with(|m|m.borrow().len()) >= MAX_ACCOUNTS as u64 { return Err("Removal completion capacity reached".into()); }
+    // No awaits or fallible validation after the first persistent write.
+    bump_removal_history();
+    REMOVAL_COMPLETIONS.with(|m|m.borrow_mut().insert(intent.account_id.clone(), encode(&completion)));
+    Ok(completion)
+}
 fn persist_removal_intent(account: &Account, inventory: group_inventory::RemovalInventory, identity: Principal) -> Outcome<removal_barrier::Intent> {
     if let Some(intent) = removal_intent(&account.id) { return Ok(intent); }
     if REMOVAL_INTENTS.with(|m| m.borrow().len()) >= MAX_ACCOUNTS as u64 { return Err("Removal intent capacity reached".into()); }
@@ -969,6 +1089,7 @@ fn persist_removal_intent(account: &Account, inventory: group_inventory::Removal
     let generation = REMOVAL_GENERATION.with(|m| m.borrow().get().checked_add(1)).ok_or("Removal generation exhausted")?;
     let digest = Sha256::digest(encode(&inventory)).to_vec();
     let intent = removal_barrier::create(account, generation, inventory, digest, identity)?;
+    stage_recovery_record(removal_recovery_record(&intent))?;
     // No awaits or fallible validation after the first write. A trap rolls
     // the whole message back; an Err must never leave a partially written fence.
     bump_removal_history();
@@ -984,23 +1105,39 @@ fn persist_removal_intent(account: &Account, inventory: group_inventory::Removal
 async fn begin_account_removal(account_id: String, expected_history_revision: u64) -> Outcome<removal_barrier::Intent> {
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 
-    history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
+    removal_control_access()?;
     // Unknown outcomes retry the original immutable intent, not today's registry.
-    if let Some(intent) = removal_intent(&account_id) { return Ok(intent); }
+    if let Some(intent) = removal_intent(&account_id) { settle_recovery_record(removal_recovery_record(&intent)).await?;return Ok(intent); }
     let account = get_account(&account_id).ok_or("Unknown account")?;
     if account.principals.contains(&state().governor) { return Err("Governor account cannot be erased".into()); }
     if link_lifecycle().pending.iter().any(|job| job.account_id == account_id) { return Err("Unlink recovery pending".into()); }
+    let captured=production_authorization();let operator=state().governor;
+    if !account_group_rehearsal_enabled() {
+        let approval=captured.approval.as_ref().ok_or("Signed production removal control required")?;
+        production_account_authorization::removal_control(&captured,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
+        let observed=collect_production_account_protection(approval.body.expectation.clone(),expected_history_revision,false).await?;
+        if observed!=approval.body.review {return Err("Removal production review drift".into());}
+        check_production_witness(approval).await?;
+        if production_authorization()!=captured {return Err("Removal authorization changed".into());}
+    }
     let inventory = read_removal_inventory_evidence(expected_history_revision).await?;
     if removal_history_revision() != expected_history_revision || get_account(&account_id).as_ref() != Some(&account) {
         return Err("Account or inventory changed during removal preparation".into());
     }
-    persist_removal_intent(&account, inventory, ic_cdk::api::canister_self())
+    if !account_group_rehearsal_enabled() {
+        if production_authorization()!=captured || state().governor!=operator {return Err("Removal authorization changed before commit".into());}
+        production_account_authorization::removal_control(&captured,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
+        if captured.approval.as_ref().is_none_or(|a|a.body.review.inventory!=inventory){return Err("Signed removal inventory changed".into());}
+        production_read_configuration_clear()?;
+    }
+    let intent=persist_removal_intent(&account, inventory, ic_cdk::api::canister_self())?;
+    settle_recovery_record(removal_recovery_record(&intent)).await?;Ok(intent)
 }
 #[ic_cdk::update]
 fn read_account_removal_intent(account_id: String) -> Outcome<removal_barrier::Intent> {
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 
-    history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
+    removal_control_access()?;
     removal_intent(&account_id).ok_or("Removal intent missing".into())
 }
 // A bounded one-receiver step: retries always re-read the real receiver.
@@ -1009,9 +1146,10 @@ fn read_account_removal_intent(account_id: String) -> Outcome<removal_barrier::I
 async fn advance_account_removal_receiver(account_id: String, target: Principal) -> Outcome<removal_barrier::Receipt> {
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 
-    history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
+    removal_control_access()?;
     let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
     if !intent.targets.contains(&target) { return Err("Receiver outside frozen removal inventory".into()); }
+    settle_recovery_record(removal_recovery_record(&intent)).await?;
     let request = intent.request();
     let reply = ic_cdk::call::Call::bounded_wait(target, "prepare_account_removal")
         .with_arg(&request).await.map_err(|_| "Receiver fence unavailable; intent remains locked")?;
@@ -1024,6 +1162,8 @@ async fn advance_account_removal_receiver(account_id: String, target: Principal)
     let receipt = result?;
     if removal_intent(&account_id).as_ref() != Some(&intent) { return Err("Removal intent changed".into()); }
     intent.validate_receipt(target, &receipt)?;
+    settle_recovery_record(progress_recovery_record(&intent,recovery_protocol::Progress::Prepared {target})).await?;
+    if removal_intent(&account_id).as_ref()!=Some(&intent){return Err("Removal intent changed during recovery acknowledgement".into());}
     REMOVAL_RECEIPTS.with(|m| m.borrow_mut().insert(format!("{}:{}", account_id, target.to_text()), encode(&receipt)));
     bump_removal_history();
     Ok(receipt)
@@ -1034,8 +1174,11 @@ async fn advance_account_removal_receiver(account_id: String, target: Principal)
 async fn verify_account_removal_seals(account_id: String) -> Outcome<Vec<removal_barrier::Receipt>> {
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 
-    history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
-    let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
+    removal_control_access()?;
+    collect_account_removal_seals(&account_id).await
+}
+async fn collect_account_removal_seals(account_id: &str) -> Outcome<Vec<removal_barrier::Receipt>> {
+    let intent = removal_intent(account_id).ok_or("Removal intent missing")?;
     let request = intent.request();
     let mut seals = Vec::new();
     for target in &intent.targets {
@@ -1043,20 +1186,314 @@ async fn verify_account_removal_seals(account_id: String) -> Outcome<Vec<removal
             .await.map_err(|_| "Receiver seal unavailable; intent remains locked")?;
         let result: Outcome<removal_barrier::Receipt> = reply.candid().map_err(|_| "Invalid receiver seal reply")?;
         let seal = result?;
-        if removal_intent(&account_id).as_ref() != Some(&intent) { return Err("Removal intent changed".into()); }
+        if removal_intent(account_id).as_ref() != Some(&intent) { return Err("Removal intent changed".into()); }
         intent.validate_seal(*target, &seal)?;
+        settle_recovery_record(progress_recovery_record(&intent,recovery_protocol::Progress::Sealed {target:*target})).await?;
+        if removal_intent(account_id).as_ref()!=Some(&intent){return Err("Removal intent changed during seal acknowledgement".into());}
         seals.push(seal);
     }
     intent.validate_all_seals(&seals)?;
     Ok(seals)
 }
+/// Terminal fencing evidence only. Retain all data, intent, subject fences,
+/// placement locks and recovery history. This endpoint remains rehearsal-only.
+#[ic_cdk::update]
+async fn complete_account_removal_fencing(account_id: String) -> Outcome<removal_barrier::Completion> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+    removal_control_access()?;
+    let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
+    settle_recovery_record(removal_recovery_record(&intent)).await?;
+    // Cached historical completion is not fresh receiver fencing evidence.
+    let seals = collect_account_removal_seals(&account_id).await?;
+    settle_recovery_record(progress_recovery_record(&intent,recovery_protocol::Progress::Completed)).await?;
+    persist_removal_completion(&intent, seals)
+}
+#[ic_cdk::update]
+async fn read_account_removal_completion(account_id: String) -> Outcome<removal_barrier::Completion> {
+    removal_control_access()?;
+    let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
+    let completion = removal_completion(&account_id).ok_or("Removal completion missing")?;
+    if recovery_witness_target()?.is_some() {
+        let record=progress_recovery_record(&intent,recovery_protocol::Progress::Completed);
+        if !RECOVERY_ACKS.with(|m|m.borrow().contains_key(&record.operation_id)){return Err("Independent completion acknowledgement pending".into());}
+        settle_recovery_record(record).await?;
+        if removal_intent(&account_id).as_ref()!=Some(&intent)||removal_completion(&account_id).as_ref()!=Some(&completion){return Err("Removal completion changed during independent readback".into());}
+    }
+    completion.validate(&intent)?; Ok(completion)
+}
 fn group_inventory_binding() -> Option<group_inventory::Binding> {
     GROUP_INVENTORY_BINDING.with(|m| if m.borrow().get().is_empty() { None } else { Some(decode(m.borrow().get())) })
+}
+/// Governor-only production authorization draft. Never stores reader grants or
+/// changes release state; missing receiver/recovery evidence remains a refusal.
+#[ic_cdk::update]
+async fn review_production_account_protection(expected: production_account_protection::Expectation, expected_history_revision:u64)
+    -> Outcome<production_account_protection::Draft> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    collect_production_account_protection(expected,expected_history_revision,true).await
+}
+async fn collect_production_account_protection(expected:production_account_protection::Expectation, expected_history_revision:u64,closed:bool)
+    -> Outcome<production_account_protection::Draft> {
+    collect_production_account_protection_inner(expected,expected_history_revision,closed,false,false).await
+}
+/// Account reads only: another account's pending removal is not a global read
+/// lock; each subject is still refused by current_service_account.
+async fn collect_production_account_reader_review(expected:production_account_protection::Expectation, expected_history_revision:u64)
+    -> Outcome<production_account_protection::Draft> {
+    collect_production_account_protection_inner(expected,expected_history_revision,false,false,true).await
+}
+async fn collect_production_account_protection_inner(expected:production_account_protection::Expectation, expected_history_revision:u64,closed:bool,provision:bool,reads_only:bool)
+    -> Outcome<production_account_protection::Draft> {
+    let clear=||if reads_only {production_account_reads_clear()} else {production_read_configuration_clear()};
+    clear()?;
+    let operator=state().governor;
+    let history_at_start=removal_history_revision();
+    if (closed || provision) && history_at_start!=expected_history_revision {return Err("Production acceptance history changed".into());}
+    let authorization=production_authorization();
+    let pinned=group_inventory_binding();let pinned_extra=supplemental_inventory();
+    let (readers,targets)=production_account_protection::scope(&expected)?;
+    let binding=if provision {expected.inventory.groups.binding.clone()} else {pinned.clone().ok_or("Deletion registry not pinned")?};
+    if binding!=expected.inventory.groups.binding || expected.identity!=ic_cdk::api::canister_self() ||
+        expected.inventory.groups.history_revision!=expected_history_revision { return Err("Pinned production expectation mismatch".into()); }
+    let extra=if provision {expected.inventory.supplemental.clone()} else {pinned_extra.clone()};
+    if extra!=expected.inventory.supplemental { return Err("Pinned supplemental expectation mismatch".into()); }
+    let recheck=||->Outcome<()> {
+        clear()?;
+        if state().governor!=operator || production_authorization()!=authorization || removal_history_revision()!=history_at_start || group_inventory_binding()!=pinned ||
+            supplemental_inventory()!=pinned_extra { return Err("Production review configuration changed".into()); }
+        Ok(())
+    };
+    recheck()?;
+    if closed {review_closed_production_groups(&binding,&recheck).await?;}
+    let lifecycle=async {
+        let mut result=Vec::new();
+        for (canister,_) in &expected.modules {
+            let info=ic_cdk::management_canister::canister_info(&ic_cdk::management_canister::CanisterInfoArgs {
+                canister_id:*canister,num_requested_changes:Some(0) }).await.map_err(|_|"Production lifecycle unavailable")?;
+            recheck()?;
+            result.push(production_account_protection::Lifecycle {canister:*canister,changes:info.total_num_changes,
+                module_hash:info.module_hash.ok_or("Production module missing")?});
+        }
+        Ok::<_,String>(result)
+    }.await?;
+    let mut prior=None;
+    for _ in 0..2 {
+        let snapshot=read_registry_pages(&binding,&recheck).await?;
+        let mut media=Vec::new();
+        for group in &snapshot.groups {
+            let club=group.domains.iter().find(|d|d.domain=="club_domain").ok_or("Missing expected club")?.canister;
+            let response=ic_cdk::call::Call::bounded_wait(club,"read_removal_media_registry").await.map_err(|_|"Production media inventory unavailable")?;
+            recheck()?;
+            let registry:Outcome<group_inventory::MediaRegistry>=response.candid().map_err(|_|"Invalid production media inventory")?;
+            media.push(group_inventory::MediaEvidence {club_authority:club,registry:registry?});
+        }
+        let clubs=media.iter().map(|m|m.club_authority).collect::<Vec<_>>();
+        group_inventory::validate_complete(&snapshot,&binding,&clubs,&readers,&extra,&media)?;
+        let observed=group_inventory::RemovalInventory {groups:group_inventory::Evidence {binding:binding.clone(),
+            history_revision:expected_history_revision,snapshot},supplemental:extra.clone(),media};
+        if prior.as_ref().is_some_and(|p|p!=&observed){return Err("Production inventory changed".into());}
+        prior=Some(observed);
+    }
+    let mut configurations=Vec::new();
+    for target in targets {
+        let reply=ic_cdk::call::Call::bounded_wait(target,"read_account_protection_configuration").await.map_err(|_|"Receiver production configuration unavailable")?;
+        recheck()?;
+        let config:Outcome<production_account_protection::ReceiverConfiguration>=reply.candid().map_err(|_|"Invalid receiver production configuration")?;
+        let config=config?;
+        if config.receiver!=target {return Err("Receiver configuration sender mismatch".into());}
+        configurations.push(config);
+    }
+    let mut after=Vec::new();
+    for (canister,_) in &expected.modules {
+        let info=ic_cdk::management_canister::canister_info(&ic_cdk::management_canister::CanisterInfoArgs {
+            canister_id:*canister,num_requested_changes:Some(0) }).await.map_err(|_|"Production lifecycle unavailable")?;
+        recheck()?;
+        after.push(production_account_protection::Lifecycle {canister:*canister,changes:info.total_num_changes,
+            module_hash:info.module_hash.ok_or("Production module missing")?});
+    }
+    if closed {review_closed_production_groups(&binding,&recheck).await?;}
+    recheck()?;
+    production_account_protection::verify(&expected,&prior.ok_or("Production inventory missing")?,&lifecycle,&after,&configurations)
+}
+fn production_authorization()->production_account_authorization::State {
+    PRODUCTION_ACCOUNT_AUTHORIZATION.with(|m|if m.borrow().get().is_empty(){production_account_authorization::State::default()}else{decode(m.borrow().get())})
+}
+fn next_production_request()->Outcome<u64> {
+    let next=PRODUCTION_ACCOUNT_REQUEST.with(|m|m.borrow().get().checked_add(1)).ok_or("Production witness request exhausted")?;
+    PRODUCTION_ACCOUNT_REQUEST.with(|m|m.borrow_mut().set(next));Ok(next)
+}
+async fn check_production_witness(approval:&production_account_authorization::SignedApproval)->Outcome<()> {
+    let witness=production_account_authorization::witness()?;
+    if witness==ic_cdk::api::canister_self() || approval.body.review.targets.contains(&witness) {return Err("Independent recovery witness required".into());}
+    let lifecycle=recovery_lifecycle::current_changes().await?;
+    let request=production_account_authorization::request(approval,next_production_request()?,removal_history_revision(),
+        REMOVAL_GENERATION.with(|m|*m.borrow().get()),lifecycle)?;
+    let response=ic_cdk::call::Call::bounded_wait(witness,"verify_production_account_read_fence").with_arg(&request)
+        .await.map_err(|_|"Independent recovery witness unavailable")?;
+    let receipt:Outcome<production_account_authorization::WitnessReceipt>=response.candid().map_err(|_|"Invalid independent recovery witness reply")?;
+    production_account_authorization::validate_witness(&request,&receipt?)?;
+    if recovery_lifecycle::current_changes().await?!=request.identity_version ||
+        removal_history_revision()!=request.history_revision || REMOVAL_GENERATION.with(|m|*m.borrow().get())!=request.removal_generation {return Err("Identity recovery state changed during witness call".into());}
+    Ok(())
+}
+async fn check_production_subject_witness(approval:&production_account_authorization::SignedApproval,account:&Account)->Outcome<()> {
+    let witness=production_account_authorization::witness()?;
+    if witness==ic_cdk::api::canister_self() || approval.body.review.targets.contains(&witness){return Err("Independent recovery witness required".into());}
+    let lifecycle=recovery_lifecycle::current_changes().await?;
+    let legacy=production_account_authorization::request(approval,next_production_request()?,removal_history_revision(),
+        REMOVAL_GENERATION.with(|m|*m.borrow().get()),lifecycle)?;
+    let request=recovery_protocol::AccountReadRequest {request:recovery_protocol::WitnessRequest {identity:legacy.identity,generation:legacy.generation,
+        recovery_epoch:legacy.recovery_epoch,signed_digest:legacy.signed_digest,request_id:legacy.request_id,history_revision:legacy.history_revision,
+        removal_generation:legacy.removal_generation,identity_version:legacy.identity_version},account_id:account.id.clone(),subjects:account.principals.clone()};
+    let reply=ic_cdk::call::Call::bounded_wait(witness,"verify_production_subject_read_fence").with_arg(&request).await.map_err(|_|"Independent subject witness unavailable")?;
+    let receipt:Outcome<recovery_protocol::AccountReadReceipt>=reply.candid().map_err(|_|"Invalid independent subject witness reply")?;
+    if recovery_lifecycle::current_changes().await?!=request.request.identity_version || receipt?.request!=request ||
+        removal_history_revision()!=request.request.history_revision || REMOVAL_GENERATION.with(|m|*m.borrow().get())!=request.request.removal_generation {return Err("Subject recovery changed during witness read".into());}
+    Ok(())
+}
+/// Exact independent signature + live witnesses, not caller-supplied reader lists.
+/// This installs only an account-read capability, not removal, erasure or routing.
+#[ic_cdk::update]
+async fn authorize_production_account_readers(approval:production_account_authorization::SignedApproval)->Outcome<u64> {
+    let _lease=private_name_writer_window::enter()?;
+    let operator=ic_cdk::api::msg_caller();require_governor(&state(),operator)?;
+    if account_group_rehearsal_enabled(){return Err("Production authorization cannot use rehearsal".into());}
+    let prior=production_authorization();
+    let next=production_account_authorization::authorize(&prior,&approval,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
+    let revision=approval.body.expectation.inventory.groups.history_revision;
+    let observed=collect_production_account_protection(approval.body.expectation.clone(),revision,true).await?;
+    if observed!=approval.body.review {return Err("Live production review differs from independently signed acceptance".into());}
+    check_production_witness(&approval).await?;
+    require_governor(&state(),operator)?;production_read_configuration_clear()?;
+    if production_authorization()!=prior || removal_history_revision()!=revision {return Err("Production authorization changed during acceptance".into());}
+    production_account_authorization::validate(&approval,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
+    PRODUCTION_ACCOUNT_AUTHORIZATION.with(|m|m.borrow_mut().set(encode(&next)));Ok(next.generation)
+}
+#[ic_cdk::update]
+async fn disable_production_account_readers()->Outcome<u64> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    let prior=production_authorization();
+    let prior_record=recovery_protocol::Record {operation_id:format!("disable:{}",prior.generation),event:recovery_protocol::Event::Disable {identity:ic_cdk::api::canister_self(),generation:prior.generation}};
+    if prior.approval.is_none() && RECOVERY_PENDING.with(|m|m.borrow().contains_key(&prior_record.operation_id)) {
+        settle_recovery_record(prior_record).await?;return Ok(prior.generation);
+    }
+    let next=production_account_authorization::disable(&production_authorization())?;
+    let record=recovery_protocol::Record {operation_id:format!("disable:{}",next.generation),event:recovery_protocol::Event::Disable {identity:ic_cdk::api::canister_self(),generation:next.generation}};
+    stage_recovery_record(record.clone())?;
+    PRODUCTION_ACCOUNT_AUTHORIZATION.with(|m|m.borrow_mut().set(encode(&next)));
+    settle_recovery_record(record).await?;Ok(next.generation)
+}
+#[ic_cdk::update]
+fn read_production_account_authorization()->Outcome<production_account_authorization::State> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;Ok(production_authorization())
+}
+#[ic_cdk::update]
+fn read_production_account_history_revision()->Outcome<u64> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;Ok(removal_history_revision())
+}
+#[ic_cdk::update]
+fn read_production_account_removal_generation()->Outcome<u64> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;Ok(REMOVAL_GENERATION.with(|m|*m.borrow().get()))
+}
+#[ic_cdk::update]
+async fn read_production_account_runtime_version()->Outcome<u64> {
+    let caller=ic_cdk::api::msg_caller();require_governor(&state(),caller)?;
+    let changes=recovery_lifecycle::current_changes().await?;require_governor(&state(),caller)?;Ok(changes)
+}
+#[ic_cdk::update]
+fn production_account_approval_signing_bytes(body:production_account_authorization::ApprovalBody)->Outcome<Vec<u8>> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;production_account_authorization::signing_bytes(&body)
+}
+async fn production_service_account(caller:Principal,subject:Principal,club_only:bool)->Outcome<Account> {
+    verify_production_account_reader(caller,club_only,&[subject]).await?;
+    // No await between validation return and reconstruction/release.
+    current_service_account(subject)
+}
+async fn verify_production_account_reader(caller:Principal,club_only:bool,subjects:&[Principal])->Outcome<()> {
+    let _lease=private_name_writer_window::enter()?;
+    let captured=production_authorization();let approval=production_account_authorization::reader(&captured,caller,ic_cdk::api::time())?.clone();
+    // Reconstruct identity-owned current accounts; never trust caller aliases.
+    let mut accounts=std::collections::BTreeMap::new();
+    for subject in subjects {let a=current_service_account(*subject)?;accounts.insert(a.id.clone(),a);}
+    let history=removal_history_revision();
+    let operator=state().governor;
+    production_account_authorization::validate(&approval,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
+    if club_only && !approval.body.review.inventory.groups.snapshot.groups.iter().flat_map(|g|&g.domains)
+        .any(|d|d.domain=="club_domain" && d.canister==caller) {return Err("Exact production club account reader required".into());}
+    let revision=approval.body.expectation.inventory.groups.history_revision;
+    let observed=collect_production_account_reader_review(approval.body.expectation.clone(),revision).await?;
+    if observed!=approval.body.review {return Err("Production account protection drift".into());}
+    // Last await: trusted independently fenced recovery witness, never a local
+    // restored flag. Its transport/authority must be separately provisioned.
+    for account in accounts.values() {check_production_subject_witness(&approval,account).await?;}
+    if state().governor!=operator || production_authorization()!=captured || removal_history_revision()!=history {return Err("Production account authorization changed".into());}
+    for account in accounts.values() {for subject in &account.principals {if current_service_account(*subject)?!=*account {return Err("Subject account changed during witness check".into());}}}
+    production_account_reads_clear()?;
+    production_account_authorization::reader(&captured,caller,ic_cdk::api::time())?;
+    Ok(())
 }
 fn group2_admission() -> admission::Config {
     GROUP2_ADMISSION.with(|m| if m.borrow().get().is_empty() { admission::Config::default() } else { decode(m.borrow().get()) })
 }
+// Retained removal locks prevent reconfiguration, not other accounts' reads.
+/// Reader gate: unknown recovery and link transitions still fail closed, but a
+/// deletion ticket only blocks its own account (via current_service_account).
+fn production_account_reads_clear()->Outcome<()> {
+    if recovery_pending() || !link_lifecycle().pending.is_empty() {
+        return Err("Unknown recovery or unrelated lifecycle transition pending".into());
+    } Ok(())
+}
+fn production_read_configuration_clear()->Outcome<()> {
+    // Unrelated account work is not a global read lock. Subject reconstruction
+    // rejects local tickets/unlinks; independent tombstones reject restored state.
+    if recovery_pending() || DELETION_TICKETS.with(|m|!m.borrow().is_empty()) || !link_lifecycle().pending.is_empty() {
+        return Err("Unknown recovery or unrelated lifecycle transition pending".into());
+    } Ok(())
+}
+fn current_removal_control_access()->Outcome<()> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    if account_group_rehearsal_enabled(){return Ok(());}
+    production_account_authorization::removal_control(&production_authorization(),ic_cdk::api::canister_self(),state().governor,ic_cdk::api::time(),&production_account_authorization::key()?)
+}
+fn removal_control_access()->Outcome<()> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    if account_group_rehearsal_enabled(){return Ok(());}
+    // Continuing an existing fence must remain possible after capability expiry.
+    // Starting a new removal repeats current expiry/live/witness checks separately.
+    production_account_authorization::removal_control(&production_authorization(),ic_cdk::api::canister_self(),state().governor,0,&production_account_authorization::key()?)
+}
+/// Signed closed-only inventory bootstrap: inspect candidate pins before any write.
+#[ic_cdk::update]
+async fn provision_production_account_inventory(approval:production_account_authorization::SignedApproval)->Outcome<u64> {
+    let _lease=private_name_writer_window::enter()?;
+    let operator=ic_cdk::api::msg_caller();require_governor(&state(),operator)?;
+    if account_group_rehearsal_enabled(){return Err("Production provisioning cannot use rehearsal".into());}
+    admission_configuration_clear()?;
+    let validate=||production_account_authorization::validate_inventory(&approval,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?);
+    validate()?;
+    let expected=&approval.body.expectation;
+    let prior=group_inventory_binding();let extra=supplemental_inventory();
+    let receipt=encode(&approval);
+    if PRODUCTION_INVENTORY_RECEIPT.with(|m|m.borrow().get()==&receipt) && prior.as_ref()==Some(&expected.inventory.groups.binding) && extra==expected.inventory.supplemental {return Ok(removal_history_revision());}
+    if PRODUCTION_INVENTORY_RECEIPT.with(|m|!m.borrow().get().is_empty()) {return Err("Production inventory already provisioned; separate extension review required".into());}
+    if prior.as_ref().is_some_and(|b|b!=&expected.inventory.groups.binding) || extra.iter().any(|e|!expected.inventory.supplemental.contains(e)) {
+        return Err("Production inventory cannot substitute or drop pinned authorities".into());
+    }
+    if approval.body.generation!=production_authorization().generation.checked_add(1).ok_or("Authorization generation exhausted")? {return Err("Fresh provisioning generation required".into());}
+    let revision=expected.inventory.groups.history_revision;
+    let review=collect_production_account_protection_inner(expected.clone(),revision,true,true,false).await?;
+    if review!=approval.body.review {return Err("Signed provisioning differs from live review".into());}
+    check_production_witness(&approval).await?;
+    require_governor(&state(),operator)?;admission_configuration_clear()?;validate()?;
+    if group_inventory_binding()!=prior || supplemental_inventory()!=extra || removal_history_revision()!=revision {return Err("Provisioning state changed".into());}
+    bump_removal_history();
+    GROUP_INVENTORY_BINDING.with(|m|m.borrow_mut().set(encode(&expected.inventory.groups.binding)));
+    SUPPLEMENTAL_INVENTORY.with(|m|m.borrow_mut().set(encode(&expected.inventory.supplemental)));
+    PRODUCTION_INVENTORY_RECEIPT.with(|m|m.borrow_mut().set(receipt));
+    Ok(removal_history_revision())
+}
 fn admission_configuration_clear() -> Outcome<()> {
+    if recovery_pending(){return Err("Independent recovery acknowledgement pending".into());}
     if removal_pending() || DELETION_TICKETS.with(|m| !m.borrow().is_empty()) || !link_lifecycle().pending.is_empty() {
         return Err("Account removal or unlink pending".into());
     }
@@ -1184,6 +1621,32 @@ async fn read_group_inventory_evidence(expected_history_revision: u64) -> Outcom
 struct RegistryPage {
     revision: u64, groups: Vec<group_inventory::Group>, placements: Vec<group_inventory::Placement>, next_cursor: Option<String>,
 }
+#[derive(CandidType, Deserialize)]
+struct ClosedReviewGroup { id:String, accepting:bool }
+#[derive(CandidType, Deserialize)]
+struct ClosedReviewPage { revision:u64, groups:Vec<ClosedReviewGroup>, next_cursor:Option<String> }
+async fn review_closed_production_groups(binding:&group_inventory::Binding,recheck:impl Fn()->Outcome<()>) -> Outcome<()> {
+    let mut cursor:Option<String>=None;let mut ids=std::collections::BTreeSet::new();
+    loop {
+        recheck()?;
+        let response=ic_cdk::call::Call::bounded_wait(binding.registry,"read_group_registry_page")
+            .with_args(&(&binding.target_alias,Some(binding.registry_revision),&cursor,64u32))
+            .await.map_err(|_|"Closed production registry unavailable")?;
+        recheck()?;
+        let page:Outcome<ClosedReviewPage>=response.candid().map_err(|_|"Invalid closed production registry")?;
+        let page=page?;
+        if page.revision!=binding.registry_revision || page.groups.len()>64 ||
+            page.next_cursor.as_ref().is_some_and(|next|cursor.as_ref().is_some_and(|prior|next<=prior)) {
+            return Err("Closed production registry drift".into());
+        }
+        for group in page.groups {
+            if group.accepting || !ids.insert(group.id) || ids.len()>2 {return Err("Exact closed base and g2 required".into());}
+        }
+        match page.next_cursor {Some(next)=>cursor=Some(next),None=>break}
+    }
+    if ids!=std::collections::BTreeSet::from(["base".to_string(),"g2".to_string()]) {return Err("Exact closed base and g2 required".into());}
+    Ok(())
+}
 async fn read_registry_pages(binding: &group_inventory::Binding, recheck: impl Fn() -> Outcome<()>) -> Outcome<group_inventory::Snapshot> {
     let mut snapshot = group_inventory::Snapshot { revision: binding.registry_revision, groups: vec![], placements: vec![] };
     let mut cursor: Option<String> = None;
@@ -1226,9 +1689,13 @@ fn set_removal_supplemental_inventory(entries: Vec<group_inventory::Supplemental
 }
 #[ic_cdk::update]
 async fn read_removal_inventory_evidence(expected_history_revision: u64) -> Outcome<group_inventory::RemovalInventory> {
-    history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
+    current_removal_control_access()?;
     let binding = group_inventory_binding().ok_or("Group inventory registry not pinned")?;
-    let extra = supplemental_inventory(); let clubs=link_lifecycle().authorities; let readers=service_authorities();
+    let extra = supplemental_inventory();
+    let (clubs,readers)=if account_group_rehearsal_enabled() {(link_lifecycle().authorities,service_authorities())} else {
+        let a=production_authorization().approval.ok_or("Signed production removal control required")?;
+        (a.body.review.inventory.media.iter().map(|m|m.club_authority).collect(),a.body.review.account_readers)
+    };
     let unchanged = || removal_history_revision()==expected_history_revision && group_inventory_binding().as_ref()==Some(&binding) && supplemental_inventory()==extra;
     if !unchanged() { return Err("History revision changed".into()); }
     let mut prior = None;
@@ -1274,9 +1741,10 @@ struct RemovalHistoryManifest {
     removal_barriers: u64,
     removal_subjects: u64,
     removal_receipts: u64,
+    removal_completions: u64,
 }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
-enum RemovalHistoryCursor { PrincipalDenials(Option<String>), ErasedAccounts(Option<String>), PendingIntents(u64), RemovalBarriers(Option<String>), RemovalSubjects(Option<String>), RemovalReceipts(Option<String>), Done }
+enum RemovalHistoryCursor { PrincipalDenials(Option<String>), ErasedAccounts(Option<String>), PendingIntents(u64), RemovalBarriers(Option<String>), RemovalSubjects(Option<String>), RemovalReceipts(Option<String>), RemovalCompletions(Option<String>), Done }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
 struct RemovalHistoryPage {
     revision: u64,
@@ -1286,6 +1754,7 @@ struct RemovalHistoryPage {
     barriers: Vec<(String, removal_barrier::Intent)>,
     subjects: Vec<(String, String)>,
     receipts: Vec<(String, removal_barrier::Receipt)>,
+    completions: Vec<(String, removal_barrier::Completion)>,
     next: RemovalHistoryCursor,
 }
 fn history_access(enabled: bool, governor: Principal, caller: Principal) -> Outcome<()> {
@@ -1306,6 +1775,7 @@ fn history_manifest() -> RemovalHistoryManifest {
         removal_barriers: REMOVAL_INTENTS.with(|m| m.borrow().len()),
         removal_subjects: REMOVAL_SUBJECTS.with(|m| m.borrow().len()),
         removal_receipts: REMOVAL_RECEIPTS.with(|m| m.borrow().len()),
+        removal_completions: REMOVAL_COMPLETIONS.with(|m| m.borrow().len()),
     }
 }
 /// Local-only consensus recovery evidence. Reader lists/club receipts are NOT
@@ -1314,13 +1784,13 @@ fn history_manifest() -> RemovalHistoryManifest {
 fn read_removal_history_manifest() -> Outcome<RemovalHistoryManifest> {
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 
-    history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
+    current_removal_control_access()?;
     Ok(history_manifest())
 }
 fn history_page(revision: u64, cursor: RemovalHistoryCursor, limit: u16) -> Outcome<RemovalHistoryPage> {
     if limit == 0 || limit > 200 { return Err("Invalid history page size".into()); }
     if revision != removal_history_revision() { return Err("Removal history changed; restart export".into()); }
-    let mut page = RemovalHistoryPage { revision, denials: vec![], erased: vec![], pending: vec![], barriers: vec![], subjects: vec![], receipts: vec![], next: RemovalHistoryCursor::Done };
+    let mut page = RemovalHistoryPage { revision, denials: vec![], erased: vec![], pending: vec![], barriers: vec![], subjects: vec![], receipts: vec![], completions: vec![], next: RemovalHistoryCursor::Done };
     let bound = limit as usize;
     match cursor {
         RemovalHistoryCursor::PrincipalDenials(after) => {
@@ -1379,7 +1849,16 @@ fn history_page(revision: u64, cursor: RemovalHistoryCursor, limit: u16) -> Outc
                 m.borrow().range((after.map(Excluded).unwrap_or(Unbounded), Unbounded)).take(bound)
                     .map(|e| (e.key().clone(), decode(&e.value()))).collect()
             });
-            if page.receipts.len() == bound { page.next = RemovalHistoryCursor::RemovalReceipts(page.receipts.last().map(|e| e.0.clone())); }
+            page.next = if page.receipts.len() == bound { RemovalHistoryCursor::RemovalReceipts(page.receipts.last().map(|e| e.0.clone())) } else { RemovalHistoryCursor::RemovalCompletions(None) };
+        }
+        RemovalHistoryCursor::RemovalCompletions(after) => {
+            if after.as_ref().is_some_and(|s| s.len() > 256) { return Err("Invalid history key cursor".into()); }
+            page.completions = REMOVAL_COMPLETIONS.with(|m| {
+                use std::ops::Bound::{Excluded, Unbounded};
+                m.borrow().range((after.map(Excluded).unwrap_or(Unbounded), Unbounded)).take(bound)
+                    .map(|e| (e.key().clone(), decode(&e.value()))).collect()
+            });
+            if page.completions.len() == bound { page.next = RemovalHistoryCursor::RemovalCompletions(page.completions.last().map(|e|e.0.clone())); }
         }
         RemovalHistoryCursor::Done => {}
     }
@@ -1389,7 +1868,7 @@ fn history_page(revision: u64, cursor: RemovalHistoryCursor, limit: u16) -> Outc
 fn read_removal_history_page(revision: u64, cursor: RemovalHistoryCursor, limit: u16) -> Outcome<RemovalHistoryPage> {
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 
-    history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
+    current_removal_control_access()?;
     history_page(revision, cursor, limit)
 }
 fn effective_account(mut account: Account, lifecycle: &LinkLifecycle) -> Account {
@@ -1479,7 +1958,8 @@ fn set_club_authorities(authorities: Vec<Principal>) -> Outcome<()> {
 /// Only configured canisters may ask for another caller's links. No browser
 /// supplies an account id or a principal list; the index is authoritative.
 #[ic_cdk::update]
-fn read_linked_account(viewer: Principal) -> Outcome<Account> {
+async fn read_linked_account(viewer: Principal) -> Outcome<Account> {
+    if !account_group_rehearsal_enabled(){return production_service_account(ic_cdk::api::msg_caller(),viewer,true).await;}
     let lifecycle = link_lifecycle();
     if !lifecycle.authorities.contains(&ic_cdk::api::msg_caller()) { return Err("Club authority required".into()); }
     let account = effective_account(account_for_write(viewer)?, &lifecycle);
@@ -3667,6 +4147,31 @@ mod tests {
         assert_eq!(page.subjects, vec![(subject.to_text(), account.id.clone())]);
         let page = history_page(manifest.revision, RemovalHistoryCursor::RemovalReceipts(None), 1).unwrap();
         assert_eq!(page.receipts, vec![(receipt_key, receipt)]);
+        // Historical drain receipts never authorize completion; fresh complete
+        // coverage is required, and failed attempts leave every fence intact.
+        assert!(persist_removal_completion(&intent, vec![]).is_err());
+        assert!(removal_completion(&account.id).is_none());
+        let seals: Vec<_> = intent.targets.iter().map(|receiver| removal_barrier::Receipt {
+            request:intent.request(), receiver:*receiver, outstanding:0u8.into() }).collect();
+        let before = removal_history_revision();
+        let completion = persist_removal_completion(&intent, seals.clone()).unwrap();
+        assert_eq!(completion.targets.len(),27);
+        assert_eq!(decode::<removal_barrier::Completion>(&encode(&completion)),completion);
+        let completed_revision = removal_history_revision(); assert!(completed_revision > before);
+        assert_eq!(persist_removal_completion(&intent, seals.clone()).unwrap(),completion);
+        assert_eq!(removal_history_revision(),completed_revision);
+        let mut pending_seals = seals; pending_seals[0].outstanding=1u8.into();
+        assert!(persist_removal_completion(&intent,pending_seals).is_err());
+        assert_eq!(removal_completion(&account.id),Some(completion.clone()));
+        assert!(removal_pending()); assert!(account_for(subject).is_err());
+        assert_eq!(removal_intent(&account.id),Some(intent.clone()));
+        assert_eq!(get_account(&account.id),Some(restored.clone()));
+        assert!(erase_account_core(&mut core,&restored).is_err());
+        let page = history_page(completed_revision, RemovalHistoryCursor::RemovalCompletions(None),1).unwrap();
+        assert_eq!(page.completions,vec![(account.id.clone(),completion)]);
+        assert_eq!(history_manifest().removal_completions,1);
+        assert!(history_page(before,RemovalHistoryCursor::RemovalCompletions(None),1).is_err());
+        assert!(history_page(completed_revision,RemovalHistoryCursor::RemovalCompletions(Some("x".repeat(257))),1).is_err());
         let other=Account {id:"barrier-bystander".into(),principals:vec![principal(154)],version:1,status:AccountStatus::Active};
         put_account(&other); index_principal(other.principals[0],&other.id);
         assert_eq!(account_for(other.principals[0]).unwrap(),other);
@@ -3721,6 +4226,13 @@ mod tests {
         assert!(validate_denied_relink(removed, "original", 9).is_ok());
         assert!(deny_unlinked_principal(removed, "original", 7).is_err());
         assert!(deny_unlinked_principal(removed, "unrelated", 9).is_err());
+    }
+    #[test]
+    fn another_accounts_pending_removal_does_not_block_production_reads() {
+        DELETION_TICKETS.with(|m| m.borrow_mut().insert("removed-account".into(), vec![1]));
+        assert!(production_account_reads_clear().is_ok());
+        assert!(production_read_configuration_clear().is_err());
+        DELETION_TICKETS.with(|m| m.borrow_mut().remove(&"removed-account".to_string()));
     }
     #[test]
     fn rekey_and_dry_run_cannot_bypass_durable_denial() {

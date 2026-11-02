@@ -541,6 +541,11 @@ type Main =
      });
    read_account_my_availability: () -> (vec MiniLeagueSessionAvailability);
    read_account_my_leagues: () -> (vec MiniLeague);
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_removal_drain: (request: Request__1) ->
     (variant {
        Err: text;
@@ -692,6 +697,15 @@ type Main =
     (bool) composite_query;
    verify_player_access: (user: principal, player: MiniLeaguePlayer) ->
     (bool) composite_query;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type ClaimedInvite = 
  record {

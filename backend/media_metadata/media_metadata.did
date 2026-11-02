@@ -1,5 +1,6 @@
 type State = 
  record {
+   albums: vec Album;
    assets: vec Asset;
    capabilities: vec Capability;
    comments: vec Comment;
@@ -178,6 +179,11 @@ type Main =
    read_account_list_gallery_chat_cards: (club_id: text, team_id: text) ->
     (vec GalleryChatCard);
    read_account_list_reactions: (asset_id: text) -> (vec Reaction);
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_removal_drain: (request: Request) ->
     (variant {
        Err: text;
@@ -297,6 +303,15 @@ type Cursor =
    club_id: text;
    revision: nat;
  };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
+ };
 type Comment = 
  record {
    asset_id: text;
@@ -346,5 +361,14 @@ type Asset =
    storage_path: text;
    team_id: opt text;
    visibility: text;
+ };
+type Album = 
+ record {
+   club_id: text;
+   cover_asset_id: opt text;
+   created_at_ms: nat64;
+   created_by: principal;
+   id: text;
+   title: text;
  };
 service : (governorInit: principal) -> Main

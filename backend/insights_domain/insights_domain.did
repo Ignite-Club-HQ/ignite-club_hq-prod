@@ -411,6 +411,11 @@ type Main =
        Err: text;
        Ok: vec PhotoEngagementTotal;
      });
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_removal_drain: (request: Request) ->
     (variant {
        Err: text;
@@ -591,6 +596,15 @@ type EngagementBenchmarks =
    club_id: text;
    current: EngagementTotals;
    previous: EngagementTotals;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type ClientPerfEntry = 
  record {

@@ -15,6 +15,8 @@ type result_reconciliation = variant { Ok : reconciliation; Err : text };
 type removal_request = record { account_id : text; generation : nat64; inventory_digest : blob; subjects : vec principal };
 type removal_receipt = record { request : removal_request; receiver : principal; outstanding : nat };
 service : () -> {
+  read_account_protection_configuration : () -> (variant { Ok : record { receiver : principal; authority : opt principal; protocol : nat32; admission_required : bool; removal_enabled : bool; rehearsal : bool }; Err : text });
+
   set_account_removal_authority : (principal) -> (result_unit);
   read_account_removal_authority : () -> (opt principal) query;
   prepare_account_removal : (removal_request) -> (result_unit);

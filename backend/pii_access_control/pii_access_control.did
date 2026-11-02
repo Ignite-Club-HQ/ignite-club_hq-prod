@@ -201,6 +201,11 @@ type Main =
                    });
    read_account_audit_access: (filter: AuditFilter) -> (vec AuditRecord);
    read_account_my_guardian_children: () -> (vec text);
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_removal_drain: (request: Request__1) ->
     (variant {
        Err: text;
@@ -365,6 +370,15 @@ type EncryptedPii =
    master_key_id: text;
    nonce: vec nat8;
    pii_id: text;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type ClubMediaAuthority = 
  record {

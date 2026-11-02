@@ -11,6 +11,14 @@ type AssignRequest = record {
   club_id : text;
 };
 type AssignResult = record { revision : nat64; route : Route };
+type Configuration = record {
+  protocol : nat32;
+  admission_required : bool;
+  removal_enabled : bool;
+  authority : opt principal;
+  receiver : principal;
+  rehearsal : bool;
+};
 type DeletionLock = record { account_id : text; revision : nat64 };
 type DomainCanister = record { domain : text; canister : principal };
 type DomainMigration = record {
@@ -123,18 +131,19 @@ type Result_12 = variant { Ok : opt Route; Err : text };
 type Result_13 = variant { Ok : vec ShardGroup; Err : text };
 type Result_14 = variant { Ok : Page; Err : text };
 type Result_15 = variant { Ok : OwnerOpening; Err : text };
-type Result_16 = variant { Ok : Receipt; Err : text };
-type Result_17 = variant { Ok : vec record { text; text }; Err : text };
-type Result_18 = variant { Ok : GroupRegistrySnapshot; Err : text };
-type Result_19 = variant { Ok : GroupRegistryPage; Err : text };
+type Result_16 = variant { Ok : Configuration; Err : text };
+type Result_17 = variant { Ok : Receipt; Err : text };
+type Result_18 = variant { Ok : vec record { text; text }; Err : text };
+type Result_19 = variant { Ok : GroupRegistrySnapshot; Err : text };
 type Result_2 = variant { Ok; Err : text };
-type Result_20 = variant { Ok : vec GroupAssignment; Err : text };
-type Result_21 = variant { Ok : opt OwnerOpening; Err : text };
-type Result_22 = variant { Ok : bool; Err : text };
-type Result_23 = variant { Ok : WriterReceipt; Err : text };
-type Result_24 = variant { Ok : PublicGroupPage; Err : text };
-type Result_25 = variant { Ok : opt RoutingApproval; Err : text };
-type Result_26 = variant { Ok : RoutingApproval; Err : text };
+type Result_20 = variant { Ok : GroupRegistryPage; Err : text };
+type Result_21 = variant { Ok : vec GroupAssignment; Err : text };
+type Result_22 = variant { Ok : opt OwnerOpening; Err : text };
+type Result_23 = variant { Ok : bool; Err : text };
+type Result_24 = variant { Ok : WriterReceipt; Err : text };
+type Result_25 = variant { Ok : PublicGroupPage; Err : text };
+type Result_26 = variant { Ok : opt RoutingApproval; Err : text };
+type Result_27 = variant { Ok : RoutingApproval; Err : text };
 type Result_3 = variant { Ok : AssignResult; Err : text };
 type Result_4 = variant { Ok : AssignDomainResult; Err : text };
 type Result_5 = variant { Ok : GroupAssignment; Err : text };
@@ -235,41 +244,42 @@ service : (Init) -> {
   // the healthiest accepting group. Capped per principal; retries are free.
   place_my_new_club : (text, text) -> (Result_5);
   prepare_account_removal : (Request) -> (Result_2);
+  read_account_protection_configuration : () -> (Result_16);
   read_account_removal_authority : () -> (opt principal) query;
-  read_account_removal_drain : (Request) -> (Result_16);
-  read_group_opening_configuration : () -> (Result_17);
-  read_group_registry : (text) -> (Result_18);
-  read_group_registry_page : (text, opt nat64, opt text, nat32) -> (Result_19);
+  read_account_removal_drain : (Request) -> (Result_17);
+  read_group_opening_configuration : () -> (Result_18);
+  read_group_registry : (text) -> (Result_19);
+  read_group_registry_page : (text, opt nat64, opt text, nat32) -> (Result_20);
   read_hosted_club_assignment : (text, text, nat64) -> (Result_5);
-  read_my_group_assignments : (vec text, text, nat64) -> (Result_20);
+  read_my_group_assignments : (vec text, text, nat64) -> (Result_21);
   // Consensus creator receipt only; never grants club membership or data access.
   read_my_new_club_placement : (text, text, nat64) -> (Result_5);
   // Caller-scoped consensus discovery, including after stopping new placements.
-  read_my_owner_test_opening : (text) -> (Result_21);
+  read_my_owner_test_opening : (text) -> (Result_22);
   // Only the registered destination club authority can check a creator receipt.
   // This does not authorize private reads or grant cross-club membership.
   read_new_club_creation_authorized : (principal, text, text, text) -> (
-      Result_22,
+      Result_23,
     );
   // No private approval data: admins deleting a different account still need
   // the complete group inventory, even when they have no test-club membership.
-  read_owner_test_deletion_required : (text) -> (Result_22);
-  read_private_name_preparation : (WriterRequest) -> (Result_23);
-  read_private_name_writer_window : (WriterRequest) -> (Result_23);
+  read_owner_test_deletion_required : (text) -> (Result_23);
+  read_private_name_preparation : (WriterRequest) -> (Result_24);
+  read_private_name_writer_window : (WriterRequest) -> (Result_24);
   // Anonymous infrastructure discovery only: never memberships, placements,
   // controller details or a grant to read/write any destination resource.
-  read_public_group_targets : (text, opt nat64, opt text, nat32) -> (Result_24);
+  read_public_group_targets : (text, opt nat64, opt text, nat32) -> (Result_25);
   // Consensus read for signed-in clients; infrastructure metadata only.
-  read_routing_approval : (text) -> (Result_25);
+  read_routing_approval : (text) -> (Result_26);
   record_group_health : (text, nat64, nat64, nat64) -> (Result);
   // Governor-only. Binds the exact configuration revision and approved digest;
   // any later group/placement/policy change makes clients fail closed again.
-  record_routing_approval : (RoutingApproval, nat64) -> (Result_26);
+  record_routing_approval : (RoutingApproval, nat64) -> (Result_27);
   register_group : (ShardGroup, nat64) -> (Result);
   register_group_placement : (GroupPlacement, nat64) -> (Result);
   release_deletion_lock : (text, nat64) -> (Result_2);
   reserve_group_media_growth : (text, text, text, nat64) -> (Result);
-  seal_account_removal : (Request) -> (Result_16);
+  seal_account_removal : (Request) -> (Result_17);
   seal_private_name_writer_window : (WriterRequest) -> (Result_2);
   // Governor-only, write-once: the identity coordinator allowed to fence.
   set_account_removal_authority : (principal) -> (Result_2);

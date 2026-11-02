@@ -1,0 +1,91 @@
+type Acceptance = record {
+  participants : vec Participant;
+  inventory_digest : blob;
+  journal_digest : blob;
+  decoded_history_digest : blob;
+  removal_generation : nat64;
+  generation : nat64;
+  witness : principal;
+  journal_revision : nat64;
+  epoch : nat64;
+  signed_digest : blob;
+  witness_version : nat64;
+  identity : principal;
+  identity_version : nat64;
+  expires_at_ns : nat64;
+  history_revision : nat64;
+};
+type AccountReadReceipt = record { request : AccountReadRequest };
+type AccountReadRequest = record {
+  account_id : text;
+  subjects : vec principal;
+  request : WitnessRequest;
+};
+type Event = variant {
+  Progress : record {
+    account_id : text;
+    generation : nat64;
+    progress : Progress;
+  };
+  Disable : record { generation : nat64; identity : principal };
+  Removal : Removal;
+};
+type Head = record {
+  epoch : nat64;
+  digest : blob;
+  accepted : opt SignedAcceptance;
+  revision : nat64;
+};
+type Init = record { governor : principal; identity : principal };
+type Participant = record {
+  canister : principal;
+  module : blob;
+  changes : nat64;
+};
+type Progress = variant {
+  Prepared : record { target : principal };
+  Sealed : record { target : principal };
+  Completed;
+};
+type Record = record { operation_id : text; event : Event };
+type Removal = record {
+  account_id : text;
+  inventory_digest : blob;
+  subjects : vec principal;
+  generation : nat64;
+  targets : vec principal;
+};
+type Result = variant { Ok : nat64; Err : text };
+type Result_1 = variant { Ok; Err : text };
+type Result_2 = variant { Ok : Head; Err : text };
+type Result_3 = variant { Ok : Record; Err : text };
+type Result_4 = variant { Ok : vec record { nat64; Record }; Err : text };
+type Result_5 = variant { Ok : blob; Err : text };
+type Result_6 = variant { Ok : WitnessReceipt; Err : text };
+type Result_7 = variant { Ok : AccountReadReceipt; Err : text };
+type SignedAcceptance = record { signature : blob; body : Acceptance };
+type WitnessReceipt = record { request : WitnessRequest };
+type WitnessRequest = record {
+  request_id : nat64;
+  removal_generation : nat64;
+  generation : nat64;
+  signed_digest : blob;
+  identity : principal;
+  identity_version : nat64;
+  recovery_epoch : nat64;
+  history_revision : nat64;
+};
+service : (Init) -> {
+  accept_recovery_fence : (SignedAcceptance) -> (Result);
+  authorize_subject_removal_progress : (SignedAcceptance) -> (Result_1);
+  close_recovery_fence : (nat64) -> (Result);
+  read_recovery_head : () -> (Result_2);
+  read_recovery_record : (nat64) -> (Result_3);
+  read_recovery_records : (nat64, nat16) -> (Result_4);
+  read_recovery_runtime_version : () -> (Result);
+  record_removal_recovery : (Record) -> (Result);
+  recovery_acceptance_signing_bytes : (Acceptance) -> (Result_5);
+  subject_progress_approval_signing_bytes : (Acceptance) -> (Result_5);
+  verify_production_account_read_fence : (WitnessRequest) -> (Result_6);
+  verify_production_subject_read_fence : (AccountReadRequest) -> (Result_7);
+}

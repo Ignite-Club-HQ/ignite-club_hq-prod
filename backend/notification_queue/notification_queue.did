@@ -255,6 +255,8 @@ type Main =
        Err: text;
        Ok: nat;
      });
+   list_admin_preferences: (limit: nat32, offset: nat32) ->
+    (PreferencesPageResult);
    list_device_tokens: (users: vec text) -> (DeviceTokensResult);
    list_inbox: (user: text, club: opt text, limit: nat16) -> (Results);
    list_preferences_by_club: (club_id: text, limit: nat32, offset: nat32) ->
@@ -280,10 +282,18 @@ type Main =
                                                      Err: text;
                                                      Ok;
                                                    });
+   prepare_my_broadcast_erasure: () -> (variant {
+                                          Err: text;
+                                          Ok;
+                                        });
    purge_club_snapshot: (club: text) -> (variant {
                                            Err: text;
                                            Ok: nat;
                                          });
+   purge_my_data: () -> (variant {
+                           Err: text;
+                           Ok: nat;
+                         });
    read_account_get_digest: (source: DigestSource, chat_scope_id: text,
     since_ms: nat64, limit: nat16) -> (DigestResults);
    read_account_get_preferences: (user: text) -> (Preferences);
@@ -296,6 +306,11 @@ type Main =
          });
    read_account_list_scheduled: (author: text, target: opt text) ->
     (ScheduledResults);
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_removal_drain: (request: Request) ->
     (variant {
        Err: text;
@@ -343,6 +358,11 @@ type Main =
      });
    remove_device_tokens: (user: text, tokens: vec text) ->
     (DeviceTokenCountResult);
+   retire_competition_broadcast: (club: text, key: text, audience: vec text,
+    count: nat16) -> (variant {
+                        Err: text;
+                        Ok;
+                      });
    schedule_message: (id: text, author: text, chat_type: ChatType, team_id:
     opt text, club_id: opt text, group_id: opt text, conversation_id:
     opt text, body: text, image_url: opt text, reply_to_id: opt text,
@@ -441,6 +461,15 @@ type DeviceToken =
    token: text;
    updated_at_ms: nat64;
    user: text;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type ChatType = 
  variant {
