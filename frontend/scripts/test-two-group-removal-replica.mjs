@@ -249,7 +249,10 @@ try{
    q.setPrincipal(identity.canisterId);const disabledConfig=ok(await q.read_account_protection_configuration());
    assert.equal(disabledConfig.admission_required,false);assert.equal(disabledConfig.removal_enabled,false);
    q.setPrincipal(governor);assert.equal(ok(await q.recover()),0);
-   assert.equal(ok(await id.advance_account_removal_receiver(account.id,s.canisterId)).outstanding,1n);
+   // Fail-closed: with protection config stripped the coordinator must refuse
+   // to advance removal at all — configuration-off can never complete removal.
+   const strippedRefusal=await id.advance_account_removal_receiver(account.id,s.canisterId);
+   assert.match(String(strippedRefusal?.Err),/Configured rehearsal identity required/);
    await pic.updateCanisterSettings({canisterId:s.canisterId,sender:governor,environmentVariables:env(identity.canisterId)});
    await pic.upgradeCanister({canisterId:s.canisterId,wasm:wasm(domain),sender:governor,arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
    q.setPrincipal(governor);assert.equal(ok(await q.recover()),0);
