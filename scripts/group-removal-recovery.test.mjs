@@ -5,7 +5,7 @@ const inventory = { deploymentId: 'isolated', network: 'pocketic', host: 'https:
   participants: ['events','queue','blob','identity'].map(id => ({ id, domain: id, group: 'g2', subnet: 'local', module: 'a'.repeat(64) })) };
 function fixture() {
   const calls = [], statuses = new Map(inventory.participants.map(p => [p.id,'running'])); let saved;
-  const journal = { save: async value => { saved = structuredClone(value); }, read: async () => structuredClone(saved) };
+  const journal = { assertExclusiveWriter:async()=>{}, save: async value => { saved = structuredClone(value); }, read: async () => structuredClone(saved) };
   const adapter = {
     readAuthenticatedInventory: async () => inventory, verifyExclusiveControllerFence: async () => true,
     status: async id => statuses.get(id), stop: async id => { calls.push(`stop:${id}`); statuses.set(id,'stopped'); },
@@ -105,4 +105,10 @@ test('shuffled snapshots still restore every receiver before identity', async ()
   cp.snapshots.reverse();await f.journal.save(cp);f.calls.length=0;
   await restoreGroup(inventory,cp,f.adapter,f.journal);
   assert.deepEqual(f.calls.filter(c=>c.startsWith('load:')),['load:events','load:queue','load:blob','load:identity']);
+});
+test('missing or lost journal ownership refuses before management mutation',async()=>{
+ const f=fixture();delete f.journal.assertExclusiveWriter;
+ await assert.rejects(checkpointGroup(inventory,f.adapter,f.journal),/Exclusive recovery journal writer/);assert.deepEqual(f.calls,[]);
+ const g=fixture();g.journal.assertExclusiveWriter=async()=>{throw Error('Writer fence lost');};
+ await assert.rejects(checkpointGroup(inventory,g.adapter,g.journal),/Writer fence lost/);assert.deepEqual(g.calls,[]);
 });
