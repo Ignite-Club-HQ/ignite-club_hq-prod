@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — finish removal protections and review PROD approval (2 Nov 2026, 02:09 UTC)
+- [ ] Continue 02:18 UTC: investigate a supported runtime fix and implement durable terminal-protection validation without enabling admission, erasure or PROD approval; real actor acceptance and signed execution remain separate gates.
 - [x] Investigated exact scope and reproduced minimal local installation stall independently of receiver logic; 197 identity and 19 release-gate tests pass. Complete twelve-service/base/supplemental acceptance and PROD approval recorder remain absent; implementation plan prepared, no live activation.
 - [x] Implemented pinned minimal-install preflight, hash/stage evidence, owned process-group hard deadlines and an isolated manual TEST workflow; remaining receiver runner now requires preflight. Three supervisor tests plus workflow/gate checks pass (25 total). Real Motoko probe still fails before receiver scenarios; raw Wasm succeeds and runtime fault-loop diagnosis is retained.
 - [ ] Obtain a successful real Motoko installation/ping on the isolated test worker before full receiver acceptance. Blocker: this sandbox's runtime fault loop has no verified supported fix and no GitHub dispatch credential is available; TEST workflow prepared but not run.
