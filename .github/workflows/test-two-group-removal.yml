@@ -27,7 +27,7 @@ jobs:
           mops toolchain use moc 1.16.1
           (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
       - name: Check host, evidence invariants and isolated cleanup
-        run: node --test frontend/scripts/removal-host-preflight.test.mjs frontend/scripts/removal-local-supervisor.test.mjs frontend/scripts/two-group-removal-evidence.test.mjs frontend/scripts/account-recovery-candid.test.mjs frontend/scripts/removal-local-lifecycle.test.mjs frontend/scripts/pocket-ic-long-updates.test.mjs
+        run: node --test frontend/scripts/removal-host-preflight.test.mjs frontend/scripts/removal-local-supervisor.test.mjs frontend/scripts/two-group-removal-evidence.test.mjs frontend/scripts/account-recovery-candid.test.mjs frontend/scripts/removal-local-lifecycle.test.mjs frontend/scripts/pocket-ic-long-updates.test.mjs frontend/scripts/external-controller-fencing.test.mjs
       - name: Check exact production authorization refusal and signed scope
         run: |
           cargo test --locked -p identity_access -p recovery_witness -- --test-threads=1
@@ -59,6 +59,14 @@ jobs:
         run: |
           export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
           timeout --kill-after=5s 1000s node scripts/test-production-recovery-integration.mjs
+      - name: Check independent external controller fencing (isolated)
+        working-directory: frontend
+        env:
+          EXTERNAL_CONTROLLER_FENCING_REPORT: ${{ runner.temp }}/external-controller-fencing.json
+          REMOVAL_LIFECYCLE_PROBE_WASM: ${{ runner.temp }}/recovery-lifecycle-probe.wasm
+        run: |
+          export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
+          timeout --kill-after=5s 900s node scripts/test-external-controller-fencing.mjs
       - name: Run both receiver modes across all 28 frozen targets
         working-directory: frontend
         run: |
@@ -83,7 +91,10 @@ jobs:
           echo '24 actual human-data receivers; exact installed inventory includes two timers, shared workload and router.' >> "$GITHUB_STEP_SUMMARY"
           echo 'A green test verifies denial, drain and fresh complete seals for all 28 targets (24 receivers, two timers, shared workload, router). It never authorizes PROD release, erasure or opening.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Production-candidate applies to receivers only. The signed-production scenario uses real non-rehearsal identity, signed inventory provisioning and an independent witness across both groups; isolated evidence never opens PROD.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Recovery witness checks preserve full replayable journals through real snapshots/upgrades; independent production fencing and positive authorization remain separate.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Recovery witness checks preserve full replayable journals through real snapshots/upgrades; independent external controller fencing is checked separately and never authorizes opening.' >> "$GITHUB_STEP_SUMMARY"
+          if test -f "$RUNNER_TEMP/external-controller-fencing.json"; then
+            node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1]));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,"\n### Independent external controller fencing\n"+r.checks.map(c=>"- PASS: "+c.name).join("\n")+"\n"+r.targets.map(t=>"- "+t.name+": controller "+t.controllerAfter+"; module "+(t.moduleHashBefore===t.moduleHashAfter?"unchanged":"CHANGED")).join("\n")+"\nFencing test: "+r.passed+"; external controller fencing: "+r.externalControllerFencing+"; release authorized: "+r.releaseAuthorized+"\n")' "$RUNNER_TEMP/external-controller-fencing.json"
+          fi
           if test -f "$RUNNER_TEMP/production-recovery-integration.json"; then
             node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1]));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,"\n### Production identity/recovery transport\n"+r.checks.map(c=>"- PASS: "+c.name).join("\n")+"\nTransport test: "+r.passed+"; full production authorization: "+r.productionAuthorization+"; external controller fencing: "+r.externalControllerFencing+"; release authorized: "+r.releaseAuthorized+"\n")' "$RUNNER_TEMP/production-recovery-integration.json"
           fi
@@ -102,4 +113,5 @@ jobs:
             ${{ runner.temp }}/two-group-removal-*.json
             ${{ runner.temp }}/account-recovery-witness.json
             ${{ runner.temp }}/production-recovery-integration.json
+            ${{ runner.temp }}/external-controller-fencing.json
           if-no-files-found: warn
