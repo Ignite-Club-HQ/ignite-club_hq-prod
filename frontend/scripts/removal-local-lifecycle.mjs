@@ -32,7 +32,9 @@ export async function createLocalLifecycleReader(pic, owner) {
  fixture.actor.setPrincipal();
  await assert.rejects(fixture.actor.read_lifecycle(fixture.canisterId),/Isolated lifecycle reader owner required/);
  fixture.actor.setPrincipal(owner);
- await pic.upgradeCanister({canisterId:fixture.canisterId,sender:owner,wasm:process.env.REMOVAL_LIFECYCLE_PROBE_WASM,arg:IDL.encode([],[])});
+ // Motoko 1.16 compiles with enhanced orthogonal persistence; upgrades must keep memory explicitly.
+ await pic.upgradeCanister({canisterId:fixture.canisterId,sender:owner,wasm:process.env.REMOVAL_LIFECYCLE_PROBE_WASM,arg:IDL.encode([],[]),
+  upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
  const after=await read(fixture.canisterId);
  assert.deepEqual(after.module,first.module);
  assert.ok(after.changes>first.changes,'Real upgrade must advance management lifecycle');
