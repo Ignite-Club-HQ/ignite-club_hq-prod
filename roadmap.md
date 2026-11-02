@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — approved production removal safeguards (2 Nov 2026, 03:32 UTC)
+- [ ] 04:10 request: build independent anti-rollback recovery protection; reject old/partial restores, retain removal progress and test in isolation without live deployment or opening.
 - [ ] 03:57 request: complete production authorization implementation with a separate signed, exact scoped account-reader capability; preserve removal/recovery/opening holds and verify refusal, drift and replay tests.
 - [x] Implemented identity-side signed production account capability, fixed independently pinned signer/witness requirements, exact scoped service/club reads, repeated live collection, final synchronous current-alias reconstruction, expiry and monotonic disable/replay defense; no flag-only opening. Corrected new completion partition to 33 (31/32 already private-name journals), capability/request 34/35 with real partition-isolation regression.
 - [x] Validated this candidate: 208 identity tests, 24 isolated/recovery safeguards, 17 active contract checks and Rust upgrade Wasm pass; expanded native runtime script parses and preview build is healthy. No live calls, upgrade, payment, approval or database changes.
