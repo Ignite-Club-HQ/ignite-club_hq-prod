@@ -119,6 +119,7 @@ const MEM_REMOVAL_COMPLETIONS: u8 = 33;
 const MEM_PRODUCTION_ACCOUNT_AUTHORIZATION: u8 = 34;
 const MEM_PRODUCTION_ACCOUNT_REQUEST: u8 = 35;
 const MEM_RECOVERY_PENDING: u8 = 36;
+const MEM_RECOVERY_ACKS: u8 = 37;
 // Directory-specific additive storage: never share lifecycle/admission maps.
 const MEM_DIRECTORY_POOL_META:u8=18;
 const MEM_DIRECTORY_POOL_BLOCKS:u8=19;
@@ -591,6 +592,8 @@ thread_local! {
         RefCell::new(StableCell::init(memory(MEM_PRODUCTION_ACCOUNT_REQUEST),0));
     static RECOVERY_PENDING: RefCell<StableBTreeMap<String,Vec<u8>,Memory>> =
         RefCell::new(StableBTreeMap::init(memory(MEM_RECOVERY_PENDING)));
+    static RECOVERY_ACKS: RefCell<StableBTreeMap<String,Vec<u8>,Memory>> =
+        RefCell::new(StableBTreeMap::init(memory(MEM_RECOVERY_ACKS)));
     static DIRECTORY_CONFIG:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(memory(MEM_DIRECTORY_CONFIG),Vec::new()));
     static DIRECTORY_COORDINATOR:RefCell<membership_coordinator::Coordinator<Memory>>=RefCell::new(
         membership_coordinator::Coordinator::open(memory(MEM_DIRECTORY_COORDINATOR),
@@ -1004,6 +1007,10 @@ fn recovery_witness_target()->Outcome<Option<Principal>> {
 fn stage_recovery_record(record:recovery_protocol::Record)->Outcome<()> {
     if recovery_witness_target()?.is_none(){return Ok(());}
     let key=record.operation_id.clone();
+    if let Some(bytes)=RECOVERY_ACKS.with(|m|m.borrow().get(&key)) {
+        let ack:recovery_journal::Pending=decode(&bytes);
+        if ack.record!=record{return Err("Immutable recovery acknowledgement conflict".into());}return Ok(());
+    }
     let prior=RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode(&b));
     if prior.is_none() && RECOVERY_PENDING.with(|m|m.borrow().len())>=MAX_ACCOUNTS as u64 {return Err("Recovery pending capacity reached; keep admission closed".into());}
     let pending=recovery_journal::prepare(prior,record)?;
@@ -1013,6 +1020,7 @@ async fn settle_recovery_record(record:recovery_protocol::Record)->Outcome<()> {
     let Some(witness)=recovery_witness_target()? else{return Ok(());};
     stage_recovery_record(record.clone())?;
     let key=record.operation_id.clone();
+    if RECOVERY_ACKS.with(|m|m.borrow().contains_key(&key)){return Ok(());}
     let captured:recovery_journal::Pending=RECOVERY_PENDING.with(|m|decode(&m.borrow().get(&key).expect("staged recovery record")));
     let reply=ic_cdk::call::Call::bounded_wait(witness,"record_removal_recovery").with_arg(&record)
         .await.map_err(|_|"Recovery write outcome unknown; pending intent retained")?;
@@ -1024,21 +1032,23 @@ async fn settle_recovery_record(record:recovery_protocol::Record)->Outcome<()> {
     let reply=ic_cdk::call::Call::bounded_wait(witness,"read_recovery_record").with_arg(&revision)
         .await.map_err(|_|"Recovery readback unavailable; pending intent retained")?;
     let observed:Outcome<recovery_protocol::Record>=reply.candid().map_err(|_|"Invalid recovery readback")?;
-    recovery_journal::acknowledge(&captured,revision,&observed?)?;
+    let acknowledged=recovery_journal::acknowledge(&captured,revision,&observed?)?;
     if RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode::<recovery_journal::Pending>(&b)).as_ref()!=Some(&captured) {
         return Err("Recovery pending operation changed during readback".into());
     }
+    RECOVERY_ACKS.with(|m|m.borrow_mut().insert(key.clone(),encode(&acknowledged)));
     RECOVERY_PENDING.with(|m|m.borrow_mut().remove(&key));Ok(())
 }
 fn removal_recovery_record(intent:&removal_barrier::Intent)->recovery_protocol::Record {
-    recovery_protocol::Record {operation_id:format!("removal:{}:{}",intent.account_id,intent.generation),event:recovery_protocol::Event::Removal(recovery_protocol::Removal {
+    recovery_protocol::Record {operation_id:format!("removal:{}",hex_digest(&encode(&intent.request()))),event:recovery_protocol::Event::Removal(recovery_protocol::Removal {
         account_id:intent.account_id.clone(),generation:intent.generation,inventory_digest:intent.inventory_digest.clone(),subjects:intent.subjects.clone(),targets:intent.targets.clone()})}
 }
 fn progress_recovery_record(intent:&removal_barrier::Intent,progress:recovery_protocol::Progress)->recovery_protocol::Record {
     let suffix=match &progress {recovery_protocol::Progress::Prepared {target}=>format!("prepared:{}",target.to_text()),
         recovery_protocol::Progress::Sealed {target}=>format!("sealed:{}",target.to_text()),recovery_protocol::Progress::Completed=>"completed".into()};
-    recovery_protocol::Record {operation_id:format!("progress:{}:{}:{}",intent.account_id,intent.generation,suffix),event:recovery_protocol::Event::Progress {account_id:intent.account_id.clone(),generation:intent.generation,progress}}
+    recovery_protocol::Record {operation_id:format!("progress:{}",hex_digest(&encode(&(intent.request(),suffix)))),event:recovery_protocol::Event::Progress {account_id:intent.account_id.clone(),generation:intent.generation,progress}}
 }
+fn hex_digest(bytes:&[u8])->String {Sha256::digest(bytes).iter().map(|b|format!("{b:02x}")).collect()}
 #[ic_cdk::update]
 async fn reconcile_pending_recovery_records(limit:u16)->Outcome<u16> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;
@@ -1075,6 +1085,7 @@ fn persist_removal_intent(account: &Account, inventory: group_inventory::Removal
     let generation = REMOVAL_GENERATION.with(|m| m.borrow().get().checked_add(1)).ok_or("Removal generation exhausted")?;
     let digest = Sha256::digest(encode(&inventory)).to_vec();
     let intent = removal_barrier::create(account, generation, inventory, digest, identity)?;
+    stage_recovery_record(removal_recovery_record(&intent))?;
     // No awaits or fallible validation after the first write. A trap rolls
     // the whole message back; an Err must never leave a partially written fence.
     bump_removal_history();
@@ -1173,11 +1184,7 @@ async fn complete_account_removal_fencing(account_id: String) -> Outcome<removal
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
     settle_recovery_record(removal_recovery_record(&intent)).await?;
-    if let Some(completion) = removal_completion(&account_id) {
-        completion.validate(&intent)?;
-        for target in &intent.targets {settle_recovery_record(progress_recovery_record(&intent,recovery_protocol::Progress::Sealed {target:*target})).await?;}
-        settle_recovery_record(progress_recovery_record(&intent,recovery_protocol::Progress::Completed)).await?;return Ok(completion);
-    }
+    // Cached historical completion is not fresh receiver fencing evidence.
     let seals = collect_account_removal_seals(&account_id).await?;
     settle_recovery_record(progress_recovery_record(&intent,recovery_protocol::Progress::Completed)).await?;
     persist_removal_completion(&intent, seals)
@@ -1187,6 +1194,10 @@ fn read_account_removal_completion(account_id: String) -> Outcome<removal_barrie
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
     let completion = removal_completion(&account_id).ok_or("Removal completion missing")?;
+    if recovery_witness_target()?.is_some() {
+        let record=progress_recovery_record(&intent,recovery_protocol::Progress::Completed);
+        if !RECOVERY_ACKS.with(|m|m.borrow().contains_key(&record.operation_id)){return Err("Independent completion acknowledgement pending".into());}
+    }
     completion.validate(&intent)?; Ok(completion)
 }
 fn group_inventory_binding() -> Option<group_inventory::Binding> {
@@ -1308,11 +1319,18 @@ async fn authorize_production_account_readers(approval:production_account_author
     PRODUCTION_ACCOUNT_AUTHORIZATION.with(|m|m.borrow_mut().set(encode(&next)));Ok(next.generation)
 }
 #[ic_cdk::update]
-fn disable_production_account_readers()->Outcome<u64> {
+async fn disable_production_account_readers()->Outcome<u64> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;
+    let prior=production_authorization();
+    let prior_record=recovery_protocol::Record {operation_id:format!("disable:{}",prior.generation),event:recovery_protocol::Event::Disable {identity:ic_cdk::api::canister_self(),generation:prior.generation}};
+    if prior.approval.is_none() && RECOVERY_PENDING.with(|m|m.borrow().contains_key(&prior_record.operation_id)) {
+        settle_recovery_record(prior_record).await?;return Ok(prior.generation);
+    }
     let next=production_account_authorization::disable(&production_authorization())?;
-    stage_recovery_record(recovery_protocol::Record {operation_id:format!("disable:{}",next.generation),event:recovery_protocol::Event::Disable {identity:ic_cdk::api::canister_self(),generation:next.generation}})?;
-    PRODUCTION_ACCOUNT_AUTHORIZATION.with(|m|m.borrow_mut().set(encode(&next)));Ok(next.generation)
+    let record=recovery_protocol::Record {operation_id:format!("disable:{}",next.generation),event:recovery_protocol::Event::Disable {identity:ic_cdk::api::canister_self(),generation:next.generation}};
+    stage_recovery_record(record.clone())?;
+    PRODUCTION_ACCOUNT_AUTHORIZATION.with(|m|m.borrow_mut().set(encode(&next)));
+    settle_recovery_record(record).await?;Ok(next.generation)
 }
 #[ic_cdk::update]
 fn read_production_account_authorization()->Outcome<production_account_authorization::State> {

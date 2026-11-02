@@ -41,4 +41,10 @@ pub fn acknowledge(pending:&Pending,revision:u64,observed:&Record)->Result<Pendi
         assert!(acknowledge(&p,1,&observed).is_ok());
         observed.event=Event::Disable {identity:Principal::from_slice(&[3,1]),generation:1};assert!(acknowledge(&p,1,&observed).is_err());
     }
+    #[test] fn disable_unknown_outcome_retains_exact_generation() {
+        let r=Record {operation_id:"disable:8".into(),event:Event::Disable {identity:Principal::from_slice(&[3,1]),generation:8}};
+        let p=prepare(None,r.clone()).unwrap();let restored:Pending=crate::decode(&crate::encode(&p));
+        assert_eq!(prepare(Some(restored),r.clone()).unwrap().record,r);
+        let mut next=r;next.event=Event::Disable {identity:Principal::from_slice(&[3,1]),generation:9};assert!(prepare(Some(p),next).is_err());
+    }
 }
