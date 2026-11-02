@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign, createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
@@ -30,10 +29,7 @@ export async function createProductionIdentity(pic,governor,root,args) {
   const [info]=await management('canister_info',IDL.Record({canister_id:IDL.Principal,num_requested_changes:IDL.Opt(IDL.Nat64)}),{canister_id:canister,num_requested_changes:[0n]},[IDL.Record({total_num_changes:IDL.Nat64,module_hash:IDL.Opt(IDL.Vec(IDL.Nat8))})]);
   assert.equal(info.module_hash.length,1);return {canister,changes:info.total_num_changes,module_hash:info.module_hash[0]};
  };
- const runtimeVersion=async()=>{
-  const [status]=await management('canister_status',IDL.Record({canister_id:IDL.Principal}),{canister_id:identityId},[IDL.Record({canister_version:IDL.Nat64})]);
-  return status.canister_version;
- };
+ const runtimeVersion=async()=>ok(await actor.read_production_account_runtime_version());
  const signed=async body=>({body,signature:new Uint8Array(sign(null,Buffer.from(ok(await actor.production_account_approval_signing_bytes(body))),approvalKey.privateKey))});
  const authorize=async(inventory,targets,{provision=false}={})=>{
   actor.setPrincipal(governor);witness.setPrincipal(governor);
@@ -52,7 +48,7 @@ export async function createProductionIdentity(pic,governor,root,args) {
   const state=ok(await actor.read_production_account_authorization());const head=ok(await witness.read_recovery_head());
   const body={kind:provision?'ignite-production-account-inventory-v1':'ignite-production-account-protection-v1',identity:identityId,operator:governor,
    generation:state.generation+1n,expires_at_ns:BigInt(await pic.getTime()+3600000)*1000000n,expectation,review,
-   original_inventory_evidence:digest(Buffer.from(IDL.encode([identityFactory({IDL})._fields.find(([n])=>n==='production_account_approval_signing_bytes')[1].argTypes[0]._fields.find(([n])=>n==='expectation')[1]],[expectation]))),
+   original_inventory_evidence:digest(Buffer.from(JSON.stringify(expectation,(_,v)=>typeof v==='bigint'?v.toString():v))),
    runtime_evidence:digest(Buffer.from('isolated actual services; not production provenance')),fenced_recovery_evidence:digest(Buffer.from('isolated owner-controlled backup recovery')),recovery_epoch:head.epoch};
   if(provision){
    const receipt=await signed(body);

@@ -1351,6 +1351,18 @@ fn read_production_account_authorization()->Outcome<production_account_authoriza
     require_governor(&state(),ic_cdk::api::msg_caller())?;Ok(production_authorization())
 }
 #[ic_cdk::update]
+fn read_production_account_history_revision()->Outcome<u64> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;Ok(removal_history_revision())
+}
+#[ic_cdk::update]
+fn read_production_account_removal_generation()->Outcome<u64> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;Ok(REMOVAL_GENERATION.with(|m|*m.borrow().get()))
+}
+#[ic_cdk::update]
+fn read_production_account_runtime_version()->Outcome<u64> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;Ok(ic_cdk::api::canister_version())
+}
+#[ic_cdk::update]
 fn production_account_approval_signing_bytes(body:production_account_authorization::ApprovalBody)->Outcome<Vec<u8>> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;production_account_authorization::signing_bytes(&body)
 }
