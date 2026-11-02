@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 import { idlFactory } from '../src/lab/bindings/recovery_witness/declarations/recovery_witness.did.js';
+import { generateKeyPairSync, sign, verify } from 'node:crypto';
 
 test('recovery record retains exact digest bytes and fields through the real Candid contract', () => {
  const service=idlFactory({IDL});
@@ -14,4 +15,23 @@ test('recovery record retains exact digest bytes and fields through the real Can
  const changed=structuredClone(record);
  changed.event.Removal.inventory_digest[31]=2;
  assert.notDeepEqual(decoded,changed,'Changing even the last byte must remain detectable');
+});
+
+test('signed acceptance preserves exact lifecycle and journal bytes through the witness contract',()=>{
+ const service=idlFactory({IDL});
+ const type=service._fields.find(([name])=>name==='accept_recovery_fence')?.[1].argTypes;
+ assert.ok(type);
+ const p=n=>Principal.fromUint8Array(Uint8Array.from([n,1]));
+ const digest=n=>new Uint8Array(32).fill(n);
+ const body={witness:p(1),witness_version:4n,identity:p(2),epoch:1n,journal_revision:0n,journal_digest:new Uint8Array(32),inventory_digest:digest(1),decoded_history_digest:digest(2),generation:1n,signed_digest:digest(3),expires_at_ns:100n,history_revision:0n,removal_generation:0n,identity_version:1n,participants:[{canister:p(2),module:digest(4),changes:1n},{canister:p(3),module:digest(5),changes:2n}]};
+ const key=generateKeyPairSync('ed25519');
+ const bodyType=service._fields.find(([name])=>name==='recovery_acceptance_signing_bytes')?.[1].argTypes;
+ assert.ok(bodyType);
+ const payload=IDL.encode(bodyType,[body]);
+ const signed={body,signature:new Uint8Array(sign(null,Buffer.from(payload),key.privateKey))};
+ const [decoded]=IDL.decode(type,IDL.encode(type,[signed]));
+ assert.deepEqual(decoded,signed);
+ assert.ok(verify(null,Buffer.from(IDL.encode(bodyType,[decoded.body])),key.publicKey,decoded.signature));
+ decoded.body.participants[1].changes=3n;
+ assert.equal(verify(null,Buffer.from(IDL.encode(bodyType,[decoded.body])),key.publicKey,decoded.signature),false);
 });
