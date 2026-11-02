@@ -2,6 +2,46 @@
 
 ## Scope and current evidence
 
+### Verified owner evidence and terminal completion batch (2 November, 03:32 UTC)
+
+The uploaded `two-group-removal-isolated.zip` contains a successful supported-host
+installation report and a successful real two-group report: ten checks passed,
+28 complete seals and no unresolved infrastructure. This resolves the earlier
+native-worker startup and actual two-group fencing/drain execution blockers.
+Its mode is explicitly `local-rehearsal`; production release and full inventory
+acceptance remain false. Do not reinterpret this report as production-mode acceptance.
+
+Added `complete_account_removal_fencing` and authenticated completion readback.
+Completion records live in additive stable memory 31, require fresh direct
+zero-work seals for every frozen target, and preserve their immutable request,
+account version, exact targets and seals. Replays return the same outcome without
+advancing history. Conflicting or incomplete evidence is refused. History paging
+now includes completion records and invalidates stale revision continuations.
+
+Completion retains the account/data, subject fences, intent and configuration
+locks. It deliberately does not change `removal_pending()` to unlock authorities,
+erase records, release deletion tickets, reopen admission or accept restored
+history. The endpoint remains governor/rehearsal-only pending production evidence.
+
+The existing isolated two-group run now checks refusal while infrastructure work
+is outstanding, outsider refusal, completion/readback, replay without mutation,
+identity upgrade persistence, completion history export, retained authority locks
+and continuing survivor photo/chat/Vault access. This extended runtime scenario
+has not run here: the measured sandbox host cannot execute Motoko PocketIC actors,
+and no authorized GitHub dispatch credential is available.
+
+Local validation: 197 identity tests and 30 isolated/recovery/workflow safeguards
+pass; all 17 active Candid contracts match. These tests are not live acceptance.
+
+**Still required before a closed PROD upgrade:** authenticated independently
+pinned original/base plus g2 expectations, receiver readiness and lifecycle
+evidence, exact scoped production account readers without the broad rehearsal
+gate, complete held-callback/original-schema acceptance, and authenticated
+permission-preserving recovery with external anti-rollback fencing. Existing
+offline expected-inventory equality is not provenance, and the bound-deletion
+release is not this release. No production release setter or approval recorder
+was added to bypass these missing engineering pieces.
+
 The owner's 2 November report shows configuration revision 5, base and g2,
 zero execution-fuel shortfall, and zero additive lifecycle calls left. Previous
 closed wiring readback verified the photo quota registry and worker grants.

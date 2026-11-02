@@ -40,6 +40,15 @@ it does not mean terminal erasure or production admission is ready.
 
 ## Evidence and remaining boundaries
 
+The owner-uploaded 2 November artifact has been inspected: installation and all
+ten two-group runtime checks passed, including fresh complete 28-target seals.
+That artifact predates terminal-completion checks added in the next source batch.
+The expanded runner also requires immutable completion to survive replay and
+identity upgrade, bounded history export to include it, and survivor data/access
+and authority locks to remain intact. Success records
+`terminalFencingCompletion: true`, without changing either release flag.
+Completion is persistent fencing/drain evidence, not destructive erasure.
+
 Download `two-group-removal-isolated`: it includes the installation/host report
 and incremental `two-group-removal-report.json`, with module hashes, checks and
 unresolved infrastructure. A failure retains completed checks and the failed
