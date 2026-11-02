@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planLifecycleWiring } from './prod-lifecycle-wiring-policy.mjs';
+import { planLifecycleWiring, assertWiringApproval, WIRING_CONFIRMATION } from './prod-lifecycle-wiring-policy.mjs';
 
 const ids = { identity_access: 'iden-cai' };
 const diag = (group, service, canisterId, bindings) => ({ group, service, canisterId, bindings });
@@ -18,8 +18,7 @@ const review = { diagnostics: [
 test('plans only missing additive links and worker grants', () => {
   const plan = planLifecycleWiring(review, { ids, pushWorker: 'push-p' });
   assert.deepEqual(plan.ready.map(o => `${o.service}.${o.method}=${o.argument}`), [
-    'club_domain.set_identity_access_canister=iden-cai',
-    'club_domain.set_gallery_media_authority=store-cai',
+    'club_domain.register_media_quota_store=store-cai',
     'timer_jobs.grant_worker=push-p']);
   assert.equal(plan.executes, false);
 });
@@ -27,11 +26,26 @@ test('plans only missing additive links and worker grants', () => {
 test('never overwrites a different value and holds the removal switch', () => {
   const plan = planLifecycleWiring(review, { ids, pushWorker: 'push-p' });
   assert.ok(plan.unknown.some(u => u.setting === 'competition_authority'));
-  assert.equal(plan.held.length, 1);
+  assert.equal(plan.held.length, 2);
   assert.ok(!plan.ready.some(o => /REHEARSAL/.test(o.setting)));
 });
 
 test('missing push worker is never guessed', () => {
   const plan = planLifecycleWiring(review, { ids });
   assert.ok(!plan.ready.some(o => o.method === 'grant_worker'));
+});
+
+test('gallery authority is never pointed at the blob store', () => {
+  const plan = planLifecycleWiring(review, { ids, pushWorker: 'push-p' });
+  assert.ok(!plan.ready.some(o => o.method === 'set_gallery_media_authority'));
+  assert.ok(!plan.ready.some(o => o.method === 'set_identity_access_canister'));
+});
+
+test('apply needs the exact hash, confirmation and closed groups', () => {
+  const plan = planLifecycleWiring(review, { ids, pushWorker: 'push-p' });
+  const ok = { reviewedHash: plan.planSha256, confirmation: WIRING_CONFIRMATION, groups: [{ id: 'base', accepting: false }] };
+  assert.equal(assertWiringApproval(plan, ok), true);
+  assert.throws(() => assertWiringApproval(plan, { ...ok, confirmation: 'yes' }), /Exact confirmation/);
+  assert.throws(() => assertWiringApproval(plan, { ...ok, reviewedHash: 'a'.repeat(64) }), /changed since review/);
+  assert.throws(() => assertWiringApproval(plan, { ...ok, groups: [{ id: 'base', accepting: true }] }), /CLOSED/);
 });
