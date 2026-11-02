@@ -12,13 +12,16 @@ const governor = p(1), fence = p(2), stranger = p(3);
 const server = await startRemovalLocalServer({ binary: process.env.POCKET_IC_BIN, hardTtlSeconds: 300 });
 const pic = await PocketIc.create(server.url, { processingTimeoutMs: 60000 });
 
-// A minimal real canister: one that only answers a query.
-const wasm = (() => {
-  const body = new Uint8Array([
-    0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 0, 3, 2, 1, 0, 7, 5, 1, 1, 104, 1, 0, 10, 4, 1, 2, 0, 11
-  ]);
-  return body;
-})();
+// A minimal valid module: one exported query returning 42.
+const wasm = Uint8Array.from([
+  0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+  0x01, 0x06, 0x01, 0x60, 0x01, 0x7f, 0x01, 0x7f,
+  0x03, 0x02, 0x01, 0x00,
+  0x05, 0x03, 0x01, 0x00, 0x01,
+  0x07, 0x17, 0x01, 0x13, 0x63, 0x61, 0x6e, 0x69, 0x73, 0x74, 0x65, 0x72,
+  0x5f, 0x71, 0x75, 0x65, 0x72, 0x79, 0x5f, 0x70, 0x69, 0x6e, 0x67, 0x00, 0x00,
+  0x0a, 0x06, 0x01, 0x04, 0x00, 0x41, 0x2a, 0x0b
+]);
 
 const canister = await pic.createCanister({ sender: governor, controllers: [governor] });
 await pic.installCode({ canisterId: canister, sender: governor, wasm, arg: new Uint8Array() });
