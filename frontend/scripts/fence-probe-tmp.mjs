@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { PocketIc } from '@dfinity/pic';
 import { Principal } from '@icp-sdk/core/principal';
 import { IDL } from '@icp-sdk/core/candid';
+import { allowLongUpdates } from './pocket-ic-long-updates.mjs';
 import { INDEPENDENT_FENCE, assertIndependentFence, readControllerStatus, handOverControl,
   assertExclusiveController, assertRefusedWithoutControl, fenceSnapshot } from './external-controller-fencing.mjs';
 
@@ -26,6 +27,7 @@ const wasm = Uint8Array.from([
 const server = await import('/dev-server/frontend/scripts/removal-local-supervisor.mjs')
   .then(m => m.startRemovalLocalServer({ binary: process.env.POCKET_IC_BIN, hardTtlSeconds: 300 }));
 const pic = await PocketIc.create(server.url, { processingTimeoutMs: 60000 });
+allowLongUpdates(pic);
 const target = await pic.createCanister({ sender: owner, controllers: [owner] });
 await pic.installCode({ canisterId: target, sender: owner, wasm, arg: new Uint8Array() });
 
