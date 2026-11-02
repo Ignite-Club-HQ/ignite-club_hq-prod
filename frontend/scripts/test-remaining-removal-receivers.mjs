@@ -1,11 +1,12 @@
-// Real local actors, always-eligible delayed authority. Never production flags
-// or evidence for opening: proves receiver fences independent of account deletion.
+// Real local actors, always-eligible delayed authority. Candidate non-rehearsal
+// modes are local test inputs only, never production release/opening evidence.
 import assert from 'node:assert/strict';
 import { PocketIc, PocketIcServer } from '@dfinity/pic';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 const principal=n=>Principal.fromUint8Array(Uint8Array.from([n,1]));
 const governor=principal(1), removed=principal(2), survivor=principal(3);
+const candidate = process.env.REMOVAL_TEST_MODE === 'production-candidate';
 const requestType=IDL.Record({account_id:IDL.Text,generation:IDL.Nat64,inventory_digest:IDL.Vec(IDL.Nat8),subjects:IDL.Vec(IDL.Principal)});
 const receipt=IDL.Record({request:requestType,receiver:IDL.Principal,outstanding:IDL.Nat});
 const relayIdl=({IDL:I})=>I.Service({
@@ -33,7 +34,8 @@ try{
   assert.ok(process.env[domain.toUpperCase()+'_WASM'],domain+' real Wasm required');
   const {idlFactory}=await import(`../src/lab/bindings/${domain}/declarations/${domain}.did.js`);
   const service=await pic.setupCanister({idlFactory,wasm:process.env[domain.toUpperCase()+'_WASM'],sender:governor,controllers:[governor],
-   environmentVariables:[{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'},{name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:relay.canisterId.toText()}],arg:IDL.encode([IDL.Principal],[governor])});
+   environmentVariables:[...(candidate ? [{name:'IGNITE_ACCOUNT_ADMISSION_RELEASE',value:'1'},{name:'IGNITE_ACCOUNT_REMOVAL_RELEASE',value:'1'}]
+     : [{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'}]),{name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:relay.canisterId.toText()}],arg:IDL.encode([IDL.Principal],[governor])});
   const signature=idlFactory({IDL})._fields.find(([n])=>n===method)?.[1];assert.ok(signature,domain+' real method');
   service.actor.setPrincipal(removed);await service.actor[method](...args); // positive, no hold
   const request={account_id:'removed-'+domain,generation:9n,inventory_digest:new Uint8Array(32).fill(9),subjects:[removed]};
@@ -53,6 +55,14 @@ try{
   service.actor.setPrincipal(survivor);await service.actor[method](...args);
   assert.equal(ok(await relay.actor.seal(service.canisterId,request)).outstanding,0n);
   service.actor.setPrincipal(governor);assert.ok('err' in await service.actor.rekey_principal(removed,survivor,false));
+  if (candidate) {
+    await pic.updateCanisterSettings({canisterId:service.canisterId,sender:governor,
+      environmentVariables:[{name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:relay.canisterId.toText()}]});
+    await pic.upgradeCanister({canisterId:service.canisterId,wasm:process.env[domain.toUpperCase()+'_WASM'],sender:governor,
+      arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
+    service.actor.setPrincipal(removed);await assert.rejects(()=>service.actor[method](...args));
+    service.actor.setPrincipal(survivor);await service.actor[method](...args);
+  }
   console.log('PASS',domain,'observed held admission, late eligible denial, fresh seal, upgrade fence, survivor access');
  }
 }finally{if(pic)await pic.tearDown();await server.stop()}
