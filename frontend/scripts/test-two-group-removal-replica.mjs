@@ -8,6 +8,7 @@ import { createProductionIdentity } from './production-removal-authorization.mjs
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { PocketIc } from '@dfinity/pic';
+import { allowLongUpdates } from './pocket-ic-long-updates.mjs';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 import { DerivedPublicKey, EncryptedVetKey, TransportSecretKey, IbeCiphertext, IbeIdentity, IbeSeed } from '@icp-sdk/vetkeys';
@@ -46,7 +47,7 @@ try{
  for(const name of [...HUMAN_DOMAINS,'identity_access','shard_router','timer_jobs','secret_workload_identity'])report.modules[name]=hash(wasm(name));
  await removalInstallPreflight({binary:process.env.POCKET_IC_BIN,wasm:process.env.REMOVAL_INSTALL_PROBE_WASM,reportPath:process.env.REMOVAL_INSTALL_REPORT});
  server=await startRemovalLocalServer({binary:process.env.POCKET_IC_BIN,hardTtlSeconds:1800});
- pic=await PocketIc.create(server.url,{fiduciary:{state:{type:'new'}},processingTimeoutMs:60000});
+ pic=await PocketIc.create(server.url,{fiduciary:{state:{type:'new'}},processingTimeoutMs:60000});allowLongUpdates(pic);
  const install=async(name,variables=[])=>pic.setupCanister({idlFactory:await factory(name),wasm:wasm(name),sender:governor,controllers:[governor],
   environmentVariables:variables,arg:['identity_access','shard_router'].includes(name)?args:name==='timer_jobs'?IDL.encode([],[]):IDL.encode([IDL.Principal],[governor])});
  stage='verify default production authorization is closed without independent acceptance';
