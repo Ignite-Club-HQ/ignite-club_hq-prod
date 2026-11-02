@@ -20,8 +20,14 @@ export async function createLocalLifecycleReader(pic, owner) {
   arg:IDL.encode([],[]),idlFactory:factory});
  fixture.actor.setPrincipal(owner);
  const read=async canister=>decodeLocalLifecycle(canister,await fixture.actor.read_lifecycle(canister));
+ await assert.rejects(pic.updateCall({canisterId:Principal.managementCanister(),sender:owner,method:'canister_info',
+  arg:IDL.encode([IDL.Record({canister_id:IDL.Principal,num_requested_changes:IDL.Opt(IDL.Nat64)})],[{canister_id:fixture.canisterId,num_requested_changes:[0n]}])}),/Only canisters can call/);
  // Exercise genuine consensus evidence and unauthorized access before signing.
  const first=await read(fixture.canisterId);
+ const participant=await pic.setupCanister({sender:owner,controllers:[owner],wasm:process.env.REMOVAL_LIFECYCLE_PROBE_WASM,
+  arg:IDL.encode([],[]),idlFactory:factory});
+ assert.deepEqual((await pic.getControllers(participant.canisterId)).map(p=>p.toText()),[owner.toText()]);
+ assert.deepEqual((await read(participant.canisterId)).module,first.module);
  fixture.actor.setPrincipal();
  await assert.rejects(fixture.actor.read_lifecycle(fixture.canisterId),/Isolated lifecycle reader owner required/);
  fixture.actor.setPrincipal(owner);
