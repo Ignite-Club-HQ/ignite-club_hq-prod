@@ -63,7 +63,7 @@ persistent actor MediaBlobStore {
   transient let accountAdmissionAuthority = switch (Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")) {
     case (?id) ?Principal.fromText(id); case null null
   };
-  include AccountProtectionEndpoints(accountProtectionMode, accountAdmissionAuthority, Principal.fromActor(this));
+  include AccountProtectionEndpoints(accountProtectionMode, accountAdmissionAuthority, Principal.fromActor(MediaBlobStore));
   var removal_intents : Map.Map<Text, RemovalReceiver.Request>;
   var removal_subjects : Map.Map<Principal, Text>;
   var removal_active : Map.Map<Principal, Nat>;
