@@ -29,10 +29,12 @@ import UpdateReminderAccess "updateReminderAccess";
 persistent actor class Main(governorInit : Principal) = this {
   // Opt-in local rehearsal only; production deploy scripts must never set these.
   // Candidate protection modes; rollout tooling never enables these flags.
-  transient let accountAdmissionEnabled = Runtime.envVar<system>("IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL") == ?"1";
-  transient let accountProtectionMode = AccountProtection.mode(accountAdmissionEnabled,
+  transient let accountRehearsalEnabled = Runtime.envVar<system>("IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL") == ?"1";
+  transient let accountProtectionMode = AccountProtection.mode(accountRehearsalEnabled,
     Runtime.envVar<system>("IGNITE_ACCOUNT_ADMISSION_RELEASE") == ?"1",
     Runtime.envVar<system>("IGNITE_ACCOUNT_REMOVAL_RELEASE") == ?"1");
+  // Effective protection, not the local rehearsal flag, governs every guarded path.
+  transient let accountAdmissionEnabled = AccountProtection.admissionRequired(accountProtectionMode);
   transient let accountAdmissionAuthority = switch (Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")) {
     case (?id) ?Principal.fromText(id); case null null
   };
@@ -950,7 +952,7 @@ persistent actor class Main(governorInit : Principal) = this {
     var recovered : Nat16 = 0;
     var index = 0;
     for (item in items.values()) {
-      if (item.status == #Processing and not accountAdmissionEnabled) {
+      if (item.status == #Processing and AccountProtection.canRecoverLease(accountProtectionMode, recipientFenced(item.user))) {
         replace(index, { item with status = #Pending });
         clearLease(item.id);
         recovered += 1;
