@@ -50,14 +50,7 @@ export async function createProductionIdentity(pic,governor,root,args) {
    generation:state.generation+1n,expires_at_ns:BigInt(await pic.getTime()+3600000)*1000000n,expectation,review,
    original_inventory_evidence:digest(Buffer.from(JSON.stringify(expectation,(_,v)=>typeof v==='bigint'?v.toString():v))),
    runtime_evidence:digest(Buffer.from('isolated actual services; not production provenance')),fenced_recovery_evidence:digest(Buffer.from('isolated owner-controlled backup recovery')),recovery_epoch:head.epoch};
-  if(provision){
-   const receipt=await signed(body);
-   assert.ok('Err'in await actor.provision_production_account_inventory({...receipt,signature:new Uint8Array(64)}));
-   const result=ok(await actor.provision_production_account_inventory(receipt));assert.equal(result,revision+1n);
-   assert.equal(ok(await actor.provision_production_account_inventory(receipt)),result);
-   return authorize({...inventory,groups:{...inventory.groups,history_revision:result}},targets);
-  }
-  review=ok(await actor.review_production_account_protection(expectation,revision));
+  if(!provision)review=ok(await actor.review_production_account_protection(expectation,revision));
   const approval=await signed({...body,review});
   const signing=ok(await actor.production_account_approval_signing_bytes(approval.body));
   const requestDigest=digest(Buffer.concat([Buffer.from(signing),Buffer.from(approval.signature)]));
@@ -70,6 +63,12 @@ export async function createProductionIdentity(pic,governor,root,args) {
    removal_generation:removalGeneration,identity_version:await runtimeVersion(),participants:rows.map(l=>({canister:l.canister,module:l.module_hash,changes:l.changes}))};
   const recoverySignature=new Uint8Array(sign(null,Buffer.from(ok(await witness.recovery_acceptance_signing_bytes(acceptance))),recoveryKey.privateKey));
   ok(await witness.accept_recovery_fence({body:acceptance,signature:recoverySignature}));
+  if(provision){
+   assert.ok('Err'in await actor.provision_production_account_inventory({...approval,signature:new Uint8Array(64)}));
+   const result=ok(await actor.provision_production_account_inventory(approval));assert.equal(result,revision+1n);
+   assert.equal(ok(await actor.provision_production_account_inventory(approval)),result);
+   return authorize({...inventory,groups:{...inventory.groups,history_revision:result}},targets);
+  }
   assert.ok('Err'in await actor.authorize_production_account_readers({...approval,signature:new Uint8Array(64)}));
   assert.equal(ok(await actor.authorize_production_account_readers(approval)),approval.body.generation);
   actor.setPrincipal(governor);return inventory;
