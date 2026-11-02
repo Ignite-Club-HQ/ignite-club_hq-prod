@@ -1,6 +1,7 @@
 // PocketIC-only evidence adapter. No HttpAgent or live deployment transport.
 import assert from 'node:assert/strict';
 import { IDL } from '@icp-sdk/core/candid';
+import { Principal } from '@icp-sdk/core/principal';
 import { PocketIc } from '@dfinity/pic';
 
 export function decodeLocalLifecycle(canister, info) {
