@@ -75,7 +75,8 @@ pub fn close(head:&Head)->Outcome<Head> {
 }
 pub fn signing_bytes(b: &Acceptance)->Outcome<Vec<u8>> {
     if b.participants.len()<2 || b.participants.len()>MAX_TARGETS+1 ||
-        !unique(&b.participants.iter().map(|p|p.canister).collect::<Vec<_>>()) ||
+        b.participants.iter().any(|p|!principal_ok(p.canister)) ||
+        b.participants.iter().map(|p|p.canister).collect::<BTreeSet<_>>().len()!=b.participants.len() ||
         b.participants.iter().any(|p|!hash_ok(&p.module)) ||
         [&b.inventory_digest,&b.decoded_history_digest,&b.signed_digest].iter().any(|h|!hash_ok(h)) ||
         b.journal_digest.len()!=32 || !principal_ok(b.identity) || !principal_ok(b.witness) ||
@@ -142,5 +143,12 @@ pub fn verify(head:&Head,r:&WitnessRequest,caller:Principal,now:u64)->Outcome<Wi
     #[test] fn bounded_records_and_exhaustion_refuse_before_mutation() {
         let mut r=removal();r.operation_id="x".repeat(129);assert!(advance(&Head::default(),&r).is_err());
         assert!(advance(&Head {epoch:u64::MAX,..Head::default()},&removal()).is_err());
+    }
+    #[test] fn full_participant_budget_accepts_155_and_rejects_156_or_duplicates() {
+        let(_,a,_,_)=fixture();let mut b=a.body;
+        b.participants=(0..155u16).map(|n|Participant {canister:Principal::from_slice(&[9,(n/256)as u8,(n%256)as u8,1]),module:vec![4;32],changes:1}).collect();
+        b.identity=b.participants[0].canister;assert!(signing_bytes(&b).is_ok());
+        b.participants.push(Participant {canister:p(99),module:vec![4;32],changes:1});assert!(signing_bytes(&b).is_err());
+        b.participants.pop();b.participants[1]=b.participants[0].clone();assert!(signing_bytes(&b).is_err());
     }
 }

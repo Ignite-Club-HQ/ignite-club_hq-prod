@@ -18,7 +18,9 @@ thread_local! {
     // IC version is external to loaded application snapshots. Zero means closed.
     static ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(6))),0));
     static IDENTITY:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(7))),vec![]));
+    static EVENTS:RefCell<StableBTreeMap<Vec<u8>,u64,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(8)))));
 }
+fn event_key(event:&Event)->Vec<u8> {use sha2::{Digest,Sha256};Sha256::digest(candid::encode_one(event).expect("bounded recovery event")).to_vec()}
 fn encode<T:serde::Serialize>(v:&T)->Vec<u8> {let mut b=vec![];ciborium::ser::into_writer(v,&mut b).expect("encode witness state");b}
 fn decode<T:serde::de::DeserializeOwned>(b:&[u8])->T {ciborium::de::from_reader(b).expect("decode witness state")}
 fn head()->Head {HEAD.with(|h|if h.borrow().get().is_empty(){Head::default()}else{decode(h.borrow().get())})}
@@ -63,6 +65,8 @@ fn record_removal_recovery(r:Record)->Outcome<u64> {
         let prior:Record=RECORDS.with(|m|decode(&m.borrow().get(&revision).expect("indexed recovery record")));
         return if prior==r {Ok(revision)}else{Err("Immutable recovery operation conflict".into())};
     }
+    let semantic_key=event_key(&r.event);
+    if let Some(revision)=EVENTS.with(|m|m.borrow().get(&semantic_key)) {return Ok(revision);}
     if RECORDS.with(|m|m.borrow().len())>=MAX_RECORDS{return Err("Recovery journal capacity reached; keep closed".into());}
     match &r.event {
         Event::Removal(m)=>{
@@ -73,7 +77,10 @@ fn record_removal_recovery(r:Record)->Outcome<u64> {
             let removal:Removal=REMOVALS.with(|m|m.borrow().get(account_id)).map(|b|decode(&b)).ok_or("Journal removal before progress")?;
             if removal.generation!=*generation{return Err("Exact removal generation required".into());}
             match progress {
-                Progress::Prepared {target}|Progress::Sealed {target}=>if !removal.targets.contains(target){return Err("Progress target outside retained inventory".into());},
+                Progress::Prepared {target}|Progress::Sealed {target}=>{
+                    if !removal.targets.contains(target){return Err("Progress target outside retained inventory".into());}
+                    if matches!(progress,Progress::Prepared {..}) && PROGRESS.with(|m|m.borrow().get(&format!("{}:{}",account_id,target.to_text())))==Some(2) {return Err("Sealed recovery progress cannot regress".into());}
+                },
                 Progress::Completed=>for target in &removal.targets {if PROGRESS.with(|m|m.borrow().get(&format!("{}:{}",account_id,target.to_text())))!=Some(2){return Err("Every retained target must be sealed".into());}},
             }
         }
@@ -90,6 +97,7 @@ fn record_removal_recovery(r:Record)->Outcome<u64> {
     }
     RECORDS.with(|m|m.borrow_mut().insert(next.revision,encode(&r)));
     OPERATIONS.with(|m|m.borrow_mut().insert(r.operation_id.clone(),next.revision));
+    EVENTS.with(|m|m.borrow_mut().insert(semantic_key,next.revision));
     ARMED_VERSION.with(|v|v.borrow_mut().set(0));save(&next);Ok(next.revision)
 }
 #[ic_cdk::update]
@@ -140,5 +148,12 @@ ic_cdk::export_candid!();
         records.insert(1,encode(&record));drop(records);drop(manager);
         let manager=MemoryManager::init(memory);let reopened=StableBTreeMap::<u64,Vec<u8>,_>::init(manager.get(MemoryId::new(2)));
         assert_eq!(decode::<Record>(&reopened.get(&1).unwrap()),record);
+    }
+    #[test] fn equivalent_events_have_same_semantic_identity_despite_retry_ids(){
+        let event=Event::Progress {account_id:"removed".into(),generation:1,progress:Progress::Sealed {target:Principal::from_slice(&[3,1])}};
+        let a=Record {operation_id:"retry-a".into(),event:event.clone()};let b=Record {operation_id:"retry-b".into(),event};
+        assert_eq!(event_key(&a.event),event_key(&b.event));
+        let mut other=b;other.event=Event::Progress {account_id:"removed".into(),generation:1,progress:Progress::Prepared {target:Principal::from_slice(&[3,1])}};
+        assert_ne!(event_key(&a.event),event_key(&other.event));
     }
 }

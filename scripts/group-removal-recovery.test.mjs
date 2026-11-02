@@ -100,3 +100,9 @@ test('removal progress and terminal denials lost in decoded restore keep service
   await assert.rejects(restoreGroup(inventory,cp,f.adapter,f.journal),/permission history or ledgers/);
   assert.ok([...f.statuses.values()].every(x=>x==='stopped'));
 });
+test('shuffled snapshots still restore every receiver before identity', async () => {
+  const f=fixture(),cp=await checkpointGroup(inventory,f.adapter,f.journal);
+  cp.snapshots.reverse();await f.journal.save(cp);f.calls.length=0;
+  await restoreGroup(inventory,cp,f.adapter,f.journal);
+  assert.deepEqual(f.calls.filter(c=>c.startsWith('load:')),['load:events','load:queue','load:blob','load:identity']);
+});

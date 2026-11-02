@@ -87,7 +87,8 @@ export async function restoreGroup(inventory, checkpoint, adapter, journal) {
   const anchor = await currentAnchor(checkpoint, adapter);
   let state = { ...checkpoint, phase: 'restore-intent' };
   await record(journal, state);
-  for (const row of checkpoint.snapshots) {
+  for (const p of plan(inventory)) {
+    const row = checkpoint.snapshots.find(row => row.id === p.id);
     await stopped(inventory, adapter);
     await currentAnchor(checkpoint, adapter);
     state = { ...state, pending: { kind: 'load', id: row.id, snapshot: row.snapshot } }; await record(journal, state);
