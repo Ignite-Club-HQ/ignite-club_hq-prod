@@ -451,4 +451,6 @@ Validation budget: changed rules plus direct regressions per substantial batch; 
 - [x] PROD base group registered closed on the live router (revision 2; group + placement verified read-only against plan 534e80f0…). Run stopped only from a comparison bug, now fixed.
 - [ ] Owner: REPO apply, then base-group workflow action reconcile-readback (same hash, CONFIRM PROD BASE READBACK) to mark the saved receipt registered-closed.
 
-- [ ] PROD lifecycle wiring: read-only plan of admission release, reader registration, club/competition/notification bindings and worker grants (closed); then separate routing approval. Waiting on owner choice.
+- [x] PROD lifecycle wiring read-only plan (in routing gate)
+- [ ] Closed runner to apply ready wiring calls — waiting on owner review of plan
+- [ ] Production admission path for base group — needs backend work + owner approval

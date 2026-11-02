@@ -63,6 +63,8 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-routing-gate-policy.mjs',
   'scripts/prod-routing-gate.mjs',
   'scripts/prod-routing-gate.test.mjs',
+  'scripts/prod-lifecycle-wiring-policy.mjs',
+  'scripts/prod-lifecycle-wiring-policy.test.mjs',
   'scripts/prod-cycles-topup-policy.mjs',
   'scripts/prod-cycles-topup.mjs',
   'scripts/prod-cycles-topup.test.mjs',
