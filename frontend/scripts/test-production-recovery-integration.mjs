@@ -104,7 +104,7 @@ try {
  mark('Production identity writes and reads back a disable record through real inter-canister calls');
  stage='interrupted disable retains generation and pending record';
  await pic.stopCanister({canisterId:witnessId,sender:owner});
- refuses(await id.disable_production_account_readers(),/Independent recovery/);
+ refuses(await id.disable_production_account_readers(),/Recovery write outcome unknown; pending intent retained/);
  assert.equal(ok(await id.read_production_account_authorization()).generation,2n);
  await pic.startCanister({canisterId:witnessId,sender:owner});
  assert.equal(ok(await id.disable_production_account_readers()),2n);

@@ -49,6 +49,13 @@ jobs:
         run: |
           export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
           timeout --kill-after=5s 300s node scripts/test-account-recovery-witness-replica.mjs
+      - name: Check production identity and signed recovery transport (isolated pins)
+        working-directory: frontend
+        env:
+          PRODUCTION_RECOVERY_REPORT: ${{ runner.temp }}/production-recovery-integration.json
+        run: |
+          export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
+          timeout --kill-after=5s 1000s node scripts/test-production-recovery-integration.mjs
       - name: Run both receiver modes across all 28 frozen targets
         working-directory: frontend
         run: |
@@ -73,6 +80,9 @@ jobs:
           echo 'A green test verifies denial, drain and fresh complete seals for all 28 targets (24 receivers, two timers, shared workload, router). It never authorizes PROD release, erasure or opening.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Production-candidate applies to receivers only; real identity coordination remains rehearsal, so this is not complete production authorization.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Recovery witness checks preserve full replayable journals through real snapshots/upgrades; independent production fencing and positive authorization remain separate.' >> "$GITHUB_STEP_SUMMARY"
+          if test -f "$RUNNER_TEMP/production-recovery-integration.json"; then
+            node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1]));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,"\n### Production identity/recovery transport\n"+r.checks.map(c=>"- PASS: "+c.name).join("\n")+"\nTransport test: "+r.passed+"; full production authorization: "+r.productionAuthorization+"; external controller fencing: "+r.externalControllerFencing+"; release authorized: "+r.releaseAuthorized+"\n")' "$RUNNER_TEMP/production-recovery-integration.json"
+          fi
           for mode in rehearsal production-candidate; do
             if test -f "$RUNNER_TEMP/two-group-removal-$mode.json"; then
               node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1]));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,"\n### "+r.mode+"\n"+r.checks.map(c=>"- PASS: "+c.name).join("\n")+"\nOverall test: "+r.passed+"; complete seals: "+r.completeSeals+"/28; permanent completion: "+r.terminalFencingCompletion+"; production authorization: "+r.productionAuthorization+"; release authorized: "+r.releaseAuthorized+"\n")' "$RUNNER_TEMP/two-group-removal-$mode.json"
@@ -87,4 +97,5 @@ jobs:
             ${{ runner.temp }}/removal-install-report.json
             ${{ runner.temp }}/two-group-removal-*.json
             ${{ runner.temp }}/account-recovery-witness.json
+            ${{ runner.temp }}/production-recovery-integration.json
           if-no-files-found: warn
