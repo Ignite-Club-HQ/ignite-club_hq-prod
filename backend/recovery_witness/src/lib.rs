@@ -45,6 +45,10 @@ fn post_upgrade(){ARMED_VERSION.with(|v|v.borrow_mut().set(0));}
 #[ic_cdk::update]
 fn read_recovery_head()->Outcome<Head> {require_governor()?;Ok(head())}
 #[ic_cdk::update]
+fn read_recovery_runtime_version()->Outcome<u64> {require_governor()?;Ok(ic_cdk::api::canister_version())}
+#[ic_cdk::update]
+fn recovery_acceptance_signing_bytes(body:Acceptance)->Outcome<Vec<u8>> {require_governor()?;signing_bytes(&body)}
+#[ic_cdk::update]
 fn read_recovery_records(after:u64,limit:u16)->Outcome<Vec<(u64,Record)>> {
     require_governor()?;if limit==0||limit>200{return Err("Recovery pages are bounded to 200".into());}
     Ok(RECORDS.with(|m|m.borrow().range((std::ops::Bound::Excluded(after),std::ops::Bound::Unbounded)).take(limit as usize).map(|e|(*e.key(),decode(&e.value()))).collect()))

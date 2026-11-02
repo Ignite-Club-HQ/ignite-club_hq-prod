@@ -70,3 +70,33 @@ test('approval binds exact revision and complete inventory', async () => {
   await assert.rejects(resumeGroup(inventory,cp,f.adapter,f.journal,{binding:recoveryBinding({...inventory,revision:8n}),approved:true}),/approval/);
   assert.deepEqual(f.calls,[]);
 });
+test('anchor advancement between loads stops before the next participant and retains progress', async () => {
+  const f=fixture(),cp=await checkpointGroup(inventory,f.adapter,f.journal);f.calls.length=0;
+  let changed=false;const load=f.adapter.loadSnapshot;
+  f.adapter.loadSnapshot=async(...args)=>{await load(...args);changed=true;};
+  f.adapter.readIndependentAnchor=async()=>({revision:changed?4n:3n});
+  await assert.rejects(restoreGroup(inventory,cp,f.adapter,f.journal),/Rollback/);
+  assert.deepEqual(f.calls.filter(c=>c.startsWith('load:')),['load:events']);
+  assert.ok([...f.statuses.values()].every(x=>x==='stopped'));
+  assert.equal((await f.journal.read()).phase,'restore-intent');
+});
+test('anchor advancement during resume refences both groups and retains pending start', async () => {
+  const f=fixture(),cp=await checkpointGroup(inventory,f.adapter,f.journal);await restoreGroup(inventory,cp,f.adapter,f.journal);
+  let changed=false;const start=f.adapter.start;
+  f.adapter.start=async id=>{await start(id);changed=true;};
+  f.adapter.readIndependentAnchor=async()=>({revision:changed?4n:3n});
+  await assert.rejects(resumeGroup(inventory,cp,f.adapter,f.journal,{binding:cp.binding,approved:true}),/Rollback/);
+  assert.ok([...f.statuses.values()].every(x=>x==='stopped'));
+  assert.equal((await f.journal.read()).pending.id,'identity');
+});
+test('swapped history or snapshot cannot reuse a matching inventory approval', async () => {
+  const f=fixture(),cp=await checkpointGroup(inventory,f.adapter,f.journal);await restoreGroup(inventory,cp,f.adapter,f.journal);f.calls.length=0;
+  await assert.rejects(resumeGroup(inventory,{...cp,semanticHistory:{...cp.semanticHistory,pending:[]}},f.adapter,f.journal,{binding:cp.binding,approved:true}),/durable recovery history/);
+  assert.deepEqual(f.calls,[]);
+});
+test('removal progress and terminal denials lost in decoded restore keep services stopped', async () => {
+  const f=fixture(),cp=await checkpointGroup(inventory,f.adapter,f.journal);
+  f.adapter.verifyRestoredDecodedHistory=async(_i,history)=>history.subjects.length===0 && history.pending.length===0;
+  await assert.rejects(restoreGroup(inventory,cp,f.adapter,f.journal),/permission history or ledgers/);
+  assert.ok([...f.statuses.values()].every(x=>x==='stopped'));
+});
