@@ -33,6 +33,21 @@ impl Intent {
         if receipt.outstanding != candid::Nat::from(0u8) { return Err("Removal receiver not drained".into()); }
         Ok(())
     }
+    // A terminal outcome needs exact fresh coverage, not cached receipts or
+    // a subset of human-facing services. Does not authorize erasure/opening.
+    pub fn validate_all_seals(&self, seals: &[Receipt]) -> Result<(), String> {
+        let expected: BTreeSet<_> = self.targets.iter().copied().collect();
+        if expected.is_empty() || expected.len() != self.targets.len() || seals.len() != expected.len() {
+            return Err("Incomplete receiver seals".into());
+        }
+        let mut observed = BTreeSet::new();
+        for seal in seals {
+            self.validate_seal(seal.receiver, seal)?;
+            if !observed.insert(seal.receiver) { return Err("Duplicate receiver seal".into()); }
+        }
+        if observed != expected { return Err("Incomplete receiver seals".into()); }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
@@ -85,9 +100,13 @@ mod tests {
         let receipt = Receipt { request:intent.request(), receiver:q, outstanding:0u8.into() };
         assert_eq!(intent.validate_receipt(q, &receipt), Ok(()));
         assert_eq!(intent.validate_seal(q, &receipt), Ok(()));
+        assert_eq!(intent.validate_all_seals(&[receipt.clone()]), Ok(()));
+        assert!(intent.validate_all_seals(&[]).is_err());
+        assert!(intent.validate_all_seals(&[receipt.clone(), receipt.clone()]).is_err());
         let mut pending = receipt.clone(); pending.outstanding = 1u8.into();
         assert!(intent.validate_receipt(q, &pending).is_ok());
         assert_eq!(intent.validate_seal(q, &pending), Err("Removal receiver not drained".into()));
+        assert!(intent.validate_all_seals(&[pending]).is_err());
         let mut bad = receipt.clone(); bad.request.generation = 6;
         assert!(intent.validate_receipt(q, &bad).is_err());
         bad = receipt.clone(); bad.request.subjects = vec![q];

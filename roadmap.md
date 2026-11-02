@@ -1,6 +1,8 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — remaining PROD safety gates (2 Nov 2026)
+- [x] Add distinct candidate admission/removal modes across twelve Motoko services, unconditional retained-fence entry/query protection and configuration-off hold settlement; all twelve canisters compile. Identity ownership views reject deletion reservations and stale aliases; exact all-receiver seal validation rejects missing/duplicate/non-drained receipts. 191 identity tests, 12 protected-read adapter tests and shared Motoko guard assertions pass.
+- [ ] Complete independently pinned base/supplemental read release, durable terminal outcome/erasure integration, infrastructure and delivery coverage, recovery and twelve-service acceptance. Real local receiver runner currently blocks before its first service scenario while installing the relay (PocketIC timeout); no real race/upgrade pass is claimed. Production release remains unfinished, not safe to open.
 - [x] Fix exact PROD deployment binding in existing g2 eligibility validation while preserving base exclusion, foreign/mixed-deployment denial and exact reader scope.
 - [x] Correct rehearsal-as-production diagnostics, refuse fake green rehearsal acceptance, separate draft-ready/recorded-complete, and remove the planner/executor competition-setter mismatch; focused safeguards pass.
 - [x] Consolidate required production work and closed-only rollout boundaries in docs/prod-removal-implementation-2026-11-02.md; no live upgrade/settings/approval/opening performed.

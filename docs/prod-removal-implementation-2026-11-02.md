@@ -28,10 +28,37 @@ push schedule or opening state. PROD remains closed; DEV keeps its own canisters
 
 ## Required engineering before release — not settings-only fixes
 
+### Candidate implementation added in source
+
+The twelve Motoko consumers now distinguish legacy, rehearsal, candidate
+production admission and candidate production removal control. Removal without
+admission, or rehearsal mixed with production flags, denies admission. Candidate
+flags are not set by deployment or setup tools. Club alias expansion remains
+separately rehearsal-gated; eligibility cannot implicitly release alias reads.
+
+Retained receiver fences deny entry even after configuration is disabled, keep
+legacy account queries closed and allow existing holds to settle. No stable
+Motoko fields or applied migrations changed. Identity service ownership rejects
+deletion reservations and filters stale account-index aliases. Full seal
+validation requires exact distinct target coverage and zero outstanding work.
+
+Verification: all twelve Motoko canisters compile; shared mode/fence assertions,
+191 identity Rust tests and 12 protected-read adapter tests pass. Seven receiver
+artifacts build, but the actual local replica runner times out installing its
+test relay before any service scenario begins (tested PocketIC 15 and the
+package-matching 14). Held callback, configuration-off upgrade and encrypted-data
+acceptance therefore remain unverified. Tests are not production evidence.
+
+This is **not a completed removal release**: no independently accepted base/read
+inventory, terminal erasure bridge, complete infrastructure/provider draining or
+production recovery transport was added. No live setting, upgrade, database,
+approval, payment, push activation or opening was performed. Do not run a flag
+change or a production upgrade based on this candidate alone.
+
 | Work | Required behavior | Existing implementation / gap |
 |---|---|---|
 | Base acceptance | Independently validate original/shared and supplemental authorities, not just allow `base` as a group name | `identity_access/src/admission.rs` only releases new-group readers |
-| Production guards | Authenticate exact readers, preserve resource permissions and fences before/after awaits, reject outages | `shared/AccountAdmission.mo` and service initializers remain rehearsal-only |
+| Production guards | Authenticate exact readers, preserve resource permissions and fences before/after awaits, reject outages | Distinct candidate modes compile; complete real-service acceptance and production release remain held |
 | Account ownership | Return only current, nonpending account aliases to approved production services | `lib.rs::service_account` remains rehearsal-only |
 | Complete removal | Freeze exact inventory; drain every receiver; persist immutable terminal outcome without discarding fences | Existing begin/advance/seal preparation has no terminal completion bridge |
 | Infrastructure and delivery | Classify every frozen target and preserve uncertain provider/worker obligations | Twelve human receivers are not complete infrastructure acceptance |

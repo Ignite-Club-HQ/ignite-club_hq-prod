@@ -1,0 +1,13 @@
+import Protection "../AccountProtection";
+assert Protection.mode(false, false, false) == #Legacy;
+assert Protection.mode(true, false, false) == #Rehearsal;
+assert Protection.mode(false, true, false) == #ProductionAdmission;
+assert Protection.mode(false, true, true) == #ProductionRemoval;
+assert Protection.mode(false, false, true) == #Invalid;
+assert Protection.mode(true, true, false) == #Invalid;
+assert Protection.mode(true, false, true) == #Invalid;
+assert not Protection.removalEnabled(#ProductionAdmission);
+assert Protection.removalEnabled(#ProductionRemoval);
+assert Protection.admissionRequired(#Invalid);
+assert not Protection.valid(#Invalid);
+assert not Protection.admissionRequired(#Legacy);
