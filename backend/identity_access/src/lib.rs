@@ -1118,6 +1118,7 @@ async fn review_production_account_protection(expected: production_account_prote
         Ok(())
     };
     recheck()?;
+    review_closed_production_groups(&binding,&recheck).await?;
     let lifecycle=async {
         let mut result=Vec::new();
         for (canister,_) in &expected.modules {
@@ -1164,6 +1165,7 @@ async fn review_production_account_protection(expected: production_account_prote
         after.push(production_account_protection::Lifecycle {canister:*canister,changes:info.total_num_changes,
             module_hash:info.module_hash.ok_or("Production module missing")?});
     }
+    review_closed_production_groups(&binding,&recheck).await?;
     recheck()?;
     production_account_protection::verify(&expected,&prior.ok_or("Production inventory missing")?,&lifecycle,&after,&configurations)
 }
