@@ -1,0 +1,55 @@
+# Account recovery protection — candidate, not live acceptance
+
+## Implemented
+
+- A separate Rust `recovery_witness` stores complete immutable removal subjects,
+  exact targets, per-target progress and completion records outside participant
+  backups. Stable indexed pages retain replayable records, not just hashes.
+- Exact retries return their original revision. Conflicting intents, premature
+  completion, foreign targets and regressing progress refuse. Each new event
+  advances an epoch and closes any accepted read fence.
+- Independent compile-pinned Ed25519 recovery acceptance binds witness and
+  identity, witness IC version, exact journal revision/hash, complete inventory,
+  decoded-history commitment, identity history/removal generation/version,
+  account approval digest, expiry and every participant module/lifecycle count.
+- Witness restore/upgrade cannot reuse an armed application flag: the IC version
+  must match and upgrades explicitly disarm. Identity requests include current
+  history/removal/version and recheck them synchronously after the response.
+- Whole-group offline recovery now rechecks the independent anchor before every
+  snapshot/load/start, after starts and before finishing. Snapshot loads always
+  restore receivers before identity regardless of checkpoint array order. Resume
+  binds complete saved snapshots/history and refences on interrupted starts.
+
+## Tests and execution boundary
+
+Rust tests cover exact signatures, old identity history/version, old acceptance,
+epoch advancement, record bounds, inventory size, and stable journal reopening.
+Offline tests cover old/partial checkpoints, lost progress, anchor changes during
+loads/starts, pending intents and receiver-first restore. The existing manual
+`[TEST] Check complete two-group removal (isolated)` workflow now also installs
+the actual witness and exercises real snapshots/upgrades and both-group journal
+retention. Its artifact is `account-recovery-witness.json`.
+
+The sandbox's native memory-write fault limitation still prevents running the
+actual Rust/Motoko replica suite here. A supported GitHub worker must execute it;
+passing offline/unit tests is not a substitute.
+
+## Still held — do not configure or deploy pins
+
+The witness has no DEV/PROD mapping, deployment recipe, active signer or controller
+grant. No canister, database, routing, delivery or production data changed.
+
+Before production can open, implement and verify the exclusive authenticated
+controller fence/drain transport, connect removal/disable acknowledgements to
+this independent journal, and reconcile complete decoded identity/receiver
+denials, pending operations, leases and quota ledgers before recovery acceptance.
+Current production removal endpoints remain closed; recording a witness claim
+does not make production removal complete or authorize opening.
+
+A held witness reply can overlap an external epoch change; lifecycle sampling
+alone is not an exclusive fence. Old binaries can bypass application guards.
+The witness must be separately governed and excluded from participant recovery;
+joint rollback under the same uncontrolled controller is not safe. These are
+explicit prerequisites, not satisfied by hashes, fixture signatures or a green
+snapshot-retention test. Signed acceptance requires independent verification of
+the decoded histories and exact stopped/drained recovery window.

@@ -29,7 +29,9 @@ jobs:
       - name: Check host, evidence invariants and isolated cleanup
         run: node --test frontend/scripts/removal-host-preflight.test.mjs frontend/scripts/removal-local-supervisor.test.mjs frontend/scripts/two-group-removal-evidence.test.mjs
       - name: Check exact production authorization refusal and signed scope
-        run: cargo test --locked -p identity_access -- --test-threads=1
+        run: |
+          cargo test --locked -p identity_access -p recovery_witness -- --test-threads=1
+          node --test scripts/group-removal-recovery.test.mjs
       - name: Build disposable actors (no deployed mappings)
         run: |
           MOC="$HOME/.cache/mops/moc/1.16.1/moc"
@@ -38,7 +40,15 @@ jobs:
           done
           (cd backend/secret_workload_identity && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) -o .mops/.build/secret_workload_identity.wasm src/main.mo)
           (cd backend/events_domain && "$MOC" $(mops sources) -o "$RUNNER_TEMP/removal-install-probe.wasm" ../shared/test/removalInstallProbe.mo)
-          cargo build --locked --release --target wasm32-unknown-unknown -p identity_access -p shard_router -p timer_jobs
+          cargo build --locked --release --target wasm32-unknown-unknown -p identity_access -p shard_router -p timer_jobs -p recovery_witness
+      - name: Check independent recovery journal with real snapshots and upgrades
+        working-directory: frontend
+        env:
+          RECOVERY_WITNESS_WASM: ${{ github.workspace }}/target/wasm32-unknown-unknown/release/recovery_witness.wasm
+          RECOVERY_WITNESS_REPORT: ${{ runner.temp }}/account-recovery-witness.json
+        run: |
+          export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
+          timeout --kill-after=5s 300s node scripts/test-account-recovery-witness-replica.mjs
       - name: Run both receiver modes across all 28 frozen targets
         working-directory: frontend
         run: |
@@ -62,6 +72,7 @@ jobs:
           echo '24 actual human-data receivers; exact installed inventory includes two timers, shared workload and router.' >> "$GITHUB_STEP_SUMMARY"
           echo 'A green test verifies denial, drain and fresh complete seals for all 28 targets (24 receivers, two timers, shared workload, router). It never authorizes PROD release, erasure or opening.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Production-candidate applies to receivers only; real identity coordination remains rehearsal, so this is not complete production authorization.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Recovery witness checks preserve full replayable journals through real snapshots/upgrades; independent production fencing and positive authorization remain separate.' >> "$GITHUB_STEP_SUMMARY"
           for mode in rehearsal production-candidate; do
             if test -f "$RUNNER_TEMP/two-group-removal-$mode.json"; then
               node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1]));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,"\n### "+r.mode+"\n"+r.checks.map(c=>"- PASS: "+c.name).join("\n")+"\nOverall test: "+r.passed+"; complete seals: "+r.completeSeals+"/28; permanent completion: "+r.terminalFencingCompletion+"; production authorization: "+r.productionAuthorization+"; release authorized: "+r.releaseAuthorized+"\n")' "$RUNNER_TEMP/two-group-removal-$mode.json"
@@ -75,4 +86,5 @@ jobs:
           path: |
             ${{ runner.temp }}/removal-install-report.json
             ${{ runner.temp }}/two-group-removal-*.json
+            ${{ runner.temp }}/account-recovery-witness.json
           if-no-files-found: warn
