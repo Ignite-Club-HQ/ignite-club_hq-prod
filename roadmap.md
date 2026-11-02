@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — approved production removal safeguards (2 Nov 2026, 03:32 UTC)
+- [ ] 03:57 request: complete production authorization implementation with a separate signed, exact scoped account-reader capability; preserve removal/recovery/opening holds and verify refusal, drift and replay tests.
 - [ ] 03:42 request: finish exact production authorization and run remaining isolated tests; keep closed upgrade/activation held wherever evidence is absent. Extend existing setup rather than introduce rehearsal or live-enabling shortcuts.
 - [x] Added authenticated effective configuration getters to all twelve human service types plus router/timers/workload; connected exact closed production review to real receiver APIs and regenerated contracts/bindings. 201 identity, 56 router, 16 timer, 18 shared Rust and 24 isolated/recovery tests pass; Motoko guards/receivers and all actors compile, Rust Wasm builds, 17 contract checks and preview build pass.
 - [x] Expanded the existing supported-worker scenario to both rehearsal and production-candidate receiver modes, with exact configuration authentication and permanent completion. Reports explicitly retain rehearsal identity coordination and deny production authorization; this is not the missing full non-rehearsal identity flow.
