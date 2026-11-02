@@ -35,7 +35,7 @@ try{
   await pic.startCanister({canisterId:f.canisterId,sender:owner});
  };
  stage='record immutable full removal and both group progress';
- const removal={operation_id:'remove/1',event:{Removal:{account_id:'removed',generation:1n,inventory_digest:Array(32).fill(1),subjects:[Principal.fromUint8Array(Uint8Array.from([5,1]))],targets:[base,g2]}}};
+ const removal={operation_id:'remove/1',event:{Removal:{account_id:'removed',generation:1n,inventory_digest:new Uint8Array(32).fill(1),subjects:[Principal.fromUint8Array(Uint8Array.from([5,1]))],targets:[base,g2]}}};
  const revision=ok(await a.record_removal_recovery(removal));assert.equal(revision,1n);
  assert.equal(ok(await a.record_removal_recovery({...removal,operation_id:'equivalent-retry'})),1n);
  a.setPrincipal(identity);assert.deepEqual(ok(await a.read_recovery_record(revision)),removal);a.setPrincipal(owner);
