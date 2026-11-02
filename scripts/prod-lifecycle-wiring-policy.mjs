@@ -9,8 +9,9 @@ import { ADMISSION_FLAG, ADMISSION_AUTHORITY } from './prod-routing-gate-policy.
  * because they only name each group's own services and the PROD identities. */
 const LINK_CALLS = Object.freeze({
   club_domain: {
-    identity_access: { method: 'set_identity_access_canister', target: 'identity_access' },
-    media_store: { method: 'set_gallery_media_authority', target: 'media_blob_store' },
+    // The `media_store` row is the media quota store registry. Gallery
+    // authority is media_metadata and must never be pointed at the blob store.
+    media_store: { method: 'register_media_quota_store', target: 'media_blob_store' },
     competition_authority: { method: 'set_competition_domain_canister', target: 'competition_domain' },
   },
   notification_queue: { worker: { method: 'grant_worker', target: 'push_worker' } },
@@ -29,7 +30,10 @@ export function planLifecycleWiring(review, { ids, pushWorker } = {}) {
   for (const d of review.diagnostics) {
     for (const b of d.bindings) {
       if (b.result === 'matched') continue;
-      if (b.setting === ADMISSION_FLAG || b.setting === ADMISSION_AUTHORITY) {
+      // club_domain's identity link refuses until the removal switch is on,
+      // and an unset link reads back as "different"; both belong to the hold.
+      if (b.setting === ADMISSION_FLAG || b.setting === ADMISSION_AUTHORITY ||
+        (d.service === 'club_domain' && b.setting === 'identity_access')) {
         held.push({ group: d.group, service: d.service, canisterId: d.canisterId, setting: b.setting, reason: ADMISSION_HOLD });
         continue;
       }
@@ -61,4 +65,21 @@ export function lifecycleWiringSummary(plan) {
     ...(plan.unknown.length ? ['Not planned (value differs or target unknown; never overwritten):',
       ...plan.unknown.map(u => `- ${u.group}/${u.service}: ${u.setting} is ${u.result}`)] : []),
     'This plan executes nothing.'].join('\n') + '\n';
+}
+
+export const WIRING_CONFIRMATION = 'WIRE PROD LIFECYCLE';
+
+/** Every planned call is idempotent on the canister (an existing store or
+ * worker returns Ok unchanged), so a rerun after interruption cannot double-apply. */
+export const WIRING_METHODS = Object.freeze(['register_media_quota_store', 'grant_worker']);
+
+export function assertWiringApproval(plan, { reviewedHash, confirmation, groups }) {
+  if (confirmation !== WIRING_CONFIRMATION) throw new Error(`Exact confirmation required: ${WIRING_CONFIRMATION}`);
+  if (!/^[0-9a-f]{64}$/.test(reviewedHash ?? '')) throw new Error('Reviewed plan hash required (64 lowercase hex characters)');
+  if (!plan.ready.length) throw new Error('Nothing left to wire; rerun the read-only gate');
+  if (plan.planSha256 !== reviewedHash) throw new Error('Live wiring plan changed since review; re-run the read-only gate');
+  if (plan.ready.some(o => !WIRING_METHODS.includes(o.method))) throw new Error('Plan contains a call outside the closed wiring allowlist');
+  if (!Array.isArray(groups) || !groups.length || groups.some(g => g.accepting !== false))
+    throw new Error('Every group must stay CLOSED before wiring');
+  return true;
 }

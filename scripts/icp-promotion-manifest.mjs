@@ -65,6 +65,7 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-routing-gate.test.mjs',
   'scripts/prod-lifecycle-wiring-policy.mjs',
   'scripts/prod-lifecycle-wiring-policy.test.mjs',
+  'scripts/prod-lifecycle-wiring.mjs',
   'scripts/prod-cycles-topup-policy.mjs',
   'scripts/prod-cycles-topup.mjs',
   'scripts/prod-cycles-topup.test.mjs',
@@ -75,6 +76,7 @@ export const ICP_SOURCE_FILES = [
   'frontend/scripts/media-stage-two-github.mjs',
 
   '.github/workflows/promote-icp-prod.yml',
+  '.github/workflows/apply-prod-lifecycle-wiring.yml',
   '.github/workflows/fund-prod-canisters-by-card.yml',
   '.github/workflows/check-prod-canister-connections.yml',
   '.github/workflows/setup-prod-base-group.yml',

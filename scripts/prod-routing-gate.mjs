@@ -33,8 +33,9 @@ function managementReader(IDL) {
   });
 }
 
-async function main() {
-  const env = process.env;
+/** Reads every gate input and returns the review plus the signed SDK handles,
+ * so a separately approved runner can reuse the exact same readback. */
+export async function readRoutingGate(env, { log = true } = {}) {
   const ids = JSON.parse(readFileSync(path.join(ROOT, 'deploy/prod/.icp/data/mappings/ic.ids.json'), 'utf8'));
   const require = createRequire(path.join(env.CHECK_DEPS_DIR, 'package.json'));
   const { HttpAgent, Actor, CanisterStatus } = require('@icp-sdk/core/agent');
@@ -45,7 +46,7 @@ async function main() {
   const identity = identityFromPem(readFileSync(env.CHECK_KEY_PEM, 'utf8'), { Ed25519KeyIdentity, Secp256k1KeyIdentity });
   const principal = identity.getPrincipal().toText();
   assertRoutingGateContext(ids, env, principal);
-  console.log(`Signing as ${principal}`);
+  if (log) console.log(`Signing as ${principal}`);
 
   const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
   const publicAgent = await HttpAgent.create({ host: 'https://icp-api.io' });
@@ -118,6 +119,12 @@ async function main() {
 
   const review = reviewRoutingGate({ ids, principal, pushWorker: env.PROD_ICP_PUSH_WORKER_PRINCIPAL ?? env.PUSH_WORKER_PRINCIPAL,
     page, approval, services, routerConfig, identityConfig, checkedAt: new Date().toISOString() });
+  return { ids, review, page, agent, Actor, IDL, Principal };
+}
+
+async function main() {
+  const env = process.env;
+  const { ids, review } = await readRoutingGate(env);
   mkdirSync(env.CHECK_REPORT_DIR, { recursive: true });
   writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-routing-gate.json'), evidenceText(review));
   const wiring = planLifecycleWiring(review, { ids, pushWorker: env.PROD_ICP_PUSH_WORKER_PRINCIPAL ?? env.PUSH_WORKER_PRINCIPAL });
