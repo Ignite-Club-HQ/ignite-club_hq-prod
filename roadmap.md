@@ -1,5 +1,10 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — finish removal protections and review PROD approval (2 Nov 2026, 02:09 UTC)
+- [ ] Complete the production removal/admission protections and real local acceptance, retaining other-club access and existing data; do not enable candidate flags as a shortcut.
+- [ ] Prepare exact closed-only PROD release and readback after acceptance; execution requires the protected GitHub-held governor and reviewed source/module/inventory evidence.
+- [ ] Run a separate exact-evidence routing approval only after every non-approval gate passes; opening and delivery activation remain separate, and DEV stays unchanged.
+
 ## Current request — remaining PROD safety gates (2 Nov 2026)
 - [x] Continue: implement private offline independently expected exact base/g2 inventory comparison; six regression cases reject internally consistent infrastructure omissions, extra authorities, duplicates, role/store substitutions and binding/history drift. No release/pinning API or persistent state added.
 - [ ] Local replica acceptance is blocked on an installation stall reproducible with a minimal actor, not just the removal relay; local creation succeeds. Explicit initialization does not resolve it. Runner now reports the stage and always stops its own server after bounded cleanup; real twelve-service acceptance is still required.
