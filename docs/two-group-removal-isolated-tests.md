@@ -7,6 +7,14 @@ mainnet calls, payment, delivery schedule, database changes or release action.
 
 ## What the new integration run checks
 
+The workflow now runs the same complete scenario twice: rehearsal receivers and
+non-rehearsal production-candidate receivers. Both use the real identity
+coordinator in rehearsal mode; the latter is explicitly labelled
+`production-receivers-rehearsal-coordinator`, not production authorization.
+Authenticated effective-mode readbacks cover all 24 human services and four
+infrastructure receivers; outsiders must be refused. No alias-reader authority
+is inferred from a receiver's production-mode configuration.
+
 - One real identity coordinator, one router and one shared workload service.
 - Independent base/g2 copies of all twelve human-data receivers, including each
   group's photo store, plus two actual timers: exactly 28 frozen remote targets.
@@ -50,7 +58,8 @@ and authority locks to remain intact. Success records
 Completion is persistent fencing/drain evidence, not destructive erasure.
 
 Download `two-group-removal-isolated`: it includes the installation/host report
-and incremental `two-group-removal-report.json`, with module hashes, checks and
+and incremental `two-group-removal-rehearsal.json` and
+`two-group-removal-production-candidate.json`, with module hashes, checks and
 unresolved infrastructure. A failure retains completed checks and the failed
 stage. Transport errors are not accepted as generic denial evidence.
 
@@ -59,8 +68,11 @@ suite cannot claim complete non-rehearsal production acceptance. Existing
 seven-receiver tests independently exercise observed held-admission callbacks
 in rehearsal and production-candidate modes; the new run adds shared real
 two-group inventory/identity/data integration rather than relabeling those tests.
-Complete callback-path coverage, original-schema upgrades, coordinated history
-rollback, terminal erasure and infrastructure completion remain unproven.
+Complete non-rehearsal identity authorization, callback-path coverage,
+original-schema upgrades, coordinated history rollback and terminal erasure
+remain unproven. Infrastructure sealing passed in the uploaded older rehearsal
+artifact; new terminal completion and production receiver runtime checks still
+require a fresh supported-worker run.
 Previously downloaded plaintext or cached keys are not revocable by this test.
 
 Local validation runs inventory/seal rule tests and exact generated-contract

@@ -2,6 +2,42 @@
 
 ## Scope and current evidence
 
+### Authenticated production review and expanded receiver tests (2 November, 03:55 UTC)
+
+Added consensus `read_account_protection_configuration` to all twelve human
+receiver types and the router/timer/workload infrastructure. Only the configured
+identity may read it. It reports the actual guard's receiver, authority, protocol,
+admission/removal flags and rehearsal mode; it grants no permissions or aliases.
+The club media-registry read now admits the same exact configured identity in
+candidate production removal mode, without opening ordinary registry/admin APIs.
+Contracts and both generated binding trees were updated.
+
+The production review endpoint now has real receiver APIs to call. It verifies
+exact base/g2 and original router/media inventory, expected identity/module
+hashes, closed groups, configuration revisions and bracketing replica lifecycle
+counts. It returns only a draft with `release_authorized=false` and
+`recovery_accepted=false`.
+
+**This does not finish production authorization.** `read_service_account` still
+requires rehearsal. A separately stored identity-owned accepted inventory and
+scoped alias-reader capability, permission-preserving externally fenced recovery,
+and a real non-rehearsal identity runtime flow are still required. Caller-provided
+expectations and matching draft/fixture hashes cannot supply that acceptance.
+No flag was widened and no production permission or release operation was added.
+
+The existing manual two-group workflow now runs both receiver modes, checks
+authenticated configurations and permanent completion, and clearly records that
+identity coordination is still rehearsal. These expanded runtime scenarios have
+not run: a fresh host probe reports gVisor writeBit=0 and no GitHub dispatch
+credential is available. Owner execution on the supported native worker remains
+necessary; it will not by itself resolve the unfinished identity authorization.
+
+Validation: 201 identity, 56 router, 16 timer and 18 shared Rust tests pass;
+24 isolated inventory/recovery/cleanup tests pass; Motoko protection and receiver
+tests pass; all thirteen Motoko actors compile; Rust upgrade Wasm compiles;
+17 active contract drift checks pass; preview reports build OK. No live upgrade,
+funding, database change, routing approval or opening was run.
+
 ### Verified owner evidence and terminal completion batch (2 November, 03:32 UTC)
 
 The uploaded `two-group-removal-isolated.zip` contains a successful supported-host
