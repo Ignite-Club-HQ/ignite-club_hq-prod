@@ -7,6 +7,7 @@ import Cycles "mo:core/Cycles";
 import Array "mo:core/Array";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";
+import Nat32 "mo:core/Nat32";
 import Nat64 "mo:core/Nat64";
 import Option "mo:core/Option";
 import Principal "mo:core/Principal";
