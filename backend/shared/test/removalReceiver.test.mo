@@ -36,3 +36,17 @@ assert restored.seal(outsider, request, identity, 0) == #Err("Configured rehears
 switch (restored.receipt(identity, request, identity, 0)) { case (#Ok(r)) assert r.outstanding == 0; case _ assert false };
 assert restored.enter(outsider);
 assert Receiver.Gate(false, ?identity, intents, subjects, active).prepare(identity, request) == #Err("Configured rehearsal identity required");
+// Turning configuration off never reopens a retained subject or legacy reads.
+let disabled = Receiver.Gate(false, ?identity, intents, subjects, active);
+assert not disabled.enter(subject);
+assert disabled.protectedReadsRequired();
+assert disabled.snapshotDenied(Principal.toBlob(subject));
+disabled.leave(outsider);
+assert active.get(outsider) == null;
+assert disabled.enter(outsider);
+assert active.get(outsider) == ?1;
+disabled.leave(outsider);
+assert active.get(outsider) == null;
+let empty = Receiver.Gate(false, null, Map.empty<Text, Receiver.Request>(), Map.empty<Principal, Text>(), Map.empty<Principal, Nat>());
+assert not empty.protectedReadsRequired();
+assert empty.enter(outsider);

@@ -1,6 +1,6 @@
 import Principal "mo:core/Principal";
 
-/// Local rehearsal admission only. Evidence is never a resource grant or a
+/// Explicit admission protection. Evidence is never a resource grant or a
 /// global fencing token; callers still enforce their own current permissions.
 module {
   public type Evidence = { subject : Principal; decision : { #Eligible; #Denied }; account_version : ?Nat64; denied_through_version : ?Nat64 };
@@ -22,8 +22,9 @@ module {
     public func active() : Bool { enabled };
     public func eligible(subject : Principal) : async Bool {
       if (not enabled) return true;
-      if (Principal.isAnonymous(subject)) return false;
+      if (Principal.isAnonymous(subject) or subject == Principal.fromText("aaaaa-aa")) return false;
       let id = switch (authority) { case null return false; case (?id) id };
+      if (Principal.isAnonymous(id) or id == Principal.fromText("aaaaa-aa")) return false;
       let service : actor { read_principal_eligibility : shared (Principal) -> async { #Ok : Evidence; #Err : Text } } = actor(id.toText());
       try {
         switch (await (with timeout = 10) service.read_principal_eligibility(subject)) {
