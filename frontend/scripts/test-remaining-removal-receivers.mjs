@@ -1,9 +1,11 @@
 // Real local actors, always-eligible delayed authority. Candidate non-rehearsal
 // modes are local test inputs only, never production release/opening evidence.
 import assert from 'node:assert/strict';
-import { PocketIc, PocketIcServer } from '@dfinity/pic';
+import { PocketIc } from '@dfinity/pic';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
+import { startRemovalLocalServer } from './removal-local-supervisor.mjs';
+import { removalInstallPreflight } from './removal-install-preflight.mjs';
 const principal=n=>Principal.fromUint8Array(Uint8Array.from([n,1]));
 const governor=principal(1), removed=principal(2), survivor=principal(3);
 const candidate = process.env.REMOVAL_TEST_MODE === 'production-candidate';
@@ -25,10 +27,12 @@ const probes={
   insights_domain:['record_web_vital',['LCP',12,'good','/receiver']],
   notification_queue:['read_account_get_push_alert_settings',[]],
 };
-const server=await PocketIcServer.start({showCanisterLogs:true});let pic;
+await removalInstallPreflight({ binary: process.env.POCKET_IC_BIN,
+ wasm: process.env.REMOVAL_INSTALL_PROBE_WASM, reportPath: process.env.REMOVAL_INSTALL_REPORT });
+const server=await startRemovalLocalServer({binary:process.env.POCKET_IC_BIN,hardTtlSeconds:900});let pic;
 let stage='create local replica';
 try{
- pic=await PocketIc.create(server.getUrl(),{processingTimeoutMs:120000});
+ pic=await PocketIc.create(server.url,{processingTimeoutMs:120000});
  assert.ok(process.env.REMOVAL_RELAY_WASM,'Real relay Wasm required');
  stage='install local removal relay';
  const relay=await pic.setupCanister({idlFactory:relayIdl,wasm:process.env.REMOVAL_RELAY_WASM,sender:governor,controllers:[governor],arg:IDL.encode([],[])});

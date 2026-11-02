@@ -75,6 +75,40 @@ installation does not finish. The relay alone is therefore not established as
 the cause. The runner now names its failure stage and attempts bounded cleanup
 before always stopping its own local server. No real receiver pass is claimed.
 
+### Approved completion plan — installation prerequisite (2 November, 02:09 UTC)
+
+Added `backend/shared/test/removalInstallProbe.mo`, a disposable actor whose
+`ping` must return exactly 1, and `frontend/scripts/removal-install-preflight.mjs`.
+The preflight records the pinned PocketIC 14.0.0 binary hash, actual probe Wasm
+hash, failure stage and elapsed time. Its report explicitly denies release and
+receiver acceptance, even when installation succeeds. The remaining-receivers
+runner now requires this preflight before starting any service scenarios.
+
+`removal-local-supervisor.mjs` binds only loopback and owns a detached local
+process group with a hard lifetime. Cleanup sends signals only to that owned
+group, terminates hung descendants and never scans for unrelated processes.
+Three concrete tests cover missing/relative binary refusal, lifetime bounds and
+termination while preserving a separate unrelated process. Together with
+workflow naming and routing guards, 25 tests pass; identity baseline is 197
+passing tests and the separate release-gate baseline is 19 passing tests.
+
+The current real probe failed at **install minimal actor** after about 42 seconds
+and wrote a negative report; it did not begin receiver scenarios. Independent
+local diagnosis installed raw empty Wasm and a memory/data-only Wasm successfully,
+while the Motoko actor stalled after successful compilation. The runtime repeated
+a memory-protection fault loop. This narrows the fault to Motoko runtime execution
+in the local test environment, but establishes no supported workaround. Shutdown
+panics after terminating owned processes are not the original cause.
+
+Manual workflow `[TEST] Check isolated removal test installation` runs the same
+real probe on an isolated Ubuntu worker, with no governor credentials, mapped
+canisters, mainnet calls or release action. It saves `removal-installation-only`
+evidence even on failure. A successful run is **only** the environment prerequisite
+for completing real twelve-service acceptance, not authority to deploy or open.
+This sandbox has no available GitHub execution credential, so the workflow has
+not been dispatched here. No PROD approval recorder or admission activation has
+been added by this installation-preparation batch.
+
 | Work | Required behavior | Existing implementation / gap |
 |---|---|---|
 | Base acceptance | Independently validate original/shared and supplemental authorities, not just allow `base` as a group name | `identity_access/src/admission.rs` only releases new-group readers |

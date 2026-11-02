@@ -55,6 +55,7 @@
 - mediaOperatorLive loads governor actors, consensus group/quota registries, certified store subnet/controllers and complete reference readers; engine roots and missing legacy provenance fail closed. Caller-persisted journals and local tests never authorize encrypted moves. Why: transport cannot prove old encryption identities or device read-back.
 - accountGroupAuthorities is a governor-only LOCAL composition over a supplied full deployment inventory, not completeness evidence; production group activation is blocked in routerProvisionSteps and membership paging never invokes unreleased sync. Why: callbacks and local receipt tests cannot attest authority-wide revocation.
 - domains adapts exact-signature read_account_* twins only in development on loopback targets through accountReadAdapter; remote/published actors stay identical and protected-read failures never fall back or retry. Why: rehearsal must exercise existing feature reads without releasing prototype admission.
+- Removal receiver acceptance first runs a hash-reported minimal installation probe with pinned PocketIC and an owned, deadline-bounded local process group; installation success never grants receiver acceptance or release. Why: this sandbox stalls even on a minimal actor, and cleanup must not hang or terminate unrelated servers.
 
 - Retired URLs: App.tsx ParamRedirect, not 404.
 - Pending sends are QueryClient-scoped; settle temp IDs from server acknowledgements, not photo presence. Why: avoid duplicates after navigation.
