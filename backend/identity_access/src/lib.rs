@@ -1219,7 +1219,7 @@ async fn authorize_production_account_readers(approval:production_account_author
     let operator=ic_cdk::api::msg_caller();require_governor(&state(),operator)?;
     if account_group_rehearsal_enabled(){return Err("Production authorization cannot use rehearsal".into());}
     let prior=production_authorization();
-    let next=production_account_authorization::authorize(&prior,approval.clone(),ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
+    let next=production_account_authorization::authorize(&prior,&approval,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
     let revision=approval.body.expectation.inventory.groups.history_revision;
     let observed=collect_production_account_protection(approval.body.expectation.clone(),revision,true).await?;
     if observed!=approval.body.review {return Err("Live production review differs from independently signed acceptance".into());}
