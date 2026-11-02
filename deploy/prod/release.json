@@ -1,23 +1,23 @@
 {
   "canisters": {
-    "identity_access": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "placement_registry": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "migration_coordinator": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "secret_workload_identity": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "pii_access_control": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "timer_jobs": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "club_domain": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "events_domain": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "competition_domain": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "mini_league_domain": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "messaging_domain": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "notification_queue": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "media_metadata": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "media_blob_store": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "vault_domain": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "club_points_domain": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "insights_domain": "1be11532ce57364563f1dbcbeaa967154075ca45",
-    "shard_router": "1be11532ce57364563f1dbcbeaa967154075ca45"
+    "identity_access": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "placement_registry": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "migration_coordinator": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "secret_workload_identity": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "pii_access_control": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "timer_jobs": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "club_domain": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "events_domain": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "competition_domain": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "mini_league_domain": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "messaging_domain": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "notification_queue": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "media_metadata": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "media_blob_store": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "vault_domain": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "club_points_domain": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "insights_domain": "d7049acc9916e46713f41c8f3570ed23f8a1c500",
+    "shard_router": "d7049acc9916e46713f41c8f3570ed23f8a1c500"
   },
-  "updatedAt": "2026-10-31T23:37:34.258Z"
+  "updatedAt": "2026-11-02T23:44:50.054Z"
 }
