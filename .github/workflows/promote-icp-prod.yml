@@ -184,6 +184,11 @@ jobs:
           NAMES="$(node scripts/icp-environments.mjs changed prod "$GITHUB_SHA")"
           if [ -z "$NAMES" ]; then echo "No PROD canister code changed."; exit 0; fi
           echo "### Upgrading PROD canisters: $NAMES" >> "$GITHUB_STEP_SUMMARY"
+          # Without the web-app layer the photo-key check still runs: install only
+          # its two libraries, at the tested versions, into this runner checkout.
+          if [ ! -f frontend/package.json ]; then
+            (cd frontend && npm install --no-save --no-package-lock --no-fund --no-audit @icp-sdk/core@5.4.0 @icp-sdk/vetkeys@0.7.0)
+          fi
           node frontend/scripts/media-key-deploy-preflight.mjs before "$IDS" "$RECEIPT" prod ic
           for NAME in $NAMES; do
             echo "==> Upgrading $NAME"
