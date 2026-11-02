@@ -24,6 +24,20 @@ export const LANDING_TOLERANCE = 1_000_000_000n;
 export const DEPOSIT_FEE_BUDGET = 1_000_000_000n;
 export const DEPOSIT_DEDUP_WINDOW_NS = CREATE_DEDUP_WINDOW_NS;
 
+/** Start a fresh review only after a settled run. Keep the complete previous
+ * receipt in the durable journal; never carry its deposits into the new run. */
+export function createTopupPlanReceipt(plan, previous) {
+  if (previous?.pending || (previous && !['planned', 'fueled'].includes(previous.phase)))
+    throw new Error('Unresolved intent; reconcile without replay');
+  if (previous && (previous.version !== 1 || previous.planHash !== hashTopupPlan(previous.plan)))
+    throw new Error('Reviewed top-up plan receipt required');
+  if (previous?.phase === 'fueled' && previous.planHash === plan.planHash)
+    throw new Error('Top-up already completed; this tool never replays a finished run');
+  return { version: 1, phase: 'planned', pending: null, planHash: plan.planHash, plan,
+    ...(previous?.phase === 'fueled' ? { previousCompleted: previous }
+      : previous?.previousCompleted ? { previousCompleted: previous.previousCompleted } : {}) };
+}
+
 const decimal = n => /^(0|[1-9][0-9]*)$/.test(String(n)) ? String(n) : undefined;
 const rows = list => Array.isArray(list) ? list : [];
 

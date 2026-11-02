@@ -14,7 +14,7 @@ import { expectedServices, readFuelBalance } from './prod-routing-gate-policy.mj
 import { githubJournal } from './prod-base-group.mjs';
 import { topupService, cyclesService } from './prod-g2-idl.mjs';
 import { assertTopupContext, planCyclesTopup, topupSummary, assertReviewedTopupPlan,
-  runCyclesTopup, resumeTopupIntent, topupResultSummary, TOPUP_RECEIPT_PATH } from './prod-cycles-topup-policy.mjs';
+  runCyclesTopup, resumeTopupIntent, topupResultSummary, TOPUP_RECEIPT_PATH, createTopupPlanReceipt } from './prod-cycles-topup-policy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CYCLES_LEDGER = 'um5iw-rqaaa-aaaaq-qaaba-cai';
@@ -135,11 +135,7 @@ async function main() {
   if (receipt) writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-cycles-topup-receipt.json'), evidenceText(receipt));
 
   if (action === 'plan') {
-    if (receipt?.pending || (receipt && !['planned', 'fueled'].includes(receipt.phase)))
-      throw new Error('Unresolved intent; reconcile without replay');
-    if (receipt?.phase === 'fueled')
-      throw new Error('Top-up already completed; this tool never replays a finished run');
-    const planned = { version: 1, phase: 'planned', pending: null, planHash: plan.planHash, plan };
+    const planned = createTopupPlanReceipt(plan, receipt);
     await journal.save(planned);
     writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-cycles-topup-receipt.json'), evidenceText(planned));
     const lines = topupSummary(plan).split('\n');

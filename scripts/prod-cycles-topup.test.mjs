@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { planCyclesTopup, hashTopupPlan, topupSummary, assertTopupContext, assertReviewedTopupPlan,
-  planDeposits, runCyclesTopup, resumeTopupIntent, topupResultSummary,
+  planDeposits, runCyclesTopup, resumeTopupIntent, topupResultSummary, createTopupPlanReceipt,
   TOPUP_CONFIRMATION, DEPOSIT_FEE_BUDGET, TOPUP_RECEIPT_PATH, LANDING_TOLERANCE } from './prod-cycles-topup-policy.mjs';
 import { PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 
@@ -133,6 +133,41 @@ const plannedInput = { page, checkedAt: AT, services: allServices({ base: String
   signingAccount: { balance: String(4n * T), balanceRead: 'readback' } };
 const plannedPlan = () => planCyclesTopup(plannedInput);
 const plannedReceipt = plan => ({ version: 1, phase: 'planned', pending: null, planHash: plan.planHash, plan });
+
+test('a fresh 30B reserve plan preserves the finished receipt without reusing deposits', async () => {
+  const oldPlan = plannedPlan();
+  const old = { ...plannedReceipt(oldPlan), phase: 'fueled', completed: [{ amount: '500000000000' }], deposits: [{ amount: '500000000000' }] };
+  const before = JSON.stringify(old);
+  const plan = planCyclesTopup({ ...plannedInput, reserveCycles: '30000000000',
+    services: allServices({ base: String(T), g2: String(T) }) });
+  const fresh = createTopupPlanReceipt(plan, old);
+  assert.equal(fresh.phase, 'planned');
+  assert.equal(fresh.plan.items[0].target, '1030000000000');
+  assert.equal(fresh.plan.totals.totalTopUp, '180000000000');
+  assert.deepEqual(fresh.previousCompleted, old);
+  assert.equal(JSON.stringify(old), before);
+  assert.equal(fresh.deposits, undefined);
+  assert.equal(fresh.completed, undefined);
+  assert.throws(() => assertReviewedTopupPlan(fresh.plan, old.planHash, plan), /does not match/);
+  const balances = new Map(plan.items.map(i => [i.id, T]));
+  const amounts = [];
+  await runCyclesTopup({ plan, receipt: fresh, checkpoint: async () => {}, nowNs: () => 1000000000000000000n,
+    calls: { cyclesOf: async id => balances.get(id), accountBalance: async () => T,
+      deposit: async ({ to, amount }) => { amounts.push(amount); balances.set(to, balances.get(to) + amount); return { blockIndex: '9' }; } } });
+  assert.deepEqual(amounts, Array(6).fill(30000000000n));
+  const replanned = createTopupPlanReceipt(plan, fresh);
+  assert.deepEqual(replanned.previousCompleted, old);
+});
+
+test('fresh planning refuses unresolved, corrupted and exact completed receipts', () => {
+  const plan = plannedPlan();
+  const old = { ...plannedReceipt(plan), phase: 'fueled' };
+  assert.throws(() => createTopupPlanReceipt(plan, old), /never replays/);
+  for (const phase of ['topping', 'verifying', 'unknown'])
+    assert.throws(() => createTopupPlanReceipt(plan, { ...old, phase }), /Unresolved intent/);
+  assert.throws(() => createTopupPlanReceipt(plan, { ...old, pending: { kind: 'deposit' } }), /Unresolved intent/);
+  assert.throws(() => createTopupPlanReceipt(plan, { ...old, planHash: '0'.repeat(64) }), /Reviewed top-up plan receipt required/);
+});
 
 test('topup-closed requires the exact confirmation', () => {
   const ids = { ...PROD_CHECK_IDS };
