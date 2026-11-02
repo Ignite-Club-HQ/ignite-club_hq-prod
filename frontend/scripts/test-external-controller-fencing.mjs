@@ -104,7 +104,8 @@ try {
   for (const t of targets) {
     const status = await readControllerStatus(pic, { canisterId: t.canisterId, sender: owner });
     assertExclusiveController(status, owner);
-    before.set(t.name, { ...fenceSnapshot(status), changes: (await lifecycle(t.canisterId)).changes });
+    const info = await lifecycle(t.canisterId);
+    before.set(t.name, { ...fenceSnapshot(status), changes: info.changes, lifecycleModule: info.module });
   }
   const journalBefore = ok(await w.read_recovery_head());
   stage = 'hand exclusive control to one independent external fence';
@@ -121,7 +122,11 @@ try {
     const after = await lifecycle(t.canisterId);
     assert.ok(after.changes > before.get(t.name).changes,
       `Controller handover on ${t.name} must advance the management change count`);
-    assert.equal(after.module, before.get(t.name).module, 'Fencing must not replace the module');
+    assert.ok(before.get(t.name).lifecycleModule, `Lifecycle reader must report a module for ${t.name}`);
+    assert.equal(Buffer.from(after.module).toString('hex'), Buffer.from(before.get(t.name).lifecycleModule).toString('hex'),
+      'Fencing must not replace the module');
+    assert.equal(Buffer.from(after.module).toString('hex'), before.get(t.name).moduleHash,
+      'Lifecycle reader and controller status must agree on the module');
   }
   mark('Independent lifecycle reader still authenticates every fenced target and sees the handover');
   stage = 'verify the accepted recovery journal survives a controller change';
