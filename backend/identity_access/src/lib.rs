@@ -1329,8 +1329,11 @@ async fn check_production_witness(approval:&production_account_authorization::Si
 async fn check_production_subject_witness(approval:&production_account_authorization::SignedApproval,account:&Account)->Outcome<()> {
     let witness=production_account_authorization::witness()?;
     if witness==ic_cdk::api::canister_self() || approval.body.review.targets.contains(&witness){return Err("Independent recovery witness required".into());}
-    let request=recovery_protocol::AccountReadRequest {request:production_account_authorization::request(approval,next_production_request()?,removal_history_revision(),
-        REMOVAL_GENERATION.with(|m|*m.borrow().get()),ic_cdk::api::canister_version())?,account_id:account.id.clone(),subjects:account.principals.clone()};
+    let legacy=production_account_authorization::request(approval,next_production_request()?,removal_history_revision(),
+        REMOVAL_GENERATION.with(|m|*m.borrow().get()),ic_cdk::api::canister_version())?;
+    let request=recovery_protocol::AccountReadRequest {request:recovery_protocol::WitnessRequest {identity:legacy.identity,generation:legacy.generation,
+        recovery_epoch:legacy.recovery_epoch,signed_digest:legacy.signed_digest,request_id:legacy.request_id,history_revision:legacy.history_revision,
+        removal_generation:legacy.removal_generation,identity_version:legacy.identity_version},account_id:account.id.clone(),subjects:account.principals.clone()};
     let reply=ic_cdk::call::Call::bounded_wait(witness,"verify_production_subject_read_fence").with_arg(&request).await.map_err(|_|"Independent subject witness unavailable")?;
     let receipt:Outcome<recovery_protocol::AccountReadReceipt>=reply.candid().map_err(|_|"Invalid independent subject witness reply")?;
     if receipt?.request!=request || removal_history_revision()!=request.request.history_revision || REMOVAL_GENERATION.with(|m|*m.borrow().get())!=request.request.removal_generation ||
