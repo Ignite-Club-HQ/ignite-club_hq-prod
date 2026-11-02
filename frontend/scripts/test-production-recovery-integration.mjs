@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PocketIc } from '@dfinity/pic';
+import { allowLongUpdates } from './pocket-ic-long-updates.mjs';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 import { idlFactory as witnessFactory } from '../src/lab/bindings/recovery_witness/declarations/recovery_witness.did.js';
@@ -30,7 +31,7 @@ try {
  assert.ok(process.env.PRODUCTION_RECOVERY_REPORT,'Evidence destination required');
  report.host=removalHostPreflight();
  server=await startRemovalLocalServer({binary:process.env.POCKET_IC_BIN,hardTtlSeconds:900});
- pic=await PocketIc.create(server.url,{processingTimeoutMs:60000});
+ pic=await PocketIc.create(server.url,{processingTimeoutMs:60000});allowLongUpdates(pic);
  const identityId=await pic.createCanister({sender:owner,controllers:[owner]});
  const witnessId=await pic.createCanister({sender:owner,controllers:[owner]});
  // Ephemeral local keys; private keys are neither logged nor stored in artifacts.
