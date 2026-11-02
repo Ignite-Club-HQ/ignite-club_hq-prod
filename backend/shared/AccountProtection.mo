@@ -18,4 +18,8 @@ module {
   public func admissionRequired(value : Mode) : Bool { value != #Legacy };
   public func removalEnabled(value : Mode) : Bool { value == #Rehearsal or value == #ProductionRemoval };
   public func valid(value : Mode) : Bool { value != #Invalid };
+  // Clearing an external-send lease is never evidence that fenced work ended.
+  public func canRecoverLease(value : Mode, fenced : Bool) : Bool {
+    not admissionRequired(value) and not fenced
+  };
 }

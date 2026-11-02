@@ -950,7 +950,7 @@ persistent actor class Main(governorInit : Principal) = this {
     var recovered : Nat16 = 0;
     var index = 0;
     for (item in items.values()) {
-      if (item.status == #Processing and not accountAdmissionEnabled) {
+      if (item.status == #Processing and AccountProtection.canRecoverLease(accountProtectionMode, recipientFenced(item.user))) {
         replace(index, { item with status = #Pending });
         clearLease(item.id);
         recovered += 1;
