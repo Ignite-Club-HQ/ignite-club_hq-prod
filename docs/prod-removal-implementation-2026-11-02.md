@@ -55,6 +55,26 @@ production recovery transport was added. No live setting, upgrade, database,
 approval, payment, push activation or opening was performed. Do not run a flag
 change or a production upgrade based on this candidate alone.
 
+### Independent expectation comparison
+
+`identity_access/src/expected_removal_inventory.rs` now compares complete
+base/g2 evidence against a separately supplied expectation. It preserves role
+and placement tuples, revisions, original supplemental infrastructure and each
+club's full store list; reordered equivalent rows pass, while duplicates,
+omissions, substitutions and extra allowlisted authorities fail. An internally
+consistent observation that omits the expected router fails explicitly.
+
+This private offline validator has no Candid API, persistent state, trust pin,
+admission grant or erasure/opening action. It is not connected to production
+release: independent evidence provenance and authenticated acceptance remain
+required. Six focused tests pass.
+
+Local replica diagnosis also reproduces the stall installing a minimal actor,
+with both encoded-empty initialization and legacy persistence. Creation works;
+installation does not finish. The relay alone is therefore not established as
+the cause. The runner now names its failure stage and attempts bounded cleanup
+before always stopping its own local server. No real receiver pass is claimed.
+
 | Work | Required behavior | Existing implementation / gap |
 |---|---|---|
 | Base acceptance | Independently validate original/shared and supplemental authorities, not just allow `base` as a group name | `identity_access/src/admission.rs` only releases new-group readers |
