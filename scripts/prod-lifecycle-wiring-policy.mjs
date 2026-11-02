@@ -12,7 +12,6 @@ const LINK_CALLS = Object.freeze({
     // The `media_store` row is the media quota store registry. Gallery
     // authority is media_metadata and must never be pointed at the blob store.
     media_store: { method: 'register_media_quota_store', target: 'media_blob_store' },
-    competition_authority: { method: 'set_competition_domain_canister', target: 'competition_domain' },
   },
   notification_queue: { worker: { method: 'grant_worker', target: 'push_worker' } },
   timer_jobs: { 'worker:*': { method: 'grant_worker', target: 'push_worker' } },

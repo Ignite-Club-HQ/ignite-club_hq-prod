@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planLifecycleWiring, assertWiringApproval, WIRING_CONFIRMATION } from './prod-lifecycle-wiring-policy.mjs';
+import { planLifecycleWiring, assertWiringApproval, WIRING_CONFIRMATION, WIRING_METHODS } from './prod-lifecycle-wiring-policy.mjs';
 
 const ids = { identity_access: 'iden-cai' };
 const diag = (group, service, canisterId, bindings) => ({ group, service, canisterId, bindings });
@@ -48,4 +48,13 @@ test('apply needs the exact hash, confirmation and closed groups', () => {
   assert.throws(() => assertWiringApproval(plan, { ...ok, confirmation: 'yes' }), /Exact confirmation/);
   assert.throws(() => assertWiringApproval(plan, { ...ok, reviewedHash: 'a'.repeat(64) }), /changed since review/);
   assert.throws(() => assertWiringApproval(plan, { ...ok, groups: [{ id: 'base', accepting: true }] }), /CLOSED/);
+});
+
+test('every advertised ready call is executable; unaudited competition setter stays held', () => {
+  const input = structuredClone(review);
+  input.diagnostics[0].bindings.find(b => b.setting === 'competition_authority').result = 'missing';
+  const plan = planLifecycleWiring(input, { ids, pushWorker: 'push-p' });
+  assert.ok(plan.ready.length > 0);
+  assert.ok(plan.ready.every(o => WIRING_METHODS.includes(o.method)));
+  assert.ok(plan.unknown.some(o => o.setting === 'competition_authority'));
 });

@@ -25,7 +25,7 @@ pub fn readers(groups: &[Group], placements: &[Placement], binding: &Binding) ->
 }
 pub fn group_readers(group_id: &str, groups: &[Group], placements: &[Placement], binding: &Binding) -> Result<Vec<Principal>, String> {
     if !valid_group_id(group_id) { return Err("New group id (g2 or later) required".into()); }
-    if binding.target_alias != "mainnet" || binding.deployment_id != "mainnet" || binding.host != "https://icp-api.io" ||
+    if binding.target_alias != "mainnet" || !["mainnet", "prod"].contains(&binding.deployment_id.as_str()) || binding.host != "https://icp-api.io" ||
         binding.network_kind != "public_mainnet" { return Err("Exact mainnet admission binding required".into()); }
     let snapshot = crate::group_inventory::Snapshot { revision: binding.registry_revision,
         groups: groups.iter().map(|g| crate::group_inventory::Group { id:g.id.clone(),target_alias:g.target_alias.clone(),domains:g.domains.clone() }).collect(),
@@ -82,5 +82,28 @@ pub fn group_readers(group_id: &str, groups: &[Group], placements: &[Placement],
         assert!(!g3.contains(&groups[0].photo_store.unwrap()));
         assert!(group_readers("g1",&groups,&placements,&b).is_err());
         assert!(group_readers("g9",&groups,&placements,&b).is_err());
+    }
+    #[test] fn production_binding_matches_every_placement_without_authorizing_base() {
+        let (s, mut b, _) = crate::group_inventory::tests::fixture();
+        b.target_alias = "mainnet".into(); b.deployment_id = "prod".into(); b.host = "https://icp-api.io".into();
+        let groups: Vec<_> = s.groups.into_iter().enumerate().map(|(i, g)| Group {
+            id: if i == 0 { "base".into() } else { "g2".into() },
+            target_alias: b.target_alias.clone(), domains: g.domains,
+            photo_store: Some(Principal::from_slice(&[91 + i as u8, 1])),
+        }).collect();
+        let mut placements = s.placements;
+        for (i, p) in placements.iter_mut().enumerate() {
+            p.group_id = groups[i].id.clone(); p.deployment_id = b.deployment_id.clone(); p.host = b.host.clone();
+        }
+        let authorized = group_readers("g2", &groups, &placements, &b).unwrap();
+        assert_eq!(authorized.len(), 12);
+        assert!(!authorized.contains(&groups[0].domains[0].canister));
+        assert!(group_readers("base", &groups, &placements, &b).is_err());
+        let mut mixed = placements.clone(); mixed[0].deployment_id = "mainnet".into();
+        assert!(group_readers("g2", &groups, &mixed, &b).is_err());
+        for foreign in ["dev", "replica", "production", ""] {
+            let mut bad = b.clone(); bad.deployment_id = foreign.into();
+            assert!(group_readers("g2", &groups, &placements, &bad).is_err());
+        }
     }
 }
