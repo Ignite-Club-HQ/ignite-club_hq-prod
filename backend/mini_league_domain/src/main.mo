@@ -2,6 +2,7 @@ import PrivateNameWriterWindow "../../shared/PrivateNameWriterWindow";
 import PrivateNameWriterEndpoints "../../shared/PrivateNameWriterEndpoints";
 import AccountAdmission "../../shared/AccountAdmission";
 import AccountProtection "../../shared/AccountProtection";
+import AccountProtectionEndpoints "../../shared/AccountProtectionEndpoints";
 import OpeningConfiguration "../../shared/OpeningConfiguration";
 import RemovalReceiver "../../shared/RemovalReceiver";
 import RemovalEndpoints "../../shared/PrivateNameRemovalEndpoints";
@@ -39,6 +40,7 @@ persistent actor class Main(governorInit : Principal) = this {
   transient let privateNameWriterGate = PrivateNameWriterWindow.Gate(Runtime.envVar<system>("IGNITE_PRIVATE_NAME_WRITER_REHEARSAL") == ?"1", accountAdmissionAuthority, private_name_writer_intents, 4096);
   include PrivateNameWriterEndpoints(privateNameWriterGate, Principal.fromActor(this));
 
+  include AccountProtectionEndpoints(accountProtectionMode, accountAdmissionAuthority, Principal.fromActor(this));
   var removal_intents : Map.Map<Text, RemovalReceiver.Request>;
   var removal_subjects : Map.Map<Principal, Text>;
   var removal_active : Map.Map<Principal, Nat>;

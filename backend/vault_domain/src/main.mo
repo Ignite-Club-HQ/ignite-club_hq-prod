@@ -1,5 +1,6 @@
 import AccountAdmission "../../shared/AccountAdmission";
 import AccountProtection "../../shared/AccountProtection";
+import AccountProtectionEndpoints "../../shared/AccountProtectionEndpoints";
 import OpeningConfiguration "../../shared/OpeningConfiguration";
 import RemovalReceiver "../../shared/RemovalReceiver";
 import Error "mo:core/Error";
@@ -35,6 +36,7 @@ persistent actor class Main(governorInit : Principal) = this {
   transient let accountAdmissionAuthority = switch (Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")) {
     case (?id) ?Principal.fromText(id); case null null
   };
+  include AccountProtectionEndpoints(accountProtectionMode, accountAdmissionAuthority, Principal.fromActor(this));
   var removal_intents : Map.Map<Text, RemovalReceiver.Request>;
   var removal_subjects : Map.Map<Principal, Text>;
   var removal_active : Map.Map<Principal, Nat>;
