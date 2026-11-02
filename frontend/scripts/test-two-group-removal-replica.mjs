@@ -141,20 +141,20 @@ try{
  // Restore only the reviewed fixture grant to exercise a real pending callback.
  ok(await base.services.club_domain.actor.restore_member(base.club,primary));
  ok(await base.services.club_domain.actor.add_role_grant(primary,base.club,'club_admin',[]));
- // Stop the real delegated club authority and submit an actual chat read.
- // The stopped authority is independently observed; no fixture returns Eligible.
- await pic.stopCanister({canisterId:second.services.club_domain.canisterId,sender:governor});
+ // Queue a real private read while its receiver is stopped. Inventory authorities
+ // stay available so preparation can read both actual club media registries.
+ await pic.stopCanister({canisterId:second.services.messaging_domain.canisterId,sender:governor});
  const pendingRead=await submit(second.services.messaging_domain,'messaging_domain','read_account_list_messages_page',[second.chat.id,[],10],primary);
  await pic.tick(3);
  stage='freeze complete real inventory and revoke both aliases';id.setPrincipal(governor);
  const intent=ok(await id.begin_account_removal(account.id,await revision()));
  validateTwoGroupInventory(normalizedGroups,intent.targets.map(p=>p.toText()),shared.canisterId.toText(),router.canisterId.toText());
  assert.deepEqual(new Set(intent.subjects.map(p=>p.toText())),new Set([primary.toText(),alias.toText()]));
- await pic.startCanister({canisterId:second.services.club_domain.canisterId,sender:governor});
+ await pic.startCanister({canisterId:second.services.messaging_domain.canisterId,sender:governor});
  // The still-local club grants are retained; original-human admission must
- // reject the read once the suspended remote permission resumes.
+ // reject the queued read once the stopped receiver resumes.
  await denied(pendingRead);
- mark('Stopped real delegated authority resumes without releasing a removed-human chat read');
+ mark('Stopped real receiver resumes without releasing a queued removed-human chat read');
  for(const human of [primary,alias]){id.setPrincipal(human);err(await id.whoami());err(await id.register_account());}id.setPrincipal(governor);
  // Stop one receiver, observe a failed coordinator step, retain the original intent.
  const stopped=second.services.events_domain;
