@@ -29,6 +29,8 @@ fn seal_private_name_writer_window(request: WriterRequest) -> Result<(), String>
 fn read_private_name_writer_window(request: WriterRequest) -> Result<WriterReceipt, String> { private_name_writer_window::receipt(request) }
 
 mod group_inventory;
+// Offline-only until independent pinning and production lifecycle acceptance.
+mod expected_removal_inventory;
 mod removal_barrier;
 mod deletion_timing;
 mod admission;
@@ -479,7 +481,14 @@ fn set_service_authorities(authorities: Vec<Principal>) -> Outcome<()> {
 fn service_account(caller: Principal, subject: Principal) -> Outcome<Account> {
     if !account_group_rehearsal_enabled() { return Err("Service admission not released".into()); }
     if !service_authorities().contains(&caller) { return Err("Configured service reader required".into()); }
-    let account = effective_account(account_for_write(subject)?, &link_lifecycle());
+    current_service_account(subject)
+}
+// Purely identity-owned view; eligibility-only grants never expose aliases.
+fn current_service_account(subject: Principal) -> Outcome<Account> {
+    let original = account_for_write(subject)?;
+    if DELETION_TICKETS.with(|m| m.borrow().contains_key(&original.id)) { return Err("Account deletion pending".into()); }
+    let mut account = effective_account(original, &link_lifecycle());
+    account.principals.retain(|alias| account_for_write(*alias).is_ok_and(|current| current.id == account.id && current.version == account.version));
     if !account.principals.contains(&subject) { return Err("Identity revocation pending".into()); }
     Ok(account)
 }
@@ -1038,7 +1047,7 @@ async fn verify_account_removal_seals(account_id: String) -> Outcome<Vec<removal
         intent.validate_seal(*target, &seal)?;
         seals.push(seal);
     }
-    if seals.len() != intent.targets.len() { return Err("Incomplete receiver seals".into()); }
+    intent.validate_all_seals(&seals)?;
     Ok(seals)
 }
 fn group_inventory_binding() -> Option<group_inventory::Binding> {
@@ -3796,6 +3805,25 @@ mod tests {
         assert_eq!(set_service_authorities(vec![principal(97)]), Err("Service admission not released".into()));
         assert_eq!(service_account(principal(97), principal(98)), Err("Service admission not released".into()));
         assert!(service_authorities().is_empty());
+    }
+    #[test]
+    fn service_account_denies_deletion_reservations_without_alias_disclosure() {
+        let subject = principal(201);
+        let account = Account { id:"service-deletion".into(), principals:vec![subject], version:3, status:AccountStatus::Active };
+        put_account(&account); index_principal(subject, &account.id);
+        assert_eq!(current_service_account(subject).unwrap(), account);
+        DELETION_TICKETS.with(|m|m.borrow_mut().insert(account.id.clone(), vec![0]));
+        assert_eq!(current_service_account(subject), Err("Account deletion pending".into()));
+    }
+    #[test]
+    fn service_account_never_returns_stale_indexed_aliases() {
+        let subject = principal(202); let alias = principal(203);
+        let account = Account { id:"service-aliases".into(), principals:vec![subject, alias], version:3, status:AccountStatus::Active };
+        put_account(&account); index_principal(subject, &account.id); index_principal(alias, &account.id);
+        assert_eq!(current_service_account(subject).unwrap().principals, vec![subject, alias]);
+        index_principal(alias, "foreign-account");
+        assert_eq!(current_service_account(subject).unwrap().principals, vec![subject]);
+        assert!(current_service_account(alias).is_err());
     }
     #[test]
     fn service_inventory_rejects_duplicate_anonymous_and_over_capacity() {

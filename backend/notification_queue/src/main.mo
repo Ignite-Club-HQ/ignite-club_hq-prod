@@ -1,4 +1,5 @@
 import AccountAdmission "../../shared/AccountAdmission";
+import AccountProtection "../../shared/AccountProtection";
 import BroadcastErasure "../../shared/BroadcastErasure";
 import OpeningConfiguration "../../shared/OpeningConfiguration";
 import RemovalReceiver "../../shared/RemovalReceiver";
@@ -26,22 +27,27 @@ import UpdateReminderAccess "updateReminderAccess";
 
 persistent actor class Main(governorInit : Principal) = this {
   // Opt-in local rehearsal only; production deploy scripts must never set these.
+  // Candidate protection modes; rollout tooling never enables these flags.
   transient let accountAdmissionEnabled = Runtime.envVar<system>("IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL") == ?"1";
+  transient let accountProtectionMode = AccountProtection.mode(accountAdmissionEnabled,
+    Runtime.envVar<system>("IGNITE_ACCOUNT_ADMISSION_RELEASE") == ?"1",
+    Runtime.envVar<system>("IGNITE_ACCOUNT_REMOVAL_RELEASE") == ?"1");
   transient let accountAdmissionAuthority = switch (Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")) {
     case (?id) ?Principal.fromText(id); case null null
   };
-  transient let accountAdmission = AccountAdmission.Gate(accountAdmissionEnabled, accountAdmissionAuthority);
+  transient let accountAdmission = AccountAdmission.Gate(AccountProtection.admissionRequired(accountProtectionMode), accountAdmissionAuthority);
   var removal_intents : Map.Map<Text, RemovalReceiver.Request>;
   var removal_subjects : Map.Map<Principal, Text>;
   var removal_active : Map.Map<Principal, Nat>;
-  transient let removalReceiver = RemovalReceiver.Gate(accountAdmissionEnabled, accountAdmissionAuthority, removal_intents, removal_subjects, removal_active);
+  transient let removalReceiver = RemovalReceiver.Gate(AccountProtection.removalEnabled(accountProtectionMode), accountAdmissionAuthority, removal_intents, removal_subjects, removal_active);
   func admitAccount(subject : Principal) : async () {
+    if (not AccountProtection.valid(accountProtectionMode)) throw Error.reject("Conflicting account protection configuration");
     if (removalReceiver.denied(subject)) throw Error.reject("Account removal fenced");
     let eligible = await accountAdmission.eligible(subject);
     if (removalReceiver.denied(subject) or not eligible) throw Error.reject("Account admission denied or unavailable");
   };
   func denyLegacyAccountQuery() {
-    if (accountAdmissionEnabled) Runtime.trap("Use protected consensus account read");
+    if (AccountProtection.admissionRequired(accountProtectionMode) or removalReceiver.protectedReadsRequired()) Runtime.trap("Use protected consensus account read");
   };
 
   /// Public: remaining cycles (shown in admin settings).

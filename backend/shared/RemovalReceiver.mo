@@ -10,6 +10,8 @@ module {
   public class Gate(enabled : Bool, authority : ?Principal,
     intents : Map.Map<Text, Request>, subjects : Map.Map<Principal, Text>, active : Map.Map<Principal, Nat>) {
     public func denied(subject : Principal) : Bool { subjects.containsKey(subject) };
+    // Retained fences keep legacy queries closed even after configuration off.
+    public func protectedReadsRequired() : Bool { enabled or intents.size() > 0 };
     // Fail closed on stale snapshot imports before any replacement. Matching
     // raw principal bytes also catches nested Candid principal fields; UTF-8
     // forms cover legacy principal-text references. False positives deny import.
@@ -33,15 +35,14 @@ module {
       false
     };
     public func enter(subject : Principal) : Bool {
-      if (not enabled) return true;
       if (denied(subject)) return false;
+      if (not enabled and intents.size() == 0 and active.size() == 0) return true;
       let count = switch (active.get(subject)) { case null 0; case (?n) n };
       if (count >= 200 or (count == 0 and active.size() >= 100_000)) return false;
       active.add(subject, count + 1);
       true
     };
     public func leave(subject : Principal) {
-      if (not enabled) return;
       switch (active.get(subject)) {
         case (?n) { if (n <= 1) active.remove(subject) else active.add(subject, n - 1) };
         case null {}

@@ -64,24 +64,20 @@ const review = (overrides = {}) => reviewRoutingGate(state(overrides));
 const codes = r => r.gaps.map(g => g.code);
 const textOf = r => r.gaps.map(g => `${g.code}: ${g.detail}`).join('\n');
 
-test('a fully wired closed PROD produces an approvable draft and never an opening grant', () => {
+test('rehearsal-wired services never constitute production removal acceptance', () => {
   const r = review();
-  assert.deepEqual(r.gaps, []);
-  assert.equal(r.gateComplete, true);
-  assert.equal(r.approvalDraft.target_alias, 'mainnet');
-  assert.equal(r.approvalDraft.configuration_revision, '7');
-  assert.equal(r.approvalDraft.approved_configuration_sha256,
-    sha256Hex(groupApprovalConfiguration(state().page.groups, state().page.placements)));
-  assert.deepEqual(r.approvalDraft.removal_wiring_group_ids, ['base', 'g2']);
-  assert.equal(r.approvalDraft.removal_checked_at_ms, 1793565990000);
-  assert.match(r.approvalDraft.evidence_sha256, /^[a-f0-9]{64}$/);
+  assert.equal(codes(r).filter(c => c === 'PRODUCTION_ADMISSION_PATH_UNRELEASED').length, 24);
+  assert.equal(codes(r).filter(c => c === 'PROD_REHEARSAL_FORBIDDEN').length, 24);
+  assert.equal(r.gateComplete, false);
+  assert.equal(r.approvalReady, false);
+  assert.equal(r.approvalDraft, null);
   assert.equal(r.openingAuthorized, false);
   assert.equal(r.admissionAuthorized, false);
   assert.equal(r.approvalRecorded, false);
 });
 
 test('a missing or stale approval is named and yields no draft', () => {
-  assert.deepEqual(codes(review({ approval: null })), ['ROUTING_APPROVAL_MISSING']);
+  assert.ok(codes(review({ approval: null })).includes('ROUTING_APPROVAL_MISSING'));
   assert.equal(review({ approval: null }).approvalDraft, null);
   assert.match(textOf(review({ approval: { ...state().approval, configuration_revision: '6' } })), /ROUTING_APPROVAL_STALE/);
   assert.match(textOf(review({ approval: { ...state().approval, approved_configuration_sha256: 'c'.repeat(64) } })), /ROUTING_APPROVAL_STALE/);
@@ -231,4 +227,15 @@ test('setting diagnostics identify missing bindings without exporting unrelated 
     { setting: ADMISSION_AUTHORITY, expected: identity, result: 'missing' });
   assert.equal(bindings.find(b => b.setting === 'media_store').result, 'missing');
   assert.equal(JSON.stringify(r).includes('do-not-export-this'), false);
+});
+
+test('PROD diagnostics never prescribe enabling local rehearsal to clear the gate', () => {
+  const s = state();
+  s.services = s.services.map(service => ({ ...service, environment: [] }));
+  const r = reviewRoutingGate(s);
+  const flags = r.diagnostics.flatMap(d => d.bindings).filter(b => b.setting === ADMISSION_FLAG);
+  assert.equal(flags.length, 24);
+  assert.ok(flags.every(b => b.expected === 'disabled in PROD' && b.result === 'matched'));
+  assert.ok(codes(r).includes('PRODUCTION_ADMISSION_PATH_UNRELEASED'));
+  assert.equal(r.approvalDraft, null);
 });

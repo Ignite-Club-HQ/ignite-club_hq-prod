@@ -12,7 +12,15 @@ type result_state = variant { Ok : queue_state; Err : text };
 type result_nat16 = variant { Ok : nat16; Err : text };
 type result_snapshot = variant { Ok : snapshot; Err : text };
 type result_reconciliation = variant { Ok : reconciliation; Err : text };
+type removal_request = record { account_id : text; generation : nat64; inventory_digest : blob; subjects : vec principal };
+type removal_receipt = record { request : removal_request; receiver : principal; outstanding : nat };
 service : () -> {
+  set_account_removal_authority : (principal) -> (result_unit);
+  read_account_removal_authority : () -> (opt principal) query;
+  prepare_account_removal : (removal_request) -> (result_unit);
+  read_account_removal_drain : (removal_request) -> (variant { Ok : removal_receipt; Err : text });
+  seal_account_removal : (removal_request) -> (variant { Ok : removal_receipt; Err : text });
+  revoke_fenced_account_obligations : (text) -> (variant { Ok : nat64; Err : text });
   read_group_opening_configuration : () -> (variant { Ok : vec record { text; text }; Err : text });
   cycles_balance : () -> (nat) query;
    memory_stats: () -> (record { heap_bytes: nat; memory_bytes: nat; stable_bytes: nat }) query;
