@@ -10,6 +10,17 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface AccountRemovalReceipt {
+  'outstanding' : bigint,
+  'request' : AccountRemovalRequest,
+  'receiver' : Principal,
+}
+export interface AccountRemovalRequest {
+  'account_id' : string,
+  'inventory_digest' : Uint8Array,
+  'subjects' : Array<Principal>,
+  'generation' : bigint,
+}
 export interface AssignDomainRequest {
   'domain' : string,
   'shard' : Principal,
@@ -296,6 +307,17 @@ export interface _SERVICE {
    * the healthiest accepting group. Capped per principal; retries are free.
    */
   'place_my_new_club' : ActorMethod<[string, string], Result_5>,
+  'prepare_account_removal' : ActorMethod<
+    [AccountRemovalRequest],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'read_account_removal_authority' : ActorMethod<[], [] | [Principal]>,
+  'read_account_removal_drain' : ActorMethod<
+    [AccountRemovalRequest],
+    { 'Ok' : AccountRemovalReceipt } |
+      { 'Err' : string }
+  >,
   'read_group_opening_configuration' : ActorMethod<[], Result_16>,
   'read_group_registry' : ActorMethod<[string], Result_17>,
   'read_group_registry_page' : ActorMethod<
@@ -361,7 +383,17 @@ export interface _SERVICE {
     [string, string, string, bigint],
     Result
   >,
+  'seal_account_removal' : ActorMethod<
+    [AccountRemovalRequest],
+    { 'Ok' : AccountRemovalReceipt } |
+      { 'Err' : string }
+  >,
   'seal_private_name_writer_window' : ActorMethod<[WriterRequest], Result_2>,
+  'set_account_removal_authority' : ActorMethod<
+    [Principal],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'set_deletion_authority' : ActorMethod<[Principal], Result_2>,
   /**
    * Governor-only: club_domain serving clubs that have no group assignment.

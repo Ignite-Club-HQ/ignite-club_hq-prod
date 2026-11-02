@@ -41,6 +41,17 @@ export const idlFactory = ({ IDL }) => {
     'next' : IDL.Opt(IDL.Text),
   });
   const result_page = IDL.Variant({ 'Ok' : page, 'Err' : IDL.Text });
+  const removal_request = IDL.Record({
+    'account_id' : IDL.Text,
+    'inventory_digest' : IDL.Vec(IDL.Nat8),
+    'subjects' : IDL.Vec(IDL.Principal),
+    'generation' : IDL.Nat64,
+  });
+  const removal_receipt = IDL.Record({
+    'outstanding' : IDL.Nat,
+    'request' : removal_request,
+    'receiver' : IDL.Principal,
+  });
   const reconciliation = IDL.Record({
     'incoming_jobs' : IDL.Nat32,
     'matching_jobs' : IDL.Nat32,
@@ -109,9 +120,20 @@ export const idlFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
+    'prepare_account_removal' : IDL.Func([removal_request], [result_unit], []),
     'purge_club_snapshot' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Nat64, 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_account_removal_authority' : IDL.Func(
+        [],
+        [IDL.Opt(IDL.Principal)],
+        ['query'],
+      ),
+    'read_account_removal_drain' : IDL.Func(
+        [removal_request],
+        [IDL.Variant({ 'Ok' : removal_receipt, 'Err' : IDL.Text })],
         [],
       ),
     'read_group_opening_configuration' : IDL.Func(
@@ -127,6 +149,11 @@ export const idlFactory = ({ IDL }) => {
     'reconcile' : IDL.Func([snapshot], [result_reconciliation], ['query']),
     'recover_expired' : IDL.Func([IDL.Nat64], [result_nat16], []),
     'recover_interrupted' : IDL.Func([], [result_nat16], []),
+    'revoke_fenced_account_obligations' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Nat64, 'Err' : IDL.Text })],
+        [],
+      ),
     'schedule' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Nat64, IDL.Text],
         [result_job],
@@ -135,6 +162,16 @@ export const idlFactory = ({ IDL }) => {
     'schedule_with_callback' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Opt(IDL.Principal), IDL.Nat64, IDL.Text],
         [result_job],
+        [],
+      ),
+    'seal_account_removal' : IDL.Func(
+        [removal_request],
+        [IDL.Variant({ 'Ok' : removal_receipt, 'Err' : IDL.Text })],
+        [],
+      ),
+    'set_account_removal_authority' : IDL.Func(
+        [IDL.Principal],
+        [result_unit],
         [],
       ),
     'set_transfer_fence' : IDL.Func([IDL.Text, IDL.Bool], [result_unit], []),

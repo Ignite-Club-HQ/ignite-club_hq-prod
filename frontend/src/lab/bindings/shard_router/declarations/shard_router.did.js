@@ -165,6 +165,17 @@ export const idlFactory = ({ IDL }) => {
     'opened_revision' : IDL.Nat64,
   });
   const Result_15 = IDL.Variant({ 'Ok' : OwnerOpening, 'Err' : IDL.Text });
+  const AccountRemovalRequest = IDL.Record({
+    'account_id' : IDL.Text,
+    'inventory_digest' : IDL.Vec(IDL.Nat8),
+    'subjects' : IDL.Vec(IDL.Principal),
+    'generation' : IDL.Nat64,
+  });
+  const AccountRemovalReceipt = IDL.Record({
+    'outstanding' : IDL.Nat,
+    'request' : AccountRemovalRequest,
+    'receiver' : IDL.Principal,
+  });
   const Result_16 = IDL.Variant({
     'Ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
     'Err' : IDL.Text,
@@ -323,6 +334,21 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'place_my_new_club' : IDL.Func([IDL.Text, IDL.Text], [Result_5], []),
+    'prepare_account_removal' : IDL.Func(
+        [AccountRemovalRequest],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_account_removal_authority' : IDL.Func(
+        [],
+        [IDL.Opt(IDL.Principal)],
+        ['query'],
+      ),
+    'read_account_removal_drain' : IDL.Func(
+        [AccountRemovalRequest],
+        [IDL.Variant({ 'Ok' : AccountRemovalReceipt, 'Err' : IDL.Text })],
+        [],
+      ),
     'read_group_opening_configuration' : IDL.Func([], [Result_16], []),
     'read_group_registry' : IDL.Func([IDL.Text], [Result_17], []),
     'read_group_registry_page' : IDL.Func(
@@ -390,9 +416,19 @@ export const idlFactory = ({ IDL }) => {
         [Result],
         [],
       ),
+    'seal_account_removal' : IDL.Func(
+        [AccountRemovalRequest],
+        [IDL.Variant({ 'Ok' : AccountRemovalReceipt, 'Err' : IDL.Text })],
+        [],
+      ),
     'seal_private_name_writer_window' : IDL.Func(
         [WriterRequest],
         [Result_2],
+        [],
+      ),
+    'set_account_removal_authority' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
     'set_deletion_authority' : IDL.Func([IDL.Principal], [Result_2], []),

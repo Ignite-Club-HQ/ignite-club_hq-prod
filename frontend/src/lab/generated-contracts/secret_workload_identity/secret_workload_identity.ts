@@ -51,13 +51,10 @@ function candid_none<T>(): [] {
 function record_opt_to_undefined<T>(arg: T | null): T | undefined {
     return arg == null ? undefined : arg;
 }
-export interface WorkloadIdentity {
-    status: Variant_Active_Suspended_Revoked;
-    workload_name: string;
-    workload_principal: Principal;
-    allowed_scopes: Array<string>;
-    last_used: bigint;
-    registered_at: bigint;
+export interface Receipt {
+    outstanding: bigint;
+    request: Request;
+    receiver: Principal;
 }
 export interface MainInterface {
     audit_secret_access(filter: WorkloadIdentityFilter): Promise<Array<SecretAccessAudit>>;
@@ -79,6 +76,21 @@ export interface MainInterface {
         stable_bytes: bigint;
         heap_bytes: bigint;
     }>;
+    prepare_account_removal(request: Request): Promise<{
+        __kind__: "Ok";
+        Ok: null;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
+    read_account_removal_authority(): Promise<Principal | null>;
+    read_account_removal_drain(request: Request): Promise<{
+        __kind__: "Ok";
+        Ok: Receipt;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     register_workload(workload_principal: Principal, workload_name: string, allowed_scopes: Array<string>): Promise<{
         __kind__: "Ok";
         Ok: WorkloadIdentity;
@@ -87,6 +99,23 @@ export interface MainInterface {
         Err: string;
     }>;
     revoke_workload(workload_principal: Principal): Promise<{
+        __kind__: "Ok";
+        Ok: null;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
+    seal_account_removal(request: Request): Promise<{
+        __kind__: "Ok";
+        Ok: Receipt;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
+    /**
+     * / Governor-only, write-once: the identity coordinator allowed to fence.
+     */
+    set_account_removal_authority(authority: Principal): Promise<{
         __kind__: "Ok";
         Ok: null;
     } | {
@@ -134,19 +163,28 @@ export interface SecretAccessAudit {
     timestamp: bigint;
     denial_reason?: string;
 }
+export interface WorkloadIdentity {
+    status: Variant_Active_Suspended_Revoked;
+    workload_name: string;
+    workload_principal: Principal;
+    allowed_scopes: Array<string>;
+    last_used: bigint;
+    registered_at: bigint;
+}
+export interface Request {
+    account_id: string;
+    inventory_digest: Uint8Array;
+    subjects: Array<Principal>;
+    generation: bigint;
+}
 export enum Variant_Active_Suspended_Revoked {
     Active = "Active",
     Suspended = "Suspended",
     Revoked = "Revoked"
 }
-/**
- * / Secret Workload Identity Canister
- * / Manages workload identity registration and vault secret access control
- * / Enforces least-privilege access to vault secrets by canister principal
- */
 export interface secret_workload_identityInterface extends MainInterface {
 }
-import type { SecretAccessAudit as _SecretAccessAudit, WorkloadIdentity as _WorkloadIdentity, WorkloadIdentityFilter as _WorkloadIdentityFilter } from "./declarations/secret_workload_identity.did";
+import type { Receipt as _Receipt, SecretAccessAudit as _SecretAccessAudit, WorkloadIdentity as _WorkloadIdentity, WorkloadIdentityFilter as _WorkloadIdentityFilter } from "./declarations/secret_workload_identity.did";
 export class Secret_workload_identity implements secret_workload_identityInterface {
     constructor(private actor: ActorSubclass<_SERVICE>){}
     async audit_secret_access(arg0: WorkloadIdentityFilter): Promise<Array<SecretAccessAudit>> {
@@ -183,6 +221,30 @@ export class Secret_workload_identity implements secret_workload_identityInterfa
         const result = await this.actor.memory_stats();
         return result;
     }
+    async prepare_account_removal(arg0: Request): Promise<{
+        __kind__: "Ok";
+        Ok: null;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.prepare_account_removal(arg0);
+        return from_candid_variant_n12(result);
+    }
+    async read_account_removal_authority(): Promise<Principal | null> {
+        const result = await this.actor.read_account_removal_authority();
+        return from_candid_opt_n13(result);
+    }
+    async read_account_removal_drain(arg0: Request): Promise<{
+        __kind__: "Ok";
+        Ok: Receipt;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.read_account_removal_drain(arg0);
+        return from_candid_variant_n14(result);
+    }
     async register_workload(arg0: Principal, arg1: string, arg2: Array<string>): Promise<{
         __kind__: "Ok";
         Ok: WorkloadIdentity;
@@ -201,6 +263,26 @@ export class Secret_workload_identity implements secret_workload_identityInterfa
         Err: string;
     }> {
         const result = await this.actor.revoke_workload(arg0);
+        return from_candid_variant_n12(result);
+    }
+    async seal_account_removal(arg0: Request): Promise<{
+        __kind__: "Ok";
+        Ok: Receipt;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.seal_account_removal(arg0);
+        return from_candid_variant_n14(result);
+    }
+    async set_account_removal_authority(arg0: Principal): Promise<{
+        __kind__: "Ok";
+        Ok: null;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.set_account_removal_authority(arg0);
         return from_candid_variant_n12(result);
     }
     async transfer_governorship(arg0: Principal): Promise<{
@@ -233,6 +315,9 @@ function from_candid_SecretAccessAudit_n4(value: _SecretAccessAudit): SecretAcce
 }
 function from_candid_WorkloadIdentity_n8(value: _WorkloadIdentity): WorkloadIdentity {
     return from_candid_record_n9(value);
+}
+function from_candid_opt_n13(value: [] | [Principal]): Principal | null {
+    return value.length === 0 ? null : value[0];
 }
 function from_candid_opt_n6(value: [] | [string]): string | null {
     return value.length === 0 ? null : value[0];
@@ -310,6 +395,25 @@ function from_candid_variant_n12(value: {
 }): {
     __kind__: "Ok";
     Ok: null;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: value.Ok
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n14(value: {
+    Ok: _Receipt;
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: Receipt;
 } | {
     __kind__: "Err";
     Err: string;

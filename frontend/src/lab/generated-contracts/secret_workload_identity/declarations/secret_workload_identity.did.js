@@ -41,6 +41,17 @@ export const idlFactory = ({ IDL }) => {
     'last_used' : IDL.Nat64,
     'registered_at' : IDL.Nat64,
   });
+  const Request = IDL.Record({
+    'account_id' : IDL.Text,
+    'inventory_digest' : IDL.Vec(IDL.Nat8),
+    'subjects' : IDL.Vec(IDL.Principal),
+    'generation' : IDL.Nat64,
+  });
+  const Receipt = IDL.Record({
+    'outstanding' : IDL.Nat,
+    'request' : Request,
+    'receiver' : IDL.Principal,
+  });
   const SecretAccessResult = IDL.Record({
     'approved' : IDL.Bool,
     'timestamp' : IDL.Nat64,
@@ -71,12 +82,37 @@ export const idlFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
+    'prepare_account_removal' : IDL.Func(
+        [Request],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_account_removal_authority' : IDL.Func(
+        [],
+        [IDL.Opt(IDL.Principal)],
+        ['query'],
+      ),
+    'read_account_removal_drain' : IDL.Func(
+        [Request],
+        [IDL.Variant({ 'Ok' : Receipt, 'Err' : IDL.Text })],
+        [],
+      ),
     'register_workload' : IDL.Func(
         [IDL.Principal, IDL.Text, IDL.Vec(IDL.Text)],
         [IDL.Variant({ 'Ok' : WorkloadIdentity, 'Err' : IDL.Text })],
         [],
       ),
     'revoke_workload' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'seal_account_removal' : IDL.Func(
+        [Request],
+        [IDL.Variant({ 'Ok' : Receipt, 'Err' : IDL.Text })],
+        [],
+      ),
+    'set_account_removal_authority' : IDL.Func(
         [IDL.Principal],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
