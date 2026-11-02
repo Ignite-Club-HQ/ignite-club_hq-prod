@@ -1,9 +1,11 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — remaining PROD safety gates (2 Nov 2026)
-- [ ] Address production admission/removal blockers across base and g2 without enabling rehearsal flags or weakening authorization.
-- [ ] Correct misleading routing diagnostics and verify exact inventory, release prerequisites and approval boundaries in focused tests.
-- [ ] Prepare grouped, closed-only rollout instructions; live upgrades/settings/readback require the GitHub-held governor and a reviewed owner run. Routing approval/opening remain separate.
+- [x] Fix exact PROD deployment binding in existing g2 eligibility validation while preserving base exclusion, foreign/mixed-deployment denial and exact reader scope.
+- [x] Correct rehearsal-as-production diagnostics, refuse fake green rehearsal acceptance, separate draft-ready/recorded-complete, and remove the planner/executor competition-setter mismatch; focused safeguards pass.
+- [x] Consolidate required production work and closed-only rollout boundaries in docs/prod-removal-implementation-2026-11-02.md; no live upgrade/settings/approval/opening performed.
+- [ ] Full production removal release remains blocked on complete base/supplemental inventory acceptance, non-rehearsal service/alias guards, terminal all-receiver completion, infrastructure/delivery/recovery proof and actual two-group acceptance. These are unfinished code-level prerequisites, not a flag-only fix or credential-only blocker.
+- [ ] Signed live upgrades/settings/readback require the GitHub-held governor and a reviewed owner run after the engineering above; routing approval/opening remain separate.
 
 ## Current request — clearer read-only PROD report
 - [x] Add exact anonymous execution balances/minimums/shortfalls and bounded missing-setting diagnostics; unknown balances never imply low fuel or a payment requirement. No PROD/DEV/database changes or funding.
