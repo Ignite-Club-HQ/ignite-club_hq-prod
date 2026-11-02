@@ -1,5 +1,12 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — approved production removal safeguards (2 Nov 2026, 03:32 UTC)
+- [x] Inspected uploaded two-group-removal-isolated artifact: supported installation, ten runtime checks passed, 28 complete seals, no unresolved infrastructure; mode remains local-rehearsal and release/full-inventory acceptance remain false. Earlier native-worker installation and two-group artifact blockers are resolved by these owner uploads.
+- [x] Added immutable terminal fencing completion in additive identity memory 31, exact fresh complete seals, idempotent replay, bounded completion history export and refusal tests. Intents, subjects, configuration locks and data remain retained; no production release or destructive erasure.
+- [ ] Run extended isolated two-group completion scenario on the supported worker and inspect its artifact. Blocker: sandbox lacks native write-fault support and GitHub dispatch credential.
+- [ ] Complete authenticated production acceptance/readiness and non-rehearsal two-group flow; recovery provenance, original-schema/callback coverage and a closed upgrade review remain required before releasing account readers or removal starts. No flag-only workaround or approval run.
+- [ ] Prepare owner-reviewed closed PROD release and separate exact-evidence approval after the above acceptance. Blocker: unfinished production/recovery engineering and signed protected owner runs.
+
 ## Current request — four infrastructure removal blockers + approval (2 Nov 2026, 02:57 UTC)
 - [x] Made both timers, the shared workload service and the router real removal receivers: write-once coordinator authority, fenced-subject refusal at every entry point (rechecked after awaits), retained-obligation counts and governor settlement. Rust gate/timer/router unit tests, Motoko stable-compatibility, wasm builds, contracts and bindings pass; 197 identity tests unchanged.
 - [x] Isolated two-group suite now requires fresh complete seals for all 28 targets after obligations settle and infrastructure upgrades.
