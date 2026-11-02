@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — remaining PROD safety gates (2 Nov 2026)
+- [ ] Build non-rehearsal removal protection, durable terminal outcomes and focused real-canister regression checks; no live flags, upgrades or opening until complete acceptance.
 - [x] Fix exact PROD deployment binding in existing g2 eligibility validation while preserving base exclusion, foreign/mixed-deployment denial and exact reader scope.
 - [x] Correct rehearsal-as-production diagnostics, refuse fake green rehearsal acceptance, separate draft-ready/recorded-complete, and remove the planner/executor competition-setter mismatch; focused safeguards pass.
 - [x] Consolidate required production work and closed-only rollout boundaries in docs/prod-removal-implementation-2026-11-02.md; no live upgrade/settings/approval/opening performed.
