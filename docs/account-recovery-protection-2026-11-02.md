@@ -41,12 +41,17 @@ retains data, not destructive erasure. Supported-worker verification is pending.
   completion, foreign targets and regressing progress refuse. Each new event
   advances an epoch and closes any accepted read fence.
 - Independent compile-pinned Ed25519 recovery acceptance binds witness and
-  identity, witness IC version, exact journal revision/hash, complete inventory,
+  identity, witness management lifecycle count, exact journal revision/hash, complete inventory,
   decoded-history commitment, identity history/removal generation/version,
   account approval digest, expiry and every participant module/lifecycle count.
-- Witness restore/upgrade cannot reuse an armed application flag: the IC version
-  must match and upgrades explicitly disarm. Identity requests include current
-  history/removal/version and recheck them synchronously after the response.
+- Witness restore/upgrade cannot reuse an armed application flag: live management
+  lifecycle counts must match and upgrades explicitly disarm. Legacy wire fields
+  `witness_version`/`identity_version` now carry these counts only under distinct
+  lifecycle-v2 signatures; identity counts must match the signed participant.
+  Fresh stable partitions 12/13 start closed, never importing old 6/10 arming.
+  Identity resamples lifecycle after the witness response before synchronously
+  rechecking history/removal state. Ordinary updates/callbacks no longer invalidate
+  approval, but snapshot loads and same-Wasm upgrades still do.
 - Whole-group offline recovery now rechecks the independent anchor before every
   snapshot/load/start, after starts and before finishing. Snapshot loads always
   restore receivers before identity regardless of checkpoint array order. Resume
