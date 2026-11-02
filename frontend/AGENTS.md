@@ -58,6 +58,7 @@
 - Removal receiver acceptance first runs a hash-reported minimal installation probe with pinned PocketIC and an owned, deadline-bounded local process group; installation success never grants receiver acceptance or release. Why: this sandbox stalls even on a minimal actor, and cleanup must not hang or terminate unrelated servers.
 - Isolated removal runtime tests require the native x86-64 write-fault signal probe before PocketIC; seven-service reports bind Wasm hashes and explicitly deny full-inventory acceptance. Why: gVisor omits the write bit used by the IC tracker, and partial race checks cannot authorize release.
 - Two-group removal tests install all twelve human receivers independently per group plus real inventory infrastructure, use the real identity coordinator for prepare/drain, and assert infrastructure holds remain unresolved. Why: two stores or placeholder IDs cannot establish two-group removal, and human seals cannot authorize terminal erasure or routing release.
+- Isolated notification removal checks distinguish the ungranted-worker trap from Candid refusals, re-read retained lease work after denial and settle only as the original owner. Why: a correct capability trap must not abort the suite or be confused with transport failure.
 
 - Retired URLs: App.tsx ParamRedirect, not 404.
 - Pending sends are QueryClient-scoped; settle temp IDs from server acknowledgements, not photo presence. Why: avoid duplicates after navigation.

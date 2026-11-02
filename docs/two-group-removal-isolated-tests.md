@@ -17,6 +17,9 @@ mainnet calls, payment, delivery schedule, database changes or release action.
   intent retry, and denial at the unreached receiver before its local fence.
 - A claimed notification in each group remains an outstanding obligation across
   upgrade; only authenticated settlement drains it, and delivery is refused.
+- An ungranted worker must trap with `Worker capability required`; an unrelated
+  failure is not accepted. The coordinator must still report one outstanding
+  lease after that refusal, before the original governor/lease owner settles it.
 - Exact zero-work human seals for all 24 receivers; both aliases denied before
   and after every receiver upgrade; survivor photo/Vault/chat access preserved.
 - Identity upgrade preserves the frozen intent, alias denial and survivor account.
