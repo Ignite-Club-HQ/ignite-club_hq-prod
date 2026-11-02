@@ -9,6 +9,10 @@ use ic_stable_structures::{
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 const PRIVATE_NAME_WRITER_MEMORY: u8 = 26;
+// Permanent ids 27..=29 (authority, intents, subjects). Never reuse.
+const ACCOUNT_REMOVAL_MEMORY: u8 = 27;
+#[path = "../../shared/account_removal_receiver.rs"]
+mod account_removal_receiver;
 #[path = "../../shared/private_name_writer_window.rs"]
 mod private_name_writer_window;
 use private_name_writer_window::{WriterRequest, WriterReceipt};
@@ -227,6 +231,42 @@ fn website_club_domain(club_id: &str) -> Option<Principal> {
     }
     let raw = WEBSITE_DEFAULT.with(|c| c.borrow().get().clone());
     (!raw.is_empty()).then(|| Principal::from_slice(&raw))
+}
+
+// ---- Account removal participation (infrastructure receiver) ----
+use account_removal_receiver::{Receipt as RemovalReceipt, Request as RemovalRequest};
+
+/// Obligations still bound to fenced subjects: owner test openings that
+/// still accept new placements. The governor settles them with the existing
+/// `stop_owner_test_group`; seals stay refused until then. Creator bindings
+/// and placement counters are retained records, not in-flight work.
+fn removal_obligations(subjects: &[Principal]) -> u64 {
+    OWNER_OPENINGS.with(|m| m.borrow().iter().filter(|e| {
+        let r: OwnerOpening = decode(&e.value()); r.accepting_new && subjects.contains(&r.approval.owner)
+    }).count() as u64)
+}
+/// Governor-only, write-once: the identity coordinator allowed to fence.
+#[ic_cdk::update]
+fn set_account_removal_authority(authority: Principal) -> Outcome<()> {
+    require_governor()?;
+    account_removal_receiver::set_authority(authority)
+}
+#[ic_cdk::query]
+fn read_account_removal_authority() -> Option<Principal> { account_removal_receiver::authority() }
+#[ic_cdk::update]
+fn prepare_account_removal(request: RemovalRequest) -> Outcome<()> {
+    if request.subjects.iter().any(|s| Some(*s) == governor()) { return Err("Governor cannot be fenced".into()); }
+    account_removal_receiver::prepare(ic_cdk::api::msg_caller(), request)
+}
+#[ic_cdk::update]
+fn read_account_removal_drain(request: RemovalRequest) -> Outcome<RemovalReceipt> {
+    let retained = removal_obligations(&request.subjects);
+    account_removal_receiver::receipt(ic_cdk::api::msg_caller(), request, ic_cdk::api::canister_self(), retained)
+}
+#[ic_cdk::update]
+fn seal_account_removal(request: RemovalRequest) -> Outcome<RemovalReceipt> {
+    let retained = removal_obligations(&request.subjects);
+    account_removal_receiver::seal(ic_cdk::api::msg_caller(), request, ic_cdk::api::canister_self(), retained)
 }
 
 /// Governor-only: club_domain serving clubs that have no group assignment.
@@ -516,6 +556,9 @@ async fn read_new_club_creation_authorized(user: Principal, club_id: String, tar
     registry_writable()?;
     let revision = current_revision();
     let requestor = caller();
+    // A fenced subject never gains creator authority, before or after awaits.
+    if account_removal_receiver::denied(&user) { return Ok(false); }
+    let _removal_hold = if user == Principal::anonymous() { None } else { Some(account_removal_receiver::enter(user)?) };
     let initial = group_for(&group_id).ok_or("Unknown group")?;
     if initial.target_alias != target_alias || !initial.domains.iter().any(|d| d.domain == "club_domain" && d.canister == requestor) {
         return Err("Registered destination club authority required".into());
@@ -524,6 +567,7 @@ async fn read_new_club_creation_authorized(user: Principal, club_id: String, tar
         let receipt = owner_opening(&target_alias).ok_or("Owner opening missing")?;
         if receipt.approval.owner != user || !receipt.approval.club_ids.contains(&club_id) { return Ok(false); }
         if !owner_creation_eligible(user).await? { return Ok(false); }
+        if account_removal_receiver::denied(&user) { return Ok(false); }
         registry_writable()?;
         if current_revision() != revision || owner_opening(&target_alias).as_ref() != Some(&receipt) { return Err("Owner opening changed during eligibility check".into()); }
     }
@@ -550,8 +594,12 @@ fn decode<T: for<'a> Deserialize<'a>>(bytes: &[u8]) -> T {
     ciborium::from_reader(bytes).expect("stable schema decode")
 }
 
+// Every caller-identified entry point goes through here: a fenced account
+// subject is refused before any registry state is read or written.
 fn caller() -> Principal {
-    ic_cdk::api::msg_caller()
+    let actor = ic_cdk::api::msg_caller();
+    if account_removal_receiver::denied(&actor) { ic_cdk::trap("Account removal fenced"); }
+    actor
 }
 
 fn governor() -> Option<Principal> {
@@ -1130,6 +1178,7 @@ async fn read_my_group_assignments(club_ids: Vec<String>, target_alias: String, 
 
     let user = caller();
     if user == Principal::anonymous() { return Err("Authentication required".into()); }
+    let _removal_hold = account_removal_receiver::enter(user)?;
     discovery::validate_clubs(&club_ids)?;
     if current_revision() != expected_revision { return Err("Revision conflict".into()); }
     let mut checked = Vec::new();
@@ -1145,6 +1194,7 @@ async fn read_my_group_assignments(club_ids: Vec<String>, target_alias: String, 
         let reply = ic_cdk::call::Call::bounded_wait(*source, "read_has_club_membership")
             .with_args(&(user, assignment.club_id.clone())).await.map_err(|_| "Membership authority unavailable")?;
         let member: bool = reply.candid().map_err(|_| "Invalid membership authority reply")?;
+        account_removal_receiver::recheck(&user)?;
         if !member { return Err("Club membership required".into()); }
         if current_revision() != expected_revision { return Err("Registry changed during membership checks".into()); }
     }
@@ -1253,10 +1303,12 @@ async fn place_my_new_club(club_id: String, target_alias: String) -> Outcome<Gro
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 
     let user = caller();
+    let _removal_hold = if user == Principal::anonymous() { None } else { Some(account_removal_receiver::enter(user)?) };
     if let Some(receipt) = owner_opening(&target_alias).filter(|r| r.approval.owner == user) {
         registry_writable()?;
         let revision = current_revision();
         if !owner_creation_eligible(user).await? { return Err("Owner account cannot create a test club".into()); }
+        account_removal_receiver::recheck(&user)?;
         registry_writable()?;
         if current_revision() != revision || owner_opening(&target_alias).as_ref() != Some(&receipt) { return Err("Owner opening changed during eligibility check".into()); }
     }
@@ -1265,6 +1317,7 @@ async fn place_my_new_club(club_id: String, target_alias: String) -> Outcome<Gro
     if user != Principal::anonymous() && group_assignment_for(&club_id).is_none() {
         self_health::refresh_stale(&target_alias).await;
     }
+    account_removal_receiver::recheck(&user)?;
     place_new_club_for(user, club_id, target_alias, ic_cdk::api::time())
 }
 async fn owner_creation_eligible(user: Principal) -> Outcome<bool> {
