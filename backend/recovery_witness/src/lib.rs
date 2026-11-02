@@ -1,5 +1,7 @@
 //! Separately governed anti-rollback witness; no deployment or opening path.
 mod protocol;
+#[path = "../../shared/recovery_lifecycle.rs"]
+mod recovery_lifecycle;
 use protocol::*;
 use candid::Principal;
 use ic_stable_structures::{memory_manager::{MemoryId,MemoryManager,VirtualMemory},DefaultMemoryImpl,StableCell,StableBTreeMap};
@@ -15,14 +17,17 @@ thread_local! {
     static OPERATIONS:RefCell<StableBTreeMap<String,u64,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(3)))));
     static REMOVALS:RefCell<StableBTreeMap<String,Vec<u8>,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(4)))));
     static PROGRESS:RefCell<StableBTreeMap<String,u8,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(5)))));
-    // IC version is external to loaded application snapshots. Zero means closed.
-    static ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(6))),0));
+    // Live management lifecycle count is external to snapshots. Zero means closed.
+    static LEGACY_ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(6))),0));
     static IDENTITY:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(7))),vec![]));
     static EVENTS:RefCell<StableBTreeMap<Vec<u8>,u64,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(8)))));
     // Immutable accepted baseline survives ordinary progress, never restore/disable.
     static ACCOUNT_BASELINE:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(9))),vec![]));
-    static ACCOUNT_ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(10))),0));
+    static LEGACY_ACCOUNT_ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(10))),0));
     static DENIED_SUBJECTS:RefCell<StableBTreeMap<String,String,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(11)))));
+    // V2 starts closed; never reinterpret old runtime-version arming as lifecycle evidence.
+    static ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(12))),0));
+    static ACCOUNT_ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(13))),0));
 }
 fn event_key(event:&Event)->Vec<u8> {use sha2::{Digest,Sha256};Sha256::digest(candid::encode_one(event).expect("bounded recovery event")).to_vec()}
 fn encode<T:serde::Serialize>(v:&T)->Vec<u8> {let mut b=vec![];ciborium::ser::into_writer(v,&mut b).expect("encode witness state");b}
@@ -51,7 +56,7 @@ fn post_upgrade(){ARMED_VERSION.with(|v|v.borrow_mut().set(0));ACCOUNT_ARMED_VER
 #[ic_cdk::update]
 fn read_recovery_head()->Outcome<Head> {require_governor()?;Ok(head())}
 #[ic_cdk::update]
-fn read_recovery_runtime_version()->Outcome<u64> {require_governor()?;Ok(ic_cdk::api::canister_version())}
+async fn read_recovery_runtime_version()->Outcome<u64> {require_governor()?;let changes=recovery_lifecycle::current_changes().await?;require_governor()?;Ok(changes)}
 #[ic_cdk::update]
 fn recovery_acceptance_signing_bytes(body:Acceptance)->Outcome<Vec<u8>> {require_governor()?;signing_bytes(&body)}
 #[ic_cdk::update]
@@ -134,12 +139,13 @@ async fn check_participants(a:&Acceptance)->Outcome<()> {
 async fn accept_recovery_fence(a:SignedAcceptance)->Outcome<u64> {
     require_governor()?;
     if a.body.identity!=identity(){return Err("Pinned recovery identity required".into());}
-    let prior=head();let version=ic_cdk::api::canister_version();
+    let prior=head();let version=recovery_lifecycle::current_changes().await?;
+    require_governor()?;if head()!=prior{return Err("Recovery changed during acceptance".into());}
     accept(&prior,&a,ic_cdk::api::canister_self(),version,ic_cdk::api::time(),&signer()?)?;
     // Independent signer must have accepted decoded histories and exclusive
     // controller fencing before signing. Lifecycle sampling cannot replace it.
     for _ in 0..2 {check_participants(&a.body).await?;require_governor()?;
-        if head()!=prior||ic_cdk::api::canister_version()!=version{return Err("Recovery changed during acceptance".into());}}
+        if recovery_lifecycle::current_changes().await?!=version||head()!=prior{return Err("Recovery changed during acceptance".into());}}
     let next=accept(&prior,&a,ic_cdk::api::canister_self(),version,ic_cdk::api::time(),&signer()?)?;
     ARMED_VERSION.with(|v|v.borrow_mut().set(version));
     // Existing recovery signatures never opt into automatic subject progress.
@@ -151,13 +157,16 @@ fn subject_progress_approval_signing_bytes(body:Acceptance)->Outcome<Vec<u8>> {r
 #[ic_cdk::update]
 async fn authorize_subject_removal_progress(a:SignedAcceptance)->Outcome<()> {
     require_governor()?;validate_subject_progress(&a,&signer()?)?;
-    let captured=head();let version=ic_cdk::api::canister_version();
+    let captured=head();let version=recovery_lifecycle::current_changes().await?;
+    require_governor()?;if head()!=captured{return Err("Subject progress acceptance changed".into());}
     if captured.accepted.as_ref().is_none_or(|s|s.body!=a.body) || a.body.expires_at_ns<=ic_cdk::api::time() ||
         ARMED_VERSION.with(|v|*v.borrow().get())!=version {return Err("Current independently accepted subject progress baseline required".into());}
     check_participants(&a.body).await?;require_governor()?;
-    if head()!=captured || ic_cdk::api::canister_version()!=version || a.body.expires_at_ns<=ic_cdk::api::time() {
+    if recovery_lifecycle::current_changes().await?!=version || head()!=captured || a.body.expires_at_ns<=ic_cdk::api::time() {
         return Err("Subject progress acceptance changed".into());
     }
+    require_governor()?;
+    recovery_lifecycle::check_armed(ARMED_VERSION.with(|v|*v.borrow().get()),version)?;
     ACCOUNT_BASELINE.with(|s|s.borrow_mut().set(encode(&a)));
     ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(version));Ok(())
 }
@@ -169,13 +178,14 @@ fn account_not_removed(r:&AccountReadRequest)->Outcome<()> {
 }
 #[ic_cdk::update]
 async fn verify_production_subject_read_fence(r:AccountReadRequest)->Outcome<AccountReadReceipt> {
-    let caller=ic_cdk::api::msg_caller();let version=ic_cdk::api::canister_version();
+    let caller=ic_cdk::api::msg_caller();let version=recovery_lifecycle::current_changes().await?;
     let bytes=ACCOUNT_BASELINE.with(|s|s.borrow().get().clone());
     if bytes.is_empty() || ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get())!=version {return Err("Subject recovery baseline restored, disabled or missing".into());}
     let baseline:SignedAcceptance=decode(&bytes);
+    validate_subject_progress(&baseline,&signer()?)?;
     verify_account_baseline(&baseline,&r,caller,ic_cdk::api::time())?;account_not_removed(&r)?;
     check_participants(&baseline.body).await?;
-    if ACCOUNT_BASELINE.with(|s|s.borrow().get()!=&bytes) || ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get())!=version || ic_cdk::api::canister_version()!=version {
+    if recovery_lifecycle::current_changes().await?!=version || ACCOUNT_BASELINE.with(|s|s.borrow().get()!=&bytes) || ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get())!=version {
         return Err("Subject recovery baseline changed".into());
     }
     account_not_removed(&r)?;
@@ -185,11 +195,11 @@ async fn verify_production_subject_read_fence(r:AccountReadRequest)->Outcome<Acc
 async fn verify_production_account_read_fence(r:WitnessRequest)->Outcome<WitnessReceipt> {
     let caller=ic_cdk::api::msg_caller();let captured=head();
     let receipt=verify(&captured,&r,caller,ic_cdk::api::time())?;
-    let version=ic_cdk::api::canister_version();
-    if ARMED_VERSION.with(|v|*v.borrow().get())!=version{return Err("Witness restored or upgraded; independent reacceptance required".into());}
+    let version=recovery_lifecycle::current_changes().await?;
+    recovery_lifecycle::check_armed(ARMED_VERSION.with(|v|*v.borrow().get()),version)?;
     let a=&captured.accepted.as_ref().ok_or("Recovery fenced")?.body;
     check_participants(a).await?;
-    if head()!=captured||ic_cdk::api::canister_version()!=version{return Err("Recovery fence changed during read".into());}
+    if recovery_lifecycle::current_changes().await?!=version||head()!=captured{return Err("Recovery fence changed during read".into());}
     verify(&captured,&r,caller,ic_cdk::api::time())?;Ok(receipt)
 }
 pub fn candid_interface()->String {__export_service()}
