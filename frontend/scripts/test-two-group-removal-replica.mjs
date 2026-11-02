@@ -274,16 +274,17 @@ try{
  }
  validateHumanSeals(normalizedGroups,{account_id:intent.account_id,generation:intent.generation,subjects:intent.subjects.map(p=>p.toText()),inventory_digest:Array.from(intent.inventory_digest)},seals);
  if(production){
+  // The notification-queue upgrades above changed real lifecycle counts, so the
+  // signed review is stale: identity must refuse readers until re-approved.
+  for(const g of groups){id.setPrincipal(g.services.pii_access_control.canisterId);
+   const stale=await id.read_principal_eligibility(survivor);id.setPrincipal(governor);
+   assert.match(String(stale?.Err),/Production account protection drift/);}
+  await refreshProduction();
   const generation=ok(await id.read_production_account_authorization()).generation;
-  // Diagnostic only: ask identity exactly as a configured reader would, so a
-  // refusal names its real reason instead of the receiver's generic denial.
-  for(const g of groups){const reader=g.services.pii_access_control.canisterId;id.setPrincipal(reader);
-   const e=await id.read_principal_eligibility(survivor);id.setPrincipal(governor);
-   assert.ok(e&&'Ok'in e,`Survivor eligibility refused after seals: ${JSON.stringify(e,(k,v)=>typeof v==='bigint'?v.toString():v)}`);}
   for(const g of groups){await g.readPhoto(survivor);g.services.vault_domain.actor.setPrincipal(survivor);
    assert.equal(ok(await g.services.vault_domain.actor.read_account_get_folder('folder'))[0].id,'folder');}
   assert.equal(ok(await id.read_production_account_authorization()).generation,generation);
-  mark('Prepared/sealed progress preserves survivor access without changing the signed approval');
+  mark('Upgrades invalidate the signed review; after fresh approval prepared/sealed progress preserves survivor access');
  }
  mark('All 24 human receivers drain both aliases; two external leases survive upgrade until authenticated settlement');
  const probes=g=>({club_domain:()=>g.services.club_domain.actor.read_account_my_role_grants(),events_domain:()=>g.services.events_domain.actor.read_account_list_my_viewed_event_ids([]),
