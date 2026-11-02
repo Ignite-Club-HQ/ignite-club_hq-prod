@@ -20,11 +20,19 @@ pub struct ApprovalBody {
     pub original_inventory_evidence: Vec<u8>,
     pub runtime_evidence: Vec<u8>,
     pub fenced_recovery_evidence: Vec<u8>,
+    pub recovery_epoch: u64,
 }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SignedApproval { pub body: ApprovalBody, pub signature: Vec<u8> }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct State { pub generation: u64, pub approval: Option<SignedApproval> }
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WitnessRequest {
+    pub identity: Principal, pub generation: u64, pub recovery_epoch: u64,
+    pub signed_digest: Vec<u8>, pub request_id: u64,
+}
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WitnessReceipt { pub request: WitnessRequest }
 impl Default for State { fn default() -> Self { Self { generation:0, approval:None } } }
 
 pub fn signing_bytes(body: &ApprovalBody) -> Result<Vec<u8>, String> {
@@ -36,6 +44,20 @@ pub fn signing_bytes(body: &ApprovalBody) -> Result<Vec<u8>, String> {
 pub fn key() -> Result<VerifyingKey,String> {
     parse_key(option_env!("IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY").ok_or("Independent production account signer not configured")?)
 }
+pub fn witness() -> Result<Principal,String> {
+    let text=option_env!("IGNITE_PRODUCTION_ACCOUNT_WITNESS").ok_or("Independent recovery witness not configured")?;
+    let p=Principal::from_text(text).map_err(|_|"Invalid immutable recovery witness")?;
+    if p==Principal::anonymous() || p==Principal::management_canister() {return Err("Invalid immutable recovery witness".into());}
+    Ok(p)
+}
+pub fn request(a:&SignedApproval,request_id:u64) -> Result<WitnessRequest,String> {
+    let mut bytes=signing_bytes(&a.body)?;bytes.extend(&a.signature);
+    Ok(WitnessRequest {identity:a.body.identity,generation:a.body.generation,recovery_epoch:a.body.recovery_epoch,
+        signed_digest:Sha256::digest(bytes).to_vec(),request_id})
+}
+pub fn validate_witness(expected:&WitnessRequest,receipt:&WitnessReceipt) -> Result<(),String> {
+    if expected!=&receipt.request {return Err("Exact independent recovery witness receipt required".into());} Ok(())
+}
 fn parse_key(value:&str) -> Result<VerifyingKey,String> {
     if value.len()!=64 || !value.is_ascii() { return Err("Invalid immutable production account signer".into()); }
     let mut bytes=[0u8;32];
@@ -46,7 +68,7 @@ pub fn validate(approval:&SignedApproval,identity:Principal,operator:Principal,n
     let b=&approval.body;
     if b.kind!=KIND || b.identity!=identity || b.expectation.identity!=identity ||
         b.operator!=operator || operator==Principal::anonymous() || operator==Principal::management_canister() ||
-        b.generation==0 || b.expires_at_ns<=now || b.review.release_authorized || b.review.recovery_accepted ||
+        b.generation==0 || b.recovery_epoch==0 || b.expires_at_ns<=now || b.review.release_authorized || b.review.recovery_accepted ||
         [&b.original_inventory_evidence,&b.runtime_evidence,&b.fenced_recovery_evidence].iter().any(|h|h.len()!=32 || h.iter().all(|v|*v==0)) {
         return Err("Exact signed production account evidence required".into());
     }
@@ -81,7 +103,7 @@ pub fn disable(prior:&State) -> Result<State,String> {
         let (expectation,lifecycle,configurations)=crate::production_account_protection::tests::fixture();
         let review=crate::production_account_protection::verify(&expectation,&expectation.inventory,&lifecycle,&lifecycle,&configurations).unwrap();
         let body=ApprovalBody {kind:KIND.into(),identity:expectation.identity,operator:Principal::from_slice(&[98,1]),generation:1,
-            expires_at_ns:100,expectation,review,original_inventory_evidence:vec![1;32],runtime_evidence:vec![2;32],fenced_recovery_evidence:vec![3;32]};
+            expires_at_ns:100,expectation,review,original_inventory_evidence:vec![1;32],runtime_evidence:vec![2;32],fenced_recovery_evidence:vec![3;32],recovery_epoch:1};
         let key=SigningKey::from_bytes(&[7;32]);let signature=key.sign(&signing_bytes(&body).unwrap()).to_bytes().to_vec();
         (SignedApproval {body,signature},key.verifying_key())
     }
@@ -115,5 +137,14 @@ pub fn disable(prior:&State) -> Result<State,String> {
         assert!(authorize(&disabled,a.clone(),a.body.identity,a.body.operator,1,&k).is_err());
         assert!(reader(&disabled,a.body.review.account_readers[0],1).is_err());
         let restored:State=crate::decode(&crate::encode(&s));assert_eq!(restored,s);
+    }
+    #[test] fn witness_rejects_old_request_epoch_generation_or_signed_digest() {
+        let(a,_)=signed();let request=request(&a,8).unwrap();let receipt=WitnessReceipt {request:request.clone()};
+        assert!(validate_witness(&request,&receipt).is_ok());
+        let mut bad=receipt.clone();bad.request.request_id=7;assert!(validate_witness(&request,&bad).is_err());
+        let mut bad=receipt.clone();bad.request.recovery_epoch=2;assert!(validate_witness(&request,&bad).is_err());
+        let mut bad=receipt.clone();bad.request.generation=2;assert!(validate_witness(&request,&bad).is_err());
+        let mut bad=receipt;bad.request.signed_digest[0]^=1;assert!(validate_witness(&request,&bad).is_err());
+        if option_env!("IGNITE_PRODUCTION_ACCOUNT_WITNESS").is_none(){assert!(witness().is_err());}
     }
 }
