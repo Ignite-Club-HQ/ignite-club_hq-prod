@@ -97,4 +97,11 @@ fn setup() -> (Principal, Principal, OwnerOpeningApproval) {
     DELETION_LOCKS.with(|m| m.borrow_mut().insert("locked".into(), encode(&DeletionLock { account_id: "locked".into(), revision: current_revision() })));
     // No mutation under deletion locks, even on the isolated path.
     assert!(place_new_club_for(owner, a.club_ids[0].clone(), "mainnet".into(), 1).is_err());
+}#[test] fn removal_obligation_is_an_accepting_owner_opening_until_governor_stop() {
+    let (gov, owner, a) = setup(); open_owner_group_for(gov, a, 1).unwrap();
+    let other = Principal::from_slice(&[202, 1]);
+    assert_eq!(removal_obligations(&[owner]), 1);
+    assert_eq!(removal_obligations(&[other]), 0);
+    stop_owner_group_for(gov, "mainnet".into(), current_revision()).unwrap();
+    assert_eq!(removal_obligations(&[owner]), 0);
 }
