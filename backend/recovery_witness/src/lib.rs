@@ -18,13 +18,16 @@ thread_local! {
     static REMOVALS:RefCell<StableBTreeMap<String,Vec<u8>,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(4)))));
     static PROGRESS:RefCell<StableBTreeMap<String,u8,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(5)))));
     // Live management lifecycle count is external to snapshots. Zero means closed.
-    static ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(6))),0));
+    static LEGACY_ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(6))),0));
     static IDENTITY:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(7))),vec![]));
     static EVENTS:RefCell<StableBTreeMap<Vec<u8>,u64,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(8)))));
     // Immutable accepted baseline survives ordinary progress, never restore/disable.
     static ACCOUNT_BASELINE:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(9))),vec![]));
-    static ACCOUNT_ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(10))),0));
+    static LEGACY_ACCOUNT_ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(10))),0));
     static DENIED_SUBJECTS:RefCell<StableBTreeMap<String,String,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(11)))));
+    // V2 starts closed; never reinterpret old runtime-version arming as lifecycle evidence.
+    static ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(12))),0));
+    static ACCOUNT_ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(13))),0));
 }
 fn event_key(event:&Event)->Vec<u8> {use sha2::{Digest,Sha256};Sha256::digest(candid::encode_one(event).expect("bounded recovery event")).to_vec()}
 fn encode<T:serde::Serialize>(v:&T)->Vec<u8> {let mut b=vec![];ciborium::ser::into_writer(v,&mut b).expect("encode witness state");b}
@@ -162,6 +165,8 @@ async fn authorize_subject_removal_progress(a:SignedAcceptance)->Outcome<()> {
     if recovery_lifecycle::current_changes().await?!=version || head()!=captured || a.body.expires_at_ns<=ic_cdk::api::time() {
         return Err("Subject progress acceptance changed".into());
     }
+    require_governor()?;
+    recovery_lifecycle::check_armed(ARMED_VERSION.with(|v|*v.borrow().get()),version)?;
     ACCOUNT_BASELINE.with(|s|s.borrow_mut().set(encode(&a)));
     ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(version));Ok(())
 }
@@ -177,6 +182,7 @@ async fn verify_production_subject_read_fence(r:AccountReadRequest)->Outcome<Acc
     let bytes=ACCOUNT_BASELINE.with(|s|s.borrow().get().clone());
     if bytes.is_empty() || ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get())!=version {return Err("Subject recovery baseline restored, disabled or missing".into());}
     let baseline:SignedAcceptance=decode(&bytes);
+    validate_subject_progress(&baseline,&signer()?)?;
     verify_account_baseline(&baseline,&r,caller,ic_cdk::api::time())?;account_not_removed(&r)?;
     check_participants(&baseline.body).await?;
     if recovery_lifecycle::current_changes().await?!=version || ACCOUNT_BASELINE.with(|s|s.borrow().get()!=&bytes) || ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get())!=version {

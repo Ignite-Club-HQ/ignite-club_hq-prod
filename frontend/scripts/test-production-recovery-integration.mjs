@@ -77,23 +77,38 @@ try {
  const body={witness:witnessId,witness_version:ok(await w.read_recovery_runtime_version()),identity:identityId,
   epoch:head.epoch,journal_revision:head.revision,journal_digest:head.digest,
   inventory_digest:bytes(1),decoded_history_digest:bytes(2),generation:1n,signed_digest:bytes(3),
-  expires_at_ns:BigInt(await pic.getTime()+120000)*1000000n,history_revision:0n,removal_generation:0n,identity_version:1n,
+  expires_at_ns:BigInt(await pic.getTime()+120000)*1000000n,history_revision:0n,removal_generation:0n,identity_version:ok(await id.read_production_account_runtime_version()),
   participants:[await lifecycle(identityId),await lifecycle(participant)]};
  const signBody=async b=>({body:b,signature:new Uint8Array(sign(null,Buffer.from(ok(await w.recovery_acceptance_signing_bytes(b))),recoveryKey.privateKey))});
  const signed=await signBody(body);
- const request={identity:identityId,generation:1n,recovery_epoch:head.epoch,signed_digest:bytes(3),request_id:1n,history_revision:0n,removal_generation:0n,identity_version:1n};
+ const request={identity:identityId,generation:1n,recovery_epoch:head.epoch,signed_digest:bytes(3),request_id:1n,history_revision:0n,removal_generation:0n,identity_version:body.identity_version};
  w.setPrincipal(identityId);refuses(await w.verify_production_account_read_fence(request),/Recovery remains fenced/);w.setPrincipal(owner);
  const forged={...signed,signature:new Uint8Array(64)};refuses(await w.accept_recovery_fence(forged),/Independent recovery signature required/);
  assert.equal(ok(await w.accept_recovery_fence(signed)),head.epoch);
  w.setPrincipal(identityId);assertCandidEqual(ok(await w.verify_production_account_read_fence(request)).request,request);
- for(const [field,value] of [['generation',2n],['history_revision',1n],['removal_generation',1n],['identity_version',2n],['request_id',0n]])refuses(await w.verify_production_account_read_fence({...request,[field]:value}),/Current exact recovery fence required/);
+ for(const [field,value] of [['generation',2n],['history_revision',1n],['removal_generation',1n],['identity_version',body.identity_version+1n],['request_id',0n]])refuses(await w.verify_production_account_read_fence({...request,[field]:value}),/Current exact recovery fence required/);
  w.setPrincipal(outsider);refuses(await w.verify_production_account_read_fence(request),/Current exact recovery fence required/);w.setPrincipal(owner);
  mark('Signed live witness acceptance succeeds; forged signatures, wrong callers and stale request fields fail');
+ // Ordinary updates and callbacks must not invalidate independently signed lifecycle pins.
+ const subjectRequest={request,account_id:'survivor',subjects:[human]};
+ w.setPrincipal(owner);
+ const progressSignature=new Uint8Array(sign(null,Buffer.from(ok(await w.subject_progress_approval_signing_bytes(body))),recoveryKey.privateKey));
+ ok(await w.authorize_subject_removal_progress({body,signature:progressSignature}));
+ for(let i=0;i<3;i++) {
+  ok(await w.read_recovery_head());ok(await w.read_recovery_records(0n,200));
+  assert.equal(ok(await w.read_recovery_runtime_version()),body.witness_version);
+  w.setPrincipal(identityId);
+  assertCandidEqual(ok(await w.verify_production_account_read_fence(request)).request,request);
+  assertCandidEqual(ok(await w.verify_production_subject_read_fence(subjectRequest)).request,subjectRequest);
+  w.setPrincipal(owner);
+ }
+ mark('Repeated ordinary updates and callbacks preserve both general and subject acceptance');
  stage='accepted snapshot restoration closes old approval';
  const witnessSnapshot=await snapshot(witnessId);
  const current=ok(await w.read_recovery_head());ok(await w.close_recovery_fence(current.epoch));
  await restore(witnessId,witnessSnapshot);
  w.setPrincipal(identityId);refuses(await w.verify_production_account_read_fence(request),/Witness restored or upgraded/);w.setPrincipal(owner);
+ w.setPrincipal(identityId);refuses(await w.verify_production_subject_read_fence(subjectRequest),/Subject recovery baseline restored/);w.setPrincipal(owner);
  refuses(await w.accept_recovery_fence(signed),/Current exact independent recovery acceptance required/);
  mark('Real accepted witness snapshot cannot revive prior approval after restoration');
  stage='real identity disable call journals through independent witness';
@@ -124,15 +139,20 @@ try {
  stage='fresh acceptance rejects participant upgrade and expiry';
  w.setPrincipal(owner);const freshHead=ok(await w.read_recovery_head());
  const freshBody={...body,epoch:freshHead.epoch,journal_revision:freshHead.revision,journal_digest:freshHead.digest,
-  witness_version:ok(await w.read_recovery_runtime_version()),participants:[await lifecycle(identityId),await lifecycle(participant)],expires_at_ns:BigInt(await pic.getTime()+120000)*1000000n};
+  witness_version:ok(await w.read_recovery_runtime_version()),identity_version:ok(await id.read_production_account_runtime_version()),participants:[await lifecycle(identityId),await lifecycle(participant)],expires_at_ns:BigInt(await pic.getTime()+120000)*1000000n};
  ok(await w.accept_recovery_fence(await signBody(freshBody)));
- const freshRequest={...request,recovery_epoch:freshHead.epoch};
+ const freshRequest={...request,recovery_epoch:freshHead.epoch,identity_version:freshBody.identity_version};
  w.setPrincipal(identityId);ok(await w.verify_production_account_read_fence(freshRequest));
  await pic.upgradeCanister({canisterId:participant,sender:owner,wasm:wasm('identity_access'),arg:identityArgs});
  refuses(await w.verify_production_account_read_fence(freshRequest),/Recovery participant lifecycle changed/);
  await pic.setTime(Number(freshBody.expires_at_ns/1000000n)+1);
  refuses(await w.verify_production_account_read_fence(freshRequest),/Current exact recovery fence required/);
  mark('Previously successful witness reads reject real participant upgrades and expired acceptance');
+ stage='same-Wasm witness upgrade cannot retain either acceptance';
+ await pic.upgradeCanister({canisterId:witnessId,sender:owner,wasm:wasm('recovery_witness'),arg:IDL.encode([],[])});
+ refuses(await w.verify_production_subject_read_fence(subjectRequest),/Subject recovery baseline restored/);
+ w.setPrincipal(owner);refuses(await w.accept_recovery_fence(signed),/Current exact independent recovery acceptance required/);
+ mark('Same-Wasm witness upgrade clears v2 arming and refuses old signed acceptance');
  report.passed=true;
 } catch(error) {
  if(error.hostReport)report.host=error.hostReport;
