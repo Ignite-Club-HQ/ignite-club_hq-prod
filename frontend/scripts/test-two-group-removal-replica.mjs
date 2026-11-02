@@ -3,6 +3,8 @@
 // guards are tested separately and never imply full production authorization.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { createProductionIdentity } from './production-removal-authorization.mjs';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { PocketIc } from '@dfinity/pic';
@@ -24,14 +26,17 @@ const denied=async fn=>{
  }
  err(result);
 };
-const candidate=process.env.TWO_GROUP_RECEIVER_MODE==='production-candidate';
+const production=process.env.TWO_GROUP_RECEIVER_MODE==='production';
+const candidate=production || process.env.TWO_GROUP_RECEIVER_MODE==='production-candidate';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const report={schema:1,kind:'two-group-complete-removal',passed:false,
  releaseAuthorized:false,fullInventoryAcceptance:false,productionAuthorization:false,
- identityMode:'local-rehearsal',mode:candidate?'production-receivers-rehearsal-coordinator':'local-rehearsal',checks:[],modules:{},unresolvedInfrastructure:[],completeSeals:0,terminalFencingCompletion:false};
+ identityMode:production?'production':'local-rehearsal',mode:production?'signed-production':candidate?'production-receivers-rehearsal-coordinator':'local-rehearsal',checks:[],modules:{},unresolvedInfrastructure:[],completeSeals:0,terminalFencingCompletion:false};
 let server,pic,stage='validate artifact inputs';
 const mark=name=>report.checks.push({name,passed:true});
 const hash=f=>createHash('sha256').update(readFileSync(f)).digest('hex');
-const wasm=name=>{const f=process.env[name.toUpperCase()+'_WASM'];assert.ok(f,`${name} Wasm required`);return f;};
+let productionIdentityWasm;
+const wasm=name=>{if(name==='identity_access' && productionIdentityWasm)return productionIdentityWasm;const f=process.env[name.toUpperCase()+'_WASM'];assert.ok(f,`${name} Wasm required`);return f;};
 const factory=async name=>(await import(`../src/lab/bindings/${name}/declarations/${name}.did.js`)).idlFactory;
 const env=identity=>[...(candidate?[{name:'IGNITE_ACCOUNT_ADMISSION_RELEASE',value:'1'},{name:'IGNITE_ACCOUNT_REMOVAL_RELEASE',value:'1'}]:
  [{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'}]),{name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:identity.toText()}];
@@ -58,7 +63,8 @@ try{
  assert.equal(ok(await closedIdentity.whoami()).id,closedAccount.id);err(await closedIdentity.read_service_account(governor));
  mark('Non-rehearsal identity denies unaccepted alias readers; authorization disable generation survives upgrade and preserves own account');
  stage='install real identity and inventory';
- const identity=await install('identity_access',[{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'}]);
+ const identity=production?await createProductionIdentity(pic,governor,root,args):await install('identity_access',[{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'}]);
+ if(production){productionIdentityWasm=identity.identityWasm;report.modules.identity_access=hash(productionIdentityWasm);}
  const router=await install('shard_router');const shared=await install('secret_workload_identity');
  const id=identity.actor;id.setPrincipal(governor);ok(await id.register_account());
  const groups=[];
@@ -77,7 +83,7 @@ try{
   assert.equal(config.protocol,1);assert.equal(config.admission_required,true);assert.equal(config.removal_enabled,true);assert.equal(config.rehearsal,!candidate);
  }
  mark('All 24 receiver effective configurations authenticate identity, reject outsiders and match selected guard mode');
- ok(await id.set_service_authorities(receivers.map(s=>s.canisterId)));
+ if(!production)ok(await id.set_service_authorities(receivers.map(s=>s.canisterId)));
  id.setPrincipal(primary);const account=ok(await id.register_account());const challenge=ok(await id.begin_link(alias));
  id.setPrincipal(alias);ok(await id.accept_link(challenge.id));
  id.setPrincipal(survivor);const survivingAccount=ok(await id.register_account());
@@ -95,19 +101,27 @@ try{
   const mapped=[...HUMAN_DOMAINS.filter(d=>d!=='media_blob_store').map(domain=>({domain,canister:g.services[domain].canisterId})),
    {domain:'timer_jobs',canister:g.timer.canisterId},{domain:'secret_workload_identity',canister:shared.canisterId}];
   let revision=await router.actor.version();
-  revision=ok(await router.actor.register_group({id:g.id,target_alias:'local',domains:mapped,accepting:false,max_clubs:100,assigned_clubs:0,
+  revision=ok(await router.actor.register_group({id:g.id,target_alias:production?'mainnet':'local',domains:mapped,accepting:false,max_clubs:100,assigned_clubs:0,
    heap_budget_bytes:1000000n,heap_bytes:0n,min_cycles:1n,cycles:0n,observed_at_ns:0n,photo_store:[]},revision));
-  ok(await router.actor.register_group_placement({group_id:g.id,deployment_id:'isolated-replica',deployment_revision:1n,host:'https://isolated.invalid',
+  ok(await router.actor.register_group_placement({group_id:g.id,deployment_id:production?'prod':'isolated-replica',deployment_revision:1n,host:production?'https://icp-api.io':'https://isolated.invalid',
    network_kind:'public_mainnet',primary_subnet:subnet,approved_subnets:[subnet],additional_subnets_enabled:false,domains:mapped.map(d=>({...d,subnet}))},revision));
   extra.push({group_id:g.id,domain:'media_blob_store',canister:g.services.media_blob_store.canisterId,subnet});
  }
  extra.push({group_id:'base',domain:'shard_router',canister:router.canisterId,subnet});
- ok(await id.set_club_authorities(groups.map(g=>g.services.club_domain.canisterId)));
- const revision=async()=>ok(await id.read_removal_history_manifest()).revision;
- ok(await id.set_group_inventory_binding({registry:router.canisterId,registry_revision:await router.actor.version(),target_alias:'local',
-  deployment_id:'isolated-replica',deployment_revision:1n,host:'https://isolated.invalid',network_kind:'public_mainnet'},await revision()));
- ok(await id.set_removal_supplemental_inventory(extra,await revision()));
- const inventory=ok(await id.read_removal_inventory_evidence(await revision()));assert.equal(inventory.media.length,2);
+ const revision=async()=>production?ok(await id.read_production_account_history_revision()):ok(await id.read_removal_history_manifest()).revision;
+ let inventory;
+ if(!production){
+  ok(await id.set_club_authorities(groups.map(g=>g.services.club_domain.canisterId)));
+  ok(await id.set_group_inventory_binding({registry:router.canisterId,registry_revision:await router.actor.version(),target_alias:'local',deployment_id:'isolated-replica',deployment_revision:1n,host:'https://isolated.invalid',network_kind:'public_mainnet'},await revision()));
+  ok(await id.set_removal_supplemental_inventory(extra,await revision()));
+  inventory=ok(await id.read_removal_inventory_evidence(await revision()));assert.equal(inventory.media.length,2);
+ } else {
+  const registryRevision=await router.actor.version();
+  const page=ok(await router.actor.read_group_registry_page('mainnet',[registryRevision],[],64));
+  inventory={groups:{binding:{registry:router.canisterId,registry_revision:registryRevision,target_alias:'mainnet',deployment_id:'prod',deployment_revision:1n,host:'https://icp-api.io',network_kind:'public_mainnet'},history_revision:await revision(),
+   snapshot:{revision:registryRevision,groups:page.groups.map(g=>({id:g.id,target_alias:g.target_alias,domains:g.domains})),placements:page.placements}},supplemental:extra,
+   media:groups.map(g=>({club_authority:g.services.club_domain.canisterId,registry:{active:false,stores:[g.services.media_blob_store.canisterId]}}))};
+ }
  mark('Real closed base/g2 registry, 24 human receivers, two timers, shared workload and supplemental router');
  stage='configure infrastructure removal receivers';
  const infra=[{name:'shard_router',s:router},{name:'secret_workload_identity',s:shared},...groups.map(g=>({name:`${g.id}/timer_jobs`,s:g.timer}))];
@@ -124,12 +138,19 @@ try{
   assert.equal(config.protocol,1);assert.equal(config.admission_required,false);assert.equal(config.removal_enabled,true);assert.equal(config.rehearsal,false);
   target.actor.setPrincipal(governor);
  }
+ const productionTargets=[...receivers,...infra.map(x=>x.s)];
+ const refreshProduction=async()=>{if(production){id.setPrincipal(governor);inventory=await identity.authorize(inventory,productionTargets);}};
+ if(production){
+  inventory=await identity.authorize(inventory,productionTargets,{provision:true});
+  report.productionAuthorization=true;report.fullInventoryAcceptance=true;
+  mark('Signed inventory bootstrap and production authorization cover all 28 real targets without rehearsal');
+ }
  // Positive controls: real infrastructure obligations bound to the account.
  const baseTimer=groups[0].timer.actor;baseTimer.setPrincipal(governor);ok(await baseTimer.grant_worker(alias));
  baseTimer.setPrincipal(alias);ok(await baseTimer.claim(0n,1));
  shared.actor.setPrincipal(governor);ok(await shared.actor.register_workload(primary,'removed-account-workload',['send-push-notification']));
  shared.actor.setPrincipal(primary);assert.equal((await shared.actor.verify_secret_access(primary,'send-push-notification','before-fence')).approved,true);
- for(const human of [primary,alias,survivor]){router.actor.setPrincipal(human);ok(await router.actor.read_my_owner_test_opening('local'));}
+ for(const human of [primary,alias,survivor]){router.actor.setPrincipal(human);ok(await router.actor.read_my_owner_test_opening(production?'mainnet':'local'));}
  mark('Four infrastructure receivers configured once; alias timer worker and primary workload are real retained obligations');
  const normalizedGroups=groups.map(g=>({id:g.id,timer:g.timer.canisterId.toText(),receivers:HUMAN_DOMAINS.map(domain=>({domain,id:g.services[domain].canisterId.toText()}))}));
  stage='seed positive private records in both groups';
@@ -233,6 +254,7 @@ try{
   await pic.upgradeCanister({canisterId:s.canisterId,wasm:wasm(domain),sender:governor,arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
   for(const human of [primary,alias]){s.actor.setPrincipal(human);await denied(probes(g)[domain]);}
  }
+ await refreshProduction();
  for(const g of groups){await g.readPhoto(survivor);const chat=g.services.messaging_domain.actor;chat.setPrincipal(survivor);
   assert.equal(ok(await chat.read_account_list_messages_page(g.chat.id,[],10)).messages[0].id,g.message.id);
   ok(await chat.send_message(g.chat.id,'Survivor remains active','survivor',[],[]));
@@ -255,8 +277,8 @@ try{
  shared.actor.setPrincipal(governor);assert.equal((await shared.actor.verify_secret_access(primary,'send-push-notification','governor-after-fence')).approved,false);
  err(await shared.actor.register_workload(alias,'re-add',['send-push-notification']));
  baseTimer.setPrincipal(governor);err(await baseTimer.grant_worker(primary));
- for(const human of [primary,alias]){router.actor.setPrincipal(human);await assertRemovalFenced(()=>router.actor.read_my_owner_test_opening('local'));}
- router.actor.setPrincipal(survivor);ok(await router.actor.read_my_owner_test_opening('local'));
+ for(const human of [primary,alias]){router.actor.setPrincipal(human);await assertRemovalFenced(()=>router.actor.read_my_owner_test_opening(production?'mainnet':'local'));}
+ router.actor.setPrincipal(survivor);ok(await router.actor.read_my_owner_test_opening(production?'mainnet':'local'));
  // Seals stay refused while obligations remain; nothing is inferred from receipts.
  err(await id.verify_account_removal_seals(account.id));
  err(await id.complete_account_removal_fencing(account.id));
@@ -268,7 +290,7 @@ try{
  await pic.upgradeCanister({canisterId:router.canisterId,wasm:wasm('shard_router'),sender:governor,arg:IDL.encode([],[])});
  await pic.upgradeCanister({canisterId:shared.canisterId,wasm:wasm('secret_workload_identity'),sender:governor,arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
  for(const g of groups)await pic.upgradeCanister({canisterId:g.timer.canisterId,wasm:wasm('timer_jobs'),sender:governor,arg:IDL.encode([],[])});
- for(const human of [primary,alias]){router.actor.setPrincipal(human);await assertRemovalFenced(()=>router.actor.read_my_owner_test_opening('local'));}
+ for(const human of [primary,alias]){router.actor.setPrincipal(human);await assertRemovalFenced(()=>router.actor.read_my_owner_test_opening(production?'mainnet':'local'));}
  baseTimer.setPrincipal(alias);await assertRemovalFenced(()=>baseTimer.claim(0n,1));
  shared.actor.setPrincipal(primary);await assertRemovalFenced(()=>shared.actor.verify_secret_access(primary,'send-push-notification','after-upgrade'));
  for(const {s:target} of infra)assert.equal(ok(await id.advance_account_removal_receiver(account.id,target.canisterId)).outstanding,0n);
@@ -296,6 +318,7 @@ try{
  assert.deepEqual(exported.completions,[[account.id,terminal]]);
  err(await id.set_service_authorities(receivers.map(s=>s.canisterId)));
  for(const human of [primary,alias]){id.setPrincipal(human);err(await id.whoami());err(await id.register_account());}
+ await refreshProduction();
  for(const g of groups){await g.readPhoto(survivor);g.services.messaging_domain.actor.setPrincipal(survivor);
   assert.equal(ok(await g.services.messaging_domain.actor.read_account_list_messages_page(g.chat.id,[],10)).messages.length,2);
   g.services.vault_domain.actor.setPrincipal(survivor);assert.equal(ok(await g.services.vault_domain.actor.read_account_get_folder('folder'))[0].id,'folder');}

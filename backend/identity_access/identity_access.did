@@ -752,6 +752,9 @@ service : (Init) -> {
       Scope,
     ) -> (Result_27);
   read_production_account_authorization : () -> (Result_40);
+  read_production_account_history_revision : () -> (Result_8);
+  read_production_account_removal_generation : () -> (Result_8);
+  read_production_account_runtime_version : () -> (Result_8);
   // Local-only consensus recovery evidence. Reader lists/club receipts are NOT
   // a complete deployment inventory or an in-flight drain acknowledgement.
   read_removal_history_manifest : () -> (Result_41);

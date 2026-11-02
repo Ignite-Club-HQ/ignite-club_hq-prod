@@ -910,6 +910,13 @@ export interface _SERVICE {
     [ApprovalBody_1],
     Result_26
   >,
+  /**
+   * Signed closed-only inventory bootstrap: inspect candidate pins before any write.
+   */
+  'provision_production_account_inventory' : ActorMethod<
+    [SignedApproval_1],
+    Result_8
+  >,
   'publish_approved_private_name' : ActorMethod<[string, string], Result_17>,
   'read_account_removal_completion' : ActorMethod<[string], Result_15>,
   'read_account_removal_intent' : ActorMethod<[string], Result_9>,
@@ -993,6 +1000,9 @@ export interface _SERVICE {
     Result_27
   >,
   'read_production_account_authorization' : ActorMethod<[], Result_40>,
+  'read_production_account_history_revision' : ActorMethod<[], Result_8>,
+  'read_production_account_removal_generation' : ActorMethod<[], Result_8>,
+  'read_production_account_runtime_version' : ActorMethod<[], Result_8>,
   /**
    * Local-only consensus recovery evidence. Reader lists/club receipts are NOT
    * a complete deployment inventory or an in-flight drain acknowledgement.
