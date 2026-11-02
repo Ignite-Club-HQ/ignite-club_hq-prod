@@ -7,6 +7,7 @@
 //! The authority (the identity coordinator) is governor-configured once and
 //! immutable; the gate is inactive until then, and retained fences keep
 //! denying subjects forever.
+#![allow(dead_code)] // Hosts use different subsets of this shared gate.
 use candid::{CandidType, Nat, Principal};
 use ic_stable_structures::{StableBTreeMap, StableCell};
 use serde::{Deserialize, Serialize};

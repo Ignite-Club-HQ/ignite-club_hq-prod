@@ -171,7 +171,14 @@ type WriterRequest = record {
   generation : nat64;
   operation_id : text;
 };
+type AccountRemovalRequest = record { account_id : text; generation : nat64; inventory_digest : blob; subjects : vec principal };
+type AccountRemovalReceipt = record { request : AccountRemovalRequest; receiver : principal; outstanding : nat };
 service : (Init) -> {
+  set_account_removal_authority : (principal) -> (variant { Ok; Err : text });
+  read_account_removal_authority : () -> (opt principal) query;
+  prepare_account_removal : (AccountRemovalRequest) -> (variant { Ok; Err : text });
+  read_account_removal_drain : (AccountRemovalRequest) -> (variant { Ok : AccountRemovalReceipt; Err : text });
+  seal_account_removal : (AccountRemovalRequest) -> (variant { Ok : AccountRemovalReceipt; Err : text });
   abort_domain_migration : (text, text, nat64) -> (Result);
   abort_migration : (text, nat64) -> (Result);
   acquire_deletion_lock : (text, nat64) -> (Result_1);
