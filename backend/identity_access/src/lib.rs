@@ -1007,11 +1007,7 @@ fn recovery_witness_target()->Outcome<Option<Principal>> {
 fn stage_recovery_record(record:recovery_protocol::Record)->Outcome<()> {
     if recovery_witness_target()?.is_none(){return Ok(());}
     let key=record.operation_id.clone();
-    if let Some(bytes)=RECOVERY_ACKS.with(|m|m.borrow().get(&key)) {
-        let ack:recovery_journal::Pending=decode(&bytes);
-        if ack.record!=record{return Err("Immutable recovery acknowledgement conflict".into());}return Ok(());
-    }
-    let prior=RECOVERY_PENDING.with(|m|m.borrow().get(&key)).map(|b|decode(&b));
+    let prior=RECOVERY_PENDING.with(|m|m.borrow().get(&key)).or_else(||RECOVERY_ACKS.with(|m|m.borrow().get(&key))).map(|b|decode(&b));
     if prior.is_none() && RECOVERY_PENDING.with(|m|m.borrow().len())>=MAX_ACCOUNTS as u64 {return Err("Recovery pending capacity reached; keep admission closed".into());}
     let pending=recovery_journal::prepare(prior,record)?;
     RECOVERY_PENDING.with(|m|m.borrow_mut().insert(key,encode(&pending)));Ok(())
@@ -1020,7 +1016,6 @@ async fn settle_recovery_record(record:recovery_protocol::Record)->Outcome<()> {
     let Some(witness)=recovery_witness_target()? else{return Ok(());};
     stage_recovery_record(record.clone())?;
     let key=record.operation_id.clone();
-    if RECOVERY_ACKS.with(|m|m.borrow().contains_key(&key)){return Ok(());}
     let captured:recovery_journal::Pending=RECOVERY_PENDING.with(|m|decode(&m.borrow().get(&key).expect("staged recovery record")));
     let reply=ic_cdk::call::Call::bounded_wait(witness,"record_removal_recovery").with_arg(&record)
         .await.map_err(|_|"Recovery write outcome unknown; pending intent retained")?;
@@ -1190,13 +1185,15 @@ async fn complete_account_removal_fencing(account_id: String) -> Outcome<removal
     persist_removal_completion(&intent, seals)
 }
 #[ic_cdk::update]
-fn read_account_removal_completion(account_id: String) -> Outcome<removal_barrier::Completion> {
+async fn read_account_removal_completion(account_id: String) -> Outcome<removal_barrier::Completion> {
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
     let completion = removal_completion(&account_id).ok_or("Removal completion missing")?;
     if recovery_witness_target()?.is_some() {
         let record=progress_recovery_record(&intent,recovery_protocol::Progress::Completed);
         if !RECOVERY_ACKS.with(|m|m.borrow().contains_key(&record.operation_id)){return Err("Independent completion acknowledgement pending".into());}
+        settle_recovery_record(record).await?;
+        if removal_intent(&account_id).as_ref()!=Some(&intent)||removal_completion(&account_id).as_ref()!=Some(&completion){return Err("Removal completion changed during independent readback".into());}
     }
     completion.validate(&intent)?; Ok(completion)
 }
