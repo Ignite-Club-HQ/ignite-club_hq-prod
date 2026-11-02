@@ -74,6 +74,11 @@ export const ICP_SOURCE_FILES = [
   'scripts/resolve-group-push-worker.sh',
   'scripts/media-card-funding-policy.mjs',
   'frontend/scripts/media-stage-two-github.mjs',
+  // The live upgrade's photo-key safety check runs before and after every
+  // upgrade; without these the live repository cannot upgrade at all.
+  'frontend/scripts/media-key-deploy-preflight.mjs',
+  'frontend/scripts/media-key-deploy-rules.mjs',
+  'frontend/scripts/media-key-mainnet.mjs',
 
   '.github/workflows/promote-icp-prod.yml',
   '.github/workflows/apply-prod-lifecycle-wiring.yml',
