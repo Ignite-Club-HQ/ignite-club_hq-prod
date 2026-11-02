@@ -15,6 +15,13 @@ Authenticated effective-mode readbacks cover all 24 human services and four
 infrastructure receivers; outsiders must be refused. No alias-reader authority
 is inferred from a receiver's production-mode configuration.
 
+Before each full run, a separately installed non-rehearsal identity must reject
+unaccepted service/linked-account reads and outsider administration, preserve
+its own account, and retain the disable generation across upgrade. The workflow
+also runs signed-scope, expiry, replay, malformed-input and partition-isolation
+Rust tests. These do not certify positive external-witness transport or authorize
+production: the independent signer/recovery witness are deliberately absent.
+
 - One real identity coordinator, one router and one shared workload service.
 - Independent base/g2 copies of all twelve human-data receivers, including each
   group's photo store, plus two actual timers: exactly 28 frozen remote targets.
