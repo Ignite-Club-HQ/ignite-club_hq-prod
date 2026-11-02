@@ -44,10 +44,9 @@ jobs:
           export CHECK_REPORT_DIR="$RUNNER_TEMP/control-report"
           node --input-type=module <<'JS'
           import {readFileSync,writeFileSync} from 'node:fs';
-          import {createRequire} from 'node:module';
           import {readRoutingGate} from './scripts/prod-routing-gate.mjs';
           const e=process.env;
-          const {ids,agent,Actor,IDL,Principal,page,review}=await readRoutingGate(e,{log:false});
+          const {ids,agent,Actor,IDL,Principal,page}=await readRoutingGate(e,{log:false});
           const account=Actor.createActor(()=>IDL.Service({read_production_account_authorization:IDL.Func([],[IDL.Variant({Ok:IDL.Record({generation:IDL.Nat64,approval:IDL.Opt(IDL.Record({}))}),Err:IDL.Text})],[])}),{agent,canisterId:ids.identity_access});
           const out={checkedAt:new Date().toISOString(),approvalPresent:null,generation:null,rows:[],changesMade:false,openingAuthorized:false};
           try{const r=await account.read_production_account_authorization();if('Ok' in r){out.approvalPresent=r.Ok.approval.length===1;out.generation=r.Ok.generation.toString();}else out.authorizationRead='REFUSED';}catch{out.authorizationRead='UNREADABLE';}
