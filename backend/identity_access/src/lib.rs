@@ -33,6 +33,9 @@ mod group_inventory;
 mod expected_removal_inventory;
 mod production_account_protection;
 mod production_account_authorization;
+#[path = "../../recovery_witness/src/protocol.rs"]
+mod recovery_protocol;
+mod recovery_journal;
 mod removal_barrier;
 mod deletion_timing;
 mod admission;
@@ -115,6 +118,7 @@ const MEM_GROUP2_ADMISSION: u8 = 17;
 const MEM_REMOVAL_COMPLETIONS: u8 = 33;
 const MEM_PRODUCTION_ACCOUNT_AUTHORIZATION: u8 = 34;
 const MEM_PRODUCTION_ACCOUNT_REQUEST: u8 = 35;
+const MEM_RECOVERY_PENDING: u8 = 36;
 // Directory-specific additive storage: never share lifecycle/admission maps.
 const MEM_DIRECTORY_POOL_META:u8=18;
 const MEM_DIRECTORY_POOL_BLOCKS:u8=19;
@@ -585,6 +589,8 @@ thread_local! {
         RefCell::new(StableCell::init(memory(MEM_PRODUCTION_ACCOUNT_AUTHORIZATION),Vec::new()));
     static PRODUCTION_ACCOUNT_REQUEST: RefCell<StableCell<u64,Memory>> =
         RefCell::new(StableCell::init(memory(MEM_PRODUCTION_ACCOUNT_REQUEST),0));
+    static RECOVERY_PENDING: RefCell<StableBTreeMap<String,Vec<u8>,Memory>> =
+        RefCell::new(StableBTreeMap::init(memory(MEM_RECOVERY_PENDING)));
     static DIRECTORY_CONFIG:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(memory(MEM_DIRECTORY_CONFIG),Vec::new()));
     static DIRECTORY_COORDINATOR:RefCell<membership_coordinator::Coordinator<Memory>>=RefCell::new(
         membership_coordinator::Coordinator::open(memory(MEM_DIRECTORY_COORDINATOR),

@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — approved production removal safeguards (2 Nov 2026, 03:32 UTC)
+- [ ] 04:20 continue: connect removal/disable to immutable external journal with durable pending acknowledgements and exact readback; strengthen exclusive restore locks, retaining all production holds.
 - [x] 04:10 request: implemented independent recovery witness candidate with immutable replayable removal/progress/completion ledger, semantic retry deduplication, exact signed history/inventory/lifecycle/IC-version acceptance and identity history/version request guards. Hardened offline whole-group recovery against mid-action anchor changes, shuffled loads and substituted resume history; no live changes.
 - [ ] Verify actual snapshot/upgrade witness suite on supported worker and finish externally exclusive controller fence/drain + removal/disable journal integration. Blocker: native sandbox write-fault limitation; authenticated independent governance/fencing and complete decoded-history runtime acceptance are not yet implemented. Candidate alone cannot authorize production restore/opening.
 - [ ] 03:57 request: complete production authorization implementation with a separate signed, exact scoped account-reader capability; preserve removal/recovery/opening holds and verify refusal, drift and replay tests.

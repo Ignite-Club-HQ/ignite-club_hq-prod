@@ -55,6 +55,11 @@ fn read_recovery_records(after:u64,limit:u16)->Outcome<Vec<(u64,Record)>> {
     require_governor()?;if limit==0||limit>200{return Err("Recovery pages are bounded to 200".into());}
     Ok(RECORDS.with(|m|m.borrow().range((std::ops::Bound::Excluded(after),std::ops::Bound::Unbounded)).take(limit as usize).map(|e|(*e.key(),decode(&e.value()))).collect()))
 }
+#[ic_cdk::update]
+fn read_recovery_record(revision:u64)->Outcome<Record> {
+    let caller=ic_cdk::api::msg_caller();if caller!=identity(){require_governor()?;}
+    RECORDS.with(|m|m.borrow().get(&revision)).map(|b|decode(&b)).ok_or("Recovery acknowledgement missing".into())
+}
 // Claims never authorize recovery: only independently signed decoded-history
 // acceptance can do so. Store whole replayable records, not only hashes.
 #[ic_cdk::update]
@@ -72,6 +77,7 @@ fn record(r:Record,witness:Principal)->Outcome<u64> {
     if let Some(revision)=EVENTS.with(|m|m.borrow().get(&semantic_key)) {return Ok(revision);}
     if RECORDS.with(|m|m.borrow().len())>=MAX_RECORDS{return Err("Recovery journal capacity reached; keep closed".into());}
     match &r.event {
+        Event::Disable {identity:subject,..}=>if *subject!=identity(){return Err("Pinned disable identity required".into());},
         Event::Removal(m)=>{
             if m.subjects.contains(&identity())||m.targets.contains(&witness){return Err("Witness cannot be a removal participant".into());}
             if let Some(bytes)=REMOVALS.with(|s|s.borrow().get(&m.account_id)) {let prior:Removal=decode(&bytes);if prior!=*m{return Err("Immutable removal conflict".into());}}
@@ -90,6 +96,7 @@ fn record(r:Record,witness:Principal)->Outcome<u64> {
     }
     let next=advance(&head(),&r)?;
     match &r.event {
+        Event::Disable {..}=>{},
         Event::Removal(m)=>{REMOVALS.with(|s|s.borrow_mut().insert(m.account_id.clone(),encode(m)));},
         Event::Progress {account_id,progress,..}=>{match progress {
             Progress::Prepared {target}|Progress::Sealed {target}=>{

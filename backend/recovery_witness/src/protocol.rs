@@ -37,7 +37,7 @@ pub struct Removal {
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Progress { Prepared { target: Principal }, Sealed { target: Principal }, Completed }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Event { Removal(Removal), Progress { account_id: String, generation: u64, progress: Progress } }
+pub enum Event { Removal(Removal), Progress { account_id: String, generation: u64, progress: Progress }, Disable { identity: Principal, generation: u64 } }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Record { pub operation_id: String, pub event: Event }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
@@ -58,6 +58,10 @@ pub fn validate_record(r: &Record) -> Outcome<()> {
             (&m.account_id,m.generation)
         },
         Event::Progress {account_id,generation,..} => (account_id,*generation),
+        Event::Disable {identity,generation} => {
+            if !principal_ok(*identity)||*generation==0 {return Err("Exact disable identity and generation required".into());}
+            return Ok(());
+        },
     };
     if account.is_empty() || account.len()>128 || generation==0 { return Err("Exact removal account and generation required".into()); }
     Ok(())
