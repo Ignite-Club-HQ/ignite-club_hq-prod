@@ -463,5 +463,7 @@ Validation budget: changed rules plus direct regressions per substantial batch; 
 - [ ] Owner: REPO apply, then base-group workflow action reconcile-readback (same hash, CONFIRM PROD BASE READBACK) to mark the saved receipt registered-closed.
 
 - [x] PROD lifecycle wiring read-only plan (in routing gate)
-- [ ] Closed runner to apply ready wiring calls — waiting on owner review of plan
+- [x] Closed runner built for the allowlisted media-store registration and worker grants; no admission switch, approval or opening. Promotion manifest includes its policy, runner, tests and manual workflow.
+- [x] Continue 2 Nov: promotion preparation checked; 42 wiring, routing-gate, promotion-manifest and workflow safeguards pass locally. No GitHub copy, live wiring, funding or database operation performed.
+- [ ] Owner: REPO apply on main with overwrite, then routing-gate read-only check on prod; review the fresh Lifecycle wiring plan/hash before the separate closed apply. Blocker: owner-run GitHub promotion and signed readback.
 - [ ] Production admission path for base group — needs backend work + owner approval
