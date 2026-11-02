@@ -40,13 +40,14 @@ export const idlFactory = ({ IDL }) => {
     'body' : Acceptance,
   });
   const Result = IDL.Variant({ 'Ok' : IDL.Nat64, 'Err' : IDL.Text });
+  const Result_1 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text });
   const Head = IDL.Record({
     'epoch' : IDL.Nat64,
     'digest' : IDL.Vec(IDL.Nat8),
     'accepted' : IDL.Opt(SignedAcceptance),
     'revision' : IDL.Nat64,
   });
-  const Result_1 = IDL.Variant({ 'Ok' : Head, 'Err' : IDL.Text });
+  const Result_2 = IDL.Variant({ 'Ok' : Head, 'Err' : IDL.Text });
   const Progress = IDL.Variant({
     'Prepared' : IDL.Record({ 'target' : IDL.Principal }),
     'Sealed' : IDL.Record({ 'target' : IDL.Principal }),
@@ -72,12 +73,12 @@ export const idlFactory = ({ IDL }) => {
     'Removal' : Removal,
   });
   const Record = IDL.Record({ 'operation_id' : IDL.Text, 'event' : Event });
-  const Result_2 = IDL.Variant({ 'Ok' : Record, 'Err' : IDL.Text });
-  const Result_3 = IDL.Variant({
+  const Result_3 = IDL.Variant({ 'Ok' : Record, 'Err' : IDL.Text });
+  const Result_4 = IDL.Variant({
     'Ok' : IDL.Vec(IDL.Tuple(IDL.Nat64, Record)),
     'Err' : IDL.Text,
   });
-  const Result_4 = IDL.Variant({ 'Ok' : IDL.Vec(IDL.Nat8), 'Err' : IDL.Text });
+  const Result_5 = IDL.Variant({ 'Ok' : IDL.Vec(IDL.Nat8), 'Err' : IDL.Text });
   const WitnessRequest = IDL.Record({
     'request_id' : IDL.Nat64,
     'removal_generation' : IDL.Nat64,
@@ -89,24 +90,46 @@ export const idlFactory = ({ IDL }) => {
     'history_revision' : IDL.Nat64,
   });
   const WitnessReceipt = IDL.Record({ 'request' : WitnessRequest });
-  const Result_5 = IDL.Variant({ 'Ok' : WitnessReceipt, 'Err' : IDL.Text });
+  const Result_6 = IDL.Variant({ 'Ok' : WitnessReceipt, 'Err' : IDL.Text });
+  const AccountReadRequest = IDL.Record({
+    'account_id' : IDL.Text,
+    'subjects' : IDL.Vec(IDL.Principal),
+    'request' : WitnessRequest,
+  });
+  const AccountReadReceipt = IDL.Record({ 'request' : AccountReadRequest });
+  const Result_7 = IDL.Variant({ 'Ok' : AccountReadReceipt, 'Err' : IDL.Text });
   
   return IDL.Service({
     'accept_recovery_fence' : IDL.Func([SignedAcceptance], [Result], []),
+    'authorize_subject_removal_progress' : IDL.Func(
+        [SignedAcceptance],
+        [Result_1],
+        [],
+      ),
     'close_recovery_fence' : IDL.Func([IDL.Nat64], [Result], []),
-    'read_recovery_head' : IDL.Func([], [Result_1], []),
-    'read_recovery_record' : IDL.Func([IDL.Nat64], [Result_2], []),
-    'read_recovery_records' : IDL.Func([IDL.Nat64, IDL.Nat16], [Result_3], []),
+    'read_recovery_head' : IDL.Func([], [Result_2], []),
+    'read_recovery_record' : IDL.Func([IDL.Nat64], [Result_3], []),
+    'read_recovery_records' : IDL.Func([IDL.Nat64, IDL.Nat16], [Result_4], []),
     'read_recovery_runtime_version' : IDL.Func([], [Result], []),
     'record_removal_recovery' : IDL.Func([Record], [Result], []),
     'recovery_acceptance_signing_bytes' : IDL.Func(
         [Acceptance],
-        [Result_4],
+        [Result_5],
+        [],
+      ),
+    'subject_progress_approval_signing_bytes' : IDL.Func(
+        [Acceptance],
+        [Result_5],
         [],
       ),
     'verify_production_account_read_fence' : IDL.Func(
         [WitnessRequest],
-        [Result_5],
+        [Result_6],
+        [],
+      ),
+    'verify_production_subject_read_fence' : IDL.Func(
+        [AccountReadRequest],
+        [Result_7],
         [],
       ),
   });

@@ -15,6 +15,12 @@ type Acceptance = record {
   expires_at_ns : nat64;
   history_revision : nat64;
 };
+type AccountReadReceipt = record { request : AccountReadRequest };
+type AccountReadRequest = record {
+  account_id : text;
+  subjects : vec principal;
+  request : WitnessRequest;
+};
 type Event = variant {
   Progress : record {
     account_id : text;
@@ -50,11 +56,13 @@ type Removal = record {
   targets : vec principal;
 };
 type Result = variant { Ok : nat64; Err : text };
-type Result_1 = variant { Ok : Head; Err : text };
-type Result_2 = variant { Ok : Record; Err : text };
-type Result_3 = variant { Ok : vec record { nat64; Record }; Err : text };
-type Result_4 = variant { Ok : blob; Err : text };
-type Result_5 = variant { Ok : WitnessReceipt; Err : text };
+type Result_1 = variant { Ok; Err : text };
+type Result_2 = variant { Ok : Head; Err : text };
+type Result_3 = variant { Ok : Record; Err : text };
+type Result_4 = variant { Ok : vec record { nat64; Record }; Err : text };
+type Result_5 = variant { Ok : blob; Err : text };
+type Result_6 = variant { Ok : WitnessReceipt; Err : text };
+type Result_7 = variant { Ok : AccountReadReceipt; Err : text };
 type SignedAcceptance = record { signature : blob; body : Acceptance };
 type WitnessReceipt = record { request : WitnessRequest };
 type WitnessRequest = record {
@@ -69,12 +77,15 @@ type WitnessRequest = record {
 };
 service : (Init) -> {
   accept_recovery_fence : (SignedAcceptance) -> (Result);
+  authorize_subject_removal_progress : (SignedAcceptance) -> (Result_1);
   close_recovery_fence : (nat64) -> (Result);
-  read_recovery_head : () -> (Result_1);
-  read_recovery_record : (nat64) -> (Result_2);
-  read_recovery_records : (nat64, nat16) -> (Result_3);
+  read_recovery_head : () -> (Result_2);
+  read_recovery_record : (nat64) -> (Result_3);
+  read_recovery_records : (nat64, nat16) -> (Result_4);
   read_recovery_runtime_version : () -> (Result);
   record_removal_recovery : (Record) -> (Result);
-  recovery_acceptance_signing_bytes : (Acceptance) -> (Result_4);
-  verify_production_account_read_fence : (WitnessRequest) -> (Result_5);
+  recovery_acceptance_signing_bytes : (Acceptance) -> (Result_5);
+  subject_progress_approval_signing_bytes : (Acceptance) -> (Result_5);
+  verify_production_account_read_fence : (WitnessRequest) -> (Result_6);
+  verify_production_subject_read_fence : (AccountReadRequest) -> (Result_7);
 }

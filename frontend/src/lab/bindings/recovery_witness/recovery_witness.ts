@@ -58,7 +58,14 @@ export interface Participant {
 }
 export type Result_2 = {
     __kind__: "Ok";
-    Ok: Record_;
+    Ok: Head;
+} | {
+    __kind__: "Err";
+    Err: string;
+};
+export type Result_6 = {
+    __kind__: "Ok";
+    Ok: WitnessReceipt;
 } | {
     __kind__: "Err";
     Err: string;
@@ -86,14 +93,14 @@ export interface Init {
 }
 export type Result_5 = {
     __kind__: "Ok";
-    Ok: WitnessReceipt;
+    Ok: Uint8Array;
 } | {
     __kind__: "Err";
     Err: string;
 };
 export type Result_1 = {
     __kind__: "Ok";
-    Ok: Head;
+    Ok: null;
 } | {
     __kind__: "Err";
     Err: string;
@@ -103,7 +110,7 @@ export interface WitnessReceipt {
 }
 export type Result_4 = {
     __kind__: "Ok";
-    Ok: Uint8Array;
+    Ok: Array<[bigint, Record_]>;
 } | {
     __kind__: "Err";
     Err: string;
@@ -121,7 +128,7 @@ export type Result = {
 };
 export type Result_3 = {
     __kind__: "Ok";
-    Ok: Array<[bigint, Record_]>;
+    Ok: Record_;
 } | {
     __kind__: "Err";
     Err: string;
@@ -129,6 +136,12 @@ export type Result_3 = {
 export interface Record_ {
     operation_id: string;
     event: Event;
+}
+export interface Head {
+    epoch: bigint;
+    digest: Uint8Array;
+    accepted?: SignedAcceptance;
+    revision: bigint;
 }
 export type Progress = {
     __kind__: "Prepared";
@@ -144,12 +157,6 @@ export type Progress = {
     __kind__: "Completed";
     Completed: null;
 };
-export interface Head {
-    epoch: bigint;
-    digest: Uint8Array;
-    accepted?: SignedAcceptance;
-    revision: bigint;
-}
 export interface Acceptance {
     participants: Array<Participant>;
     inventory_digest: Uint8Array;
@@ -166,6 +173,21 @@ export interface Acceptance {
     identity_version: bigint;
     expires_at_ns: bigint;
     history_revision: bigint;
+}
+export interface AccountReadReceipt {
+    request: AccountReadRequest;
+}
+export type Result_7 = {
+    __kind__: "Ok";
+    Ok: AccountReadReceipt;
+} | {
+    __kind__: "Err";
+    Err: string;
+};
+export interface AccountReadRequest {
+    account_id: string;
+    subjects: Array<Principal>;
+    request: WitnessRequest;
 }
 export interface WitnessRequest {
     request_id: bigint;
@@ -186,89 +208,110 @@ export interface Removal {
 }
 export interface recovery_witnessInterface {
     accept_recovery_fence(arg0: SignedAcceptance): Promise<Result>;
+    authorize_subject_removal_progress(arg0: SignedAcceptance): Promise<Result_1>;
     close_recovery_fence(arg0: bigint): Promise<Result>;
-    read_recovery_head(): Promise<Result_1>;
-    read_recovery_record(arg0: bigint): Promise<Result_2>;
-    read_recovery_records(arg0: bigint, arg1: number): Promise<Result_3>;
+    read_recovery_head(): Promise<Result_2>;
+    read_recovery_record(arg0: bigint): Promise<Result_3>;
+    read_recovery_records(arg0: bigint, arg1: number): Promise<Result_4>;
     read_recovery_runtime_version(): Promise<Result>;
     record_removal_recovery(arg0: Record_): Promise<Result>;
-    recovery_acceptance_signing_bytes(arg0: Acceptance): Promise<Result_4>;
-    verify_production_account_read_fence(arg0: WitnessRequest): Promise<Result_5>;
+    recovery_acceptance_signing_bytes(arg0: Acceptance): Promise<Result_5>;
+    subject_progress_approval_signing_bytes(arg0: Acceptance): Promise<Result_5>;
+    verify_production_account_read_fence(arg0: WitnessRequest): Promise<Result_6>;
+    verify_production_subject_read_fence(arg0: AccountReadRequest): Promise<Result_7>;
 }
-import type { Event as _Event, Head as _Head, Progress as _Progress, Record as _Record, Removal as _Removal, Result as _Result, Result_1 as _Result_1, Result_2 as _Result_2, Result_3 as _Result_3, Result_4 as _Result_4, Result_5 as _Result_5, SignedAcceptance as _SignedAcceptance, WitnessReceipt as _WitnessReceipt } from "./declarations/recovery_witness.did";
+import type { AccountReadReceipt as _AccountReadReceipt, Event as _Event, Head as _Head, Progress as _Progress, Record as _Record, Removal as _Removal, Result as _Result, Result_1 as _Result_1, Result_2 as _Result_2, Result_3 as _Result_3, Result_4 as _Result_4, Result_5 as _Result_5, Result_6 as _Result_6, Result_7 as _Result_7, SignedAcceptance as _SignedAcceptance, WitnessReceipt as _WitnessReceipt } from "./declarations/recovery_witness.did";
 export class Recovery_witness implements recovery_witnessInterface {
     constructor(private actor: ActorSubclass<_SERVICE>){}
     async accept_recovery_fence(arg0: SignedAcceptance): Promise<Result> {
         const result = await this.actor.accept_recovery_fence(arg0);
         return from_candid_Result_n1(result);
     }
+    async authorize_subject_removal_progress(arg0: SignedAcceptance): Promise<Result_1> {
+        const result = await this.actor.authorize_subject_removal_progress(arg0);
+        return from_candid_Result_1_n3(result);
+    }
     async close_recovery_fence(arg0: bigint): Promise<Result> {
         const result = await this.actor.close_recovery_fence(arg0);
         return from_candid_Result_n1(result);
     }
-    async read_recovery_head(): Promise<Result_1> {
+    async read_recovery_head(): Promise<Result_2> {
         const result = await this.actor.read_recovery_head();
-        return from_candid_Result_1_n3(result);
+        return from_candid_Result_2_n5(result);
     }
-    async read_recovery_record(arg0: bigint): Promise<Result_2> {
+    async read_recovery_record(arg0: bigint): Promise<Result_3> {
         const result = await this.actor.read_recovery_record(arg0);
-        return from_candid_Result_2_n8(result);
+        return from_candid_Result_3_n10(result);
     }
-    async read_recovery_records(arg0: bigint, arg1: number): Promise<Result_3> {
+    async read_recovery_records(arg0: bigint, arg1: number): Promise<Result_4> {
         const result = await this.actor.read_recovery_records(arg0, arg1);
-        return from_candid_Result_3_n17(result);
+        return from_candid_Result_4_n19(result);
     }
     async read_recovery_runtime_version(): Promise<Result> {
         const result = await this.actor.read_recovery_runtime_version();
         return from_candid_Result_n1(result);
     }
     async record_removal_recovery(arg0: Record_): Promise<Result> {
-        const result = await this.actor.record_removal_recovery(to_candid_Record_n21(arg0));
+        const result = await this.actor.record_removal_recovery(to_candid_Record_n23(arg0));
         return from_candid_Result_n1(result);
     }
-    async recovery_acceptance_signing_bytes(arg0: Acceptance): Promise<Result_4> {
+    async recovery_acceptance_signing_bytes(arg0: Acceptance): Promise<Result_5> {
         const result = await this.actor.recovery_acceptance_signing_bytes(arg0);
-        return from_candid_Result_4_n28(result);
-    }
-    async verify_production_account_read_fence(arg0: WitnessRequest): Promise<Result_5> {
-        const result = await this.actor.verify_production_account_read_fence(arg0);
         return from_candid_Result_5_n30(result);
     }
+    async subject_progress_approval_signing_bytes(arg0: Acceptance): Promise<Result_5> {
+        const result = await this.actor.subject_progress_approval_signing_bytes(arg0);
+        return from_candid_Result_5_n30(result);
+    }
+    async verify_production_account_read_fence(arg0: WitnessRequest): Promise<Result_6> {
+        const result = await this.actor.verify_production_account_read_fence(arg0);
+        return from_candid_Result_6_n32(result);
+    }
+    async verify_production_subject_read_fence(arg0: AccountReadRequest): Promise<Result_7> {
+        const result = await this.actor.verify_production_subject_read_fence(arg0);
+        return from_candid_Result_7_n34(result);
+    }
 }
-function from_candid_Event_n12(value: _Event): Event {
-    return from_candid_variant_n13(value);
+function from_candid_Event_n14(value: _Event): Event {
+    return from_candid_variant_n15(value);
 }
-function from_candid_Head_n5(value: _Head): Head {
-    return from_candid_record_n6(value);
+function from_candid_Head_n7(value: _Head): Head {
+    return from_candid_record_n8(value);
 }
-function from_candid_Progress_n15(value: _Progress): Progress {
-    return from_candid_variant_n16(value);
+function from_candid_Progress_n17(value: _Progress): Progress {
+    return from_candid_variant_n18(value);
 }
-function from_candid_Record_n10(value: _Record): Record_ {
-    return from_candid_record_n11(value);
+function from_candid_Record_n12(value: _Record): Record_ {
+    return from_candid_record_n13(value);
 }
 function from_candid_Result_1_n3(value: _Result_1): Result_1 {
     return from_candid_variant_n4(value);
 }
-function from_candid_Result_2_n8(value: _Result_2): Result_2 {
-    return from_candid_variant_n9(value);
+function from_candid_Result_2_n5(value: _Result_2): Result_2 {
+    return from_candid_variant_n6(value);
 }
-function from_candid_Result_3_n17(value: _Result_3): Result_3 {
-    return from_candid_variant_n18(value);
+function from_candid_Result_3_n10(value: _Result_3): Result_3 {
+    return from_candid_variant_n11(value);
 }
-function from_candid_Result_4_n28(value: _Result_4): Result_4 {
-    return from_candid_variant_n29(value);
+function from_candid_Result_4_n19(value: _Result_4): Result_4 {
+    return from_candid_variant_n20(value);
 }
 function from_candid_Result_5_n30(value: _Result_5): Result_5 {
     return from_candid_variant_n31(value);
 }
+function from_candid_Result_6_n32(value: _Result_6): Result_6 {
+    return from_candid_variant_n33(value);
+}
+function from_candid_Result_7_n34(value: _Result_7): Result_7 {
+    return from_candid_variant_n35(value);
+}
 function from_candid_Result_n1(value: _Result): Result {
     return from_candid_variant_n2(value);
 }
-function from_candid_opt_n7(value: [] | [_SignedAcceptance]): SignedAcceptance | null {
+function from_candid_opt_n9(value: [] | [_SignedAcceptance]): SignedAcceptance | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_record_n11(value: {
+function from_candid_record_n13(value: {
     operation_id: string;
     event: _Event;
 }): {
@@ -277,10 +320,10 @@ function from_candid_record_n11(value: {
 } {
     return {
         operation_id: value.operation_id,
-        event: from_candid_Event_n12(value.event)
+        event: from_candid_Event_n14(value.event)
     };
 }
-function from_candid_record_n14(value: {
+function from_candid_record_n16(value: {
     account_id: string;
     generation: bigint;
     progress: _Progress;
@@ -292,10 +335,10 @@ function from_candid_record_n14(value: {
     return {
         account_id: value.account_id,
         generation: value.generation,
-        progress: from_candid_Progress_n15(value.progress)
+        progress: from_candid_Progress_n17(value.progress)
     };
 }
-function from_candid_record_n6(value: {
+function from_candid_record_n8(value: {
     epoch: bigint;
     digest: Uint8Array;
     accepted: [] | [_SignedAcceptance];
@@ -309,17 +352,36 @@ function from_candid_record_n6(value: {
     return {
         epoch: value.epoch,
         digest: value.digest,
-        accepted: record_opt_to_undefined(from_candid_opt_n7(value.accepted)),
+        accepted: record_opt_to_undefined(from_candid_opt_n9(value.accepted)),
         revision: value.revision
     };
 }
-function from_candid_tuple_n20(value: [bigint, _Record]): [bigint, Record_] {
+function from_candid_tuple_n22(value: [bigint, _Record]): [bigint, Record_] {
     return [
         value[0],
-        from_candid_Record_n10(value[1])
+        from_candid_Record_n12(value[1])
     ];
 }
-function from_candid_variant_n13(value: {
+function from_candid_variant_n11(value: {
+    Ok: _Record;
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: Record_;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_Record_n12(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n15(value: {
     Progress: {
         account_id: string;
         generation: bigint;
@@ -351,7 +413,7 @@ function from_candid_variant_n13(value: {
 } {
     return "Progress" in value ? {
         __kind__: "Progress",
-        Progress: from_candid_record_n14(value.Progress)
+        Progress: from_candid_record_n16(value.Progress)
     } : "Disable" in value ? {
         __kind__: "Disable",
         Disable: value.Disable
@@ -360,7 +422,7 @@ function from_candid_variant_n13(value: {
         Removal: value.Removal
     } : value;
 }
-function from_candid_variant_n16(value: {
+function from_candid_variant_n18(value: {
     Prepared: {
         target: Principal;
     };
@@ -395,25 +457,6 @@ function from_candid_variant_n16(value: {
         Completed: value.Completed
     } : value;
 }
-function from_candid_variant_n18(value: {
-    Ok: Array<[bigint, _Record]>;
-} | {
-    Err: string;
-}): {
-    __kind__: "Ok";
-    Ok: Array<[bigint, Record_]>;
-} | {
-    __kind__: "Err";
-    Err: string;
-} {
-    return "Ok" in value ? {
-        __kind__: "Ok",
-        Ok: from_candid_vec_n19(value.Ok)
-    } : "Err" in value ? {
-        __kind__: "Err",
-        Err: value.Err
-    } : value;
-}
 function from_candid_variant_n2(value: {
     Ok: bigint;
 } | {
@@ -433,7 +476,26 @@ function from_candid_variant_n2(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n29(value: {
+function from_candid_variant_n20(value: {
+    Ok: Array<[bigint, _Record]>;
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: Array<[bigint, Record_]>;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: from_candid_vec_n21(value.Ok)
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n31(value: {
     Ok: Uint8Array;
 } | {
     Err: string;
@@ -452,7 +514,7 @@ function from_candid_variant_n29(value: {
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n31(value: {
+function from_candid_variant_n33(value: {
     Ok: _WitnessReceipt;
 } | {
     Err: string;
@@ -471,7 +533,45 @@ function from_candid_variant_n31(value: {
         Err: value.Err
     } : value;
 }
+function from_candid_variant_n35(value: {
+    Ok: _AccountReadReceipt;
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: AccountReadReceipt;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: value.Ok
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
 function from_candid_variant_n4(value: {
+    Ok: null;
+} | {
+    Err: string;
+}): {
+    __kind__: "Ok";
+    Ok: null;
+} | {
+    __kind__: "Err";
+    Err: string;
+} {
+    return "Ok" in value ? {
+        __kind__: "Ok",
+        Ok: value.Ok
+    } : "Err" in value ? {
+        __kind__: "Err",
+        Err: value.Err
+    } : value;
+}
+function from_candid_variant_n6(value: {
     Ok: _Head;
 } | {
     Err: string;
@@ -484,44 +584,25 @@ function from_candid_variant_n4(value: {
 } {
     return "Ok" in value ? {
         __kind__: "Ok",
-        Ok: from_candid_Head_n5(value.Ok)
+        Ok: from_candid_Head_n7(value.Ok)
     } : "Err" in value ? {
         __kind__: "Err",
         Err: value.Err
     } : value;
 }
-function from_candid_variant_n9(value: {
-    Ok: _Record;
-} | {
-    Err: string;
-}): {
-    __kind__: "Ok";
-    Ok: Record_;
-} | {
-    __kind__: "Err";
-    Err: string;
-} {
-    return "Ok" in value ? {
-        __kind__: "Ok",
-        Ok: from_candid_Record_n10(value.Ok)
-    } : "Err" in value ? {
-        __kind__: "Err",
-        Err: value.Err
-    } : value;
+function from_candid_vec_n21(value: Array<[bigint, _Record]>): Array<[bigint, Record_]> {
+    return value.map((x)=>from_candid_tuple_n22(x));
 }
-function from_candid_vec_n19(value: Array<[bigint, _Record]>): Array<[bigint, Record_]> {
-    return value.map((x)=>from_candid_tuple_n20(x));
+function to_candid_Event_n25(value: Event): _Event {
+    return to_candid_variant_n26(value);
 }
-function to_candid_Event_n23(value: Event): _Event {
-    return to_candid_variant_n24(value);
+function to_candid_Progress_n28(value: Progress): _Progress {
+    return to_candid_variant_n29(value);
 }
-function to_candid_Progress_n26(value: Progress): _Progress {
-    return to_candid_variant_n27(value);
+function to_candid_Record_n23(value: Record_): _Record {
+    return to_candid_record_n24(value);
 }
-function to_candid_Record_n21(value: Record_): _Record {
-    return to_candid_record_n22(value);
-}
-function to_candid_record_n22(value: {
+function to_candid_record_n24(value: {
     operation_id: string;
     event: Event;
 }): {
@@ -530,10 +611,10 @@ function to_candid_record_n22(value: {
 } {
     return {
         operation_id: value.operation_id,
-        event: to_candid_Event_n23(value.event)
+        event: to_candid_Event_n25(value.event)
     };
 }
-function to_candid_record_n25(value: {
+function to_candid_record_n27(value: {
     account_id: string;
     generation: bigint;
     progress: Progress;
@@ -545,10 +626,10 @@ function to_candid_record_n25(value: {
     return {
         account_id: value.account_id,
         generation: value.generation,
-        progress: to_candid_Progress_n26(value.progress)
+        progress: to_candid_Progress_n28(value.progress)
     };
 }
-function to_candid_variant_n24(value: {
+function to_candid_variant_n26(value: {
     __kind__: "Progress";
     Progress: {
         account_id: string;
@@ -579,14 +660,14 @@ function to_candid_variant_n24(value: {
     Removal: _Removal;
 } {
     return value.__kind__ === "Progress" ? {
-        Progress: to_candid_record_n25(value.Progress)
+        Progress: to_candid_record_n27(value.Progress)
     } : value.__kind__ === "Disable" ? {
         Disable: value.Disable
     } : value.__kind__ === "Removal" ? {
         Removal: value.Removal
     } : value;
 }
-function to_candid_variant_n27(value: {
+function to_candid_variant_n29(value: {
     __kind__: "Prepared";
     Prepared: {
         target: Principal;
