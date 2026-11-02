@@ -1,5 +1,11 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — four infrastructure removal blockers + approval (2 Nov 2026, 02:57 UTC)
+- [x] Made both timers, the shared workload service and the router real removal receivers: write-once coordinator authority, fenced-subject refusal at every entry point (rechecked after awaits), retained-obligation counts and governor settlement. Rust gate/timer/router unit tests, Motoko stable-compatibility, wasm builds, contracts and bindings pass; 197 identity tests unchanged.
+- [x] Isolated two-group suite now requires fresh complete seals for all 28 targets after obligations settle and infrastructure upgrades.
+- [ ] Owner runs `[TEST] Check complete two-group removal (isolated)` on `main` (after REPO promotion) and uploads the artifact. Blocker: no GitHub dispatch credential here.
+- [ ] Routing approval not run: still blocked on production (non-rehearsal) removal/admission mode, terminal completion, base acceptance, a reviewed closed PROD upgrade carrying these modules, and a PROD-bound approval recorder. Blocker: engineering plus owner-signed PROD runs.
+
 ## Current request — automated complete two-group removal tests (2 Nov 2026, 02:29 UTC)
 - [x] Corrected the owner-reported notification assertion: the deliberate outsider call correctly traps, rather than returning Candid Err. Require the exact worker-capability trap, re-read one outstanding lease after refusal, then settle as the original governor/lease owner after upgrade. Eighteen local regressions/host/cleanup/workflow checks pass; runtime re-verification still requires the native-worker workflow. Production permissions unchanged.
 - [x] Added isolated real identity/router/base/g2 suite: 24 actual human receivers, two timers, shared workload and supplemental router; exact 28-target inventory, real encrypted photo/chat/Vault/points controls, both aliases, ordinary club-removal isolation, coordinator outage/retry, two notification leases, all-receiver upgrades, survivor access and explicit global-completion infrastructure holds. No production-code or permission changes.

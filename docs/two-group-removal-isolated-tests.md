@@ -23,11 +23,18 @@ mainnet calls, payment, delivery schedule, database changes or release action.
 - Exact zero-work human seals for all 24 receivers; both aliases denied before
   and after every receiver upgrade; survivor photo/Vault/chat access preserved.
 - Identity upgrade preserves the frozen intent, alias denial and survivor account.
-- Timers, shared workload and router remain in the inventory. Their unsupported
-  removal participation must block complete global seals, never be omitted.
+- Timers, shared workload and router are now real removal receivers
+  (`backend/shared/account_removal_receiver.rs`, and `RemovalReceiver` in
+  secret_workload_identity). Each is configured once with the identity
+  coordinator, denies fenced subjects at every caller-identified entry point,
+  and reports retained obligations: timer capabilities/callback jobs, active
+  workloads and accepting owner openings. The run seeds a real timer worker and
+  workload for the account, proves seals refuse them, settles them through
+  governor-only calls, upgrades all four, and then requires fresh complete
+  seals for all 28 targets.
 
-The report explicitly sets `releaseAuthorized: false` and
-`fullInventoryAcceptance: false`, even on a successful test. Green means the
+The report records `completeSeals: 28` on success but still sets
+`releaseAuthorized: false` and `fullInventoryAcceptance: false`. Green means the
 listed positive controls, denial/drain checks and expected safety holds passed;
 it does not mean terminal erasure or production admission is ready.
 

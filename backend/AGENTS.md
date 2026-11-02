@@ -86,3 +86,5 @@
 
 - League creation reads live club roles via bounded consensus with post-reply guards; timer install captures governor atomically and compatibility init requires a controller. Why: prevent stale-role creation and setup takeover.
 - Club membership index starts with no cached epoch, and marks it current only after rebuilding. Why: a first post-upgrade sync must not make an empty index appear valid and hide surviving memberships.
+
+- Infrastructure removal receivers (timer_jobs, shard_router, secret_workload_identity) share the Motoko-compatible fence contract: governor sets the identity coordinator once (immutable), every caller-identified entry point refuses fenced subjects, and seals stay refused while subject-bound obligations remain; settle them only via governor calls. Why: the global seal covers every frozen target, so infrastructure can neither be omitted nor drained by inference.
