@@ -34,6 +34,12 @@ The sandbox's native memory-write fault limitation still prevents running the
 actual Rust/Motoko replica suite here. A supported GitHub worker must execute it;
 passing offline/unit tests is not a substitute.
 
+Verified locally: 11 witness tests (including actual stable journal retries and
+both-group completion), 208 identity tests, 26 recovery/evidence/host regressions,
+17 active contract checks and both Rust Wasm builds. The real snapshot runner was
+attempted and stopped at host preflight (`writeBit=0`, gVisor), before installation;
+its report is explicitly failed and grants no runtime acceptance.
+
 ## Still held — do not configure or deploy pins
 
 The witness has no DEV/PROD mapping, deployment recipe, active signer or controller

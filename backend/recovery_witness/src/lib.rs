@@ -121,11 +121,12 @@ async fn accept_recovery_fence(a:SignedAcceptance)->Outcome<u64> {
     require_governor()?;
     if a.body.identity!=identity(){return Err("Pinned recovery identity required".into());}
     let prior=head();let version=ic_cdk::api::canister_version();
-    let next=accept(&prior,&a,ic_cdk::api::canister_self(),version,ic_cdk::api::time(),&signer()?)?;
+    accept(&prior,&a,ic_cdk::api::canister_self(),version,ic_cdk::api::time(),&signer()?)?;
     // Independent signer must have accepted decoded histories and exclusive
     // controller fencing before signing. Lifecycle sampling cannot replace it.
     for _ in 0..2 {check_participants(&a.body).await?;require_governor()?;
         if head()!=prior||ic_cdk::api::canister_version()!=version{return Err("Recovery changed during acceptance".into());}}
+    let next=accept(&prior,&a,ic_cdk::api::canister_self(),version,ic_cdk::api::time(),&signer()?)?;
     ARMED_VERSION.with(|v|v.borrow_mut().set(version));save(&next);Ok(next.epoch)
 }
 #[ic_cdk::update]
