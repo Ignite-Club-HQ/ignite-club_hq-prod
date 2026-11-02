@@ -131,10 +131,7 @@ try {
   mark('Independent lifecycle reader still authenticates every fenced target and sees the handover');
   stage = 'verify the accepted recovery journal survives a controller change';
   assertCandidEqual(ok(await w.read_recovery_head()), journalBefore);
-  w.setPrincipal(identityId);
-  assertCandidEqual(ok(await w.verify_production_account_read_fence(request)).request, request);
-  w.setPrincipal(owner);
-  mark('Fencing the witness preserves its journal and the armed acceptance without any re-approval');
+  mark('Fencing the witness preserves its recovery journal unchanged');
   stage = 'exclude the former operator from every control path';
   for (const t of targets) {
     const baseline = before.get(t.name);
@@ -160,9 +157,9 @@ try {
   mark('An unrelated principal cannot read or change control of any fenced target');
   stage = 'fencing cannot silently preserve a signed review';
   w.setPrincipal(identityId);
-  refuses(await w.verify_production_account_read_fence(request), /Recovery participant lifecycle changed/);
+  refuses(await w.verify_production_account_read_fence(request), /Witness restored or upgraded; independent reacceptance required/);
   w.setPrincipal(owner);
-  mark('Fencing a participant invalidates the earlier signed acceptance until a fresh one is armed');
+  mark('Fencing the witness itself invalidates the earlier signed acceptance until a fresh one is armed');
   stage = 'fenced targets keep serving their own accounts';
   id.setPrincipal(human); assert.equal(ok(await id.whoami()).id, account.id); id.setPrincipal(owner);
   mark('Fencing changes who controls code, not what the canister still refuses or serves');
@@ -174,19 +171,30 @@ try {
     participants: [await lifecycle(identityId), await lifecycle(participant)],
     expires_at_ns: BigInt(await pic.getTime() + 120000) * 1000000n };
   ok(await w.accept_recovery_fence(await signBody(freshBody)));
-  const freshRequest = { ...request, recovery_epoch: freshHead.epoch, identity_version: freshBody.identity_version };
+  const armedHead = ok(await w.read_recovery_head());
+  const freshRequest = { ...request, recovery_epoch: armedHead.epoch, identity_version: freshBody.identity_version };
   w.setPrincipal(identityId);
   assertCandidEqual(ok(await w.verify_production_account_read_fence(freshRequest)).request, freshRequest);
   w.setPrincipal(owner);
   mark('A fresh signed acceptance restores recovery reads under fenced lifecycle counts; fencing is reversible');
+  stage = 'a participant-only controller change invalidates the fresh acceptance';
+  {
+    const restored = await handOverControl(pic, { canisterId: participant, from: fence, to: owner });
+    assert.equal(restored.controllers[0], owner.toText());
+    assert.equal(restored.moduleHash, before.get('participant').moduleHash, 'Restore must not replace the module');
+    w.setPrincipal(identityId);
+    refuses(await w.verify_production_account_read_fence(freshRequest), /Recovery participant lifecycle changed/);
+    w.setPrincipal(owner);
+  }
+  mark('Changing control of a participant alone, with the witness untouched, invalidates the signed acceptance');
   stage = 'only the independent fence can hand control back';
-  for (const t of targets) {
+  for (const t of targets.filter(x => x.name !== 'participant')) {
     const restored = await handOverControl(pic, { canisterId: t.canisterId, from: fence, to: owner });
     assert.equal(restored.controllers[0], owner.toText());
     assert.equal(restored.moduleHash, before.get(t.name).moduleHash, 'Restore must not replace the module');
   }
   const journalAfter = ok(await w.read_recovery_head());
-  assertCandidEqual(journalAfter, { ...journalBefore, epoch: freshHead.epoch, revision: freshHead.revision, digest: freshHead.digest });
+  assertCandidEqual(journalAfter, armedHead);
   mark('Exclusive control returns only through the fence, leaving the accepted journal intact');
   report.externalControllerFencing = true;
   report.passed = true;
