@@ -108,6 +108,8 @@ const MEM_REMOVAL_SUBJECTS: u8 = 14;
 const MEM_REMOVAL_RECEIPTS: u8 = 15;
 const MEM_DELETION_TICKETS: u8 = 16;
 const MEM_GROUP2_ADMISSION: u8 = 17;
+// Additive terminal fencing evidence; never reuses a history/directory partition.
+const MEM_REMOVAL_COMPLETIONS: u8 = 31;
 // Directory-specific additive storage: never share lifecycle/admission maps.
 const MEM_DIRECTORY_POOL_META:u8=18;
 const MEM_DIRECTORY_POOL_BLOCKS:u8=19;
@@ -560,6 +562,8 @@ thread_local! {
     static GROUP2_ADMISSION: RefCell<StableCell<Vec<u8>, Memory>> = RefCell::new(StableCell::init(memory(MEM_GROUP2_ADMISSION), Vec::new()));
     static REMOVAL_RECEIPTS: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> =
         RefCell::new(StableBTreeMap::init(memory(MEM_REMOVAL_RECEIPTS)));
+    static REMOVAL_COMPLETIONS: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> =
+        RefCell::new(StableBTreeMap::init(memory(MEM_REMOVAL_COMPLETIONS)));
     static DIRECTORY_CONFIG:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(memory(MEM_DIRECTORY_CONFIG),Vec::new()));
     static DIRECTORY_COORDINATOR:RefCell<membership_coordinator::Coordinator<Memory>>=RefCell::new(
         membership_coordinator::Coordinator::open(memory(MEM_DIRECTORY_COORDINATOR),
@@ -960,6 +964,25 @@ fn removal_subject_fenced(subject: Principal) -> bool {
     REMOVAL_SUBJECTS.with(|m| m.borrow().contains_key(&subject.to_text()))
 }
 fn removal_pending() -> bool { REMOVAL_INTENTS.with(|m| !m.borrow().is_empty()) }
+// Keep configuration locked even after completion: a sealed old inventory
+// cannot authorize replacing its authorities or moving its retained records.
+fn removal_completion(account_id: &str) -> Option<removal_barrier::Completion> {
+    REMOVAL_COMPLETIONS.with(|m| m.borrow().get(&account_id.to_string())).map(|bytes| decode(&bytes))
+}
+fn persist_removal_completion(intent: &removal_barrier::Intent, seals: Vec<removal_barrier::Receipt>) -> Outcome<removal_barrier::Completion> {
+    let completion = removal_barrier::Completion::from_fresh_seals(intent, seals)?;
+    if removal_intent(&intent.account_id).as_ref() != Some(intent) { return Err("Removal intent changed".into()); }
+    if let Some(prior) = removal_completion(&intent.account_id) {
+        prior.validate(intent)?;
+        if prior != completion { return Err("Immutable removal completion conflict".into()); }
+        return Ok(prior);
+    }
+    if REMOVAL_COMPLETIONS.with(|m|m.borrow().len()) >= MAX_ACCOUNTS as u64 { return Err("Removal completion capacity reached".into()); }
+    // No awaits or fallible validation after the first persistent write.
+    bump_removal_history();
+    REMOVAL_COMPLETIONS.with(|m|m.borrow_mut().insert(intent.account_id.clone(), encode(&completion)));
+    Ok(completion)
+}
 fn persist_removal_intent(account: &Account, inventory: group_inventory::RemovalInventory, identity: Principal) -> Outcome<removal_barrier::Intent> {
     if let Some(intent) = removal_intent(&account.id) { return Ok(intent); }
     if REMOVAL_INTENTS.with(|m| m.borrow().len()) >= MAX_ACCOUNTS as u64 { return Err("Removal intent capacity reached".into()); }
@@ -1035,7 +1058,10 @@ async fn verify_account_removal_seals(account_id: String) -> Outcome<Vec<removal
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
-    let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
+    collect_account_removal_seals(&account_id).await
+}
+async fn collect_account_removal_seals(account_id: &str) -> Outcome<Vec<removal_barrier::Receipt>> {
+    let intent = removal_intent(account_id).ok_or("Removal intent missing")?;
     let request = intent.request();
     let mut seals = Vec::new();
     for target in &intent.targets {
@@ -1043,12 +1069,30 @@ async fn verify_account_removal_seals(account_id: String) -> Outcome<Vec<removal
             .await.map_err(|_| "Receiver seal unavailable; intent remains locked")?;
         let result: Outcome<removal_barrier::Receipt> = reply.candid().map_err(|_| "Invalid receiver seal reply")?;
         let seal = result?;
-        if removal_intent(&account_id).as_ref() != Some(&intent) { return Err("Removal intent changed".into()); }
+        if removal_intent(account_id).as_ref() != Some(&intent) { return Err("Removal intent changed".into()); }
         intent.validate_seal(*target, &seal)?;
         seals.push(seal);
     }
     intent.validate_all_seals(&seals)?;
     Ok(seals)
+}
+/// Terminal fencing evidence only. Retain all data, intent, subject fences,
+/// placement locks and recovery history. This endpoint remains rehearsal-only.
+#[ic_cdk::update]
+async fn complete_account_removal_fencing(account_id: String) -> Outcome<removal_barrier::Completion> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+    history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
+    let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
+    if let Some(completion) = removal_completion(&account_id) { completion.validate(&intent)?; return Ok(completion); }
+    let seals = collect_account_removal_seals(&account_id).await?;
+    persist_removal_completion(&intent, seals)
+}
+#[ic_cdk::update]
+fn read_account_removal_completion(account_id: String) -> Outcome<removal_barrier::Completion> {
+    history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
+    let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
+    let completion = removal_completion(&account_id).ok_or("Removal completion missing")?;
+    completion.validate(&intent)?; Ok(completion)
 }
 fn group_inventory_binding() -> Option<group_inventory::Binding> {
     GROUP_INVENTORY_BINDING.with(|m| if m.borrow().get().is_empty() { None } else { Some(decode(m.borrow().get())) })
@@ -1274,9 +1318,10 @@ struct RemovalHistoryManifest {
     removal_barriers: u64,
     removal_subjects: u64,
     removal_receipts: u64,
+    removal_completions: u64,
 }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
-enum RemovalHistoryCursor { PrincipalDenials(Option<String>), ErasedAccounts(Option<String>), PendingIntents(u64), RemovalBarriers(Option<String>), RemovalSubjects(Option<String>), RemovalReceipts(Option<String>), Done }
+enum RemovalHistoryCursor { PrincipalDenials(Option<String>), ErasedAccounts(Option<String>), PendingIntents(u64), RemovalBarriers(Option<String>), RemovalSubjects(Option<String>), RemovalReceipts(Option<String>), RemovalCompletions(Option<String>), Done }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
 struct RemovalHistoryPage {
     revision: u64,
@@ -1286,6 +1331,7 @@ struct RemovalHistoryPage {
     barriers: Vec<(String, removal_barrier::Intent)>,
     subjects: Vec<(String, String)>,
     receipts: Vec<(String, removal_barrier::Receipt)>,
+    completions: Vec<(String, removal_barrier::Completion)>,
     next: RemovalHistoryCursor,
 }
 fn history_access(enabled: bool, governor: Principal, caller: Principal) -> Outcome<()> {
@@ -1306,6 +1352,7 @@ fn history_manifest() -> RemovalHistoryManifest {
         removal_barriers: REMOVAL_INTENTS.with(|m| m.borrow().len()),
         removal_subjects: REMOVAL_SUBJECTS.with(|m| m.borrow().len()),
         removal_receipts: REMOVAL_RECEIPTS.with(|m| m.borrow().len()),
+        removal_completions: REMOVAL_COMPLETIONS.with(|m| m.borrow().len()),
     }
 }
 /// Local-only consensus recovery evidence. Reader lists/club receipts are NOT
@@ -1320,7 +1367,7 @@ fn read_removal_history_manifest() -> Outcome<RemovalHistoryManifest> {
 fn history_page(revision: u64, cursor: RemovalHistoryCursor, limit: u16) -> Outcome<RemovalHistoryPage> {
     if limit == 0 || limit > 200 { return Err("Invalid history page size".into()); }
     if revision != removal_history_revision() { return Err("Removal history changed; restart export".into()); }
-    let mut page = RemovalHistoryPage { revision, denials: vec![], erased: vec![], pending: vec![], barriers: vec![], subjects: vec![], receipts: vec![], next: RemovalHistoryCursor::Done };
+    let mut page = RemovalHistoryPage { revision, denials: vec![], erased: vec![], pending: vec![], barriers: vec![], subjects: vec![], receipts: vec![], completions: vec![], next: RemovalHistoryCursor::Done };
     let bound = limit as usize;
     match cursor {
         RemovalHistoryCursor::PrincipalDenials(after) => {
@@ -1379,7 +1426,16 @@ fn history_page(revision: u64, cursor: RemovalHistoryCursor, limit: u16) -> Outc
                 m.borrow().range((after.map(Excluded).unwrap_or(Unbounded), Unbounded)).take(bound)
                     .map(|e| (e.key().clone(), decode(&e.value()))).collect()
             });
-            if page.receipts.len() == bound { page.next = RemovalHistoryCursor::RemovalReceipts(page.receipts.last().map(|e| e.0.clone())); }
+            page.next = if page.receipts.len() == bound { RemovalHistoryCursor::RemovalReceipts(page.receipts.last().map(|e| e.0.clone())) } else { RemovalHistoryCursor::RemovalCompletions(None) };
+        }
+        RemovalHistoryCursor::RemovalCompletions(after) => {
+            if after.as_ref().is_some_and(|s| s.len() > 256) { return Err("Invalid history key cursor".into()); }
+            page.completions = REMOVAL_COMPLETIONS.with(|m| {
+                use std::ops::Bound::{Excluded, Unbounded};
+                m.borrow().range((after.map(Excluded).unwrap_or(Unbounded), Unbounded)).take(bound)
+                    .map(|e| (e.key().clone(), decode(&e.value()))).collect()
+            });
+            if page.completions.len() == bound { page.next = RemovalHistoryCursor::RemovalCompletions(page.completions.last().map(|e|e.0.clone())); }
         }
         RemovalHistoryCursor::Done => {}
     }
@@ -3667,6 +3723,31 @@ mod tests {
         assert_eq!(page.subjects, vec![(subject.to_text(), account.id.clone())]);
         let page = history_page(manifest.revision, RemovalHistoryCursor::RemovalReceipts(None), 1).unwrap();
         assert_eq!(page.receipts, vec![(receipt_key, receipt)]);
+        // Historical drain receipts never authorize completion; fresh complete
+        // coverage is required, and failed attempts leave every fence intact.
+        assert!(persist_removal_completion(&intent, vec![]).is_err());
+        assert!(removal_completion(&account.id).is_none());
+        let seals: Vec<_> = intent.targets.iter().map(|receiver| removal_barrier::Receipt {
+            request:intent.request(), receiver:*receiver, outstanding:0u8.into() }).collect();
+        let before = removal_history_revision();
+        let completion = persist_removal_completion(&intent, seals.clone()).unwrap();
+        assert_eq!(completion.targets.len(),27);
+        assert_eq!(decode::<removal_barrier::Completion>(&encode(&completion)),completion);
+        let completed_revision = removal_history_revision(); assert!(completed_revision > before);
+        assert_eq!(persist_removal_completion(&intent, seals.clone()).unwrap(),completion);
+        assert_eq!(removal_history_revision(),completed_revision);
+        let mut pending_seals = seals; pending_seals[0].outstanding=1u8.into();
+        assert!(persist_removal_completion(&intent,pending_seals).is_err());
+        assert_eq!(removal_completion(&account.id),Some(completion.clone()));
+        assert!(removal_pending()); assert!(account_for(subject).is_err());
+        assert_eq!(removal_intent(&account.id),Some(intent.clone()));
+        assert_eq!(get_account(&account.id),Some(restored.clone()));
+        assert!(erase_account_core(&mut core,&restored).is_err());
+        let page = history_page(completed_revision, RemovalHistoryCursor::RemovalCompletions(None),1).unwrap();
+        assert_eq!(page.completions,vec![(account.id.clone(),completion)]);
+        assert_eq!(history_manifest().removal_completions,1);
+        assert!(history_page(before,RemovalHistoryCursor::RemovalCompletions(None),1).is_err());
+        assert!(history_page(completed_revision,RemovalHistoryCursor::RemovalCompletions(Some("x".repeat(257))),1).is_err());
         let other=Account {id:"barrier-bystander".into(),principals:vec![principal(154)],version:1,status:AccountStatus::Active};
         put_account(&other); index_principal(other.principals[0],&other.id);
         assert_eq!(account_for(other.principals[0]).unwrap(),other);

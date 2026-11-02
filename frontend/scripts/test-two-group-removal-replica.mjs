@@ -24,7 +24,7 @@ const denied=async fn=>{
  err(result);
 };
 const report={schema:1,kind:'two-group-complete-removal',passed:false,
- releaseAuthorized:false,fullInventoryAcceptance:false,mode:'local-rehearsal',checks:[],modules:{},unresolvedInfrastructure:[],completeSeals:0};
+ releaseAuthorized:false,fullInventoryAcceptance:false,mode:'local-rehearsal',checks:[],modules:{},unresolvedInfrastructure:[],completeSeals:0,terminalFencingCompletion:false};
 let server,pic,stage='validate artifact inputs';
 const mark=name=>report.checks.push({name,passed:true});
 const hash=f=>createHash('sha256').update(readFileSync(f)).digest('hex');
@@ -230,6 +230,8 @@ try{
  router.actor.setPrincipal(survivor);ok(await router.actor.read_my_owner_test_opening('local'));
  // Seals stay refused while obligations remain; nothing is inferred from receipts.
  err(await id.verify_account_removal_seals(account.id));
+ err(await id.complete_account_removal_fencing(account.id));
+ err(await id.read_account_removal_completion(account.id));
  mark('Infrastructure fences deny both aliases while survivor keeps access; seals refuse retained obligations');
  baseTimer.setPrincipal(governor);assert.equal(ok(await baseTimer.revoke_fenced_account_obligations(account.id)),1n);
  shared.actor.setPrincipal(governor);ok(await shared.actor.revoke_workload(primary));
@@ -247,6 +249,29 @@ try{
  report.completeSeals=validateCompleteSeals(normalizedGroups,{account_id:intent.account_id,generation:intent.generation,subjects:intent.subjects.map(p=>p.toText()),inventory_digest:Array.from(intent.inventory_digest)},
   complete.map(x=>({...x,receiver:x.receiver.toText(),request:{...x.request,subjects:x.request.subjects.map(p=>p.toText()),inventory_digest:Array.from(x.request.inventory_digest)}})),shared.canisterId.toText(),router.canisterId.toText());
  mark('Complete global seals cover all 28 frozen targets; no erasure, release or opening is implied');
+ stage='persist immutable terminal fencing completion';
+ id.setPrincipal(outsider);err(await id.complete_account_removal_fencing(account.id));
+ id.setPrincipal(governor);
+ const terminal=ok(await id.complete_account_removal_fencing(account.id));
+ assert.equal(terminal.targets.length,28);assert.equal(terminal.seals.length,28);
+ assert.deepEqual(terminal.request,{account_id:intent.account_id,generation:intent.generation,inventory_digest:intent.inventory_digest,subjects:intent.subjects});
+ const terminalRevision=await revision();
+ assert.deepEqual(ok(await id.complete_account_removal_fencing(account.id)),terminal);
+ assert.equal(await revision(),terminalRevision);
+ await pic.upgradeCanister({canisterId:identity.canisterId,wasm:wasm('identity_access'),sender:governor,arg:args});
+ assert.deepEqual(ok(await id.read_account_removal_completion(account.id)),terminal);
+ assert.deepEqual(ok(await id.complete_account_removal_fencing(account.id)),terminal);
+ assert.deepEqual(ok(await id.read_account_removal_intent(account.id)),intent);
+ const manifest=ok(await id.read_removal_history_manifest());assert.equal(manifest.removal_completions,1n);
+ const exported=ok(await id.read_removal_history_page(manifest.revision,{RemovalCompletions:[]},200));
+ assert.deepEqual(exported.completions,[[account.id,terminal]]);
+ err(await id.set_service_authorities(receivers.map(s=>s.canisterId)));
+ for(const human of [primary,alias]){id.setPrincipal(human);err(await id.whoami());err(await id.register_account());}
+ for(const g of groups){await g.readPhoto(survivor);g.services.messaging_domain.actor.setPrincipal(survivor);
+  assert.equal(ok(await g.services.messaging_domain.actor.read_account_list_messages_page(g.chat.id,[],10)).messages.length,2);
+  g.services.vault_domain.actor.setPrincipal(survivor);assert.equal(ok(await g.services.vault_domain.actor.read_account_get_folder('folder'))[0].id,'folder');}
+ report.terminalFencingCompletion=true;
+ mark('Immutable terminal fencing completion survives replay and identity upgrade; history, data, survivor access and authority locks remain');
  report.passed=true;
 }catch(error){report.failure=error?.name??'Error';throw error;}
 finally{

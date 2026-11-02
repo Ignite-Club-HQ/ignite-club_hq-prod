@@ -1,5 +1,5 @@
-//! Durable local-only removal intents. No receiver drain acceptance exists yet.
-//! Never interpret a frozen target inventory as an acknowledgement.
+//! Durable removal evidence. Completion certifies fencing/drain, never erasure,
+//! authority replacement, recovery acceptance or production release.
 use candid::{CandidType, Principal};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -16,6 +16,28 @@ pub struct Receipt {
     pub request: Request,
     pub receiver: Principal,
     pub outstanding: candid::Nat,
+}
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Completion {
+    pub request: Request,
+    pub account_version: u64,
+    pub targets: Vec<Principal>,
+    pub seals: Vec<Receipt>,
+}
+impl Completion {
+    pub fn from_fresh_seals(intent: &Intent, seals: Vec<Receipt>) -> Result<Self, String> {
+        intent.validate_all_seals(&seals)?;
+        let mut seals = seals;
+        seals.sort_by_key(|seal| seal.receiver);
+        let mut targets = intent.targets.clone(); targets.sort();
+        Ok(Self { request: intent.request(), account_version: intent.account_version, targets, seals })
+    }
+    pub fn validate(&self, intent: &Intent) -> Result<(), String> {
+        if Self::from_fresh_seals(intent, self.seals.clone())? != *self {
+            return Err("Removal completion binding mismatch".into());
+        }
+        Ok(())
+    }
 }
 impl Intent {
     pub fn request(&self) -> Request {
@@ -101,6 +123,15 @@ mod tests {
         assert_eq!(intent.validate_receipt(q, &receipt), Ok(()));
         assert_eq!(intent.validate_seal(q, &receipt), Ok(()));
         assert_eq!(intent.validate_all_seals(&[receipt.clone()]), Ok(()));
+        let completed = Completion::from_fresh_seals(&intent, vec![receipt.clone()]).unwrap();
+        assert_eq!(completed.validate(&intent), Ok(()));
+        let mut changed = completed.clone(); changed.account_version += 1;
+        assert!(changed.validate(&intent).is_err());
+        changed = completed.clone(); changed.request.generation += 1;
+        assert!(changed.validate(&intent).is_err());
+        changed = completed; changed.targets.clear();
+        assert!(changed.validate(&intent).is_err());
+        assert!(Completion::from_fresh_seals(&intent, vec![]).is_err());
         assert!(intent.validate_all_seals(&[]).is_err());
         assert!(intent.validate_all_seals(&[receipt.clone(), receipt.clone()]).is_err());
         let mut pending = receipt.clone(); pending.outstanding = 1u8.into();
