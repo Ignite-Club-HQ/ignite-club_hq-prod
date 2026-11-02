@@ -1243,6 +1243,33 @@ mod tests {
         });
     }
 
+    #[test]
+    fn removal_obligations_count_and_settle_only_fenced_subjects() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        reset_with_fresh_memory();
+        let removed = Principal::from_slice(&[61; 29]);
+        let other = Principal::from_slice(&[62; 29]);
+        let mut meta = Metadata::empty();
+        meta.governor = Some(Principal::from_slice(&[60; 29]));
+        meta.workers = vec![WorkerCapability { worker: removed, scope: "*".into() }, WorkerCapability { worker: other, scope: "*".into() }];
+        meta.callbacks = vec![CallbackCapability { callback: removed, scope: "club".into() }];
+        save_metadata(meta);
+        let job = |id: &str, cb: Principal, status: Status| Job { id: id.into(), scope: "club".into(), callback: Some(cb), run_at_ms: 1,
+            lease_until_ms: None, idempotency_key: id.into(), status, attempts: 0, last_error: None };
+        put_job_entry(job("a", removed, Status::Pending));
+        put_job_entry(job("b", removed, Status::Completed));
+        put_job_entry(job("c", other, Status::Pending));
+        assert_eq!(removal_obligations(&[removed]), 3);
+        assert_eq!(settle_removal_obligations(&[removed]), 3);
+        assert_eq!(removal_obligations(&[removed]), 0);
+        let after = metadata();
+        assert_eq!(after.workers, vec![WorkerCapability { worker: other, scope: "*".into() }]);
+        assert!(after.callbacks.is_empty());
+        assert_eq!(get_job_entry("a").unwrap().status, Status::Failed);
+        assert_eq!(get_job_entry("b").unwrap().status, Status::Completed);
+        assert_eq!(get_job_entry("c").unwrap().status, Status::Pending);
+    }
+
     /// Simulates a canister upgrade: drops the in-process thread-local
     /// caches (as if the wasm instance were torn down) while keeping the
     /// same underlying `VectorMemory` bytes, then reloads state from it
