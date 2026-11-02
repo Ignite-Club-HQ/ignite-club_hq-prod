@@ -25,12 +25,13 @@ const probes={
   insights_domain:['record_web_vital',['LCP',12,'good','/receiver']],
   notification_queue:['read_account_get_push_alert_settings',[]],
 };
-const server=await PocketIcServer.start();let pic;
+const server=await PocketIcServer.start({showCanisterLogs:true});let pic;
 try{
- pic=await PocketIc.create(server.getUrl());
+ pic=await PocketIc.create(server.getUrl(),{processingTimeoutMs:120000});
  assert.ok(process.env.REMOVAL_RELAY_WASM,'Real relay Wasm required');
  const relay=await pic.setupCanister({idlFactory:relayIdl,wasm:process.env.REMOVAL_RELAY_WASM,sender:governor,controllers:[governor]});
  for(const [domain,[method,args]] of Object.entries(probes)){
+  console.log('Testing',domain,candidate ? 'non-rehearsal candidate' : 'rehearsal');
   assert.ok(process.env[domain.toUpperCase()+'_WASM'],domain+' real Wasm required');
   const {idlFactory}=await import(`../src/lab/bindings/${domain}/declarations/${domain}.did.js`);
   const service=await pic.setupCanister({idlFactory,wasm:process.env[domain.toUpperCase()+'_WASM'],sender:governor,controllers:[governor],
