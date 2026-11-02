@@ -120,6 +120,41 @@ been added by this installation-preparation batch.
 | Acceptance | Positive real encrypted-data controls, all-group held callbacks/outages/retries/upgrades without rehearsal | Existing local suites are partial, not all-path production evidence |
 | Approval recording | Protected PROD-only reviewed evidence, revision CAS, durable intent/readback, unknown-reply reconciliation | Current snapshot writer is DEV-bound and must not be used |
 
+### Continued installation diagnosis and consolidated worker handoff (02:20 UTC)
+
+The root environment incompatibility is now independently demonstrated: a native
+C write to a read-only page receives SIGSEGV with `REG_ERR` write bit **0** on
+this gVisor host. IC's x86-64 memory tracker uses that bit to distinguish reads
+from writes, so it repeatedly restores read-only protection for the same write.
+This does not establish an invalid Motoko artifact. Changing compiler persistence
+flags or downgrading PocketIC is not an accepted workaround.
+
+Sources: [gVisor signal context](https://github.com/google/gvisor/blob/master/pkg/sentry/arch/signal_amd64.go),
+[IC memory tracker](https://github.com/dfinity/ic/blob/master/rs/memory_tracker/src/lib.rs).
+
+`removal-host-fault-probe.c` and `removal-host-preflight.mjs` now measure the actual
+fault before PocketIC starts. The real preflight rejects this host in 369 ms,
+saving a negative hash-bound report; it no longer wastes a stalled installation
+attempt. It does not patch the runtime or grant any acceptance.
+
+The existing manual `[TEST] Check isolated removal test installation` workflow
+keeps its path, compiler and pinned PocketIC version. After a supported host and
+real minimal install/ping succeed, the same run builds the seven remaining real
+receiver services and runs observed held-admission races, fresh drains/seals,
+survivor access, upgrade fencing and candidate configuration-off checks in both
+rehearsal and production-candidate modes. Saved per-service reports bind exact
+Wasm hashes and explicitly deny full-inventory/release acceptance. Test authority
+replies are fixtures; this does not prove real identity, encrypted data or complete
+twelve-service/two-group infrastructure acceptance.
+
+Validation: 31 host/cleanup/workflow/release safeguards and 197 existing identity
+tests pass. YAML and receiver-runner syntax validate; preview build is healthy.
+Native-worker execution is still unverified: no authorized GitHub dispatch
+credential is available here. The next external step is this TEST workflow on
+`main`, not a PROD upgrade, payment, settings switch or approval workflow.
+Terminal commitment and authenticated full-inventory/recovery integration remain
+unfinished; their safe implementation boundaries were investigated, not released.
+
 Bound deletion is independently released timing protection; it does not prove
 full service draining or account-removal completion. Identity eligibility is not
 club membership, and repeated checks are not atomic global revocation.
