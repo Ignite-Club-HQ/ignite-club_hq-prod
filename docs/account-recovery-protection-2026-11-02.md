@@ -22,6 +22,27 @@
 
 ## Tests and execution boundary
 
+## Continued integration
+
+Identity now retains pending operations and acknowledgements in additive stable
+memories 36/37. Removal begins with atomic local subject fencing and a staged
+external record; receiver progress and completion are acknowledged through the
+independent journal before success. Unknown write/readback outcomes leave the
+exact pending operation retained and admission closed. Completion retries obtain
+fresh receiver seals rather than trusting cached historical completion. Local
+acknowledgements never skip independent readback after a restore.
+
+Reader disable stages an immutable identity/generation record and clears local
+approval before any await. A failed external acknowledgement retries the same
+generation; bounded governor reconciliation can finish pending records. The
+witness exposes identity-authenticated exact record readback, and independently
+retains disable records alongside removal progress.
+
+An exclusive local recovery journal uses a non-expiring lock, atomic synced
+receipts, revision checks and explicit completed-resume release. Interrupted
+work cannot acquire an automatic replacement lock. This is local writer
+serialization, **not** the missing remote controller fencing transport.
+
 Rust tests cover exact signatures, old identity history/version, old acceptance,
 epoch advancement, record bounds, inventory size, and stable journal reopening.
 Offline tests cover old/partial checkpoints, lost progress, anchor changes during
@@ -46,8 +67,8 @@ The witness has no DEV/PROD mapping, deployment recipe, active signer or control
 grant. No canister, database, routing, delivery or production data changed.
 
 Before production can open, implement and verify the exclusive authenticated
-controller fence/drain transport, connect removal/disable acknowledgements to
-this independent journal, and reconcile complete decoded identity/receiver
+controller fence/drain transport, exercise the removal/disable integration with
+the actual independent witness, and reconcile complete decoded identity/receiver
 denials, pending operations, leases and quota ledgers before recovery acceptance.
 Current production removal endpoints remain closed; recording a witness claim
 does not make production removal complete or authorize opening.

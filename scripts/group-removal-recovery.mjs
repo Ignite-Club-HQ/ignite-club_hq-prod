@@ -27,7 +27,10 @@ async function stopped(inventory, adapter) {
   for (const p of inventory.participants) if (await adapter.status(p.id) !== 'stopped') throw Error('Complete stopped inventory required');
 }
 async function record(journal, state) {
+  if(typeof journal.assertExclusiveWriter!=='function')throw Error('Exclusive recovery journal writer required');
+  await journal.assertExclusiveWriter();
   await journal.save(state);
+  await journal.assertExclusiveWriter();
   if (digest(await journal.read()) !== digest(state)) throw Error('Recovery journal readback failed; keep every participant fenced');
 }
 async function stopAll(inventory, adapter) {
@@ -51,6 +54,8 @@ function checkCheckpoint(inventory, checkpoint) {
   }
 }
 export async function checkpointGroup(inventory, adapter, journal) {
+  if(typeof journal.assertExclusiveWriter!=='function')throw Error('Exclusive recovery journal writer required');
+  await journal.assertExclusiveWriter();
   if (await journal.read()) throw Error('Existing recovery intent requires reconciliation');
   let state = { version: 1, binding: recoveryBinding(inventory), phase: 'stop-intent', snapshots: [] };
   await record(journal, state);
@@ -79,6 +84,8 @@ export async function checkpointGroup(inventory, adapter, journal) {
   return state;
 }
 export async function restoreGroup(inventory, checkpoint, adapter, journal) {
+  if(typeof journal.assertExclusiveWriter!=='function')throw Error('Exclusive recovery journal writer required');
+  await journal.assertExclusiveWriter();
   checkCheckpoint(inventory, checkpoint);
   const saved = await journal.read();
   if (!saved || saved.binding !== checkpoint.binding || saved.pending || !['checkpointed', 'restored'].includes(saved.phase)) throw Error('Unknown recovery outcome requires reconciliation');
@@ -101,6 +108,8 @@ export async function restoreGroup(inventory, checkpoint, adapter, journal) {
   await record(journal, { ...state, phase: 'restored' });
 }
 export async function resumeGroup(inventory, checkpoint, adapter, journal, approval) {
+  if(typeof journal.assertExclusiveWriter!=='function')throw Error('Exclusive recovery journal writer required');
+  await journal.assertExclusiveWriter();
   checkCheckpoint(inventory, checkpoint);
   if (!approval || approval.binding !== checkpoint.binding || approval.approved !== true) throw Error('Exact-inventory resume approval required');
   const saved = await journal.read();

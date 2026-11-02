@@ -38,12 +38,18 @@ try{
  const removal={operation_id:'remove/1',event:{Removal:{account_id:'removed',generation:1n,inventory_digest:Array(32).fill(1),subjects:[Principal.fromUint8Array(Uint8Array.from([5,1]))],targets:[base,g2]}}};
  const revision=ok(await a.record_removal_recovery(removal));assert.equal(revision,1n);
  assert.equal(ok(await a.record_removal_recovery({...removal,operation_id:'equivalent-retry'})),1n);
+ a.setPrincipal(identity);assert.deepEqual(ok(await a.read_recovery_record(revision)),removal);a.setPrincipal(owner);
  const original=ok(await a.read_recovery_head());
  const progress=(target,phase)=>({operation_id:`${target.toText()}/${phase}`,event:{Progress:{account_id:'removed',generation:1n,progress:{[phase]:{target}}}}});
  err(await a.record_removal_recovery({operation_id:'premature-complete',event:{Progress:{account_id:'removed',generation:1n,progress:{Completed:null}}}}));
  for(const target of [base,g2])ok(await a.record_removal_recovery(progress(target,'Sealed')));
  ok(await a.record_removal_recovery({operation_id:'complete',event:{Progress:{account_id:'removed',generation:1n,progress:{Completed:null}}}}));
  const rows=ok(await a.read_recovery_records(0n,200));assert.equal(rows.length,4);
+ const disable={operation_id:'disable/8',event:{Disable:{identity,generation:8n}}};
+ const disableRevision=ok(await a.record_removal_recovery(disable));assert.equal(disableRevision,5n);
+ assert.equal(ok(await a.record_removal_recovery(disable)),5n);
+ a.setPrincipal(identity);assert.deepEqual(ok(await a.read_recovery_record(5n)),disable);a.setPrincipal(owner);
+ rows.push([5n,disable]);
  assert.equal(ok(await a.record_removal_recovery(removal)),revision);
  const conflicting=structuredClone(removal);conflicting.event.Removal.generation=2n;err(await a.record_removal_recovery(conflicting));
  a.setPrincipal(base);err(await a.read_recovery_head());err(await a.record_removal_recovery(removal));a.setPrincipal(owner);

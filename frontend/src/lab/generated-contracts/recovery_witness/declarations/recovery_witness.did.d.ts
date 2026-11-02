@@ -34,6 +34,7 @@ export type Event = {
       'progress' : Progress,
     }
   } |
+  { 'Disable' : { 'generation' : bigint, 'identity' : Principal } } |
   { 'Removal' : Removal };
 export interface Head {
   'epoch' : bigint,
@@ -62,11 +63,13 @@ export type Result = { 'Ok' : bigint } |
   { 'Err' : string };
 export type Result_1 = { 'Ok' : Head } |
   { 'Err' : string };
-export type Result_2 = { 'Ok' : Array<[bigint, Record]> } |
+export type Result_2 = { 'Ok' : Record } |
   { 'Err' : string };
-export type Result_3 = { 'Ok' : Uint8Array } |
+export type Result_3 = { 'Ok' : Array<[bigint, Record]> } |
   { 'Err' : string };
-export type Result_4 = { 'Ok' : WitnessReceipt } |
+export type Result_4 = { 'Ok' : Uint8Array } |
+  { 'Err' : string };
+export type Result_5 = { 'Ok' : WitnessReceipt } |
   { 'Err' : string };
 export interface SignedAcceptance {
   'signature' : Uint8Array,
@@ -87,13 +90,14 @@ export interface _SERVICE {
   'accept_recovery_fence' : ActorMethod<[SignedAcceptance], Result>,
   'close_recovery_fence' : ActorMethod<[bigint], Result>,
   'read_recovery_head' : ActorMethod<[], Result_1>,
-  'read_recovery_records' : ActorMethod<[bigint, number], Result_2>,
+  'read_recovery_record' : ActorMethod<[bigint], Result_2>,
+  'read_recovery_records' : ActorMethod<[bigint, number], Result_3>,
   'read_recovery_runtime_version' : ActorMethod<[], Result>,
   'record_removal_recovery' : ActorMethod<[Record], Result>,
-  'recovery_acceptance_signing_bytes' : ActorMethod<[Acceptance], Result_3>,
+  'recovery_acceptance_signing_bytes' : ActorMethod<[Acceptance], Result_4>,
   'verify_production_account_read_fence' : ActorMethod<
     [WitnessRequest],
-    Result_4
+    Result_5
   >,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
