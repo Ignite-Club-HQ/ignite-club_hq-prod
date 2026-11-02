@@ -1298,6 +1298,32 @@ async fn read_group_inventory_evidence(expected_history_revision: u64) -> Outcom
 struct RegistryPage {
     revision: u64, groups: Vec<group_inventory::Group>, placements: Vec<group_inventory::Placement>, next_cursor: Option<String>,
 }
+#[derive(CandidType, Deserialize)]
+struct ClosedReviewGroup { id:String, accepting:bool }
+#[derive(CandidType, Deserialize)]
+struct ClosedReviewPage { revision:u64, groups:Vec<ClosedReviewGroup>, next_cursor:Option<String> }
+async fn review_closed_production_groups(binding:&group_inventory::Binding,recheck:impl Fn()->Outcome<()>) -> Outcome<()> {
+    let mut cursor:Option<String>=None;let mut ids=std::collections::BTreeSet::new();
+    loop {
+        recheck()?;
+        let response=ic_cdk::call::Call::bounded_wait(binding.registry,"read_group_registry_page")
+            .with_args(&(&binding.target_alias,Some(binding.registry_revision),&cursor,64u32))
+            .await.map_err(|_|"Closed production registry unavailable")?;
+        recheck()?;
+        let page:Outcome<ClosedReviewPage>=response.candid().map_err(|_|"Invalid closed production registry")?;
+        let page=page?;
+        if page.revision!=binding.registry_revision || page.groups.len()>64 ||
+            page.next_cursor.as_ref().is_some_and(|next|cursor.as_ref().is_some_and(|prior|next<=prior)) {
+            return Err("Closed production registry drift".into());
+        }
+        for group in page.groups {
+            if group.accepting || !ids.insert(group.id) || ids.len()>2 {return Err("Exact closed base and g2 required".into());}
+        }
+        match page.next_cursor {Some(next)=>cursor=Some(next),None=>break}
+    }
+    if ids!=std::collections::BTreeSet::from(["base".to_string(),"g2".to_string()]) {return Err("Exact closed base and g2 required".into());}
+    Ok(())
+}
 async fn read_registry_pages(binding: &group_inventory::Binding, recheck: impl Fn() -> Outcome<()>) -> Outcome<group_inventory::Snapshot> {
     let mut snapshot = group_inventory::Snapshot { revision: binding.registry_revision, groups: vec![], placements: vec![] };
     let mut cursor: Option<String> = None;
