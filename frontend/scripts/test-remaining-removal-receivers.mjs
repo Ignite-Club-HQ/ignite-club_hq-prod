@@ -26,11 +26,14 @@ const probes={
   notification_queue:['read_account_get_push_alert_settings',[]],
 };
 const server=await PocketIcServer.start({showCanisterLogs:true});let pic;
+let stage='create local replica';
 try{
  pic=await PocketIc.create(server.getUrl(),{processingTimeoutMs:120000});
  assert.ok(process.env.REMOVAL_RELAY_WASM,'Real relay Wasm required');
- const relay=await pic.setupCanister({idlFactory:relayIdl,wasm:process.env.REMOVAL_RELAY_WASM,sender:governor,controllers:[governor]});
+ stage='install local removal relay';
+ const relay=await pic.setupCanister({idlFactory:relayIdl,wasm:process.env.REMOVAL_RELAY_WASM,sender:governor,controllers:[governor],arg:IDL.encode([],[])});
  for(const [domain,[method,args]] of Object.entries(probes)){
+  stage=`test ${domain}`;
   console.log('Testing',domain,candidate ? 'non-rehearsal candidate' : 'rehearsal');
   assert.ok(process.env[domain.toUpperCase()+'_WASM'],domain+' real Wasm required');
   const {idlFactory}=await import(`../src/lab/bindings/${domain}/declarations/${domain}.did.js`);
@@ -66,4 +69,13 @@ try{
   }
   console.log('PASS',domain,'observed held admission, late eligible denial, fresh seal, upgrade fence, survivor access');
  }
-}finally{if(pic)await pic.tearDown();await server.stop()}
+}catch(error){
+ console.error('Removal test stopped at:',stage);
+ throw error;
+}finally{
+ // A busy instance can refuse deletion indefinitely. Always stop this local
+ // server even when teardown rejects; no production process is involved.
+ try{if(pic)await Promise.race([pic.tearDown(),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Local replica cleanup timed out')),5000))]);}
+ catch(error){console.error('Local cleanup:',error.message);}
+ finally{await server.stop();}
+}
