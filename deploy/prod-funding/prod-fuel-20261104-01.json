@@ -38,5 +38,7 @@
     "refunded": null,
     "detail": null,
     "balance": "5002356915379"
-  }
+  },
+  "balanceAfter": "5002356915379",
+  "testReady": true
 }
