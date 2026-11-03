@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {activationTargets,protectionEnvironment,verifyActivatedDraft,assertProtectionContext,assertNoPending,PROTECTION_CONFIRMATION,requireProtectionExecutionReady} from './prod-protection-policy.mjs';
+import {activationTargets,protectionEnvironment,settingsCommitment,verifyActivatedDraft,assertProtectionContext,assertNoPending,PROTECTION_CONFIRMATION,requireProtectionExecutionReady} from './prod-protection-policy.mjs';
 import {protectionContract} from './prod-protection-contract.mjs';
 import {PROD_CHECK_IDS} from './prod-connection-check-policy.mjs';
 const domains=['club_domain','events_domain','messaging_domain','vault_domain','competition_domain','club_points_domain','mini_league_domain','media_metadata','insights_domain','notification_queue','pii_access_control','timer_jobs','secret_workload_identity'];
@@ -33,12 +33,21 @@ test('witness signing and readback subset matches its reviewed real service',asy
   for(const [name,type]of protectionContract(IDL).witness()._fields)assert.equal(type.display(),full.get(name)?.display(),name);
 });
 import {reconcileDecision} from './prod-protection-policy.mjs';
-test('retained intent resolves only on exact before/after observations', () => {
-  const p = {kind:'settings:x', before:'old', after:'new', retryable:true};
+test('retained intent refuses before-image replay without durable non-submission proof', () => {
+  const p = {version:2,commit:{},kind:'settings:x', before:'old', after:'new', retryable:true};
   assert.equal(reconcileDecision(p,'new'),'committed');
-  assert.equal(reconcileDecision(p,'old'),'not-applied');
+  assert.equal(reconcileDecision(p,'old'),'unknown');
+  assert.equal(reconcileDecision({...p,notSubmitted:true},'old'),'not-applied');
   assert.equal(reconcileDecision(p,'other'),'unknown');
   assert.equal(reconcileDecision({...p,retryable:false},'old'),'unknown');
   assert.equal(reconcileDecision({kind:'x'},'new'),'unknown');
   assert.equal(reconcileDecision(null,'new'),'unknown');
+});
+test('settings intents retain order-independent commitments, never unrelated plaintext',()=>{
+  const rows=[{name:'UNRELATED',value:'private-test-sentinel'},{name:'OTHER',value:'keep'}];
+  const committed=settingsCommitment(rows);
+  assert.equal(committed,settingsCommitment([...rows].reverse()));
+  assert.match(committed,/^[a-f0-9]{64}$/);assert.equal(committed.includes('private-test-sentinel'),false);
+  assert.notEqual(committed,settingsCommitment([{...rows[0],value:'changed'},rows[1]]));
+  assert.throws(()=>settingsCommitment([rows[0],rows[0]]));
 });
