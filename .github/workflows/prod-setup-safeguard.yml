@@ -43,7 +43,7 @@ jobs:
           KEY="$(gh api "repos/$GITHUB_REPOSITORY/contents/prod-group-setup/recovery-approval-key.json?ref=prod-group-setup" --jq .content | base64 -d | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).publicKey))')"
           [[ "$KEY" =~ ^[a-f0-9]{64}$ ]]
           IGNITE_RECOVERY_APPROVER_PUBLIC_KEY="$KEY" CARGO_TARGET_DIR="$RUNNER_TEMP/witness-target" \
-            cargo build --locked --release --target wasm32-unknown-unknown -p recovery_witness
+            cargo build --release --target wasm32-unknown-unknown --manifest-path backend/recovery_witness/Cargo.toml
           mkdir -p "$RUNNER_TEMP/witness"
           cp "$RUNNER_TEMP/witness-target/wasm32-unknown-unknown/release/recovery_witness.wasm" "$RUNNER_TEMP/witness/"
       - name: Create the safeguard (recovery key is sole controller)
