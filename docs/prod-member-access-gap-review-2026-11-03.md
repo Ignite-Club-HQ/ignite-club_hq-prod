@@ -40,6 +40,15 @@ ordinary-access code is delivered to `prod` and the canister is upgraded.
 
 ## Delivery order this review implies
 
+The admission-only step is now built and locally tested: `scripts/prod-member-access.mjs`
+with `.github/workflows/prod-enable-member-access.yml` (`plan`, `inspect`, `apply`,
+`commission`, `readback`; 12 passing policy tests). It writes only
+`IGNITE_ACCOUNT_SERVICE_IDENTITY` and `IGNITE_ACCOUNT_ADMISSION_RELEASE`, refuses
+any service where global removal or rehearsal is already on, and resumes a
+partially applied run without discarding the reviewed plan.
+
+
+
 1. Deliver the reviewed ordinary-access account-service code to `prod`
    (add-only, upgrade-only; no data movement).
 2. Correct both `club_domain` `identity_access` rows to `wb3hl-byaaa-aaaai-ayeqa-cai`.
