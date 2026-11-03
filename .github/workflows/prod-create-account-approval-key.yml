@@ -26,7 +26,7 @@ jobs:
       KEY_ENVIRONMENT: ${{ inputs.role == 'account' && 'production-account-approval' || 'production-recovery-approval' }}
       CONFIRMATION: ${{ inputs.confirmation }}
       PASSPHRASE: ${{ secrets.PROD_APPROVAL_PASSPHRASE }}
-      INDEPENDENT_REVIEWER_ID: ${{ vars.INDEPENDENT_REVIEWER_ID }}
+      OWNER_REVIEWER_ID: ${{ vars.OWNER_REVIEWER_ID }}
       EXISTING_SEED: ${{ secrets.PROD_APPROVAL_SEED }}
       EXISTING_ENC: ${{ secrets.PROD_APPROVAL_SEED_ENC }}
       EXISTING_PUBLIC_KEY: ${{ vars.PROD_APPROVAL_PUBLIC_KEY }}

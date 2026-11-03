@@ -7,7 +7,7 @@ business data, erasure, recovery, delivery or replacing existing signing keys.
 ## Implemented
 
 The independent-key preparation workflow supports separate account and recovery
-roles. It verifies non-bypassable environment review, encrypts new keys in CI,
+roles. It verifies non-bypassable owner review, encrypts new keys in CI,
 records an acknowledged intent before generation and refuses unresolved retries.
 Only ciphertext, public keys and principals leave the runner. It makes no canister
 calls. Production build-pin validation rejects missing, colliding and shared pins.
@@ -15,9 +15,10 @@ calls. Production build-pin validation rejects missing, colliding and shared pin
 ## Owner/custodian setup required
 
 Create `production-account-approval` and `production-recovery-approval` GitHub
-environments with an independently designated user reviewer, self-review disabled
-and administrator bypass disabled. Set `INDEPENDENT_REVIEWER_ID` to that reviewer's
-GitHub numeric user ID. The reviewer must differ from the workflow initiator.
+environments with Paul as the required reviewer, self-review allowed
+and administrator bypass disabled. Set `OWNER_REVIEWER_ID` to Paul's
+GitHub numeric user ID. Paul may initiate and approve the same run;
+separate signing keys and jobs do not require a second person.
 Do not place these decryption credentials in the governor deployment environment.
 
 In each environment store a separately chosen secret `PROD_APPROVAL_PASSPHRASE`
