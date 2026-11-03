@@ -27,7 +27,7 @@ export const MIN_UPGRADE_CYCLES = 20_000_000_000n;
 export function assertReloadReady({ targets, status, builds, governor, identity, upgradeGroup = null }) {
   const problems = [];
   if (upgradeGroup !== null && !UPGRADE_GROUPS.includes(upgradeGroup)) problems.push(`group ${upgradeGroup} cannot be updated here`);
-  const provenNames = new Set(targets.filter(t => t.group === 'g1' && status[t.id] && builds[t.name]
+  const provenNames = new Set(targets.filter(t => t.group !== upgradeGroup && status[t.id] && builds[t.name]
     && matchingBuild(status[t.id].moduleHash, builds[t.name].hashes)).map(t => t.name));
   for (const t of targets) {
     const s = status[t.id];
