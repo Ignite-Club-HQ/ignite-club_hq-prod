@@ -3,7 +3,7 @@
 ## Current request — make PROD a straight copy of DEV (3 Nov 2026, 08:41 UTC)
 - [x] Read-only fingerprint comparison: 17/18 PROD base services differ from DEV; DEV g1==g2; five DEV services newer than deploy/mainnet/backend-release.json.
 - [x] Freeze all PROD-only safeguard/key/member-access work below (superseded).
-- [ ] Choose release code: A) what DEV runs now, or B) newer main. Blocker: Paul's choice.
+- [x] Paul chose A (03 Nov 08:51 UTC): copy exactly what DEV runs now; club deletion parked as first post-launch feature, built and tested on DEV.
 - [ ] Upgrade DEV if B, confirm app works; copy exact code to prod; upgrade PROD upgrade-only with compatibility stop; read back fingerprints vs DEV.
 
 ## SUPERSEDED — direct live delivery, rehearsal skipped (3 Nov 2026, 08:10 UTC)
