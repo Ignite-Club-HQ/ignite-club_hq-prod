@@ -1,5 +1,11 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — fix historical release blockers (3 Nov 2026, 10:59 UTC)
+- [x] GitHub now exposes the exact-commit copy input; dispatched read-only historical copy plan via existing workflow.
+- [ ] Correct complete PROD base/g2 target planning; shared services once, independent domain services in both groups.
+- [ ] Resolve exact historical identity versus retained safeguard-binding conflict without silently removing protections; owner decision needed if these requirements cannot coexist.
+- [ ] Verify focused tests and actual GitHub plan; no reinstalls, data copy, opening or publication.
+
 ## Current request — make PROD a straight copy of DEV (3 Nov 2026, 08:41 UTC)
 - [x] Read-only fingerprint comparison: 17/18 PROD base services differ from DEV; DEV g1==g2; five DEV services newer than deploy/mainnet/backend-release.json.
 - [x] Freeze all PROD-only safeguard/key/member-access work below (superseded).
