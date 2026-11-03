@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — activate live account protections (3 Nov 2026, 00:02 UTC)
+- [ ] 00:10 Paul confirmed he is the approver; remove the invented second-person requirement while retaining owner-reviewed separate signing custody and keys.
 - [x] 00:05 Prepared protected non-overwriting independent account/recovery key setup, encrypted acknowledged pre-mint receipts, role-separated public-pin validation and canister-layer allowlist; 27 focused checks pass. No live writes, keys minted or activation claimed.
 - [ ] Independent signer execution waits on the owner's designated reviewer/custodian and dedicated passphrases in protected GitHub environments; current GitHub secret-name inspection confirms these credentials are absent. No workflow dispatched into an unprotected environment.
 - [ ] Witness provisioning, immutable identity upgrade and closed settings/signature delivery remain unimplemented and unexecuted; blocked on real independent custody/public pins, exact reviewed witness control and authentic production evidence. See docs/prod-account-activation-prerequisites.md.
