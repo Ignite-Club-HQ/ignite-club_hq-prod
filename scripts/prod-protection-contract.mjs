@@ -22,16 +22,21 @@ export function protectionContract(IDL) {
     participants:V(R({canister:P,module:B,changes:N}))});
   const SignedAcceptance=R({body:Acceptance,signature:B});
   const State=R({generation:N,approval:IDL.Opt(Approval)});
+  const History=R({revision:N,principal_denials:N,erased_accounts:N,pending_intents:N,club_authorities:V(P),service_readers:V(P),
+    removal_generation:N,removal_barriers:N,removal_subjects:N,removal_receipts:N,removal_completions:N});
+  const Commissioning=R({history:History,inventory_approval:IDL.Opt(Approval)});
   const Progress=IDL.Variant({Prepared:R({target:P}),Sealed:R({target:P}),Completed:IDL.Null});
   const Record=R({operation_id:T,event:IDL.Variant({Disable:R({generation:N,identity:P}),
     Removal:R({account_id:T,inventory_digest:B,subjects:V(P),generation:N,targets:V(P)}),Progress:R({account_id:T,generation:N,progress:Progress})})});
   const Head=R({epoch:N,revision:N,digest:B,accepted:IDL.Opt(SignedAcceptance)});
   const Request=R({identity:P,generation:N,recovery_epoch:N,signed_digest:B,request_id:N,history_revision:N,removal_generation:N,identity_version:N});
   const func=(args,out)=>IDL.Func(args,[result(out)],[]);
-  return {Inventory,Expectation,Configuration,Draft,Body,Approval,Acceptance,SignedAcceptance,State,Record,Head,Request,
+  return {Inventory,Expectation,Configuration,Draft,Body,Approval,Acceptance,SignedAcceptance,State,Record,Head,Request,Commissioning,
     identity:()=>IDL.Service({
       review_production_account_inventory:func([Expectation,N],Draft),review_production_account_protection:func([Expectation,N],Draft),
       read_active_production_account_protection:func([],Draft),
+      read_production_commissioning_evidence:func([],Commissioning),
+      read_production_receiver_lifecycle:func([P],Lifecycle),
       production_account_approval_signing_bytes:func([Body],B),provision_production_account_inventory:func([Approval],N),
       authorize_production_account_readers:func([Approval],N),read_production_account_authorization:func([],State),
       read_production_account_history_revision:func([],N),read_production_account_removal_generation:func([],N),read_production_account_runtime_version:func([],N),
@@ -40,6 +45,6 @@ export function protectionContract(IDL) {
       read_recovery_records:func([N,IDL.Nat16],V(IDL.Tuple(N,Record))),recovery_acceptance_signing_bytes:func([Acceptance],B),
       subject_progress_approval_signing_bytes:func([Acceptance],B),accept_recovery_fence:func([SignedAcceptance],N),
       authorize_subject_removal_progress:func([SignedAcceptance],IDL.Null)}),
-    infrastructure:()=>IDL.Service({read_account_removal_authority:IDL.Func([],[IDL.Opt(P)],[]),set_account_removal_authority:func([P],IDL.Null)}),
+    infrastructure:()=>IDL.Service({read_account_removal_authority:IDL.Func([],[IDL.Opt(P)],['query']),set_account_removal_authority:func([P],IDL.Null)}),
   };
 }

@@ -17,6 +17,21 @@ test('unresolved external intent cannot be replayed',()=>{assert.throws(()=>asse
 test('only prod with exact owner confirmation is accepted',()=>{const e={GITHUB_REPOSITORY:'Ignite-Club-HQ/ignite-club_hq-prod',GITHUB_REF:'refs/heads/prod',IGNITE_ICP_ENV:'prod',GITHUB_SHA:'a'.repeat(40),CONFIRMATION:PROTECTION_CONFIRMATION};assert.doesNotThrow(()=>assertProtectionContext(e));assert.throws(()=>assertProtectionContext({...e,GITHUB_REF:'refs/heads/main'}));assert.throws(()=>assertProtectionContext({...e,CONFIRMATION:'OPEN'}));});
 test('effective review requires every concrete mode, 29 lifecycle rows and no opening',()=>{const f=fixture(),targets=activationTargets(f.ids,f.page,f.base,f.g2);const readers=targets.filter(t=>t.human).map(t=>t.id);const d={targets:targets.map(t=>t.id),account_readers:readers,eligibility_readers:readers,release_authorized:false,recovery_accepted:false,lifecycle:[...targets.map(t=>({canister:t.id})),{canister:f.ids.identity_access}],configurations:targets.map(t=>({receiver:t.id,authority:[f.ids.identity_access],protocol:1,rehearsal:false,removal_enabled:true,admission_required:t.human}))};assert.equal(verifyActivatedDraft(d,targets,f.ids.identity_access),true);const bad=structuredClone(d);bad.configurations[0].removal_enabled=false;assert.throws(()=>verifyActivatedDraft(bad,targets,f.ids.identity_access));assert.throws(()=>verifyActivatedDraft({...d,release_authorized:true},targets,f.ids.identity_access));});
 test('activation IDL methods match generated real contract signatures',()=>{const req=createRequire(new URL('../frontend/package.json',import.meta.url));const {IDL}=req('@icp-sdk/core/candid');const contract=protectionContract(IDL);return import('../frontend/src/lab/bindings/identity_access/declarations/identity_access.did.js').then(({idlFactory})=>{const full=new Map(idlFactory({IDL})._fields),subset=new Map(contract.identity()._fields);for(const [name,type]of subset){assert.ok(full.has(name),name);assert.equal(type.display(),full.get(name).display(),name);}});});
+test('infrastructure authority reads retain real query transport on every receiver type',async()=>{
+  const req=createRequire(new URL('../frontend/package.json',import.meta.url));const {IDL}=req('@icp-sdk/core/candid');
+  const subset=new Map(protectionContract(IDL).infrastructure()._fields);
+  for(const domain of ['shard_router','timer_jobs','secret_workload_identity']){
+    const {idlFactory}=await import(`../frontend/src/lab/bindings/${domain}/declarations/${domain}.did.js`);
+    const full=new Map(idlFactory({IDL})._fields);
+    for(const [name,type]of subset)assert.equal(type.display(),full.get(name)?.display(),`${domain}.${name}`);
+  }
+});
+test('witness signing and readback subset matches its reviewed real service',async()=>{
+  const req=createRequire(new URL('../frontend/package.json',import.meta.url));const {IDL}=req('@icp-sdk/core/candid');
+  const {idlFactory}=await import('../frontend/src/lab/bindings/recovery_witness/declarations/recovery_witness.did.js');
+  const full=new Map(idlFactory({IDL})._fields);
+  for(const [name,type]of protectionContract(IDL).witness()._fields)assert.equal(type.display(),full.get(name)?.display(),name);
+});
 import {reconcileDecision} from './prod-protection-policy.mjs';
 test('retained intent resolves only on exact before/after observations', () => {
   const p = {kind:'settings:x', before:'old', after:'new', retryable:true};

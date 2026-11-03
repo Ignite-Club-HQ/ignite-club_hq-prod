@@ -289,6 +289,10 @@ type PrivacyConsent = record {
   granted : bool;
   purpose : text;
 };
+type ProductionCommissioningEvidence = record {
+  inventory_approval : opt SignedApproval_1;
+  history : RemovalHistoryManifest;
+};
 type Profile = record {
   account_id : text;
   // Millisecond timestamp of when the caller dismissed the one-shot club
@@ -424,33 +428,35 @@ type Result_23 = variant { Ok : ConversionPage; Err : text };
 type Result_24 = variant { Ok : vec RoleGrant; Err : text };
 type Result_25 = variant { Ok : Ticket; Err : text };
 type Result_26 = variant { Ok : blob; Err : text };
-type Result_27 = variant { Ok : vec ProfileSearchResult; Err : text };
-type Result_28 = variant { Ok : Evidence; Err : text };
-type Result_29 = variant { Ok : vec record { text; text }; Err : text };
+type Result_27 = variant { Ok : Draft; Err : text };
+type Result_28 = variant { Ok : vec ProfileSearchResult; Err : text };
+type Result_29 = variant { Ok : Evidence; Err : text };
 type Result_3 = variant { Ok : Receipt; Err : text };
-type Result_30 = variant { Ok : GuardianProfilePage; Err : text };
-type Result_31 = variant { Ok : DirectoryConfigurationReadback; Err : text };
-type Result_32 = variant { Ok : ReleasedReply; Err : text };
-type Result_33 = variant { Ok : Reply; Err : text };
-type Result_34 = variant { Ok : vec PrincipalEligibility; Err : text };
-type Result_35 = variant { Ok : PrincipalEligibility; Err : text };
-type Result_36 = variant { Ok : AccountInventoryPage; Err : text };
-type Result_37 = variant { Ok : opt ApprovalReceipt; Err : text };
-type Result_38 = variant { Ok : WriterReceipt; Err : text };
-type Result_39 = variant { Ok : RemovalInventory; Err : text };
+type Result_30 = variant { Ok : vec record { text; text }; Err : text };
+type Result_31 = variant { Ok : GuardianProfilePage; Err : text };
+type Result_32 = variant { Ok : DirectoryConfigurationReadback; Err : text };
+type Result_33 = variant { Ok : ReleasedReply; Err : text };
+type Result_34 = variant { Ok : Reply; Err : text };
+type Result_35 = variant { Ok : vec PrincipalEligibility; Err : text };
+type Result_36 = variant { Ok : PrincipalEligibility; Err : text };
+type Result_37 = variant { Ok : AccountInventoryPage; Err : text };
+type Result_38 = variant { Ok : opt ApprovalReceipt; Err : text };
+type Result_39 = variant { Ok : WriterReceipt; Err : text };
 type Result_4 = variant { Ok : OwnershipProgress; Err : text };
-type Result_40 = variant { Ok : State_1; Err : text };
-type Result_41 = variant { Ok : RemovalHistoryManifest; Err : text };
-type Result_42 = variant { Ok : RemovalHistoryPage; Err : text };
-type Result_43 = variant { Ok : principal; Err : text };
-type Result_44 = variant { Ok : DirectoryCleanup; Err : text };
-type Result_45 = variant { Ok : nat16; Err : text };
-type Result_46 = variant { Ok : Entitlement; Err : text };
-type Result_47 = variant { Ok : Draft; Err : text };
-type Result_48 = variant { Ok : PrivacyConsent; Err : text };
-type Result_49 = variant { Ok : TermsAcceptance; Err : text };
+type Result_40 = variant { Ok : RemovalInventory; Err : text };
+type Result_41 = variant { Ok : State_1; Err : text };
+type Result_42 = variant { Ok : ProductionCommissioningEvidence; Err : text };
+type Result_43 = variant { Ok : Lifecycle; Err : text };
+type Result_44 = variant { Ok : RemovalHistoryManifest; Err : text };
+type Result_45 = variant { Ok : RemovalHistoryPage; Err : text };
+type Result_46 = variant { Ok : principal; Err : text };
+type Result_47 = variant { Ok : DirectoryCleanup; Err : text };
+type Result_48 = variant { Ok : nat16; Err : text };
+type Result_49 = variant { Ok : Entitlement; Err : text };
 type Result_5 = variant { Ok : Progress; Err : text };
-type Result_50 = variant { Ok : vec Receipt; Err : text };
+type Result_50 = variant { Ok : PrivacyConsent; Err : text };
+type Result_51 = variant { Ok : TermsAcceptance; Err : text };
+type Result_52 = variant { Ok : vec Receipt; Err : text };
 type Result_6 = variant { Ok : WriteWindow; Err : text };
 type Result_7 = variant { Ok : CleanupAccount; Err : text };
 type Result_8 = variant { Ok : nat64; Err : text };
@@ -698,51 +704,54 @@ service : (Init) -> {
   publish_approved_private_name : (text, text) -> (Result_17);
   read_account_removal_completion : (text) -> (Result_15);
   read_account_removal_intent : (text) -> (Result_9);
+  // Fresh governor-only commissioning readback; stored approval alone is not
+  // effectiveness. Authenticate all receiver modes and the independent witness.
+  read_active_production_account_protection : () -> (Result_27);
   // Additive candidate reader for scoped client-side name matching. It does not
   // enable a privacy cutover or use the unreleased membership directory index.
-  read_club_profiles : (principal, text, vec principal) -> (Result_27);
-  read_group_inventory_evidence : (nat64) -> (Result_28);
+  read_club_profiles : (principal, text, vec principal) -> (Result_28);
+  read_group_inventory_evidence : (nat64) -> (Result_29);
   // Governor-only narrow opening evidence, not a lifecycle release or grant.
-  read_group_opening_configuration : () -> (Result_29);
+  read_group_opening_configuration : () -> (Result_30);
   // Exact-child bounded directory traversal for device-side encrypted matching.
   // Rehearsal only until the PII guardian audience and release acceptance pass.
   read_guardian_profile_candidates : (principal, text, opt Cursor) -> (
-      Result_30,
+      Result_31,
     );
   // Final retained-match readback, without rescanning or deriving keys twice.
   read_guardian_profiles : (principal, text, vec principal, nat64) -> (
-      Result_27,
+      Result_28,
     );
   // Only configured canisters may ask for another caller's links. No browser
   // supplies an account id or a principal list; the index is authoritative.
   read_linked_account : (principal) -> (Result);
-  read_membership_directory_configuration : () -> (Result_31);
-  read_my_membership_directory : (nat64, opt Token) -> (Result_32);
+  read_membership_directory_configuration : () -> (Result_32);
+  read_my_membership_directory : (nat64, opt Token) -> (Result_33);
   // Caller-private diagnostic, not the release/current reader. The actor never
   // accepts another account ID or aliases. Source/ownership and fresh account
   // checks precede every persisted page/replay, with no intervening await.
-  read_my_membership_directory_diagnostic : (nat64, opt Token) -> (Result_33);
+  read_my_membership_directory_diagnostic : (nat64, opt Token) -> (Result_34);
   // Only the pinned router may check a human before owner-test creation. This
   // narrow predicate neither registers a reader nor releases global admission.
   read_owner_test_creation_eligible : (principal) -> (Result_13);
-  read_principal_eligibilities : (vec principal) -> (Result_34);
+  read_principal_eligibilities : (vec principal) -> (Result_35);
   // Consensus reads; never create an account or grant resource permissions.
   // Versions are account-scoped evidence, NOT globally atomic access tokens.
-  read_principal_eligibility : (principal) -> (Result_35);
+  read_principal_eligibility : (principal) -> (Result_36);
   read_private_name_account_inventory : (
       text,
       Request_1,
       opt AccountInventoryCursor,
       nat16,
-    ) -> (Result_36);
+    ) -> (Result_37);
   read_private_name_cleanup_account : (principal) -> (Result_7);
-  read_private_name_conversion_approval : (text) -> (Result_37);
-  read_private_name_preparation : (Request_1) -> (Result_38);
-  read_private_name_preparation_topology : () -> (Result_39);
+  read_private_name_conversion_approval : (text) -> (Result_38);
+  read_private_name_preparation : (Request_1) -> (Result_39);
+  read_private_name_preparation_topology : () -> (Result_40);
   read_private_name_source_digest : (text) -> (Result_26);
   read_private_name_suspension : (text) -> (Result_11);
   read_private_name_write_window : (text) -> (Result_6);
-  read_private_name_writer_window : (Request_1) -> (Result_38);
+  read_private_name_writer_window : (Request_1) -> (Result_39);
   // Service-delegated name permission only. Registry placement authenticates
   // both the ORIGINAL PII caller and owning audience service; location alone
   // never admits a human. References must name this precise original PII caller.
@@ -750,26 +759,29 @@ service : (Init) -> {
       principal,
       vec principal,
       Scope,
-    ) -> (Result_27);
-  read_production_account_authorization : () -> (Result_40);
-  read_active_production_account_protection : () -> (Result_47);
+    ) -> (Result_28);
+  read_production_account_authorization : () -> (Result_41);
   read_production_account_history_revision : () -> (Result_8);
   read_production_account_removal_generation : () -> (Result_8);
   read_production_account_runtime_version : () -> (Result_8);
+  // Bounded, governor-only commissioning evidence; never grants recovery or reads.
+  read_production_commissioning_evidence : () -> (Result_42);
+  // Governor-only management lifecycle read; no control mutation or user data.
+  read_production_receiver_lifecycle : (principal) -> (Result_43);
   // Local-only consensus recovery evidence. Reader lists/club receipts are NOT
   // a complete deployment inventory or an in-flight drain acknowledgement.
-  read_removal_history_manifest : () -> (Result_41);
+  read_removal_history_manifest : () -> (Result_44);
   read_removal_history_page : (nat64, RemovalHistoryCursor, nat16) -> (
-      Result_42,
+      Result_45,
     );
-  read_removal_inventory_evidence : (nat64) -> (Result_39);
+  read_removal_inventory_evidence : (nat64) -> (Result_40);
   // Authenticated consensus capability: returns only the operator-pinned own-name
   // authority, never a browser-selected sink or authorization for other people.
-  read_secure_name_authority : () -> (Result_43);
+  read_secure_name_authority : () -> (Result_46);
   // Subject-bound consensus ownership read; never implicitly registers an account.
   read_service_account : (principal) -> (Result);
-  reclaim_membership_directory : () -> (Result_44);
-  reconcile_pending_recovery_records : (nat16) -> (Result_45);
+  reclaim_membership_directory : () -> (Result_47);
+  reconcile_pending_recovery_records : (nat16) -> (Result_48);
   // Caller-authenticated: redeems a signed attestation minted by the
   // session-free IAP verification endpoint after it confirms an Apple
   // receipt/transaction with the App Store. The endpoint has no Internet
@@ -781,7 +793,7 @@ service : (Init) -> {
   // verified before the entitlement is written. A different principal cannot
   // replay the signature because it is bound to the principal that produced
   // it (changing the principal changes the signed message).
-  redeem_entitlement : (text, text, nat64, text, text) -> (Result_46);
+  redeem_entitlement : (text, text, nat64, text, text) -> (Result_49);
   register_account : () -> (Result);
   // Governor-only: moves one user's sign-in ID (`old`) to a new one (`new`).
   // Everything here except entitlements and link challenges is keyed by
@@ -794,10 +806,13 @@ service : (Init) -> {
   rekey_principal : (principal, principal, bool) -> (Result_8);
   // Governor-only: revokes a verifier principal.
   remove_verifier : (principal) -> (Result_2);
+  // No-write bootstrap review: authenticate candidate receiver configuration and
+  // collect management lifecycle evidence before the first inventory signature.
+  // This never pins candidate authorities, stores grants or accepts recovery.
+  review_production_account_inventory : (Expectation, nat64) -> (Result_27);
   // Governor-only production authorization draft. Never stores reader grants or
   // changes release state; missing receiver/recovery evidence remains a refusal.
-  review_production_account_protection : (Expectation, nat64) -> (Result_47);
-  review_production_account_inventory : (Expectation, nat64) -> (Result_47);
+  review_production_account_protection : (Expectation, nat64) -> (Result_27);
   revoke : (principal, nat64) -> (Result);
   // Mirrors `grant_role`'s auth (governor-only).
   revoke_role : (text, text, opt text, opt text) -> (Result_2);
@@ -806,14 +821,14 @@ service : (Init) -> {
   seal_private_name_writer_window : (Request_1) -> (Result_2);
   // Purpose-bound full search. Browser-supplied authority IDs are locations,
   // never permissions: only pinned membership sources may verify this child.
-  search_guardian_profiles : (principal, text, text, nat16) -> (Result_27);
+  search_guardian_profiles : (principal, text, text, nat16) -> (Result_28);
   // Case-insensitive substring search over display names — the ICP-mode
   // counterpart of the Supabase `search_invitable_profiles` RPC, used by the
   // "add an existing member" pickers. Returns at most `limit` (capped at 25)
   // matches; each result carries the account's first principal so the caller
   // can grant roles without a second lookup. Profiles without an account or
   // with a blank name are skipped.
-  search_profiles : (text, nat16) -> (Result_27) query;
+  search_profiles : (text, nat16) -> (Result_28) query;
   // Admin-gated (governor or an account holding the `app_admin` role):
   // suspends or reactivates an account. `Suspended` accounts are rejected by
   // `account_for_write`-gated self-service writes (see its doc comment);
@@ -831,12 +846,12 @@ service : (Init) -> {
   // Governor- or verifier-only: records a Pro entitlement for an arbitrary
   // principal. Used by a trusted server-side writer; client-submitted IAP
   // receipts instead go through `redeem_entitlement` below.
-  set_entitlement : (principal, text, text, nat64, text) -> (Result_46);
+  set_entitlement : (principal, text, text, nat64, text) -> (Result_49);
   set_exclusion : (text, text, opt text) -> (Result_2);
   set_exclusion_scoped : (text, opt text, text, opt text) -> (Result_2);
   set_family : (text, text) -> (Result_2);
   set_group_inventory_binding : (Binding, nat64) -> (Result_2);
-  set_privacy_consent : (text, text, bool) -> (Result_48);
+  set_privacy_consent : (text, text, bool) -> (Result_50);
   set_profile : (text, opt text) -> (Result_17);
   set_removal_supplemental_inventory : (vec Supplemental, nat64) -> (Result_2);
   set_service_authorities : (vec principal) -> (Result_2);
@@ -844,7 +859,7 @@ service : (Init) -> {
   // version. Monotonic per-account: a version lower than (or equal to) the
   // caller's currently recorded version is rejected, so a stale client can
   // never roll the recorded acceptance backwards.
-  set_terms_acceptance : (nat32) -> (Result_49);
+  set_terms_acceptance : (nat32) -> (Result_51);
   // Sets (or clears) the caller's UI theme preference, so it follows the
   // account across devices. Creates a blank profile entry if the caller has
   // never called `set_profile`.
@@ -852,7 +867,7 @@ service : (Init) -> {
   settle_account_deletion : (text) -> (Result_2);
   // Fresh, authenticated full-inventory seal verification. This does not erase
   // data, release registry locks, restore histories or activate a group.
-  verify_account_removal_seals : (text) -> (Result_50);
+  verify_account_removal_seals : (text) -> (Result_52);
   verify_private_name_preparation : (text) -> (Result_6);
   whoami : () -> (Result) query;
   write_approved_private_name : (text, text, opt text) -> (Result_2);
