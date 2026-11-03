@@ -1,7 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { requirePocketIc14, stopOwnedProcess, startRemovalLocalServer, finishRemovalLocalTest } from './removal-local-supervisor.mjs';
+
+test('owned server receives the same explicit idle and hard test budget', async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'removal-ttl-test-'));
+  const binary = path.join(directory, 'fake-pocket-ic');
+  writeFileSync(binary, `#!${process.execPath}
+const fs=require('node:fs'); const args=process.argv.slice(2);
+if(args.includes('--version')) { console.log('PocketIC 14.0.0'); process.exit(0); }
+const flag=name=>args[args.indexOf(name)+1];
+if(!args.includes('--ttl') || flag('--ttl')!=='30' || flag('--hard-ttl')!=='30') process.exit(2);
+fs.writeFileSync(flag('--port-file'),'12345'); setInterval(()=>{},1000);
+`, { mode: 0o700 });
+  let server;
+  try {
+    server = await startRemovalLocalServer({ binary, hardTtlSeconds: 30 });
+    assert.equal(server.url, 'http://127.0.0.1:12345');
+  } finally { if (server) await server.stop(); rmSync(directory, { recursive: true, force: true }); }
+});
 
 test('server cleanup cannot replace the original test error and evidence', async () => {
   const primaryError = new TypeError('original install fetch failed');
