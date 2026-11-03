@@ -76,6 +76,7 @@ if (registry.groups.length === 0) throw new Error('No registered groups; registe
 if (registry.configurationRevision === undefined) throw new Error('Upgrade the router before producing a configuration-bound snapshot');
 
 const problems: string[] = [];
+const SNAPSHOT_CHECK_ONLY_DETAIL = process.env.SNAPSHOT_CHECK_ONLY === '1';
 const snapshotGroups: RoutingSnapshotGroup[] = [];
 type RoutingSnapshotGroup = { id: string; domains: { domain: string; canisterId: string }[]; photoStore: string | null; moduleHashes: Record<string, string> };
 
@@ -104,7 +105,7 @@ for (const group of registry.groups) {
     if (controllers.length !== 1 || controllers[0] !== GOVERNOR) problems.push(`${group.id}/${s.name}: controller is not the sole governor`);
     if (subnet !== s.subnet) problems.push(`${group.id}/${s.name}: subnet mismatch`);
     if (!/^[a-f0-9]{64}$/.test(moduleHash)) problems.push(`${group.id}/${s.name}: module hash missing`);
-    if (status.cycles < group.min_cycles) problems.push(`${group.id}/${s.name}: below min_cycles`);
+    if (status.cycles < group.min_cycles) problems.push(`${group.id}/${s.name}: below min_cycles (has ${status.cycles}, needs ${group.min_cycles}, short ${group.min_cycles - status.cycles})`);
     if (heapBytes >= group.heap_budget_bytes) problems.push(`${group.id}/${s.name}: heap at budget`);
     observed.push({ name: s.name, canisterId: s.id, subnetId: s.subnet, moduleHash, controllers, running: 'running' in status.status,
       cycles: status.cycles, heapBytes, environment: status.settings.environment_variables,
@@ -116,7 +117,8 @@ for (const group of registry.groups) {
     const club = observed.find(s => s.name === 'club_domain');
     const env = (k: string) => club?.environment.filter(e => e.name === k)[0]?.value;
     if (env('IGNITE_NEW_CLUB_PLACEMENT_ROUTER') !== routerId || env('IGNITE_NEW_CLUB_PLACEMENT_GROUP') !== group.id ||
-        env('IGNITE_NEW_CLUB_PLACEMENT_TARGET') !== 'mainnet') problems.push(`${group.id}: accepting without creator placement binding`);
+        env('IGNITE_NEW_CLUB_PLACEMENT_TARGET') !== 'mainnet') problems.push(`${group.id}: accepting without creator placement binding (club ${club?.canisterId}: router=${env('IGNITE_NEW_CLUB_PLACEMENT_ROUTER') ?? 'unset'} group=${env('IGNITE_NEW_CLUB_PLACEMENT_GROUP') ?? 'unset'} target=${env('IGNITE_NEW_CLUB_PLACEMENT_TARGET') ?? 'unset'}; wants router=${routerId} group=${group.id} target=mainnet)`);
+    if (SNAPSHOT_CHECK_ONLY_DETAIL) { const cfg = club?.configuration; console.log(`PLAN ${group.id} club_domain ${club?.canisterId} config=${JSON.stringify(cfg)} wants identity_access=${identityAccess} media_store=${observed.find(x => x.name === 'media_blob_store')?.canisterId} competition_authority=${observed.find(x => x.name === 'competition_domain')?.canisterId}`); }
   }
   snapshotGroups.push({ id: group.id, domains: group.domains.map(d => ({ domain: d.domain, canisterId: d.canister.toText() })),
     photoStore: store, moduleHashes });
