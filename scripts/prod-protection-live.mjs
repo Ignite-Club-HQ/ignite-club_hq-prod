@@ -17,6 +17,8 @@ import {protectionContract} from './prod-protection-contract.mjs';
 import {SAFEGUARD_RECEIPT,assertWitnessState,identityPinEnv} from './prod-safeguard-live-policy.mjs';
 import {openAccountSeed,accountPublicKey} from './prod-account-key-policy.mjs';
 import {activationTargets,assertProtectionContext,protectionEnvironment,verifyActivatedDraft,assertNoPending,PROTECTION_RECEIPT,APPROVAL_LIFETIME_NS,digest} from './prod-protection-policy.mjs';
+import {attestDeployKey,verifyDeployKey} from '../frontend/scripts/media-key-deploy-rules.mjs';
+import {configuredMainnetPhotoKey} from '../frontend/scripts/media-key-mainnet.mjs';
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const hex=b=>Buffer.from(b).toString('hex');
@@ -101,11 +103,11 @@ async function main(){
     const latest=await readPage();const supplemental=latest.groups.flatMap(g=>g.photo_store.map(canister=>({group_id:g.id,domain:'media_blob_store',canister:pid(canister),subnet:pid(latest.placements.find(p=>p.group_id===g.id).primary_subnet)})));
     supplemental.push({group_id:'base',domain:'shard_router',canister:pid(ids.shard_router),subnet:pid(safeguard.subnet)});
     const media=[];for(const g of latest.groups){const club=g.domains.find(d=>d.domain==='club_domain').canister;
-      const m=actor(()=>IDL.Service({get_media_quota_cutover:IDL.Func([],[IDL.Variant({Ok:IDL.Record({active:IDL.Bool,stores:IDL.Vec(IDL.Principal)}),Err:IDL.Text})],[])}),club);
-      media.push({club_authority:pid(club),registry:ok(await m.get_media_quota_cutover())});}
+      const m=actor(()=>IDL.Service({read_media_quota_store_registry:IDL.Func([],[IDL.Variant({Ok:IDL.Record({active:IDL.Bool,stores:IDL.Vec(IDL.Principal)}),Err:IDL.Text})],[])}),club);
+      media.push({club_authority:pid(club),registry:ok(await m.read_media_quota_store_registry())});}
     const inventory={groups:{binding:{registry:pid(ids.shard_router),registry_revision:BigInt(latest.revision),target_alias:'mainnet',deployment_id:'prod',deployment_revision:1n,host:'https://icp-api.io',network_kind:'public_mainnet'},history_revision:revision,
       snapshot:{revision:BigInt(latest.revision),groups:latest.groups.map(g=>({id:g.id,target_alias:g.target_alias,domains:g.domains.map(d=>({...d,canister:pid(d.canister)}))})),
-        placements:latest.placements.map(p=>({...p,deployement_revision:undefined,deployment_revision:BigInt(p.deployment_revision),primary_subnet:pid(p.primary_subnet),approved_subnets:p.approved_subnets.map(pid),domains:p.domains.map(d=>({...d,canister:pid(d.canister),subnet:pid(d.subnet)}))}))}},supplemental,media};
+        placements:latest.placements.map(p=>({...p,deployment_revision:BigInt(p.deployment_revision),primary_subnet:pid(p.primary_subnet),approved_subnets:p.approved_subnets.map(pid),domains:p.domains.map(d=>({...d,canister:pid(d.canister),subnet:pid(d.subnet)}))}))}},supplemental,media};
     const modules=[];for(const t of [...targets,{id:ids.identity_access,name:'identity_access',subnet:safeguard.subnet}]){const s=await certified(t.id);
       if(s.controllers.length!==1||s.controllers[0]!==safeguard.governor||s.subnet!==t.subnet||!s.moduleHash)throw Error('Live program binding mismatch');modules.push([pid(t.id),Buffer.from(s.moduleHash,'hex')]);}
     const expectation={identity:pid(ids.identity_access),inventory,modules};
@@ -125,20 +127,31 @@ async function main(){
   if(job==='prepare'){
     if(receipt){if(receipt.phase==='inventory-reviewed'){report('Preparation already verified; no reload repeated.');return;}throw Error('Existing commissioning receipt requires reviewed continuation');}
     if(identityState.moduleHash!==safeguard.identityModuleHash)throw Error('Identity differs from its recorded pinned program');
-    const controllers=[];const builds=new Map();
+    const controllers=[];const builds=new Map();const photoKeys={};
     // Build/verify all 24 current programs before the first setting change.
     for(const t of targets){const s=await certified(t.id);if(s.controllers.length!==1||s.controllers[0]!==safeguard.governor||s.subnet!==t.subnet)throw Error('Exclusive receiver controller and subnet required');controllers.push({id:t.id,...s});
       if(t.human){if(!builds.has(t.name))builds.set(t.name,await build(t.name));if(hash(builds.get(t.name))!==s.moduleHash)throw Error('Receiver reload program differs from live program');
         protectionEnvironment((await status(t.id)).settings.environment_variables,ids.identity_access);}}
+    for(const t of targets.filter(t=>t.name==='pii_access_control')){
+      const binding={deploymentId:'prod',environment:'ic',host:'https://icp-api.io',canisterId:t.id,governor:safeguard.governor,keyName:'key_1'};
+      const pii=actor(()=>IDL.Service({pii_vetkey_verification_key:IDL.Func([],[IDL.Vec(IDL.Nat8)],[])}),t.id);
+      await attestDeployKey(binding,{status:()=>certified(t.id),originalKey:async()=>hex(await pii.pii_vetkey_verification_key()),configuredKey:()=>configuredMainnetPhotoKey(binding),save:async r=>{photoKeys[t.id]=r;}});
+    }
     const identityWasm=await build('identity_access');
     if(!identityWasm.includes(Buffer.from(safeguard.witness))||!identityWasm.includes(Buffer.from(safeguard.pins.accountPublicKey)))throw Error('Identity build lacks immutable pins');
-    await save({version:1,phase:'planned',pending:null,sourceCommit:env.GITHUB_SHA,safeguardDigest:digest(safeguard),page,targets,controllers,openingAuthorized:false,erasureAuthorized:false,reloaded:[],configured:[],identityModuleHash:hash(identityWasm)});
+    await save({version:1,phase:'planned',pending:null,sourceCommit:env.GITHUB_SHA,safeguardDigest:digest(safeguard),page,targets,controllers,photoKeys,openingAuthorized:false,erasureAuthorized:false,reloaded:[],configured:[],identityModuleHash:hash(identityWasm)});
     await upgrade({id:ids.identity_access,name:'identity_access',subnet:safeguard.subnet},identityWasm,false);
     for(const t of targets){stage=`configure ${t.group}/${t.name}`;await assertClosed();
       if(t.human){const s=await status(t.id);const merged=protectionEnvironment(s.settings.environment_variables,ids.identity_access);
         await checkpoint(`settings:${t.id}`,async()=>{await mgmt(t.id).update_settings({canister_id:pid(t.id),settings:{environment_variables:[merged]}});
           if(canonical((await status(t.id)).settings.environment_variables)!==canonical(merged))throw Error('Protection setting readback mismatch');});
-        await upgrade(t,builds.get(t.name),true);await save({...receipt,reloaded:[...receipt.reloaded,t.id]});
+        await upgrade(t,builds.get(t.name),true);
+        if(t.name==='pii_access_control'){
+          const original=photoKeys[t.id];const binding={deploymentId:'prod',environment:'ic',host:'https://icp-api.io',canisterId:t.id,governor:safeguard.governor,keyName:'key_1'};
+          const pii=actor(()=>IDL.Service({pii_vetkey_verification_key:IDL.Func([],[IDL.Vec(IDL.Nat8)],[])}),t.id);
+          await verifyDeployKey(binding,original,{status:()=>certified(t.id),originalKey:async()=>hex(await pii.pii_vetkey_verification_key()),configuredKey:()=>configuredMainnetPhotoKey(binding)});
+        }
+        await save({...receipt,reloaded:[...receipt.reloaded,t.id]});
       }else{const a=actor(contract.infrastructure,t.id);const existing=await a.read_account_removal_authority();
         if(existing.length&&existing[0].toText()!==ids.identity_access)throw Error('Foreign infrastructure authority requires separate review');
         if(!existing.length)await checkpoint(`authority:${t.id}`,async()=>{ok(await a.set_account_removal_authority(pid(ids.identity_access)));const r=await a.read_account_removal_authority();if(r.length!==1||r[0].toText()!==ids.identity_access)throw Error('Infrastructure authority readback mismatch');});}
