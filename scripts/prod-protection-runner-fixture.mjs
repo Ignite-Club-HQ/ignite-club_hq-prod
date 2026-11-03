@@ -53,7 +53,7 @@ export function commissioningFixture({alreadyInstalled=true}={}){
   const draft=expectation=>({inventory:expectation.inventory,targets:targets.map(t=>Principal.fromText(t.id)),account_readers:targets.filter(t=>t.human).map(t=>Principal.fromText(t.id)),eligibility_readers:targets.filter(t=>t.human).map(t=>Principal.fromText(t.id)),lifecycle:lifecycle(),configurations:targets.map(t=>({receiver:Principal.fromText(t.id),authority:[Principal.fromText(ids.identity_access)],protocol:1,admission_required:t.human,removal_enabled:true,rehearsal:false})),release_authorized:false,recovery_accepted:false});
   const call=async(canister,method,args)=>{
     if(method==='read_group_registry_page')return {Ok:page};
-    if(method==='read_media_quota_store_registry'){const g=groups.find(g=>g.domains.some(d=>d.domain==='club_domain'&&d.canister===canister));return {Ok:{active:true,stores:g.photo_store.map(Principal.fromText)}};}
+    if(method==='read_media_quota_store_registry'){const g=groups.find(g=>g.domains.some(d=>d.domain==='club_domain'&&d.canister===canister));return {Ok:{active:true,stores:g.photo_store.map(p=>Principal.fromText(p))}};}
     if(method==='pii_vetkey_verification_key')return new Uint8Array(96).fill(7);
     if(method==='read_production_receiver_lifecycle')return {Ok:{canister:args[0],module_hash:Buffer.from(modules.get(args[0].toText()),'hex'),changes:versions.get(args[0].toText())}};
     if(method==='read_production_account_history_revision')return {Ok:history.revision};
@@ -80,7 +80,7 @@ export function commissioningFixture({alreadyInstalled=true}={}){
     throw Error('Unhandled offline method '+method);
   };
   const blsKey=new Uint8Array(32);blsKey[31]=9;
-  const root=Buffer.concat([Buffer.from('308182301d060d2b0601040182dc7c0503010201060c2b0601040182dc7c0503020101060c','hex').subarray(0,0),Buffer.from('308182301d060d2b0601040182dc7c0503010201060c2b0601040182dc7c05030201036100','hex'),Buffer.from(bls.getPublicKeyForShortSignatures(blsKey))]);
+  const root=Buffer.concat([Buffer.from('308182301d060d2b0601040182dc7c0503010201060c2b0601040182dc7c05030201036100','hex'),Buffer.from(bls.getPublicKeyForShortSignatures(blsKey))]);
   const acknowledgements=new Map();
   const certificate=async(requestId,reply)=>{
     const leaf=b=>[3,b],label=(s,t)=>[2,typeof s==='string'?Buffer.from(s):s,t];
