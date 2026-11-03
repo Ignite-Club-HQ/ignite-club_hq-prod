@@ -29,6 +29,8 @@ export function validateReview({body,review,commissioning,head,records,state,fen
   if(purpose==='protection'&&commissioning.inventory_approval.length!==1)throw Error('Exact provisioned inventory evidence required');
   if(hex(body.runtime_evidence)!==digest(plain(review))||hex(body.original_inventory_evidence)!==digest({base,g2,inventory:plain(body.expectation.inventory)})||
      hex(body.fenced_recovery_evidence)!==digest(fence))throw Error('Commissioning evidence digest mismatch');
+  if(canonical(fence.identityHistory)!==canonical(plain(commissioning.history))||fence.identityHistoryRevision!==String(commissioning.history.revision))
+    throw Error('Decoded identity history evidence mismatch');
   const modules=new Map(body.expectation.modules.map(([p,m])=>[p.toText(),hex(m)]));
   if(modules.size!==targets.length+1)throw Error('Exact program evidence required');
   for(const row of fence.fencedState) {
@@ -36,6 +38,20 @@ export function validateReview({body,review,commissioning,head,records,state,fen
     if(row.controllers.length!==1||row.controllers[0]!==governor||modules.get(row.id)!==row.moduleHash||
        (t&&row.subnet!==t.subnet))throw Error('Independent program/controller/subnet evidence mismatch');
   }
+}
+export const COMMISSIONING_PHASES=['planned','inventory-reviewed','inventory-signed','inventory-recovery-signed','inventory-witness-accepted','inventory-delivered',
+  'protection-reviewed','protection-signed','protection-recovery-signed','protection-witness-accepted','protection-subject-accepted','protection-delivered','verified'];
+export function jobTransition(job,receipt) {
+  if(job==='plan')return receipt?'reject':'run';
+  if(job==='prepare')return !receipt||receipt.phase==='planned'?'run':COMMISSIONING_PHASES.includes(receipt.phase)?'done':'reject';
+  if(!receipt||!COMMISSIONING_PHASES.includes(receipt.phase))return 'reject';
+  const purpose=job.endsWith('inventory')?'inventory':'protection';
+  const complete=job.startsWith('account-')?`${purpose}-signed`:job.startsWith('recovery-')?`${purpose}-recovery-signed`:`${purpose}-delivered`;
+  const start=job.startsWith('account-')?`${purpose}-reviewed`:job.startsWith('recovery-')?`${purpose}-signed`:`${purpose}-recovery-signed`;
+  const at=COMMISSIONING_PHASES.indexOf(receipt.phase);
+  if(at>=COMMISSIONING_PHASES.indexOf(complete))return 'done';
+  if(receipt.purpose!==purpose||at<COMMISSIONING_PHASES.indexOf(start))return 'reject';
+  return 'run';
 }
 export function assertArtifactPlan(plan,{sourceCommit,identityHash,pins,receivers}) {
   if(plan?.version!==1||plan.sourceCommit!==sourceCommit||plan.identityModuleHash!==identityHash||

@@ -5,7 +5,9 @@ export function outcome(pending, observed) {
       !('before' in pending) || !('after' in pending)) return 'unknown';
   if (canonical(pending.before) === canonical(pending.after)) return 'unknown';
   if (canonical(observed) === canonical(pending.after)) return 'committed';
-  if (pending.retryable && canonical(observed) === canonical(pending.before)) return 'not-applied';
+  // A before-image cannot prove a submitted request will not execute later.
+  // Only an explicit, durable proof that submission never began permits retry.
+  if (pending.retryable && pending.notSubmitted === true && canonical(observed) === canonical(pending.before)) return 'not-applied';
   return 'unknown';
 }
 export function createProtectionJournal({load, save, probe}) {

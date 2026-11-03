@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {generateKeyPairSync,sign} from 'node:crypto';
-import {assertEmptyHistory,verifySignature,assertArtifactPlan} from './prod-protection-review.mjs';
+import {assertEmptyHistory,verifySignature,assertArtifactPlan,jobTransition} from './prod-protection-review.mjs';
 test('history revision may advance for inventory provisioning but no removal row is ignored',()=>{
   const h={revision:'8',principal_denials:'0',erased_accounts:'0',pending_intents:'0',removal_barriers:'0',removal_subjects:'0',removal_receipts:'0',removal_completions:'0'};
   assert.doesNotThrow(()=>assertEmptyHistory(h,'8'));
@@ -17,4 +17,10 @@ test('identity upgrade cannot promote its newly computed hash into its own appro
   const p={version:1,sourceCommit:'a'.repeat(40),identityModuleHash:'b'.repeat(64),pins:{witness:'w'},receivers:[{id:'r',hash:'c'}],openingAuthorized:false};
   const expected={sourceCommit:p.sourceCommit,identityHash:p.identityModuleHash,pins:p.pins,receivers:p.receivers};assertArtifactPlan(p,expected);
   for(const change of [{identityHash:'d'.repeat(64)},{sourceCommit:'e'.repeat(40)},{pins:{witness:'foreign'}}])assert.throws(()=>assertArtifactPlan(p,{...expected,...change}));
+});
+test('rerunning predecessor jobs never overwrites later signatures or reviews',()=>{
+  const r={phase:'protection-reviewed',purpose:'protection'};
+  for(const job of ['prepare','account-inventory','recovery-inventory','deliver-inventory'])assert.equal(jobTransition(job,r),'done');
+  assert.equal(jobTransition('account-protection',r),'run');assert.equal(jobTransition('recovery-protection',r),'reject');
+  assert.equal(jobTransition('account-inventory',{phase:'inventory-reviewed',purpose:'protection'}),'reject');
 });
