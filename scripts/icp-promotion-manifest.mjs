@@ -137,6 +137,12 @@ const NEVER_COPY = [
 
 const neverCopy = (file) => NEVER_COPY.some((pattern) => pattern.test(file));
 
+/** Historical releases copy source/build inputs only, never live config or tooling. */
+export function historicalSourceFiles(files) {
+  return files.filter((file) => (file.startsWith('backend/') || ['Cargo.toml', 'Cargo.lock', 'mops.toml', 'mops.lock'].includes(file))
+    && !neverCopy(file) && !file.endsWith('/AGENTS.md')).sort();
+}
+
 /** Where a promotion may land: the live repository's release branch, never anything else. */
 export function assertPromotionTarget({ dest = PROD_REPO, branch = PROD_BRANCH } = {}) {
   if (dest !== PROD_REPO) throw new Error(`Only the live repository ${PROD_REPO} may receive this layer; asked for ${dest}.`);

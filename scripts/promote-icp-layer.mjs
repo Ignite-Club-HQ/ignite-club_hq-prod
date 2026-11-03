@@ -30,6 +30,7 @@ import {
   missingSourceEntries,
   assertPromotionTarget,
   filesToWrite,
+  historicalSourceFiles,
 
 } from './icp-promotion-manifest.mjs';
 
@@ -43,6 +44,7 @@ const apply = args.includes('--apply');
 const allowDrift = args.includes('--allow-drift');
 const dest = flagValue('--dest') ?? PROD_REPO;
 const branch = flagValue('--branch') ?? PROD_BRANCH;
+const sourceRef = flagValue('--source-ref');
 const token = process.env.MIGRATION_GITHUB_TOKEN ?? '';
 
 const die = (message) => {
@@ -67,6 +69,7 @@ async function api(method, route, body) {
 }
 
 function trackedFiles() {
+  if (sourceRef) return execFileSync('git', ['ls-tree', '-r', '--name-only', sourceRef], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
   // git ls-files sees tracked files only, so generated output and dependencies
   // (untracked by definition here) can never be proposed for copying.
   return execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
@@ -75,7 +78,7 @@ function trackedFiles() {
 }
 
 function localContent(file) {
-  const buffer = readFileSync(path.join(ROOT, file));
+  const buffer = sourceRef ? execFileSync('git', ['show', `${sourceRef}:${file}`], { cwd: ROOT, maxBuffer: 20 * 1024 * 1024 }) : readFileSync(path.join(ROOT, file));
   const text = buffer.toString('utf8');
   // The tree API carries file bodies inline as text: a file that is not valid
   // UTF-8 would be corrupted on the way, so the run refuses it instead.
@@ -88,15 +91,17 @@ const chunks = (list, size) => Array.from({ length: Math.ceil(list.length / size
 async function main() {
   if (!token) die('MIGRATION_GITHUB_TOKEN is not set; nothing can be read or written.');
   try { assertPromotionTarget({ dest, branch }); } catch (error) { die(error.message); }
+  if (sourceRef && !/^[a-f0-9]{40}$/.test(sourceRef)) die('Historical source must be an exact 40-character commit SHA.');
 
 
   const files = trackedFiles();
-  const holes = missingSourceEntries(files);
+  const holes = sourceRef ? ['Cargo.toml', 'Cargo.lock', 'mops.toml', 'mops.lock'].filter((file) => !files.includes(file)) : missingSourceEntries(files);
   if (holes.length) {
     die(`This checkout is missing ${holes.length} manifest entr${holes.length === 1 ? 'y' : 'ies'} (${holes.slice(0, 8).join(', ')}${holes.length > 8 ? ', …' : ''}). Bring the development repository up to date first — promoting a partial layer would leave the live repository unable to build its canisters.`);
   }
 
-  const wanted = promotionFiles(files);
+  const wanted = sourceRef ? historicalSourceFiles(files) : promotionFiles(files);
+  if (sourceRef && !wanted.some((file) => file.startsWith('backend/'))) die('Historical source has no backend code.');
   const head = await api('GET', `/repos/${dest}/git/refs/heads/${branch}`);
   const headSha = head.object.sha;
   const listing = await api('GET', `/repos/${dest}/git/trees/${headSha}?recursive=1`);
@@ -116,7 +121,7 @@ async function main() {
   }
 
   console.log(`\n## ICP layer promotion ${apply ? '(applying)' : '(plan only)'}: ${dest}@${branch}`);
-  console.log(`Source: ${process.env.GITHUB_SHA ?? 'this checkout'} | allowlisted: ${wanted.length} | to add: ${add.length} | already present: ${present.length} | differ: ${differ.length}`);
+  console.log(`Source: ${sourceRef ?? process.env.GITHUB_SHA ?? 'this checkout'} | allowlisted: ${wanted.length} | to add: ${add.length} | already present: ${present.length} | differ: ${differ.length}`);
   if (differ.length) console.log(`\nNot copied — the live repository holds different bytes for:\n  ${differ.join('\n  ')}`);
   if (!add.length) console.log('\nNothing to add: the live repository already holds every allowlisted file.');
 
@@ -142,7 +147,7 @@ async function main() {
   }
 
   const commit = await api('POST', `/repos/${dest}/git/commits`, {
-    message: `Promote ICP canister layer from ${process.env.GITHUB_SHA ?? SOURCE_BRANCH} [skip ci]`,
+    message: `Promote ICP canister layer from ${sourceRef ?? process.env.GITHUB_SHA ?? SOURCE_BRANCH} [skip ci]`,
     parents: [headSha],
     tree: treeSha,
   });
