@@ -137,14 +137,25 @@ async function main(){
     const review=ok(await id[purpose==='inventory'?'review_production_account_inventory':'review_production_account_protection'](expectation,revision));
     verifyActivatedDraft(plain(review),targets,ids.identity_access);
     const state=ok(await id.read_production_account_authorization());
+    // Real gathered fence evidence, never synthesized: certified sole-controller,
+    // program and subnet for every target, identity and witness; an empty decoded
+    // identity removal history and an empty witness record ledger. Any non-empty
+    // history requires a separately reviewed recovery and stops here.
+    const w=actor(contract.witness,safeguard.witness);const records=ok(await w.read_recovery_records(0n,200));const head=ok(await w.read_recovery_head());
+    if(revision!==0n||records.length||head.revision!==0n)throw Error('Existing removal history requires separately reviewed recovery evidence');
+    const fencedState=[];for(const t of [...targets.map(t=>t.id),ids.identity_access]){const c=await certified(t);
+      if(c.controllers.length!==1||c.controllers[0]!==safeguard.governor)throw Error('External controller fence not exclusive');fencedState.push({id:t,...c});}
+    const ws=await certified(safeguard.witness);assertWitnessState(ws,safeguard,{installed:true});
+    const fence={kind:'ignite-prod-fence-evidence-v1',governor:safeguard.governor,fencedState,witness:{id:safeguard.witness,...ws},
+      identityHistoryRevision:'0',witnessRecords:0,witnessEpoch:head.epoch.toString(),review:digest(plain(review))};
     const body={kind:`ignite-production-account-${purpose==='inventory'?'inventory':'protection'}-v1`,identity:pid(ids.identity_access),operator:pid(safeguard.governor),generation:state.generation+1n,
       expires_at_ns:BigInt(Date.now())*1_000_000n+APPROVAL_LIFETIME_NS,expectation,review,
       original_inventory_evidence:Buffer.from(digest({base,g2,inventory:plain(inventory)}),'hex'),runtime_evidence:Buffer.from(digest(plain(review)),'hex'),
-      fenced_recovery_evidence:Buffer.from(digest({safeguard,controllers:receipt.controllers,review:plain(review)}),'hex'),recovery_epoch:1n};
+      fenced_recovery_evidence:Buffer.from(digest(fence),'hex'),recovery_epoch:1n};
     // Fresh witness starts at epoch 1; recovery job checks exact live epoch/head,
     // refusing renewal/recovery rather than manufacturing an acceptance.
     const bytes=ok(await id.production_account_approval_signing_bytes(body));
-    await save({...receipt,phase:`${purpose}-reviewed`,purpose,body:encode(contract.Body,body),signingBytes:Buffer.from(bytes).toString('base64'),historyRevision:revision.toString(),
+    await save({...receipt,phase:`${purpose}-reviewed`,purpose,fenceEvidence:fence,body:encode(contract.Body,body),signingBytes:Buffer.from(bytes).toString('base64'),historyRevision:revision.toString(),
       identityChanges:ok(await id.read_production_account_runtime_version()).toString(),removalGeneration:ok(await id.read_production_account_removal_generation()).toString(),approval:null,acceptance:null});
   }
   if(job==='prepare'){
