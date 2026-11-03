@@ -1,0 +1,52 @@
+name: "[PROD] Verify saved protection signing key (read-only)"
+on:
+  workflow_dispatch:
+    inputs:
+      role:
+        description: "Saved key to verify; no creation or activation"
+        type: choice
+        options: [account, recovery]
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ inputs.role == 'account' && 'production-account-approval' || 'production-recovery-approval' }}
+    env:
+      IGNITE_ICP_ENV: prod
+      KEY_ROLE: ${{ inputs.role }}
+      KEY_ENVIRONMENT: ${{ inputs.role == 'account' && 'production-account-approval' || 'production-recovery-approval' }}
+      CONFIRMATION: ${{ inputs.role == 'account' && 'CREATE PROD ACCOUNT APPROVAL KEY' || 'CREATE PROD RECOVERY APPROVAL KEY' }}
+      PASSPHRASE: ${{ secrets.PROD_APPROVAL_PASSPHRASE }}
+      OWNER_REVIEWER_ID: ${{ vars.OWNER_REVIEWER_ID }}
+      EXISTING_SEED: ${{ secrets.PROD_APPROVAL_SEED }}
+      EXISTING_ENC: ${{ secrets.PROD_APPROVAL_SEED_ENC }}
+      EXISTING_PUBLIC_KEY: ${{ vars.PROD_APPROVAL_PUBLIC_KEY }}
+      EXISTING_PRINCIPAL: ${{ vars.PROD_APPROVAL_PRINCIPAL }}
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+      PROD_ICP_PUSH_WORKER_PRINCIPAL: ${{ vars.PROD_ICP_PUSH_WORKER_PRINCIPAL }}
+      OTHER_APPROVER_PRINCIPAL: ${{ vars.OTHER_APPROVER_PRINCIPAL }}
+      OTHER_APPROVER_PUBLIC_KEY: ${{ vars.OTHER_APPROVER_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Test read-only verification
+        run: node --test scripts/prod-verify-account-key.test.mjs scripts/prod-account-key.test.mjs
+      - name: Install isolated pinned identity library
+        run: npm install --prefix "$RUNNER_TEMP/approval-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Verify saved approval with safe stage reporting
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          set +x
+          export KEY_NODE_PATH="$RUNNER_TEMP/approval-deps/node_modules"
+          node scripts/prod-verify-account-key.mjs
