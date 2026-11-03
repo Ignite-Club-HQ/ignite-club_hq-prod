@@ -1,5 +1,10 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — activate live account protections (3 Nov 2026, 00:02 UTC)
+- [x] Owner approved live protection settings and signed account-control approval only; group opening, routing cutover, data movement, erasure and key/controller changes are not included.
+- [x] Read live GitHub workflow inventory, PROD canister mapping and identity recipe through Paul's GitHub API (1); no activation workflow or mapped independent recovery witness was found, and the identity recipe does not supply the immutable approval key/witness bindings.
+- [ ] Activate and verify all 28 receivers while both groups remain closed. Hold before setting protection flags until the installed identity's immutable signer/witness prerequisites are confirmed; missing prerequisites require separately reviewed signer/witness provisioning and a bound identity upgrade, not flag-only activation.
+
 ## Current request — approved production removal safeguards (2 Nov 2026, 03:32 UTC)
 - [x] 06:17 corrected rejected canister_info ingress in both production integration and full two-group authorization using shared owner-only disposable inter-canister reader. Pinned moc 1.16.1 compiles; 45 regression checks pass; preview build OK. Worker now checks original ingress refusal, non-controller participant reads, owner guard and real upgrade change counts before signing. No production service/controller changes or release grant.
 - [x] Ran and inspected full isolated GitHub run 41416336824 on main commit 6beaa49a30349239e707c994f65246dd9ee82c36 after all 12 safeguard files matched GitHub. Local 25 checks, GitHub authorization/unit checks, compilation and real witness snapshot/upgrade suite pass; production recovery integration FAILED at forged-signature assertion, so all-28-target scenarios were skipped. PROD untouched.
