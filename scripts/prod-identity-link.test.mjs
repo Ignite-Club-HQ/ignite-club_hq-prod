@@ -217,6 +217,57 @@ test('an interrupted run replays nothing, and reconciliation completes only the 
   { completed: true, verified: { linked: true } });
 });
 
+test('release restore re-applies only the reviewed variable and re-verifies the whole link', async () => {
+  const plan = build();
+  const linked = { version: 1, phase: 'linked', pending: null, planHash: hashPlan(plan), plan,
+    verified: { linked: true } };
+  const state = { env: [{ name: 'GOVERNOR_PRINCIPAL', value: principal }], writes: [] };
+  const checkpoints = [];
+  const deps = () => ({ expectedHash: hashPlan(plan),
+    readState: async p => ({ routerConfig: [['deletion_authority', p.identityAccess]],
+      identityConfig: pinned(p), identityEnv: state.env, page: page() }),
+    setEnvironment: async p => { state.writes.push('environment');
+      state.env = mergeEnvironment(state.env, [p.environment]); },
+    checkpoint: async receipt => checkpoints.push(receipt.pending ?? receipt.phase) });
+
+  const result = await restoreBoundDeletionRelease({ receipt: linked, ...deps() });
+  assert.equal(result.restored, true);
+  assert.equal(result.verified.linked, true);
+  assert.deepEqual(state.writes, ['environment']);
+  assert.deepEqual(state.env, [{ name: 'GOVERNOR_PRINCIPAL', value: principal },
+    { name: BOUND_DELETION_RELEASE_ENV, value: '1' }]);
+  assert.deepEqual(checkpoints, ['deletion-release-restore', 'linked']);
+
+  const again = await restoreBoundDeletionRelease({ receipt: linked, ...deps() });
+  assert.equal(again.restored, false);
+  assert.deepEqual(state.writes, ['environment']);
+});
+
+test('release restore refuses drift, wrong receipts and rehearsal, and never re-binds or re-pins', async () => {
+  const plan = build();
+  const linked = { version: 1, phase: 'linked', pending: null, planHash: hashPlan(plan), plan };
+  const deps = (over = {}) => ({ expectedHash: hashPlan(plan),
+    readState: async p => ({ routerConfig: [['deletion_authority', p.identityAccess]],
+      identityConfig: pinned(p), identityEnv: [], page: page(), ...over }),
+    setEnvironment: async () => { throw new Error('must not write'); },
+    checkpoint: async () => {} });
+
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: { ...linked, phase: 'planned' }, ...deps() }),
+    /required for release restore/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: { ...linked, pending: 'readback' }, ...deps() }),
+    /required for release restore/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: linked, ...deps(), expectedHash: 'f'.repeat(64) }),
+    /required for release restore/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: linked,
+    ...deps({ routerConfig: [['deletion_authority', '']] }) }), /deletion authority differs/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: linked, ...deps({ identityConfig: null }) }),
+    /registry pin differs/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: linked,
+    ...deps({ page: { ...page(), revision: 7n } }) }), /inventory changed/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: linked,
+    ...deps({ identityEnv: [{ name: REHEARSAL_ENV, value: '1' }] }) }), /Rehearsal must remain disabled/);
+});
+
 test('the full readback insists admission and rehearsal stay off', () => {
   const plan = build();
   const good = { routerConfig: [['deletion_authority', plan.identityAccess]], identityConfig: pinned(plan),
