@@ -14,16 +14,17 @@ calls. Production build-pin validation rejects missing, colliding and shared pin
 
 ## Owner/custodian setup required
 
-Create `production-account-approval` and `production-recovery-approval` GitHub
-environments with Paul as the required reviewer, self-review allowed
-and administrator bypass disabled. Set `OWNER_REVIEWER_ID` to Paul's
-GitHub numeric user ID. Paul may initiate and approve the same run;
+Both `production-account-approval` and `production-recovery-approval` GitHub
+environments were created and read back at 00:13 UTC on 3 November with Paul as
+required reviewer, self-review allowed, administrator bypass disabled, prod-only
+branch policies and `OWNER_REVIEWER_ID` set. Paul may initiate and approve the same run;
 separate signing keys and jobs do not require a second person.
 Do not place these decryption credentials in the governor deployment environment.
 
 In each environment store a separately chosen secret `PROD_APPROVAL_PASSPHRASE`
 (at least 32 characters). Passphrases must not be workflow form inputs or chat text.
-The workflow cannot choose an independent custodian or invent their credentials.
+No passphrase is currently stored in either environment; the workflow cannot
+invent or reuse the governor's private credentials.
 
 Run the key workflow once for each role, with its exact confirmation. Save its
 encrypted handover in the same environment as `PROD_APPROVAL_SEED_ENC`, and its
