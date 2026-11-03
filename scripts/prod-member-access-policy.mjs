@@ -152,13 +152,16 @@ const stableMemberAccessPlan = plan => {
 };
 
 
-export function assertReviewedMemberAccessPlan(plan, rawExpectedHash, currentPlan) {
+export function assertReviewedMemberAccessPlan(plan, rawExpectedHash, currentPlan, { allowSourceUpdate = false } = {}) {
   const expectedHash = normalizeReviewedHash(rawExpectedHash);
   if (!/^[a-f0-9]{64}$/.test(expectedHash))
     throw new Error('Reviewed plan hash required (64 lowercase hex characters)');
   if (hashPlan(plan) !== expectedHash)
     throw new Error('Reviewed plan hash does not match the saved member-access receipt');
-  if (canonical(stableMemberAccessPlan(plan)) !== canonical(stableMemberAccessPlan(currentPlan)))
+  // After the reviewed settings are applied, a runner-only source update may
+  // finish commissioning; every live registry/setting fact must still match.
+  const comparable = p => { const s = stableMemberAccessPlan(p); if (allowSourceUpdate) delete s.sourceCommit; return s; };
+  if (canonical(comparable(plan)) !== canonical(comparable(currentPlan)))
     throw new Error('Live registry, account service or service settings changed; re-plan before applying');
   for (const flag of ['openingAuthorized', 'routingApprovalAuthorized', 'removalReleaseAuthorized',
     'globalErasureAuthorized', 'globalRecoveryAuthorized', 'rehearsalReleaseAuthorized',
