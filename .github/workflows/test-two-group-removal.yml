@@ -34,6 +34,8 @@ jobs:
           node --test scripts/group-removal-recovery.test.mjs scripts/account-recovery-journal.test.mjs
       - name: Check closed commissioning approval and interruption rules
         run: node --test scripts/prod-protection-policy.test.mjs scripts/prod-protection-journal.test.mjs scripts/prod-protection-evidence.test.mjs scripts/prod-protection-review.test.mjs scripts/prod-protection-runner.test.mjs
+      - name: Check ordinary member access and deferred erasure policy
+        run: node --test scripts/prod-routing-gate.test.mjs
       - name: Build disposable actors (no deployed mappings)
         run: |
           MOC="$HOME/.cache/mops/moc/1.16.1/moc"
@@ -83,7 +85,7 @@ jobs:
           export IDENTITY_ACCESS_WASM="$GITHUB_WORKSPACE/target/wasm32-unknown-unknown/release/identity_access.wasm"
           export SHARD_ROUTER_WASM="$GITHUB_WORKSPACE/target/wasm32-unknown-unknown/release/shard_router.wasm"
           export TIMER_JOBS_WASM="$GITHUB_WORKSPACE/target/wasm32-unknown-unknown/release/timer_jobs.wasm"
-          for mode in rehearsal production-candidate production; do
+          for mode in ordinary rehearsal production-candidate production; do
             TWO_GROUP_RECEIVER_MODE="$mode" TWO_GROUP_REMOVAL_REPORT="$RUNNER_TEMP/two-group-removal-$mode.json" timeout --kill-after=5s 1840s node scripts/test-two-group-removal-replica.mjs
           done
       - name: Explain test boundary
