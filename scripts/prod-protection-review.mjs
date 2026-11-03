@@ -6,7 +6,8 @@ const hex=b=>Buffer.from(b).toString('hex');
 // canister's exact bytes only after they decode back to the reviewed value.
 export function exactEncoding(IDL,type,body,encoding) {
   if(!encoding)throw Error('Exact canister encoding required before signing');
-  const bytes=Buffer.from(encoding);let value;
+  // Fresh copy: Candid ignores pooled Buffer byte offsets.
+  const bytes=new Uint8Array(encoding);let value;
   try{[value]=IDL.decode([type],bytes);}catch(e){throw Error('Canister encoding does not decode: '+e.message);}
   if(!Buffer.from(IDL.encode([type],[value])).equals(Buffer.from(IDL.encode([type],[body]))))throw Error('Canister encoding differs from reviewed value');
   return bytes;

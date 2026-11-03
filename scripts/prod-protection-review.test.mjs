@@ -55,7 +55,7 @@ test('interrupted inventory continuation preserves original proofs until a compl
   assert.throws(()=>protectionReviewContext({...receipt,purpose:'protection'},'protection-run'));
 });
 test('signers hash exact canister bytes only when they decode to the reviewed value',async()=>{
-  const {IDL}=await import('@icp-sdk/core/candid');const {approvalBytes:ab}=await import('./prod-protection-review.mjs');
+  const {IDL}=await import('../frontend/node_modules/@icp-sdk/core/lib/esm/candid/index.js');const {approvalBytes:ab}=await import('./prod-protection-review.mjs');
   const T=IDL.Record({a:IDL.Nat64,b:IDL.Vec(IDL.Nat8)}),body={a:1n,b:new Uint8Array([1])};
   // A different but valid type table (as Rust emits) must still be accepted and hashed exactly.
   const foreign=Buffer.from(IDL.encode([IDL.Record({b:IDL.Vec(IDL.Nat8),a:IDL.Nat64})],[{a:1n,b:new Uint8Array([1])}]));
