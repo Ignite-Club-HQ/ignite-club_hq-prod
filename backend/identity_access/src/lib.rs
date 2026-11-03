@@ -1415,6 +1415,20 @@ async fn disable_production_account_readers()->Outcome<u64> {
 fn read_production_account_authorization()->Outcome<production_account_authorization::State> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;Ok(production_authorization())
 }
+/// Bounded, governor-only commissioning evidence; never grants recovery or reads.
+#[ic_cdk::update]
+fn read_production_commissioning_evidence()->Outcome<ProductionCommissioningEvidence> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    admission_configuration_clear()?;
+    let bytes=PRODUCTION_INVENTORY_RECEIPT.with(|m|m.borrow().get().clone());
+    Ok(ProductionCommissioningEvidence {history:history_manifest(),
+        inventory_approval:if bytes.is_empty(){None}else{Some(decode(&bytes))}})
+}
+#[derive(CandidType,Serialize,Deserialize)]
+struct ProductionCommissioningEvidence {
+    history:RemovalHistoryManifest,
+    inventory_approval:Option<production_account_authorization::SignedApproval>,
+}
 /// Fresh governor-only commissioning readback; stored approval alone is not
 /// effectiveness. Authenticate all receiver modes and the independent witness.
 #[ic_cdk::update]

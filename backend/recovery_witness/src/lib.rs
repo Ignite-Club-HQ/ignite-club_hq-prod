@@ -55,6 +55,23 @@ fn init(arg:Init) {
 fn post_upgrade(){ARMED_VERSION.with(|v|v.borrow_mut().set(0));ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(0));}
 #[ic_cdk::update]
 fn read_recovery_head()->Outcome<Head> {require_governor()?;Ok(head())}
+/// Read-only effective subject arming, for interrupted commissioning readback.
+#[ic_cdk::update]
+async fn read_subject_progress_approval()->Outcome<Option<SignedAcceptance>> {
+    require_governor()?;
+    let bytes=ACCOUNT_BASELINE.with(|s|s.borrow().get().clone());
+    let armed=ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get());
+    let version=recovery_lifecycle::current_changes().await?;
+    require_governor()?;
+    if ACCOUNT_BASELINE.with(|s|s.borrow().get()!=&bytes)||ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get())!=armed {
+        return Err("Subject progress changed during readback".into());
+    }
+    if bytes.is_empty()||armed==0||armed!=version{return Ok(None);}
+    let approval:SignedAcceptance=decode(&bytes);
+    validate_subject_progress(&approval,&signer()?)?;
+    if approval.body.expires_at_ns<=ic_cdk::api::time(){return Ok(None);}
+    Ok(Some(approval))
+}
 #[ic_cdk::update]
 async fn read_recovery_runtime_version()->Outcome<u64> {require_governor()?;let changes=recovery_lifecycle::current_changes().await?;require_governor()?;Ok(changes)}
 #[ic_cdk::update]
