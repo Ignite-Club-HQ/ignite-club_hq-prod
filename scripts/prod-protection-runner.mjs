@@ -1,33 +1,24 @@
 // Closed commissioning only. Private keys exist solely inside protected CI jobs.
 // Settings/reloads, account signatures, recovery acceptance and delivery are
 // separated by role. Every external mutation has a retained acknowledged intent.
-import {readFileSync,writeFileSync,mkdirSync,appendFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
-import {createRequire} from 'node:module';
 import {createHash,createPrivateKey,sign,verify,createPublicKey} from 'node:crypto';
-import {fileURLToPath,pathToFileURL} from 'node:url';
-import path from 'node:path';
 import {identityFromPem} from './prod-connection-check.mjs';
 import {assertCheckContext,evidenceText} from './prod-connection-check-policy.mjs';
-import {githubJournal} from './prod-base-group.mjs';
 import {RECEIPTS_BRANCH,RECEIPT_PATH,canonical} from './prod-base-group-policy.mjs';
 import {G2_REGISTRATION_RECEIPT_PATH} from './prod-g2-register-policy.mjs';
 import {groupContract} from './prod-group-contract.mjs';
 import {protectionContract} from './prod-protection-contract.mjs';
 import {SAFEGUARD_RECEIPT,assertWitnessState,identityPinEnv} from './prod-safeguard-live-policy.mjs';
 import {openAccountSeed,accountPublicKey} from './prod-account-key-policy.mjs';
-import {reconcileDecision,activationTargets,assertProtectionContext,protectionEnvironment,verifyActivatedDraft,assertNoPending,PROTECTION_RECEIPT,APPROVAL_LIFETIME_NS,digest,requireProtectionExecutionReady} from './prod-protection-policy.mjs';
+import {settingsCommitment,activationTargets,assertProtectionContext,protectionEnvironment,verifyActivatedDraft,assertNoPending,PROTECTION_RECEIPT,APPROVAL_LIFETIME_NS,digest} from './prod-protection-policy.mjs';
 import {attestDeployKey,verifyDeployKey} from '../frontend/scripts/media-key-deploy-rules.mjs';
-import {configuredMainnetPhotoKey} from '../frontend/scripts/media-key-mainnet.mjs';
 import {createProtectionJournal} from './prod-protection-journal.mjs';
 import {captureUpdate,verifyUpdate,readUpdateAcknowledgement} from './prod-protection-evidence.mjs';
 import {approvalBytes,recoveryBytes,verifySignature,validateReview,assertArtifactPlan,assertReviewedReceivers,jobTransition,identityPreparationDecision,protectionReviewContext} from './prod-protection-review.mjs';
 
-const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const hex=b=>Buffer.from(b).toString('hex');
 const hash=b=>createHash('sha256').update(b).digest('hex');
 const plain=v=>JSON.parse(evidenceText(v));
-let stage='startup';
 const ok=r=>{if(!r||'Err'in r)throw Error('Canister refused the commissioning step');return r.Ok;};
 function managementContract(IDL){const Env=IDL.Vec(IDL.Record({name:IDL.Text,value:IDL.Text}));return()=>IDL.Service({
   canister_status:IDL.Func([IDL.Record({canister_id:IDL.Principal})],[IDL.Record({module_hash:IDL.Opt(IDL.Vec(IDL.Nat8)),
@@ -40,24 +31,22 @@ function managementContract(IDL){const Env=IDL.Vec(IDL.Record({name:IDL.Text,val
     chunk_hashes_list:IDL.Vec(IDL.Record({hash:IDL.Vec(IDL.Nat8)})),wasm_module_hash:IDL.Vec(IDL.Nat8),arg:IDL.Vec(IDL.Nat8),sender_canister_version:IDL.Opt(IDL.Nat64)})],[],[]),
 });}
 
-async function main(){
-  requireProtectionExecutionReady();
-  const env=process.env;assertProtectionContext(env);mkdirSync(env.CHECK_REPORT_DIR,{recursive:true});
+export async function runProtectionCommissioning(runtime){
+  if(!runtime?.sdk||!runtime?.journalFor||!runtime?.build||!runtime?.writeReceipt||!runtime?.readPem)
+    throw Error('Explicit commissioning runtime required; no default live transport');
+  const {env,sdk,ids}=runtime;assertProtectionContext(env);
+  let stage='startup';
   const job=env.PROTECTION_JOB;
   if(!['plan','prepare','account-inventory','recovery-inventory','deliver-inventory','account-protection','recovery-protection','deliver-protection'].includes(job))throw Error('Unknown commissioning job');
-  const require=createRequire(path.join(env.CHECK_DEPS_DIR,'package.json'));
-  const agentSdk=require('@icp-sdk/core/agent');
-  const {HttpAgent,Actor,CanisterStatus}=agentSdk;
-  const {IDL}=require('@icp-sdk/core/candid');const {Principal}=require('@icp-sdk/core/principal');
-  const {Ed25519KeyIdentity}=require('@icp-sdk/core/identity');const {Secp256k1KeyIdentity}=require('@icp-sdk/core/identity/secp256k1');
-  const ids=JSON.parse(readFileSync(path.join(ROOT,'deploy/prod/.icp/data/mappings/ic.ids.json'),'utf8'));
+  const {HttpAgent,Actor,CanisterStatus,IDL,Principal}=sdk;
+  const {Ed25519KeyIdentity,Secp256k1KeyIdentity}=runtime.identities;
   stage='read safeguard and original inventories';
-  const load=spec=>githubJournal(env,fetch,spec).load({readOnly:true});
+  const load=spec=>runtime.journalFor(spec).load({readOnly:true});
   const safeguard=await load(SAFEGUARD_RECEIPT);
   if(safeguard?.phase!=='identity-pinned'||safeguard.pending||safeguard.identity!==ids.identity_access)throw Error('Completed identity pin receipt required');
   const base=await load({branch:RECEIPTS_BRANCH,path:RECEIPT_PATH});
   const g2=await load({branch:RECEIPTS_BRANCH,path:G2_REGISTRATION_RECEIPT_PATH});
-  const journal=githubJournal(env,fetch,PROTECTION_RECEIPT);let receipt=await journal.load({readOnly:true});
+  const journal=runtime.journalFor(PROTECTION_RECEIPT);let receipt=await journal.load({readOnly:true});
   let identity,key;
   if(job.startsWith('account-')||job.startsWith('recovery-')){
     const role=job.split('-')[0];
@@ -67,8 +56,7 @@ async function main(){
     identity=Ed25519KeyIdentity.fromSecretKey(Uint8Array.from(Buffer.from(seed,'hex')));
     if(identity.getPrincipal().toText()!==safeguard.pins[`${role}Principal`]||env.EXISTING_PRINCIPAL!==safeguard.pins[`${role}Principal`])throw Error('Signing principal mismatch');
     key=createPrivateKey({key:Buffer.concat([Buffer.from('302e020100300506032b657004220420','hex'),Buffer.from(seed,'hex')]),format:'der',type:'pkcs8'});
-  }else{identity=identityFromPem(readFileSync(env.CHECK_KEY_PEM,'utf8'),{Ed25519KeyIdentity,Secp256k1KeyIdentity});assertCheckContext(ids,env,identity.getPrincipal().toText());}
-  const sdk={...agentSdk,IDL,Principal};
+  }else{identity=identityFromPem(runtime.readPem(),{Ed25519KeyIdentity,Secp256k1KeyIdentity});assertCheckContext(ids,env,identity.getPrincipal().toText());}
   const agent=await HttpAgent.create({host:'https://icp-api.io',identity});
   const pid=t=>Principal.fromText(t);
   const actor=(factory,id)=>Actor.createActor(factory,{agent,canisterId:id});
@@ -84,8 +72,8 @@ async function main(){
   assertWitnessState(await certified(safeguard.witness),safeguard,{installed:true});
   const identityState=await certified(ids.identity_access);
   if(identityState.controllers.length!==1||identityState.controllers[0]!==safeguard.governor||identityState.subnet!==safeguard.subnet)throw Error('Exclusive identity controller and subnet required');
-  const save=async r=>{receipt=r;await journal.save(r);writeFileSync(path.join(env.CHECK_REPORT_DIR,'activation-receipt.json'),evidenceText(r));};
-  const report=text=>{console.log(text);if(env.GITHUB_STEP_SUMMARY)appendFileSync(env.GITHUB_STEP_SUMMARY,text+'\n');};
+  const save=async r=>{await journal.save(r);receipt=r;runtime.writeReceipt(r);};
+  const report=runtime.report;
   const decode=(type,encoded)=>IDL.decode([type],Uint8Array.from(Buffer.from(encoded,'base64')))[0];
   const encode=(type,value)=>Buffer.from(IDL.encode([type],[value])).toString('base64');
   const mgmt=id=>Actor.createActor(managementContract(IDL),{agent,canisterId:'aaaaa-aa',effectiveCanisterId:pid(id)});
@@ -100,7 +88,7 @@ async function main(){
     return {revision:c.history.revision.toString(),approval:c.inventory_approval.length?encode(contract.Approval,c.inventory_approval[0]):null};};
   const probePending=async p=>{
     const [kind,target]=p.kind.split(':');
-    if(kind==='settings')return canonical((await status(target)).settings.environment_variables);
+    if(kind==='settings')return settingsCommitment((await status(target)).settings.environment_variables);
     if(kind==='upgrade'){
       const c=await certified(target),l=ok(await id.read_production_receiver_lifecycle(pid(target)));
       return {moduleHash:c.moduleHash,controllers:c.controllers,subnet:c.subnet,changes:l.changes.toString()};
@@ -131,8 +119,7 @@ async function main(){
     }
   }
   const checkpoint=async(kind,{before,after,commit={},retryable=false,metadata={}},call)=>durable.checkpoint({kind,before,after,commit,retryable,metadata},call);
-  async function build(name){execFileSync('icp',['build',name],{cwd:path.join(ROOT,'deploy/prod'),env:{...env,...identityPinEnv(safeguard,ids)},stdio:['ignore','ignore','pipe']});
-    return readFileSync(path.join(ROOT,'deploy/prod/.icp/cache/artifacts',name));}
+  const build=name=>runtime.build(name,safeguard,ids);
   async function upgrade(target,wasm,keep){
     await assertClosed();const before=await certified(target.id);
     if(before.controllers.length!==1||before.controllers[0]!==safeguard.governor||before.subnet!==target.subnet)throw Error('Exclusive target controller and subnet required');
@@ -204,7 +191,7 @@ async function main(){
     const identityWasm=await build('identity_access');
     const plan={version:1,sourceCommit:env.GITHUB_SHA,identityModuleHash:hash(identityWasm),previousIdentityModuleHash:safeguard.identityModuleHash,pins,
       receivers:controllers,openingAuthorized:false,safeguardDigest:digest(safeguard)};
-    const planJournal=githubJournal(env,fetch,planSpec);
+    const planJournal=runtime.journalFor(planSpec);
     if(job==='plan'){
       if(receipt)throw Error('Activation already started; use retained reviewed continuation');
       await assertClosed();await planJournal.save(plan);
@@ -219,9 +206,9 @@ async function main(){
       const binding={deploymentId:'prod',environment:'ic',host:'https://icp-api.io',canisterId:t.id,governor:safeguard.governor,keyName:'key_1'};
       const pii=actor(()=>IDL.Service({pii_vetkey_verification_key:IDL.Func([],[IDL.Vec(IDL.Nat8)],[])}),t.id);
       if(receipt?.photoKeys?.[t.id])photoKeys[t.id]=receipt.photoKeys[t.id];
-      else await attestDeployKey(binding,{status:()=>certified(t.id),originalKey:async()=>hex(await pii.pii_vetkey_verification_key()),configuredKey:()=>configuredMainnetPhotoKey(binding),save:async r=>{photoKeys[t.id]=r;}});
+      else await attestDeployKey(binding,{status:()=>certified(t.id),originalKey:async()=>hex(await pii.pii_vetkey_verification_key()),configuredKey:()=>runtime.photoKey(binding),save:async r=>{photoKeys[t.id]=r;}});
     }
-    if(!receipt){if(identityState.moduleHash!==safeguard.identityModuleHash)throw Error('Identity differs from recorded pinned program');
+    if(!receipt){identityPreparationDecision(identityState.moduleHash,hash(identityWasm),safeguard.identityModuleHash);
       await save({version:2,phase:'planned',pending:null,sourceCommit:env.GITHUB_SHA,planHash:digest(approvedPlan),runId:env.GITHUB_RUN_ID,purpose:'inventory',
         safeguardDigest:digest(safeguard),page,targets,controllers,photoKeys,openingAuthorized:false,erasureAuthorized:false,reloaded:[],configured:[],identityModuleHash:hash(identityWasm),identityUpgraded:false});}
     if(!receipt.identityUpgraded){
@@ -235,12 +222,12 @@ async function main(){
       if(receipt.configured.includes(t.id))continue;
       stage=`configure ${t.group}/${t.name}`;await assertClosed();
       if(t.human){const st=await status(t.id),merged=protectionEnvironment(st.settings.environment_variables,ids.identity_access);
-        if(canonical(st.settings.environment_variables)!==canonical(merged))await checkpoint(`settings:${t.id}`,{before:canonical(st.settings.environment_variables),after:canonical(merged),retryable:true},async()=>mgmt(t.id).update_settings({canister_id:pid(t.id),settings:{environment_variables:[merged]}}));
+        if(canonical(st.settings.environment_variables)!==canonical(merged))await checkpoint(`settings:${t.id}`,{before:settingsCommitment(st.settings.environment_variables),after:settingsCommitment(merged),retryable:true},async()=>mgmt(t.id).update_settings({canister_id:pid(t.id),settings:{environment_variables:[merged]}}));
         if(!receipt.reloaded.includes(t.id))await upgrade(t,builds.get(t.name),true);
         if(t.name==='pii_access_control'){
           const binding={deploymentId:'prod',environment:'ic',host:'https://icp-api.io',canisterId:t.id,governor:safeguard.governor,keyName:'key_1'};
           const pii=actor(()=>IDL.Service({pii_vetkey_verification_key:IDL.Func([],[IDL.Vec(IDL.Nat8)],[])}),t.id);
-          await verifyDeployKey(binding,photoKeys[t.id],{status:()=>certified(t.id),originalKey:async()=>hex(await pii.pii_vetkey_verification_key()),configuredKey:()=>configuredMainnetPhotoKey(binding)});
+          await verifyDeployKey(binding,photoKeys[t.id],{status:()=>certified(t.id),originalKey:async()=>hex(await pii.pii_vetkey_verification_key()),configuredKey:()=>runtime.photoKey(binding)});
         }
       }else{const a=actor(contract.infrastructure,t.id),existing=await a.read_account_removal_authority();
         if(existing.length&&existing[0].toText()!==ids.identity_access)throw Error('Foreign infrastructure authority requires separate review');
@@ -356,16 +343,18 @@ async function main(){
     await prepareUnsigned('protection',protectionReviewContext(receipt,env.GITHUB_RUN_ID));report('Exact signed inventory read back; new history revision used for full protection approval.');return;
   }
   const result=BigInt(receipt.generation);
+  if(approval.body.expires_at_ns<=BigInt(Date.now())*1_000_000n)throw Error('Protection approval expired; fresh owner approval required');
+  assertReviewedReceivers(approvedPlan,targets,await Promise.all(targets.map(async t=>({id:t.id,...await certified(t.id)}))));
+  const current=ok(await id.read_production_account_authorization());
+  if(current.generation!==result||current.approval.length!==1||encode(contract.Approval,current.approval[0])!==receipt.approval)throw Error('Current live authorization differs from retained approval');
   async function certifiedCallWithIntent(canister,method,args){return captureUpdate({identity,sdk,canister,method,args,type:witnessTypes.get(method),runId:receipt.runId,purpose,
     onRequest:async request=>save({...receipt,pending:{...receipt.pending,metadata:{request}}})});}
   stage='fresh effective readback of every service and witness';
   const effective=ok(await id.read_active_production_account_protection());verifyActivatedDraft(plain(effective),targets,ids.identity_access);await assertClosed();
-  const rows=targets.map(t=>({...t,configuration:plain(effective.configurations.find(c=>c.receiver.toText()===t.id)),result:'EFFECTIVE_CONFIGURATION_AND_LIVE_WITNESS_VERIFIED'}));
+  const rows=targets.map(t=>({...t,configuration:plain(effective.configurations.find(c=>c.receiver.toText()===t.id)),result:'EFFECTIVE_CONFIGURATION_GLOBAL_AND_SUBJECT_WITNESS_VERIFIED'}));
   await save({...receipt,phase:'verified',generation:result.toString(),expiresAtNs:approval.body.expires_at_ns.toString(),rows,verifiedAt:new Date().toISOString(),openingAuthorized:false,erasureAuthorized:false,
-    userAccountFlowVerified:false});
-  report(['### Closed protection commissioning verified','', '| Group | Service | Result |','|---|---|---|',...rows.map(r=>`| ${r.group} | ${r.name} | Effective configuration and live signed witness verified |`),'',
+    subjectBaselineVerified:true,userAccountFlowVerified:false});
+  report(['### Closed protection commissioning verified','', '| Group | Service | Result |','|---|---|---|',...rows.map(r=>`| ${r.group} | ${r.name} | Effective configuration, global and subject safeguards verified |`),'',
     `All 28 modes verified; exactly 24 alias readers. Approval expires ${new Date(Number(approval.body.expires_at_ns/1_000_000n)).toISOString()}.`,
     'Both groups remain closed. No account, club, data movement, erasure, routing or delivery schedule was changed. Real member flows are not tested by this infrastructure readback.'].join('\n'));
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)main().catch(()=>{const text=`Protection commissioning stopped safely at: ${stage}. Inspect the retained receipt; do not replay an unresolved intent. No opening authorized.`;
-  console.error(text);if(process.env.GITHUB_STEP_SUMMARY)appendFileSync(process.env.GITHUB_STEP_SUMMARY,text+'\n');process.exitCode=1;});
