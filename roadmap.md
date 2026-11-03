@@ -1,5 +1,17 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — direct live delivery, rehearsal skipped (3 Nov 2026, 08:10 UTC)
+- [x] Paul chose to skip the isolated rehearsal and go straight to live delivery and a real sign-in test. Ran the read-only PROD routing-gate check on `prod` (run 41600725574) for the authoritative gap list instead of guessing. No live change.
+- [ ] Build the admission-only delivery tool: bind 24 services to the account service and enable member admission with global removal left off. Blocker: the existing `protectionEnvironment` always pairs admission with `IGNITE_ACCOUNT_REMOVAL_RELEASE=1`. See docs/prod-member-access-gap-review-2026-11-03.md.
+- [ ] Deliver the reviewed ordinary-access account-service code to `prod` and upgrade it. Blocker: `authorize_production_member_access` is absent from the `prod` branch, so the live service cannot yet be commissioned.
+- [ ] Correct both `club_domain` `identity_access` rows to the PROD account service; the existing setter refuses without rehearsal, so a reviewed path is needed.
+- [ ] Release bound deletion and re-verify router authority and registry pin; live readback currently says not released although the receipt reads `linked`.
+- [ ] Commission ordinary member access and read back both readiness rows.
+- [ ] Top up the four short services (320,272,547,662 cycles measured; fees and reserves excluded).
+- [ ] Re-run the read-only gate, then obtain Paul's separate approvals for opening and publication, and verify a real production sign-in and club access.
+
+## Current request — simplest safe launch plan (3 Nov 2026, 07:35 UTC)
+
 ## Current request — simplest safe launch plan (3 Nov 2026, 07:35 UTC)
 - [x] Prepared minimal launch plan: pause commissioning, separate normal member access from expiring privileged approval, hold unfinished destructive operations, verify one final sequence, then separately approve production delivery/opening/publication. Local source confirms account-reader dependency; live state/results not reverified. No live changes.
 - [x] Plan approved; implemented explicit ordinary PROD member mode, exact registry-derived caller/club readers and admission-only commissioning, current denials/tickets/fences, global erasure/recovery hold and readiness diagnostics. 235 Rust + 19 routing + 44 commissioning checks pass, 17 contracts match, identity Wasm compiled. No live changes.
