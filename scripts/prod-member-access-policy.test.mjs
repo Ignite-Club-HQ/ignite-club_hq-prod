@@ -134,17 +134,13 @@ test('readback demands ordinary access commissioned with global operations still
   const applied = targets.map(target => [target.id, memberAccessEnvironment(
     ENVIRONMENTS[target.id], PROD_CHECK_IDS.identity_access)]);
   const environments = Object.fromEntries(applied);
-  const commissioned = [...IDENTITY_ROWS, ['account_admission_released', 'true'],
-    ['ordinary_member_access', 'true'], ['global_account_operations_deferred', 'true']]
-    .filter(([name]) => !['account_admission_released', 'ordinary_member_access',
-      'global_account_operations_deferred'].includes(name) || false);
   const rows = [['registry', PROD_CHECK_IDS.shard_router], ['target_alias', 'mainnet'],
     ['deployment_id', 'prod'], ['host', 'https://icp-api.io'], ['network_kind', 'public_mainnet'],
     ['bound_deletion_released', 'true'], ['account_admission_released', 'true'],
     ['ordinary_member_access', 'true'], ['global_account_operations_deferred', 'true']];
   assert.equal(assertMemberAccessReadback({ identityConfig: rows, environments, page: PAGE }, built)
     .memberAccessEnabled, true);
-  assert.equal(commissioned.length > 0, true);
+
 
   assert.throws(() => assertMemberAccessReadback({ identityConfig: rows.map(([k, v]) =>
     [k, k === 'ordinary_member_access' ? 'false' : v]), environments, page: PAGE }, built),
