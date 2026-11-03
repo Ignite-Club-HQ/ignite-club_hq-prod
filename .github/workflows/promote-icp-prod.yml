@@ -192,8 +192,22 @@ jobs:
           node frontend/scripts/media-key-deploy-preflight.mjs before "$IDS" "$RECEIPT" prod ic
           for NAME in $NAMES; do
             echo "==> Upgrading $NAME"
+            if [ "$NAME" = identity_access ]; then
+              # Once pinned by prod-setup-safeguard.yml, every identity build MUST carry the
+              # same immutable safeguard/key pins; refuse rather than silently drop them.
+              PINS="$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/prod-group-setup/safeguard.json?ref=prod-group-setup" 2>/dev/null \
+                | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(Buffer.from(JSON.parse(s).content,"base64"));if(r.phase!=="identity-pinned"&&r.phase!=="witness-installed"&&r.phase!=="witness-created"&&r.phase!=="planned")process.exit(2);if(r.pending&&r.pending.kind==="pin")process.exit(3);if(r.identityPins)for(const[k,v]of Object.entries(r.identityPins))console.log(`${k}=${v}`)})' || echo MISSING)"
+              if [ "$PINS" = MISSING ] && curl -fsS -o /dev/null -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/prod-group-setup/safeguard.json?ref=prod-group-setup"; then
+                echo "::error::identity_access safeguard pins unreadable or a pin upgrade is pending; refusing to upgrade identity_access"; exit 1
+              fi
+              [ "$PINS" = MISSING ] && PINS=""
+              while IFS='=' read -r K V; do [ -n "$K" ] && export "$K=$V"; done <<< "$PINS"
+            fi
             # Upgrade only — never create, never reinstall (EOP memory kept).
             (cd deploy/prod && icp deploy "$NAME" -e ic -y --mode upgrade --no-create)
+            if [ "$NAME" = identity_access ] && [ -n "${IGNITE_PRODUCTION_ACCOUNT_WITNESS:-}" ]; then
+              grep -aq "$IGNITE_PRODUCTION_ACCOUNT_WITNESS" deploy/prod/.icp/cache/artifacts/identity_access || { echo "::error::identity_access was built without its pins"; exit 1; }
+            fi
             node scripts/record-prod-release.mjs "$NAME" "$GITHUB_SHA"
           done
           node frontend/scripts/media-key-deploy-preflight.mjs after "$IDS" "$RECEIPT" prod ic
