@@ -11,6 +11,7 @@ import { canonical, hashPlan, normalizeReviewedHash } from './prod-base-group-po
 export const IDENTITY_LINK_RECEIPT_PATH = 'prod-group-setup/identity-link.json';
 export const IDENTITY_LINK_CONFIRMATION = 'LINK PROD ACCOUNT SERVICE';
 export const IDENTITY_LINK_READBACK_CONFIRMATION = 'CONFIRM PROD ACCOUNT SERVICE READBACK';
+export const IDENTITY_LINK_RESTORE_CONFIRMATION = 'RESTORE PROD BOUND DELETION RELEASE';
 export const BOUND_DELETION_RELEASE_ENV = 'IGNITE_BOUND_DELETION_RELEASE';
 export const REHEARSAL_ENV = 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL';
 export const LINK_HOST = 'https://icp-api.io';
@@ -18,12 +19,14 @@ export const LINK_NETWORK_KIND = 'public_mainnet';
 
 export function assertIdentityLinkContext(ids, env, principal, action) {
   assertCheckContext(ids, env, principal);
-  if (!['plan', 'inspect', 'link', 'reconcile-readback'].includes(action))
-    throw new Error('Only plan, inspect, link or reconcile-readback supported');
+  if (!['plan', 'inspect', 'link', 'reconcile-readback', 'restore-release'].includes(action))
+    throw new Error('Only plan, inspect, link, reconcile-readback or restore-release supported');
   if (action === 'link' && env.CONFIRMATION?.trim() !== IDENTITY_LINK_CONFIRMATION)
     throw new Error(`Exact confirmation required: ${IDENTITY_LINK_CONFIRMATION}`);
   if (action === 'reconcile-readback' && env.CONFIRMATION?.trim() !== IDENTITY_LINK_READBACK_CONFIRMATION)
     throw new Error(`Exact confirmation required: ${IDENTITY_LINK_READBACK_CONFIRMATION}`);
+  if (action === 'restore-release' && env.CONFIRMATION?.trim() !== IDENTITY_LINK_RESTORE_CONFIRMATION)
+    throw new Error(`Exact confirmation required: ${IDENTITY_LINK_RESTORE_CONFIRMATION}`);
 }
 
 const decimal = (value, label) => {
