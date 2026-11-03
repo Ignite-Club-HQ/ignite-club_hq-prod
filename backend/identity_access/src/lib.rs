@@ -41,6 +41,7 @@ mod recovery_journal;
 mod removal_barrier;
 mod deletion_timing;
 mod admission;
+#[cfg(test)] mod member_access_tests;
 mod membership_directory;
 mod membership_directory_store;
 mod membership_materializer;
