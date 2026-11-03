@@ -4,8 +4,8 @@
 // admission, and it refuses to run where those are already released.
 import { canonical, hashPlan, normalizeReviewedHash } from './prod-base-group-policy.mjs';
 import { assertGroupsClosed } from './prod-safeguard-live-policy.mjs';
-import { envValue, rowsToMap, bindingMatchesRows, BOUND_DELETION_RELEASE_ENV } from './prod-identity-link-policy.mjs';
-import { digest, HUMAN_DOMAINS } from './prod-protection-policy.mjs';
+import { envValue, rowsToMap, bindingMatchesRows } from './prod-identity-link-policy.mjs';
+import { settingsCommitment, HUMAN_DOMAINS } from './prod-protection-policy.mjs';
 
 export const MEMBER_ACCESS_RECEIPT_PATH = 'prod-group-setup/member-access.json';
 export const MEMBER_ACCESS_CONFIRMATION = 'ENABLE PROD MEMBER ACCESS';
@@ -65,55 +65,57 @@ export function memberAccessEnvironment(rows, identity) {
   return [...entries].map(([name, value]) => ({ name, value }));
 }
 
-const decimal = (value, label) => {
-  if (!/^\d+$/.test(String(value ?? ''))) throw new Error(`${label} must be decimal text`);
-  return String(value);
-};
-
-/** The commissioning request must be the registry the account service already trusts. */
-export function memberAccessBinding(linkReceipt, page) {
+/**
+ * The commissioning request must name the registry the account service already
+ * trusts, at the exact revision it pinned. The router rejects any other
+ * revision, so a drifted pin is a stop to be re-planned, not a guess.
+ */
+export function memberAccessBinding(linkReceipt, ids, page) {
   if (!linkReceipt || linkReceipt.phase !== 'linked' || linkReceipt.pending)
     throw new Error('Acknowledged account-service link receipt required before member access');
   const saved = linkReceipt.plan?.binding ?? linkReceipt.binding;
   if (!saved) throw new Error('Account-service link receipt carries no registry binding');
+  const decimal = (value, label) => {
+    if (!/^\d+$/.test(String(value ?? ''))) throw new Error(`${label} must be decimal text`);
+    return String(value);
+  };
   const binding = {
     registry: saved.registry,
-    registry_revision: BigInt(decimal(saved.registryRevision, 'registry revision')),
+    registry_revision: decimal(saved.registryRevision, 'registry revision'),
     target_alias: saved.targetAlias,
     deployment_id: saved.deploymentId,
-    deployment_revision: BigInt(decimal(saved.deploymentRevision, 'deployment revision')),
+    deployment_revision: decimal(saved.deploymentRevision, 'deployment revision'),
     host: saved.host,
     network_kind: saved.networkKind,
   };
-  if (binding.registry !== page?.groups?.[0]?.target_alias && !page?.placements?.length)
-    throw new Error('Live registry unavailable for member access binding');
+  if (binding.registry !== ids.shard_router) throw new Error('Account service must trust the live router as its registry');
+  if (String(page.revision) !== binding.registry_revision)
+    throw new Error('Registry has moved since the account service pinned it; re-link before member access');
   return binding;
 }
 
 /**
- * Builds the reviewable plan. It records only commitments (hashes), never
- * plaintext settings, and carries no authorization to open groups, approve
- * routing, release removal, or erase or recover any account.
+ * Builds the reviewable plan. It records settings commitments (hashes) plus the
+ * two settings it will write, and carries no authorization to open groups,
+ * approve routing, release removal, or erase or recover any account.
  */
 export function buildMemberAccessPlan({ ids, env, principal, page, identityConfig, linkReceipt, environments, checkedAt }) {
   const targets = memberAccessTargets(ids, page);
-  const binding = memberAccessBinding(linkReceipt, page);
+  const binding = memberAccessBinding(linkReceipt, ids, page);
+  if (!identityConfig) throw new Error('Account service has not pinned its registry');
   if (!bindingMatchesRows({ registry: binding.registry, targetAlias: binding.target_alias,
     deploymentId: binding.deployment_id, host: binding.host, networkKind: binding.network_kind }, identityConfig))
     throw new Error('Account service is not pinned to the reviewed registry');
   if (rowsToMap(identityConfig).bound_deletion_released !== 'true')
     throw new Error('Bound deletion must read back as released before member access');
-  if (envValue(identityConfig, REHEARSAL_FLAG) === '1') throw new Error('Rehearsal forbidden on production');
 
   const reviewed = targets.map(target => {
     const rows = environments?.[target.id];
     if (!Array.isArray(rows)) throw new Error(`Current settings unavailable for ${target.name}`);
     const after = memberAccessEnvironment(rows, ids.identity_access);
-    const before = digest([...rows].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)));
-    const changed = digest([...after].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) !== before;
-    return { name: target.name, id: target.id, group: target.group, beforeCommitment: before,
-      afterCommitment: digest([...after].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))),
-      changeRequired: changed };
+    return { name: target.name, id: target.id, group: target.group,
+      beforeCommitment: settingsCommitment(rows), afterCommitment: settingsCommitment(after),
+      changeRequired: settingsCommitment(after) !== settingsCommitment(rows) };
   });
 
   return {
@@ -124,10 +126,11 @@ export function buildMemberAccessPlan({ ids, env, principal, page, identityConfi
     principal,
     identityAccess: ids.identity_access,
     routerId: ids.shard_router,
-    registryRevision: decimal(page.revision, 'registry revision'),
-    configurationRevision: decimal(page.configuration_revision?.[0] ?? 0, 'configuration revision'),
+    registryRevision: String(page.revision),
+    configurationRevision: String(page.configuration_revision?.[0] ?? 0),
     groups: page.groups.map(group => group.id).sort(),
     binding,
+    settings: [{ name: AUTHORITY_FLAG, value: ids.identity_access }, { name: ADMISSION_FLAG, value: '1' }],
     targets: reviewed,
     executable: false,
     openingAuthorized: false,
@@ -176,13 +179,13 @@ export function assertMemberAccessReadback({ identityConfig, environments, page 
   if (String(page.revision) !== plan.registryRevision)
     throw new Error('Registry inventory changed during member access delivery');
   for (const target of plan.targets) {
-    const rows = environments?.[target.id];
-    if (!Array.isArray(rows)) throw new Error(`Settings readback unavailable for ${target.name}`);
-    if (envValue(rows, AUTHORITY_FLAG) !== plan.identityAccess)
+    const current = environments?.[target.id];
+    if (!Array.isArray(current)) throw new Error(`Settings readback unavailable for ${target.name}`);
+    if (envValue(current, AUTHORITY_FLAG) !== plan.identityAccess)
       throw new Error(`${target.name} is not bound to the reviewed account service`);
-    if (envValue(rows, ADMISSION_FLAG) !== '1') throw new Error(`${target.name} admission is not enabled`);
-    if (envValue(rows, REMOVAL_FLAG) === '1') throw new Error(`${target.name} must keep global removal off`);
-    if (envValue(rows, REHEARSAL_FLAG) === '1') throw new Error(`${target.name} must keep rehearsal off`);
+    if (envValue(current, ADMISSION_FLAG) !== '1') throw new Error(`${target.name} admission is not enabled`);
+    if (envValue(current, REMOVAL_FLAG) === '1') throw new Error(`${target.name} must keep global removal off`);
+    if (envValue(current, REHEARSAL_FLAG) === '1') throw new Error(`${target.name} must keep rehearsal off`);
   }
   return {
     memberAccessEnabled: true,
@@ -196,7 +199,7 @@ export function assertMemberAccessReadback({ identityConfig, environments, page 
 }
 
 export function memberAccessSummary(plan) {
-  const lines = [
+  return [
     '## Ordinary PROD member access',
     '',
     `- Account service: \`${plan.identityAccess}\``,
@@ -205,9 +208,8 @@ export function memberAccessSummary(plan) {
     '- Global account removal, erasure and recovery: **stays off**',
     '- Group opening and routing approval: **not authorized here**',
     '',
-    '| Service | Group | Settings change |',
-    '| --- | --- | --- |',
-    ...plan.targets.map(target => `| ${target.name} (${target.group}) | \`${target.id}\` | ${target.changeRequired ? 'required' : 'none'} |`),
-  ];
-  return lines.join('\n');
+    '| Service | Group | Canister | Settings change |',
+    '| --- | --- | --- | --- |',
+    ...plan.targets.map(target => `| ${target.name} | ${target.group} | \`${target.id}\` | ${target.changeRequired ? 'required' : 'none'} |`),
+  ].join('\n');
 }
