@@ -40,6 +40,6 @@ export function protectionContract(IDL) {
       read_recovery_records:func([N,IDL.Nat16],V(IDL.Tuple(N,Record))),recovery_acceptance_signing_bytes:func([Acceptance],B),
       subject_progress_approval_signing_bytes:func([Acceptance],B),accept_recovery_fence:func([SignedAcceptance],N),
       authorize_subject_removal_progress:func([SignedAcceptance],IDL.Null)}),
-    infrastructure:()=>IDL.Service({read_account_removal_authority:IDL.Func([],[IDL.Opt(P)],[]),set_account_removal_authority:func([P],IDL.Null)}),
+    infrastructure:()=>IDL.Service({read_account_removal_authority:IDL.Func([],[IDL.Opt(P)],['query']),set_account_removal_authority:func([P],IDL.Null)}),
   };
 }
