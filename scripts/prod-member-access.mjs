@@ -264,9 +264,9 @@ async function main() {
 
   if (action === 'commission') {
     if (receipt.phase !== 'settings-applied') throw new Error('Member-access settings have not been applied yet');
-    // A recorded explicit refusal changed nothing on the account service (it
-    // writes only after every check passes), so it may be retried.
-    if (receipt.pending && !(receipt.pending === 'commission' && receipt.lastRefusal))
+    // Commissioning writes one absolute setting only after every check passes,
+    // so an interrupted or refused attempt may be retried; other intents stop.
+    if (receipt.pending && receipt.pending !== 'commission')
       throw new Error('Unresolved member-access intent; review the receipt before commissioning');
 
     stage = 'durable intent: commissioning';
