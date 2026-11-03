@@ -55,6 +55,8 @@ const KNOWN_FAILURES = [
   'No member-access receipt exists yet; run plan first',
   'Member-access settings have not been applied yet',
   'Member-access delivery is already commissioned',
+  'Unresolved member-access intent',
+
   'Account admission did not read back as released',
   'Bound deletion did not read back as released',
   'Ordinary member access did not read back',
@@ -234,11 +236,17 @@ async function main() {
 
   if (action === 'apply') {
     if (receipt.phase !== 'planned') throw new Error('Member-access settings have already been applied');
-    for (const target of receipt.plan.targets.filter(t => t.changeRequired)) {
+    if (receipt.pending && !String(receipt.pending).startsWith('settings:'))
+      throw new Error('Unresolved member-access intent; review the receipt before applying');
+    for (const target of receipt.plan.targets) {
+      stage = `environment read: ${target.name}`;
+      const current = await readEnvironment(target.id);
+      if (settingsCommitment(current) === target.afterCommitment) continue;
       stage = `durable intent: ${target.name}`;
       await checkpoint({ ...receipt, pending: `settings:${target.id}` });
       stage = `environment write: ${target.name}`;
-      const merged = mergeEnvironment(await readEnvironment(target.id), receipt.plan.settings);
+      const merged = mergeEnvironment(current, receipt.plan.settings);
+
       const reply = await mgmt(target.id).update_settings({ canister_id: pid(target.id),
         settings: { environment_variables: [merged] } });
       if (reply && typeof reply === 'object' && 'Err' in reply) throw new Error('Service refused the environment write');
@@ -256,6 +264,8 @@ async function main() {
 
   if (action === 'commission') {
     if (receipt.phase !== 'settings-applied') throw new Error('Member-access settings have not been applied yet');
+    if (receipt.pending) throw new Error('Unresolved member-access intent; review the receipt before commissioning');
+
     stage = 'durable intent: commissioning';
     await checkpoint({ ...receipt, pending: 'commission' });
     const binding = receipt.plan.binding;

@@ -145,8 +145,12 @@ export function buildMemberAccessPlan({ ids, env, principal, page, identityConfi
 
 const stableMemberAccessPlan = plan => {
   const { checkedAt, ...rest } = plan;
-  return rest;
+  // Only the promised after-state is durable. A service whose settings were
+  // already written must not read as drift, or an interrupted run could never
+  // resume without discarding the reviewed plan.
+  return { ...rest, targets: plan.targets.map(({ beforeCommitment, changeRequired, ...kept }) => kept) };
 };
+
 
 export function assertReviewedMemberAccessPlan(plan, rawExpectedHash, currentPlan) {
   const expectedHash = normalizeReviewedHash(rawExpectedHash);
