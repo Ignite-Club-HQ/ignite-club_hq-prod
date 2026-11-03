@@ -41,7 +41,7 @@ jobs:
         with: { node-version: "22.12.0" }
       - name: Install isolated pinned libraries
         run: |
-          npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 @icp-sdk/vetkeys@0.7.0 --no-fund --no-audit
+          npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 @icp-sdk/vetkeys@0.7.0 @noble/curves@1.9.7 --no-fund --no-audit
           mkdir -p frontend
           test -d frontend/node_modules || ln -s "$RUNNER_TEMP/deps/node_modules" frontend/node_modules
       - uses: dtolnay/rust-toolchain@stable
@@ -51,6 +51,8 @@ jobs:
           npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops@3.5.1 --no-fund --no-audit
           mops toolchain use moc 1.16.1
       - name: Run commissioning policy tests
+        env:
+          PROTECTION_TEST_SDK_DIR: ${{ runner.temp }}/deps/node_modules/@icp-sdk/core
         run: node --test scripts/prod-protection-policy.test.mjs scripts/prod-protection-journal.test.mjs scripts/prod-protection-evidence.test.mjs scripts/prod-protection-review.test.mjs
       - name: prepare (closed, journaled)
         env:

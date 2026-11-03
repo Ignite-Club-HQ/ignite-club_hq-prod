@@ -5,7 +5,9 @@ export function outcome(pending, observed) {
       !('before' in pending) || !('after' in pending)) return 'unknown';
   if (canonical(pending.before) === canonical(pending.after)) return 'unknown';
   if (canonical(observed) === canonical(pending.after)) return 'committed';
-  if (pending.retryable && canonical(observed) === canonical(pending.before)) return 'not-applied';
+  // A before-image cannot prove a submitted request will not execute later.
+  // Only an explicit, durable proof that submission never began permits retry.
+  if (pending.retryable && pending.notSubmitted === true && canonical(observed) === canonical(pending.before)) return 'not-applied';
   return 'unknown';
 }
 export function createProtectionJournal({load, save, probe}) {
@@ -27,8 +29,10 @@ export function createProtectionJournal({load, save, probe}) {
     const pending = {version:2, kind, before, after, commit, retryable, metadata};
     await save({...receipt, pending});
     const result = await call();
-    const observed = await probe(pending);
-    if (outcome(pending, observed) !== 'committed') throw Error('Acknowledged activation readback mismatch');
+    const retained = (await load()).pending;
+    if(!retained||retained.kind!==kind)throw Error('Activation intent changed during submission');
+    const observed = await probe(retained);
+    if (outcome(retained, observed) !== 'committed') throw Error('Acknowledged activation readback mismatch');
     await save({...await load(), ...commit, pending:null});
     return result;
   }

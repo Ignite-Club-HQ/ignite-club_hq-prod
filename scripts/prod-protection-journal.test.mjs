@@ -26,11 +26,20 @@ test('ambiguous operation retains intent and refuses replay',async()=>{
 test('unchanged program hash alone cannot prove same-program reload',()=>{
   assert.equal(outcome({version:2,before:{hash:'a'},after:{hash:'a'},commit:{}},{hash:'a'}),'unknown');
 });
-test('before state clears only an explicitly retryable non-applied operation',async()=>{
+test('before state cannot clear an uncertain submitted operation',async()=>{
   const s=setup();await assert.rejects(s.journal.checkpoint({kind:'settings:x',before:0,after:1,retryable:true,commit:{phase:'done'}},async()=>{throw Error('not sent');}));
-  const r=await s.journal.reconcile();assert.equal(r.phase,'planned');assert.equal(r.pending,null);
+  await assert.rejects(s.journal.reconcile());assert.ok(s.read().pending);
+  s.set(1);const r=await s.journal.reconcile();assert.equal(r.phase,'done');assert.equal(r.pending,null);
 });
 test('lifecycle count proves reload even when program bytes do not change',()=>{
   const p={version:2,before:{hash:'a',changes:'10'},after:{hash:'a',changes:'11'},commit:{reloaded:['x']}};
   assert.equal(outcome(p,{hash:'a',changes:'11'}),'committed');assert.equal(outcome(p,{hash:'a',changes:'12'}),'unknown');
+});
+test('readback uses the acknowledged request metadata persisted during submission',async()=>{
+  let receipt={phase:'ready',pending:null};
+  const journal=createProtectionJournal({load:async()=>receipt,save:async r=>{receipt=structuredClone(r);},probe:async p=>p.metadata.requestId==='abc'?{replied:true}:null});
+  await journal.checkpoint({kind:'subject:protection',before:null,after:{replied:true},commit:{phase:'subject-approved'}},async()=>{
+    receipt={...receipt,pending:{...receipt.pending,metadata:{requestId:'abc'}}};
+  });
+  assert.equal(receipt.phase,'subject-approved');assert.equal(receipt.pending,null);
 });

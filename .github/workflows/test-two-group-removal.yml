@@ -32,6 +32,8 @@ jobs:
         run: |
           cargo test --locked -p identity_access -p recovery_witness -- --test-threads=1
           node --test scripts/group-removal-recovery.test.mjs scripts/account-recovery-journal.test.mjs
+      - name: Check closed commissioning approval and interruption rules
+        run: node --test scripts/prod-protection-policy.test.mjs scripts/prod-protection-journal.test.mjs scripts/prod-protection-evidence.test.mjs scripts/prod-protection-review.test.mjs
       - name: Build disposable actors (no deployed mappings)
         run: |
           MOC="$HOME/.cache/mops/moc/1.16.1/moc"
