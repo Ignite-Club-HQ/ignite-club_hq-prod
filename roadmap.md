@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — consolidated pre-verification audit (3 Nov 2026, 06:39 UTC)
+- [ ] 06:46 owner requested all four faults fixed together and exact-runner verification without skipped steps. Implement shared injectable orchestration with a held live entry point, current subject-baseline readback, deterministic non-plaintext settings commitments and interruption regression coverage; no live activation in this repair batch.
 - [x] Completed three independent read-only cross-layer reviews and local reproductions; all 32 existing protection regressions pass, but they do not execute the complete commissioning runner. Saved consolidated findings in docs/prod-protection-full-review-2026-11-03.md. No live changes, approvals, dispatch or guard removal.
 - [ ] Fix confirmed faults together: first-preparation reviewed-program rejection; delivered-authorization restart skipping final verification; plaintext unrelated environment values in intent/report serialization; final verification missing current subject-baseline arming. Also align/remove obsolete retry helper and clarify historical versus fresh effectiveness checks.
 - [ ] Add one actual-orchestration acceptance suite spanning fresh jobs, roles, certified signing interoperability, journal acknowledgements, every crash boundary and final global/subject readback before another GitHub E2E run. Preserve the non-bypassable live hold.
