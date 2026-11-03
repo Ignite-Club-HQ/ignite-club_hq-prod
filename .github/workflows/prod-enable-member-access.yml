@@ -1,0 +1,81 @@
+name: "[PROD] Enable ordinary member access (closed)"
+# The smallest live switch that lets signed-in members use their clubs. It binds
+# the 24 member-facing services to the account service with admission enabled and
+# then commissions ordinary access on the account service itself. It never writes
+# the global account removal setting, never erases or recovers an account, and
+# never opens a group. Each mutating stage needs the exact confirmation phrase and
+# the reviewed-plan hash from a successful plan run, and the protected
+# "production" environment can require Paul's one-click approval.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "inspect reads only; plan saves a proposal; apply writes the two admission settings; commission releases ordinary access; readback only confirms the result"
+        type: choice
+        default: plan
+        options: [plan, inspect, apply, commission, readback]
+      reviewed_plan_hash:
+        description: "Hash from the successful plan summary (required for apply, commission and readback)"
+        required: false
+      confirmation:
+        description: "apply and commission: ENABLE PROD MEMBER ACCESS; readback: CONFIRM PROD MEMBER ACCESS READBACK"
+        required: false
+permissions:
+  contents: write
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  member-access:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+      MEMBER_ACTION: ${{ inputs.action }}
+      MEMBER_PLAN_HASH: ${{ inputs.reviewed_plan_hash }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the live repository prod branch
+        run: |
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Test closed-only admission scope, removal refusal and readback safeguards
+        run: node --test scripts/prod-member-access-policy.test.mjs
+      - name: Install isolated pinned SDK
+        run: npm install --prefix "$RUNNER_TEMP/prod-member-access-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Restore existing signing key and run selected closed-only action
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          export ICP_HOME="$RUNNER_TEMP/prod-member-access-key"
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/prod-member-access-deps"
+          export CHECK_REPORT_DIR="$RUNNER_TEMP/prod-member-access-report"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          test -n "${PROD_GOVERNOR_PEM_ENC:-}"
+          test -n "${PROD_GOVERNOR_PASSPHRASE:-}"
+          mkdir -p "$ICP_HOME"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
+          rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
+          export CHECK_KEY_PEM="$ICP_HOME/key.pem"
+          node scripts/prod-member-access.mjs
+      - name: Save closed-only member access evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-member-access
+          path: ${{ runner.temp }}/prod-member-access-report/*.json
+          if-no-files-found: ignore
