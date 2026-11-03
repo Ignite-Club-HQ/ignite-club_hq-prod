@@ -25,6 +25,10 @@ on:
         description: "Overwrite live files that differ (apply only; review the differing list first)"
         type: boolean
         default: false
+      source_commit:
+        description: "Optional exact historical commit: copy service source/build inputs only; preserve live settings and tooling"
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -46,7 +50,7 @@ jobs:
           [ "$REF" = "refs/heads/main" ] || { echo "::error::Run this from the ${REF#refs/heads/} branch only — the release branch must receive code that has been reviewed on the default branch."; exit 1; }
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
@@ -54,13 +58,20 @@ jobs:
         if: inputs.mode != 'apply'
         env:
           MIGRATION_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/promote-icp-layer.mjs
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          if [ -n "$SOURCE_COMMIT" ]; then node scripts/promote-icp-layer.mjs --source-ref "$SOURCE_COMMIT"; else node scripts/promote-icp-layer.mjs; fi
       - name: Apply the copy
         if: inputs.mode == 'apply'
         env:
           MIGRATION_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
           set -euo pipefail
           FLAG=""
           if [ "${{ inputs.allow_drift }}" = "true" ]; then FLAG="--allow-drift"; fi
-          node scripts/promote-icp-layer.mjs --apply $FLAG
+          if [ -n "$SOURCE_COMMIT" ]; then
+            node scripts/promote-icp-layer.mjs --apply $FLAG --source-ref "$SOURCE_COMMIT"
+          else
+            node scripts/promote-icp-layer.mjs --apply $FLAG
+          fi

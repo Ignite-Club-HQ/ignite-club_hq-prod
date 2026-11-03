@@ -16,9 +16,14 @@ import {
   planPromotion,
   filesToWrite,
   assertPromotionTarget,
+  historicalSourceFiles,
 } from './icp-promotion-manifest.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+test('historical code release preserves PROD configuration, IDs, data, tools and website', () => {
+  assert.deepEqual(historicalSourceFiles(['backend/club_domain/src/main.mo', 'backend/club_domain/main.wasm', 'backend/AGENTS.md', 'backend/.icp/data/ic.ids.json', 'Cargo.toml', 'deploy/prod/icp.yaml', 'deploy/prod/release.json', 'scripts/deploy-mainnet.sh', 'src/App.tsx', 'supabase/migrations/example.sql']), ['Cargo.toml', 'backend/club_domain/src/main.mo']);
+});
 
 // A checkout that carries both environments' files, the live repository's own
 // app code, and the generated or state-bearing files that must never travel.
