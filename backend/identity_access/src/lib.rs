@@ -1349,16 +1349,20 @@ async fn check_witness_program(witness:Principal)->Outcome<()> {
     production_account_authorization::check_witness_info(info.module_hash.as_deref(),&info.controllers,&pin)
 }
 async fn check_production_witness(approval:&production_account_authorization::SignedApproval)->Outcome<()> {
+    check_production_witness_method(approval,"verify_production_account_read_fence").await
+}
+async fn check_production_witness_method(approval:&production_account_authorization::SignedApproval,method:&str)->Outcome<()> {
     let witness=production_account_authorization::witness()?;
     if witness==ic_cdk::api::canister_self() || approval.body.review.targets.contains(&witness) {return Err("Independent recovery witness required".into());}
     check_witness_program(witness).await?;
     let lifecycle=recovery_lifecycle::current_changes().await?;
     let request=production_account_authorization::request(approval,next_production_request()?,removal_history_revision(),
         REMOVAL_GENERATION.with(|m|*m.borrow().get()),lifecycle)?;
-    let response=ic_cdk::call::Call::bounded_wait(witness,"verify_production_account_read_fence").with_arg(&request)
+    let response=ic_cdk::call::Call::bounded_wait(witness,method).with_arg(&request)
         .await.map_err(|_|"Independent recovery witness unavailable")?;
     let receipt:Outcome<production_account_authorization::WitnessReceipt>=response.candid().map_err(|_|"Invalid independent recovery witness reply")?;
     production_account_authorization::validate_witness(&request,&receipt?)?;
+    check_witness_program(witness).await?;
     if recovery_lifecycle::current_changes().await?!=request.identity_version ||
         removal_history_revision()!=request.history_revision || REMOVAL_GENERATION.with(|m|*m.borrow().get())!=request.removal_generation {return Err("Identity recovery state changed during witness call".into());}
     Ok(())
@@ -1449,7 +1453,7 @@ async fn read_active_production_account_protection()->Outcome<production_account
     let revision=approval.body.expectation.inventory.groups.history_revision;
     let review=collect_production_account_protection(approval.body.expectation.clone(),revision,true).await?;
     if review!=approval.body.review {return Err("Production account protection drift".into());}
-    check_production_witness(approval).await?;
+    check_production_witness_method(approval,"verify_production_account_protection_fence").await?;
     require_governor(&state(),operator)?;production_read_configuration_clear()?;
     if production_authorization()!=captured || removal_history_revision()!=revision {return Err("Production account authorization changed".into());}
     production_account_authorization::removal_control(&captured,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
