@@ -4,7 +4,9 @@
 - [x] Read-only fingerprint comparison: 17/18 PROD base services differ from DEV; DEV g1==g2; five DEV services newer than deploy/mainnet/backend-release.json.
 - [x] Freeze all PROD-only safeguard/key/member-access work below (superseded).
 - [x] Paul chose A (03 Nov 08:51 UTC): copy exactly what DEV runs now; club deletion parked as first post-launch feature, built and tested on DEV.
-- [ ] Upgrade DEV if B, confirm app works; copy exact code to prod; upgrade PROD upgrade-only with compatibility stop; read back fingerprints vs DEV.
+- [x] Step 1 partial: 13/18 DEV services match release source f86b6f98; 5 (identity_access, club_domain, events_domain, messaging_domain, pii_access_control) updated later, commit unidentified. See docs/dev-prod-fingerprints-2026-11-03.md.
+- [ ] Identify the 5 commits (DEV deploy run history), rebuild all 18, confirm hashes, then Paul approves PROD upgrade.
+- [ ] (old) Upgrade DEV if B, confirm app works; copy exact code to prod; upgrade PROD upgrade-only with compatibility stop; read back fingerprints vs DEV.
 
 ## SUPERSEDED — direct live delivery, rehearsal skipped (3 Nov 2026, 08:10 UTC)
 - [x] Paul chose to skip the isolated rehearsal and go straight to live delivery and a real sign-in test. Ran the read-only PROD routing-gate check on `prod` (run 41600725574) for the authoritative gap list instead of guessing. No live change.
