@@ -1,0 +1,123 @@
+name: "[PROD] Set up safeguard service and pin identity (closed)"
+# Creates the independent safeguard (recovery witness) controlled ONLY by the
+# recovery approval key, installs it with that key, then upgrades identity_access
+# (upgrade only) with the safeguard address and both public keys pinned.
+# Protections stay off, nothing is signed and both groups stay closed.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type exactly: SET UP PROD SAFEGUARD CLOSED"
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+env:
+  IGNITE_ICP_ENV: prod
+  CONFIRMATION: ${{ inputs.confirmation }}
+  PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+  DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+  PROD_ICP_PUSH_WORKER_PRINCIPAL: ${{ vars.PROD_ICP_PUSH_WORKER_PRINCIPAL }}
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      SAFEGUARD_JOB: create
+    steps:
+      - uses: actions/checkout@v4
+      - run: test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod' && test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.12.0" }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - run: node --test scripts/prod-safeguard-live-policy.test.mjs
+      - run: npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Build the safeguard with the recovery public key pinned
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          set -euo pipefail
+          KEY="$(gh api "repos/$GITHUB_REPOSITORY/contents/prod-group-setup/recovery-approval-key.json?ref=prod-group-setup" --jq .content | base64 -d | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).publicKey))')"
+          [[ "$KEY" =~ ^[a-f0-9]{64}$ ]]
+          IGNITE_RECOVERY_APPROVER_PUBLIC_KEY="$KEY" CARGO_TARGET_DIR="$RUNNER_TEMP/witness-target" \
+            cargo build --release --target wasm32-unknown-unknown --manifest-path backend/recovery_witness/Cargo.toml
+          mkdir -p "$RUNNER_TEMP/witness"
+          cp "$RUNNER_TEMP/witness-target/wasm32-unknown-unknown/release/recovery_witness.wasm" "$RUNNER_TEMP/witness/"
+      - name: Create the safeguard (recovery key is sole controller)
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export ICP_HOME="$RUNNER_TEMP/key"; trap 'rm -rf "$ICP_HOME"' EXIT; mkdir -p "$ICP_HOME"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
+          rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
+          CHECK_KEY_PEM="$ICP_HOME/key.pem" CHECK_DEPS_DIR="$RUNNER_TEMP/deps" CHECK_REPORT_DIR="$RUNNER_TEMP/report" \
+            WITNESS_DIR="$RUNNER_TEMP/witness" node scripts/prod-safeguard-live.mjs
+      - uses: actions/upload-artifact@v4
+        with: { name: safeguard-program, path: "${{ runner.temp }}/witness/recovery_witness.wasm" }
+  install:
+    needs: create
+    runs-on: ubuntu-latest
+    environment: production-recovery-approval
+    timeout-minutes: 15
+    env:
+      SAFEGUARD_JOB: install
+      KEY_ENVIRONMENT: production-recovery-approval
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.12.0" }
+      - run: npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - uses: actions/download-artifact@v4
+        with: { name: safeguard-program, path: "${{ runner.temp }}/witness" }
+      - name: Install the safeguard with the recovery key
+        env:
+          PASSPHRASE: ${{ secrets.PROD_APPROVAL_PASSPHRASE }}
+          EXISTING_ENC: ${{ secrets.PROD_APPROVAL_SEED_ENC }}
+          EXISTING_PUBLIC_KEY: ${{ vars.PROD_APPROVAL_PUBLIC_KEY }}
+          EXISTING_PRINCIPAL: ${{ vars.PROD_APPROVAL_PRINCIPAL }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          set +x
+          CHECK_DEPS_DIR="$RUNNER_TEMP/deps" CHECK_REPORT_DIR="$RUNNER_TEMP/report" WITNESS_DIR="$RUNNER_TEMP/witness" \
+            node scripts/prod-safeguard-live.mjs
+  pin:
+    needs: install
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 40
+    env:
+      SAFEGUARD_JOB: pin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.12.0" }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - run: |
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Pin and upgrade identity only
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export ICP_HOME="$RUNNER_TEMP/key"; trap 'rm -rf "$ICP_HOME"' EXIT; mkdir -p "$ICP_HOME"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
+          rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
+          CHECK_KEY_PEM="$ICP_HOME/key.pem" CHECK_DEPS_DIR="$RUNNER_TEMP/deps" CHECK_REPORT_DIR="$RUNNER_TEMP/report" \
+            node scripts/prod-safeguard-live.mjs

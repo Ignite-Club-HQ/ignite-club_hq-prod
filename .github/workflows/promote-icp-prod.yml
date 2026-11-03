@@ -176,6 +176,8 @@ jobs:
 
       - name: Promote — upgrade changed PROD canisters in order, keeping data
         if: env.ACTION == 'promote' && steps.state.outputs.provisioned == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           IDS=deploy/prod/.icp/data/mappings/ic.ids.json
@@ -192,6 +194,16 @@ jobs:
           node frontend/scripts/media-key-deploy-preflight.mjs before "$IDS" "$RECEIPT" prod ic
           for NAME in $NAMES; do
             echo "==> Upgrading $NAME"
+            if [ "$NAME" = identity_access ]; then
+              # Once pinned by prod-setup-safeguard.yml, every identity build MUST carry the
+              # same immutable safeguard/key pins; refuse rather than silently drop them.
+              PINS="$(node scripts/prod-identity-pins.mjs)"
+              while IFS='=' read -r K V; do [ -n "$K" ] && export "$K=$V"; done <<< "$PINS"
+            fi
+            if [ "$NAME" = identity_access ] && [ -n "${IGNITE_PRODUCTION_ACCOUNT_WITNESS:-}" ]; then
+              (cd deploy/prod && icp build identity_access)
+              grep -aq "$IGNITE_PRODUCTION_ACCOUNT_WITNESS" deploy/prod/.icp/cache/artifacts/identity_access || { echo "::error::identity_access was built without its pins"; exit 1; }
+            fi
             # Upgrade only — never create, never reinstall (EOP memory kept).
             (cd deploy/prod && icp deploy "$NAME" -e ic -y --mode upgrade --no-create)
             node scripts/record-prod-release.mjs "$NAME" "$GITHUB_SHA"
