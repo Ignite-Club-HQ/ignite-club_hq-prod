@@ -207,7 +207,7 @@ async function main(){
     const signature=sign(null,Buffer.from(ok(await w.recovery_acceptance_signing_bytes(acceptance))),key);
     const signed=canonical(plain({body:acceptance,signature}));
     const accProbe=async()=>ok(await w.read_recovery_head()).accepted.map(a=>canonical(plain(a)));
-    await checkpoint(`witness:${purpose}`,{probe:accProbe,before:[],after:[signed],retryable:true},async()=>{ok(await w.accept_recovery_fence({body:acceptance,signature}));const read=ok(await w.read_recovery_head());
+    await checkpoint(`witness:${purpose}`,{probe:accProbe,before:[],after:[signed],retryable:true,commit:()=>purpose==='inventory'?{phase:'inventory-witness-accepted',acceptance:encode(contract.SignedAcceptance,{body:acceptance,signature})}:{acceptance:encode(contract.SignedAcceptance,{body:acceptance,signature})}},async()=>{ok(await w.accept_recovery_fence({body:acceptance,signature}));const read=ok(await w.read_recovery_head());
       if(read.accepted.length!==1||canonical(plain(read.accepted[0]))!==canonical(plain({body:acceptance,signature})))throw Error('Independent witness acceptance readback mismatch');});
     // No read-only probe distinguishes this step's outcome: an interrupted
     // attempt stays unknown and stops for manual review rather than replaying.
@@ -218,7 +218,7 @@ async function main(){
   await assertClosed();const approval=decode(contract.Approval,receipt.approval);
   stage=`deliver signed ${purpose} approval`;
   const delProbe=async()=>{const st=ok(await id.read_production_account_authorization());return st.approval.length===1&&canonical(plain(st.approval[0]))===canonical(plain(approval))?'delivered':`generation:${st.generation}`;};
-  const result=await checkpoint(`deliver:${purpose}`,{probe:delProbe,before:await delProbe(),after:'delivered',retryable:true},async()=>ok(await id[purpose==='inventory'?'provision_production_account_inventory':'authorize_production_account_readers'](approval)));
+  const result=await checkpoint(`deliver:${purpose}`,{probe:delProbe,before:await delProbe(),after:'delivered',retryable:true,commit:r=>purpose==='inventory'?{inventoryApproval:receipt.approval,inventoryAcceptance:receipt.acceptance,phase:'inventory-delivered',provisionedRevision:r.toString()}:{phase:'protection-delivered',generation:r.toString()}},async()=>ok(await id[purpose==='inventory'?'provision_production_account_inventory':'authorize_production_account_readers'](approval)));
   if(purpose==='inventory'){await save({...receipt,inventoryApproval:receipt.approval,inventoryAcceptance:receipt.acceptance,phase:'inventory-delivered',provisionedRevision:result.toString()});
     await prepareUnsigned('protection');report('Signed original inventory committed and read back; fresh full-protection approval awaits owner signing.');return;}
   const state=ok(await id.read_production_account_authorization());if(state.generation!==result||state.approval.length!==1||canonical(plain(state.approval[0]))!==canonical(plain(approval)))throw Error('Signed protection readback mismatch');
