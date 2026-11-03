@@ -35,3 +35,11 @@ test('lifecycle count proves reload even when program bytes do not change',()=>{
   const p={version:2,before:{hash:'a',changes:'10'},after:{hash:'a',changes:'11'},commit:{reloaded:['x']}};
   assert.equal(outcome(p,{hash:'a',changes:'11'}),'committed');assert.equal(outcome(p,{hash:'a',changes:'12'}),'unknown');
 });
+test('readback uses the acknowledged request metadata persisted during submission',async()=>{
+  let receipt={phase:'ready',pending:null};
+  const journal=createProtectionJournal({load:async()=>receipt,save:async r=>{receipt=structuredClone(r);},probe:async p=>p.metadata.requestId==='abc'?{replied:true}:null});
+  await journal.checkpoint({kind:'subject:protection',before:null,after:{replied:true},commit:{phase:'subject-approved'}},async()=>{
+    receipt={...receipt,pending:{...receipt.pending,metadata:{requestId:'abc'}}};
+  });
+  assert.equal(receipt.phase,'subject-approved');assert.equal(receipt.pending,null);
+});
