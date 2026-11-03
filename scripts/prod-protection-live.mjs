@@ -19,6 +19,9 @@ import {openAccountSeed,accountPublicKey} from './prod-account-key-policy.mjs';
 import {reconcileDecision,activationTargets,assertProtectionContext,protectionEnvironment,verifyActivatedDraft,assertNoPending,PROTECTION_RECEIPT,APPROVAL_LIFETIME_NS,digest,requireProtectionExecutionReady} from './prod-protection-policy.mjs';
 import {attestDeployKey,verifyDeployKey} from '../frontend/scripts/media-key-deploy-rules.mjs';
 import {configuredMainnetPhotoKey} from '../frontend/scripts/media-key-mainnet.mjs';
+import {createProtectionJournal} from './prod-protection-journal.mjs';
+import {captureUpdate,verifyUpdate,readUpdateAcknowledgement} from './prod-protection-evidence.mjs';
+import {approvalBytes,recoveryBytes,verifySignature,validateReview,assertArtifactPlan} from './prod-protection-review.mjs';
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const hex=b=>Buffer.from(b).toString('hex');
@@ -28,7 +31,7 @@ let stage='startup';
 const ok=r=>{if(!r||'Err'in r)throw Error('Canister refused the commissioning step');return r.Ok;};
 function managementContract(IDL){const Env=IDL.Vec(IDL.Record({name:IDL.Text,value:IDL.Text}));return()=>IDL.Service({
   canister_status:IDL.Func([IDL.Record({canister_id:IDL.Principal})],[IDL.Record({module_hash:IDL.Opt(IDL.Vec(IDL.Nat8)),
-    settings:IDL.Record({controllers:IDL.Vec(IDL.Principal),environment_variables:Env})})],[]),
+    canister_version:IDL.Nat64,settings:IDL.Record({controllers:IDL.Vec(IDL.Principal),environment_variables:Env})})],[]),
   update_settings:IDL.Func([IDL.Record({canister_id:IDL.Principal,settings:IDL.Record({environment_variables:IDL.Opt(Env)})})],[],[]),
   clear_chunk_store:IDL.Func([IDL.Record({canister_id:IDL.Principal})],[],[]),
   upload_chunk:IDL.Func([IDL.Record({canister_id:IDL.Principal,chunk:IDL.Vec(IDL.Nat8)})],[IDL.Record({hash:IDL.Vec(IDL.Nat8)})],[]),
@@ -41,9 +44,10 @@ async function main(){
   requireProtectionExecutionReady();
   const env=process.env;assertProtectionContext(env);mkdirSync(env.CHECK_REPORT_DIR,{recursive:true});
   const job=env.PROTECTION_JOB;
-  if(!['prepare','account-inventory','recovery-inventory','deliver-inventory','account-protection','recovery-protection','deliver-protection'].includes(job))throw Error('Unknown commissioning job');
+  if(!['plan','prepare','account-inventory','recovery-inventory','deliver-inventory','account-protection','recovery-protection','deliver-protection'].includes(job))throw Error('Unknown commissioning job');
   const require=createRequire(path.join(env.CHECK_DEPS_DIR,'package.json'));
-  const {HttpAgent,Actor,CanisterStatus}=require('@icp-sdk/core/agent');
+  const agentSdk=require('@icp-sdk/core/agent');
+  const {HttpAgent,Actor,CanisterStatus}=agentSdk;
   const {IDL}=require('@icp-sdk/core/candid');const {Principal}=require('@icp-sdk/core/principal');
   const {Ed25519KeyIdentity}=require('@icp-sdk/core/identity');const {Secp256k1KeyIdentity}=require('@icp-sdk/core/identity/secp256k1');
   const ids=JSON.parse(readFileSync(path.join(ROOT,'deploy/prod/.icp/data/mappings/ic.ids.json'),'utf8'));
@@ -64,6 +68,7 @@ async function main(){
     if(identity.getPrincipal().toText()!==safeguard.pins[`${role}Principal`]||env.EXISTING_PRINCIPAL!==safeguard.pins[`${role}Principal`])throw Error('Signing principal mismatch');
     key=createPrivateKey({key:Buffer.concat([Buffer.from('302e020100300506032b657004220420','hex'),Buffer.from(seed,'hex')]),format:'der',type:'pkcs8'});
   }else{identity=identityFromPem(readFileSync(env.CHECK_KEY_PEM,'utf8'),{Ed25519KeyIdentity,Secp256k1KeyIdentity});assertCheckContext(ids,env,identity.getPrincipal().toText());}
+  const sdk={...agentSdk,IDL,Principal};
   const agent=await HttpAgent.create({host:'https://icp-api.io',identity});
   const pid=t=>Principal.fromText(t);
   const actor=(factory,id)=>Actor.createActor(factory,{agent,canisterId:id});
@@ -71,7 +76,7 @@ async function main(){
   const readPage=async()=>plain(ok(await router.read_group_registry_page('mainnet',[],[],64)));
   // Registry reads are caller-authenticated. Signing jobs use the exact saved
   // governor review; recovery acceptance itself repeats live participant checks.
-  const governorJob=job==='prepare'||job.startsWith('deliver-');
+  const governorJob=job==='plan'||job==='prepare'||job.startsWith('deliver-');
   const page=governorJob?await readPage():receipt?.page;
   const targets=activationTargets(ids,page,base,g2);
   const certified=async id=>{const s=await CanisterStatus.request({agent,canisterId:pid(id),paths:['controllers','module_hash','subnet']});const m=s.get('module_hash');
@@ -80,18 +85,6 @@ async function main(){
   const identityState=await certified(ids.identity_access);
   if(identityState.controllers.length!==1||identityState.controllers[0]!==safeguard.governor||identityState.subnet!==safeguard.subnet)throw Error('Exclusive identity controller and subnet required');
   const save=async r=>{receipt=r;await journal.save(r);writeFileSync(path.join(env.CHECK_REPORT_DIR,'activation-receipt.json'),evidenceText(r));};
-  // Intent records the exact observable before/after state; completion and its
-  // phase/progress fields commit in ONE acknowledged write. A retained intent is
-  // resolved only by a read-only probe matching before or after exactly.
-  const probes=new Map();
-  const checkpoint=async(kind,{probe,before,after,retryable=false,commit=()=>({})},call)=>{probes.set(kind,probe);
-    await save({...receipt,pending:{kind,before,after,retryable,at:new Date().toISOString()}});const value=await call();
-    const seen=await probe();if(JSON.stringify(seen)!==JSON.stringify(after))throw Error('Acknowledged step readback mismatch');
-    await save({...receipt,...commit(value),pending:null});return value;};
-  const resolvePending=async()=>{const p=receipt?.pending;if(!p)return;const probe=probes.get(p.kind)??probeFor(p.kind);
-    if(!probe)throw Error('Unresolved activation intent has no read-only probe; manual review required');
-    const d=reconcileDecision(p,await probe());if(d==='unknown')throw Error('Unresolved activation intent: live state matches neither before nor after');
-    await save({...receipt,...(d==='committed'?(p.commit??{}):{}),pending:null});report(`Retained intent ${p.kind} reconciled read-only as ${d}.`);};
   const report=text=>{console.log(text);if(env.GITHUB_STEP_SUMMARY)appendFileSync(env.GITHUB_STEP_SUMMARY,text+'\n');};
   const decode=(type,encoded)=>IDL.decode([type],Uint8Array.from(Buffer.from(encoded,'base64')))[0];
   const encode=(type,value)=>Buffer.from(IDL.encode([type],[value])).toString('base64');
@@ -99,30 +92,52 @@ async function main(){
   const status=async id=>mgmt(id).canister_status({canister_id:pid(id)});
   const assertClosed=async()=>{const live=await readPage();activationTargets(ids,live,base,g2);if(canonical(live.groups.map(g=>({id:g.id,domains:g.domains,accepting:g.accepting})))!==canonical(page.groups.map(g=>({id:g.id,domains:g.domains,accepting:g.accepting})))||live.revision!==page.revision)throw Error('Registry changed during commissioning');};
   const id=actor(contract.identity,ids.identity_access);
-  // Fresh-run probes for retained intents; each is read-only.
-  const probeFor=kind=>{const [k,target]=kind.split(':');
-    if(k==='settings')return async()=>canonical((await status(target)).settings.environment_variables);
-    if(k==='upgrade')return async()=>{const c=await certified(target);return {moduleHash:c.moduleHash,controllers:c.controllers,subnet:c.subnet};};
-    if(k==='authority')return async()=>(await actor(contract.infrastructure,target).read_account_removal_authority()).map(p=>p.toText());
-    if(k==='witness')return async()=>ok(await actor(contract.witness,safeguard.witness).read_recovery_head()).accepted.map(a=>canonical(plain(a)));
-    return null;};
-  stage='reconcile retained intent';await resolvePending();
+  const types=factory=>new Map(factory()._fields);
+  const identityTypes=types(contract.identity),witnessTypes=types(contract.witness);
+  const certifiedCall=async(canister,method,args=[])=>captureUpdate({identity,sdk,canister,method,
+    type:(canister===ids.identity_access?identityTypes:witnessTypes).get(method),args,runId:receipt.runId,purpose:receipt.purpose});
+  const readInventoryState=async()=>{const c=ok(await id.read_production_commissioning_evidence());
+    return {revision:c.history.revision.toString(),approval:c.inventory_approval.length?encode(contract.Approval,c.inventory_approval[0]):null};};
+  const probePending=async p=>{
+    const [kind,target]=p.kind.split(':');
+    if(kind==='settings')return canonical((await status(target)).settings.environment_variables);
+    if(kind==='upgrade'){
+      const c=await certified(target),v=(await status(target)).canister_version;
+      return {moduleHash:c.moduleHash,controllers:c.controllers,subnet:c.subnet,version:v.toString()};
+    }
+    if(kind==='authority')return (await actor(contract.infrastructure,target).read_account_removal_authority()).map(p=>p.toText());
+    if(kind==='inventory')return readInventoryState();
+    if(kind==='authorization'){const s=ok(await id.read_production_account_authorization());return {generation:s.generation.toString(),approval:s.approval.length?encode(contract.Approval,s.approval[0]):null};}
+    if(kind==='witness')return ok(await actor(contract.witness,safeguard.witness).read_recovery_head()).accepted.map(a=>encode(contract.SignedAcceptance,a));
+    if(kind==='subject'){
+      const ack=await readUpdateAcknowledgement({agent,sdk,request:p.metadata.request,type:witnessTypes.get('authorize_subject_removal_progress')});
+      return ack?{replied:true}:null;
+    }
+    throw Error('Retained intent lacks a bounded read-only probe');
+  };
+  const durable=createProtectionJournal({load:async()=>receipt,save,probe:probePending});
+  if(governorJob&&receipt?.pending)await durable.reconcile();else assertNoPending(receipt);
+  const checkpoint=async(kind,{before,after,commit={},retryable=false,metadata={}},call)=>durable.checkpoint({kind,before,after,commit,retryable,metadata},call);
   async function build(name){execFileSync('icp',['build',name],{cwd:path.join(ROOT,'deploy/prod'),env:{...env,...identityPinEnv(safeguard,ids)},stdio:['ignore','ignore','pipe']});
     return readFileSync(path.join(ROOT,'deploy/prod/.icp/cache/artifacts',name));}
   async function upgrade(target,wasm,keep){
     await assertClosed();const before=await certified(target.id);
     if(before.controllers.length!==1||before.controllers[0]!==safeguard.governor||before.subnet!==target.subnet)throw Error('Exclusive target controller and subnet required');
-    const modProbe=async()=>{const c=await certified(target.id);return {moduleHash:c.moduleHash,controllers:c.controllers,subnet:c.subnet};};
-    // Same-program reloads keep the hash; re-running an upgrade-only reload is
-    // idempotent, and identity's effective-configuration review is the final proof.
-    await checkpoint(`upgrade:${target.id}`,{probe:modProbe,before:await modProbe(),after:{moduleHash:hash(wasm),controllers:before.controllers,subnet:before.subnet},retryable:true},async()=>{const m=mgmt(target.id);await m.clear_chunk_store({canister_id:pid(target.id)});const chunks=[];
+    const prior=await status(target.id);
+    const beforeState={moduleHash:before.moduleHash,controllers:before.controllers,subnet:before.subnet,version:prior.canister_version.toString()};
+    const afterState={...beforeState,moduleHash:hash(wasm),version:(prior.canister_version+1n).toString()};
+    const progress=target.id===ids.identity_access?{identityUpgraded:true}:{reloaded:[...new Set([...receipt.reloaded,target.id])]};
+    await checkpoint(`upgrade:${target.id}`,{before:beforeState,after:afterState,retryable:true,commit:progress},async()=>{
+      const m=mgmt(target.id);await m.clear_chunk_store({canister_id:pid(target.id)});const chunks=[];
       for(let i=0;i<wasm.length;i+=1_000_000)chunks.push({hash:(await m.upload_chunk({canister_id:pid(target.id),chunk:wasm.subarray(i,i+1_000_000)})).hash});
       await m.install_chunked_code({mode:{upgrade:[{skip_pre_upgrade:[],wasm_memory_persistence:keep?[{keep:null}]:[]}]},target_canister:pid(target.id),store_canister:[],
         chunk_hashes_list:chunks,wasm_module_hash:Buffer.from(hash(wasm),'hex'),arg:Uint8Array.from(IDL.encode([],[])),sender_canister_version:[]});
-      const after=await certified(target.id);if(after.moduleHash!==hash(wasm)||canonical(after.controllers)!==canonical(before.controllers)||after.subnet!==before.subnet)throw Error('Upgrade readback mismatch');});
+    });
   }
   async function prepareUnsigned(purpose){
-    const revision=ok(await id.read_production_account_history_revision());
+    const proofs={};
+    const collect=async(method,args=[])=>{const r=await certifiedCall(ids.identity_access,method,args);proofs[method]=r.proof;return ok(r.value);};
+    const revision=await collect('read_production_account_history_revision');
     const latest=await readPage();const supplemental=latest.groups.flatMap(g=>g.photo_store.map(canister=>({group_id:g.id,domain:'media_blob_store',canister:pid(canister),subnet:pid(latest.placements.find(p=>p.group_id===g.id).primary_subnet)})));
     supplemental.push({group_id:'base',domain:'shard_router',canister:pid(ids.shard_router),subnet:pid(safeguard.subnet)});
     const media=[];for(const g of latest.groups){const club=g.domains.find(d=>d.domain==='club_domain').canister;
@@ -134,105 +149,172 @@ async function main(){
     const modules=[];for(const t of [...targets,{id:ids.identity_access,name:'identity_access',subnet:safeguard.subnet}]){const s=await certified(t.id);
       if(s.controllers.length!==1||s.controllers[0]!==safeguard.governor||s.subnet!==t.subnet||!s.moduleHash)throw Error('Live program binding mismatch');modules.push([pid(t.id),Buffer.from(s.moduleHash,'hex')]);}
     const expectation={identity:pid(ids.identity_access),inventory,modules};
-    const review=ok(await id[purpose==='inventory'?'review_production_account_inventory':'review_production_account_protection'](expectation,revision));
+    const reviewMethod=purpose==='inventory'?'review_production_account_inventory':'review_production_account_protection';
+    const review=await collect(reviewMethod,[expectation,revision]);
     verifyActivatedDraft(plain(review),targets,ids.identity_access);
-    const state=ok(await id.read_production_account_authorization());
+    const state=await collect('read_production_account_authorization');
+    const commissioning=await collect('read_production_commissioning_evidence');
     // Real gathered fence evidence, never synthesized: certified sole-controller,
     // program and subnet for every target, identity and witness; an empty decoded
     // identity removal history and an empty witness record ledger. Any non-empty
     // history requires a separately reviewed recovery and stops here.
-    const w=actor(contract.witness,safeguard.witness);const records=ok(await w.read_recovery_records(0n,200));const head=ok(await w.read_recovery_head());
-    if(revision!==0n||records.length||head.revision!==0n)throw Error('Existing removal history requires separately reviewed recovery evidence');
+    const witnessCollect=async(method,args=[])=>{const r=await certifiedCall(safeguard.witness,method,args);proofs[method]=r.proof;return ok(r.value);};
+    const records=await witnessCollect('read_recovery_records',[0n,200]);const head=await witnessCollect('read_recovery_head');
     const fencedState=[];for(const t of [...targets.map(t=>t.id),ids.identity_access]){const c=await certified(t);
       if(c.controllers.length!==1||c.controllers[0]!==safeguard.governor)throw Error('External controller fence not exclusive');fencedState.push({id:t,...c});}
     const ws=await certified(safeguard.witness);assertWitnessState(ws,safeguard,{installed:true});
     const fence={kind:'ignite-prod-fence-evidence-v1',governor:safeguard.governor,fencedState,witness:{id:safeguard.witness,...ws},
-      identityHistoryRevision:'0',witnessRecords:0,witnessEpoch:head.epoch.toString(),review:digest(plain(review))};
+      identityHistoryRevision:revision.toString(),identityHistory:plain(commissioning.history),witnessRecords:records.length,witnessEpoch:head.epoch.toString(),review:digest(plain(review))};
     const body={kind:`ignite-production-account-${purpose==='inventory'?'inventory':'protection'}-v1`,identity:pid(ids.identity_access),operator:pid(safeguard.governor),generation:state.generation+1n,
       expires_at_ns:BigInt(Date.now())*1_000_000n+APPROVAL_LIFETIME_NS,expectation,review,
       original_inventory_evidence:Buffer.from(digest({base,g2,inventory:plain(inventory)}),'hex'),runtime_evidence:Buffer.from(digest(plain(review)),'hex'),
-      fenced_recovery_evidence:Buffer.from(digest(fence),'hex'),recovery_epoch:1n};
-    // Fresh witness starts at epoch 1; recovery job checks exact live epoch/head,
-    // refusing renewal/recovery rather than manufacturing an acceptance.
-    const bytes=ok(await id.production_account_approval_signing_bytes(body));
-    await save({...receipt,phase:`${purpose}-reviewed`,purpose,fenceEvidence:fence,body:encode(contract.Body,body),signingBytes:Buffer.from(bytes).toString('base64'),historyRevision:revision.toString(),
-      identityChanges:ok(await id.read_production_account_runtime_version()).toString(),removalGeneration:ok(await id.read_production_account_removal_generation()).toString(),approval:null,acceptance:null});
+      fenced_recovery_evidence:Buffer.from(digest(fence),'hex'),recovery_epoch:head.epoch};
+    validateReview({body,review,commissioning,head,records,state,fence,base,g2,targets,identity:ids.identity_access,governor:safeguard.governor,purpose,plain});
+    const identityChanges=await collect('read_production_account_runtime_version');
+    const removalGeneration=await collect('read_production_account_removal_generation');
+    const witnessChanges=await witnessCollect('read_recovery_runtime_version');
+    await save({...receipt,phase:`${purpose}-reviewed`,purpose,fenceEvidence:fence,proofs,
+      body:encode(contract.Body,body),signingBytes:approvalBytes(IDL,contract.Body,body).toString('base64'),historyRevision:revision.toString(),
+      identityChanges:identityChanges.toString(),removalGeneration:removalGeneration.toString(),witnessChanges:witnessChanges.toString(),
+      approval:null,acceptance:null,subjectApproval:null});
   }
-  if(job==='prepare'){
-    if(receipt){if(receipt.phase==='inventory-reviewed'){report('Preparation already verified; no reload repeated.');return;}throw Error('Existing commissioning receipt requires reviewed continuation');}
-    if(identityState.moduleHash!==safeguard.identityModuleHash)throw Error('Identity differs from its recorded pinned program');
-    const controllers=[];const builds=new Map();const photoKeys={};
-    // Build/verify all 24 current programs before the first setting change.
-    for(const t of targets){const s=await certified(t.id);if(s.controllers.length!==1||s.controllers[0]!==safeguard.governor||s.subnet!==t.subnet)throw Error('Exclusive receiver controller and subnet required');controllers.push({id:t.id,...s});
-      if(t.human){if(!builds.has(t.name))builds.set(t.name,await build(t.name));if(hash(builds.get(t.name))!==s.moduleHash)throw Error('Receiver reload program differs from live program');
-        protectionEnvironment((await status(t.id)).settings.environment_variables,ids.identity_access);}}
+  if(job==='plan'||job==='prepare'){
+    const planSpec={...PROTECTION_RECEIPT,path:'prod-group-setup/protection-plan.json'};
+    const pins=identityPinEnv(safeguard,ids);
+    const builds=new Map(),controllers=[],photoKeys={};
+    for(const t of targets){const st=await certified(t.id);
+      if(st.controllers.length!==1||st.controllers[0]!==safeguard.governor||st.subnet!==t.subnet)throw Error('Exclusive receiver controller and subnet required');
+      controllers.push({id:t.id,...st});
+      if(t.human){if(!builds.has(t.name))builds.set(t.name,await build(t.name));if(hash(builds.get(t.name))!==st.moduleHash)throw Error('Receiver reload program differs from live program');}}
+    const identityWasm=await build('identity_access');
+    const plan={version:1,sourceCommit:env.GITHUB_SHA,identityModuleHash:hash(identityWasm),pins,
+      receivers:controllers,openingAuthorized:false,safeguardDigest:digest(safeguard)};
+    const planJournal=githubJournal(env,fetch,planSpec);
+    if(job==='plan'){
+      if(receipt)throw Error('Activation already started; use retained reviewed continuation');
+      await assertClosed();await planJournal.save(plan);
+      report(`Read-only artifact plan prepared: ${digest(plan)}. Review before starting preparation; no live setting or program changed.`);return;
+    }
+    const approvedPlan=await planJournal.load({readOnly:true});
+    assertArtifactPlan(approvedPlan,{sourceCommit:env.GITHUB_SHA,identityHash:hash(identityWasm),pins,receivers:controllers});
+    if(env.REVIEWED_PLAN_HASH!==digest(approvedPlan)||approvedPlan.safeguardDigest!==digest(safeguard))throw Error('Exact owner-reviewed artifact plan hash required');
+    if(receipt&&(receipt.sourceCommit!==env.GITHUB_SHA||receipt.safeguardDigest!==digest(safeguard)||receipt.planHash!==digest(approvedPlan)))throw Error('Retained activation plan changed');
+    if(receipt?.phase==='inventory-reviewed'){report('Preparation already verified; no reload repeated.');return;}
     for(const t of targets.filter(t=>t.name==='pii_access_control')){
       const binding={deploymentId:'prod',environment:'ic',host:'https://icp-api.io',canisterId:t.id,governor:safeguard.governor,keyName:'key_1'};
       const pii=actor(()=>IDL.Service({pii_vetkey_verification_key:IDL.Func([],[IDL.Vec(IDL.Nat8)],[])}),t.id);
-      await attestDeployKey(binding,{status:()=>certified(t.id),originalKey:async()=>hex(await pii.pii_vetkey_verification_key()),configuredKey:()=>configuredMainnetPhotoKey(binding),save:async r=>{photoKeys[t.id]=r;}});
+      if(receipt?.photoKeys?.[t.id])photoKeys[t.id]=receipt.photoKeys[t.id];
+      else await attestDeployKey(binding,{status:()=>certified(t.id),originalKey:async()=>hex(await pii.pii_vetkey_verification_key()),configuredKey:()=>configuredMainnetPhotoKey(binding),save:async r=>{photoKeys[t.id]=r;}});
     }
-    const identityWasm=await build('identity_access');
-    if(!identityWasm.includes(Buffer.from(safeguard.witness))||!identityWasm.includes(Buffer.from(safeguard.pins.accountPublicKey)))throw Error('Identity build lacks immutable pins');
-    await save({version:1,phase:'planned',pending:null,sourceCommit:env.GITHUB_SHA,safeguardDigest:digest(safeguard),page,targets,controllers,photoKeys,openingAuthorized:false,erasureAuthorized:false,reloaded:[],configured:[],identityModuleHash:hash(identityWasm)});
-    await upgrade({id:ids.identity_access,name:'identity_access',subnet:safeguard.subnet},identityWasm,false);
-    for(const t of targets){stage=`configure ${t.group}/${t.name}`;await assertClosed();
-      if(t.human){const s=await status(t.id);const merged=protectionEnvironment(s.settings.environment_variables,ids.identity_access);
-        const envProbe=async()=>canonical((await status(t.id)).settings.environment_variables);
-        await checkpoint(`settings:${t.id}`,{probe:envProbe,before:canonical(s.settings.environment_variables),after:canonical(merged),retryable:true},async()=>{await mgmt(t.id).update_settings({canister_id:pid(t.id),settings:{environment_variables:[merged]}});
-          if(canonical((await status(t.id)).settings.environment_variables)!==canonical(merged))throw Error('Protection setting readback mismatch');});
-        await upgrade(t,builds.get(t.name),true);
+    if(!receipt){if(identityState.moduleHash!==safeguard.identityModuleHash)throw Error('Identity differs from recorded pinned program');
+      await save({version:2,phase:'planned',pending:null,sourceCommit:env.GITHUB_SHA,planHash:digest(approvedPlan),runId:env.GITHUB_RUN_ID,purpose:'inventory',
+        safeguardDigest:digest(safeguard),page,targets,controllers,photoKeys,openingAuthorized:false,erasureAuthorized:false,reloaded:[],configured:[],identityModuleHash:hash(identityWasm),identityUpgraded:false});}
+    if(!receipt.identityUpgraded)await upgrade({id:ids.identity_access,name:'identity_access',subnet:safeguard.subnet},identityWasm,false);
+    for(const t of targets){
+      if(receipt.configured.includes(t.id))continue;
+      stage=`configure ${t.group}/${t.name}`;await assertClosed();
+      if(t.human){const st=await status(t.id),merged=protectionEnvironment(st.settings.environment_variables,ids.identity_access);
+        if(canonical(st.settings.environment_variables)!==canonical(merged))await checkpoint(`settings:${t.id}`,{before:canonical(st.settings.environment_variables),after:canonical(merged),retryable:true},async()=>mgmt(t.id).update_settings({canister_id:pid(t.id),settings:{environment_variables:[merged]}}));
+        if(!receipt.reloaded.includes(t.id))await upgrade(t,builds.get(t.name),true);
         if(t.name==='pii_access_control'){
-          const original=photoKeys[t.id];const binding={deploymentId:'prod',environment:'ic',host:'https://icp-api.io',canisterId:t.id,governor:safeguard.governor,keyName:'key_1'};
+          const binding={deploymentId:'prod',environment:'ic',host:'https://icp-api.io',canisterId:t.id,governor:safeguard.governor,keyName:'key_1'};
           const pii=actor(()=>IDL.Service({pii_vetkey_verification_key:IDL.Func([],[IDL.Vec(IDL.Nat8)],[])}),t.id);
-          await verifyDeployKey(binding,original,{status:()=>certified(t.id),originalKey:async()=>hex(await pii.pii_vetkey_verification_key()),configuredKey:()=>configuredMainnetPhotoKey(binding)});
+          await verifyDeployKey(binding,photoKeys[t.id],{status:()=>certified(t.id),originalKey:async()=>hex(await pii.pii_vetkey_verification_key()),configuredKey:()=>configuredMainnetPhotoKey(binding)});
         }
-        await save({...receipt,reloaded:[...new Set([...receipt.reloaded,t.id])]});
-      }else{const a=actor(contract.infrastructure,t.id);const existing=await a.read_account_removal_authority();
+      }else{const a=actor(contract.infrastructure,t.id),existing=await a.read_account_removal_authority();
         if(existing.length&&existing[0].toText()!==ids.identity_access)throw Error('Foreign infrastructure authority requires separate review');
-        const authProbe=async()=>(await a.read_account_removal_authority()).map(p=>p.toText());
-        if(!existing.length)await checkpoint(`authority:${t.id}`,{probe:authProbe,before:[],after:[ids.identity_access],retryable:true},async()=>{ok(await a.set_account_removal_authority(pid(ids.identity_access)));const r=await a.read_account_removal_authority();if(r.length!==1||r[0].toText()!==ids.identity_access)throw Error('Infrastructure authority readback mismatch');});}
-      await save({...receipt,configured:[...new Set([...receipt.configured,t.id])]});}
-    await assertClosed();await prepareUnsigned('inventory');report('All 28 effective modes verified by identity; first inventory approval awaits the account and recovery approvals. Groups closed.');return;
+        if(!existing.length)await checkpoint(`authority:${t.id}`,{before:[],after:[ids.identity_access],retryable:true,commit:{configured:[...new Set([...receipt.configured,t.id])]}},async()=>ok(await a.set_account_removal_authority(pid(ids.identity_access))));}
+      await save({...receipt,configured:[...new Set([...receipt.configured,t.id])]});
+    }
+    await assertClosed();await prepareUnsigned('inventory');report('All 28 effective modes reviewed; separate account and recovery signatures await owner approvals. Both groups remain closed.');return;
   }
   if(!receipt||receipt.sourceCommit!==env.GITHUB_SHA||receipt.safeguardDigest!==digest(safeguard)||identityState.moduleHash!==receipt.identityModuleHash)throw Error('Exact retained activation plan required');
   const purpose=job.endsWith('inventory')?'inventory':'protection';
+  const body=decode(contract.Body,receipt.body);
+  async function verifyEvidence(){
+    const checked=async(canister,method,args=[])=>verifyUpdate(receipt.proofs[method],{sdk,canister,method,
+      type:(canister===ids.identity_access?identityTypes:witnessTypes).get(method),args,runId:receipt.runId,purpose,governor:safeguard.governor});
+    const reviewMethod=purpose==='inventory'?'review_production_account_inventory':'review_production_account_protection';
+    const review=await checked(ids.identity_access,reviewMethod,[body.expectation,body.expectation.inventory.groups.history_revision]);
+    const commissioning=await checked(ids.identity_access,'read_production_commissioning_evidence');
+    const state=await checked(ids.identity_access,'read_production_account_authorization');
+    const records=await checked(safeguard.witness,'read_recovery_records',[0n,200]);
+    const head=await checked(safeguard.witness,'read_recovery_head');
+    const identityChanges=await checked(ids.identity_access,'read_production_account_runtime_version');
+    const removalGeneration=await checked(ids.identity_access,'read_production_account_removal_generation');
+    const witnessChanges=await checked(safeguard.witness,'read_recovery_runtime_version');
+    if(identityChanges.toString()!==receipt.identityChanges||removalGeneration.toString()!==receipt.removalGeneration||witnessChanges.toString()!==receipt.witnessChanges)throw Error('Certified lifecycle/history counters mismatch');
+    // Independent signer gathers certified controllers/modules/subnets again.
+    const fencedState=[];for(const t of [...targets.map(t=>t.id),ids.identity_access])fencedState.push({id:t,...await certified(t)});
+    const ws=await certified(safeguard.witness);assertWitnessState(ws,safeguard,{installed:true});
+    const fence={kind:'ignite-prod-fence-evidence-v1',governor:safeguard.governor,fencedState,witness:{id:safeguard.witness,...ws},
+      identityHistoryRevision:commissioning.history.revision.toString(),identityHistory:plain(commissioning.history),witnessRecords:records.length,witnessEpoch:head.epoch.toString(),review:digest(plain(review))};
+    validateReview({body,review,commissioning,head,records,state,fence,base,g2,targets,identity:ids.identity_access,governor:safeguard.governor,purpose,plain});
+    if(purpose==='protection'){
+      const inventory=commissioning.inventory_approval[0];
+      verifySignature(approvalBytes(IDL,contract.Body,inventory.body),inventory.signature,safeguard.pins.accountPublicKey);
+      if(encode(contract.Approval,inventory)!==receipt.inventoryApproval)throw Error('Certified original inventory receipt mismatch');
+    }
+    return {head,records,identityChanges,removalGeneration,witnessChanges};
+  }
   if(job.startsWith('account-')){
     if(receipt.phase!==`${purpose}-reviewed`)throw Error('Fresh effective review required before signing');
-    const body=decode(contract.Body,receipt.body);if(body.expires_at_ns<=BigInt(Date.now())*1_000_000n)throw Error('Commissioning approval expired');
-    verifyActivatedDraft(plain(body.review),targets,ids.identity_access);
-    const bytes=Buffer.from(receipt.signingBytes,'base64');
-    const canonicalBytes=Buffer.concat([Buffer.from('ignite:production-account-authorization:v1\0'),createHash('sha256').update(Buffer.from(IDL.encode([contract.Body],[body]))).digest()]);
-    if(!bytes.equals(canonicalBytes))throw Error('Canonical approval bytes mismatch');
-    const signature=sign(null,bytes,key);if(!verify(null,bytes,createPublicKey(key),signature))throw Error('Approval signature verification failed');
-    await save({...receipt,phase:`${purpose}-signed`,approval:encode(contract.Approval,{body,signature})});report(`Exact ${purpose} approval signed; no private key exported.`);return;
+    await verifyEvidence();const bytes=approvalBytes(IDL,contract.Body,body);
+    const signature=sign(null,bytes,key);verifySignature(bytes,signature,safeguard.pins.accountPublicKey);
+    await save({...receipt,phase:`${purpose}-signed`,approval:encode(contract.Approval,{body,signature})});report(`Exact independently verified ${purpose} review signed. No live writes.`);return;
   }
+  const approval=decode(contract.Approval,receipt.approval);
+  verifySignature(approvalBytes(IDL,contract.Body,approval.body),approval.signature,safeguard.pins.accountPublicKey);
   if(job.startsWith('recovery-')){
-    if(receipt.phase!==`${purpose}-signed`)throw Error('Exact account signature required before recovery acceptance');
-    const approval=decode(contract.Approval,receipt.approval);const w=actor(contract.witness,safeguard.witness);
-    const head=ok(await w.read_recovery_head());if(head.epoch!==approval.body.recovery_epoch||head.revision!==0n||head.digest.length!==32)throw Error('Fresh empty witness history required; recovery must be reviewed separately');
-    const records=ok(await w.read_recovery_records(0n,200));if(records.length)throw Error('Existing witness history requires separate reconciliation');
-    const acceptance={witness:pid(safeguard.witness),witness_version:ok(await w.read_recovery_runtime_version()),identity:pid(ids.identity_access),identity_version:BigInt(receipt.identityChanges),
-      epoch:head.epoch,journal_revision:head.revision,journal_digest:head.digest,inventory_digest:approval.body.original_inventory_evidence,decoded_history_digest:Buffer.from(digest(plain(records)),'hex'),
-      generation:approval.body.generation,signed_digest:createHash('sha256').update(Buffer.concat([Buffer.from(receipt.signingBytes,'base64'),Buffer.from(approval.signature)])).digest(),expires_at_ns:approval.body.expires_at_ns,
-      history_revision:BigInt(receipt.historyRevision),removal_generation:BigInt(receipt.removalGeneration),participants:approval.body.review.lifecycle.map(l=>({canister:l.canister,module:l.module_hash,changes:l.changes}))};
-    const signature=sign(null,Buffer.from(ok(await w.recovery_acceptance_signing_bytes(acceptance))),key);
-    const signed=canonical(plain({body:acceptance,signature}));
-    const accProbe=async()=>ok(await w.read_recovery_head()).accepted.map(a=>canonical(plain(a)));
-    await checkpoint(`witness:${purpose}`,{probe:accProbe,before:[],after:[signed],retryable:true,commit:()=>purpose==='inventory'?{phase:'inventory-witness-accepted',acceptance:encode(contract.SignedAcceptance,{body:acceptance,signature})}:{acceptance:encode(contract.SignedAcceptance,{body:acceptance,signature})}},async()=>{ok(await w.accept_recovery_fence({body:acceptance,signature}));const read=ok(await w.read_recovery_head());
-      if(read.accepted.length!==1||canonical(plain(read.accepted[0]))!==canonical(plain({body:acceptance,signature})))throw Error('Independent witness acceptance readback mismatch');});
-    // No read-only probe distinguishes this step's outcome: an interrupted
-    // attempt stays unknown and stops for manual review rather than replaying.
-    if(purpose==='protection')await checkpoint('subject progress policy',{probe:async()=>({unobservable:true}),before:null,after:{unobservable:true}},async()=>{const sig=sign(null,Buffer.from(ok(await w.subject_progress_approval_signing_bytes(acceptance))),key);ok(await w.authorize_subject_removal_progress({body:acceptance,signature:sig}));});
-    await save({...receipt,phase:`${purpose}-witness-accepted`,acceptance:encode(contract.SignedAcceptance,{body:acceptance,signature})});report(`Independent ${purpose} acceptance stored and read back; groups not opened.`);return;
+    if(receipt.phase!==`${purpose}-signed`)throw Error('Exact account signature required');
+    const e=await verifyEvidence();
+    const acceptance={witness:pid(safeguard.witness),witness_version:e.witnessChanges,identity:pid(ids.identity_access),identity_version:e.identityChanges,
+      epoch:e.head.epoch,journal_revision:e.head.revision,journal_digest:e.head.digest,inventory_digest:approval.body.original_inventory_evidence,
+      decoded_history_digest:Buffer.from(digest({identityHistory:receipt.fenceEvidence.identityHistory,witnessRecords:plain(e.records)}),'hex'),
+      generation:approval.body.generation,signed_digest:createHash('sha256').update(Buffer.concat([approvalBytes(IDL,contract.Body,approval.body),Buffer.from(approval.signature)])).digest(),
+      expires_at_ns:approval.body.expires_at_ns,history_revision:BigInt(receipt.historyRevision),removal_generation:e.removalGeneration,
+      participants:approval.body.review.lifecycle.map(l=>({canister:l.canister,module:l.module_hash,changes:l.changes}))};
+    const signature=sign(null,recoveryBytes(IDL,contract.Acceptance,acceptance),key);
+    const subjectSignature=purpose==='protection'?sign(null,recoveryBytes(IDL,contract.Acceptance,acceptance,true),key):null;
+    await save({...receipt,phase:`${purpose}-recovery-signed`,acceptance:encode(contract.SignedAcceptance,{body:acceptance,signature}),
+      subjectApproval:subjectSignature?encode(contract.SignedAcceptance,{body:acceptance,signature:subjectSignature}):null});
+    report(`Independent ${purpose} acceptance signed offline; governor delivery awaits its own owner approval.`);return;
   }
-  if(receipt.phase!==`${purpose}-witness-accepted`)throw Error('Independent witness acceptance required before delivery');
-  await assertClosed();const approval=decode(contract.Approval,receipt.approval);
-  stage=`deliver signed ${purpose} approval`;
-  const delProbe=async()=>{const st=ok(await id.read_production_account_authorization());return st.approval.length===1&&canonical(plain(st.approval[0]))===canonical(plain(approval))?'delivered':`generation:${st.generation}`;};
-  const result=await checkpoint(`deliver:${purpose}`,{probe:delProbe,before:await delProbe(),after:'delivered',retryable:true,commit:r=>purpose==='inventory'?{inventoryApproval:receipt.approval,inventoryAcceptance:receipt.acceptance,phase:'inventory-delivered',provisionedRevision:r.toString()}:{phase:'protection-delivered',generation:r.toString()}},async()=>ok(await id[purpose==='inventory'?'provision_production_account_inventory':'authorize_production_account_readers'](approval)));
-  if(purpose==='inventory'){await save({...receipt,inventoryApproval:receipt.approval,inventoryAcceptance:receipt.acceptance,phase:'inventory-delivered',provisionedRevision:result.toString()});
-    await prepareUnsigned('protection');report('Signed original inventory committed and read back; fresh full-protection approval awaits owner signing.');return;}
-  const state=ok(await id.read_production_account_authorization());if(state.generation!==result||state.approval.length!==1||canonical(plain(state.approval[0]))!==canonical(plain(approval)))throw Error('Signed protection readback mismatch');
+  const completed=purpose==='inventory'?'inventory-delivered':'protection-delivered';
+  const w=actor(contract.witness,safeguard.witness),acceptance=decode(contract.SignedAcceptance,receipt.acceptance);
+  verifySignature(recoveryBytes(IDL,contract.Acceptance,acceptance.body),acceptance.signature,safeguard.pins.recoveryPublicKey);
+  if(receipt.phase!==completed&&receipt.phase!=='verified'){
+    if(![`${purpose}-recovery-signed`,`${purpose}-witness-accepted`,`${purpose}-subject-accepted`].includes(receipt.phase))throw Error('Independent recovery signature required');
+    await assertClosed();await verifyEvidence();
+    if(receipt.phase===`${purpose}-recovery-signed`){
+      const before=(ok(await w.read_recovery_head())).accepted.map(a=>encode(contract.SignedAcceptance,a));
+      const after=[receipt.acceptance];
+      if(canonical(before)!==canonical(after))await checkpoint(`witness:${purpose}`,{before,after,commit:{phase:`${purpose}-witness-accepted`},retryable:true},async()=>ok(await w.accept_recovery_fence(acceptance)));
+      else await save({...receipt,phase:`${purpose}-witness-accepted`});
+    }
+    if(purpose==='protection'&&receipt.phase==='protection-witness-accepted'){
+      const subject=decode(contract.SignedAcceptance,receipt.subjectApproval);
+      verifySignature(recoveryBytes(IDL,contract.Acceptance,subject.body,true),subject.signature,safeguard.pins.recoveryPublicKey);
+      if(canonical(plain(subject.body))!==canonical(plain(acceptance.body)))throw Error('Subject policy differs from recovery acceptance');
+      await checkpoint('subject:protection',{before:null,after:{replied:true},commit:{phase:'protection-subject-accepted'},metadata:{}},async()=>{
+        const result=await certifiedCallWithIntent(safeguard.witness,'authorize_subject_removal_progress',[subject]);ok(result.value);
+      });
+    }
+    if(purpose==='inventory'){
+      const before=await readInventoryState(),revision=(BigInt(receipt.historyRevision)+1n).toString();
+      await checkpoint('inventory:inventory',{before,after:{revision,approval:receipt.approval},commit:{inventoryApproval:receipt.approval,inventoryAcceptance:receipt.acceptance,provisionedRevision:revision,phase:completed},retryable:true},async()=>ok(await id.provision_production_account_inventory(approval)));
+    }else{
+      const current=ok(await id.read_production_account_authorization());
+      const before={generation:current.generation.toString(),approval:current.approval.length?encode(contract.Approval,current.approval[0]):null};
+      await checkpoint('authorization:protection',{before,after:{generation:approval.body.generation.toString(),approval:receipt.approval},commit:{phase:completed,generation:approval.body.generation.toString()},retryable:true},async()=>ok(await id.authorize_production_account_readers(approval)));
+    }
+  }
+  if(purpose==='inventory'){
+    await save({...receipt,purpose:'protection',runId:env.GITHUB_RUN_ID});await prepareUnsigned('protection');report('Exact signed inventory read back; new history revision used for full protection approval.');return;
+  }
+  const result=BigInt(receipt.generation);
+  async function certifiedCallWithIntent(canister,method,args){return captureUpdate({identity,sdk,canister,method,args,type:witnessTypes.get(method),runId:receipt.runId,purpose,
+    onRequest:async request=>save({...receipt,pending:{...receipt.pending,metadata:{request}}})});}
   stage='fresh effective readback of every service and witness';
   const effective=ok(await id.read_active_production_account_protection());verifyActivatedDraft(plain(effective),targets,ids.identity_access);await assertClosed();
   const rows=targets.map(t=>({...t,configuration:plain(effective.configurations.find(c=>c.receiver.toText()===t.id)),result:'EFFECTIVE_CONFIGURATION_AND_LIVE_WITNESS_VERIFIED'}));
