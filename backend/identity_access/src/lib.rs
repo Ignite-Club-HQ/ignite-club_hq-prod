@@ -1472,6 +1472,10 @@ async fn read_production_account_runtime_version()->Outcome<u64> {
     let caller=ic_cdk::api::msg_caller();require_governor(&state(),caller)?;
     let changes=recovery_lifecycle::current_changes().await?;require_governor(&state(),caller)?;Ok(changes)
 }
+#[ic_cdk::query]
+fn production_account_approval_encoding(body:production_account_authorization::ApprovalBody)->Outcome<Vec<u8>> {
+    production_account_authorization::encoding(&body)
+}
 #[ic_cdk::update]
 fn production_account_approval_signing_bytes(body:production_account_authorization::ApprovalBody)->Outcome<Vec<u8>> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;production_account_authorization::signing_bytes(&body)

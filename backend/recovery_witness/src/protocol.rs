@@ -86,6 +86,11 @@ pub fn close(head:&Head)->Outcome<Head> {
     Ok(Head {epoch:head.epoch.checked_add(1).ok_or("Recovery epoch exhausted")?, accepted:None,..head.clone()})
 }
 pub fn signing_bytes(b: &Acceptance)->Outcome<Vec<u8>> {
+    let mut result=b"ignite:independent-recovery-acceptance:lifecycle-v2\0".to_vec();
+    result.extend(Sha256::digest(encoding(b)?)); Ok(result)
+}
+// Exact Rust Candid bytes; type tables are not canonical across encoders.
+pub fn encoding(b: &Acceptance)->Outcome<Vec<u8>> {
     if b.participants.len()<2 || b.participants.len()>MAX_TARGETS+1 ||
         b.participants.iter().any(|p|!principal_ok(p.canister)) ||
         b.participants.iter().map(|p|p.canister).collect::<BTreeSet<_>>().len()!=b.participants.len() ||
@@ -94,8 +99,7 @@ pub fn signing_bytes(b: &Acceptance)->Outcome<Vec<u8>> {
         b.journal_digest.len()!=32 || !principal_ok(b.identity) || !principal_ok(b.witness) ||
         b.identity==b.witness || b.participants.iter().any(|p|p.canister==b.witness) ||
         b.witness_version==0 || !b.participants.iter().any(|p|p.canister==b.identity && p.changes==b.identity_version) {return Err("Exact bounded independent recovery scope required".into());}
-    let mut result=b"ignite:independent-recovery-acceptance:lifecycle-v2\0".to_vec();
-    result.extend(Sha256::digest(candid::encode_one(b).map_err(|_|"Invalid recovery acceptance")?)); Ok(result)
+    candid::encode_one(b).map_err(|_|"Invalid recovery acceptance".into())
 }
 pub fn accept(head:&Head,a:&SignedAcceptance,witness:Principal,version:u64,now:u64,key:&VerifyingKey)->Outcome<Head> {
     let b=&a.body; let bytes=signing_bytes(b)?;

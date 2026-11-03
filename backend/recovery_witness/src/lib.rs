@@ -57,6 +57,8 @@ fn post_upgrade(){ARMED_VERSION.with(|v|v.borrow_mut().set(0));ACCOUNT_ARMED_VER
 fn read_recovery_head()->Outcome<Head> {require_governor()?;Ok(head())}
 #[ic_cdk::update]
 async fn read_recovery_runtime_version()->Outcome<u64> {require_governor()?;let changes=recovery_lifecycle::current_changes().await?;require_governor()?;Ok(changes)}
+#[ic_cdk::query]
+fn recovery_acceptance_encoding(body:Acceptance)->Outcome<Vec<u8>> {protocol::encoding(&body)}
 #[ic_cdk::update]
 fn recovery_acceptance_signing_bytes(body:Acceptance)->Outcome<Vec<u8>> {require_governor()?;signing_bytes(&body)}
 #[ic_cdk::update]
