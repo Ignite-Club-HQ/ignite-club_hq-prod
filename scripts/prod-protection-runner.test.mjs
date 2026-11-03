@@ -46,3 +46,16 @@ test('fresh verification refuses disarmed subject protection despite retained gl
   const f=commissioningFixture();await through(f);f.disarmSubjects();
   await assert.rejects(run(f,'deliver-protection'),/Canister refused/);assert.equal(f.counters.authorization,1);
 });
+test('fresh runtime invocation resumes every completed signing stage without replacing later proofs',async()=>{
+  const f=commissioningFixture();await run(f,'plan');
+  for(const job of JOBS.slice(0,-1)){
+    await run(f,job);const before=JSON.stringify(f.receipt());
+    await run(f,job);assert.equal(JSON.stringify(f.receipt()),before,job);
+  }
+  await run(f,'deliver-protection');assert.equal(f.receipt().phase,'verified');assert.equal(f.counters.authorization,1);
+});
+test('process loss after authorization commit resumes final check and leaves approval single-submitted',async()=>{
+  const f=commissioningFixture();await through(f,'recovery-protection');f.crashAfter('protection-delivered');
+  await assert.rejects(run(f,'deliver-protection'),/process lost/);assert.equal(f.receipt().phase,'protection-delivered');
+  await run(f,'deliver-protection');assert.equal(f.receipt().phase,'verified');assert.equal(f.counters.authorization,1);
+});
