@@ -126,10 +126,23 @@ export function setAuthMethodChoice(provider: BackendProvider | null): void {
   try {
     if (provider === null) localStorage.removeItem(AUTH_CHOICE_KEY);
     else localStorage.setItem(AUTH_CHOICE_KEY, provider);
+    // Only the sign-in screen calls this, so nobody is signed in. A leftover
+    // email session on the device would otherwise outrank the tap
+    // (isSignedInWithEmail) and the secure tab would appear to do nothing.
+    if (provider === "icp") clearStoredSupabaseSession();
   } catch {
     /* storage unavailable — the screen still renders, routing decides */
   }
   notifyAuthChoiceChanged();
+}
+
+function clearStoredSupabaseSession(): void {
+  const stale: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("sb-") && k.endsWith("-auth-token")) stale.push(k);
+  }
+  for (const k of stale) localStorage.removeItem(k);
 }
 
 function hasSupabaseSessionStored(): boolean {
