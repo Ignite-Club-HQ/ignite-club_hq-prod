@@ -56,7 +56,11 @@ export async function verifyUpdate(proof,{sdk,canister,method,type,args,runId,pu
   if(hex(requestId)!==proof.requestId)throw Error('Commissioning request ID mismatch');
   // Never fetch or accept a root key from the receipt, caller or remote host.
   const rootKey=HttpAgent.createSync({host:'https://icp-api.io'}).rootKey;
-  const certificate=await Certificate.create({certificate:bytes(proof.certificate),rootKey,principal:{canisterId:Principal.fromText(canister)},maxAgeInMinutes:30});
+  // Retained request-bound certificates share the 24-hour signed-approval
+  // window. Signers still re-read live module/controller/subnet fences; delivery
+  // repeats that verification and the canisters validate current lifecycle and
+  // expiry. No unbounded historical certificate or time-verification bypass.
+  const certificate=await Certificate.create({certificate:bytes(proof.certificate),rootKey,principal:{canisterId:Principal.fromText(canister)},maxAgeInMinutes:24*60});
   const path=['request_status',requestId];
   const status=lookupResultToBuffer(certificate.lookup_path([...path,'status']));
   const reply=lookupResultToBuffer(certificate.lookup_path([...path,'reply']));

@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {generateKeyPairSync,sign} from 'node:crypto';
-import {assertEmptyHistory,verifySignature,assertArtifactPlan,jobTransition} from './prod-protection-review.mjs';
+import {assertEmptyHistory,verifySignature,assertArtifactPlan,assertReviewedReceivers,jobTransition} from './prod-protection-review.mjs';
 test('history revision may advance for inventory provisioning but no removal row is ignored',()=>{
   const h={revision:'8',principal_denials:'0',erased_accounts:'0',pending_intents:'0',removal_barriers:'0',removal_subjects:'0',removal_receipts:'0',removal_completions:'0'};
   assert.doesNotThrow(()=>assertEmptyHistory(h,'8'));
@@ -23,4 +23,11 @@ test('rerunning predecessor jobs never overwrites later signatures or reviews',(
   for(const job of ['prepare','account-inventory','recovery-inventory','deliver-inventory'])assert.equal(jobTransition(job,r),'done');
   assert.equal(jobTransition('account-protection',r),'run');assert.equal(jobTransition('recovery-protection',r),'reject');
   assert.equal(jobTransition('account-inventory',{phase:'inventory-reviewed',purpose:'protection'}),'reject');
+});
+test('independent signers refuse receiver program or inventory drift from the reviewed plan',()=>{
+  const targets=[{id:'r',subnet:'s'}],receiver={id:'r',subnet:'s',moduleHash:'a',controllers:['g']},plan={receivers:[receiver]};
+  assertReviewedReceivers(plan,targets,[receiver]);
+  for(const field of ['moduleHash','subnet','controllers'])assert.throws(()=>assertReviewedReceivers(plan,targets,[{...receiver,[field]:field==='controllers'?['other']:'other'}]));
+  assert.throws(()=>assertReviewedReceivers(plan,targets,[]));
+  assert.throws(()=>assertReviewedReceivers({receivers:[]},targets,[receiver]));
 });

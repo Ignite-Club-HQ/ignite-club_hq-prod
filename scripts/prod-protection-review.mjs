@@ -1,6 +1,6 @@
 import {createPublicKey,verify,createHash} from 'node:crypto';
 import {canonical} from './prod-base-group-policy.mjs';
-import {digest,verifyActivatedDraft} from './prod-protection-policy.mjs';
+import {digest,verifyActivatedDraft,APPROVAL_LIFETIME_NS} from './prod-protection-policy.mjs';
 const hex=b=>Buffer.from(b).toString('hex');
 export function approvalBytes(IDL,type,body) {
   return Buffer.concat([Buffer.from('ignite:production-account-authorization:v1\0'),createHash('sha256').update(Buffer.from(IDL.encode([type],[body]))).digest()]);
@@ -22,6 +22,7 @@ export function validateReview({body,review,commissioning,head,records,state,fen
   if(b.identity!==identity||b.operator!==governor||b.kind!==`ignite-production-account-${purpose==='inventory'?'inventory':'protection'}-v1`||
     canonical(b.review)!==canonical(plain(review))||canonical(b.expectation.inventory)!==canonical(b.review.inventory)||
     BigInt(body.generation)!==BigInt(state.generation)+1n||BigInt(body.expires_at_ns)<=BigInt(Date.now())*1_000_000n||
+    BigInt(body.expires_at_ns)>BigInt(Date.now())*1_000_000n+APPROVAL_LIFETIME_NS||
     String(body.recovery_epoch)!==String(head.epoch))throw Error('Complete commissioning body differs from certified evidence');
   assertEmptyHistory(commissioning.history,body.expectation.inventory.groups.history_revision);
   if(records.length||String(head.revision)!=='0')throw Error('Non-empty witness history requires separate review');
@@ -57,4 +58,15 @@ export function assertArtifactPlan(plan,{sourceCommit,identityHash,pins,receiver
   if(plan?.version!==1||plan.sourceCommit!==sourceCommit||plan.identityModuleHash!==identityHash||
      canonical(plan.pins)!==canonical(pins)||canonical(plan.receivers)!==canonical(receivers)||plan.openingAuthorized!==false)
     throw Error('Reviewed immutable commissioning artifact plan required');
+}
+export function assertReviewedReceivers(plan,targets,observed) {
+  const ids=targets.map(t=>t.id).sort();
+  if(canonical(plan?.receivers?.map(t=>t.id).sort())!==canonical(ids)||
+     canonical(observed.filter(t=>ids.includes(t.id)).map(t=>t.id).sort())!==canonical(ids))throw Error('Exact reviewed receiver inventory required');
+  for(const target of targets){
+    const approved=plan.receivers.find(t=>t.id===target.id),current=observed.find(t=>t.id===target.id);
+    if(!approved||!current||approved.moduleHash!==current.moduleHash||approved.subnet!==current.subnet||
+       approved.subnet!==target.subnet||canonical(approved.controllers)!==canonical(current.controllers))
+      throw Error('Receiver differs from owner-reviewed artifact plan');
+  }
 }

@@ -21,7 +21,7 @@ import {attestDeployKey,verifyDeployKey} from '../frontend/scripts/media-key-dep
 import {configuredMainnetPhotoKey} from '../frontend/scripts/media-key-mainnet.mjs';
 import {createProtectionJournal} from './prod-protection-journal.mjs';
 import {captureUpdate,verifyUpdate,readUpdateAcknowledgement} from './prod-protection-evidence.mjs';
-import {approvalBytes,recoveryBytes,verifySignature,validateReview,assertArtifactPlan,jobTransition} from './prod-protection-review.mjs';
+import {approvalBytes,recoveryBytes,verifySignature,validateReview,assertArtifactPlan,assertReviewedReceivers,jobTransition} from './prod-protection-review.mjs';
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const hex=b=>Buffer.from(b).toString('hex');
@@ -266,6 +266,7 @@ async function main(){
     if(identityChanges.toString()!==receipt.identityChanges||removalGeneration.toString()!==receipt.removalGeneration||witnessChanges.toString()!==receipt.witnessChanges)throw Error('Certified lifecycle/history counters mismatch');
     // Independent signer gathers certified controllers/modules/subnets again.
     const fencedState=[];for(const t of [...targets.map(t=>t.id),ids.identity_access])fencedState.push({id:t,...await certified(t)});
+    assertReviewedReceivers(approvedPlan,targets,fencedState);
     const ws=await certified(safeguard.witness);assertWitnessState(ws,safeguard,{installed:true});
     const fence={kind:'ignite-prod-fence-evidence-v1',governor:safeguard.governor,fencedState,witness:{id:safeguard.witness,...ws},
       planHash:receipt.planHash,identityHistoryRevision:commissioning.history.revision.toString(),identityHistory:plain(commissioning.history),witnessRecords:records.length,witnessEpoch:head.epoch.toString(),review:digest(plain(review))};
