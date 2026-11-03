@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — fix historical release blockers (3 Nov 2026, 10:59 UTC)
+- [x] Owner asked for recommendation at 11:06 UTC: recommend retaining current pinned PROD account service and reviewing compatibility with Oct30 domain services first; not an exact DEV copy, no deployment authorized by recommendation.
 - [x] GitHub now exposes the exact-commit copy input; dispatched read-only historical copy plan via existing workflow.
 - [x] Added/tested complete PROD base/g2 target planner: 31 targets, 18 types, shared services once; pinned base + acknowledged g2 + complete closed live registry required. Live executor integration still held.
 - [ ] Resolve exact historical identity versus retained safeguard-binding conflict without silently removing protections; owner decision needed if these requirements cannot coexist.
