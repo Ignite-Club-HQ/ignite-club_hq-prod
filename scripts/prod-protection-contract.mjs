@@ -36,6 +36,7 @@ export function protectionContract(IDL) {
       review_production_account_inventory:func([Expectation,N],Draft),review_production_account_protection:func([Expectation,N],Draft),
       read_active_production_account_protection:func([],Draft),
       read_production_commissioning_evidence:func([],Commissioning),
+      read_production_receiver_lifecycle:func([P],Lifecycle),
       production_account_approval_signing_bytes:func([Body],B),provision_production_account_inventory:func([Approval],N),
       authorize_production_account_readers:func([Approval],N),read_production_account_authorization:func([],State),
       read_production_account_history_revision:func([],N),read_production_account_removal_generation:func([],N),read_production_account_runtime_version:func([],N),

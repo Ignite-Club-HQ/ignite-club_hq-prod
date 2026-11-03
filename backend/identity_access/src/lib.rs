@@ -1429,6 +1429,15 @@ struct ProductionCommissioningEvidence {
     history:RemovalHistoryManifest,
     inventory_approval:Option<production_account_authorization::SignedApproval>,
 }
+/// Governor-only management lifecycle read; no control mutation or user data.
+#[ic_cdk::update]
+async fn read_production_receiver_lifecycle(target:Principal)->Outcome<production_account_protection::Lifecycle> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    let info=ic_cdk::management_canister::canister_info(&ic_cdk::management_canister::CanisterInfoArgs {
+        canister_id:target,num_requested_changes:Some(0)}).await.map_err(|_|"Receiver lifecycle unavailable")?;
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    Ok(production_account_protection::Lifecycle {canister:target,module_hash:info.module_hash.ok_or("Receiver program missing")?,changes:info.total_num_changes})
+}
 /// Fresh governor-only commissioning readback; stored approval alone is not
 /// effectiveness. Authenticate all receiver modes and the independent witness.
 #[ic_cdk::update]
