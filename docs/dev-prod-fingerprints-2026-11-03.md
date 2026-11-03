@@ -36,3 +36,8 @@ Updated on DEV after that record, commit not yet identified: identity_access, cl
 | g1 | media_blob_store | 8fe9fc10f1f58a9d | yes | 30bc666943015be7 |
 | g2 | media_blob_store | 8fe9fc10f1f58a9d | yes | 30bc666943015be7 |
 | shared | shard_router | 1b8faa490cebe49c | yes | 7f86c1425f759802 |
+
+## Update 3 Nov ~09:46 UTC — DEV's newer version found
+- GitHub history shows the last real DEV update was run 40980031534 (30 Oct 00:29 UTC) from commit d321e85b, scope `private_club_name_display`, 5 targets. No other workflow installed DEV service code since.
+- Run 41609390535 (3 Nov) then moved the account service (identity_access) back to the 29 Oct build before the club service refused; DEV is currently mixed.
+- Branch `dev-current-2026-10-30` created at d321e85b; read-only full check dispatched: run 41613731061.
