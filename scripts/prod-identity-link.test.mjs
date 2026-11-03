@@ -10,9 +10,10 @@ import { G2_SERVICES, CONFIGURATION_RECIPE } from './prod-g2-create-policy.mjs';
 import { buildG2RegistrationPlan } from './prod-g2-register-policy.mjs';
 import {
   assertIdentityLinkContext, buildIdentityLinkPlan, assertReviewedIdentityLinkPlan, linkAccountService,
-  reconcileIdentityLinkReadback, mergeEnvironment, bindingMatchesRows, assertIdentityLinkReadback,
-  IDENTITY_LINK_CONFIRMATION, IDENTITY_LINK_READBACK_CONFIRMATION, IDENTITY_LINK_RECEIPT_PATH,
-  BOUND_DELETION_RELEASE_ENV, REHEARSAL_ENV,
+  reconcileIdentityLinkReadback, restoreBoundDeletionRelease, mergeEnvironment, bindingMatchesRows,
+  assertIdentityLinkReadback,
+  IDENTITY_LINK_CONFIRMATION, IDENTITY_LINK_READBACK_CONFIRMATION, IDENTITY_LINK_RESTORE_CONFIRMATION,
+  IDENTITY_LINK_RECEIPT_PATH, BOUND_DELETION_RELEASE_ENV, REHEARSAL_ENV,
 } from './prod-identity-link-policy.mjs';
 import { identityLinkFailureReason, saveIdentityLinkFailure } from './prod-identity-link.mjs';
 
@@ -69,6 +70,9 @@ test('link context refuses DEV branches, DEV inventories and unconfirmed lifecyc
   assert.throws(() => assertIdentityLinkContext(ids, env, principal, 'reconcile-readback'), /confirmation/);
   assertIdentityLinkContext(ids, { ...env, CONFIRMATION: IDENTITY_LINK_READBACK_CONFIRMATION },
     principal, 'reconcile-readback');
+  assert.throws(() => assertIdentityLinkContext(ids, env, principal, 'restore-release'), /confirmation/);
+  assertIdentityLinkContext(ids, { ...env, CONFIRMATION: IDENTITY_LINK_RESTORE_CONFIRMATION },
+    principal, 'restore-release');
 });
 
 test('the reviewed plan pins the PROD router at its live revision and authorizes nothing else', () => {
@@ -211,6 +215,57 @@ test('an interrupted run replays nothing, and reconciliation completes only the 
   assert.deepEqual(await reconcileIdentityLinkReadback({ receipt: finished, expectedHash: hashPlan(plan),
     readState: async () => { throw new Error('must not read'); }, checkpoint: async () => {} }),
   { completed: true, verified: { linked: true } });
+});
+
+test('release restore re-applies only the reviewed variable and re-verifies the whole link', async () => {
+  const plan = build();
+  const linked = { version: 1, phase: 'linked', pending: null, planHash: hashPlan(plan), plan,
+    verified: { linked: true } };
+  const state = { env: [{ name: 'GOVERNOR_PRINCIPAL', value: principal }], writes: [] };
+  const checkpoints = [];
+  const deps = () => ({ expectedHash: hashPlan(plan),
+    readState: async p => ({ routerConfig: [['deletion_authority', p.identityAccess]],
+      identityConfig: pinned(p), identityEnv: state.env, page: page() }),
+    setEnvironment: async p => { state.writes.push('environment');
+      state.env = mergeEnvironment(state.env, [p.environment]); },
+    checkpoint: async receipt => checkpoints.push(receipt.pending ?? receipt.phase) });
+
+  const result = await restoreBoundDeletionRelease({ receipt: linked, ...deps() });
+  assert.equal(result.restored, true);
+  assert.equal(result.verified.linked, true);
+  assert.deepEqual(state.writes, ['environment']);
+  assert.deepEqual(state.env, [{ name: 'GOVERNOR_PRINCIPAL', value: principal },
+    { name: BOUND_DELETION_RELEASE_ENV, value: '1' }]);
+  assert.deepEqual(checkpoints, ['deletion-release-restore', 'linked']);
+
+  const again = await restoreBoundDeletionRelease({ receipt: linked, ...deps() });
+  assert.equal(again.restored, false);
+  assert.deepEqual(state.writes, ['environment']);
+});
+
+test('release restore refuses drift, wrong receipts and rehearsal, and never re-binds or re-pins', async () => {
+  const plan = build();
+  const linked = { version: 1, phase: 'linked', pending: null, planHash: hashPlan(plan), plan };
+  const deps = (over = {}) => ({ expectedHash: hashPlan(plan),
+    readState: async p => ({ routerConfig: [['deletion_authority', p.identityAccess]],
+      identityConfig: pinned(p), identityEnv: [], page: page(), ...over }),
+    setEnvironment: async () => { throw new Error('must not write'); },
+    checkpoint: async () => {} });
+
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: { ...linked, phase: 'planned' }, ...deps() }),
+    /required for release restore/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: { ...linked, pending: 'readback' }, ...deps() }),
+    /required for release restore/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: linked, ...deps(), expectedHash: 'f'.repeat(64) }),
+    /required for release restore/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: linked,
+    ...deps({ routerConfig: [['deletion_authority', '']] }) }), /deletion authority differs/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: linked, ...deps({ identityConfig: null }) }),
+    /registry pin differs/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: linked,
+    ...deps({ page: { ...page(), revision: 7n } }) }), /inventory changed/);
+  await assert.rejects(restoreBoundDeletionRelease({ receipt: linked,
+    ...deps({ identityEnv: [{ name: REHEARSAL_ENV, value: '1' }] }) }), /Rehearsal must remain disabled/);
 });
 
 test('the full readback insists admission and rehearsal stay off', () => {

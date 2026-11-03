@@ -11,6 +11,7 @@ import { canonical, hashPlan, normalizeReviewedHash } from './prod-base-group-po
 export const IDENTITY_LINK_RECEIPT_PATH = 'prod-group-setup/identity-link.json';
 export const IDENTITY_LINK_CONFIRMATION = 'LINK PROD ACCOUNT SERVICE';
 export const IDENTITY_LINK_READBACK_CONFIRMATION = 'CONFIRM PROD ACCOUNT SERVICE READBACK';
+export const IDENTITY_LINK_RESTORE_CONFIRMATION = 'RESTORE PROD BOUND DELETION RELEASE';
 export const BOUND_DELETION_RELEASE_ENV = 'IGNITE_BOUND_DELETION_RELEASE';
 export const REHEARSAL_ENV = 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL';
 export const LINK_HOST = 'https://icp-api.io';
@@ -18,12 +19,14 @@ export const LINK_NETWORK_KIND = 'public_mainnet';
 
 export function assertIdentityLinkContext(ids, env, principal, action) {
   assertCheckContext(ids, env, principal);
-  if (!['plan', 'inspect', 'link', 'reconcile-readback'].includes(action))
-    throw new Error('Only plan, inspect, link or reconcile-readback supported');
+  if (!['plan', 'inspect', 'link', 'reconcile-readback', 'restore-release'].includes(action))
+    throw new Error('Only plan, inspect, link, reconcile-readback or restore-release supported');
   if (action === 'link' && env.CONFIRMATION?.trim() !== IDENTITY_LINK_CONFIRMATION)
     throw new Error(`Exact confirmation required: ${IDENTITY_LINK_CONFIRMATION}`);
   if (action === 'reconcile-readback' && env.CONFIRMATION?.trim() !== IDENTITY_LINK_READBACK_CONFIRMATION)
     throw new Error(`Exact confirmation required: ${IDENTITY_LINK_READBACK_CONFIRMATION}`);
+  if (action === 'restore-release' && env.CONFIRMATION?.trim() !== IDENTITY_LINK_RESTORE_CONFIRMATION)
+    throw new Error(`Exact confirmation required: ${IDENTITY_LINK_RESTORE_CONFIRMATION}`);
 }
 
 const decimal = (value, label) => {
@@ -257,6 +260,46 @@ export const readState = async ({ readRouterConfig, readIdentityConfig, readEnvi
   identityEnv: await readEnvironment(plan.identityAccess),
   page: await readRegistryPage(),
 });
+
+/**
+ * Restores exactly one thing after a code upgrade dropped the account service's
+ * environment: the reviewed bound-deletion release variable. It requires the
+ * completed link receipt, re-proves the router authority, registry pin and
+ * registry revision against that receipt's reviewed plan, and refuses to repeat
+ * the authority bind or registry pin — if either is wrong, that is a stop for
+ * review, not a restore. A replay where the variable already reads back is a
+ * no-op that only re-verifies.
+ */
+export async function restoreBoundDeletionRelease({ receipt, expectedHash, readState: read,
+  setEnvironment, checkpoint }) {
+  const hash = normalizeReviewedHash(expectedHash);
+  if (!receipt || receipt.phase !== 'linked' || receipt.pending || !/^[a-f0-9]{64}$/.test(hash) ||
+      receipt.planHash !== hash || hashPlan(receipt.plan) !== hash)
+    throw new Error('Completed reviewed account-service link receipt required for release restore');
+  const plan = receipt.plan;
+  const state = await read(plan);
+  if (rowsToMap(state.routerConfig).deletion_authority !== plan.identityAccess)
+    throw new Error('Router deletion authority differs from the reviewed link; stop and review');
+  if (!bindingMatchesRows(plan.binding, state.identityConfig))
+    throw new Error('Account-service registry pin differs from the reviewed link; stop and review');
+  if (state.page?.revision?.toString() !== plan.registryRevision ||
+      JSON.stringify((state.page?.groups ?? []).map(g => g.id).sort()) !== JSON.stringify(plan.groups))
+    throw new Error('Registry inventory changed since the reviewed link; stop and review');
+  if (envValue(state.identityEnv, REHEARSAL_ENV) === '1')
+    throw new Error('Rehearsal must remain disabled on PROD');
+  if (envValue(state.identityEnv, BOUND_DELETION_RELEASE_ENV) === '1') {
+    const verified = assertIdentityLinkReadback(state, plan);
+    return { restored: false, verified };
+  }
+  await checkpoint({ ...receipt, pending: 'deletion-release-restore' });
+  await setEnvironment(plan);
+  const after = await read(plan);
+  if (envValue(after.identityEnv, BOUND_DELETION_RELEASE_ENV) !== '1')
+    throw new Error('Account-service environment readback failed');
+  const verified = assertIdentityLinkReadback(after, plan);
+  await checkpoint({ ...receipt, pending: null, phase: 'linked', verified });
+  return { restored: true, verified };
+}
 
 /**
  * Completes only a journalled run whose final readback was interrupted. It never
