@@ -67,7 +67,7 @@ export async function startRemovalLocalServer({ binary, hardTtlSeconds = 120 } =
   const directory = mkdtempSync(path.join(tmpdir(), 'ignite-removal-local-'));
   const portFile = path.join(directory, 'port');
   const child = spawn(binary, ['--ip-addr', '127.0.0.1', '--port-file', portFile,
-    '--hard-ttl', String(hardTtlSeconds)], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    '--ttl', String(hardTtlSeconds), '--hard-ttl', String(hardTtlSeconds)], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let startupError;
   child.on('error', error => { startupError = error; });
   child.stdout.pipe(process.stdout);
