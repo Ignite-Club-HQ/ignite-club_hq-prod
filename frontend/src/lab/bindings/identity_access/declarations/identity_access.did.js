@@ -940,6 +940,8 @@ export const idlFactory = ({ IDL }) => {
         [Result_47],
         [],
       ),
+    'review_production_account_inventory' : IDL.Func([Expectation, IDL.Nat64], [Result_47], []),
+    'read_active_production_account_protection' : IDL.Func([], [Result_47], []),
     'revoke' : IDL.Func([IDL.Principal, IDL.Nat64], [Result], []),
     'revoke_role' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)],

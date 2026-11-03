@@ -51,7 +51,12 @@ export async function createProductionIdentity(pic,governor,root,args) {
    generation:state.generation+1n,expires_at_ns:BigInt(await pic.getTime()+3600000)*1000000n,expectation,review,
    original_inventory_evidence:digest(Buffer.from(JSON.stringify(expectation,(_,v)=>typeof v==='bigint'?v.toString():v))),
    runtime_evidence:digest(Buffer.from('isolated actual services; not production provenance')),fenced_recovery_evidence:digest(Buffer.from('isolated owner-controlled backup recovery')),recovery_epoch:head.epoch};
-  if(!provision)review=ok(await actor.review_production_account_protection(expectation,revision));
+  if(provision){
+   const prior=ok(await actor.read_production_account_authorization());
+   review=ok(await actor.review_production_account_inventory(expectation,revision));
+   assert.deepEqual(ok(await actor.read_production_account_authorization()),prior,'Inventory review must not store a capability');
+   assert.equal(ok(await actor.read_production_account_history_revision()),revision,'Inventory review must not pin or advance history');
+  }else review=ok(await actor.review_production_account_protection(expectation,revision));
   const approval=await signed({...body,review});
   const signing=ok(await actor.production_account_approval_signing_bytes(approval.body));
   const requestDigest=digest(Buffer.concat([Buffer.from(signing),Buffer.from(approval.signature)]));
@@ -68,7 +73,13 @@ export async function createProductionIdentity(pic,governor,root,args) {
    assert.ok('Err'in await actor.provision_production_account_inventory({...approval,signature:new Uint8Array(64)}));
    const result=ok(await actor.provision_production_account_inventory(approval));assert.equal(result,revision+1n);
    assert.equal(ok(await actor.provision_production_account_inventory(approval)),result);
-   return authorize({...inventory,groups:{...inventory.groups,history_revision:result}},targets);
+   const configured=await authorize({...inventory,groups:{...inventory.groups,history_revision:result}},targets);
+   const active=ok(await actor.read_active_production_account_protection());
+   const stored=ok(await actor.read_production_account_authorization());
+   assert.equal(active.configurations.length,28,'Commissioning reads every actual receiver');
+   assert.equal(active.account_readers.length,24,'Infrastructure gets no alias scope');
+   assert.deepEqual(active,stored.approval[0].body.review,'Fresh commissioning must match the signed live review');
+   return configured;
   }
   assert.ok('Err'in await actor.authorize_production_account_readers({...approval,signature:new Uint8Array(64)}));
   assert.equal(ok(await actor.authorize_production_account_readers(approval)),approval.body.generation);

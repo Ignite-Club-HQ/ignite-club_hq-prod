@@ -1065,6 +1065,8 @@ export interface _SERVICE {
     [Expectation, bigint],
     Result_47
   >,
+  'review_production_account_inventory' : ActorMethod<[Expectation, bigint], Result_47>,
+  'read_active_production_account_protection' : ActorMethod<[], Result_47>,
   'revoke' : ActorMethod<[Principal, bigint], Result>,
   /**
    * Mirrors `grant_role`'s auth (governor-only).

@@ -37,6 +37,10 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-account-key.test.mjs',
   'scripts/prod-safeguard-setup.mjs',
   'scripts/prod-safeguard-setup.test.mjs',
+  'scripts/prod-protection-contract.mjs',
+  'scripts/prod-protection-policy.mjs',
+  'scripts/prod-protection-policy.test.mjs',
+  'scripts/prod-protection-live.mjs',
   'scripts/resolve-prod-push-worker.mjs',
   'scripts/prod-publication-gate.mjs',
   'scripts/prod-card-funding.mjs',
@@ -99,6 +103,7 @@ export const ICP_SOURCE_FILES = [
   '.github/workflows/execute-prod-cycles-topup.yml',
   '.github/workflows/prod-create-push-key.yml',
   '.github/workflows/prod-create-account-approval-key.yml',
+  '.github/workflows/prod-activate-protections.yml',
 ];
 
 /**
