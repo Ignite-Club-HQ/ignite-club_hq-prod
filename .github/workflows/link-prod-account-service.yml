@@ -3,15 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "inspect reads only; plan saves a proposal; link applies the reviewed lifecycle; reconcile-readback only confirms an interrupted link"
+        description: "inspect reads only; plan saves a proposal; link applies the reviewed lifecycle; reconcile-readback only confirms an interrupted link; restore-release re-applies only the reviewed release variable after an upgrade dropped it"
         type: choice
         default: plan
-        options: [plan, inspect, link, reconcile-readback]
+        options: [plan, inspect, link, reconcile-readback, restore-release]
       reviewed_plan_hash:
-        description: "Hash from successful plan summary (link or reconcile-readback)"
+        description: "Hash from successful plan summary (link, reconcile-readback or restore-release)"
         required: false
       confirmation:
-        description: "link: LINK PROD ACCOUNT SERVICE; reconcile-readback: CONFIRM PROD ACCOUNT SERVICE READBACK"
+        description: "link: LINK PROD ACCOUNT SERVICE; reconcile-readback: CONFIRM PROD ACCOUNT SERVICE READBACK; restore-release: RESTORE PROD BOUND DELETION RELEASE"
         required: false
 permissions:
   contents: write
