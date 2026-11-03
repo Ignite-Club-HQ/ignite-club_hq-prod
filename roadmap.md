@@ -2,8 +2,9 @@
 
 ## Current request — retain PROD account service (3 Nov 2026, 11:07 UTC)
 - [x] Paul accepted retaining the installed pinned PROD identity; exact all-service DEV parity is superseded.
-- [ ] Check compatibility of Oct30 domains/infrastructure with retained PROD identity and its build dependencies.
-- [ ] Prepare account-preserving copy/target selection, test and verify GitHub check; upgrade only after compatibility passes. No opening/publication/data copy.
+- [x] Actual PROD identity source checked: signed account reads require receiver read_account_protection_configuration, absent from Oct30 club interface. Mixed release fails protected-reader compatibility; no install cleared.
+- [x] Added account-retaining target selector (30 install targets + retained identity fingerprint) and interface mismatch test. Historical copy plan succeeded; apply skipped.
+- [ ] Upgrade held by real cross-service contract mismatch. Owner decision needed on keeping current service set together instead of domain rollback; no protection bypass, opening/publication/data copy.
 
 ## Current request — fix historical release blockers (3 Nov 2026, 10:59 UTC)
 - [x] Owner asked for recommendation at 11:06 UTC: recommend retaining current pinned PROD account service and reviewing compatibility with Oct30 domain services first; not an exact DEV copy, no deployment authorized by recommendation.

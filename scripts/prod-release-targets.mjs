@@ -42,3 +42,18 @@ export function assertIdentitySourceSupportsPins(source, pins) {
   if (!pins?.IGNITE_PRODUCTION_ACCOUNT_WITNESS) return;
   if (!/mod production_account_authorization\s*;/.test(source) || !/mod production_account_protection\s*;/.test(source)) throw Error('Historical identity lacks retained safeguard binding; exact rollback needs an explicit owner decision');
 }
+
+/** Retained identity is observed, not a target to install or rebuild. */
+export function retainProdIdentity(plan, observedIdentityHash) {
+  if (!/^[a-f0-9]{64}$/.test(observedIdentityHash ?? '')) throw Error('Observed PROD identity fingerprint required');
+  const identity = plan.targets.filter(target => target.name === 'identity_access');
+  if (identity.length !== 1 || plan.targets.length !== 31) throw Error('Complete two-group plan required before retaining identity');
+  return { ...plan, targets: plan.targets.filter(target => target.name !== 'identity_access'), retained: [{ ...identity[0], newHash: observedIdentityHash }], exactDevParity: false };
+}
+
+/** Signed production reads require the receiver's real configuration endpoint. */
+export function assertRetainedIdentityReceiverCompatibility(identitySource, receiverInterfaces) {
+  if (!identitySource.includes('"read_account_protection_configuration"')) return;
+  const missing = Object.entries(receiverInterfaces).filter(([, source]) => !/\bread_account_protection_configuration\b/.test(source)).map(([name]) => name);
+  if (missing.length) throw Error(`Retained PROD identity requires receiver protection interface absent from historical services: ${missing.join(', ')}`);
+}
