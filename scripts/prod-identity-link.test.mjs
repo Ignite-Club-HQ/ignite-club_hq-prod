@@ -10,9 +10,10 @@ import { G2_SERVICES, CONFIGURATION_RECIPE } from './prod-g2-create-policy.mjs';
 import { buildG2RegistrationPlan } from './prod-g2-register-policy.mjs';
 import {
   assertIdentityLinkContext, buildIdentityLinkPlan, assertReviewedIdentityLinkPlan, linkAccountService,
-  reconcileIdentityLinkReadback, mergeEnvironment, bindingMatchesRows, assertIdentityLinkReadback,
-  IDENTITY_LINK_CONFIRMATION, IDENTITY_LINK_READBACK_CONFIRMATION, IDENTITY_LINK_RECEIPT_PATH,
-  BOUND_DELETION_RELEASE_ENV, REHEARSAL_ENV,
+  reconcileIdentityLinkReadback, restoreBoundDeletionRelease, mergeEnvironment, bindingMatchesRows,
+  assertIdentityLinkReadback,
+  IDENTITY_LINK_CONFIRMATION, IDENTITY_LINK_READBACK_CONFIRMATION, IDENTITY_LINK_RESTORE_CONFIRMATION,
+  IDENTITY_LINK_RECEIPT_PATH, BOUND_DELETION_RELEASE_ENV, REHEARSAL_ENV,
 } from './prod-identity-link-policy.mjs';
 import { identityLinkFailureReason, saveIdentityLinkFailure } from './prod-identity-link.mjs';
 
@@ -69,6 +70,9 @@ test('link context refuses DEV branches, DEV inventories and unconfirmed lifecyc
   assert.throws(() => assertIdentityLinkContext(ids, env, principal, 'reconcile-readback'), /confirmation/);
   assertIdentityLinkContext(ids, { ...env, CONFIRMATION: IDENTITY_LINK_READBACK_CONFIRMATION },
     principal, 'reconcile-readback');
+  assert.throws(() => assertIdentityLinkContext(ids, env, principal, 'restore-release'), /confirmation/);
+  assertIdentityLinkContext(ids, { ...env, CONFIRMATION: IDENTITY_LINK_RESTORE_CONFIRMATION },
+    principal, 'restore-release');
 });
 
 test('the reviewed plan pins the PROD router at its live revision and authorizes nothing else', () => {
