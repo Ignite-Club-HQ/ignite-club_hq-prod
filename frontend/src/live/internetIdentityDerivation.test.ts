@@ -23,6 +23,13 @@ describe("Internet Identity derivation origin", () => {
     ).toBe("https://ignite-canister-connect.lovable.app");
   });
 
+  it("DEV Lovable published site and preview share the DEV canister identity", () => {
+    expect(resolveDerivationOriginFor("https://ignite-club-launchpad.lovable.app")).toBe(`https://${ID}.icp0.io`);
+    expect(
+      resolveDerivationOriginFor("https://id-preview--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app"),
+    ).toBe(`https://${ID}.icp0.io`);
+  });
+
   it("unrelated sites are untouched", () => {
     expect(resolveDerivationOriginFor("https://example.com")).toBeUndefined();
   });

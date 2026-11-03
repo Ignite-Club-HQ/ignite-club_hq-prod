@@ -41,6 +41,17 @@ writeFileSync(
         "https://ignite-club-heart.lovable.app",
         "https://pjx2u-tiaaa-aaaac-qhj3a-cai.icp0.io",
         "https://id-preview--4b755d42-e84b-4c9c-a8c7-5afa433410a4.lovable.app",
+        // DEV Lovable app addresses share the DEV canister's identity
+        // (DEV_LOVABLE_ORIGINS in src/live/internetIdentityAuth.ts). Only on
+        // the DEV canister: PROD must not admit DEV sites.
+        ...(frontendCanisterId === "proe7-kqaaa-aaaas-qg6gq-cai"
+          ? [
+              "https://ignite-club-launchpad.lovable.app",
+              "https://id-preview--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app",
+              "https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app",
+              "https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6-dev.lovable.app",
+            ]
+          : []),
       ],
     },
     null,

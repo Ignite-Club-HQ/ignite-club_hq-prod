@@ -83,15 +83,26 @@ const II_ALTERNATIVE_ORIGINS = new Set([
   "https://project--9e0ff3f7-539e-4a59-aa6d-a6d3fe4c7c5e-dev.lovable.app",
 ]);
 
-// The ICP frontend canister keeps accounts separate from the Lovable sites
-// (user decision 2026-10-07), but ALL of the canister's own addresses
-// (<id>.icp.net, <id>.raw.icp0.io, <id>.ic0.app, ...) sign in as
-// https://<id>.icp0.io so one person gets one identity whichever address
-// they open. The canister lists them in its /.well-known/ii-alternative-origins
-// (written by scripts/prepare-canister-dist.mjs).
+// This project's Lovable addresses (DEV) sign in AS the DEV ICP frontend
+// canister so members keep the same account/profile on both (user decision
+// 2026-11-03, replacing the 2026-10-07 separation). The canister lists them
+// in its /.well-known/ii-alternative-origins (scripts/prepare-canister-dist.mjs).
+export const DEV_FRONTEND_II_ORIGIN = "https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io";
+export const DEV_LOVABLE_ORIGINS = [
+  "https://ignite-club-launchpad.lovable.app",
+  "https://id-preview--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app",
+  "https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app",
+  "https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6-dev.lovable.app",
+];
+const DEV_LOVABLE_ORIGIN_SET = new Set(DEV_LOVABLE_ORIGINS);
+
+// ALL of the canister's own addresses (<id>.icp.net, <id>.raw.icp0.io,
+// <id>.ic0.app, ...) sign in as https://<id>.icp0.io so one person gets one
+// identity whichever address they open.
 const CANISTER_ALIAS_HOST = /^([a-z0-9]{5}(?:-[a-z0-9]{5}){3}-cai)\.(?:raw\.icp0\.io|icp\.net|raw\.icp\.net|ic0\.app|raw\.ic0\.app)$/;
 
 export function resolveDerivationOriginFor(origin: string): string | undefined {
+  if (DEV_LOVABLE_ORIGIN_SET.has(origin)) return DEV_FRONTEND_II_ORIGIN;
   if (II_ALTERNATIVE_ORIGINS.has(origin)) return CANONICAL_II_ORIGIN;
   let host: string;
   try {
