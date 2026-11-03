@@ -1,5 +1,10 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — retain PROD account service (3 Nov 2026, 11:07 UTC)
+- [x] Paul accepted retaining the installed pinned PROD identity; exact all-service DEV parity is superseded.
+- [ ] Check compatibility of Oct30 domains/infrastructure with retained PROD identity and its build dependencies.
+- [ ] Prepare account-preserving copy/target selection, test and verify GitHub check; upgrade only after compatibility passes. No opening/publication/data copy.
+
 ## Current request — fix historical release blockers (3 Nov 2026, 10:59 UTC)
 - [x] Owner asked for recommendation at 11:06 UTC: recommend retaining current pinned PROD account service and reviewing compatibility with Oct30 domain services first; not an exact DEV copy, no deployment authorized by recommendation.
 - [x] GitHub now exposes the exact-commit copy input; dispatched read-only historical copy plan via existing workflow.
