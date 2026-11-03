@@ -1,7 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — simplest safe launch plan (3 Nov 2026, 07:35 UTC)
-- [ ] Prepare one minimal launch plan separating installed protection dependencies from optional deletion/recovery enhancements; no live changes or new safeguard layers.
+- [x] Prepared minimal launch plan: pause commissioning, separate normal member access from expiring privileged approval, hold unfinished destructive operations, verify one final sequence, then separately approve production delivery/opening/publication. Local source confirms account-reader dependency; live state/results not reverified. No live changes.
 - [ ] Execute only after plan approval; production opening and publication still need explicit owner authorization.
 
 ## Current request — move toward live switch-on (3 Nov 2026, 07:03 UTC)
