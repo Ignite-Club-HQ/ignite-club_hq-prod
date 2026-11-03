@@ -80,7 +80,8 @@ pub fn witness_binding() -> Result<(Vec<u8>,Principal),String> {
     parse_binding(hash,ctl)
 }
 pub fn parse_binding(hash:&str,ctl:&str)->Result<(Vec<u8>,Principal),String>{
-    let h=hex::decode(hash).map_err(|_|"Invalid recovery witness program pin")?;
+    if hash.len()!=64 || !hash.bytes().all(|b|b.is_ascii_hexdigit()) {return Err("Invalid recovery witness program pin".into());}
+    let h:Vec<u8>=(0..32).map(|i|u8::from_str_radix(&hash[i*2..i*2+2],16).unwrap_or(0)).collect();
     if h.len()!=32 || h.iter().all(|b|*b==0) {return Err("Invalid recovery witness program pin".into());}
     let c=Principal::from_text(ctl).map_err(|_|"Invalid recovery witness controller pin")?;
     if c==Principal::anonymous() || c==Principal::management_canister() {return Err("Invalid recovery witness controller pin".into());}
