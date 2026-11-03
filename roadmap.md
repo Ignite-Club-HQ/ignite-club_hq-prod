@@ -6,7 +6,8 @@
 - [x] Paul chose A (03 Nov 08:51 UTC): copy exactly what DEV runs now; club deletion parked as first post-launch feature, built and tested on DEV.
 - [x] Step 1 partial: 13/18 DEV services match release source f86b6f98; 5 (identity_access, club_domain, events_domain, messaging_domain, pii_access_control) updated later, commit unidentified. See docs/dev-prod-fingerprints-2026-11-03.md.
 - [x] Paul chose option 2: reset DEV to 29 Oct version (branch dev-reset-2026-10-29 at f86b6f98); read-only check dispatched.
-- [ ] Review check, Paul approves DEV upgrade, test app on DEV, then copy all 18 to PROD.
+- [x] Check run 41608029499 (42edc640) succeeded: 31 targets checked, exactly the 9 expected differ (identity_access + club/events/messaging/pii in both groups), 22 already match, photo keys verified. Plan hash 40e3ba58cfc50cfaf4a538a4969b019e52171d879cedc8bf07fcdd0f0dde2e4e.
+- [ ] Paul runs the real DEV upgrade (ACTION=upgrade, SCOPE=full_backend, confirmation UPGRADE ALL MAINNET GROUPS, checked plan 40e3ba58...) on branch dev-reset-2026-10-29; then test app on DEV, then copy all 18 to PROD.
 - [ ] (superseded) Identify the 5 commits (DEV deploy run history), rebuild all 18, confirm hashes, then Paul approves PROD upgrade.
 - [ ] (old) Upgrade DEV if B, confirm app works; copy exact code to prod; upgrade PROD upgrade-only with compatibility stop; read back fingerprints vs DEV.
 
