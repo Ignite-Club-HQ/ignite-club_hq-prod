@@ -1,0 +1,64 @@
+name: "[PROD] Check groups are ready to open (read-only)"
+# Runs the same routing checks DEV's opening tool uses, against PROD's groups,
+# router and account service. Reads only: writes nothing to the app, router or
+# services, and never opens a group.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      IGNITE_ICP_ENV: prod
+      SNAPSHOT_CHECK_ONLY: "1"
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the live repository prod branch
+        run: |
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+          test -n "$PROD_GOVERNOR_PRINCIPAL"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install project dependencies
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Install isolated pinned SDK
+        run: npm install --prefix "$RUNNER_TEMP/prod-open-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Resolve the existing push worker identity
+        env:
+          PROD_ICP_PUSH_WORKER_SEED: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED }}
+          PROD_ICP_PUSH_WORKER_SEED_ENC: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED_ENC }}
+          PROD_ICP_PUSH_WORKER_PASSPHRASE: ${{ secrets.PROD_ICP_PUSH_WORKER_PASSPHRASE }}
+          PROD_ICP_PUSH_WORKER_PRINCIPAL: ${{ vars.PROD_ICP_PUSH_WORKER_PRINCIPAL }}
+          DEV_PUSH_WORKER_PRINCIPAL: ${{ vars.DEV_PUSH_WORKER_PRINCIPAL }}
+        run: |
+          set -euo pipefail
+          export PUSH_WORKER_NODE_PATH="$RUNNER_TEMP/prod-open-deps/node_modules"
+          node scripts/resolve-prod-push-worker.mjs
+      - name: Restore existing signing key and run the read-only check
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          KEY_DIR="$RUNNER_TEMP/prod-open-key"
+          trap 'rm -rf "$KEY_DIR"' EXIT
+          test -n "${PROD_GOVERNOR_PEM_ENC:-}"
+          test -n "${PROD_GOVERNOR_PASSPHRASE:-}"
+          mkdir -p "$KEY_DIR"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$KEY_DIR/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$KEY_DIR/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEY_DIR/key.enc" -out "$KEY_DIR/key.pem" -pass file:"$KEY_DIR/pass"
+          rm -f "$KEY_DIR/key.enc" "$KEY_DIR/pass"
+          cd frontend
+          npx --yes tsx@4 scripts/produce-routing-gates.ts "$KEY_DIR/key.pem" "$RUNNER_TEMP/prod-open-report.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
