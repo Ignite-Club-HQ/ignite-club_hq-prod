@@ -11,6 +11,8 @@
 - [x] DEV restored to uniform 30 Oct version: archived the stopped journal, check run 41614699252 showed 30/31 matching, then run 41618393438 (branch dev-current-2026-10-30) restored identity_access to the exact 30 Oct build; live fingerprint 4fe59c88... confirmed 10:36 UTC. All 31 DEV services now on one version. See docs/dev-prod-fingerprints-2026-11-03.md.
 - [x] Paul confirmed the DEV app check passed at 10:51 UTC.
 - [ ] Owner approved at 10:52 UTC: copy exact 30 Oct service code to prod and upgrade all 18 PROD services in place; preserve production data/configuration, hold opening/publication, read back fingerprints. Check compatibility before mutations; any refusal stops without reinstall.
+- [x] Prepared exact-commit source-only copy in the existing promotion runner/workflow; 15 focused tests pass. GitHub source/PROD inventories compared read-only; no production writes or dispatch.
+- [ ] Execution held: GitHub main still exposes old copy action; current PROD identity build requires safeguard pins absent from exact Oct30 source, and base promotion excludes second-group IDs. Resolve reviewed historical rollback/target inventory; do not bypass pins, reinstall or claim copy/upgrade completion. See docs/prod-oct30-release-status-2026-11-03.md.
 - [ ] (superseded) Identify the 5 commits (DEV deploy run history), rebuild all 18, confirm hashes, then Paul approves PROD upgrade.
 - [ ] (old) Upgrade DEV if B, confirm app works; copy exact code to prod; upgrade PROD upgrade-only with compatibility stop; read back fingerprints vs DEV.
 
