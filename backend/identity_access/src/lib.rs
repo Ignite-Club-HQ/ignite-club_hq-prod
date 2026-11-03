@@ -1341,9 +1341,17 @@ fn next_production_request()->Outcome<u64> {
     let next=PRODUCTION_ACCOUNT_REQUEST.with(|m|m.borrow().get().checked_add(1)).ok_or("Production witness request exhausted")?;
     PRODUCTION_ACCOUNT_REQUEST.with(|m|m.borrow_mut().set(next));Ok(next)
 }
+/// Live certified program/controller check against immutable build pins.
+async fn check_witness_program(witness:Principal)->Outcome<()> {
+    let pin=production_account_authorization::witness_binding()?;
+    let info=ic_cdk::management_canister::canister_info(&ic_cdk::management_canister::CanisterInfoArgs{canister_id:witness,num_requested_changes:Some(0)})
+        .await.map_err(|_|"Recovery witness program unavailable")?;
+    production_account_authorization::check_witness_info(info.module_hash.as_deref(),&info.controllers,&pin)
+}
 async fn check_production_witness(approval:&production_account_authorization::SignedApproval)->Outcome<()> {
     let witness=production_account_authorization::witness()?;
     if witness==ic_cdk::api::canister_self() || approval.body.review.targets.contains(&witness) {return Err("Independent recovery witness required".into());}
+    check_witness_program(witness).await?;
     let lifecycle=recovery_lifecycle::current_changes().await?;
     let request=production_account_authorization::request(approval,next_production_request()?,removal_history_revision(),
         REMOVAL_GENERATION.with(|m|*m.borrow().get()),lifecycle)?;
@@ -1358,6 +1366,7 @@ async fn check_production_witness(approval:&production_account_authorization::Si
 async fn check_production_subject_witness(approval:&production_account_authorization::SignedApproval,account:&Account)->Outcome<()> {
     let witness=production_account_authorization::witness()?;
     if witness==ic_cdk::api::canister_self() || approval.body.review.targets.contains(&witness){return Err("Independent recovery witness required".into());}
+    check_witness_program(witness).await?;
     let lifecycle=recovery_lifecycle::current_changes().await?;
     let legacy=production_account_authorization::request(approval,next_production_request()?,removal_history_revision(),
         REMOVAL_GENERATION.with(|m|*m.borrow().get()),lifecycle)?;

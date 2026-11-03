@@ -60,9 +60,17 @@ try {
   stage = 'build isolated immutable public pins';
   const target = path.join(root, 'target/isolated-controller-fencing');
   execFileSync('cargo', ['build', '--locked', '--release', '--target', 'wasm32-unknown-unknown',
-    '-p', 'identity_access', '-p', 'recovery_witness'], {
+    '-p', 'recovery_witness'], {
     cwd: root, timeout: 360000, stdio: ['ignore', 'ignore', 'pipe'],
     env: { ...process.env, CARGO_TARGET_DIR: target, IGNITE_PRODUCTION_ACCOUNT_WITNESS: witnessId.toText(),
+      IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY: publicHex(approvalKey),
+      IGNITE_RECOVERY_APPROVER_PUBLIC_KEY: publicHex(recoveryKey) } });
+ // Witness first: identity pins its exact program fingerprint and sole controller.
+ const witnessPinHash=(await import('node:crypto')).createHash('sha256').update((await import('node:fs')).readFileSync(path.join(target,'wasm32-unknown-unknown/release/recovery_witness.wasm'))).digest('hex');
+ execFileSync('cargo', ['build', '--locked', '--release', '--target', 'wasm32-unknown-unknown',
+    '-p', 'identity_access'], {
+    cwd: root, timeout: 360000, stdio: ['ignore', 'ignore', 'pipe'],
+    env: { ...process.env, CARGO_TARGET_DIR: target, IGNITE_PRODUCTION_ACCOUNT_WITNESS: witnessId.toText(), IGNITE_PRODUCTION_ACCOUNT_WITNESS_MODULE_HASH: witnessPinHash, IGNITE_PRODUCTION_ACCOUNT_WITNESS_CONTROLLER: owner.toText(),
       IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY: publicHex(approvalKey),
       IGNITE_RECOVERY_APPROVER_PUBLIC_KEY: publicHex(recoveryKey) } });
   const wasm = name => path.join(target, 'wasm32-unknown-unknown/release', `${name}.wasm`);

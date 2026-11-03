@@ -16,9 +16,14 @@ export async function createProductionIdentity(pic,governor,root,args) {
  const witnessId=await pic.createCanister({sender:governor,controllers:[governor]});
  const approvalKey=generateKeyPairSync('ed25519'),recoveryKey=generateKeyPairSync('ed25519');
  const target=path.join(root,'target/isolated-full-production');
- execFileSync('cargo',['build','--locked','--release','--target','wasm32-unknown-unknown','-p','identity_access','-p','recovery_witness'],{
+ execFileSync('cargo',['build','--locked','--release','--target','wasm32-unknown-unknown','-p','recovery_witness'],{
   cwd:root,timeout:360000,stdio:['ignore','ignore','pipe'],env:{...process.env,CARGO_TARGET_DIR:target,
    IGNITE_PRODUCTION_ACCOUNT_WITNESS:witnessId.toText(),IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY:hex(approvalKey),IGNITE_RECOVERY_APPROVER_PUBLIC_KEY:hex(recoveryKey)}});
+ // Witness first: identity pins its exact program fingerprint and sole controller.
+ const witnessPinHash=(await import('node:crypto')).createHash('sha256').update((await import('node:fs')).readFileSync(path.join(target,'wasm32-unknown-unknown/release/recovery_witness.wasm'))).digest('hex');
+ execFileSync('cargo',['build','--locked','--release','--target','wasm32-unknown-unknown','-p','identity_access'],{
+  cwd:root,timeout:360000,stdio:['ignore','ignore','pipe'],env:{...process.env,CARGO_TARGET_DIR:target,
+   IGNITE_PRODUCTION_ACCOUNT_WITNESS:witnessId.toText(),IGNITE_PRODUCTION_ACCOUNT_WITNESS_MODULE_HASH:witnessPinHash,IGNITE_PRODUCTION_ACCOUNT_WITNESS_CONTROLLER:governor.toText(),IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY:hex(approvalKey),IGNITE_RECOVERY_APPROVER_PUBLIC_KEY:hex(recoveryKey)}});
  const identityWasm=path.join(target,'wasm32-unknown-unknown/release/identity_access.wasm');
  await pic.installCode({canisterId:identityId,sender:governor,wasm:identityWasm,arg:args});
  await pic.installCode({canisterId:witnessId,sender:governor,wasm:path.join(target,'wasm32-unknown-unknown/release/recovery_witness.wasm'),
