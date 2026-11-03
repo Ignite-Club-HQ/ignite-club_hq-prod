@@ -122,6 +122,11 @@ export const idlFactory = ({ IDL }) => {
         [Result_5],
         [],
       ),
+    'verify_production_account_protection_fence' : IDL.Func(
+        [WitnessRequest],
+        [Result_6],
+        [],
+      ),
     'verify_production_account_read_fence' : IDL.Func(
         [WitnessRequest],
         [Result_6],

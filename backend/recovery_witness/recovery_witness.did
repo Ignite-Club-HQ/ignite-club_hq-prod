@@ -86,6 +86,9 @@ service : (Init) -> {
   record_removal_recovery : (Record) -> (Result);
   recovery_acceptance_signing_bytes : (Acceptance) -> (Result_5);
   subject_progress_approval_signing_bytes : (Acceptance) -> (Result_5);
+  // Bounded commissioning read: verifies both global and subject safeguards,
+  // never enumerates accounts, grants authority or probes a fabricated person.
+  verify_production_account_protection_fence : (WitnessRequest) -> (Result_6);
   verify_production_account_read_fence : (WitnessRequest) -> (Result_6);
   verify_production_subject_read_fence : (AccountReadRequest) -> (Result_7);
 }

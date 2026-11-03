@@ -217,6 +217,7 @@ export interface recovery_witnessInterface {
     record_removal_recovery(arg0: Record_): Promise<Result>;
     recovery_acceptance_signing_bytes(arg0: Acceptance): Promise<Result_5>;
     subject_progress_approval_signing_bytes(arg0: Acceptance): Promise<Result_5>;
+    verify_production_account_protection_fence(arg0: WitnessRequest): Promise<Result_6>;
     verify_production_account_read_fence(arg0: WitnessRequest): Promise<Result_6>;
     verify_production_subject_read_fence(arg0: AccountReadRequest): Promise<Result_7>;
 }
@@ -262,6 +263,10 @@ export class Recovery_witness implements recovery_witnessInterface {
     async subject_progress_approval_signing_bytes(arg0: Acceptance): Promise<Result_5> {
         const result = await this.actor.subject_progress_approval_signing_bytes(arg0);
         return from_candid_Result_5_n30(result);
+    }
+    async verify_production_account_protection_fence(arg0: WitnessRequest): Promise<Result_6> {
+        const result = await this.actor.verify_production_account_protection_fence(arg0);
+        return from_candid_Result_6_n32(result);
     }
     async verify_production_account_read_fence(arg0: WitnessRequest): Promise<Result_6> {
         const result = await this.actor.verify_production_account_read_fence(arg0);
