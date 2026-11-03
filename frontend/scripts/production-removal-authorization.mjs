@@ -73,7 +73,13 @@ export async function createProductionIdentity(pic,governor,root,args) {
    assert.ok('Err'in await actor.provision_production_account_inventory({...approval,signature:new Uint8Array(64)}));
    const result=ok(await actor.provision_production_account_inventory(approval));assert.equal(result,revision+1n);
    assert.equal(ok(await actor.provision_production_account_inventory(approval)),result);
-   return authorize({...inventory,groups:{...inventory.groups,history_revision:result}},targets);
+   const configured=await authorize({...inventory,groups:{...inventory.groups,history_revision:result}},targets);
+   const active=ok(await actor.read_active_production_account_protection());
+   const stored=ok(await actor.read_production_account_authorization());
+   assert.equal(active.configurations.length,28,'Commissioning reads every actual receiver');
+   assert.equal(active.account_readers.length,24,'Infrastructure gets no alias scope');
+   assert.deepEqual(active,stored.approval[0].body.review,'Fresh commissioning must match the signed live review');
+   return configured;
   }
   assert.ok('Err'in await actor.authorize_production_account_readers({...approval,signature:new Uint8Array(64)}));
   assert.equal(ok(await actor.authorize_production_account_readers(approval)),approval.body.generation);
@@ -81,15 +87,6 @@ export async function createProductionIdentity(pic,governor,root,args) {
   assert.ok('Err'in await witness.authorize_subject_removal_progress({body:acceptance,signature:recoverySignature}));
   const progressSignature=new Uint8Array(sign(null,Buffer.from(ok(await witness.subject_progress_approval_signing_bytes(acceptance))),recoveryKey.privateKey));
   ok(await witness.authorize_subject_removal_progress({body:acceptance,signature:progressSignature}));
-  // This commissioning reader intentionally requires closed/no-pending state;
-  // ordinary refreshes during removal continue to use their subject-scoped flow.
-  if(provision)assert.fail('Inventory authorization must return before full readback');
-  if(history===revision){
-   const active=await actor.read_active_production_account_protection();
-   // Pending removals are separately covered by survivor service reads; only
-   // assert the commissioning result while no removal has begun.
-   if('Ok'in active)assert.deepEqual(active.Ok,approval.body.review);
-  }
   actor.setPrincipal(governor);return inventory;
  };
  return {actor,canisterId:identityId,witness,witnessId,identityWasm,authorize};
