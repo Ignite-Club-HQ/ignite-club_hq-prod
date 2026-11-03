@@ -17,15 +17,20 @@ import { G2_REGISTRATION_RECEIPT_PATH } from './prod-g2-register-policy.mjs';
 import {
   IDENTITY_LINK_RECEIPT_PATH, assertIdentityLinkContext, buildIdentityLinkPlan,
   assertReviewedIdentityLinkPlan, linkAccountService, reconcileIdentityLinkReadback,
-  readState, mergeEnvironment, identityLinkSummary,
+  restoreBoundDeletionRelease, readState, mergeEnvironment, identityLinkSummary,
 } from './prod-identity-link-policy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let stage = 'startup';
 const KNOWN_FAILURES = [
-  'Only plan, inspect, link or reconcile-readback supported',
+  'Only plan, inspect, link, reconcile-readback or restore-release supported',
   'Exact confirmation required: LINK PROD ACCOUNT SERVICE',
   'Exact confirmation required: CONFIRM PROD ACCOUNT SERVICE READBACK',
+  'Exact confirmation required: RESTORE PROD BOUND DELETION RELEASE',
+  'Completed reviewed account-service link receipt required for release restore',
+  'Router deletion authority differs from the reviewed link; stop and review',
+  'Account-service registry pin differs from the reviewed link; stop and review',
+  'Registry inventory changed since the reviewed link; stop and review',
   'Connection check requires the live repository prod branch',
   'Connection check requires the exact recorded 18-service PROD inventory',
   'Confirmed closed base and g2 registration receipts required',
