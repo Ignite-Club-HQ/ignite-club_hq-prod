@@ -60,7 +60,11 @@ jobs:
           MIGRATION_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
-          if [ -n "$SOURCE_COMMIT" ]; then node scripts/promote-icp-layer.mjs --source-ref "$SOURCE_COMMIT"; else node scripts/promote-icp-layer.mjs; fi
+          if [ -n "$SOURCE_COMMIT" ]; then
+            node scripts/promote-icp-layer.mjs --source-ref "$SOURCE_COMMIT"
+          else
+            node scripts/promote-icp-layer.mjs
+          fi
       - name: Apply the copy
         if: inputs.mode == 'apply'
         env:
