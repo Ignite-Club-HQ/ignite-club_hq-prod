@@ -1092,6 +1092,7 @@ export interface identity_accessInterface {
     pin_owner_test_deletion_registry(arg0: Binding): Promise<Result_2>;
     prepare_account_deletion(arg0: string, arg1: bigint): Promise<Result_25>;
     prepare_private_name_suspension_sink(arg0: string, arg1: Principal): Promise<Result_11>;
+    production_account_approval_encoding(arg0: ApprovalBody_1): Promise<Result_26>;
     production_account_approval_signing_bytes(arg0: ApprovalBody_1): Promise<Result_26>;
     provision_production_account_inventory(arg0: SignedApproval_1): Promise<Result_8>;
     publish_approved_private_name(arg0: string, arg1: string): Promise<Result_17>;
@@ -1404,6 +1405,10 @@ export class Identity_access implements identity_accessInterface {
     async prepare_private_name_suspension_sink(arg0: string, arg1: Principal): Promise<Result_11> {
         const result = await this.actor.prepare_private_name_suspension_sink(arg0, arg1);
         return from_candid_Result_11_n45(result);
+    }
+    async production_account_approval_encoding(arg0: ApprovalBody_1): Promise<Result_26> {
+        const result = await this.actor.production_account_approval_encoding(to_candid_ApprovalBody_1_n32(arg0));
+        return from_candid_Result_26_n104(result);
     }
     async production_account_approval_signing_bytes(arg0: ApprovalBody_1): Promise<Result_26> {
         const result = await this.actor.production_account_approval_signing_bytes(to_candid_ApprovalBody_1_n32(arg0));

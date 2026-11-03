@@ -34,3 +34,13 @@ Both GitHub workflows now include the actual-orchestration runner suite. The exi
 The new real-canister assertions have **not run on the supported GitHub worker yet**; this sandbox's known PocketIC host limitation remains. The offline complete-runner suite is not a deployed-adapter end-to-end proof. GitHub API acknowledgement emulation, cold recipe acceptance, separate-job-process execution and exhaustive crash boundaries remain broader acceptance work beyond the tests completed here.
 
 No PROD copy, workflow dispatch, owner approval, witness/identity upgrade, protection activation, database/routing/data change or opening occurred. The release hold remains intact. This repair batch is not a claim that safeguards are live or that every runtime fault has been eliminated.
+## Follow-up: signing-bytes mismatch (GitHub run, 07:13 UTC)
+
+The real-canister check found Rust and JavaScript Candid encoders emit different
+type tables for the same approval, so hashing a locally re-encoded body could
+never match the service. Fix: identity exposes `production_account_approval_encoding`
+and the safeguard exposes `recovery_acceptance_encoding` (bounded queries). Signers
+hash those exact bytes only after decoding them back to the reviewed value; a
+mismatch refuses. Also copies bytes before decoding (pooled Buffer offsets broke
+decoding). Local: 58 JS, 229 identity, 20 safeguard tests pass; interface drift check passes.
+The safeguard program changes again, so its controlled upgrade remains required.

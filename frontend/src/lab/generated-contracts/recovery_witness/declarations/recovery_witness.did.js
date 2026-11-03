@@ -112,6 +112,11 @@ export const idlFactory = ({ IDL }) => {
     'read_recovery_records' : IDL.Func([IDL.Nat64, IDL.Nat16], [Result_4], []),
     'read_recovery_runtime_version' : IDL.Func([], [Result], []),
     'record_removal_recovery' : IDL.Func([Record], [Result], []),
+    'recovery_acceptance_encoding' : IDL.Func(
+        [Acceptance],
+        [Result_5],
+        ['query'],
+      ),
     'recovery_acceptance_signing_bytes' : IDL.Func(
         [Acceptance],
         [Result_5],

@@ -830,6 +830,11 @@ export const idlFactory = ({ IDL }) => {
         [Result_11],
         [],
       ),
+    'production_account_approval_encoding' : IDL.Func(
+        [ApprovalBody_1],
+        [Result_26],
+        ['query'],
+      ),
     'production_account_approval_signing_bytes' : IDL.Func(
         [ApprovalBody_1],
         [Result_26],

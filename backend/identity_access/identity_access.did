@@ -698,6 +698,7 @@ service : (Init) -> {
   pin_owner_test_deletion_registry : (Binding) -> (Result_2);
   prepare_account_deletion : (text, nat64) -> (Result_25);
   prepare_private_name_suspension_sink : (text, principal) -> (Result_11);
+  production_account_approval_encoding : (ApprovalBody_1) -> (Result_26) query;
   production_account_approval_signing_bytes : (ApprovalBody_1) -> (Result_26);
   // Signed closed-only inventory bootstrap: inspect candidate pins before any write.
   provision_production_account_inventory : (SignedApproval_1) -> (Result_8);

@@ -2,11 +2,21 @@ import {createPublicKey,verify,createHash} from 'node:crypto';
 import {canonical} from './prod-base-group-policy.mjs';
 import {digest,verifyActivatedDraft,APPROVAL_LIFETIME_NS} from './prod-protection-policy.mjs';
 const hex=b=>Buffer.from(b).toString('hex');
-export function approvalBytes(IDL,type,body) {
-  return Buffer.concat([Buffer.from('ignite:production-account-authorization:v1\0'),createHash('sha256').update(Buffer.from(IDL.encode([type],[body]))).digest()]);
+// Candid type tables differ between Rust and JS encoders, so signers hash the
+// canister's exact bytes only after they decode back to the reviewed value.
+export function exactEncoding(IDL,type,body,encoding) {
+  if(!encoding)throw Error('Exact canister encoding required before signing');
+  // Fresh copy: Candid ignores pooled Buffer byte offsets.
+  const bytes=new Uint8Array(encoding);let value;
+  try{[value]=IDL.decode([type],bytes);}catch(e){throw Error('Canister encoding does not decode: '+e.message);}
+  if(!Buffer.from(IDL.encode([type],[value])).equals(Buffer.from(IDL.encode([type],[body]))))throw Error('Canister encoding differs from reviewed value');
+  return bytes;
 }
-export function recoveryBytes(IDL,type,body,subject=false) {
-  const bytes=Buffer.concat([Buffer.from('ignite:independent-recovery-acceptance:lifecycle-v2\0'),createHash('sha256').update(Buffer.from(IDL.encode([type],[body]))).digest()]);
+export function approvalBytes(IDL,type,body,encoding) {
+  return Buffer.concat([Buffer.from('ignite:production-account-authorization:v1\0'),createHash('sha256').update(exactEncoding(IDL,type,body,encoding)).digest()]);
+}
+export function recoveryBytes(IDL,type,body,encoding,subject=false) {
+  const bytes=Buffer.concat([Buffer.from('ignite:independent-recovery-acceptance:lifecycle-v2\0'),createHash('sha256').update(exactEncoding(IDL,type,body,encoding)).digest()]);
   return subject?Buffer.concat([Buffer.from('ignite:subject-scoped-removal-progress:lifecycle-v2\0'),createHash('sha256').update(bytes).digest()]):bytes;
 }
 export function verifySignature(bytes,signature,publicKey) {

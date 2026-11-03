@@ -38,10 +38,16 @@ pub struct WitnessRequest {
 pub struct WitnessReceipt { pub request: WitnessRequest }
 impl Default for State { fn default() -> Self { Self { generation:0, approval:None } } }
 
-pub fn signing_bytes(body: &ApprovalBody) -> Result<Vec<u8>, String> {
+// Candid type tables are not canonical across encoders; signers hash these exact
+// Rust bytes after decoding them back to the reviewed value.
+pub fn encoding(body: &ApprovalBody) -> Result<Vec<u8>, String> {
     bounds(body)?;
     let bytes=candid::encode_one(body).map_err(|_|"Invalid production approval encoding")?;
     if bytes.len()>1_048_576 { return Err("Production approval exceeds bounded budget".into()); }
+    Ok(bytes)
+}
+pub fn signing_bytes(body: &ApprovalBody) -> Result<Vec<u8>, String> {
+    let bytes=encoding(body)?;
     let mut payload=b"ignite:production-account-authorization:v1\0".to_vec();
     payload.extend(Sha256::digest(bytes)); Ok(payload)
 }
