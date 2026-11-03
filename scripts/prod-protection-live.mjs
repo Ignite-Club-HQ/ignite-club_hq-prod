@@ -99,12 +99,23 @@ async function main(){
   const status=async id=>mgmt(id).canister_status({canister_id:pid(id)});
   const assertClosed=async()=>{const live=await readPage();activationTargets(ids,live,base,g2);if(canonical(live.groups.map(g=>({id:g.id,domains:g.domains,accepting:g.accepting})))!==canonical(page.groups.map(g=>({id:g.id,domains:g.domains,accepting:g.accepting})))||live.revision!==page.revision)throw Error('Registry changed during commissioning');};
   const id=actor(contract.identity,ids.identity_access);
+  // Fresh-run probes for retained intents; each is read-only.
+  const probeFor=kind=>{const [k,target]=kind.split(':');
+    if(k==='settings')return async()=>canonical((await status(target)).settings.environment_variables);
+    if(k==='upgrade')return async()=>{const c=await certified(target);return {moduleHash:c.moduleHash,controllers:c.controllers,subnet:c.subnet};};
+    if(k==='authority')return async()=>(await actor(contract.infrastructure,target).read_account_removal_authority()).map(p=>p.toText());
+    if(k==='witness')return async()=>ok(await actor(contract.witness,safeguard.witness).read_recovery_head()).accepted.map(a=>canonical(plain(a)));
+    return null;};
+  stage='reconcile retained intent';await resolvePending();
   async function build(name){execFileSync('icp',['build',name],{cwd:path.join(ROOT,'deploy/prod'),env:{...env,...identityPinEnv(safeguard,ids)},stdio:['ignore','ignore','pipe']});
     return readFileSync(path.join(ROOT,'deploy/prod/.icp/cache/artifacts',name));}
   async function upgrade(target,wasm,keep){
     await assertClosed();const before=await certified(target.id);
     if(before.controllers.length!==1||before.controllers[0]!==safeguard.governor||before.subnet!==target.subnet)throw Error('Exclusive target controller and subnet required');
-    await checkpoint(`upgrade:${target.id}`,async()=>{const m=mgmt(target.id);await m.clear_chunk_store({canister_id:pid(target.id)});const chunks=[];
+    const modProbe=async()=>{const c=await certified(target.id);return {moduleHash:c.moduleHash,controllers:c.controllers,subnet:c.subnet};};
+    // Same-program reloads keep the hash; re-running an upgrade-only reload is
+    // idempotent, and identity's effective-configuration review is the final proof.
+    await checkpoint(`upgrade:${target.id}`,{probe:modProbe,before:await modProbe(),after:{moduleHash:hash(wasm),controllers:before.controllers,subnet:before.subnet},retryable:true},async()=>{const m=mgmt(target.id);await m.clear_chunk_store({canister_id:pid(target.id)});const chunks=[];
       for(let i=0;i<wasm.length;i+=1_000_000)chunks.push({hash:(await m.upload_chunk({canister_id:pid(target.id),chunk:wasm.subarray(i,i+1_000_000)})).hash});
       await m.install_chunked_code({mode:{upgrade:[{skip_pre_upgrade:[],wasm_memory_persistence:keep?[{keep:null}]:[]}]},target_canister:pid(target.id),store_canister:[],
         chunk_hashes_list:chunks,wasm_module_hash:Buffer.from(hash(wasm),'hex'),arg:Uint8Array.from(IDL.encode([],[])),sender_canister_version:[]});
@@ -155,7 +166,8 @@ async function main(){
     await upgrade({id:ids.identity_access,name:'identity_access',subnet:safeguard.subnet},identityWasm,false);
     for(const t of targets){stage=`configure ${t.group}/${t.name}`;await assertClosed();
       if(t.human){const s=await status(t.id);const merged=protectionEnvironment(s.settings.environment_variables,ids.identity_access);
-        await checkpoint(`settings:${t.id}`,async()=>{await mgmt(t.id).update_settings({canister_id:pid(t.id),settings:{environment_variables:[merged]}});
+        const envProbe=async()=>canonical((await status(t.id)).settings.environment_variables);
+        await checkpoint(`settings:${t.id}`,{probe:envProbe,before:canonical(s.settings.environment_variables),after:canonical(merged),retryable:true},async()=>{await mgmt(t.id).update_settings({canister_id:pid(t.id),settings:{environment_variables:[merged]}});
           if(canonical((await status(t.id)).settings.environment_variables)!==canonical(merged))throw Error('Protection setting readback mismatch');});
         await upgrade(t,builds.get(t.name),true);
         if(t.name==='pii_access_control'){
@@ -163,11 +175,12 @@ async function main(){
           const pii=actor(()=>IDL.Service({pii_vetkey_verification_key:IDL.Func([],[IDL.Vec(IDL.Nat8)],[])}),t.id);
           await verifyDeployKey(binding,original,{status:()=>certified(t.id),originalKey:async()=>hex(await pii.pii_vetkey_verification_key()),configuredKey:()=>configuredMainnetPhotoKey(binding)});
         }
-        await save({...receipt,reloaded:[...receipt.reloaded,t.id]});
+        await save({...receipt,reloaded:[...new Set([...receipt.reloaded,t.id])]});
       }else{const a=actor(contract.infrastructure,t.id);const existing=await a.read_account_removal_authority();
         if(existing.length&&existing[0].toText()!==ids.identity_access)throw Error('Foreign infrastructure authority requires separate review');
-        if(!existing.length)await checkpoint(`authority:${t.id}`,async()=>{ok(await a.set_account_removal_authority(pid(ids.identity_access)));const r=await a.read_account_removal_authority();if(r.length!==1||r[0].toText()!==ids.identity_access)throw Error('Infrastructure authority readback mismatch');});}
-      await save({...receipt,configured:[...receipt.configured,t.id]});}
+        const authProbe=async()=>(await a.read_account_removal_authority()).map(p=>p.toText());
+        if(!existing.length)await checkpoint(`authority:${t.id}`,{probe:authProbe,before:[],after:[ids.identity_access],retryable:true},async()=>{ok(await a.set_account_removal_authority(pid(ids.identity_access)));const r=await a.read_account_removal_authority();if(r.length!==1||r[0].toText()!==ids.identity_access)throw Error('Infrastructure authority readback mismatch');});}
+      await save({...receipt,configured:[...new Set([...receipt.configured,t.id])]});}
     await assertClosed();await prepareUnsigned('inventory');report('All 28 effective modes verified by identity; first inventory approval awaits the account and recovery approvals. Groups closed.');return;
   }
   if(!receipt||receipt.sourceCommit!==env.GITHUB_SHA||receipt.safeguardDigest!==digest(safeguard)||identityState.moduleHash!==receipt.identityModuleHash)throw Error('Exact retained activation plan required');
@@ -192,15 +205,20 @@ async function main(){
       generation:approval.body.generation,signed_digest:createHash('sha256').update(Buffer.concat([Buffer.from(receipt.signingBytes,'base64'),Buffer.from(approval.signature)])).digest(),expires_at_ns:approval.body.expires_at_ns,
       history_revision:BigInt(receipt.historyRevision),removal_generation:BigInt(receipt.removalGeneration),participants:approval.body.review.lifecycle.map(l=>({canister:l.canister,module:l.module_hash,changes:l.changes}))};
     const signature=sign(null,Buffer.from(ok(await w.recovery_acceptance_signing_bytes(acceptance))),key);
-    await checkpoint(`witness:${purpose}`,async()=>{ok(await w.accept_recovery_fence({body:acceptance,signature}));const read=ok(await w.read_recovery_head());
+    const signed=canonical(plain({body:acceptance,signature}));
+    const accProbe=async()=>ok(await w.read_recovery_head()).accepted.map(a=>canonical(plain(a)));
+    await checkpoint(`witness:${purpose}`,{probe:accProbe,before:[],after:[signed],retryable:true},async()=>{ok(await w.accept_recovery_fence({body:acceptance,signature}));const read=ok(await w.read_recovery_head());
       if(read.accepted.length!==1||canonical(plain(read.accepted[0]))!==canonical(plain({body:acceptance,signature})))throw Error('Independent witness acceptance readback mismatch');});
-    if(purpose==='protection')await checkpoint('subject progress policy',async()=>{const sig=sign(null,Buffer.from(ok(await w.subject_progress_approval_signing_bytes(acceptance))),key);ok(await w.authorize_subject_removal_progress({body:acceptance,signature:sig}));});
+    // No read-only probe distinguishes this step's outcome: an interrupted
+    // attempt stays unknown and stops for manual review rather than replaying.
+    if(purpose==='protection')await checkpoint('subject progress policy',{probe:async()=>({unobservable:true}),before:null,after:{unobservable:true}},async()=>{const sig=sign(null,Buffer.from(ok(await w.subject_progress_approval_signing_bytes(acceptance))),key);ok(await w.authorize_subject_removal_progress({body:acceptance,signature:sig}));});
     await save({...receipt,phase:`${purpose}-witness-accepted`,acceptance:encode(contract.SignedAcceptance,{body:acceptance,signature})});report(`Independent ${purpose} acceptance stored and read back; groups not opened.`);return;
   }
   if(receipt.phase!==`${purpose}-witness-accepted`)throw Error('Independent witness acceptance required before delivery');
   await assertClosed();const approval=decode(contract.Approval,receipt.approval);
   stage=`deliver signed ${purpose} approval`;
-  const result=await checkpoint(`deliver:${purpose}`,async()=>ok(await id[purpose==='inventory'?'provision_production_account_inventory':'authorize_production_account_readers'](approval)));
+  const delProbe=async()=>{const st=ok(await id.read_production_account_authorization());return st.approval.length===1&&canonical(plain(st.approval[0]))===canonical(plain(approval))?'delivered':`generation:${st.generation}`;};
+  const result=await checkpoint(`deliver:${purpose}`,{probe:delProbe,before:await delProbe(),after:'delivered',retryable:true},async()=>ok(await id[purpose==='inventory'?'provision_production_account_inventory':'authorize_production_account_readers'](approval)));
   if(purpose==='inventory'){await save({...receipt,inventoryApproval:receipt.approval,inventoryAcceptance:receipt.acceptance,phase:'inventory-delivered',provisionedRevision:result.toString()});
     await prepareUnsigned('protection');report('Signed original inventory committed and read back; fresh full-protection approval awaits owner signing.');return;}
   const state=ok(await id.read_production_account_authorization());if(state.generation!==result||state.approval.length!==1||canonical(plain(state.approval[0]))!==canonical(plain(approval)))throw Error('Signed protection readback mismatch');
