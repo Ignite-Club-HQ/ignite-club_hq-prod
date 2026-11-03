@@ -162,3 +162,22 @@ test('commitments are order independent and carry no plaintext settings', () => 
   assert.equal(settingsCommitment(rows), settingsCommitment([{ name: 'A', value: '1' }, { name: 'B', value: '2' }]));
   assert.equal(settingsCommitment(rows).length, 64);
 });
+
+test('a partially applied run resumes instead of reading as drift', () => {
+  const built = plan();
+  const hash = hashPlan(built);
+  // Simulate a crash after the first service was written: its settings now match
+  // the promised after-state, the rest are untouched.
+  const resumed = { ...ENVIRONMENTS, [targets[0].id]: memberAccessEnvironment(
+    ENVIRONMENTS[targets[0].id], PROD_CHECK_IDS.identity_access) };
+  assert.notEqual(resumed[targets[0].id], ENVIRONMENTS[targets[0].id]);
+  assertReviewedMemberAccessPlan(built, hash, buildMemberAccessPlan({ ids: PROD_CHECK_IDS, env: ENV,
+    principal: 'governor', page: PAGE, identityConfig: IDENTITY_ROWS, linkReceipt: LINK_RECEIPT,
+    environments: resumed, checkedAt: built.checkedAt }));
+  // An unrelated setting moving is still real drift and must stop the run.
+  assert.throws(() => assertReviewedMemberAccessPlan(built, hash, buildMemberAccessPlan({ ids: PROD_CHECK_IDS,
+    env: ENV, principal: 'governor', page: PAGE, identityConfig: IDENTITY_ROWS, linkReceipt: LINK_RECEIPT,
+    environments: { ...resumed, [targets[1].id]: [{ name: 'IGNITE_EXISTING_SETTING', value: 'changed' }] },
+    checkedAt: built.checkedAt })), /re-plan before applying/);
+});
+
