@@ -1,5 +1,11 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — real protection switch-on (3 Nov 2026, 05:33 UTC)
+- [x] Owner authorized closed-only activation; GitHub protected environment approvals remain Paul's actions, not agent approvals.
+- [x] Checked PROD workflow availability: activation workflow is absent on prod (GitHub contents API 404). Reproduced and corrected malformed candidate workflow YAML; the same parser now passes with seven protected jobs. Confirmed the non-bypassable execution hold remains enforced (10 policy checks pass).
+- [ ] Complete activation-runner review and resolve commissioning-specific failures before lifting the hold or promoting/dispatching the workflow. Independent review confirmed recovery signing jobs attempt governor-only witness APIs, evidence digests/signatures are not independently reconstructed before signing, retained checkpoints lose completion transitions and cannot resume preparation, infrastructure query invocation is incorrectly declared as update, and identity replacement lacks an independently approved immutable artifact hash. Additional source checks show inventory delivery probes unrelated account authorization state and the next review insists on history revision zero although provisioning advances it. No live changes or owner-review approvals submitted.
+- [ ] Dispatch the reviewed closed-only workflow, let Paul approve its protected steps, and verify every service. Blocked on the preceding commissioning corrections and their exact runner acceptance, not on the already successful isolated canister rehearsal.
+
 ## Current request — failed safeguard rehearsal (3 Nov 2026, 05:02 UTC)
 - [x] Read run 41578237222 and its saved artifact: production transport failed after builds and before the first check; external fencing and all-28 scenarios skipped. The 62-second failure is consistent with the default 60-second PocketIC idle timeout, not its configured 900-second hard deadline; cleanup replaced the original error.
 - [x] Set owned server idle timeout explicitly to its existing bounded hard budget; preserve original failure details/stacks and separately record cleanup failures; add focused regression checks. No live operation or activation.
