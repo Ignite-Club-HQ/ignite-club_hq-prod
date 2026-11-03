@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {canonical} from './prod-base-group-policy.mjs';
 import {assertGroupsClosed} from './prod-safeguard-live-policy.mjs';
+import {outcome} from './prod-protection-journal.mjs';
 export const PROTECTION_CONFIRMATION='ACTIVATE PROD PROTECTIONS CLOSED';
 export const PROTECTION_RECEIPT={branch:'prod-group-setup',path:'prod-group-setup/protection-activation.json',label:'protection activation'};
 export const HUMAN_DOMAINS=['club_domain','events_domain','messaging_domain','vault_domain','competition_domain','club_points_domain',
@@ -45,6 +46,7 @@ export function activationTargets(ids,page,base,g2) {
 }
 // Preserve every unrelated setting; never export environment values.
 export function protectionEnvironment(rows,identity) {
+  settingsCommitment(rows);
   const entries=new Map(rows.map(r=>[r.name,r.value]));
   if(entries.get('IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL')==='1')throw Error('Rehearsal forbidden on production');
   const old=entries.get('IGNITE_ACCOUNT_SERVICE_IDENTITY');
@@ -52,6 +54,12 @@ export function protectionEnvironment(rows,identity) {
   entries.set('IGNITE_ACCOUNT_SERVICE_IDENTITY',identity);
   entries.set('IGNITE_ACCOUNT_ADMISSION_RELEASE','1');entries.set('IGNITE_ACCOUNT_REMOVAL_RELEASE','1');
   return [...entries].map(([name,value])=>({name,value}));
+}
+// Commitments are order-independent; plaintext settings never enter receipts.
+export function settingsCommitment(rows) {
+  if(!Array.isArray(rows)||rows.some(r=>typeof r.name!=='string'||typeof r.value!=='string')||
+     new Set(rows.map(r=>r.name)).size!==rows.length)throw Error('Unique valid environment settings required');
+  return digest([...rows].sort((a,b)=>a.name<b.name?-1:a.name>b.name?1:0));
 }
 export function verifyActivatedDraft(draft,targets,identity) {
   const ids=targets.map(t=>t.id).sort();
@@ -69,9 +77,5 @@ export function assertNoPending(receipt) {if(receipt?.pending)throw Error('Unres
 /** Read-only outcome of a retained intent: only an exact before or exact after
  * observation is decisive; anything else stays unknown and stops the run. */
 export function reconcileDecision(pending, observed) {
-  if (!pending?.kind || !('before' in pending) || !('after' in pending)) return 'unknown';
-  const now = JSON.stringify(observed);
-  if (now === JSON.stringify(pending.after)) return 'committed';
-  if (pending.retryable === true && now === JSON.stringify(pending.before)) return 'not-applied';
-  return 'unknown';
+  return outcome(pending,observed);
 }

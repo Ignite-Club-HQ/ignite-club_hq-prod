@@ -202,6 +202,29 @@ async fn verify_production_account_read_fence(r:WitnessRequest)->Outcome<Witness
     if recovery_lifecycle::current_changes().await?!=version||head()!=captured{return Err("Recovery fence changed during read".into());}
     verify(&captured,&r,caller,ic_cdk::api::time())?;Ok(receipt)
 }
+/// Bounded commissioning read: verifies both global and subject safeguards,
+/// never enumerates accounts, grants authority or probes a fabricated person.
+#[ic_cdk::update]
+async fn verify_production_account_protection_fence(r:WitnessRequest)->Outcome<WitnessReceipt> {
+    let caller=ic_cdk::api::msg_caller();
+    if !principal_ok(caller) || caller!=identity() || r.identity!=identity() {return Err("Pinned protection identity required".into());}
+    let captured=head();let bytes=ACCOUNT_BASELINE.with(|s|s.borrow().get().clone());
+    let global=ARMED_VERSION.with(|s|*s.borrow().get());let subject=ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get());
+    if bytes.is_empty() || bytes.len()>100_000 || global==0 || subject==0 {return Err("Current global and subject protection baseline required".into());}
+    let baseline:SignedAcceptance=decode(&bytes);let key=signer()?;
+    let unchanged=||->Outcome<()> {
+        if caller!=identity() || r.identity!=identity() || head()!=captured ||
+           ACCOUNT_BASELINE.with(|s|s.borrow().get()!=&bytes) || ARMED_VERSION.with(|s|*s.borrow().get())!=global ||
+           ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get())!=subject {return Err("Protection baseline changed during read".into());}
+        Ok(())
+    };
+    let version=recovery_lifecycle::current_changes().await?;unchanged()?;
+    verify_protection_baseline(&captured,&baseline,&r,caller,ic_cdk::api::canister_self(),version,global,subject,ic_cdk::api::time(),&key)?;
+    check_participants(&baseline.body).await?;unchanged()?;
+    if recovery_lifecycle::current_changes().await?!=version {return Err("Protection witness lifecycle changed".into());}
+    unchanged()?;
+    verify_protection_baseline(&captured,&baseline,&r,caller,ic_cdk::api::canister_self(),version,global,subject,ic_cdk::api::time(),&key)
+}
 pub fn candid_interface()->String {__export_service()}
 ic_cdk::export_candid!();
 #[cfg(test)] mod tests {

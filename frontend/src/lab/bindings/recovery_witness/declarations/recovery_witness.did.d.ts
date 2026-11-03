@@ -113,6 +113,14 @@ export interface _SERVICE {
     [Acceptance],
     Result_5
   >,
+  /**
+   * Bounded commissioning read: verifies both global and subject safeguards,
+   * never enumerates accounts, grants authority or probes a fabricated person.
+   */
+  'verify_production_account_protection_fence' : ActorMethod<
+    [WitnessRequest],
+    Result_6
+  >,
   'verify_production_account_read_fence' : ActorMethod<
     [WitnessRequest],
     Result_6

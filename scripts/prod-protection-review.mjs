@@ -46,6 +46,8 @@ export function jobTransition(job,receipt) {
   if(job==='plan')return receipt?'reject':'run';
   if(job==='prepare')return !receipt||receipt.phase==='planned'?'run':COMMISSIONING_PHASES.includes(receipt.phase)?'done':'reject';
   if(!receipt||!COMMISSIONING_PHASES.includes(receipt.phase))return 'reject';
+  if(job==='deliver-protection'&&receipt.purpose==='protection'&&
+     ['protection-delivered','verified'].includes(receipt.phase))return 'run';
   const purpose=job.endsWith('inventory')?'inventory':'protection';
   const complete=job.startsWith('account-')?`${purpose}-signed`:job.startsWith('recovery-')?`${purpose}-recovery-signed`:`${purpose}-delivered`;
   const start=job.startsWith('account-')?`${purpose}-reviewed`:job.startsWith('recovery-')?`${purpose}-signed`:`${purpose}-recovery-signed`;
