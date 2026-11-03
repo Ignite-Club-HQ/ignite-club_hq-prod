@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — activate live account protections (3 Nov 2026, 00:02 UTC)
+- [ ] 00:12 Owner approved completing keys, safeguard provisioning and protection activation/readback while closed; prepare exact journaled setup steps and configure owner approval environments without reusing governor decryption credentials.
 - [x] 00:10 Paul confirmed he is the approver; removed the invented second-person requirement while retaining owner-reviewed separate signing custody and keys. Added concrete owner-self-approval checks.
 - [x] 00:05 Prepared protected non-overwriting independent account/recovery key setup, encrypted acknowledged pre-mint receipts, role-separated public-pin validation and canister-layer allowlist; 27 focused checks pass. No live writes, keys minted or activation claimed.
 - [ ] Signer execution waits on Paul's owner-review environments and dedicated passphrases; current GitHub secret-name inspection confirms these credentials are absent. No second person is required and no workflow dispatched into an unprotected environment.
