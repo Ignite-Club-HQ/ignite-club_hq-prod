@@ -51,6 +51,8 @@ jobs:
           npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops@3.5.1 --no-fund --no-audit
           mops toolchain use moc 1.16.1
       - name: Run commissioning policy tests
+        env:
+          PROTECTION_TEST_SDK_DIR: ${{ runner.temp }}/deps/node_modules/@icp-sdk/core
         run: node --test scripts/prod-protection-policy.test.mjs scripts/prod-protection-journal.test.mjs scripts/prod-protection-evidence.test.mjs scripts/prod-protection-review.test.mjs
       - name: prepare (closed, journaled)
         env:
