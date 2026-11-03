@@ -35,6 +35,8 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-account-key-policy.mjs',
   'scripts/prod-account-key.mjs',
   'scripts/prod-account-key.test.mjs',
+  'scripts/prod-safeguard-setup.mjs',
+  'scripts/prod-safeguard-setup.test.mjs',
   'scripts/resolve-prod-push-worker.mjs',
   'scripts/prod-publication-gate.mjs',
   'scripts/prod-card-funding.mjs',
