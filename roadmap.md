@@ -1,7 +1,8 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — live control-record confirmation (2 Nov 2026, 23:51 UTC)
-- [ ] Run a protected read-only control-record inspection; report every base/shared and registered group service without changing settings, permissions, grants, data or opening.
+- [x] Protected read-only run 41549046867 completed at 23:57:52 UTC: 31 base/shared + g2 targets inspected, identity generation 0 with no signed approval, all 28 receivers lack enabled protection/account-authority binding, both groups closed. Report: docs/prod-control-record-readback-2026-11-02.md. No live settings/data/permissions changed.
+- [ ] Confirm active live signed control-record use. Blocker: live protection settings/account-authority bindings and signed production approval are absent; establishing them changes live configuration and needs separate owner approval, not a read-only audit.
 
 ## Current request — approved production removal safeguards (2 Nov 2026, 03:32 UTC)
 - [x] 06:17 corrected rejected canister_info ingress in both production integration and full two-group authorization using shared owner-only disposable inter-canister reader. Pinned moc 1.16.1 compiles; 45 regression checks pass; preview build OK. Worker now checks original ingress refusal, non-controller participant reads, owner guard and real upgrade change counts before signing. No production service/controller changes or release grant.
