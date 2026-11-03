@@ -1,1 +1,1 @@
-fn main() { print!("{}", identity_access::__export_service()); }
+fn main() { print!("{}", identity_access::export_interface()); }

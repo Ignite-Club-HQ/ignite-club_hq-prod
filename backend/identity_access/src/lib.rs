@@ -1067,6 +1067,7 @@ fn progress_recovery_record(intent:&removal_barrier::Intent,progress:recovery_pr
 fn hex_digest(bytes:&[u8])->String {Sha256::digest(bytes).iter().map(|b|format!("{b:02x}")).collect()}
 #[ic_cdk::update]
 async fn reconcile_pending_recovery_records(limit:u16)->Outcome<u16> {
+    deferred_account_operations_clear()?;
     require_governor(&state(),ic_cdk::api::msg_caller())?;
     if limit==0||limit>20{return Err("Recovery reconciliation is bounded to 20 records".into());}
     let records:Vec<recovery_protocol::Record>=RECOVERY_PENDING.with(|m|m.borrow().iter().take(limit as usize).map(|e|decode::<recovery_journal::Pending>(&e.value()).record).collect());
@@ -1598,6 +1599,20 @@ async fn authorize_production_member_access(binding:group_inventory::Binding)->O
     if first!=second {return Err("Member registry changed".into());}
     let (readers,club_readers)=admission::member_readers(&first.0,&first.1,&binding)?;
     if prior.readers.iter().any(|p|!readers.contains(p)) {return Err("Cannot drop existing member reader".into());}
+    // Verify the actual receivers are admission-only before releasing aliases.
+    // Settings names alone are not evidence that the installed guards use them.
+    for receiver in &readers {
+        recheck()?;
+        let reply=ic_cdk::call::Call::bounded_wait(*receiver,"read_account_protection_configuration")
+            .await.map_err(|_|"Member receiver configuration unavailable")?;
+        recheck()?;
+        let observed:Outcome<production_account_protection::ReceiverConfiguration>=reply.candid().map_err(|_|"Invalid member receiver configuration")?;
+        let observed=observed?;
+        if observed.receiver!=*receiver || observed.authority!=Some(ic_cdk::api::canister_self()) || observed.protocol!=1 ||
+            !observed.admission_required || observed.removal_enabled || observed.rehearsal {
+            return Err("Exact production admission-only receiver required".into());
+        }
+    }
     recheck()?;
     GROUP2_ADMISSION.with(|m|m.borrow_mut().set(encode(&admission::Config {enabled:true,readers,member_access:true,club_readers})));
     bump_removal_history();Ok(())
@@ -5483,3 +5498,5 @@ fn memory_stats() -> MemoryStats {
 }
 
 ic_cdk::export_candid!();
+/// Local interface generation only; not a canister endpoint.
+pub fn export_interface() -> String { __export_service() }
