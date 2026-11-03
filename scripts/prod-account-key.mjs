@@ -43,7 +43,7 @@ async function main() {
     headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: 'application/vnd.github+json' },
   });
   if (!response.ok) throw Error('Independent environment protection could not be verified');
-  assertIndependentProtection(await response.json(), env.INDEPENDENT_REVIEWER_ID);
+  assertIndependentProtection(await response.json(), env.OWNER_REVIEWER_ID);
   const require = createRequire(`${env.KEY_NODE_PATH}/resolve.js`);
   const { Ed25519KeyIdentity } = require('@icp-sdk/core/identity');
   const receipt = await mintOrReadAccountKey(env, githubJournal(env, fetch, {

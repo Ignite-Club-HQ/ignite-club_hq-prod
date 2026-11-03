@@ -7,7 +7,7 @@ import { accountPublicKey, assertAccountKeyContext, assertIndependentProtection,
 const seed = '01'.repeat(32); // Credential-free, non-live fixture only.
 const env = { GITHUB_REPOSITORY: 'Ignite-Club-HQ/ignite-club_hq-prod', GITHUB_REF: 'refs/heads/prod', IGNITE_ICP_ENV: 'prod',
   KEY_ROLE: 'account', KEY_ENVIRONMENT: 'production-account-approval', CONFIRMATION: 'CREATE PROD ACCOUNT APPROVAL KEY',
-  PASSPHRASE: 'offline test passphrase never used live', PROD_GOVERNOR_PRINCIPAL: 'governor-fixture', GITHUB_ACTOR_ID: '1', INDEPENDENT_REVIEWER_ID: '2' };
+  PASSPHRASE: 'offline test passphrase never used live', PROD_GOVERNOR_PRINCIPAL: 'governor-fixture', GITHUB_ACTOR_ID: '1', OWNER_REVIEWER_ID: '1' };
 const fromSecretKey = bytes => ({ getPrincipal: () => ({ toText: () => createHash('sha256').update(bytes).digest('hex') }) });
 function fixture(failReady = false) {
   let receipt = null, minted = 0;
@@ -15,18 +15,18 @@ function fixture(failReady = false) {
   const identity = { fromSecretKey, generate() { assert.equal(receipt.phase, 'mint-pending'); minted++; return { ...fromSecretKey(Buffer.from(seed, 'hex')), getKeyPair: () => ({ secretKey: Buffer.from(seed, 'hex') }) }; } };
   return { journal, identity, count: () => minted, receipt: () => receipt };
 }
-test('exact PROD role, branch and independent reviewer are required', () => {
+test('exact PROD role, branch and owner reviewer are required; owner may initiate', () => {
   assert.doesNotThrow(() => assertAccountKeyContext(env));
   for (const change of [{ GITHUB_REF: 'refs/heads/main' }, { IGNITE_ICP_ENV: 'dev' }, { KEY_ROLE: 'unknown' },
-    { KEY_ENVIRONMENT: 'production' }, { INDEPENDENT_REVIEWER_ID: '1' }, { CONFIRMATION: '' }, { PASSPHRASE: 'short' }])
+    { KEY_ENVIRONMENT: 'production' }, { OWNER_REVIEWER_ID: '' }, { CONFIRMATION: '' }, { PASSPHRASE: 'short' }])
     assert.throws(() => assertAccountKeyContext({ ...env, ...change }));
 });
-test('approval environment must prevent self-review and administrator bypass', () => {
-  const config = { can_admins_bypass: false, protection_rules: [{ type: 'required_reviewers', prevent_self_review: true, reviewers: [{ type: 'User', reviewer: { id: 2 } }] }] };
-  assert.doesNotThrow(() => assertIndependentProtection(config, '2'));
-  assert.throws(() => assertIndependentProtection({ ...config, can_admins_bypass: true }, '2'));
+test('owner can approve their own run; administrator bypass and missing owner review are refused', () => {
+  const config = { can_admins_bypass: false, protection_rules: [{ type: 'required_reviewers', prevent_self_review: false, reviewers: [{ type: 'User', reviewer: { id: 1 } }] }] };
+  assert.doesNotThrow(() => assertIndependentProtection(config, '1'));
+  assert.throws(() => assertIndependentProtection({ ...config, can_admins_bypass: true }, '1'));
   assert.throws(() => assertIndependentProtection(config, '3'));
-  assert.throws(() => assertIndependentProtection({ protection_rules: [] }, '2'));
+  assert.throws(() => assertIndependentProtection({ protection_rules: [] }, '1'));
 });
 test('public pin is the exact Ed25519 key derived from the seed', () => {
   assert.equal(accountPublicKey(seed), '8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c');

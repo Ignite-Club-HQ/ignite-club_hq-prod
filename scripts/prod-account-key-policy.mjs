@@ -17,15 +17,15 @@ export function assertAccountKeyContext(env) {
     throw Error('Exact independent PROD approval context required');
   if (env.CONFIRMATION !== `CREATE PROD ${env.KEY_ROLE.toUpperCase()} APPROVAL KEY`) throw Error('Exact approval key confirmation required');
   if ((env.PASSPHRASE ?? '').length < 32) throw Error('Dedicated approval passphrase of at least 32 characters required');
-  if (!env.PROD_GOVERNOR_PRINCIPAL || !env.INDEPENDENT_REVIEWER_ID || env.INDEPENDENT_REVIEWER_ID === env.GITHUB_ACTOR_ID)
-    throw Error('Independent reviewer and existing governor binding required');
+  if (!env.PROD_GOVERNOR_PRINCIPAL || !/^[0-9]+$/.test(env.OWNER_REVIEWER_ID ?? ''))
+    throw Error('Owner reviewer and existing governor binding required');
   return role;
 }
 export function assertIndependentProtection(config, reviewerId) {
   const rule = config?.protection_rules?.find(r => r.type === 'required_reviewers');
-  if (!rule?.prevent_self_review || config.can_admins_bypass !== false ||
+  if (config.can_admins_bypass !== false ||
       !rule.reviewers?.some(r => r.type === 'User' && String(r.reviewer?.id) === String(reviewerId)))
-    throw Error('Non-bypassable independent environment review required');
+    throw Error('Non-bypassable owner environment review required');
 }
 export function assertIndependentKey(publicKey, principal, env) {
   const forbidden = [env.PROD_GOVERNOR_PRINCIPAL, env.DEV_DEPLOYER_PRINCIPAL, env.PROD_ICP_PUSH_WORKER_PRINCIPAL, env.OTHER_APPROVER_PRINCIPAL, '2vxsx-fae', 'aaaaa-aa'].filter(Boolean);
