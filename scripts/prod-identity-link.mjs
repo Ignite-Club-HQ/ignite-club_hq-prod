@@ -235,6 +235,29 @@ async function main() {
     return;
   }
 
+  if (action === 'restore-release') {
+    stage = 'restore bound-deletion release after upgrade (no authority or pin writes)';
+    const receipt = await journal.load({ readOnly: true });
+    const result = await restoreBoundDeletionRelease({ receipt, expectedHash: env.LINK_PLAN_HASH,
+      readState: plan => readState({ readRouterConfig, readIdentityConfig, readEnvironment: readIdentityEnv,
+        readRegistryPage }, plan),
+      setEnvironment: async plan => {
+        stage = 'environment write: bound-deletion release restore';
+        const merged = mergeEnvironment(await readIdentityEnv(), [plan.environment]);
+        const reply = await mgmt(plan.identityAccess).update_settings({ canister_id: pid(plan.identityAccess),
+          settings: { environment_variables: [merged] } });
+        if (reply && typeof reply === 'object' && 'Err' in reply)
+          throw new Error('Account service refused the environment write');
+      },
+      checkpoint });
+    await capture('restore-release');
+    writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-identity-link-result.json'), evidenceText(result));
+    const message = `### PROD bound-deletion release restored\n\nEnvironment write: ${result.restored ? 'applied and read back' : 'not needed (already present)'}.\n${JSON.stringify(result.verified)}\nNo authority bind, registry pin, routing approval, opening or admission.\n`;
+    console.log(message);
+    if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, message);
+    return;
+  }
+
   stage = 'verify reviewed plan against current source and infrastructure';
   const receipt = await journal.load({ readOnly: true });
   if (!receipt) throw new Error('No account-service link receipt exists yet; run plan first');
