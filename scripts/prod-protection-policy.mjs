@@ -66,3 +66,12 @@ export function verifyActivatedDraft(draft,targets,identity) {
   return true;
 }
 export function assertNoPending(receipt) {if(receipt?.pending)throw Error('Unresolved activation intent requires read only reconciliation');}
+/** Read-only outcome of a retained intent: only an exact before or exact after
+ * observation is decisive; anything else stays unknown and stops the run. */
+export function reconcileDecision(pending, observed) {
+  if (!pending?.kind || !('before' in pending) || !('after' in pending)) return 'unknown';
+  const now = JSON.stringify(observed);
+  if (now === JSON.stringify(pending.after)) return 'committed';
+  if (pending.retryable === true && now === JSON.stringify(pending.before)) return 'not-applied';
+  return 'unknown';
+}

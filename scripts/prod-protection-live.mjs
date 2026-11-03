@@ -16,7 +16,7 @@ import {groupContract} from './prod-group-contract.mjs';
 import {protectionContract} from './prod-protection-contract.mjs';
 import {SAFEGUARD_RECEIPT,assertWitnessState,identityPinEnv} from './prod-safeguard-live-policy.mjs';
 import {openAccountSeed,accountPublicKey} from './prod-account-key-policy.mjs';
-import {activationTargets,assertProtectionContext,protectionEnvironment,verifyActivatedDraft,assertNoPending,PROTECTION_RECEIPT,APPROVAL_LIFETIME_NS,digest,requireProtectionExecutionReady} from './prod-protection-policy.mjs';
+import {reconcileDecision,activationTargets,assertProtectionContext,protectionEnvironment,verifyActivatedDraft,assertNoPending,PROTECTION_RECEIPT,APPROVAL_LIFETIME_NS,digest,requireProtectionExecutionReady} from './prod-protection-policy.mjs';
 import {attestDeployKey,verifyDeployKey} from '../frontend/scripts/media-key-deploy-rules.mjs';
 import {configuredMainnetPhotoKey} from '../frontend/scripts/media-key-mainnet.mjs';
 
@@ -53,7 +53,7 @@ async function main(){
   if(safeguard?.phase!=='identity-pinned'||safeguard.pending||safeguard.identity!==ids.identity_access)throw Error('Completed identity pin receipt required');
   const base=await load({branch:RECEIPTS_BRANCH,path:RECEIPT_PATH});
   const g2=await load({branch:RECEIPTS_BRANCH,path:G2_REGISTRATION_RECEIPT_PATH});
-  const journal=githubJournal(env,fetch,PROTECTION_RECEIPT);let receipt=await journal.load({readOnly:true});assertNoPending(receipt);
+  const journal=githubJournal(env,fetch,PROTECTION_RECEIPT);let receipt=await journal.load({readOnly:true});
   let identity,key;
   if(job.startsWith('account-')||job.startsWith('recovery-')){
     const role=job.split('-')[0];
@@ -80,7 +80,18 @@ async function main(){
   const identityState=await certified(ids.identity_access);
   if(identityState.controllers.length!==1||identityState.controllers[0]!==safeguard.governor||identityState.subnet!==safeguard.subnet)throw Error('Exclusive identity controller and subnet required');
   const save=async r=>{receipt=r;await journal.save(r);writeFileSync(path.join(env.CHECK_REPORT_DIR,'activation-receipt.json'),evidenceText(r));};
-  const checkpoint=async(kind,call)=>{await save({...receipt,pending:{kind,at:new Date().toISOString()}});const value=await call();await save({...receipt,pending:null});return value;};
+  // Intent records the exact observable before/after state; completion and its
+  // phase/progress fields commit in ONE acknowledged write. A retained intent is
+  // resolved only by a read-only probe matching before or after exactly.
+  const probes=new Map();
+  const checkpoint=async(kind,{probe,before,after,retryable=false,commit=()=>({})},call)=>{probes.set(kind,probe);
+    await save({...receipt,pending:{kind,before,after,retryable,at:new Date().toISOString()}});const value=await call();
+    const seen=await probe();if(JSON.stringify(seen)!==JSON.stringify(after))throw Error('Acknowledged step readback mismatch');
+    await save({...receipt,...commit(value),pending:null});return value;};
+  const resolvePending=async()=>{const p=receipt?.pending;if(!p)return;const probe=probes.get(p.kind)??probeFor(p.kind);
+    if(!probe)throw Error('Unresolved activation intent has no read-only probe; manual review required');
+    const d=reconcileDecision(p,await probe());if(d==='unknown')throw Error('Unresolved activation intent: live state matches neither before nor after');
+    await save({...receipt,...(d==='committed'?(p.commit??{}):{}),pending:null});report(`Retained intent ${p.kind} reconciled read-only as ${d}.`);};
   const report=text=>{console.log(text);if(env.GITHUB_STEP_SUMMARY)appendFileSync(env.GITHUB_STEP_SUMMARY,text+'\n');};
   const decode=(type,encoded)=>IDL.decode([type],Uint8Array.from(Buffer.from(encoded,'base64')))[0];
   const encode=(type,value)=>Buffer.from(IDL.encode([type],[value])).toString('base64');
