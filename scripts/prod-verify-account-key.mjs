@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { githubJournal } from './prod-base-group.mjs';
 import { mintOrReadAccountKey } from './prod-account-key.mjs';
-import { ACCOUNT_KEY_ROLES, assertAccountKeyContext, assertIndependentProtection } from './prod-account-key-policy.mjs';
+import { ACCOUNT_KEY_ROLES, assertAccountKeyContext, assertIndependentProtection, openAccountSeed } from './prod-account-key-policy.mjs';
 
 export async function verifySavedAccountKey(env, journal, identityType) {
   assertAccountKeyContext(env);
@@ -48,6 +48,26 @@ async function main() {
     if (!receipt || receipt.version !== 1 || receipt.role !== env.KEY_ROLE || receipt.repository !== env.GITHUB_REPOSITORY || receipt.phase !== 'encrypted-ready')
       throw Error('Original completed receipt unavailable');
     console.log('Original completed receipt available.');
+    // Fixed-label sub-checks: report which saved item disagrees, never its value.
+    stage = 'saved public details match original';
+    if (env.EXISTING_PUBLIC_KEY !== receipt.publicKey || env.EXISTING_PRINCIPAL !== receipt.principal) throw Error('mismatch');
+    console.log('Saved public details match original.');
+    stage = 'saved encrypted block matches original';
+    if ((env.EXISTING_ENC || '') !== receipt.encryptedSeed) {
+      const sameIgnoringSpacing = (env.EXISTING_ENC || '').replace(/\s+/g, '') === receipt.encryptedSeed;
+      stage = sameIgnoringSpacing ? 'saved encrypted block has extra spaces or line breaks' : 'saved encrypted block differs from original';
+      throw Error('mismatch');
+    }
+    console.log('Saved encrypted block matches original exactly.');
+    stage = 'saved passphrase unlocks original key';
+    try { openAccountSeed(receipt.encryptedSeed, env.PASSPHRASE); } catch {
+      const trimmed = (env.PASSPHRASE || '').trim();
+      let trimmedWorks = false;
+      if (trimmed !== env.PASSPHRASE) { try { openAccountSeed(receipt.encryptedSeed, trimmed); trimmedWorks = true; } catch {} }
+      stage = trimmedWorks ? 'saved passphrase has extra spaces or line breaks' : 'saved passphrase does not unlock original key';
+      throw Error('mismatch');
+    }
+    console.log('Saved passphrase unlocks original key.');
     stage = 'saved approval verification';
     await verifySavedAccountKey(env, { async load() { return receipt; } }, Ed25519KeyIdentity);
     console.log('Saved approval verification passed. No keys, receipts, canisters or settings changed.');
