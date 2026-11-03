@@ -71,5 +71,5 @@ export function identityPinEnv(receipt, ids) {
   if (!receipt.witness || !hex64(receipt.witnessModuleHash)) throw Error('Installed safeguard required before pinning');
   return validateAccountPins({ version: 1, identity: ids.identity_access, witness: receipt.witness,
     accountPublicKey: receipt.pins.accountPublicKey, recoveryPublicKey: receipt.pins.recoveryPublicKey,
-    witnessModuleHash: receipt.witnessModuleHash, reviewedSourceCommit: receipt.sourceCommit }, ids);
+    witnessModuleHash: receipt.witnessModuleHash, recoveryPrincipal: receipt.pins.recoveryPrincipal, reviewedSourceCommit: receipt.sourceCommit }, ids);
 }

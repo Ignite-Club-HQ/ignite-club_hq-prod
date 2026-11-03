@@ -45,5 +45,7 @@ export function validateAccountPins(pins, ids) {
     IGNITE_PRODUCTION_ACCOUNT_WITNESS: pins.witness,
     IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY: pins.accountPublicKey,
     IGNITE_RECOVERY_APPROVER_PUBLIC_KEY: pins.recoveryPublicKey,
+    IGNITE_PRODUCTION_ACCOUNT_WITNESS_MODULE_HASH: pins.witnessModuleHash,
+    ...(pins.recoveryPrincipal ? { IGNITE_PRODUCTION_ACCOUNT_WITNESS_CONTROLLER: pins.recoveryPrincipal } : {}),
   };
 }

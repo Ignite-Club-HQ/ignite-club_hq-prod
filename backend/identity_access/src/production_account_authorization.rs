@@ -72,6 +72,25 @@ fn bounds(b:&ApprovalBody)->Result<(),String> {
 pub fn key() -> Result<VerifyingKey,String> {
     parse_key(option_env!("IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY").ok_or("Independent production account signer not configured")?)
 }
+/// Immutable witness program fingerprint and sole controller. Address alone
+/// would accept a swapped program installed by whoever controls the witness.
+pub fn witness_binding() -> Result<(Vec<u8>,Principal),String> {
+    let hash=option_env!("IGNITE_PRODUCTION_ACCOUNT_WITNESS_MODULE_HASH").ok_or("Recovery witness program pin not configured")?;
+    let ctl=option_env!("IGNITE_PRODUCTION_ACCOUNT_WITNESS_CONTROLLER").ok_or("Recovery witness controller pin not configured")?;
+    parse_binding(hash,ctl)
+}
+pub fn parse_binding(hash:&str,ctl:&str)->Result<(Vec<u8>,Principal),String>{
+    let h=hex::decode(hash).map_err(|_|"Invalid recovery witness program pin")?;
+    if h.len()!=32 || h.iter().all(|b|*b==0) {return Err("Invalid recovery witness program pin".into());}
+    let c=Principal::from_text(ctl).map_err(|_|"Invalid recovery witness controller pin")?;
+    if c==Principal::anonymous() || c==Principal::management_canister() {return Err("Invalid recovery witness controller pin".into());}
+    Ok((h,c))
+}
+pub fn check_witness_info(module:Option<&[u8]>,controllers:&[Principal],pin:&(Vec<u8>,Principal))->Result<(),String>{
+    if module!=Some(pin.0.as_slice()) {return Err("Recovery witness program differs from pinned build".into());}
+    if controllers!=[pin.1] {return Err("Recovery witness must be controlled only by the pinned recovery key".into());}
+    Ok(())
+}
 pub fn witness() -> Result<Principal,String> {
     let text=option_env!("IGNITE_PRODUCTION_ACCOUNT_WITNESS").ok_or("Independent recovery witness not configured")?;
     let p=Principal::from_text(text).map_err(|_|"Invalid immutable recovery witness")?;
@@ -193,6 +212,15 @@ pub fn removal_control(state:&State,identity:Principal,operator:Principal,now:u6
         let mut bad=receipt.clone();bad.request.identity_version=3;assert!(validate_witness(&request,&bad).is_err());
         let mut bad=receipt;bad.request.signed_digest[0]^=1;assert!(validate_witness(&request,&bad).is_err());
         if option_env!("IGNITE_PRODUCTION_ACCOUNT_WITNESS").is_none(){assert!(witness().is_err());}
+        if option_env!("IGNITE_PRODUCTION_ACCOUNT_WITNESS_MODULE_HASH").is_none(){assert!(witness_binding().is_err());}
+        let pin=parse_binding(&"ab".repeat(32),"2vxsx-fae");assert!(pin.is_err());
+        let ctl=Principal::from_slice(&[7;29]);let pin=parse_binding(&"ab".repeat(32),&ctl.to_text()).unwrap();
+        assert!(check_witness_info(Some(&[0xab;32]),&[ctl],&pin).is_ok());
+        assert!(check_witness_info(Some(&[0xac;32]),&[ctl],&pin).is_err());
+        assert!(check_witness_info(None,&[ctl],&pin).is_err());
+        assert!(check_witness_info(Some(&[0xab;32]),&[ctl,Principal::from_slice(&[8;29])],&pin).is_err());
+        assert!(check_witness_info(Some(&[0xab;32]),&[],&pin).is_err());
+        assert!(parse_binding(&"00".repeat(32),&ctl.to_text()).is_err());
     }
     #[test] fn oversized_nested_inputs_refuse_before_signing_and_authorization() {
         let(a,k)=signed();let mut bad=a.clone();bad.body.expectation.inventory.groups.binding.host="x".repeat(513);
