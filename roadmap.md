@@ -628,3 +628,9 @@ Validation budget: changed rules plus direct regressions per substantial batch; 
 - [x] Reconciled promotion handoff with newer recorded revision-5 evidence in docs/prod-removal-implementation-2026-11-02.md: no additive wiring calls or execution-fuel shortfall remained. This is recorded evidence, not a fresh live check; no repeat wiring/payment instructed.
 - [ ] Review an exact source-copy plan before any further promotion: the allowlist includes unfinished backend removal candidates, not only wiring tools. Blocker: removal engineering/local acceptance and separate owner review; source copy is not release authorization.
 - [ ] Production admission path for base group — needs backend work + owner approval
+
+## Forward release (2026-11-03 18:28 UTC)
+- [ ] Read-only DEV check for latest main (run 41694120799)
+- [ ] DEV upgrade to main after Paul approves the checked plan
+- [ ] Paul phone check on DEV
+- [ ] Copy same main code to PROD, upgrade-only; groups stay closed until separate approval
