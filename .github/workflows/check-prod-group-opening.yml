@@ -29,7 +29,8 @@ jobs:
         with:
           node-version: "22.12.0"
       - name: Install project dependencies
-        run: node scripts/ensure-frontend-deps.mjs
+        working-directory: frontend
+        run: npm ci --ignore-scripts --no-fund --no-audit
       - name: Install isolated pinned SDK
         run: npm install --prefix "$RUNNER_TEMP/prod-open-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
       - name: Resolve the existing push worker identity
