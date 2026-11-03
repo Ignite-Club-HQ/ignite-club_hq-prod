@@ -41,3 +41,8 @@ Updated on DEV after that record, commit not yet identified: identity_access, cl
 - GitHub history shows the last real DEV update was run 40980031534 (30 Oct 00:29 UTC) from commit d321e85b, scope `private_club_name_display`, 5 targets. No other workflow installed DEV service code since.
 - Run 41609390535 (3 Nov) then moved the account service (identity_access) back to the 29 Oct build before the club service refused; DEV is currently mixed.
 - Branch `dev-current-2026-10-30` created at d321e85b; read-only full check dispatched: run 41613731061.
+
+## Update 3 Nov ~10:00 UTC — check run 41614699252 (d321e85b, read-only)
+- Stopped 3 Nov record archived to `archive/2026-11-03-stopped-dev-reset-42edc640.json` on the receipts branch (unchanged blob f4ec94ef).
+- 30 of 31 DEV services match the 30 Oct build exactly. Plan hash 3f1ada48… equals the 30 Oct post-release check.
+- Only mismatch: identity_access, live f38cd5df (29 Oct, set this morning). Its 30 Oct value 4fe59c88 came from the special private-name build; the normal full build gives 0d9a2e97, which DEV never ran.
