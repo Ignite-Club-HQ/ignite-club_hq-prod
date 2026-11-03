@@ -10,6 +10,8 @@ import { GROUP_DOMAINS } from './prod-group-readiness.mjs';
  * evidence, NEVER a production setting recommendation or release grant. */
 export const ADMISSION_FLAG = 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL';
 export const ADMISSION_AUTHORITY = 'IGNITE_ACCOUNT_SERVICE_IDENTITY';
+export const PRODUCTION_ADMISSION_FLAG = 'IGNITE_ACCOUNT_ADMISSION_RELEASE';
+export const PRODUCTION_REMOVAL_FLAG = 'IGNITE_ACCOUNT_REMOVAL_RELEASE';
 /** Group services that check account admission (timer_jobs and the shared
  * workload identity do not). */
 export const ADMISSION_DOMAINS = Object.freeze(GROUP_DOMAINS.filter(n => n !== 'timer_jobs'));
@@ -180,11 +182,16 @@ export function reviewRoutingGate({ ids = PROD_CHECK_IDS, principal, pushWorker,
       // switch and authority (timer_jobs and the workload identity do not).
       const checksAdmission = ADMISSION_DOMAINS.includes(item.name) || item.name === 'media_blob_store';
       if (checksAdmission) {
-        add('PRODUCTION_ADMISSION_PATH_UNRELEASED', `${group.id}/${item.name}: current service admission is rehearsal-only; production enforcement and full removal acceptance remain required.`);
+        const ordinary = one(identityConfig, 'ordinary_member_access') === 'true';
+        if (!ordinary) add('PRODUCTION_ADMISSION_PATH_UNRELEASED', `${group.id}/${item.name}: ordinary production member access has not been verified.`);
         if (envValue(service.environment, ADMISSION_FLAG) === '1')
           add('PROD_REHEARSAL_FORBIDDEN', `${group.id}/${item.name}: local rehearsal is enabled on PROD; it cannot authorize release.`);
-        if (envValue(service.environment, ADMISSION_FLAG) !== '1')
+        if (!ordinary && envValue(service.environment, ADMISSION_FLAG) !== '1')
           add('REMOVAL_CHECKS_OFF', `${group.id}/${item.name}: account admission checks are off; do not enable the local-rehearsal setting in PROD. Production protection and separate approval are required.`);
+        if (ordinary && envValue(service.environment, PRODUCTION_ADMISSION_FLAG) !== '1')
+          add('MEMBER_ADMISSION_OFF', `${group.id}/${item.name}: production member admission is not enabled.`);
+        if (ordinary && envValue(service.environment, PRODUCTION_REMOVAL_FLAG) === '1')
+          add('GLOBAL_REMOVAL_NOT_DEFERRED', `${group.id}/${item.name}: global removal must remain off for the simplified launch.`);
         if (envValue(service.environment, ADMISSION_AUTHORITY) !== ids.identity_access)
           add('ADMISSION_AUTHORITY_MISSING', `${group.id}/${item.name}: not bound to the PROD account service.`);
       }
@@ -224,8 +231,11 @@ export function reviewRoutingGate({ ids = PROD_CHECK_IDS, principal, pushWorker,
     add('IDENTITY_REGISTRY_NOT_BOUND', 'Account service is not pinned to this independent PROD registry/deployment.');
   if (one(identityConfig, 'bound_deletion_released') !== 'true')
     add('DELETION_RELEASE_UNVERIFIED', 'Bound-deletion protocol has not read back as released.');
+  if (one(identityConfig, 'ordinary_member_access') === 'true' && one(identityConfig, 'global_account_operations_deferred') !== 'true')
+    add('GLOBAL_ACCOUNT_OPERATIONS_UNVERIFIED', 'Global account erasure and recovery must read back as deferred.');
   const checksAdmission = s => ADMISSION_DOMAINS.includes(s.name) || s.name === 'media_blob_store';
-  const admissionServices = services.filter(s => checksAdmission(s) && envValue(s.environment, ADMISSION_FLAG) === '1');
+  const admissionServices = services.filter(s => checksAdmission(s) &&
+    (envValue(s.environment, ADMISSION_FLAG) === '1' || envValue(s.environment, PRODUCTION_ADMISSION_FLAG) === '1'));
   if (admissionServices.length) {
     if (one(identityConfig, 'account_admission_released') !== 'true')
       add('ADMISSION_RELEASE_UNVERIFIED', 'The account service has not released account admission; group settings alone cannot authorize membership reads.');

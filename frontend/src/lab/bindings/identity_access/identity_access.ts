@@ -1048,6 +1048,7 @@ export interface identity_accessInterface {
     authorize_group_admission(arg0: string, arg1: Binding): Promise<Result_2>;
     authorize_private_name_removal(arg0: Principal, arg1: string, arg2: Principal, arg3: string): Promise<Result_7>;
     authorize_production_account_readers(arg0: SignedApproval_1): Promise<Result_8>;
+    authorize_production_member_access(arg0: Binding): Promise<Result_2>;
     begin_account_removal(arg0: string, arg1: bigint): Promise<Result_9>;
     begin_link(arg0: Principal): Promise<Result_10>;
     begin_private_name_preparation(arg0: string, arg1: bigint, arg2: RemovalInventory): Promise<Result_6>;
@@ -1229,6 +1230,10 @@ export class Identity_access implements identity_accessInterface {
     async authorize_production_account_readers(arg0: SignedApproval_1): Promise<Result_8> {
         const result = await this.actor.authorize_production_account_readers(to_candid_SignedApproval_1_n30(arg0));
         return from_candid_Result_8_n39(result);
+    }
+    async authorize_production_member_access(arg0: Binding): Promise<Result_2> {
+        const result = await this.actor.authorize_production_member_access(arg0);
+        return from_candid_Result_2_n10(result);
     }
     async begin_account_removal(arg0: string, arg1: bigint): Promise<Result_9> {
         const result = await this.actor.begin_account_removal(arg0, arg1);

@@ -765,6 +765,7 @@ export interface _SERVICE {
     [SignedApproval_1],
     Result_8
   >,
+  'authorize_production_member_access' : ActorMethod<[Binding], Result_2>,
   'begin_account_removal' : ActorMethod<[string, bigint], Result_9>,
   'begin_link' : ActorMethod<[Principal], Result_10>,
   /**

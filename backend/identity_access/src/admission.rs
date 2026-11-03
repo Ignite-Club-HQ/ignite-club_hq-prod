@@ -10,7 +10,41 @@ pub struct Group { pub id: String, pub target_alias: String, pub domains: Vec<Do
 #[derive(Clone, Debug, CandidType, Deserialize, PartialEq)]
 pub struct Page { pub revision: u64, pub groups: Vec<Group>, pub placements: Vec<Placement>, pub next_cursor: Option<String> }
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct Config { pub enabled: bool, pub readers: Vec<Principal> }
+pub struct Config {
+    pub enabled: bool,
+    pub readers: Vec<Principal>,
+    /// Additive, opt-in ordinary member access. Old saved configurations remain eligibility-only.
+    #[serde(default)] pub member_access: bool,
+    #[serde(default)] pub club_readers: Vec<Principal>,
+}
+
+/// Derive a complete ordinary-access inventory, including the independent PROD
+/// base group, without changing the legacy group2 eligibility release.
+pub fn member_readers(groups: &[Group], placements: &[Placement], binding: &Binding) -> Result<(Vec<Principal>, Vec<Principal>), String> {
+    if binding.target_alias != "mainnet" || binding.deployment_id != "prod" ||
+        binding.host != "https://icp-api.io" || binding.network_kind != "public_mainnet" ||
+        groups.len() != 2 || !groups.iter().any(|g|g.id=="base") || !groups.iter().any(|g|g.id=="g2") {
+        return Err("Exact independent PROD base and g2 required".into());
+    }
+    let snapshot = crate::group_inventory::Snapshot { revision: binding.registry_revision,
+        groups: groups.iter().map(|g|crate::group_inventory::Group {id:g.id.clone(),target_alias:g.target_alias.clone(),domains:g.domains.clone()}).collect(),
+        placements:placements.to_vec() };
+    let clubs:Vec<_>=groups.iter().flat_map(|g|g.domains.iter().filter(|d|d.domain=="club_domain").map(|d|d.canister)).collect();
+    crate::group_inventory::validate(&snapshot,binding,&clubs,&[])?;
+    let mut readers=Vec::new();
+    for group in groups {
+        for name in READERS {readers.push(group.domains.iter().find(|d|d.domain==name).ok_or("Incomplete group readers")?.canister);}
+        let store=group.photo_store.ok_or("Dedicated group photo store required")?;
+        if store==Principal::anonymous() || store==Principal::management_canister() ||
+            groups.iter().any(|g|g.domains.iter().any(|d|d.canister==store) || (g.id!=group.id && g.photo_store==Some(store))) {
+            return Err("Dedicated group photo store required".into());
+        }
+        readers.push(store);
+    }
+    readers.sort();readers.dedup();
+    if readers.len()!=24 || clubs.len()!=2 {return Err("Exact 24 member readers required".into());}
+    Ok((readers,clubs))
+}
 
 /// New club groups only: g2..g999. g1 is the legacy shared group and never gets readers here.
 pub fn valid_group_id(id: &str) -> bool {

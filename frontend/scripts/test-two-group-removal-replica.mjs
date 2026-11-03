@@ -28,6 +28,7 @@ const denied=async fn=>{
  err(result);
 };
 const production=process.env.TWO_GROUP_RECEIVER_MODE==='production';
+const ordinary=process.env.TWO_GROUP_RECEIVER_MODE==='ordinary';
 const candidate=production || process.env.TWO_GROUP_RECEIVER_MODE==='production-candidate';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const report={schema:1,kind:'two-group-complete-removal',passed:false,
@@ -110,9 +111,9 @@ try{
   const mapped=[...HUMAN_DOMAINS.filter(d=>d!=='media_blob_store').map(domain=>({domain,canister:g.services[domain].canisterId})),
    {domain:'timer_jobs',canister:g.timer.canisterId},{domain:'secret_workload_identity',canister:shared.canisterId}];
   let revision=await router.actor.version();
-  revision=ok(await router.actor.register_group({id:g.id,target_alias:production?'mainnet':'local',domains:mapped,accepting:false,max_clubs:100,assigned_clubs:0,
-   heap_budget_bytes:1000000n,heap_bytes:0n,min_cycles:1n,cycles:0n,observed_at_ns:0n,photo_store:[]},revision));
-  ok(await router.actor.register_group_placement({group_id:g.id,deployment_id:production?'prod':'isolated-replica',deployment_revision:1n,host:production?'https://icp-api.io':'https://isolated.invalid',
+  revision=ok(await router.actor.register_group({id:g.id,target_alias:production||ordinary?'mainnet':'local',domains:mapped,accepting:false,max_clubs:100,assigned_clubs:0,
+   heap_budget_bytes:1000000n,heap_bytes:0n,min_cycles:1n,cycles:0n,observed_at_ns:0n,photo_store:ordinary?[g.services.media_blob_store.canisterId]:[]},revision));
+  ok(await router.actor.register_group_placement({group_id:g.id,deployment_id:production||ordinary?'prod':'isolated-replica',deployment_revision:1n,host:production||ordinary?'https://icp-api.io':'https://isolated.invalid',
    network_kind:'public_mainnet',primary_subnet:subnet,approved_subnets:[subnet],additional_subnets_enabled:false,domains:mapped.map(d=>({...d,subnet}))},revision));
   extra.push({group_id:g.id,domain:'media_blob_store',canister:g.services.media_blob_store.canisterId,subnet});
  }
@@ -121,7 +122,7 @@ try{
  let inventory;
  if(!production){
   ok(await id.set_club_authorities(groups.map(g=>g.services.club_domain.canisterId)));
-  ok(await id.set_group_inventory_binding({registry:router.canisterId,registry_revision:await router.actor.version(),target_alias:'local',deployment_id:'isolated-replica',deployment_revision:1n,host:'https://isolated.invalid',network_kind:'public_mainnet'},await revision()));
+  ok(await id.set_group_inventory_binding({registry:router.canisterId,registry_revision:await router.actor.version(),target_alias:ordinary?'mainnet':'local',deployment_id:ordinary?'prod':'isolated-replica',deployment_revision:1n,host:ordinary?'https://icp-api.io':'https://isolated.invalid',network_kind:'public_mainnet'},await revision()));
   ok(await id.set_removal_supplemental_inventory(extra,await revision()));
   inventory=ok(await id.read_removal_inventory_evidence(await revision()));assert.equal(inventory.media.length,2);
  } else {
@@ -161,7 +162,7 @@ try{
  baseTimer.setPrincipal(alias);ok(await baseTimer.claim(0n,1));
  shared.actor.setPrincipal(governor);ok(await shared.actor.register_workload(primary,'removed-account-workload',['send-push-notification']));
  shared.actor.setPrincipal(primary);assert.equal((await shared.actor.verify_secret_access(primary,'send-push-notification','before-fence')).approved,true);
- for(const human of [primary,alias,survivor]){router.actor.setPrincipal(human);ok(await router.actor.read_my_owner_test_opening(production?'mainnet':'local'));}
+ for(const human of [primary,alias,survivor]){router.actor.setPrincipal(human);ok(await router.actor.read_my_owner_test_opening(production||ordinary?'mainnet':'local'));}
  mark('Four infrastructure receivers configured once; alias timer worker and primary workload are real retained obligations');
  const normalizedGroups=groups.map(g=>({id:g.id,timer:g.timer.canisterId.toText(),receivers:HUMAN_DOMAINS.map(domain=>({domain,id:g.services[domain].canisterId.toText()}))}));
  stage='seed positive private records in both groups';
@@ -214,6 +215,50 @@ try{
  // Restore only the reviewed fixture grant to exercise a real pending callback.
  ok(await base.services.club_domain.actor.restore_member(base.club,primary));
  ok(await base.services.club_domain.actor.add_role_grant(primary,base.club,'club_admin',[]));
+ if(ordinary){
+  stage='commission ordinary member access on the same real services';
+  const ordinaryEnv=[{name:'IGNITE_ACCOUNT_ADMISSION_RELEASE',value:'1'},
+   {name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:identity.canisterId.toText()}];
+  // Reuse the installed instances and actual private records, not mock actors.
+  for(const g of groups){
+   for(const [domain,s] of Object.entries(g.services)){
+    const variables=[...ordinaryEnv,
+     ...(domain==='pii_access_control'?[{name:'VETKD_KEY_NAME',value:'key_1'}]:[]),
+     ...(domain==='media_blob_store'?[{name:'GOVERNOR_PRINCIPAL',value:governor.toText()}]:[])];
+    await pic.updateCanisterSettings({canisterId:s.canisterId,sender:governor,environmentVariables:variables});
+    await pic.upgradeCanister({canisterId:s.canisterId,wasm:wasm(domain),sender:governor,
+     upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]},arg:IDL.encode([IDL.Principal],[governor])});
+   }
+   router.actor.setPrincipal(governor);
+   const revision=await router.actor.version();
+   const mapped=[...HUMAN_DOMAINS.filter(d=>d!=='media_blob_store').map(domain=>({domain,canister:g.services[domain].canisterId})),
+    {domain:'timer_jobs',canister:g.timer.canisterId},{domain:'secret_workload_identity',canister:shared.canisterId}];
+   const updated=ok(await router.actor.register_group({id:g.id,target_alias:'mainnet',domains:mapped,accepting:false,max_clubs:100,assigned_clubs:0,
+    heap_budget_bytes:1000000n,heap_bytes:0n,min_cycles:1n,cycles:0n,observed_at_ns:0n,photo_store:[g.services.media_blob_store.canisterId]},revision));
+   ok(await router.actor.register_group_placement({group_id:g.id,deployment_id:'prod',deployment_revision:1n,host:'https://icp-api.io',network_kind:'public_mainnet',
+    primary_subnet:subnet,approved_subnets:[subnet],additional_subnets_enabled:false,domains:mapped.map(d=>({...d,subnet}))},updated));
+  }
+  const binding={registry:router.canisterId,registry_revision:await router.actor.version(),target_alias:'mainnet',deployment_id:'prod',deployment_revision:1n,host:'https://icp-api.io',network_kind:'public_mainnet'};
+  // The existing PROD-shaped pin retains its endpoints; only revision advances.
+  id.setPrincipal(governor);
+  ok(await id.set_group_inventory_binding(binding,await revision()));
+  await pic.updateCanisterSettings({canisterId:identity.canisterId,sender:governor,environmentVariables:[]});
+  await pic.upgradeCanister({canisterId:identity.canisterId,wasm:wasm('identity_access'),sender:governor,arg:args});
+  id.setPrincipal(outsider);err(await id.authorize_production_member_access(binding));
+  id.setPrincipal(governor);ok(await id.authorize_production_member_access(binding));
+  err(await id.begin_account_removal(account.id,0n));err(await id.erase_account(account.id));
+  err(await id.prepare_account_deletion(account.id,binding.registry_revision));err(await id.commit_account_deletion(account.id));
+  err(await id.reconcile_pending_recovery_records(1));
+  const authorization=ok(await id.read_production_account_authorization());assert.equal(authorization.approval.length,0);
+  await pic.advanceTime(25*60*60*1000);
+  await pic.upgradeCanister({canisterId:identity.canisterId,wasm:wasm('identity_access'),sender:governor,arg:args});
+  for(const g of groups){await g.readPhoto(primary);await g.readPhoto(survivor);
+   g.services.messaging_domain.actor.setPrincipal(primary);assert.equal(ok(await g.services.messaging_domain.actor.read_account_list_messages_page(g.chat.id,[],10)).messages.length,1);
+   g.services.messaging_domain.actor.setPrincipal(outsider);await denied(()=>g.services.messaging_domain.actor.read_account_list_messages_page(g.chat.id,[],10));
+  }
+  mark('Ordinary production access survives 25 hours and identity upgrade without signed approval; global erasure/recovery refused');
+  report.passed=true;
+ }else{
  stage='freeze complete real inventory and revoke both aliases';id.setPrincipal(governor);
  const intent=ok(await id.begin_account_removal(account.id,await revision()));
  validateTwoGroupInventory(normalizedGroups,intent.targets.map(p=>p.toText()),shared.canisterId.toText(),router.canisterId.toText());
@@ -379,6 +424,7 @@ try{
  report.terminalFencingCompletion=true;
  mark('Immutable terminal fencing completion survives replay and identity upgrade; history, data, survivor access and authority locks remain');
  report.passed=true;
+ }
 }catch(error){report.failure=error?.name??'Error';throw error;}
 finally{
  report.stage=stage;

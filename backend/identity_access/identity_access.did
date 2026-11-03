@@ -613,6 +613,7 @@ service : (Init) -> {
   // Exact independent signature + live witnesses, not caller-supplied reader lists.
   // This installs only an account-read capability, not removal, erasure or routing.
   authorize_production_account_readers : (SignedApproval_1) -> (Result_8);
+  authorize_production_member_access : (Binding) -> (Result_2);
   begin_account_removal : (text, nat64) -> (Result_9);
   begin_link : (principal) -> (Result_10);
   // The candidate topology is not account/club data evidence. Close local

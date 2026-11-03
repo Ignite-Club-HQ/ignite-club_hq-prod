@@ -2,7 +2,10 @@
 
 ## Current request — simplest safe launch plan (3 Nov 2026, 07:35 UTC)
 - [x] Prepared minimal launch plan: pause commissioning, separate normal member access from expiring privileged approval, hold unfinished destructive operations, verify one final sequence, then separately approve production delivery/opening/publication. Local source confirms account-reader dependency; live state/results not reverified. No live changes.
-- [ ] Execute only after plan approval; production opening and publication still need explicit owner authorization.
+- [x] Plan approved; implemented explicit ordinary PROD member mode, exact registry-derived caller/club readers and admission-only commissioning, current denials/tickets/fences, global erasure/recovery hold and readiness diagnostics. 235 Rust + 19 routing + 44 commissioning checks pass, 17 contracts match, identity Wasm compiled. No live changes.
+- [ ] Consolidated complete-service/app verification: ordinary scenario prepared in existing isolated workflow; sandbox native write-fault preflight fails, needs supported GitHub worker. Latest existing run25 is still running on earlier code, not this mode.
+- [ ] Fresh protected read-only PROD configuration/readiness and shipped dispatch/removal-wiring integration acceptance; governor-run evidence not available in sandbox. Historical receipt alone is not live verification.
+- [ ] Exact production delivery, group opening and publication wait for passing acceptance and Paul's separate explicit approvals. See docs/minimal-production-launch-status-2026-11-03.md.
 
 ## Current request — move toward live switch-on (3 Nov 2026, 07:03 UTC)
 - [x] Confirmed exact repaired witness, identity, shared runner and canister assertions match GitHub main 79469486d7052657c49cc3817daed7aa7884c9f6; dispatched supported-worker isolated verification. No live changes or hold removal.

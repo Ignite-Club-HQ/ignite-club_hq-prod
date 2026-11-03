@@ -716,6 +716,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_8],
         [],
       ),
+    'authorize_production_member_access' : IDL.Func([Binding], [Result_2], []),
     'begin_account_removal' : IDL.Func([IDL.Text, IDL.Nat64], [Result_9], []),
     'begin_link' : IDL.Func([IDL.Principal], [Result_10], []),
     'begin_private_name_preparation' : IDL.Func(
