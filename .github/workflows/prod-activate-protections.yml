@@ -54,8 +54,7 @@ jobs:
           KEYDIR="$RUNNER_TEMP/key"
           mkdir -p "$KEYDIR"
           trap 'rm -rf "$KEYDIR"' EXIT
-          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '
- ' | base64 -d > "$KEYDIR/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$KEYDIR/key.enc"
           printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$KEYDIR/pass"
           openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEYDIR/key.enc" -out "$KEYDIR/key.pem" -pass file:"$KEYDIR/pass"
           export CHECK_KEY_PEM="$KEYDIR/key.pem"
@@ -174,8 +173,7 @@ jobs:
           KEYDIR="$RUNNER_TEMP/key"
           mkdir -p "$KEYDIR"
           trap 'rm -rf "$KEYDIR"' EXIT
-          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '
- ' | base64 -d > "$KEYDIR/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$KEYDIR/key.enc"
           printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$KEYDIR/pass"
           openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEYDIR/key.enc" -out "$KEYDIR/key.pem" -pass file:"$KEYDIR/pass"
           export CHECK_KEY_PEM="$KEYDIR/key.pem"
@@ -294,8 +292,7 @@ jobs:
           KEYDIR="$RUNNER_TEMP/key"
           mkdir -p "$KEYDIR"
           trap 'rm -rf "$KEYDIR"' EXIT
-          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '
- ' | base64 -d > "$KEYDIR/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$KEYDIR/key.enc"
           printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$KEYDIR/pass"
           openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEYDIR/key.enc" -out "$KEYDIR/key.pem" -pass file:"$KEYDIR/pass"
           export CHECK_KEY_PEM="$KEYDIR/key.pem"
