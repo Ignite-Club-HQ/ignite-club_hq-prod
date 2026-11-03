@@ -1,6 +1,12 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
-## Current request — direct live delivery, rehearsal skipped (3 Nov 2026, 08:10 UTC)
+## Current request — make PROD a straight copy of DEV (3 Nov 2026, 08:41 UTC)
+- [x] Read-only fingerprint comparison: 17/18 PROD base services differ from DEV; DEV g1==g2; five DEV services newer than deploy/mainnet/backend-release.json.
+- [x] Freeze all PROD-only safeguard/key/member-access work below (superseded).
+- [ ] Choose release code: A) what DEV runs now, or B) newer main. Blocker: Paul's choice.
+- [ ] Upgrade DEV if B, confirm app works; copy exact code to prod; upgrade PROD upgrade-only with compatibility stop; read back fingerprints vs DEV.
+
+## SUPERSEDED — direct live delivery, rehearsal skipped (3 Nov 2026, 08:10 UTC)
 - [x] Paul chose to skip the isolated rehearsal and go straight to live delivery and a real sign-in test. Ran the read-only PROD routing-gate check on `prod` (run 41600725574) for the authoritative gap list instead of guessing. No live change.
 - [x] Build the admission-only delivery tool: `scripts/prod-member-access-policy.mjs`, `scripts/prod-member-access.mjs`, `.github/workflows/prod-enable-member-access.yml` and 12 passing tests. It binds the 24 readers to the account service with admission on and never writes the global removal flag; a partially applied run resumes rather than dead-ending. See docs/prod-member-access-gap-review-2026-11-03.md.
 - [ ] Deliver the reviewed ordinary-access account-service code to `prod` and upgrade it. Blocker: `authorize_production_member_access` is absent from the `prod` branch, so the live service cannot yet be commissioned. Needs Paul's approval to push code to the live branch.
