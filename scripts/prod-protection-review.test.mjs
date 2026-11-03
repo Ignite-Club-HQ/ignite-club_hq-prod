@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {generateKeyPairSync,sign} from 'node:crypto';
-import {assertEmptyHistory,verifySignature,assertArtifactPlan,assertReviewedReceivers,jobTransition} from './prod-protection-review.mjs';
+import {assertEmptyHistory,verifySignature,assertArtifactPlan,assertReviewedReceivers,jobTransition,identityPreparationDecision,protectionReviewContext} from './prod-protection-review.mjs';
 test('history revision may advance for inventory provisioning but no removal row is ignored',()=>{
   const h={revision:'8',principal_denials:'0',erased_accounts:'0',pending_intents:'0',removal_barriers:'0',removal_subjects:'0',removal_receipts:'0',removal_completions:'0'};
   assert.doesNotThrow(()=>assertEmptyHistory(h,'8'));
@@ -30,4 +30,23 @@ test('independent signers refuse receiver program or inventory drift from the re
   for(const field of ['moduleHash','subnet','controllers'])assert.throws(()=>assertReviewedReceivers(plan,targets,[{...receiver,[field]:field==='controllers'?['other']:'other'}]));
   assert.throws(()=>assertReviewedReceivers(plan,targets,[]));
   assert.throws(()=>assertReviewedReceivers({receivers:[]},targets,[receiver]));
+});
+test('already installed reviewed identity never requires a same-program upgrade',()=>{
+  assert.equal(identityPreparationDecision('reviewed','reviewed','original'),'already-installed');
+  assert.equal(identityPreparationDecision('original','reviewed','original'),'upgrade');
+  assert.throws(()=>identityPreparationDecision('foreign','reviewed','original'));
+});
+test('interrupted inventory continuation preserves original proofs until a complete protection review exists',()=>{
+  const receipt={phase:'inventory-delivered',purpose:'inventory',pending:null,runId:'inventory-run',body:'inventory-body',
+    proofs:{inventory:'certificate'},approval:'signed-inventory',acceptance:'signed-recovery',
+    inventoryApproval:'signed-inventory',inventoryAcceptance:'signed-recovery',fenceEvidence:{revision:'1'}};
+  const before=structuredClone(receipt);
+  const first=protectionReviewContext(receipt,'protection-run');
+  assert.deepEqual(receipt,before);
+  assert.equal(first.purpose,'protection');assert.equal(first.runId,'protection-run');
+  assert.deepEqual(first.inventoryStage.proofs,{inventory:'certificate'});
+  assert.equal(jobTransition('deliver-inventory',receipt),'done');
+  assert.deepEqual(protectionReviewContext(receipt,'protection-run'),first);
+  assert.throws(()=>protectionReviewContext({...receipt,pending:{kind:'inventory'}},'protection-run'));
+  assert.throws(()=>protectionReviewContext({...receipt,purpose:'protection'},'protection-run'));
 });
