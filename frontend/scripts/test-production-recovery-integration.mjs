@@ -103,12 +103,22 @@ try {
  w.setPrincipal(owner);
  const progressSignature=new Uint8Array(sign(null,Buffer.from(ok(await w.subject_progress_approval_signing_bytes(body))),recoveryKey.privateKey));
  ok(await w.authorize_subject_removal_progress({body,signature:progressSignature}));
+ w.setPrincipal(identityId);
+ assertCandidEqual(ok(await w.verify_production_account_protection_fence(request)).request,request);
+ w.setPrincipal(outsider);refuses(await w.verify_production_account_protection_fence(request),/Pinned protection identity required/);
+ w.setPrincipal(owner);ok(await w.accept_recovery_fence(signed));
+ w.setPrincipal(identityId);ok(await w.verify_production_account_read_fence(request));
+ refuses(await w.verify_production_account_protection_fence(request),/Current global and subject protection baseline required/);
+ w.setPrincipal(owner);ok(await w.authorize_subject_removal_progress({body,signature:progressSignature}));
+ w.setPrincipal(identityId);assertCandidEqual(ok(await w.verify_production_account_protection_fence(request)).request,request);w.setPrincipal(owner);
+ mark('Current protection readback rejects same-body global reacceptance that disarms subject protection, then verifies fresh subject arming');
  for(let i=0;i<3;i++) {
   ok(await w.read_recovery_head());ok(await w.read_recovery_records(0n,200));
   assert.equal(ok(await w.read_recovery_runtime_version()),body.witness_version);
   w.setPrincipal(identityId);
   assertCandidEqual(ok(await w.verify_production_account_read_fence(request)).request,request);
   assertCandidEqual(ok(await w.verify_production_subject_read_fence(subjectRequest)).request,subjectRequest);
+  assertCandidEqual(ok(await w.verify_production_account_protection_fence(request)).request,request);
   w.setPrincipal(owner);
  }
  mark('Repeated ordinary updates and callbacks preserve both general and subject acceptance');

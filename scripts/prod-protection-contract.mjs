@@ -44,7 +44,8 @@ export function protectionContract(IDL) {
     witness:()=>IDL.Service({read_recovery_head:func([],Head),read_recovery_runtime_version:func([],N),
       read_recovery_records:func([N,IDL.Nat16],V(IDL.Tuple(N,Record))),recovery_acceptance_signing_bytes:func([Acceptance],B),
       subject_progress_approval_signing_bytes:func([Acceptance],B),accept_recovery_fence:func([SignedAcceptance],N),
-      authorize_subject_removal_progress:func([SignedAcceptance],IDL.Null)}),
+      authorize_subject_removal_progress:func([SignedAcceptance],IDL.Null),
+      verify_production_account_protection_fence:func([Request],R({request:Request}))}),
     infrastructure:()=>IDL.Service({read_account_removal_authority:IDL.Func([],[IDL.Opt(P)],['query']),set_account_removal_authority:func([P],IDL.Null)}),
   };
 }
