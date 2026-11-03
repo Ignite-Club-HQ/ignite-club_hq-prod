@@ -2,7 +2,7 @@
 
 ## Current request — activate live account protections (3 Nov 2026, 00:02 UTC)
 - [x] 00:12 Created and read back both non-bypassable owner-review GitHub environments, prod-only branch policies and Paul's reviewer variable. Both secret-name reads confirm no passphrase is stored; no key mint or canister operation attempted.
-- [x] Added closed-only journaled safeguard orchestration core and exact 28-receiver/24-reader effective readback validation; adapters remain unconnected pending private signing credentials, real pinned artifacts and live transport.
+- [x] Added closed-only journaled safeguard orchestration core and exact 28-receiver/24-reader effective readback validation; 31 focused checks pass. Adapters remain unconnected pending private signing credentials, real pinned artifacts and live transport.
 - [x] 00:10 Paul confirmed he is the approver; removed the invented second-person requirement while retaining owner-reviewed separate signing custody and keys. Added concrete owner-self-approval checks.
 - [x] 00:05 Prepared protected non-overwriting independent account/recovery key setup, encrypted acknowledged pre-mint receipts, role-separated public-pin validation and canister-layer allowlist; 27 focused checks pass. No live writes, keys minted or activation claimed.
 - [ ] Signer execution waits on Paul's owner-review environments and dedicated passphrases; current GitHub secret-name inspection confirms these credentials are absent. No second person is required and no workflow dispatched into an unprotected environment.
