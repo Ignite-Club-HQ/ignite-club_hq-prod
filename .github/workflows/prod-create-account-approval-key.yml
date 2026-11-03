@@ -1,0 +1,59 @@
+name: "[PROD] Prepare independent protection signing key (closed)"
+on:
+  workflow_dispatch:
+    inputs:
+      role:
+        description: "Independent account or recovery approval key; does not activate anything"
+        type: choice
+        options: [account, recovery]
+        required: true
+      confirmation:
+        description: "CREATE PROD ACCOUNT APPROVAL KEY or CREATE PROD RECOVERY APPROVAL KEY"
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.role == 'account' && 'production-account-approval' || 'production-recovery-approval' }}
+    timeout-minutes: 15
+    env:
+      IGNITE_ICP_ENV: prod
+      KEY_ROLE: ${{ inputs.role }}
+      KEY_ENVIRONMENT: ${{ inputs.role == 'account' && 'production-account-approval' || 'production-recovery-approval' }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      PASSPHRASE: ${{ secrets.PROD_APPROVAL_PASSPHRASE }}
+      INDEPENDENT_REVIEWER_ID: ${{ vars.INDEPENDENT_REVIEWER_ID }}
+      EXISTING_SEED: ${{ secrets.PROD_APPROVAL_SEED }}
+      EXISTING_ENC: ${{ secrets.PROD_APPROVAL_SEED_ENC }}
+      EXISTING_PUBLIC_KEY: ${{ vars.PROD_APPROVAL_PUBLIC_KEY }}
+      EXISTING_PRINCIPAL: ${{ vars.PROD_APPROVAL_PRINCIPAL }}
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+      PROD_ICP_PUSH_WORKER_PRINCIPAL: ${{ vars.PROD_ICP_PUSH_WORKER_PRINCIPAL }}
+      OTHER_APPROVER_PRINCIPAL: ${{ vars.OTHER_APPROVER_PRINCIPAL }}
+      OTHER_APPROVER_PUBLIC_KEY: ${{ vars.OTHER_APPROVER_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Check exact production and independent context
+        run: |
+          node --input-type=module -e "import {assertAccountKeyContext} from './scripts/prod-account-key-policy.mjs'; assertAccountKeyContext(process.env);"
+      - name: Test no-replacement and independent key protections
+        run: node --test scripts/prod-account-key.test.mjs scripts/prod-push-key.test.mjs
+      - name: Install isolated pinned identity library
+        run: npm install --prefix "$RUNNER_TEMP/approval-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Verify environment protection and prepare encrypted handover
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          export KEY_NODE_PATH="$RUNNER_TEMP/approval-deps/node_modules"
+          node scripts/prod-account-key.mjs
