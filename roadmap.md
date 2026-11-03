@@ -2,9 +2,10 @@
 
 ## Current request — fix historical release blockers (3 Nov 2026, 10:59 UTC)
 - [x] GitHub now exposes the exact-commit copy input; dispatched read-only historical copy plan via existing workflow.
-- [ ] Correct complete PROD base/g2 target planning; shared services once, independent domain services in both groups.
+- [x] Added/tested complete PROD base/g2 target planner: 31 targets, 18 types, shared services once; pinned base + acknowledged g2 + complete closed live registry required. Live executor integration still held.
 - [ ] Resolve exact historical identity versus retained safeguard-binding conflict without silently removing protections; owner decision needed if these requirements cannot coexist.
-- [ ] Verify focused tests and actual GitHub plan; no reinstalls, data copy, opening or publication.
+- [x] All 22 focused tests pass; actual historical source test proves it lacks newer pin implementation. Copy comparison optimized to immutable tree fingerprints.
+- [ ] Actual GitHub plan run 41623915897 last observed in progress; no copy/upgrade dispatched. Owner decision blocks exact historical identity vs preserved newer binding; executor must cover both groups before live upgrades.
 
 ## Current request — make PROD a straight copy of DEV (3 Nov 2026, 08:41 UTC)
 - [x] Read-only fingerprint comparison: 17/18 PROD base services differ from DEV; DEV g1==g2; five DEV services newer than deploy/mainnet/backend-release.json.
