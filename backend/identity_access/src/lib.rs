@@ -1232,6 +1232,25 @@ async fn review_production_account_protection(expected: production_account_prote
     require_governor(&state(),ic_cdk::api::msg_caller())?;
     collect_production_account_protection(expected,expected_history_revision,true).await
 }
+/// No-write bootstrap review: authenticate candidate receiver configuration and
+/// collect management lifecycle evidence before the first inventory signature.
+/// This never pins candidate authorities, stores grants or accepts recovery.
+#[ic_cdk::update]
+async fn review_production_account_inventory(expected: production_account_protection::Expectation, expected_history_revision:u64)
+    -> Outcome<production_account_protection::Draft> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    if account_group_rehearsal_enabled() { return Err("Production provisioning cannot use rehearsal".into()); }
+    admission_configuration_clear()?;
+    if PRODUCTION_INVENTORY_RECEIPT.with(|m|!m.borrow().get().is_empty()) {
+        return Err("Production inventory already provisioned; separate extension review required".into());
+    }
+    let prior=group_inventory_binding();
+    if prior.as_ref().is_some_and(|b|b!=&expected.inventory.groups.binding) ||
+        supplemental_inventory().iter().any(|e|!expected.inventory.supplemental.contains(e)) {
+        return Err("Production inventory cannot substitute or drop pinned authorities".into());
+    }
+    collect_production_account_protection_inner(expected,expected_history_revision,true,true,false).await
+}
 async fn collect_production_account_protection(expected:production_account_protection::Expectation, expected_history_revision:u64,closed:bool)
     -> Outcome<production_account_protection::Draft> {
     collect_production_account_protection_inner(expected,expected_history_revision,closed,false,false).await

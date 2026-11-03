@@ -796,6 +796,7 @@ service : (Init) -> {
   // Governor-only production authorization draft. Never stores reader grants or
   // changes release state; missing receiver/recovery evidence remains a refusal.
   review_production_account_protection : (Expectation, nat64) -> (Result_47);
+  review_production_account_inventory : (Expectation, nat64) -> (Result_47);
   revoke : (principal, nat64) -> (Result);
   // Mirrors `grant_role`'s auth (governor-only).
   revoke_role : (text, text, opt text, opt text) -> (Result_2);
