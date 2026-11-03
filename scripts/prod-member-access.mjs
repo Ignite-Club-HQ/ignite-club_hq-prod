@@ -264,10 +264,13 @@ async function main() {
 
   if (action === 'commission') {
     if (receipt.phase !== 'settings-applied') throw new Error('Member-access settings have not been applied yet');
-    if (receipt.pending) throw new Error('Unresolved member-access intent; review the receipt before commissioning');
+    // A recorded explicit refusal changed nothing on the account service (it
+    // writes only after every check passes), so it may be retried.
+    if (receipt.pending && !(receipt.pending === 'commission' && receipt.lastRefusal))
+      throw new Error('Unresolved member-access intent; review the receipt before commissioning');
 
     stage = 'durable intent: commissioning';
-    await checkpoint({ ...receipt, pending: 'commission' });
+    await checkpoint({ ...receipt, pending: 'commission', lastRefusal: undefined });
     const binding = receipt.plan.binding;
     stage = 'account service member access commissioning';
     const reply = await actor(commissionService, ids.identity_access).authorize_production_member_access({
@@ -275,7 +278,11 @@ async function main() {
       target_alias: binding.target_alias, deployment_id: binding.deployment_id,
       deployment_revision: BigInt(binding.deployment_revision), host: binding.host,
       network_kind: binding.network_kind });
-    if ('Err' in reply) throw new Error('Account service refused the member access commissioning request');
+    if ('Err' in reply) {
+      const refusal = String(reply.Err).slice(0, 300);
+      await checkpoint({ ...receipt, pending: 'commission', lastRefusal: refusal });
+      throw new Error(`Account service refused the member access commissioning request: ${refusal}`);
+    }
     stage = 'readback after commissioning';
     const verified = assertMemberAccessReadback({ identityConfig: await readIdentityConfig(),
       environments: await readEnvironments(receipt.plan.targets), page: await readRegistryPage() }, receipt.plan);
