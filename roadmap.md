@@ -2,7 +2,8 @@
 
 ## Current request — diagnose recovery-key verification (3 Nov 2026, 02:44 UTC)
 - [x] Account rerun 41566812461 passed; recovery rerun 41566815431 failed inside the catch-all final step. Public recovery bindings and retained receipt match; no evidence establishes incorrectly entered secrets.
-- [ ] Run protected read-only stage diagnostics for recovery; retain existing credentials and receipts. Live activation remains held pending successful saved-key verification.
+- [x] Added separate no-mint/no-write stage diagnostics; 11 tests pass. Added exactly three files to prod as 1fa6e5d [skip ci] and registered the same manual workflow on main; no canister or secret changes.
+- [ ] Recovery diagnostic run 41568287270 is waiting for Paul's protected environment approval; retain existing credentials and receipts. Live activation remains held pending successful saved-key verification.
 
 ## Current request — activate live account protections (3 Nov 2026, 00:02 UTC)
 - [x] 00:12 Created and read back both non-bypassable owner-review GitHub environments, prod-only branch policies and Paul's reviewer variable. Both secret-name reads confirm no passphrase is stored; no key mint or canister operation attempted.
