@@ -12,7 +12,7 @@ import { Principal } from '@icp-sdk/core/principal';
 import { idlFactory as witnessFactory } from '../src/lab/bindings/recovery_witness/declarations/recovery_witness.did.js';
 import { idlFactory as identityFactory } from '../src/lab/bindings/identity_access/declarations/identity_access.did.js';
 import { removalHostPreflight } from './removal-host-preflight.mjs';
-import { startRemovalLocalServer } from './removal-local-supervisor.mjs';
+import { startRemovalLocalServer, finishRemovalLocalTest } from './removal-local-supervisor.mjs';
 import { assertCandidEqual } from './assert-candid-equal.mjs';
 import { createLocalLifecycleReader } from './removal-local-lifecycle.mjs';
 
@@ -26,7 +26,7 @@ const ok=r=>{assert.ok(r&&'Ok' in r,String(r?.Err));return r.Ok;};
 const refuses=(r,reason)=>{assert.ok(r&&'Err' in r,'Expected explicit refusal');assert.match(r.Err,reason);};
 const bytes=n=>new Uint8Array(32).fill(n);
 const mark=name=>report.checks.push({name,passed:true});
-let server,pic,stage='host preflight';
+let server,pic,primaryError,stage='host preflight';
 try {
  assert.ok(process.env.PRODUCTION_RECOVERY_REPORT,'Evidence destination required');
  report.host=removalHostPreflight();
@@ -54,6 +54,7 @@ try {
  const wasm=name=>path.join(target,'wasm32-unknown-unknown/release',`${name}.wasm`);
  for(const name of ['identity_access','recovery_witness'])report.modules[name]=createHash('sha256').update(readFileSync(wasm(name))).digest('hex');
  const identityArgs=IDL.encode([IDL.Record({governor:IDL.Principal})],[{governor:owner}]);
+ stage='install isolated identity and witness';
  await pic.installCode({canisterId:identityId,sender:owner,wasm:wasm('identity_access'),arg:identityArgs});
  await pic.installCode({canisterId:witnessId,sender:owner,wasm:wasm('recovery_witness'),arg:IDL.encode([IDL.Record({governor:IDL.Principal,identity:IDL.Principal})],[{governor:owner,identity:identityId}])});
  const id=pic.createActor(identityFactory,identityId),w=pic.createActor(witnessFactory,witnessId);
@@ -164,11 +165,10 @@ try {
  report.passed=true;
 } catch(error) {
  if(error.hostReport)report.host=error.hostReport;
- report.failure=error.name;throw error;
+ primaryError=error;
 } finally {
  report.stage=stage;
- try {if(pic)await Promise.race([pic.tearDown(),new Promise((_,reject)=>setTimeout(()=>reject(Error('Bounded teardown')),5000))]);}
- finally {try {if(server)await server.stop();} finally {
+ await finishRemovalLocalTest({pic,server,report,primaryError,writeReport:()=>{
   if(process.env.PRODUCTION_RECOVERY_REPORT){mkdirSync(path.dirname(process.env.PRODUCTION_RECOVERY_REPORT),{recursive:true});writeFileSync(process.env.PRODUCTION_RECOVERY_REPORT,JSON.stringify(report,null,2)+'\n');}
- }}
+ }});
 }

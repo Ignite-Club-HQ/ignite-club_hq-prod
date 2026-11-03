@@ -4,6 +4,35 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
+// Preserve the test failure even when its disposable server has already exited.
+export async function finishRemovalLocalTest({ pic, server, report, primaryError, writeReport, timeoutMs = 5000 }) {
+  const errors = [];
+  const record = (step, error) => {
+    errors.push(error);
+    (report.cleanupErrors ??= []).push({ step, name: error.name, message: error.message });
+  };
+  if (primaryError) {
+    report.failure = primaryError.name;
+    report.failureDetail = primaryError.message;
+    report.failureStack = primaryError.stack?.slice(0, 12000);
+  }
+  let timer;
+  try {
+    if (pic) await Promise.race([
+      pic.tearDown(),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(Error('Bounded teardown')), timeoutMs); }),
+    ]);
+  } catch (error) { record('instance teardown', error); }
+  finally { clearTimeout(timer); }
+  try { if (server) await server.stop(); }
+  catch (error) { record('owned server stop', error); }
+  if (primaryError || errors.length) report.passed = false;
+  try { await writeReport(); }
+  catch (error) { record('evidence write', error); }
+  if (primaryError) throw primaryError;
+  if (errors.length) throw errors[0];
+}
+
 // Own exactly one disposable local process group. Never discovers or kills
 // unrelated servers, and never accepts a supplied remote URL.
 export function requirePocketIc14(binary) {
@@ -38,7 +67,7 @@ export async function startRemovalLocalServer({ binary, hardTtlSeconds = 120 } =
   const directory = mkdtempSync(path.join(tmpdir(), 'ignite-removal-local-'));
   const portFile = path.join(directory, 'port');
   const child = spawn(binary, ['--ip-addr', '127.0.0.1', '--port-file', portFile,
-    '--hard-ttl', String(hardTtlSeconds)], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    '--ttl', String(hardTtlSeconds), '--hard-ttl', String(hardTtlSeconds)], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let startupError;
   child.on('error', error => { startupError = error; });
   child.stdout.pipe(process.stdout);
