@@ -10,6 +10,11 @@ on:
         type: choice
         default: check
         options: [check, reload]
+      upgrade_group:
+        description: "Also move this later group to the code the first group already runs"
+        type: choice
+        default: none
+        options: [none, g2]
       confirmation:
         description: "reload: RELOAD PROD MEMBER SERVICES"
         required: false
@@ -29,6 +34,7 @@ jobs:
       DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
       RELOAD_ACTION: ${{ inputs.action }}
       CONFIRMATION: ${{ inputs.confirmation }}
+      RELOAD_UPGRADE_GROUP: ${{ inputs.upgrade_group }}
     steps:
       - uses: actions/checkout@v4
       - name: Require the live repository prod branch

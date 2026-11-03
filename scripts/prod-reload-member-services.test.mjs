@@ -27,3 +27,16 @@ test('refuses when settings are missing or controller is not the governor', () =
   const s = { ...status, id4: { ...status.id4, environment: [] }, id5: { ...status.id5, controllers: ['gov', 'x'] } };
   assert.throws(() => assertReloadReady({ targets, status: s, builds, governor: 'gov', identity: 'ident' }), /settings missing.*sole controller|sole controller.*settings missing/);
 });
+
+test('later group may move only to code the other group already runs, with fuel', () => {
+  const s = { ...status, id13: { ...status.id13, moduleHash: 'old', cycles: 50_000_000_000n } };
+  assert.deepEqual(assertReloadReady({ targets, status: s, builds, governor: 'gov', identity: 'ident', upgradeGroup: 'g2' }), ['id13']);
+  assert.throws(() => assertReloadReady({ targets, status: s, builds, governor: 'gov', identity: 'ident' }), /differs/);
+  const base = { ...s, id1: { ...s.id1, moduleHash: 'old' } };
+  assert.throws(() => assertReloadReady({ targets, status: base, builds, governor: 'gov', identity: 'ident', upgradeGroup: 'g2' }), /differs/);
+  const proof = { ...s }; for (const t of targets) if (t.group === 'base' && t.name === 'club_domain') proof[t.id] = { ...s[t.id], moduleHash: 'old' };
+  assert.throws(() => assertReloadReady({ targets, status: proof, builds, governor: 'gov', identity: 'ident', upgradeGroup: 'g2' }), /does not run this build/);
+  const poor = { ...s, id13: { ...s.id13, cycles: 1n } };
+  assert.throws(() => assertReloadReady({ targets, status: poor, builds, governor: 'gov', identity: 'ident', upgradeGroup: 'g2' }), /more fuel/);
+  assert.throws(() => assertReloadReady({ targets, status, builds, governor: 'gov', identity: 'ident', upgradeGroup: 'base' }), /cannot be updated/);
+});
