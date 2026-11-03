@@ -37,11 +37,20 @@ test('intent precedes mint; only ciphertext persists; reruns never remint', asyn
   assert.equal(JSON.stringify(first).includes(seed), false);
   assert.deepEqual(await mintOrReadAccountKey(env, f.journal, f.identity), first); assert.equal(f.count(), 1);
   await assert.rejects(mintOrReadAccountKey({ ...env, PASSPHRASE: 'wrong passphrase long enough to pass context' }, f.journal, f.identity));
+  await assert.rejects(mintOrReadAccountKey({ ...env, EXISTING_SEED: seed }, f.journal, f.identity));
   await assert.rejects(mintOrReadAccountKey({ ...env, KEY_ROLE: 'recovery', KEY_ENVIRONMENT: 'production-recovery-approval', CONFIRMATION: 'CREATE PROD RECOVERY APPROVAL KEY' }, f.journal, f.identity));
 });
 test('lost receipt acknowledgement retains mint lock and prevents replacement', async () => {
   const f = fixture(true); await assert.rejects(mintOrReadAccountKey(env, f.journal, f.identity));
   assert.equal(f.receipt().phase, 'mint-pending'); await assert.rejects(mintOrReadAccountKey(env, f.journal, f.identity)); assert.equal(f.count(), 1);
+});
+test('altered ciphertext or public pin cannot recover a saved approval key', async () => {
+  const f = fixture(); const receipt = await mintOrReadAccountKey(env, f.journal, f.identity);
+  const bytes = Buffer.from(receipt.encryptedSeed, 'base64'); bytes[60] ^= 1;
+  await f.journal.save({ ...receipt, encryptedSeed: bytes.toString('base64') });
+  await assert.rejects(mintOrReadAccountKey(env, f.journal, f.identity));
+  await f.journal.save({ ...receipt, publicKey: 'ff'.repeat(32) });
+  await assert.rejects(mintOrReadAccountKey(env, f.journal, f.identity)); assert.equal(f.count(), 1);
 });
 test('each existing credential or public pin independently prevents a new mint', async () => {
   for (const key of ['EXISTING_SEED', 'EXISTING_ENC', 'EXISTING_PUBLIC_KEY', 'EXISTING_PRINCIPAL']) {

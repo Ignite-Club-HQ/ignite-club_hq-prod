@@ -14,6 +14,7 @@ export async function mintOrReadAccountKey(env, journal, identityType) {
   };
   const stored = await journal.load({ readOnly: true });
   if (stored) {
+    if (env.EXISTING_SEED) throw Error('Plaintext approval seed configuration refused');
     if (stored.version !== 1 || stored.role !== env.KEY_ROLE || stored.repository !== env.GITHUB_REPOSITORY || stored.phase !== 'encrypted-ready')
       throw Error('Existing approval key intent requires manual reconciliation');
     const actual = describe(openAccountSeed(stored.encryptedSeed, env.PASSPHRASE));
@@ -48,7 +49,7 @@ async function main() {
   const receipt = await mintOrReadAccountKey(env, githubJournal(env, fetch, {
     branch: 'prod-group-setup', path: `prod-group-setup/${env.KEY_ROLE}-approval-key.json`, label: `${env.KEY_ROLE} approval key`,
   }), Ed25519KeyIdentity);
-  appendFileSync(env.GITHUB_STEP_SUMMARY, `## Independent ${env.KEY_ROLE} approval key prepared\n\nPublic key variable \`${role.prefix}_PUBLIC_KEY\`:\n\n${receipt.publicKey}\n\nPrincipal variable \`${role.prefix}_PRINCIPAL\`:\n\n${receipt.principal}\n\nEncrypted secret \`${role.prefix}_SEED_ENC\` (keep in **${role.environment}** only):\n\n\`\`\`text\n${receipt.encryptedSeed}\n\`\`\`\n\nKeep its passphrase in that same independently reviewed environment, never the governor deployment job. No canister, settings, funding, approval or opening changes were made.\n`);
+  appendFileSync(env.GITHUB_STEP_SUMMARY, `## Independent ${env.KEY_ROLE} approval key prepared\n\nEnvironment variable \`PROD_APPROVAL_PUBLIC_KEY\` (public build pin \`${role.prefix}_PUBLIC_KEY\`):\n\n${receipt.publicKey}\n\nEnvironment variable \`PROD_APPROVAL_PRINCIPAL\`:\n\n${receipt.principal}\n\nEnvironment secret \`PROD_APPROVAL_SEED_ENC\` (keep in **${role.environment}** only):\n\n\`\`\`text\n${receipt.encryptedSeed}\n\`\`\`\n\nKeep its passphrase in that same independently reviewed environment, never the governor deployment job. No canister, settings, funding, approval or opening changes were made.\n`);
   console.log('Encrypted approval handover prepared; live protections are not activated.');
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(() => {
