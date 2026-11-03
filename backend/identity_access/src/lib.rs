@@ -1406,6 +1406,23 @@ async fn disable_production_account_readers()->Outcome<u64> {
 fn read_production_account_authorization()->Outcome<production_account_authorization::State> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;Ok(production_authorization())
 }
+/// Fresh governor-only commissioning readback; stored approval alone is not
+/// effectiveness. Authenticate all receiver modes and the independent witness.
+#[ic_cdk::update]
+async fn read_active_production_account_protection()->Outcome<production_account_protection::Draft> {
+    let operator=ic_cdk::api::msg_caller();require_governor(&state(),operator)?;
+    let captured=production_authorization();
+    let approval=captured.approval.as_ref().ok_or("Signed production removal control required")?;
+    production_account_authorization::removal_control(&captured,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
+    let revision=approval.body.expectation.inventory.groups.history_revision;
+    let review=collect_production_account_protection(approval.body.expectation.clone(),revision,true).await?;
+    if review!=approval.body.review {return Err("Production account protection drift".into());}
+    check_production_witness(approval).await?;
+    require_governor(&state(),operator)?;production_read_configuration_clear()?;
+    if production_authorization()!=captured || removal_history_revision()!=revision {return Err("Production account authorization changed".into());}
+    production_account_authorization::removal_control(&captured,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
+    Ok(review)
+}
 #[ic_cdk::update]
 fn read_production_account_history_revision()->Outcome<u64> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;Ok(removal_history_revision())
