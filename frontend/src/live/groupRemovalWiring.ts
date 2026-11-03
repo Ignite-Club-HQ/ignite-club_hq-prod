@@ -12,6 +12,8 @@ export const ADMISSION_DOMAINS: readonly GroupDomain[] = [
 ];
 export const ADMISSION_FLAG = 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL';
 export const ADMISSION_AUTHORITY = 'IGNITE_ACCOUNT_SERVICE_IDENTITY';
+/** PROD's commissioned member-access switch; equivalent to the DEV flag for removal checks. */
+export const ADMISSION_RELEASE_FLAG = 'IGNITE_ACCOUNT_ADMISSION_RELEASE';
 
 export type RemovalWiringEvidence = { revision: bigint; groupIds: string[]; checkedAtMs: number };
 export type SettingsReader = (canisterId: string) => Promise<{ name: string; value: string }[]>;
@@ -28,7 +30,7 @@ export async function verifyRemovalWiring(registry: { revision: bigint; groups: 
       let env: { name: string; value: string }[];
       try { env = await read(id); } catch (e) { problems.push(`${g.id}: ${name} settings unreadable (${e instanceof Error ? e.message : e})`); continue; }
       const get = (k: string) => { const hits = env.filter(v => v.name === k); return hits.length === 1 ? hits[0].value : undefined; };
-      if (get(ADMISSION_FLAG) !== '1') problems.push(`${g.id}: ${name} removal checks off`);
+      if (get(ADMISSION_FLAG) !== '1' && get(ADMISSION_RELEASE_FLAG) !== '1') problems.push(`${g.id}: ${name} removal checks off`);
       if (get(ADMISSION_AUTHORITY) !== identityAccess) problems.push(`${g.id}: ${name} not bound to the account service`);
     }
   }
