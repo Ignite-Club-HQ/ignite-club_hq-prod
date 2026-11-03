@@ -108,6 +108,7 @@ export interface _SERVICE {
   'read_recovery_records' : ActorMethod<[bigint, number], Result_4>,
   'read_recovery_runtime_version' : ActorMethod<[], Result>,
   'record_removal_recovery' : ActorMethod<[Record], Result>,
+  'recovery_acceptance_encoding' : ActorMethod<[Acceptance], Result_5>,
   'recovery_acceptance_signing_bytes' : ActorMethod<[Acceptance], Result_5>,
   'subject_progress_approval_signing_bytes' : ActorMethod<
     [Acceptance],

@@ -84,6 +84,7 @@ service : (Init) -> {
   read_recovery_records : (nat64, nat16) -> (Result_4);
   read_recovery_runtime_version : () -> (Result);
   record_removal_recovery : (Record) -> (Result);
+  recovery_acceptance_encoding : (Acceptance) -> (Result_5) query;
   recovery_acceptance_signing_bytes : (Acceptance) -> (Result_5);
   subject_progress_approval_signing_bytes : (Acceptance) -> (Result_5);
   // Bounded commissioning read: verifies both global and subject safeguards,

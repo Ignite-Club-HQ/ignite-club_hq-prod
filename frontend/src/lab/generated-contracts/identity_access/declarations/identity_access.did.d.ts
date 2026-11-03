@@ -914,6 +914,10 @@ export interface _SERVICE {
     [string, Principal],
     Result_11
   >,
+  'production_account_approval_encoding' : ActorMethod<
+    [ApprovalBody_1],
+    Result_26
+  >,
   'production_account_approval_signing_bytes' : ActorMethod<
     [ApprovalBody_1],
     Result_26
