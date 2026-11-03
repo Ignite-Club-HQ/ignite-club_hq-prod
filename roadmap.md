@@ -3,7 +3,8 @@
 ## Current request — failed safeguard rehearsal (3 Nov 2026, 05:02 UTC)
 - [x] Read run 41578237222 and its saved artifact: production transport failed after builds and before the first check; external fencing and all-28 scenarios skipped. The 62-second failure is consistent with the default 60-second PocketIC idle timeout, not its configured 900-second hard deadline; cleanup replaced the original error.
 - [x] Set owned server idle timeout explicitly to its existing bounded hard budget; preserve original failure details/stacks and separately record cleanup failures; add focused regression checks. No live operation or activation.
-- [ ] Reverify the corrected full rehearsal on the supported GitHub worker before activation. Blocker: a new matching-source worker run is required; current failed artifact does not prove full acceptance.
+- [x] Owner approved next step at 05:05 UTC: verified both corrected files match GitHub main and reran ten timeout/cleanup/host checks successfully; dispatched full isolated run 22, https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/41581910929, on bb0a7b77e93427540fb8e16a80dde09f24d831d7 at 05:06 UTC. Status in_progress; no live operations.
+- [ ] Reverify the corrected full rehearsal on the supported GitHub worker before activation. Blocker: run 22 must finish and its full evidence must be inspected; current failed artifact does not prove full acceptance.
 
 ## Current request — activate live account protections (3 Nov 2026, 00:02 UTC)
 - [x] 00:12 Created and read back both non-bypassable owner-review GitHub environments, prod-only branch policies and Paul's reviewer variable. Both secret-name reads confirm no passphrase is stored; no key mint or canister operation attempted.
