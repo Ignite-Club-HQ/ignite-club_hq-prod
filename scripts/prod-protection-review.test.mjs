@@ -36,6 +36,10 @@ test('already installed reviewed identity never requires a same-program upgrade'
   assert.equal(identityPreparationDecision('original','reviewed','original'),'upgrade');
   assert.throws(()=>identityPreparationDecision('foreign','reviewed','original'));
 });
+test('delivered and verified protection jobs must perform fresh final verification on restart',()=>{
+  for(const phase of ['protection-delivered','verified'])
+    assert.equal(jobTransition('deliver-protection',{phase,purpose:'protection',pending:null}),'run');
+});
 test('interrupted inventory continuation preserves original proofs until a complete protection review exists',()=>{
   const receipt={phase:'inventory-delivered',purpose:'inventory',pending:null,runId:'inventory-run',body:'inventory-body',
     proofs:{inventory:'certificate'},approval:'signed-inventory',acceptance:'signed-recovery',
