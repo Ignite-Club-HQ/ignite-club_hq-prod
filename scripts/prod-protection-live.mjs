@@ -312,6 +312,8 @@ async function main(){
      accepted.witness_version!==BigInt(receipt.witnessChanges)||hex(accepted.inventory_digest)!==hex(body.original_inventory_evidence)||
      canonical(plain(accepted.participants))!==canonical(plain(body.review.lifecycle.map(l=>({canister:l.canister,module:l.module_hash,changes:l.changes}))))||
      hex(accepted.signed_digest)!==hash(Buffer.concat([approvalBytes(IDL,contract.Body,body),Buffer.from(approval.signature)])))throw Error('Recovery acceptance differs from independently verified scope');
+  if(accepted.journal_revision!==0n||hex(accepted.journal_digest)!=='0'.repeat(64)||
+    hex(accepted.decoded_history_digest)!==digest({identityHistory:receipt.fenceEvidence.identityHistory,witnessRecords:[]}))throw Error('Recovery decoded history differs from certified empty commissioning history');
   if(receipt.phase!==completed&&receipt.phase!=='verified'){
     if(![`${purpose}-recovery-signed`,`${purpose}-witness-accepted`,`${purpose}-subject-accepted`].includes(receipt.phase))throw Error('Independent recovery signature required');
     await assertClosed();await verifyEvidence();

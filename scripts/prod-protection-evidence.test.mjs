@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {assertEvidenceRequest,evidenceNonce,verifyUpdate} from './prod-protection-evidence.mjs';
+import {assertEvidenceRequest,evidenceNonce,verifyUpdate,captureUpdate} from './prod-protection-evidence.mjs';
 const req=createRequire(new URL('../frontend/package.json',import.meta.url));
 const core=process.env.PROTECTION_TEST_SDK_DIR;
 const sdk={...req(core?`${core}/lib/cjs/agent`:'@icp-sdk/core/agent'),...req(core?`${core}/lib/cjs/principal`:'@icp-sdk/core/principal'),...req(core?`${core}/lib/cjs/candid`:'@icp-sdk/core/candid')};
@@ -46,4 +46,18 @@ test('offline verifier accepts a real test-signed certified reply and refuses ta
   assert.equal(await verifyUpdate(proof,options),8n);
   await assert.rejects(verifyUpdate({...proof,certificate:Buffer.from(Cbor.encode({tree,signature:new Uint8Array(48)})).toString('base64')},options));
   await assert.rejects(verifyUpdate(proof,{...options,runId:'101'}));
+});
+test('capture persists the transformed request before submission and retains certified reply',async()=>{
+  const {IDL}=sdk;const type=IDL.Func([],[IDL.Variant({Ok:IDL.Nat64,Err:IDL.Text})],[]);let recorded=false,submitted=false;
+  const identity={getPrincipal:()=>Principal.fromText(expected.governor),transformRequest:async r=>({body:{content:{...r.body,sender_info:Uint8Array.of(7)}}})};
+  const testSdk={...sdk,HttpAgent:{create:async({identity:wrapped})=>({update:async(canister,{methodName,arg,nonce})=>{
+    const r=await wrapped.transformRequest({body:{request_type:'call',canister_id:canister,sender:identity.getPrincipal(),method_name:methodName,arg,nonce,ingress_expiry:10n}});
+    assert.ok(recorded);assert.deepEqual(r.body.content.sender_info,Uint8Array.of(7));submitted=true;
+    return {reply:IDL.encode(type.retTypes,[{Ok:3n}]),rawCertificate:Uint8Array.of(1)};
+  }})}};
+  const result=await captureUpdate({identity,sdk:testSdk,canister:expected.canister,method:expected.method,type,args:[],runId:'1',purpose:'inventory',onRequest:async()=>{recorded=true;}});
+  assert.ok(submitted);assert.equal(result.value.Ok,3n);assert.equal(result.proof.certificate,'AQ==');
+  recorded=false;submitted=false;
+  await assert.rejects(captureUpdate({identity,sdk:testSdk,canister:expected.canister,method:expected.method,type,args:[],runId:'1',purpose:'inventory',onRequest:async()=>{throw Error('receipt write failed');}}));
+  assert.equal(submitted,false);
 });
