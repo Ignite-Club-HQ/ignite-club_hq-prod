@@ -1,0 +1,12 @@
+{
+  "plan": {
+    "paymentId": "safeguard-1",
+    "principal": "kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae",
+    "targetT": "2",
+    "targetCycles": "2000000000000",
+    "balanceBefore": "228422543406",
+    "shortfallCycles": "1771577456594"
+  },
+  "phase": "creating-order",
+  "createdAt": "2026-11-03T03:58:03.652Z"
+}
