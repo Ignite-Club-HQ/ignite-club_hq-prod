@@ -19,6 +19,7 @@
 //   - the commit message carries [skip ci] so no release automation starts;
 //   - plan (default) writes nothing at all.
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -107,6 +108,7 @@ async function main() {
   const listing = await api('GET', `/repos/${dest}/git/trees/${headSha}?recursive=1`);
   if (listing.truncated) die('The live repository listing came back truncated; refusing to guess what is already there.');
   const existing = new Set(listing.tree.filter((entry) => entry.type === 'blob').map((entry) => entry.path));
+  const blobHashes = new Map(listing.tree.filter((entry) => entry.type === 'blob').map((entry) => [entry.path, entry.sha]));
 
   const add = wanted.filter((file) => !existing.has(file));
   const present = wanted.filter((file) => existing.has(file));
@@ -115,9 +117,9 @@ async function main() {
   // live repository holds none of the canister sources today.
   const differ = [];
   for (const file of present) {
-    const remote = await api('GET', `/repos/${dest}/contents/${encodeURIComponent(file).replace(/%2F/g, '/')}?ref=${branch}`);
-    const remoteText = Buffer.from(remote.content, 'base64').toString('utf8');
-    if (remoteText !== localContent(file)) differ.push(file);
+    const bytes = Buffer.from(localContent(file), 'utf8');
+    const localHash = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+    if (blobHashes.get(file) !== localHash) differ.push(file);
   }
 
   console.log(`\n## ICP layer promotion ${apply ? '(applying)' : '(plan only)'}: ${dest}@${branch}`);
