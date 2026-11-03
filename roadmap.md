@@ -9,7 +9,8 @@
 - [x] Check run 41608029499 (42edc640) succeeded: 31 targets checked, exactly the 9 expected differ (identity_access + club/events/messaging/pii in both groups), 22 already match, photo keys verified. Plan hash 40e3ba58cfc50cfaf4a538a4969b019e52171d879cedc8bf07fcdd0f0dde2e4e.
 - [x] 29 Oct reset abandoned: club_domain refused the downgrade (memory-incompatible), so DEV could not go back. Switched to option 1: the 30 Oct update (run 40980031534, commit d321e85b, scope private_club_name_display) was the only DEV service change since 29 Oct.
 - [x] DEV restored to uniform 30 Oct version: archived the stopped journal, check run 41614699252 showed 30/31 matching, then run 41618393438 (branch dev-current-2026-10-30) restored identity_access to the exact 30 Oct build; live fingerprint 4fe59c88... confirmed 10:36 UTC. All 31 DEV services now on one version. See docs/dev-prod-fingerprints-2026-11-03.md.
-- [ ] Next: quick test of the app on DEV, then copy the exact 30 Oct code to prod branch and upgrade all 18 PROD services upgrade-only, then read back fingerprints vs DEV.
+- [x] Paul confirmed the DEV app check passed at 10:51 UTC.
+- [ ] Owner approved at 10:52 UTC: copy exact 30 Oct service code to prod and upgrade all 18 PROD services in place; preserve production data/configuration, hold opening/publication, read back fingerprints. Check compatibility before mutations; any refusal stops without reinstall.
 - [ ] (superseded) Identify the 5 commits (DEV deploy run history), rebuild all 18, confirm hashes, then Paul approves PROD upgrade.
 - [ ] (old) Upgrade DEV if B, confirm app works; copy exact code to prod; upgrade PROD upgrade-only with compatibility stop; read back fingerprints vs DEV.
 
