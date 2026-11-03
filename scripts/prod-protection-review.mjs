@@ -70,3 +70,15 @@ export function assertReviewedReceivers(plan,targets,observed) {
       throw Error('Receiver differs from owner-reviewed artifact plan');
   }
 }
+export function identityPreparationDecision(observed,reviewed,original) {
+  if(observed===reviewed)return 'already-installed';
+  if(observed===original)return 'upgrade';
+  throw Error('Identity program differs from original and reviewed artifacts');
+}
+export function protectionReviewContext(receipt,runId) {
+  if(receipt.phase!=='inventory-delivered'||receipt.purpose!=='inventory'||receipt.pending||
+     !receipt.inventoryApproval||receipt.inventoryApproval!==receipt.approval||!receipt.inventoryAcceptance)
+    throw Error('Acknowledged signed inventory delivery required before protection review');
+  return {purpose:'protection',runId,inventoryStage:{body:receipt.body,proofs:receipt.proofs,
+    approval:receipt.approval,acceptance:receipt.acceptance,fenceEvidence:receipt.fenceEvidence}};
+}
