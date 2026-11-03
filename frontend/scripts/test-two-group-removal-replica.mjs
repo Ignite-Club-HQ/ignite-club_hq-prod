@@ -111,9 +111,9 @@ try{
   const mapped=[...HUMAN_DOMAINS.filter(d=>d!=='media_blob_store').map(domain=>({domain,canister:g.services[domain].canisterId})),
    {domain:'timer_jobs',canister:g.timer.canisterId},{domain:'secret_workload_identity',canister:shared.canisterId}];
   let revision=await router.actor.version();
-  revision=ok(await router.actor.register_group({id:g.id,target_alias:production?'mainnet':'local',domains:mapped,accepting:false,max_clubs:100,assigned_clubs:0,
-   heap_budget_bytes:1000000n,heap_bytes:0n,min_cycles:1n,cycles:0n,observed_at_ns:0n,photo_store:[]},revision));
-  ok(await router.actor.register_group_placement({group_id:g.id,deployment_id:production?'prod':'isolated-replica',deployment_revision:1n,host:production?'https://icp-api.io':'https://isolated.invalid',
+  revision=ok(await router.actor.register_group({id:g.id,target_alias:production||ordinary?'mainnet':'local',domains:mapped,accepting:false,max_clubs:100,assigned_clubs:0,
+   heap_budget_bytes:1000000n,heap_bytes:0n,min_cycles:1n,cycles:0n,observed_at_ns:0n,photo_store:ordinary?[g.services.media_blob_store.canisterId]:[]},revision));
+  ok(await router.actor.register_group_placement({group_id:g.id,deployment_id:production||ordinary?'prod':'isolated-replica',deployment_revision:1n,host:production||ordinary?'https://icp-api.io':'https://isolated.invalid',
    network_kind:'public_mainnet',primary_subnet:subnet,approved_subnets:[subnet],additional_subnets_enabled:false,domains:mapped.map(d=>({...d,subnet}))},revision));
   extra.push({group_id:g.id,domain:'media_blob_store',canister:g.services.media_blob_store.canisterId,subnet});
  }
@@ -122,7 +122,7 @@ try{
  let inventory;
  if(!production){
   ok(await id.set_club_authorities(groups.map(g=>g.services.club_domain.canisterId)));
-  ok(await id.set_group_inventory_binding({registry:router.canisterId,registry_revision:await router.actor.version(),target_alias:'local',deployment_id:'isolated-replica',deployment_revision:1n,host:'https://isolated.invalid',network_kind:'public_mainnet'},await revision()));
+  ok(await id.set_group_inventory_binding({registry:router.canisterId,registry_revision:await router.actor.version(),target_alias:ordinary?'mainnet':'local',deployment_id:ordinary?'prod':'isolated-replica',deployment_revision:1n,host:ordinary?'https://icp-api.io':'https://isolated.invalid',network_kind:'public_mainnet'},await revision()));
   ok(await id.set_removal_supplemental_inventory(extra,await revision()));
   inventory=ok(await id.read_removal_inventory_evidence(await revision()));assert.equal(inventory.media.length,2);
  } else {
@@ -162,7 +162,7 @@ try{
  baseTimer.setPrincipal(alias);ok(await baseTimer.claim(0n,1));
  shared.actor.setPrincipal(governor);ok(await shared.actor.register_workload(primary,'removed-account-workload',['send-push-notification']));
  shared.actor.setPrincipal(primary);assert.equal((await shared.actor.verify_secret_access(primary,'send-push-notification','before-fence')).approved,true);
- for(const human of [primary,alias,survivor]){router.actor.setPrincipal(human);ok(await router.actor.read_my_owner_test_opening(production?'mainnet':'local'));}
+ for(const human of [primary,alias,survivor]){router.actor.setPrincipal(human);ok(await router.actor.read_my_owner_test_opening(production||ordinary?'mainnet':'local'));}
  mark('Four infrastructure receivers configured once; alias timer worker and primary workload are real retained obligations');
  const normalizedGroups=groups.map(g=>({id:g.id,timer:g.timer.canisterId.toText(),receivers:HUMAN_DOMAINS.map(domain=>({domain,id:g.services[domain].canisterId.toText()}))}));
  stage='seed positive private records in both groups';
@@ -227,7 +227,7 @@ try{
      ...(domain==='media_blob_store'?[{name:'GOVERNOR_PRINCIPAL',value:governor.toText()}]:[])];
     await pic.updateCanisterSettings({canisterId:s.canisterId,sender:governor,environmentVariables:variables});
     await pic.upgradeCanister({canisterId:s.canisterId,wasm:wasm(domain),sender:governor,
-     wasmMemoryPersistence:'keep',arg:IDL.encode([IDL.Principal],[governor])});
+     upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]},arg:IDL.encode([IDL.Principal],[governor])});
    }
    router.actor.setPrincipal(governor);
    const revision=await router.actor.version();
@@ -239,9 +239,7 @@ try{
     primary_subnet:subnet,approved_subnets:[subnet],additional_subnets_enabled:false,domains:mapped.map(d=>({...d,subnet}))},updated));
   }
   const binding={registry:router.canisterId,registry_revision:await router.actor.version(),target_alias:'mainnet',deployment_id:'prod',deployment_revision:1n,host:'https://icp-api.io',network_kind:'public_mainnet'};
-  // A fresh ordinary production instance retains the same account records;
-  // registry pin substitution is forbidden, so this branch needs a fresh
-  // rehearsal inventory with the production binding from the outset.
+  // The existing PROD-shaped pin retains its endpoints; only revision advances.
   id.setPrincipal(governor);
   ok(await id.set_group_inventory_binding(binding,await revision()));
   await pic.updateCanisterSettings({canisterId:identity.canisterId,sender:governor,environmentVariables:[]});
