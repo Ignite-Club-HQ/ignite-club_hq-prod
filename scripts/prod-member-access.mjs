@@ -232,7 +232,8 @@ async function main() {
   const receipt = await journal.load({ readOnly: true });
   if (!receipt) throw new Error('No member-access receipt exists yet; run plan first');
   assertReviewedMemberAccessPlan(receipt.plan, env.MEMBER_PLAN_HASH,
-    buildMemberAccessPlan(await input(receipt.plan.checkedAt)));
+    buildMemberAccessPlan(await input(receipt.plan.checkedAt)),
+    { allowSourceUpdate: receipt.phase === 'settings-applied' && action !== 'apply' });
 
   if (action === 'apply') {
     if (receipt.phase !== 'planned') throw new Error('Member-access settings have already been applied');
