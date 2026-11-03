@@ -7,6 +7,12 @@ export const HUMAN_DOMAINS=['club_domain','events_domain','messaging_domain','va
   'mini_league_domain','media_metadata','insights_domain','notification_queue','pii_access_control','media_blob_store'];
 export const APPROVAL_LIFETIME_NS=24n*60n*60n*1_000_000_000n;
 export const digest=value=>createHash('sha256').update(canonical(value)).digest('hex');
+// This candidate is deliberately not executable until independent live history,
+// witness implementation pins and atomic acknowledgement recovery are proved.
+// No environment/form flag can bypass this release hold.
+export function requireProtectionExecutionReady() {
+  throw Error('Protection activation implementation review incomplete; no live execution');
+}
 export function assertProtectionContext(env) {
   if(env.GITHUB_REPOSITORY!=='Ignite-Club-HQ/ignite-club_hq-prod'||env.GITHUB_REF!=='refs/heads/prod'||env.IGNITE_ICP_ENV!=='prod'||
     !/^[a-f0-9]{40}$/.test(env.GITHUB_SHA??'')||env.CONFIRMATION?.trim()!==PROTECTION_CONFIRMATION)throw Error('Exact closed production activation context required');

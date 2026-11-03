@@ -1,10 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {activationTargets,protectionEnvironment,verifyActivatedDraft,assertProtectionContext,assertNoPending,PROTECTION_CONFIRMATION} from './prod-protection-policy.mjs';
+import {activationTargets,protectionEnvironment,verifyActivatedDraft,assertProtectionContext,assertNoPending,PROTECTION_CONFIRMATION,requireProtectionExecutionReady} from './prod-protection-policy.mjs';
 import {protectionContract} from './prod-protection-contract.mjs';
 import {PROD_CHECK_IDS} from './prod-connection-check-policy.mjs';
 const domains=['club_domain','events_domain','messaging_domain','vault_domain','competition_domain','club_points_domain','mini_league_domain','media_metadata','insights_domain','notification_queue','pii_access_control','timer_jobs','secret_workload_identity'];
+test('unreviewed activation cannot run or be enabled by an environment flag',()=>{assert.throws(()=>requireProtectionExecutionReady(),/no live execution/);});
 function fixture(){const ids=PROD_CHECK_IDS;const groups=['base','g2'].map(id=>({id,accepting:false,domains:domains.map(domain=>({domain,canister:id==='base'||domain==='secret_workload_identity'?ids[domain]:`g2-${domain}`})),photo_store:[id==='base'?ids.media_blob_store:'g2-media']}));
   const placements=groups.map(g=>({group_id:g.id,deployment_id:'prod',host:'https://icp-api.io',network_kind:'public_mainnet',additional_subnets_enabled:false,approved_subnets:['subnet'],primary_subnet:'subnet'}));
   const page={groups,placements,next_cursor:[]};const receipts=groups.map((g,i)=>({phase:'registered-closed',pending:null,plan:{group:g,placement:placements[i]}}));return {ids,page,base:receipts[0],g2:receipts[1]};}

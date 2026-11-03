@@ -16,7 +16,7 @@ import {groupContract} from './prod-group-contract.mjs';
 import {protectionContract} from './prod-protection-contract.mjs';
 import {SAFEGUARD_RECEIPT,assertWitnessState,identityPinEnv} from './prod-safeguard-live-policy.mjs';
 import {openAccountSeed,accountPublicKey} from './prod-account-key-policy.mjs';
-import {activationTargets,assertProtectionContext,protectionEnvironment,verifyActivatedDraft,assertNoPending,PROTECTION_RECEIPT,APPROVAL_LIFETIME_NS,digest} from './prod-protection-policy.mjs';
+import {activationTargets,assertProtectionContext,protectionEnvironment,verifyActivatedDraft,assertNoPending,PROTECTION_RECEIPT,APPROVAL_LIFETIME_NS,digest,requireProtectionExecutionReady} from './prod-protection-policy.mjs';
 import {attestDeployKey,verifyDeployKey} from '../frontend/scripts/media-key-deploy-rules.mjs';
 import {configuredMainnetPhotoKey} from '../frontend/scripts/media-key-mainnet.mjs';
 
@@ -38,6 +38,7 @@ function managementContract(IDL){const Env=IDL.Vec(IDL.Record({name:IDL.Text,val
 });}
 
 async function main(){
+  requireProtectionExecutionReady();
   const env=process.env;assertProtectionContext(env);mkdirSync(env.CHECK_REPORT_DIR,{recursive:true});
   const job=env.PROTECTION_JOB;
   if(!['prepare','account-inventory','recovery-inventory','deliver-inventory','account-protection','recovery-protection','deliver-protection'].includes(job))throw Error('Unknown commissioning job');
