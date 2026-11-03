@@ -1,0 +1,316 @@
+{
+  "control": {
+    "approvalPresent": false,
+    "generation": "0"
+  },
+  "groups": [
+    {
+      "id": "base",
+      "accepting": false
+    },
+    {
+      "id": "g2",
+      "accepting": false
+    }
+  ],
+  "rows": [
+    {
+      "name": "club_domain",
+      "id": "tbeh7-5qaaa-aaaai-ayenq-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "club_points_domain",
+      "id": "wg2b7-maaaa-aaaai-ayeqq-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "competition_domain",
+      "id": "scioz-jiaaa-aaaai-ayela-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "events_domain",
+      "id": "sfjin-eqaaa-aaaai-ayelq-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "identity_access",
+      "id": "wb3hl-byaaa-aaaai-ayeqa-cai",
+      "group": "base/shared",
+      "controlUse": "NO_SIGNED_CONTROL_RECORD"
+    },
+    {
+      "name": "insights_domain",
+      "id": "wiymx-xqaaa-aaaai-ayerq-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "media_blob_store",
+      "id": "w5752-wyaaa-aaaai-ayesa-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "media_metadata",
+      "id": "wt5qs-niaaa-aaaai-ayeta-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "messaging_domain",
+      "id": "ttcqg-raaaa-aaaai-ayeoq-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "migration_coordinator",
+      "id": "sllff-7aaaa-aaaai-ayekq-cai",
+      "group": "base/shared",
+      "controlUse": "NOT_A_CONTROL_RECEIVER"
+    },
+    {
+      "name": "mini_league_domain",
+      "id": "wpzkd-2iaaa-aaaai-ayera-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "notification_queue",
+      "id": "w263o-3aaaa-aaaai-ayesq-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "pii_access_control",
+      "id": "tihmd-lyaaa-aaaai-ayema-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "placement_registry",
+      "id": "t5a5o-kqaaa-aaaai-ayepq-cai",
+      "group": "base/shared",
+      "controlUse": "NOT_A_CONTROL_RECEIVER"
+    },
+    {
+      "name": "secret_workload_identity",
+      "id": "t2b32-hiaaa-aaaai-ayepa-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "shard_router",
+      "id": "tgfbl-qiaaa-aaaai-ayena-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "timer_jobs",
+      "id": "tpgkx-gaaaa-aaaai-ayemq-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "vault_domain",
+      "id": "tudws-4yaaa-aaaai-ayeoa-cai",
+      "group": "base/shared",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "club_domain",
+      "id": "xqrzu-zqaaa-aaaai-ayevq-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "events_domain",
+      "id": "xfwiz-yyaaa-aaaai-ayewa-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "messaging_domain",
+      "id": "xcxon-vaaaa-aaaai-ayewq-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "vault_domain",
+      "id": "xlufr-diaaa-aaaai-ayexa-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "competition_domain",
+      "id": "xmvdf-oqaaa-aaaai-ayexq-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "club_points_domain",
+      "id": "vrinn-5yaaa-aaaai-ayeya-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "mini_league_domain",
+      "id": "vwjlz-qaaaa-aaaai-ayeyq-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "media_metadata",
+      "id": "v7kaf-giaaa-aaaai-ayeza-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "insights_domain",
+      "id": "vylgr-lqaaa-aaaai-ayezq-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "notification_queue",
+      "id": "vnmx4-kyaaa-aaaai-aye2a-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "pii_access_control",
+      "id": "vknri-haaaa-aaaai-aye2q-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "timer_jobs",
+      "id": "vdo2u-riaaa-aaaai-aye3a-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    },
+    {
+      "name": "media_blob_store",
+      "id": "vep4a-4qaaa-aaaai-aye3q-cai",
+      "group": "g2",
+      "controlUse": "PROTECTION_NOT_ENABLED",
+      "admissionEnabled": false,
+      "removalEnabled": false,
+      "rehearsal": false,
+      "authorityMatches": false
+    }
+  ]
+}
