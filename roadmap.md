@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — activate live account protections (3 Nov 2026, 00:02 UTC)
+- [ ] 00:05 Owner requested removal of activation blockers: prepare protected non-overwriting independent signer setup and exact closed prerequisite checks; do not manufacture approval evidence or enable flags before signer/witness binding is ready.
 - [x] Owner approved live protection settings and signed account-control approval only; group opening, routing cutover, data movement, erasure and key/controller changes are not included.
 - [x] Read live GitHub workflow inventory, PROD canister mapping and identity recipe through Paul's GitHub API (1); no activation workflow or mapped independent recovery witness was found, and the identity recipe does not supply the immutable approval key/witness bindings.
 - [ ] Activate and verify all 28 receivers while both groups remain closed. Hold before setting protection flags until the installed identity's immutable signer/witness prerequisites are confirmed; missing prerequisites require separately reviewed signer/witness provisioning and a bound identity upgrade, not flag-only activation.
