@@ -23,6 +23,7 @@ async fn acquire(t: &Ticket) -> Outcome<()> {
 }
 #[ic_cdk::update]
 pub async fn prepare_account_deletion(account_id: String, expected_revision: u64) -> Outcome<Ticket> {
+    deferred_account_operations_clear()?;
     // Keep this additive protocol unavailable until a separately approved release.
     if !bound_deletion_released() { return Err("Bound deletion not released".into()); }
     let caller=ic_cdk::api::msg_caller(); authorized(&account_id,caller)?;
@@ -48,6 +49,7 @@ pub async fn prepare_account_deletion(account_id: String, expected_revision: u64
 }
 #[ic_cdk::update]
 pub async fn commit_account_deletion(account_id: String) -> Outcome<()> {
+    deferred_account_operations_clear()?;
     if !bound_deletion_released() { return Err("Bound deletion not released".into()); }
     let caller=ic_cdk::api::msg_caller(); authorized(&account_id,caller)?;
     let t=ticket(&account_id).ok_or("Missing deletion ticket")?;
