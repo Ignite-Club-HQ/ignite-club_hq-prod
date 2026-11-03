@@ -1,5 +1,9 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — simplest safe launch plan (3 Nov 2026, 07:35 UTC)
+- [ ] Prepare one minimal launch plan separating installed protection dependencies from optional deletion/recovery enhancements; no live changes or new safeguard layers.
+- [ ] Execute only after plan approval; production opening and publication still need explicit owner authorization.
+
 ## Current request — move toward live switch-on (3 Nov 2026, 07:03 UTC)
 - [x] Confirmed exact repaired witness, identity, shared runner and canister assertions match GitHub main 79469486d7052657c49cc3817daed7aa7884c9f6; dispatched supported-worker isolated verification. No live changes or hold removal.
 - [ ] Review new GitHub results before delivery; blocker: run not yet complete.
