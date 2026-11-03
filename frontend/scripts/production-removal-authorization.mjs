@@ -67,7 +67,7 @@ export async function createProductionIdentity(pic,governor,root,args) {
   const approval=await signed({...body,review});
   const signing=ok(await actor.production_account_approval_signing_bytes(approval.body));
   const contract=protectionContract(IDL);
-  assert.deepEqual(Buffer.from(signing),approvalBytes(IDL,contract.Body,approval.body),'Actual Rust and commissioning account signing bytes must match');
+  assert.deepEqual(Buffer.from(signing),approvalBytes(IDL,contract.Body,approval.body,ok(await actor.production_account_approval_encoding(approval.body))),'Actual Rust and commissioning account signing bytes must match');
   const requestDigest=digest(Buffer.concat([Buffer.from(signing),Buffer.from(approval.signature)]));
   const history=ok(await actor.read_production_account_history_revision());
   const removalGeneration=ok(await actor.read_production_account_removal_generation());
@@ -77,7 +77,7 @@ export async function createProductionIdentity(pic,governor,root,args) {
    generation:approval.body.generation,signed_digest:requestDigest,expires_at_ns:body.expires_at_ns,history_revision:history,
    removal_generation:removalGeneration,identity_version:await runtimeVersion(),participants:rows.map(l=>({canister:l.canister,module:l.module_hash,changes:l.changes}))};
   const recoverySignature=new Uint8Array(sign(null,Buffer.from(ok(await witness.recovery_acceptance_signing_bytes(acceptance))),recoveryKey.privateKey));
-  assert.deepEqual(Buffer.from(ok(await witness.recovery_acceptance_signing_bytes(acceptance))),recoveryBytes(IDL,contract.Acceptance,acceptance),'Actual Rust and commissioning recovery signing bytes must match');
+  assert.deepEqual(Buffer.from(ok(await witness.recovery_acceptance_signing_bytes(acceptance))),recoveryBytes(IDL,contract.Acceptance,acceptance,ok(await witness.recovery_acceptance_encoding(acceptance))),'Actual Rust and commissioning recovery signing bytes must match');
   ok(await witness.accept_recovery_fence({body:acceptance,signature:recoverySignature}));
   if(provision){
    assert.ok('Err'in await actor.provision_production_account_inventory({...approval,signature:new Uint8Array(64)}));
@@ -96,7 +96,7 @@ export async function createProductionIdentity(pic,governor,root,args) {
   // Separate signed opt-in; the ordinary recovery signature cannot activate it.
   assert.ok('Err'in await witness.authorize_subject_removal_progress({body:acceptance,signature:recoverySignature}));
   const progressSignature=new Uint8Array(sign(null,Buffer.from(ok(await witness.subject_progress_approval_signing_bytes(acceptance))),recoveryKey.privateKey));
-  assert.deepEqual(Buffer.from(ok(await witness.subject_progress_approval_signing_bytes(acceptance))),recoveryBytes(IDL,contract.Acceptance,acceptance,true),'Actual Rust and commissioning subject signing bytes must match');
+  assert.deepEqual(Buffer.from(ok(await witness.subject_progress_approval_signing_bytes(acceptance))),recoveryBytes(IDL,contract.Acceptance,acceptance,ok(await witness.recovery_acceptance_encoding(acceptance)),true),'Actual Rust and commissioning subject signing bytes must match');
   ok(await witness.authorize_subject_removal_progress({body:acceptance,signature:progressSignature}));
   ok(await actor.read_active_production_account_protection());
   // The actual identity readback must reach the combined witness verifier.

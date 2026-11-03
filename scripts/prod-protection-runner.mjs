@@ -175,8 +175,9 @@ export async function runProtectionCommissioning(runtime){
     const identityChanges=await collect('read_production_account_runtime_version');
     const removalGeneration=await collect('read_production_account_removal_generation');
     const witnessChanges=await witnessCollect('read_recovery_runtime_version');
+    const bodyEncoding=ok(await actor(contract.identity,ids.identity_access).production_account_approval_encoding(body));
     await save({...receipt,...context,phase:`${purpose}-reviewed`,purpose,fenceEvidence:fence,proofs,
-      body:encode(contract.Body,body),signingBytes:approvalBytes(IDL,contract.Body,body).toString('base64'),historyRevision:revision.toString(),
+      body:encode(contract.Body,body),bodyEncoding:Buffer.from(bodyEncoding).toString('base64'),signingBytes:approvalBytes(IDL,contract.Body,body,bodyEncoding).toString('base64'),historyRevision:revision.toString(),
       identityChanges:identityChanges.toString(),removalGeneration:removalGeneration.toString(),witnessChanges:witnessChanges.toString(),
       approval:null,acceptance:null,subjectApproval:null});
   }
@@ -248,7 +249,8 @@ export async function runProtectionCommissioning(runtime){
     report('Signed inventory preserved; complete fresh protection review committed.');return;
   }
   const purpose=job.endsWith('inventory')?'inventory':'protection';
-  const body=decode(contract.Body,receipt.body);
+  const body=decode(contract.Body,receipt.body),bodyEncoding=receipt.bodyEncoding&&Buffer.from(receipt.bodyEncoding,'base64');
+  const acceptanceEncoding=()=>receipt.acceptanceEncoding&&Buffer.from(receipt.acceptanceEncoding,'base64');
   async function verifyEvidence(){
     const checked=async(canister,method,args=[])=>verifyUpdate(receipt.proofs[method],{sdk,canister,method,
       type:(canister===ids.identity_access?identityTypes:witnessTypes).get(method),args,runId:receipt.runId,purpose,governor:safeguard.governor});
@@ -279,12 +281,12 @@ export async function runProtectionCommissioning(runtime){
   }
   if(job.startsWith('account-')){
     if(receipt.phase!==`${purpose}-reviewed`)throw Error('Fresh effective review required before signing');
-    await verifyEvidence();const bytes=approvalBytes(IDL,contract.Body,body);
+    await verifyEvidence();const bytes=approvalBytes(IDL,contract.Body,body,bodyEncoding);
     const signature=sign(null,bytes,key);verifySignature(bytes,signature,safeguard.pins.accountPublicKey);
     await save({...receipt,phase:`${purpose}-signed`,approval:encode(contract.Approval,{body,signature})});report(`Exact independently verified ${purpose} review signed. No live writes.`);return;
   }
   const approval=decode(contract.Approval,receipt.approval);
-  verifySignature(approvalBytes(IDL,contract.Body,approval.body),approval.signature,safeguard.pins.accountPublicKey);
+  verifySignature(approvalBytes(IDL,contract.Body,approval.body,bodyEncoding),approval.signature,safeguard.pins.accountPublicKey);
   if(encode(contract.Body,approval.body)!==encode(contract.Body,body))throw Error('Account approval differs from independently verified body');
   if(job.startsWith('recovery-')){
     if(receipt.phase!==`${purpose}-signed`)throw Error('Exact account signature required');
@@ -292,25 +294,26 @@ export async function runProtectionCommissioning(runtime){
     const acceptance={witness:pid(safeguard.witness),witness_version:e.witnessChanges,identity:pid(ids.identity_access),identity_version:e.identityChanges,
       epoch:e.head.epoch,journal_revision:e.head.revision,journal_digest:e.head.digest,inventory_digest:approval.body.original_inventory_evidence,
       decoded_history_digest:Buffer.from(digest({identityHistory:receipt.fenceEvidence.identityHistory,witnessRecords:plain(e.records)}),'hex'),
-      generation:approval.body.generation,signed_digest:createHash('sha256').update(Buffer.concat([approvalBytes(IDL,contract.Body,approval.body),Buffer.from(approval.signature)])).digest(),
+      generation:approval.body.generation,signed_digest:createHash('sha256').update(Buffer.concat([approvalBytes(IDL,contract.Body,approval.body,bodyEncoding),Buffer.from(approval.signature)])).digest(),
       expires_at_ns:approval.body.expires_at_ns,history_revision:BigInt(receipt.historyRevision),removal_generation:e.removalGeneration,
       participants:approval.body.review.lifecycle.map(l=>({canister:l.canister,module:l.module_hash,changes:l.changes}))};
-    const signature=sign(null,recoveryBytes(IDL,contract.Acceptance,acceptance),key);
-    const subjectSignature=purpose==='protection'?sign(null,recoveryBytes(IDL,contract.Acceptance,acceptance,true),key):null;
-    await save({...receipt,phase:`${purpose}-recovery-signed`,acceptance:encode(contract.SignedAcceptance,{body:acceptance,signature}),
+    const encoded=ok(await actor(contract.witness,safeguard.witness).recovery_acceptance_encoding(acceptance));
+    const signature=sign(null,recoveryBytes(IDL,contract.Acceptance,acceptance,encoded),key);
+    const subjectSignature=purpose==='protection'?sign(null,recoveryBytes(IDL,contract.Acceptance,acceptance,encoded,true),key):null;
+    await save({...receipt,phase:`${purpose}-recovery-signed`,acceptanceEncoding:Buffer.from(encoded).toString('base64'),acceptance:encode(contract.SignedAcceptance,{body:acceptance,signature}),
       subjectApproval:subjectSignature?encode(contract.SignedAcceptance,{body:acceptance,signature:subjectSignature}):null});
     report(`Independent ${purpose} acceptance signed offline; governor delivery awaits its own owner approval.`);return;
   }
   const completed=purpose==='inventory'?'inventory-delivered':'protection-delivered';
   const w=actor(contract.witness,safeguard.witness),acceptance=decode(contract.SignedAcceptance,receipt.acceptance);
-  verifySignature(recoveryBytes(IDL,contract.Acceptance,acceptance.body),acceptance.signature,safeguard.pins.recoveryPublicKey);
+  verifySignature(recoveryBytes(IDL,contract.Acceptance,acceptance.body,acceptanceEncoding()),acceptance.signature,safeguard.pins.recoveryPublicKey);
   const accepted=acceptance.body;
   if(accepted.identity.toText()!==ids.identity_access||accepted.witness.toText()!==safeguard.witness||accepted.generation!==body.generation||
      accepted.expires_at_ns!==body.expires_at_ns||accepted.epoch!==body.recovery_epoch||accepted.history_revision!==BigInt(receipt.historyRevision)||
      accepted.removal_generation!==BigInt(receipt.removalGeneration)||accepted.identity_version!==BigInt(receipt.identityChanges)||
      accepted.witness_version!==BigInt(receipt.witnessChanges)||hex(accepted.inventory_digest)!==hex(body.original_inventory_evidence)||
      canonical(plain(accepted.participants))!==canonical(plain(body.review.lifecycle.map(l=>({canister:l.canister,module:l.module_hash,changes:l.changes}))))||
-     hex(accepted.signed_digest)!==hash(Buffer.concat([approvalBytes(IDL,contract.Body,body),Buffer.from(approval.signature)])))throw Error('Recovery acceptance differs from independently verified scope');
+     hex(accepted.signed_digest)!==hash(Buffer.concat([approvalBytes(IDL,contract.Body,body,bodyEncoding),Buffer.from(approval.signature)])))throw Error('Recovery acceptance differs from independently verified scope');
   if(accepted.journal_revision!==0n||hex(accepted.journal_digest)!=='0'.repeat(64)||
     hex(accepted.decoded_history_digest)!==digest({identityHistory:receipt.fenceEvidence.identityHistory,witnessRecords:[]}))throw Error('Recovery decoded history differs from certified empty commissioning history');
   if(receipt.phase!==completed&&receipt.phase!=='verified'){
@@ -324,7 +327,7 @@ export async function runProtectionCommissioning(runtime){
     }
     if(purpose==='protection'&&receipt.phase==='protection-witness-accepted'){
       const subject=decode(contract.SignedAcceptance,receipt.subjectApproval);
-      verifySignature(recoveryBytes(IDL,contract.Acceptance,subject.body,true),subject.signature,safeguard.pins.recoveryPublicKey);
+      verifySignature(recoveryBytes(IDL,contract.Acceptance,subject.body,acceptanceEncoding(),true),subject.signature,safeguard.pins.recoveryPublicKey);
       if(canonical(plain(subject.body))!==canonical(plain(acceptance.body)))throw Error('Subject policy differs from recovery acceptance');
       await checkpoint('subject:protection',{before:null,after:{replied:true},commit:{phase:'protection-subject-accepted'},metadata:{}},async()=>{
         const result=await certifiedCallWithIntent(safeguard.witness,'authorize_subject_removal_progress',[subject]);ok(result.value);

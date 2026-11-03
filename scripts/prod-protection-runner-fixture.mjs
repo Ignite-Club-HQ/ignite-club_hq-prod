@@ -63,6 +63,8 @@ export function commissioningFixture({alreadyInstalled=true}={}){
     if(method==='read_production_commissioning_evidence')return {Ok:{history,inventory_approval:inventory}};
     if(method==='review_production_account_inventory'||method==='review_production_account_protection')return {Ok:draft(args[0])};
     if(method==='read_recovery_head')return {Ok:head};
+    if(method==='production_account_approval_encoding')return {Ok:Buffer.from(IDL.encode([contract.Body],[args[0]]))};
+    if(method==='recovery_acceptance_encoding')return {Ok:Buffer.from(IDL.encode([contract.Acceptance],[args[0]]))};
     if(method==='read_recovery_records')return {Ok:[]};
     if(method==='read_recovery_runtime_version')return {Ok:1n};
     if(method==='accept_recovery_fence'){head.accepted=[args[0]];subjectArmed=false;return {Ok:head.epoch};}
