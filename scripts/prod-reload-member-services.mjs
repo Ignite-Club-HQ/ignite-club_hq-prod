@@ -40,7 +40,7 @@ async function main() {
   const Env = IDL.Vec(IDL.Record({ name: IDL.Text, value: IDL.Text }));
   const mgmtService = () => IDL.Service({
     canister_status: IDL.Func([IDL.Record({ canister_id: IDL.Principal })], [IDL.Record({
-      module_hash: IDL.Opt(IDL.Vec(IDL.Nat8)),
+      module_hash: IDL.Opt(IDL.Vec(IDL.Nat8)), cycles: IDL.Nat,
       settings: IDL.Record({ controllers: IDL.Vec(IDL.Principal), environment_variables: IDL.Opt(Env) }) })], []),
     clear_chunk_store: IDL.Func([IDL.Record({ canister_id: IDL.Principal })], [], []),
     upload_chunk: IDL.Func([IDL.Record({ canister_id: IDL.Principal, chunk: IDL.Vec(IDL.Nat8) })], [IDL.Record({ hash: IDL.Vec(IDL.Nat8) })], []),
@@ -56,7 +56,7 @@ async function main() {
     const s = await mgmt(id).canister_status({ canister_id: pid(id) });
     const rows = s.settings.environment_variables;
     const list = Array.isArray(rows) && Array.isArray(rows[0]) ? rows[0] : Array.isArray(rows) ? rows : [];
-    return { controllers: s.settings.controllers.map(c => c.toText()),
+    return { cycles: BigInt(s.cycles), controllers: s.settings.controllers.map(c => c.toText()),
       moduleHash: s.module_hash.length ? hex(Uint8Array.from(s.module_hash[0])) : null,
       environment: list.map(({ name, value }) => ({ name, value })) };
   };
@@ -64,6 +64,7 @@ async function main() {
   stage = 'load member-access receipt';
   const memberReceipt = await githubJournal(env, fetch, { path: MEMBER_ACCESS_RECEIPT_PATH, label: 'member access' }).load({ readOnly: true });
   const targets = reloadTargets(memberReceipt);
+  const upgradeGroup = env.RELOAD_UPGRADE_GROUP && env.RELOAD_UPGRADE_GROUP !== 'none' ? env.RELOAD_UPGRADE_GROUP : null;
 
   stage = 'load builds';
   const builds = {};
@@ -80,12 +81,13 @@ async function main() {
   const status = {};
   for (const t of targets) status[t.id] = await readStatus(t.id);
   const report = targets.map(t => ({ ...t, liveHash: status[t.id].moduleHash,
-    matchesBuild: builds[t.name].hashes.includes(status[t.id].moduleHash) }));
+    matchesBuild: builds[t.name].hashes.includes(status[t.id].moduleHash), cycles: String(status[t.id].cycles) }));
   writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-member-reload-check.json'), evidenceText(report));
-  assertReloadReady({ targets, status, builds, governor, identity: ids.identity_access });
+  const toUpdate = assertReloadReady({ targets, status, builds, governor, identity: ids.identity_access, upgradeGroup });
+  const lines = report.filter(r => toUpdate.includes(r.id)).map(r => `- ${r.name} ${r.group}: update to first-group code, fuel ${(Number(r.cycles) / 1e12).toFixed(3)}T`).join('\n');
 
   if (action === 'check') {
-    const msg = `### PROD member service reload check\n\nAll 24 services run exactly this build and carry the reviewed settings. Ready to reload. No changes made.\n`;
+    const msg = `### PROD member service reload check\n\n${toUpdate.length} services would be updated to the code the first group already runs; the other ${24 - toUpdate.length} restart on identical code. All carry the reviewed settings. No changes made.\n\n${lines}\n`;
     console.log(msg); if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, msg);
     return;
   }
@@ -94,7 +96,10 @@ async function main() {
   let receipt = (await journal.load()) ?? { version: 1, reloaded: [] };
   const governorArg = Uint8Array.from(IDL.encode([IDL.Principal], [pid(governor)]));
   const emptyArg = Uint8Array.from(IDL.encode([], []));
-  for (const t of targets) {
+  // Updated groups go first so a refusal there leaves the first group untouched.
+  const ordered = [...targets.filter(t => toUpdate.includes(t.id)), ...targets.filter(t => !toUpdate.includes(t.id))];
+  for (const t of ordered) {
+    if (receipt.reloaded.includes(t.id) && receipt.revision === env.GITHUB_SHA) { console.log(`already done ${t.name} ${t.group}`); continue; }
     stage = `reload ${t.name} (${t.group})`;
     const wasm = builds[t.name].bytes;
     const m = mgmt(t.id);
@@ -108,8 +113,9 @@ async function main() {
       arg: NO_ARG_SERVICES.includes(t.name) ? emptyArg : governorArg, sender_canister_version: [] });
     await m.clear_chunk_store({ canister_id: pid(t.id) });
     const after = await readStatus(t.id);
-    if (after.moduleHash !== status[t.id].moduleHash) throw new Error(`${t.name} code changed unexpectedly after reload`);
-    receipt = { ...receipt, reloaded: [...new Set([...receipt.reloaded, t.id])], at: new Date().toISOString() };
+    const expected = toUpdate.includes(t.id) ? builds[t.name].hashes : [status[t.id].moduleHash];
+    if (!expected.includes(after.moduleHash)) throw new Error(`${t.name} ${t.group} code does not match the expected build after install`);
+    receipt = { ...receipt, reloaded: [...new Set([...(receipt.revision === env.GITHUB_SHA ? receipt.reloaded : []), t.id])], revision: env.GITHUB_SHA, at: new Date().toISOString() };
     await journal.save(receipt);
     console.log(`reloaded ${t.name} ${t.group} ${t.id}`);
   }
