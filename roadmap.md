@@ -1,5 +1,11 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — move toward live switch-on (3 Nov 2026, 07:03 UTC)
+- [x] Confirmed exact repaired witness, identity, shared runner and canister assertions match GitHub main 79469486d7052657c49cc3817daed7aa7884c9f6; dispatched supported-worker isolated verification. No live changes or hold removal.
+- [ ] Review new GitHub results before delivery; blocker: run not yet complete.
+- [ ] Implement/review the upgrade-only existing-witness and identity-pin transition, preserving historical receipt/address/controller/keys; then deliver for Paul's protected approval. Blocker: existing setup is install-only and intentionally refuses changed fingerprints.
+- [ ] Activate closed protections and verify 28 services; opening and member launch remain separate approved steps.
+
 ## Current request — consolidated pre-verification audit (3 Nov 2026, 06:39 UTC)
 - [x] 06:46 four-fault repair implemented together: one explicit-adapter runner now powers production composition and offline acceptance; initial reviewed identity skips reload; delivery reruns perform fresh final verification; settings intents retain commitments; identity readback checks current global/subject witness arming. 51 JS + 229 identity/20 witness Rust tests pass, both Wasms compile, 17 contracts/YAML validate. See docs/prod-protection-four-fault-repair-2026-11-03.md. No live activation, copy or dispatch.
 - [x] Completed three independent read-only cross-layer reviews and local reproductions; all 32 existing protection regressions pass, but they do not execute the complete commissioning runner. Saved consolidated findings in docs/prod-protection-full-review-2026-11-03.md. No live changes, approvals, dispatch or guard removal.
