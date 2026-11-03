@@ -44,6 +44,13 @@ test('offline verifier accepts a real test-signed certified reply and refuses ta
   const testSdk={...sdk,HttpAgent:{createSync:()=>({rootKey:root})}};
   const options={sdk:testSdk,...expected,type,args:[],runId,purpose};
   assert.equal(await verifyUpdate(proof,options),8n);
+  const datedProof=async(ageMinutes)=>{
+    const dated=[...tree];dated[1]=label('time',leaf(lebEncode(BigInt(Date.now()-ageMinutes*60_000)*1_000_000n)));
+    const signed=bls.signShortSignature(Buffer.concat([domain_sep('ic-state-root'),await reconstruct(dated)]),key);
+    return {...proof,certificate:Buffer.from(Cbor.encode({tree:dated,signature:signed})).toString('base64')};
+  };
+  assert.equal(await verifyUpdate(await datedProof(60),options),8n);
+  await assert.rejects(verifyUpdate(await datedProof(25*60),options));
   await assert.rejects(verifyUpdate({...proof,certificate:Buffer.from(Cbor.encode({tree,signature:new Uint8Array(48)})).toString('base64')},options));
   await assert.rejects(verifyUpdate(proof,{...options,runId:'101'}));
 });
