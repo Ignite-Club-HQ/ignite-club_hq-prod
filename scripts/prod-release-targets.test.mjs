@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { planProdReleaseTargets, assertIdentitySourceSupportsPins } from './prod-release-targets.mjs';
+import { planProdReleaseTargets, assertIdentitySourceSupportsPins, retainProdIdentity, assertRetainedIdentityReceiverCompatibility } from './prod-release-targets.mjs';
 import { PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 import { UPGRADE_ORDER } from './icp-environments.mjs';
 import { GROUP_DOMAINS } from './prod-group-readiness.mjs';
@@ -33,4 +33,18 @@ test('missing artifact fingerprint refuses partial release', () => { const f = f
 test('the exact 30 October identity source cannot satisfy the installed safeguard pin contract', () => {
   const source = execFileSync('git', ['show', 'd321e85bbcdfbdd7045d5c8fcb57d937df4ac482:backend/identity_access/src/lib.rs'], { encoding: 'utf8' });
   assert.throws(() => assertIdentitySourceSupportsPins(source, { IGNITE_PRODUCTION_ACCOUNT_WITNESS: 'witness-cai' }), /explicit owner decision/);
+});
+test('retaining current PROD identity excludes it from all 30 other install targets', () => {
+  const selected = retainProdIdentity(planProdReleaseTargets(fixture()), 'b'.repeat(64));
+  assert.equal(selected.targets.length, 30);
+  assert.equal(selected.targets.some(t => t.name === 'identity_access'), false);
+  assert.equal(selected.retained[0].newHash, 'b'.repeat(64));
+  assert.equal(selected.exactDevParity, false);
+});
+test('retained identity requires an observed fingerprint, not an assumed one', () => {
+  assert.throws(() => retainProdIdentity(planProdReleaseTargets(fixture()), ''), /Observed/);
+});
+test('historical club interface cannot satisfy newer PROD protected-reader calls', () => {
+  const did = execFileSync('git', ['show', 'd321e85bbcdfbdd7045d5c8fcb57d937df4ac482:backend/club_domain/club_domain.did'], { encoding: 'utf8' });
+  assert.throws(() => assertRetainedIdentityReceiverCompatibility('"read_account_protection_configuration"', { club_domain: did }), /absent.*club_domain/);
 });
