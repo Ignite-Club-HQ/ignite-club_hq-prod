@@ -274,7 +274,7 @@ export async function runProtectionCommissioning(runtime){
     validateReview({body,review,commissioning,head,records,state,fence,base,g2,targets,identity:ids.identity_access,governor:safeguard.governor,purpose,plain});
     if(purpose==='protection'){
       const inventory=commissioning.inventory_approval[0];
-      verifySignature(approvalBytes(IDL,contract.Body,inventory.body),inventory.signature,safeguard.pins.accountPublicKey);
+      verifySignature(approvalBytes(IDL,contract.Body,inventory.body,ok(await actor(contract.identity,ids.identity_access).production_account_approval_encoding(inventory.body))),inventory.signature,safeguard.pins.accountPublicKey);
       if(encode(contract.Approval,inventory)!==receipt.inventoryApproval)throw Error('Certified original inventory receipt mismatch');
     }
     return {head,records,identityChanges,removalGeneration,witnessChanges};
