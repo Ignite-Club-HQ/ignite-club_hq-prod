@@ -1,0 +1,310 @@
+name: "[PROD] Activate and verify account protections (closed)"
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type exactly: ACTIVATE PROD PROTECTIONS CLOSED"
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+env:
+  IGNITE_ICP_ENV: prod
+  CONFIRMATION: ${{ inputs.confirmation }}
+  PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+  DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+  PROD_ICP_PUSH_WORKER_PRINCIPAL: ${{ vars.PROD_ICP_PUSH_WORKER_PRINCIPAL }}
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 90
+    env:
+      PROTECTION_JOB: prepare
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse non-production context
+        run: test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod' && test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.12.0" }
+      - name: Install isolated pinned libraries
+        run: |
+          npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 @icp-sdk/vetkeys@0.7.0 --no-fund --no-audit
+          mkdir -p frontend
+          test -d frontend/node_modules || ln -s "$RUNNER_TEMP/deps/node_modules" frontend/node_modules
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - name: Install pinned recipe tools
+        run: |
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops@3.5.1 --no-fund --no-audit
+          mops toolchain use moc 1.16.1
+      - name: Run commissioning policy tests
+        run: node --test scripts/prod-protection-policy.test.mjs
+      - name: prepare (closed, journaled)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          KEYDIR="$RUNNER_TEMP/key"
+          mkdir -p "$KEYDIR"
+          trap 'rm -rf "$KEYDIR"' EXIT
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '
+ ' | base64 -d > "$KEYDIR/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$KEYDIR/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEYDIR/key.enc" -out "$KEYDIR/key.pem" -pass file:"$KEYDIR/pass"
+          export CHECK_KEY_PEM="$KEYDIR/key.pem"
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/deps" CHECK_REPORT_DIR="$RUNNER_TEMP/report"
+          node scripts/prod-protection-live.mjs
+      - name: Retain public commissioning evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protection-prepare
+          path: ${{ runner.temp }}/report/*.json
+          if-no-files-found: ignore
+  account-inventory:
+    needs: prepare
+    runs-on: ubuntu-latest
+    environment: production-account-approval
+    timeout-minutes: 25
+    env:
+      PROTECTION_JOB: account-inventory
+      KEY_ENVIRONMENT: production-account-approval
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse non-production context
+        run: test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod' && test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.12.0" }
+      - name: Install isolated pinned libraries
+        run: |
+          npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 @icp-sdk/vetkeys@0.7.0 --no-fund --no-audit
+          mkdir -p frontend
+          test -d frontend/node_modules || ln -s "$RUNNER_TEMP/deps/node_modules" frontend/node_modules
+      - name: account-inventory (closed, journaled)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PASSPHRASE: ${{ secrets.PROD_APPROVAL_PASSPHRASE }}
+          EXISTING_ENC: ${{ secrets.PROD_APPROVAL_SEED_ENC }}
+          EXISTING_PUBLIC_KEY: ${{ vars.PROD_APPROVAL_PUBLIC_KEY }}
+          EXISTING_PRINCIPAL: ${{ vars.PROD_APPROVAL_PRINCIPAL }}
+        run: |
+          set -euo pipefail
+          set +x
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/deps" CHECK_REPORT_DIR="$RUNNER_TEMP/report"
+          node scripts/prod-protection-live.mjs
+      - name: Retain public commissioning evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protection-account-inventory
+          path: ${{ runner.temp }}/report/*.json
+          if-no-files-found: ignore
+  recovery-inventory:
+    needs: account-inventory
+    runs-on: ubuntu-latest
+    environment: production-recovery-approval
+    timeout-minutes: 25
+    env:
+      PROTECTION_JOB: recovery-inventory
+      KEY_ENVIRONMENT: production-recovery-approval
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse non-production context
+        run: test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod' && test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.12.0" }
+      - name: Install isolated pinned libraries
+        run: |
+          npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 @icp-sdk/vetkeys@0.7.0 --no-fund --no-audit
+          mkdir -p frontend
+          test -d frontend/node_modules || ln -s "$RUNNER_TEMP/deps/node_modules" frontend/node_modules
+      - name: recovery-inventory (closed, journaled)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PASSPHRASE: ${{ secrets.PROD_APPROVAL_PASSPHRASE }}
+          EXISTING_ENC: ${{ secrets.PROD_APPROVAL_SEED_ENC }}
+          EXISTING_PUBLIC_KEY: ${{ vars.PROD_APPROVAL_PUBLIC_KEY }}
+          EXISTING_PRINCIPAL: ${{ vars.PROD_APPROVAL_PRINCIPAL }}
+        run: |
+          set -euo pipefail
+          set +x
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/deps" CHECK_REPORT_DIR="$RUNNER_TEMP/report"
+          node scripts/prod-protection-live.mjs
+      - name: Retain public commissioning evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protection-recovery-inventory
+          path: ${{ runner.temp }}/report/*.json
+          if-no-files-found: ignore
+  deliver-inventory:
+    needs: recovery-inventory
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    env:
+      PROTECTION_JOB: deliver-inventory
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse non-production context
+        run: test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod' && test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.12.0" }
+      - name: Install isolated pinned libraries
+        run: |
+          npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 @icp-sdk/vetkeys@0.7.0 --no-fund --no-audit
+          mkdir -p frontend
+          test -d frontend/node_modules || ln -s "$RUNNER_TEMP/deps/node_modules" frontend/node_modules
+      - name: deliver-inventory (closed, journaled)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          KEYDIR="$RUNNER_TEMP/key"
+          mkdir -p "$KEYDIR"
+          trap 'rm -rf "$KEYDIR"' EXIT
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '
+ ' | base64 -d > "$KEYDIR/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$KEYDIR/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEYDIR/key.enc" -out "$KEYDIR/key.pem" -pass file:"$KEYDIR/pass"
+          export CHECK_KEY_PEM="$KEYDIR/key.pem"
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/deps" CHECK_REPORT_DIR="$RUNNER_TEMP/report"
+          node scripts/prod-protection-live.mjs
+      - name: Retain public commissioning evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protection-deliver-inventory
+          path: ${{ runner.temp }}/report/*.json
+          if-no-files-found: ignore
+  account-protection:
+    needs: deliver-inventory
+    runs-on: ubuntu-latest
+    environment: production-account-approval
+    timeout-minutes: 25
+    env:
+      PROTECTION_JOB: account-protection
+      KEY_ENVIRONMENT: production-account-approval
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse non-production context
+        run: test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod' && test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.12.0" }
+      - name: Install isolated pinned libraries
+        run: |
+          npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 @icp-sdk/vetkeys@0.7.0 --no-fund --no-audit
+          mkdir -p frontend
+          test -d frontend/node_modules || ln -s "$RUNNER_TEMP/deps/node_modules" frontend/node_modules
+      - name: account-protection (closed, journaled)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PASSPHRASE: ${{ secrets.PROD_APPROVAL_PASSPHRASE }}
+          EXISTING_ENC: ${{ secrets.PROD_APPROVAL_SEED_ENC }}
+          EXISTING_PUBLIC_KEY: ${{ vars.PROD_APPROVAL_PUBLIC_KEY }}
+          EXISTING_PRINCIPAL: ${{ vars.PROD_APPROVAL_PRINCIPAL }}
+        run: |
+          set -euo pipefail
+          set +x
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/deps" CHECK_REPORT_DIR="$RUNNER_TEMP/report"
+          node scripts/prod-protection-live.mjs
+      - name: Retain public commissioning evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protection-account-protection
+          path: ${{ runner.temp }}/report/*.json
+          if-no-files-found: ignore
+  recovery-protection:
+    needs: account-protection
+    runs-on: ubuntu-latest
+    environment: production-recovery-approval
+    timeout-minutes: 25
+    env:
+      PROTECTION_JOB: recovery-protection
+      KEY_ENVIRONMENT: production-recovery-approval
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse non-production context
+        run: test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod' && test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.12.0" }
+      - name: Install isolated pinned libraries
+        run: |
+          npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 @icp-sdk/vetkeys@0.7.0 --no-fund --no-audit
+          mkdir -p frontend
+          test -d frontend/node_modules || ln -s "$RUNNER_TEMP/deps/node_modules" frontend/node_modules
+      - name: recovery-protection (closed, journaled)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PASSPHRASE: ${{ secrets.PROD_APPROVAL_PASSPHRASE }}
+          EXISTING_ENC: ${{ secrets.PROD_APPROVAL_SEED_ENC }}
+          EXISTING_PUBLIC_KEY: ${{ vars.PROD_APPROVAL_PUBLIC_KEY }}
+          EXISTING_PRINCIPAL: ${{ vars.PROD_APPROVAL_PRINCIPAL }}
+        run: |
+          set -euo pipefail
+          set +x
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/deps" CHECK_REPORT_DIR="$RUNNER_TEMP/report"
+          node scripts/prod-protection-live.mjs
+      - name: Retain public commissioning evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protection-recovery-protection
+          path: ${{ runner.temp }}/report/*.json
+          if-no-files-found: ignore
+  deliver-protection:
+    needs: recovery-protection
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    env:
+      PROTECTION_JOB: deliver-protection
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse non-production context
+        run: test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod' && test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.12.0" }
+      - name: Install isolated pinned libraries
+        run: |
+          npm install --prefix "$RUNNER_TEMP/deps" @icp-sdk/core@6.1.1 @icp-sdk/vetkeys@0.7.0 --no-fund --no-audit
+          mkdir -p frontend
+          test -d frontend/node_modules || ln -s "$RUNNER_TEMP/deps/node_modules" frontend/node_modules
+      - name: deliver-protection (closed, journaled)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          KEYDIR="$RUNNER_TEMP/key"
+          mkdir -p "$KEYDIR"
+          trap 'rm -rf "$KEYDIR"' EXIT
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '
+ ' | base64 -d > "$KEYDIR/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$KEYDIR/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEYDIR/key.enc" -out "$KEYDIR/key.pem" -pass file:"$KEYDIR/pass"
+          export CHECK_KEY_PEM="$KEYDIR/key.pem"
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/deps" CHECK_REPORT_DIR="$RUNNER_TEMP/report"
+          node scripts/prod-protection-live.mjs
+      - name: Retain public commissioning evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protection-deliver-protection
+          path: ${{ runner.temp }}/report/*.json
+          if-no-files-found: ignore
