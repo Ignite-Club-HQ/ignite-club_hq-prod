@@ -7,7 +7,9 @@
 - [x] Step 1 partial: 13/18 DEV services match release source f86b6f98; 5 (identity_access, club_domain, events_domain, messaging_domain, pii_access_control) updated later, commit unidentified. See docs/dev-prod-fingerprints-2026-11-03.md.
 - [x] Paul chose option 2: reset DEV to 29 Oct version (branch dev-reset-2026-10-29 at f86b6f98); read-only check dispatched.
 - [x] Check run 41608029499 (42edc640) succeeded: 31 targets checked, exactly the 9 expected differ (identity_access + club/events/messaging/pii in both groups), 22 already match, photo keys verified. Plan hash 40e3ba58cfc50cfaf4a538a4969b019e52171d879cedc8bf07fcdd0f0dde2e4e.
-- [ ] DEV upgrade dispatched 09:14 UTC as run 41609390535 (same checked plan); awaiting result. Then: Paul runs the real DEV upgrade (ACTION=upgrade, SCOPE=full_backend, confirmation UPGRADE ALL MAINNET GROUPS, checked plan 40e3ba58...) on branch dev-reset-2026-10-29; then test app on DEV, then copy all 18 to PROD.
+- [x] 29 Oct reset abandoned: club_domain refused the downgrade (memory-incompatible), so DEV could not go back. Switched to option 1: the 30 Oct update (run 40980031534, commit d321e85b, scope private_club_name_display) was the only DEV service change since 29 Oct.
+- [x] DEV restored to uniform 30 Oct version: archived the stopped journal, check run 41614699252 showed 30/31 matching, then run 41618393438 (branch dev-current-2026-10-30) restored identity_access to the exact 30 Oct build; live fingerprint 4fe59c88... confirmed 10:36 UTC. All 31 DEV services now on one version. See docs/dev-prod-fingerprints-2026-11-03.md.
+- [ ] Next: quick test of the app on DEV, then copy the exact 30 Oct code to prod branch and upgrade all 18 PROD services upgrade-only, then read back fingerprints vs DEV.
 - [ ] (superseded) Identify the 5 commits (DEV deploy run history), rebuild all 18, confirm hashes, then Paul approves PROD upgrade.
 - [ ] (old) Upgrade DEV if B, confirm app works; copy exact code to prod; upgrade PROD upgrade-only with compatibility stop; read back fingerprints vs DEV.
 

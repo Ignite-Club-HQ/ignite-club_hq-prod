@@ -46,3 +46,10 @@ Updated on DEV after that record, commit not yet identified: identity_access, cl
 - Stopped 3 Nov record archived to `archive/2026-11-03-stopped-dev-reset-42edc640.json` on the receipts branch (unchanged blob f4ec94ef).
 - 30 of 31 DEV services match the 30 Oct build exactly. Plan hash 3f1ada48… equals the 30 Oct post-release check.
 - Only mismatch: identity_access, live f38cd5df (29 Oct, set this morning). Its 30 Oct value 4fe59c88 came from the special private-name build; the normal full build gives 0d9a2e97, which DEV never ran.
+
+## DEV restore complete (3 Nov, run 41618393438)
+
+- Run 41618393438 (branch `dev-current-2026-10-30`, commit 8bd384fe, scope `private_club_name_display`) completed successfully at 10:34 UTC.
+- Live read-only fingerprint of DEV identity_access (`mq2sj-fiaaa-aaaal-qxlqa-cai`) now reads `4fe59c88838d696d...` — exactly the 30 Oct special-build value DEV ran until this morning.
+- Combined with the earlier check (30 of 31 services already matching), all 31 DEV services now run the 30 Oct version (commit d321e85b). DEV is uniform again.
+- No PROD service was touched.
