@@ -10,6 +10,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
+- [x] Build standalone PROD fixture/Vault/email-official SQL; 24 exact-SQL isolated tests and 14 frontend tests passed (15 mode skips). See docs/release-review/competition-functions-build-2026-11-04.md. Scores, old links and role/chat triggers untouched; candidate not deployed.
+- [ ] Deploy/test competition functions live: blocked on authorized PROD connection/session, exact manager/policy review, three structural expression approvals and candidate registration in approved-only migration inventory. Existing signup-only release approval unchanged. Competition Vault uploads remain separately blocked.
 - [x] Fix photo/file destination: restored authenticated environment-bound Storage callbacks, removed purchase-service redirect; 58 tests passed, 13 mode-specific skips. See docs/release-review/photo-file-upload-fix-2026-11-04.md. No hosted writes or permission changes.
 - [ ] Verify authenticated PROD upload/readback; competition-vault remains blocked by bucket/access dependencies and DEV service-only policy. Workspace has no PROD authenticated session; transport tests are not hosted acceptance.
 - [x] Deep full-app pre-promotion regression audit saved: docs/release-review/full-app-prod-regression-audit-2026-11-04.md. Verdict: do not promote whole frontend yet.
