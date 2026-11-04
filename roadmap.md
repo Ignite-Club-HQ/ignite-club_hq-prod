@@ -10,7 +10,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
-- [ ] Adapt the existing database workflow for an exact safe-only staged release: preserve all original hashes, separate held changes, test staging, and require target verification before any live application. No history repair or live deployment is approved by staging.
+- [x] Added exact safe-only staging to the existing database workflow: complete original hashes, separate candidates/holds, read-only manual safe-plan default and offline source checks. Originals and full push-release gates remain unchanged; no history repair or live deployment.
+- [ ] Safe-only execution remains held: obtain fresh exact PROD target definitions/dependency evidence, rehearse target-specific SQL, and approve the exact application mechanism before enabling an executor. Current safe-plan reports six initial candidates and never deploys.
 - [x] Fixed protected-source mismatch using six exact non-executable held sources; archive
       never substitutes for applied/mismatched executable SQL or suppresses pending source.
       Run 41765096598 automatically completed successfully: 0 migrations, 0 edge functions.
