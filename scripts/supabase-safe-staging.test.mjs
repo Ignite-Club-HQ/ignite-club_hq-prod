@@ -82,7 +82,7 @@ test('workflow runner safe-plan stops before every write and records a held phas
     assert.equal(report.deploymentAuthorized, false);
     assert.deepEqual(report.functions, []);
     assert.equal(report.candidates.length, 6);
-    assert.equal(report.held.length, 33);
+    assert.equal(report.held.length, 34);
     const commands = readFileSync(log, 'utf8');
     assert.match(commands, /default_transaction_read_only=on/);
     assert.doesNotMatch(commands, /FORBIDDEN WRITE/);

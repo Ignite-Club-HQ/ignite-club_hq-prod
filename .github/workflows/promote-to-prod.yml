@@ -16,6 +16,7 @@ on:
         type: choice
         options:
           - safe-plan
+          - safe-apply
           - full
       before:
         description: "Exact prior prod commit for edge-function change comparison"
@@ -43,7 +44,7 @@ jobs:
           python-version: "3.12"
       - run: python3 -m pip install pglast==7.22
       - name: Check structural release safety
-        run: node --test scripts/supabase-structural-release.test.mjs scripts/supabase-safe-staging.test.mjs
+        run: node --test scripts/supabase-structural-release.test.mjs scripts/supabase-safe-staging.test.mjs scripts/supabase-safe-apply.test.mjs
       - name: Check complete safe-stage inventory offline
         run: |
           node --input-type=module <<'JS'
@@ -67,7 +68,7 @@ jobs:
       PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       RELEASE_BEFORE: ${{ github.event.before || inputs.before }}
-      RELEASE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'full' }}
+      RELEASE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'safe-apply' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -85,7 +86,7 @@ jobs:
         run: |
           python3 -m pip install pglast==7.22
           command -v psql >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y --no-install-recommends postgresql-client; }
-      - name: Check selected release mode; safe-plan never deploys
+      - name: Run selected release mode; safe-apply runs only owner-approved files
         run: node scripts/supabase-structural-release.mjs
       - name: Save bounded release report
         if: always()
