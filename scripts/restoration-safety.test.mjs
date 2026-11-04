@@ -39,8 +39,11 @@ test('native marketing version is recovered from original and last verified PROD
   assert.equal(settings.marketingVersion, original.version);
   assert.equal(settings.appId, 'app.lovable.igniteteamhub');
 });
-test('recovered database runner cannot mutate production or repair its ledger', () => {
+test('structural release runner never performs legacy operational repairs or data copies', () => {
   const runner = read('.github/workflows/promote-to-prod.yml');
-  assert.doesNotMatch(runner, /supabase (?:db push|migration repair|functions deploy)|cron\.(?:schedule|unschedule)|vault\.(?:create|update)_secret|DELETE FROM|psql|curl /i);
-  assert.match(runner, /exit 1/);
+  const implementation = read('scripts/supabase-structural-release.mjs');
+  assert.doesNotMatch(runner + implementation, /migration repair|cron\.(?:schedule|unschedule|alter_job)|vault\.(?:create|update)_secret|db dump|secrets set|functions delete/i);
+  assert.match(implementation, /auditAuthMigrationPlan/);
+  assert.match(implementation, /default_transaction_read_only=on/);
+  assert.match(runner, /branches: \[prod\]/);
 });

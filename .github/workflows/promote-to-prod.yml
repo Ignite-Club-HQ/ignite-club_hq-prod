@@ -1,13 +1,18 @@
 name: "[DB] Promote to Prod"
 
-# Restored original workflow path. Restoration does NOT authorize deployment.
-# Only bounded read-only evidence runs; unsafe history/cron/Vault repairs removed.
+# Structural/code-only promotion. Never copies DEV data or repairs history,
+# credentials, storage buckets or scheduled jobs. Unreviewed SQL fails closed.
 on:
   push:
     branches: [prod]
   pull_request:
     branches: [prod]
   workflow_dispatch:
+    inputs:
+      before:
+        description: "Exact prior prod commit for edge-function change comparison"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -17,19 +22,57 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release-preflight:
-    name: Database release preflight (no writes)
+  source-tests:
+    name: Structural release tests (no database access)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
-      - name: Check release safety
-        run: node --test scripts/auth-release-preflight.test.mjs scripts/restoration-safety.test.mjs
-      - name: Preserve production until hosted evidence and history are reconciled
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install pglast==7.22
+      - name: Check structural release safety
+        run: node --test scripts/auth-release-preflight.test.mjs scripts/supabase-structural-release.test.mjs
+
+  promote:
+    name: Production database deployment
+    needs: source-tests
+    if: github.ref == 'refs/heads/prod' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      RELEASE_BEFORE: ${{ github.event.before || inputs.before }}
+      RELEASE_REPORT_DIR: ${{ runner.temp }}/supabase-structural-release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.34.3
+      - name: Install SQL parser and database client
         run: |
-          echo '::error::Repository restoration is not release approval. PROD history, signup before-image and the complete migration plan remain unverified.'
-          echo 'No database, function, credential, storage or cron changes were attempted.'
-          echo 'See docs/main-backup-restoration-2026-10-30.md for the remaining release prerequisites.'
-          exit 1
+          python3 -m pip install pglast==7.22
+          command -v psql >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y --no-install-recommends postgresql-client; }
+      - name: Verify full live plan then promote structures and function code only
+        run: node scripts/supabase-structural-release.mjs
+      - name: Save bounded release report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-structural-release-${{ github.sha }}
+          path: ${{ runner.temp }}/supabase-structural-release/release-report.json
+          if-no-files-found: ignore
