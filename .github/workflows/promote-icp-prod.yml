@@ -16,7 +16,6 @@ name: "[PROD] Promote ICP canisters to live"
 on:
   push:
     branches: [prod]
-    paths: ["backend/**", "frontend/**", "deploy/prod/icp.yaml", "deploy/frontend-prod/**", "mops.toml", "mops.lock", "Cargo.toml", "Cargo.lock", ".github/workflows/promote-icp-prod.yml", "!frontend/**/*.test.*", "!frontend/**/*.md"]
   workflow_dispatch:
     inputs:
       action:
