@@ -1,4 +1,4 @@
-import { ExternalLink, Flame, Loader2 } from "lucide-react";
+import { AlertTriangle, ExternalLink, Flame, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isLikelyInAppBrowser } from "@/lib/internetIdentitySignInHelp";
 import { readRedirectParam, safeSessionGet } from "@/lib/authRedirectStorage";
@@ -44,6 +44,20 @@ export function IcpSignInScreen({ shellStyle, onContinue, busy, preparing, nativ
           <h1 className="text-3xl font-bold text-gradient-emerald leading-tight">Welcome to Ignite</h1>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">Sign in or create your account to continue.</p>
           {methodTabs && <div className="mt-6">{methodTabs}</div>}
+          {methodTabs && (
+            <aside
+              role="note"
+              className="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/10 p-3 text-left text-sm leading-relaxed text-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+              <span>
+                <span className="font-medium">Already have an account?</span>{" "}
+                Please use <span className="font-medium">Sign in with email</span> above. This secure
+                sign-in is still being set up, so it may start a brand-new account instead of opening
+                the one you already have.
+              </span>
+            </aside>
+          )}
 
           <div className="mt-10">
             <Button type="button" size="lg" className="w-full min-h-12" onClick={onContinue} disabled={busy || preparing} aria-busy={busy}>
