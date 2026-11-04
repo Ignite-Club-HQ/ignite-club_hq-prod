@@ -24,7 +24,7 @@ describe('live lookup diagnostic release boundary', () => {
 const mockActor = vi.hoisted(()=>({read:vi.fn(),create:vi.fn()}));
 vi.mock('./icpAgent',()=>({createLiveActor:mockActor.create}));
 describe('lazy actor traversal binding',()=>{
-  const context = () => ({identity:{getPrincipal:()=>principal('caller')},target:{host:'https://icp-api.io',canisterIds:{identity_access:'identity'}}}) as unknown as import('./featureRouter').FeatureBackendContext;
+  const context = () => ({identity:{getPrincipal:()=>principal('caller')},target:{host:'https://icp-api.io',canisterIds:{identity_access:'identity',club_domain:'mzzzv-taaaa-aaaal-qxlrq-cai'}}}) as unknown as import('./featureRouter').FeatureBackendContext;
   it('keeps one consumer across pages and separates concurrent traversals',async()=>{
     mockActor.create.mockResolvedValue({actor:{read_my_membership_directory:mockActor.read}});
     mockActor.read.mockResolvedValue({Ok:released()});
