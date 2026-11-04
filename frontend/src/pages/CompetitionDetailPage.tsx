@@ -668,6 +668,7 @@ function SupabaseCompetitionDetailPage() {
               <Images className="h-4 w-4" /> Media
             </Link>
           </Button>
+          </div>
         </div>
         {(() => {
           const acceptedTeams = entries.filter((e: any) => e.status === "accepted").length;
