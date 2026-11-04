@@ -10,6 +10,7 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
+- [ ] Six-candidate fresh PROD compatibility check requested: source effects documented and catalog-only query prepared. Blocked on PROD SQL Editor export; workspace Supabase access is DEV-only, and live workflow has no read-only catalog mode. GitHub inspection only; no workflow dispatch or database writes. See docs/release-review/six-candidate-compatibility-2026-11-04.md.
 - [x] Added exact safe-only staging to the existing database workflow: complete original hashes, separate candidates/holds, read-only manual safe-plan default and offline source checks. 34 focused tests passed, including a fixture end-to-end runner check proving no write command runs; workflow YAML validated. Originals and full push-release gates remain unchanged; no history repair or live deployment.
 - [ ] Safe-only execution remains held: obtain fresh exact PROD target definitions/dependency evidence, rehearse target-specific SQL, and approve the exact application mechanism before enabling an executor. Current safe-plan reports six initial candidates and never deploys.
 - [x] Fixed protected-source mismatch using six exact non-executable held sources; archive
