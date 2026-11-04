@@ -835,6 +835,9 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     return player.teamSide === "a" ? miniLeagueTeams.teamAColor : miniLeagueTeams.teamBColor;
   }, [miniLeagueTeams]);
 
+  // Mock player mode state — declared before first use (TDZ crash otherwise).
+  const [mockMode, setMockMode] = useState(() => savedState?.mockMode || false);
+
   usePitchPlayerDetails(teamPlayerPositions, mockMode, setPlayers);
 
   // Substitution feedback effects are isolated from the selection flow.
@@ -1052,9 +1055,6 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
   const [benchInjuryTarget, setBenchInjuryTarget] = useState<string | null>(null);
   const lastTapRef = useRef<{ playerId: string; time: number } | null>(null);
   const touchHandledRef = useRef(false);
-
-  // Mock player mode state
-  const [mockMode, setMockMode] = useState(() => savedState?.mockMode || false);
 
   usePitchBoardLiveRosterSync({
     realPlayers,
