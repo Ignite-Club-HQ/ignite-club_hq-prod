@@ -99,6 +99,7 @@ describe("media_blob_store contract", () => {
       "put_chunk",
       "quota_snapshot_page",
       "read_account_get_upload_outcome",
+      "read_account_protection_configuration",
       "read_account_removal_drain",
       "read_group_opening_configuration",
       "read_pending_test_uploads",
