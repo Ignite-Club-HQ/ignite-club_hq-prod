@@ -88,6 +88,7 @@ Exit: all pass; any failure → stop, no data fixes without approval.
 2. Reminder / welcome-email jobs: schedules + secrets.
 3. Competition document storage area (private bucket) + Competition Vault uploads.
 4. Edge-function activation per `post-merge-edge-function-activation`.
+5. ICP push notifications (DEV first, then PROD): see `icp-push-setup-post-merge-2026-11-04.md`.
 
 ## Phase 6 — Post-launch (parked)
 
