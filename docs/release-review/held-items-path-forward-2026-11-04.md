@@ -40,3 +40,5 @@ DEV fingerprints (4 Nov):
 | tg_competition_roles_enforce_owner | 23b7258d305af34b3109090fe1834b81 |
 
 Matching hashes close the events and role-removal items with no change.
+
+**Result 5 Nov 2026 (Paul, PROD export):** all five PROD hashes and signatures match DEV exactly. Competition events and competition role removal are CLOSED — no PROD change needed.
