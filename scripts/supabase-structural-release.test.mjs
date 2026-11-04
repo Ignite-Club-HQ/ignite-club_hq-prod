@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { planRelease, selectFunctions, hash } from './supabase-structural-release.mjs';
 
 const file = '20261104030000_example.sql';
-const sql = 'CREATE TABLE public.example(id uuid); GRANT SELECT ON public.example TO authenticated; ALTER TABLE public.example ENABLE ROW LEVEL SECURITY;';
+const sql = 'CREATE TABLE public.example(id uuid); GRANT SELECT ON public.example TO authenticated; GRANT ALL ON public.example TO service_role; ALTER TABLE public.example ENABLE ROW LEVEL SECURITY;';
 const policy = { migrations: [{ file, sha256: hash(sql), prodStatus: 'approved', reason: 'reviewed structure' }] };
 test('only reviewed complete structural migrations are planned', () => {
   assert.deepEqual(planRelease(policy, { [file]: sql }, []).plan, [{ file, sha256: hash(sql) }]);
@@ -27,6 +27,7 @@ function inspect(source) {
   return JSON.parse(result.stdout);
 }
 test('schema and RLS definitions are structural', () => assert.deepEqual(inspect(sql), []));
+test('new public tables require explicit grants', () => assert.ok(inspect('CREATE TABLE public.missing(id uuid)').some(issue => issue.includes('grant required'))));
 for (const statement of ['INSERT INTO public.clubs VALUES (1)', 'UPDATE public.clubs SET name=\'x\'', 'DELETE FROM public.clubs', 'TRUNCATE public.clubs', 'CREATE TABLE public.copy AS SELECT * FROM public.clubs', 'DO $$ BEGIN DELETE FROM public.clubs; END $$', 'SELECT cron.schedule(\'x\', \'* * * * *\', \'select 1\')', 'ALTER TABLE public.clubs DROP COLUMN name']) {
   test(`reject release-time data/operational SQL: ${statement.split(' ')[0]}`, () => assert.ok(inspect(statement).length > 0));
 }

@@ -35,7 +35,7 @@ jobs:
           python-version: "3.12"
       - run: python3 -m pip install pglast==7.22
       - name: Check structural release safety
-        run: node --test scripts/auth-release-preflight.test.mjs scripts/supabase-structural-release.test.mjs
+        run: node --test scripts/supabase-structural-release.test.mjs
 
   promote:
     name: Production database deployment

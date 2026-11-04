@@ -12,10 +12,21 @@ ALLOWED = {
 
 def check(sql):
     issues = []
+    public_tables = set()
+    granted_tables = set()
     for raw in json.loads(parser.parse_sql_json(sql))['stmts']:
         statement = raw['stmt']
         kind = next(iter(statement))
         body = statement[kind]
+        if kind == 'CreateStmt' and body.get('relation', {}).get('schemaname') == 'public':
+            public_tables.add(body['relation']['relname'])
+        if kind == 'GrantStmt' and body.get('is_grant') and body.get('objtype') == 'OBJECT_TABLE':
+            roles = {role.get('RoleSpec', {}).get('rolename') for role in body.get('grantees', [])}
+            if 'service_role' in roles:
+                for obj in body.get('objects', []):
+                    relation = obj.get('RangeVar', {})
+                    if relation.get('schemaname') == 'public':
+                        granted_tables.add(relation.get('relname'))
         if kind not in ALLOWED:
             issues.append(f'{kind}: not a structural release statement')
         if kind == 'CreateStmt' and (body.get('inhRelations') or body.get('ofTypename')):
@@ -29,6 +40,8 @@ def check(sql):
                     issues.append(f'{subtype}: table alteration requires separate review')
         if kind == 'DropStmt' and body.get('removeType') not in {'OBJECT_POLICY', 'OBJECT_TRIGGER', 'OBJECT_FUNCTION'}:
             issues.append('Dropping stored structures is forbidden')
+        if kind == 'DropStmt' and body.get('behavior') == 'DROP_CASCADE':
+            issues.append('Cascading drops are forbidden')
         if kind == 'CreateFunctionStmt' and body.get('is_procedure'):
             issues.append('Procedures require separate review')
         # Outside stored function definitions, a query or function expression can
@@ -48,6 +61,8 @@ def check(sql):
                     walk(item)
         if kind != 'CreateFunctionStmt':
             walk(body)
+    for table in public_tables - granted_tables:
+        issues.append(f'public.{table}: explicit service_role grant required in the same migration')
     return issues
 
 if __name__ == '__main__':
