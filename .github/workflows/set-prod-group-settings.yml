@@ -67,9 +67,4 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEY_DIR/key.enc" -out "$KEY_DIR/key.pem" -pass file:"$KEY_DIR/pass"
           rm -f "$KEY_DIR/key.enc" "$KEY_DIR/pass"
           cd frontend
-          # The shared tool is DEV-pinned; bind PROD's governor and mappings, then prove it.
-          sed -i "s#^const GOVERNOR = 'vk34m-[a-z0-9-]*';#const GOVERNOR = process.env.PROD_GOVERNOR_PRINCIPAL ?? '';#; s#deploy/mainnet/.icp/data/mappings#deploy/prod/.icp/data/mappings#" scripts/set-group-service-settings.ts
-          grep -q "^const GOVERNOR = process.env.PROD_GOVERNOR_PRINCIPAL" scripts/set-group-service-settings.ts
-          grep -q "deploy/prod/.icp/data/mappings" scripts/set-group-service-settings.ts
-          ! grep -q "deploy/mainnet/" scripts/set-group-service-settings.ts
           npx --yes tsx@4 scripts/set-group-service-settings.ts base,g2 "$KEY_DIR/key.pem" "$RUNNER_TEMP/prod-settings-report.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
