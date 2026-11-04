@@ -2,6 +2,7 @@ import { ENVIRONMENTS, assertIsolated, loadIds } from './icp-environments.mjs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { verifyProdPublication } from './prod-publication-gate.mjs';
 import { PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 
@@ -11,6 +12,14 @@ export function assertProdIdsComplete(ids, expected = PROD_CHECK_IDS) {
     if (ids[name] !== id) throw new Error(`PROD hosting build is missing or has the wrong ${name} service ID; publication must stop`);
   }
   return ids;
+}
+
+// The prod branch keeps its own routing snapshot; a merge that brings DEV's copy
+// would make the live site reject PROD's router, so the build refuses it.
+export function assertProdRoutingSnapshot(source, expected = PROD_CHECK_IDS) {
+  const router = /"routerCanisterId":\s*"([^"]+)"/.exec(source)?.[1];
+  if (router !== expected.shard_router || !/"approved":\s*true/.test(source)) throw new Error('PROD hosting build has no approved PROD routing snapshot; publication must stop');
+  return router;
 }
 
 
@@ -39,7 +48,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const env = resolveHostBuildEnv(process.env);
     if (env.IGNITE_ICP_ENV === 'prod') await verifyProdPublication(env);
     const ids = assertIsolated(env.IGNITE_ICP_ENV, loadIds(env.IGNITE_ICP_ENV));
-    if (env.IGNITE_ICP_ENV === 'prod') assertProdIdsComplete(ids);
+    if (env.IGNITE_ICP_ENV === 'prod') {
+      assertProdIdsComplete(ids);
+      assertProdRoutingSnapshot(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../frontend/src/live/generated/routingGates.ts'), 'utf8'));
+    }
     env.IGNITE_LIVE_ICP_CANISTER_IDS_JSON = JSON.stringify(ids);
     const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
     for (const [command, args, cwd] of [

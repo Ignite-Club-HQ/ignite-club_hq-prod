@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveHostBuildEnv, assertProdIdsComplete } from './host-build-env.mjs';
+import { resolveHostBuildEnv, assertProdIdsComplete, assertProdRoutingSnapshot } from './host-build-env.mjs';
+import { readFileSync } from 'node:fs';
 import { PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 test('main stays on DEV with the retained public key name', () => {
   const result = resolveHostBuildEnv({ BRANCH: 'main', VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_fixture' });
@@ -27,4 +28,12 @@ test('cross-environment urls and private or conflicting keys refuse', () => {
   assert.throws(() => assertProdIdsComplete({ ...PROD_CHECK_IDS, [first]: 'mzzzv-taaaa-aaaal-qxlrq-cai' }));
   assert.equal(Object.keys(PROD_CHECK_IDS).length, 18);
   assert.doesNotThrow(() => assertProdIdsComplete({ ...PROD_CHECK_IDS }));
+});
+test('PROD build refuses the DEV routing snapshot and accepts an approved PROD one', () => {
+  const dev = readFileSync(new URL('../frontend/src/live/generated/routingGates.ts', import.meta.url), 'utf8');
+  if (dev.includes(PROD_CHECK_IDS.shard_router)) return; // running on prod branch
+  assert.throws(() => assertProdRoutingSnapshot(dev));
+  const prod = `"approved": true, "routerCanisterId": "${PROD_CHECK_IDS.shard_router}"`;
+  assert.equal(assertProdRoutingSnapshot(prod), PROD_CHECK_IDS.shard_router);
+  assert.throws(() => assertProdRoutingSnapshot(prod.replace('true', 'false')));
 });
