@@ -54,6 +54,23 @@ describe("Consumer ICP sign-in", () => {
     render(<IcpSignInScreen {...props} preparing />);
     expect(screen.getByRole("button", { name: "Continue securely" })).toBeDisabled();
   });
+  it("warns existing members off secure sign-in while both methods are offered", () => {
+    ua(chrome);
+    render(<IcpSignInScreen {...props} methodTabs={<div data-testid="tabs" />} />);
+    const note = screen.getByRole("note");
+    expect(note).toHaveTextContent("Already have an account?");
+    expect(note).toHaveTextContent("Please use Sign in with email above.");
+    expect(note).toHaveTextContent("may start a brand-new account instead of opening the one you already have.");
+    // The secure action itself stays usable for testing.
+    fireEvent.click(screen.getByRole("button", { name: "Continue securely" }));
+    expect(props.onContinue).toHaveBeenCalledOnce();
+  });
+  it("stays quiet when secure sign-in is the only method offered", () => {
+    ua(chrome);
+    render(<IcpSignInScreen {...props} />);
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Already have an account\?/)).not.toBeInTheDocument();
+  });
   it("preserves a storage-only invite destination in the external-browser URL", () => {
     ua(`${chrome} FBAV/400`);
     vi.stubGlobal("window", { location: { href: "https://ignite.example/auth?auth=icp&invite=token" } });
