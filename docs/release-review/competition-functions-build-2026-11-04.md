@@ -30,3 +30,7 @@ Read-only DEV inspection confirms these RPCs already exist there. PROD-specific 
 5. With authorized existing manager/invitee accounts, test live fixture read/denial, Vault read/denial, email creation/delivery/acceptance and permission readback. Invitation acceptance deliberately writes live membership/notification rows: use explicitly approved test identities/competition, never production users selected arbitrarily.
 
 Competition Vault uploads remain a separate service-only Storage/bucket issue; installing access helpers alone does not repair that upload feature. Official invitation delivery also depends on the separately deployed `send-email` service. This implementation does not claim either endpoint is live or functional on PROD.
+## PROD target check result (5 Nov 2026, Paul export)
+- Identical to DEV: is_competition_admin, can_organise_competition, is_association_admin; all 16 events/vault_folders/vault_files policies; competition_roles constraints and triggers.
+- Missing on PROD (exactly what the candidate adds): get_my_viewable_competition_match_ids, can_access_competition_vault, can_manage_competition_vault, the four competition email invite functions, and the competition_role_email_invites table with its policy.
+- Conclusion: candidate fits PROD with no conflicts; additive only.
