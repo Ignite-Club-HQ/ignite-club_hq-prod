@@ -193,6 +193,33 @@ INSERT INTO public.events VALUES('{MATCH}','{MATCH}',0,NULL);
         self.sql(f"UPDATE public.competitions SET status='archived' WHERE id='{COMP}'")
         self.assertEqual(self.accept(),'archived')
 
+    def test_public_preview_reveals_no_email_or_code(self):
+        self.invite()
+        self.assertEqual(self.caller(None,f"SELECT status FROM public.get_competition_role_email_invite_status('{TOKEN}')",'anon'),'valid')
+        self.assertEqual(self.caller(None,"SELECT status FROM public.get_competition_role_email_invite_status('missing')",'anon'),'invalid')
+        self.assertEqual(self.sql("SELECT pg_get_function_result('public.get_competition_role_email_invite_status(text)'::regprocedure)"),'TABLE(status text, competition_id uuid, competition_name text, role text)')
+
+    def test_parallel_same_token_is_single_use(self):
+        from concurrent.futures import ThreadPoolExecutor
+        self.invite()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results=list(pool.map(lambda _:self.accept(),range(2)))
+        self.assertEqual(sorted(results),['already','joined'])
+        self.assertEqual(self.sql(f"SELECT count(*) FROM public.notifications WHERE user_id='{INVITEE}'"),'1')
+
+    def test_existing_role_acceptance_does_not_duplicate_effects(self):
+        self.sql(f"INSERT INTO public.competition_roles(competition_id,user_id,role) VALUES('{COMP}','{INVITEE}','referee')")
+        self.invite()
+        self.assertEqual(self.accept(),'already')
+        self.assertEqual(self.sql(f"SELECT count(*) FROM public.notifications WHERE user_id='{INVITEE}'"),'0')
+        self.assertEqual(self.sql(f"SELECT count(*) FROM public.competition_roles WHERE user_id='{OWNER}' AND role='owner'"),'1')
+
+    def test_creation_rejects_null_role_and_proof(self):
+        for role,proof in [('NULL',f"'{HASH}'"),("'referee'",'NULL')]:
+            with self.assertRaisesRegex(AssertionError,'Invalid'):
+                self.caller(OWNER,f"SELECT public.create_competition_role_email_invite('{COMP}',{role},'{TOKEN}','official@example.test',{proof})")
+        self.assertEqual(self.sql('SELECT count(*) FROM public.competition_role_email_invites'),'0')
+
     def test_existing_links_triggers_and_zero_null_scores_preserved(self):
         self.assertEqual(self.sql("SELECT link=pg_get_functiondef('public.accept_competition_role_link(text)'::regprocedure) AND trigger=(SELECT pg_get_triggerdef(oid) FROM pg_trigger WHERE tgname='existing_role_sync') FROM before_definitions"),'t')
         self.assertEqual(self.sql(f"SELECT home_score=0 AND away_score IS NULL FROM public.competition_matches WHERE id='{MATCH}'"),'t')
