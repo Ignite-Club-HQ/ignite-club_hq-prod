@@ -20,13 +20,11 @@ const ALL_SELECTOR = `${ACTION_SELECTOR}, a`;
 export function ProOnlyGate({
   locked,
   scope = "all",
-  onUpgrade,
   children,
   className,
 }: {
   locked: boolean;
   scope?: "all" | "actions";
-  onUpgrade?: () => void;
   children: ReactNode;
   className?: string;
 }) {
@@ -34,15 +32,16 @@ export function ProOnlyGate({
   if (!locked) return <>{children}</>;
 
   const selector = scope === "all" ? ALL_SELECTOR : ACTION_SELECTOR;
+  const lockedHit = (event: SyntheticEvent) => {
+    const hit = (event.target as HTMLElement | null)?.closest?.(selector);
+    if (!hit || !(event.currentTarget as HTMLElement).contains(hit)) return false;
+    return !(scope === "actions" && hit.getAttribute("role") === "tab");
+  };
   const intercept = (event: SyntheticEvent) => {
-    const target = event.target as HTMLElement | null;
-    const hit = target?.closest?.(selector);
-    if (!hit || !(event.currentTarget as HTMLElement).contains(hit)) return;
-    if (scope === "actions" && hit.getAttribute("role") === "tab") return;
+    if (!lockedHit(event)) return;
     event.preventDefault();
     event.stopPropagation();
     toast({ title: PRO_ONLY_TITLE, description: PRO_ONLY_DESCRIPTION });
-    void onUpgrade;
   };
 
   return (
@@ -52,8 +51,7 @@ export function ProOnlyGate({
       onClickCapture={intercept}
       onPointerDownCapture={(e) => {
         // Radix triggers (sheets, menus) open on pointerdown; stop them silently.
-        const hit = (e.target as HTMLElement | null)?.closest?.(selector);
-        if (hit && e.currentTarget.contains(hit)) {
+        if (lockedHit(e)) {
           e.preventDefault();
           e.stopPropagation();
         }
