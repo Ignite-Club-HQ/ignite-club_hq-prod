@@ -595,11 +595,15 @@ function SupabaseCompetitionDetailPage() {
   return (
     <div className="container max-w-3xl mx-auto px-4 py-4 space-y-4">
       <header className="space-y-1.5">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button variant="ghost" size="icon" className="-ml-2 h-9 w-9 shrink-0" aria-label="Go back" onClick={goBack}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg sm:text-xl font-bold break-words flex-1 min-w-0 leading-tight">{competition.name}</h1>
+          {/* Action buttons get their own full-width row on phones, so the
+              title always keeps the rest of the first row instead of being
+              squeezed to one character per line. */}
+          <div className="flex shrink-0 basis-full flex-wrap items-center justify-end gap-1.5 sm:basis-auto">
             {user && (
               <Button
                 variant="outline"
