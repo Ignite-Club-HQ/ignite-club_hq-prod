@@ -10,8 +10,14 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
-- [ ] Rebuild structural-only Supabase promotion on main/prod, test it and run it once;
-      retain reviewed migration gates and report any live release hold without bypassing it.
+- [x] Rebuilt structural-only Supabase promotion on main/prod; 42 focused tests passed.
+      Automatic push run 41764557107 passed source tests and read the live migration ledger,
+      then stopped before ALL writes: prod lacks six fingerprint-protected 30 October
+      migration source files named in main's release policy. No schema/functions/data changed.
+      An initial attempt failed GitHub context validation before any job; corrected locally/prod.
+- [ ] Complete the structural release after resolving the six missing PROD source files and
+      reviewing main's complete pending migration plan; do not copy/execute held DEV migrations,
+      fabricate applied history, or relax fingerprints to force a green run.
 - [x] Read-only Supabase merge check: both branches trigger on prod pushes without path filters.
       PROD run 41761473545 completed real migration/function deployment steps successfully.
       Main carries a different workflow: tests followed by an unconditional release-hold exit 1.
