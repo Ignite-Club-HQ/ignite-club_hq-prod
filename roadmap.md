@@ -11,7 +11,7 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 
 ## In progress
 - [ ] Refresh PROD's routing approval snapshot to include both open groups, without requesting publication.
-- [ ] Confirm what the existing prod hosting pipeline does on branch updates.
+- [x] Existing PROD Netlify config builds the legacy root app with `npm run build`; provider auto-deploy settings remain unverified.
 
 ## Next
 - [x] Funding account topped up and ordinary member access commissioned.
