@@ -156,3 +156,8 @@ Two merge-time notes:
    If the deploy fails with "Production promotion evidence unavailable" or
    "... has not succeeded for this commit", the previous live site stays up
    (safe). Re-trigger the deploy from Netlify once both workflows are green.
+
+## Phase 1 owner decisions (Paul, 5 Nov 2026)
+- Approved: batch 1 fixture visibility, 2 Vault access, 3 official email invites (`competition-functions-prod-candidate.sql`), 4 invitation message defaults.
+- Batch 5 welcome DM: approved, conditional on PROD read-only check that the fixed Ignite Support sender profile exists; sender creation is not approved.
+- Remaining before merge: register approved SQL in the fingerprinted release inventory; post-merge live tests with Paul-chosen test accounts.
