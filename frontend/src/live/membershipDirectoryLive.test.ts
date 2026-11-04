@@ -24,7 +24,7 @@ describe('live lookup diagnostic release boundary', () => {
 const mockActor = vi.hoisted(()=>({read:vi.fn(),create:vi.fn()}));
 vi.mock('./icpAgent',()=>({createLiveActor:mockActor.create}));
 describe('lazy actor traversal binding',()=>{
-  const context = () => ({identity:{getPrincipal:()=>principal('caller')},target:{host:'https://icp-api.io',canisterIds:{identity_access:'identity'}}}) as unknown as import('./featureRouter').FeatureBackendContext;
+  const context = () => ({identity:{getPrincipal:()=>principal('caller')},target:{host:'https://icp-api.io',canisterIds:{identity_access:'identity',club_domain:'mzzzv-taaaa-aaaal-qxlrq-cai'}}}) as unknown as import('./featureRouter').FeatureBackendContext;
   it('keeps one consumer across pages and separates concurrent traversals',async()=>{
     mockActor.create.mockResolvedValue({actor:{read_my_membership_directory:mockActor.read}});
     mockActor.read.mockResolvedValue({Ok:released()});
@@ -75,5 +75,7 @@ describe('released page conversion',()=>{
     const r=released();r.page.rows=[{club_id:'legacy',group_id:'g1',authority:principal('mzzzv-taaaa-aaaal-qxlrq-cai') as Reply['caller']}];
     expect(convertReleasedDirectoryReply(r,'caller',fingerprint).legacyClubs).toEqual(['legacy']);
     r.page.rows[0].group_id='g3';expect(()=>convertReleasedDirectoryReply(r,'caller',fingerprint)).toThrow('legacy');
+    r.page.rows[0].group_id='g1';expect(()=>convertReleasedDirectoryReply(r,'caller',fingerprint,'tbeh7-5qaaa-aaaai-ayenq-cai')).toThrow('legacy');
+    expect(()=>convertReleasedDirectoryReply(r,'caller',fingerprint,'')).toThrow('authority');
   });
 });
