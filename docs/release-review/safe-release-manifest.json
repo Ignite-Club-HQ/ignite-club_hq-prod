@@ -237,6 +237,12 @@
       "sha256": "2512716ee93bcf92adc40c6cb5c28975d2546b5a0138279305ded7478e96128a",
       "disposition": "candidate",
       "reason": "Structural parser passed; target dependencies and before-images still require verification"
+    },
+    {
+      "file": "20261104040343_f83a6a5c-8bb9-43a8-b65e-cb020f2a9363.sql",
+      "sha256": "6b0c981d5666204b031233d00aef422b367f430530354c1fead25b054a5d044a",
+      "disposition": "hold",
+      "reason": "Hybrid welcome message and profile country; DEV testing pending before live release"
     }
   ]
 }
