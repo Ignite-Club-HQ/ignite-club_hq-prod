@@ -36,7 +36,10 @@ export async function readLiveMembershipDirectoryDiagnostic(
   return response.Ok;
 }
 
-export function convertReleasedDirectoryReply(reply: ReleasedReply, caller: string, fingerprint: string): DirectoryPage {
+// Legacy (pre-group) clubs live on the environment's own base club_domain,
+// so DEV and PROD each pass their own; never a hard-coded DEV ID.
+export function convertReleasedDirectoryReply(reply: ReleasedReply, caller: string, fingerprint: string, legacyAuthority = 'mzzzv-taaaa-aaaal-qxlrq-cai'): DirectoryPage {
+  if (!legacyAuthority) throw new Error('Legacy club authority missing');
   const page = requireVerifiedDirectoryReply(reply.page, caller);
   if (reply.instance < 1n || !/^[a-f0-9]{40}$/.test(reply.release)) throw new Error('Lookup release changed');
   const expected = JSON.parse(fingerprint) as GroupRegistry;
@@ -65,7 +68,7 @@ export function convertReleasedDirectoryReply(reply: ReleasedReply, caller: stri
   for (const row of page.rows) {
     const group = registry.groups.find(g => g.id === row.group_id);
     if (!group) {
-      if (row.group_id !== 'g1' || row.authority.toText() !== 'mzzzv-taaaa-aaaal-qxlrq-cai') throw new Error('Foreign legacy authority');
+      if (row.group_id !== 'g1' || row.authority.toText() !== legacyAuthority) throw new Error('Foreign legacy authority');
       legacyClubs.push(row.club_id);
     } else {
       if (!group.domains.some(d => d.domain === 'club_domain' && d.canister.toText() === row.authority.toText())) throw new Error('Foreign club authority');
@@ -101,6 +104,6 @@ export function releasedMembershipDirectoryReader() {
     const response = await actor.read_my_membership_directory(consumer, continuation ? [continuation] : []);
     unchanged();
     if ('Err' in response) throw new Error(response.Err);
-    return convertReleasedDirectoryReply(response.Ok, caller, fingerprint);
+    return convertReleasedDirectoryReply(response.Ok, caller, fingerprint, ctx.target.canisterIds.club_domain ?? '');
   };
 }

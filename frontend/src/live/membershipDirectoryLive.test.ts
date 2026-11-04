@@ -75,5 +75,7 @@ describe('released page conversion',()=>{
     const r=released();r.page.rows=[{club_id:'legacy',group_id:'g1',authority:principal('mzzzv-taaaa-aaaal-qxlrq-cai') as Reply['caller']}];
     expect(convertReleasedDirectoryReply(r,'caller',fingerprint).legacyClubs).toEqual(['legacy']);
     r.page.rows[0].group_id='g3';expect(()=>convertReleasedDirectoryReply(r,'caller',fingerprint)).toThrow('legacy');
+    r.page.rows[0].group_id='g1';expect(()=>convertReleasedDirectoryReply(r,'caller',fingerprint,'tbeh7-5qaaa-aaaai-ayenq-cai')).toThrow('legacy');
+    expect(()=>convertReleasedDirectoryReply(r,'caller',fingerprint,'')).toThrow('authority');
   });
 });
