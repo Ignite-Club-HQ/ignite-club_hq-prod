@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditAuthMigrationPlan } from './auth-release-preflight.mjs';
+import { readSafeInputs, planSafeStaging } from './supabase-safe-staging.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const PROD_REF = 'yabcfiuntwqjwvschnji';
@@ -70,6 +71,26 @@ function main() {
   const ledger = JSON.parse(run('psql', [connection, '-XAt', '-v', 'ON_ERROR_STOP=1', '-c', "SELECT coalesce(json_agg(x ORDER BY version), '[]'::json) FROM (SELECT version FROM supabase_migrations.schema_migrations ORDER BY version LIMIT 10001) x"], {
     env: { ...process.env, PGPASSWORD: process.env.SUPABASE_DB_PASSWORD, PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=30000' },
   }));
+  // Safe-only mode is an exact diagnostic staging path, not a filtered db push.
+  // It always returns before linking, schema writes or edge-function deployment.
+  if (process.env.RELEASE_MODE === 'safe-plan') {
+    const input = readSafeInputs(root);
+    const staged = planSafeStaging(input.manifest, input.files, policy, ledger);
+    const candidates = Object.fromEntries(staged.candidates.map(entry => [entry.file, input.files[entry.file]]));
+    const check = spawnSync('python3', ['scripts/structural-sql-check.py'], {
+      cwd: root, input: JSON.stringify(candidates), encoding: 'utf8',
+    });
+    if (check.error || ![0, 1].includes(check.status)) throw new Error('Safe-stage SQL parser unavailable');
+    const findings = JSON.parse(check.stdout);
+    if (!Array.isArray(findings)) throw new Error('Safe-stage SQL result unreadable');
+    staged.issues.push(...findings);
+    const report = { ...staged, commit: process.env.GITHUB_SHA, project: PROD_REF,
+      phase: 'safe-plan-held', dataCopy: false, functions: [] };
+    writeFileSync(path.join(output, 'release-report.json'), JSON.stringify(report, null, 2));
+    console.log(`Safe-only review: ${staged.candidates.length} candidates, ${staged.held.length} held originals. No database or function writes; target acceptance still required.`);
+    return;
+  }
+  if (process.env.RELEASE_MODE && process.env.RELEASE_MODE !== 'full') throw new Error('Unknown release mode');
   const heldSources = JSON.parse(readFileSync(path.join(root, 'scripts/structural-held-sources.json'), 'utf8'));
   const { plan, issues } = planRelease(policy, files, ledger, heldSources);
   const pendingFiles = Object.fromEntries(plan.map(entry => [entry.file, files[entry.file]]));

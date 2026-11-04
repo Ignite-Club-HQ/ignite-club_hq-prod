@@ -10,6 +10,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
+- [x] Added exact safe-only staging to the existing database workflow: complete original hashes, separate candidates/holds, read-only manual safe-plan default and offline source checks. 34 focused tests passed, including a fixture end-to-end runner check proving no write command runs; workflow YAML validated. Originals and full push-release gates remain unchanged; no history repair or live deployment.
+- [ ] Safe-only execution remains held: obtain fresh exact PROD target definitions/dependency evidence, rehearse target-specific SQL, and approve the exact application mechanism before enabling an executor. Current safe-plan reports six initial candidates and never deploys.
 - [x] Fixed protected-source mismatch using six exact non-executable held sources; archive
       never substitutes for applied/mismatched executable SQL or suppresses pending source.
       Run 41765096598 automatically completed successfully: 0 migrations, 0 edge functions.
@@ -54,5 +56,5 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 
 ## Parked (post-launch)
 - [ ] Club deletion: build and test on DEV first, then promote.
-- [ ] Safe live database release: Paul approved proceeding with structure-only items on 4 Nov. The review covers 39 candidates; 24 are structural candidates, but the actual checker passes only 10 and holds 14 for further review, including two missing service-role grants. 26 focused tests passed. No live deployment occurred. Blocked on: a reviewed exact staging mechanism to release safe changes without executing unsafe originals or inventing migration-history entries, then target compatibility verification. Scores, country backfills, reminder activation and AI remain excluded; private storage creation has no separate approval yet. See docs/release-review/safe-items-check-2026-11-04.json.
+- [ ] Safe live database release: scope approved; read-only staging implemented for all 39 originals, with six initial candidates and 33 holds. Blocked on fresh PROD target definitions/dependency evidence, exact SQL acceptance and an approved application mechanism; staging is not a selective deployment executor. Scores, country backfills, reminder activation and AI remain excluded; private storage creation has no separate approval yet. See docs/release-review/safe-release-staging.md.
 - [ ] Hidden-score change (20261021003048 + 20261021003143) cannot reach the live database through a merge in any form: the structural checker rejects both files (57 + 1 findings) because copying scores and emptying the old columns are data writes. Releasing it later needs structure first, then a separately approved data run that copies scores and keeps an archive. Verified the copy is lossless and the app already reads scores from the protected table.

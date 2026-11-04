@@ -9,6 +9,14 @@ on:
     branches: [prod]
   workflow_dispatch:
     inputs:
+      mode:
+        description: "Safe-plan checks candidates read-only; full retains complete-plan deployment gates"
+        required: true
+        default: safe-plan
+        type: choice
+        options:
+          - safe-plan
+          - full
       before:
         description: "Exact prior prod commit for edge-function change comparison"
         required: true
@@ -35,7 +43,17 @@ jobs:
           python-version: "3.12"
       - run: python3 -m pip install pglast==7.22
       - name: Check structural release safety
-        run: node --test scripts/supabase-structural-release.test.mjs
+        run: node --test scripts/supabase-structural-release.test.mjs scripts/supabase-safe-staging.test.mjs
+      - name: Check complete safe-stage inventory offline
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          import { readSafeInputs, planSafeStaging } from './scripts/supabase-safe-staging.mjs';
+          const input = readSafeInputs(process.cwd());
+          const policy = JSON.parse(readFileSync('scripts/auth-release-policy.json', 'utf8'));
+          const report = planSafeStaging(input.manifest, input.files, policy, []);
+          console.log(`Source staging checked: ${report.sourceInventory.length} originals, ${report.candidates.length} candidates; no deployment authorization.`);
+          JS
 
   promote:
     name: Production database deployment
@@ -49,6 +67,7 @@ jobs:
       PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       RELEASE_BEFORE: ${{ github.event.before || inputs.before }}
+      RELEASE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'full' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,7 +85,7 @@ jobs:
         run: |
           python3 -m pip install pglast==7.22
           command -v psql >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y --no-install-recommends postgresql-client; }
-      - name: Verify full live plan then promote structures and function code only
+      - name: Check selected release mode; safe-plan never deploys
         run: node scripts/supabase-structural-release.mjs
       - name: Save bounded release report
         if: always()
