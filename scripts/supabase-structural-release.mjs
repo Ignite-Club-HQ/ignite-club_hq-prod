@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditAuthMigrationPlan } from './auth-release-preflight.mjs';
 import { readSafeInputs, planSafeStaging } from './supabase-safe-staging.mjs';
+import { planSafeApply } from './supabase-safe-apply.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const PROD_REF = 'yabcfiuntwqjwvschnji';
