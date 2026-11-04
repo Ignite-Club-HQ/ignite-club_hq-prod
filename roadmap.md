@@ -10,6 +10,7 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
+- [ ] Calendar export: frontend-only repair and automated verification; real iPhone/Android single-event and schedule acceptance required on DEV before promotion, then post-release smoke checks. No database, RSVP, notification or PROD-data changes.
 - [x] Build invitation-default/welcome-DM PROD candidate: 12 exact-SQL tests and 24 frontend tests passed (1 mode skip). See docs/release-review/invitation-welcome-build-2026-11-04.md; existing invitation lifecycle unchanged, no hosted writes.
 - [ ] Deploy defaults/welcome and test a real club invitation end-to-end: blocked on PROD deployment/session access, exact schema/policy review, approved-only migration registration and fixed Ignite sender readiness. Candidate not yet executable or included in merge approval.
 - [x] Build standalone PROD fixture/Vault/email-official SQL; 24 exact-SQL isolated tests and 14 frontend tests passed (15 mode skips). See docs/release-review/competition-functions-build-2026-11-04.md. Scores, old links and role/chat triggers untouched; candidate not deployed.
