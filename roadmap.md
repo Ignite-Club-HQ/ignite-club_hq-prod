@@ -23,6 +23,15 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
       legacy root app, so the merge must also leave the prod build producing the canister app.
       Verify after merge: the served bundle contains Internet Identity and the PROD routing
       approval, then sign in at igniteclubhq.app and create a club.
+- [ ] **Prove the merge actually starts the canister upgrade.** `[PROD] Promote ICP canisters to
+      live` is on `prod`, active, triggers on a push to `prod` touching `backend/**`/`frontend/**`,
+      and the `production` environment has no approval gate — yet all 13 of its runs so far were
+      started by hand. A harmless probe file pushed to `prod` at 02:33 started two runs within
+      3 seconds (removed at 02:42; branch content byte-identical to before), so live-branch pushes
+      do reach Actions — but the one non-skipped update carrying a `frontend/**` file (01:39,
+      commit 65a6c5cf) did not start the promote job. Fix by dropping the promote job's `paths:`
+      filter (the job is idempotent: run 13 finished in 40s with nothing to upgrade), or watch the
+      first merge and dispatch `action=promote` by hand if it does not start.
 - [ ] Onboard the first clubs.
 
 ## Parked (post-launch)
