@@ -10,15 +10,17 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
-- [ ] Fix protected-source mismatch without executing DEV-only migrations; rerun the
-      structural release and distinguish a successful no-change run from main code deployment.
+- [x] Fixed protected-source mismatch using six exact non-executable held sources; archive
+      never substitutes for applied/mismatched executable SQL or suppresses pending source.
+      Run 41765096598 automatically completed successfully: 0 migrations, 0 edge functions.
+      43 focused tests passed. Current prod had no pending changes; no data or schema changed.
 - [x] Rebuilt structural-only Supabase promotion on main/prod; 42 focused tests passed.
       Automatic push run 41764557107 passed source tests and read the live migration ledger,
       then stopped before ALL writes: prod lacks six fingerprint-protected 30 October
       migration source files named in main's release policy. No schema/functions/data changed.
       An initial attempt failed GitHub context validation before any job; corrected locally/prod.
-- [ ] Complete the structural release after resolving the six missing PROD source files and
-      reviewing main's complete pending migration plan; do not copy/execute held DEV migrations,
+- [ ] Before releasing main's changes, review its complete pending migration plan; successful
+      no-change PROD run does not approve main's blocked migrations. Do not execute held DEV SQL,
       fabricate applied history, or relax fingerprints to force a green run.
 - [x] Read-only Supabase merge check: both branches trigger on prod pushes without path filters.
       PROD run 41761473545 completed real migration/function deployment steps successfully.
