@@ -20,6 +20,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
       and complete pending migration plan before enabling a scoped deployment runner.
       Promotion covers committed migrations/functions, not arbitrary DEV dashboard changes,
       secrets, authentication settings or DEV data.
+      Paul reaffirmed: schema, edge-function code, RLS and grants only; no DEV data copying
+      or business-row changes, and existing PROD data must remain intact.
 - [x] Refreshed PROD's approval and read back snapshot revision 6 for both groups; run 41758472686 succeeded without dispatching publication.
 - [x] Existing PROD Netlify config builds the legacy root app with `npm run build`; provider auto-deploy settings remain unverified.
 
