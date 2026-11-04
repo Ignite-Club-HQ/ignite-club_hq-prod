@@ -20,7 +20,7 @@ This is a read-only review. Nothing has been applied to the live database.
 ## C. Wanted on live, but the original would fail there: record only, plus a live-safe replacement (3)
 - 20261030030705 / 030741 / 031128: let people leave a competition role. Each file deliberately stops on any database other than the test site. The replacement creates the final function, delete/read rules and owner guard without that stop.
 
-## D. Writes or clears live data: needs Paul's decision (5)
+## D. Writes or clears live data: needs Paul's decision (6)
 - 20261008014417: adds the club country and service columns (structure), but also sets every live club's country to AU (data).
 - 20261012000000: competition document storage. It also creates a private storage area, which counts as a settings write.
 - 20261012010000: scheduled event reminders. It turns on and schedules a recurring background job.
