@@ -19,7 +19,7 @@ import { ADMISSION_DOMAINS, ADMISSION_FLAG, ADMISSION_AUTHORITY } from '../src/l
 
 // PROD runs bind PROD's governor and mappings; DEV is unchanged.
 const PROD = process.env.IGNITE_ICP_ENV === 'prod';
-const GOVERNOR = PROD ? (process.env.PROD_GOVERNOR_PRINCIPAL ?? '') : 'vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae';
+const GOVERNOR = process.env.PROD_GOVERNOR_PRINCIPAL && PROD ? process.env.PROD_GOVERNOR_PRINCIPAL : (PROD ? '' : 'vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae');
 if (!GOVERNOR) throw new Error('PROD_GOVERNOR_PRINCIPAL required for PROD');
 
 const [groupIdsArg, pem, reportPath] = process.argv.slice(2);
