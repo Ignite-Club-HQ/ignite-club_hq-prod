@@ -10,6 +10,7 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
+- [ ] Fix photo/file routing to the environment's Supabase Storage API, preserve allowance/RLS checks, and verify photo/document transport before promotion; authenticated PROD upload acceptance remains separate.
 - [x] Deep full-app pre-promotion regression audit saved: docs/release-review/full-app-prod-regression-audit-2026-11-04.md. Verdict: do not promote whole frontend yet.
 - [ ] Resolve full-app release blockers before main→prod: media upload endpoint mismatch; missing fixture visibility, competition Vault, official email invites, invite defaults and admin tables; routing-row and edge-function evidence; red full/publication suites; authenticated email-club acceptance. Requires implementation decisions and PROD-authorized verification.
 - [x] Supabase promotion source assurance: 41 release/publication tests, 42 email-policy tests and exact-approved-SQL isolated PostgreSQL regression passed; regression added before deployment in workflow. See docs/release-review/supabase-promotion-safety-2026-11-04.md.
