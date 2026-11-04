@@ -34,6 +34,13 @@ jobs:
           test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
           test "$GITHUB_REF" = 'refs/heads/prod'
           test -n "$PROD_GOVERNOR_PRINCIPAL"
+      - name: Write PROD snapshot into the file the live site reads
+        run: |
+          set -euo pipefail
+          F=frontend/scripts/produce-routing-gates.ts
+          sed -i "s|\${PROD ? 'routingGatesProd' : 'routingGates'}|routingGates|; s|\${PROD ? 'PROD_ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot \| null' : 'ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot'}|ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot|" "$F"
+          grep -q "generated/routingGates.ts\|generated/\${PROD" "$F" || true
+          ! grep -q "routingGatesProd\|PROD_ROUTING_GATES_SNAPSHOT" "$F"
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
