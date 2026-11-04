@@ -25,6 +25,9 @@ This is a read-only review. Nothing has been applied to the live database.
 - 20261012000000: competition document storage. It also creates a private storage area, which counts as a settings write.
 - 20261012010000: scheduled event reminders. It turns on and schedules a recurring background job.
 - 20261021003048: hidden scores and history. It copies scores into a new table, then **clears existing live scores**. This must never run as written (rule: keep current scores, hold back score and AI changes).
+  - Verified 4 Nov: the change is **not a deletion of the numbers**. Every competition score is copied into `competition_match_results` first, and the app already reads scores from that table on fixtures, ladders, public competition pages and history (verified in `CompetitionFixturesPanel.tsx`, `PublicCompetitionPage.tsx`, `historyRepository.ts`). Only the duplicate copies in the old match/event columns are emptied, and only for competition-linked rows — ordinary club and mini-league games keep their own scores.
+  - The emptying is what makes hiding real, not decoration: fixture rows are readable by anyone who can see the fixture, and public-competition fixtures are readable by anonymous visitors, so a filled old column leaks a hidden score regardless of what the screens show.
+  - Either form is blocked from the merge path: the live-release structural checker rejects both files (57 findings on 20261021003048, 1 on 20261021003143) because the copy and the emptying are data writes, not structure. So this change cannot be promoted through a merge in any form; releasing it needs structure first, then a separately approved data run.
 - 20261021003143: score permission follow-up; depends on the item above.
 - 20261030052009: AI score-review status table (AI is held back).
 
