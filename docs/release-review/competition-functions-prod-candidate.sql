@@ -122,7 +122,8 @@ BEGIN
  -- Existing DEV/PROD role vocabulary is committee, UI invitation role is committee_member.
  v_db_role:=CASE WHEN v_invite.role='committee_member' THEN 'committee' ELSE v_invite.role END;
  INSERT INTO public.competition_roles(competition_id,user_id,role)
- VALUES(v_invite.competition_id,v_uid,v_db_role) ON CONFLICT(competition_id,user_id,role) DO NOTHING;
+ VALUES(v_invite.competition_id,v_uid,v_db_role)
+ ON CONFLICT ON CONSTRAINT competition_roles_competition_id_user_id_role_key DO NOTHING;
  GET DIAGNOSTICS v_inserted=ROW_COUNT;
  IF v_inserted=1 THEN
    INSERT INTO public.notifications(user_id,type,message,related_id,club_id)
