@@ -1,3 +1,4 @@
+import { isClubSubscriptionActive } from "@/lib/proEntitlement";
 import { mergeLists } from "@/live/featureRouter";
 import { Capacitor } from "@capacitor/core";
 import { Smartphone, Sparkles } from "lucide-react";
@@ -149,8 +150,7 @@ function useUserProClubs(enabled: boolean) {
         (subs.data ?? [])
           .filter(
             (s: any) =>
-              (s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override) &&
-              (!s.expires_at || new Date(s.expires_at) > new Date()),
+              isClubSubscriptionActive(s),
           )
           .map((s: any) => s.club_id),
       );

@@ -1,3 +1,4 @@
+import { isClubSubscriptionActive } from "@/lib/proEntitlement";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -93,8 +94,7 @@ export function useUserHasAnyClubPro() {
 
       return (subs ?? []).some(
         (s: any) =>
-          (s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override) &&
-          (!s.expires_at || new Date(s.expires_at) > new Date()),
+          isClubSubscriptionActive(s),
       );
     },
   });

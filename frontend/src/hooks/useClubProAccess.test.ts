@@ -44,3 +44,19 @@ describe("resolveClubProAccess", () => {
     ).toMatchObject({ hasPro: true });
   });
 });
+
+import { isClubSubscriptionActive } from "@/lib/proEntitlement";
+describe("admin Pro override beats an old end date", () => {
+  const now = new Date("2026-11-05T00:00:00Z");
+  const expired = "2026-10-30T13:30:00Z";
+  it("override keeps Pro after expiry", () => {
+    expect(resolveClubProAccess({ is_pro: true, admin_pro_override: true, expires_at: expired }, now).hasPro).toBe(true);
+    expect(isClubSubscriptionActive({ is_pro: true, admin_pro_override: true, expires_at: expired }, now)).toBe(true);
+  });
+  it("football override keeps Pro Football after expiry", () => {
+    expect(resolveClubProAccess({ admin_pro_football_override: true, expires_at: expired }, now).hasProFootball).toBe(true);
+  });
+  it("expired promo without override has no Pro", () => {
+    expect(isClubSubscriptionActive({ is_pro: true, expires_at: expired }, now)).toBe(false);
+  });
+});

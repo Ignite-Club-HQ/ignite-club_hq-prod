@@ -1,3 +1,4 @@
+import { isClubSubscriptionActive } from "@/lib/proEntitlement";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -193,8 +194,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
         .in("club_id", clubIds);
 
       return subs?.some(sub => 
-        (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && 
-        (!sub.expires_at || new Date(sub.expires_at) > new Date())
+        isClubSubscriptionActive(sub)
       ) ?? false;
     },
     enabled: !!user,

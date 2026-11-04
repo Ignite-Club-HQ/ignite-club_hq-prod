@@ -1,3 +1,4 @@
+import { isClubSubscriptionActive } from "@/lib/proEntitlement";
 import { mergeLists } from "@/live/featureRouter";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -73,8 +74,7 @@ export function ContactClubButton({ clubFilter, compact = false }: ContactClubBu
 
           const proClubIds = (subscriptions || [])
             .filter(s =>
-              (s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override) &&
-              (!s.expires_at || new Date(s.expires_at) > new Date())
+              isClubSubscriptionActive(s)
             )
             .map(s => s.club_id);
 

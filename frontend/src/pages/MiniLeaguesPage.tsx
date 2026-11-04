@@ -114,8 +114,7 @@ export default function MiniLeaguesPage() {
       // Filter to only Pro Football clubs
       const proFootballClubIds = new Set(
         subscriptions?.filter(s => 
-          (s.is_pro_football || s.admin_pro_football_override) && 
-          (!s.expires_at || new Date(s.expires_at) > new Date())
+          s.admin_pro_football_override || (s.is_pro_football && (!s.expires_at || new Date(s.expires_at) > new Date()))
         ).map(s => s.club_id) || []
       );
       

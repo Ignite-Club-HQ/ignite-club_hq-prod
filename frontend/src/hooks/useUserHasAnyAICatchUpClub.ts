@@ -1,3 +1,4 @@
+import { isClubSubscriptionActive } from "@/lib/proEntitlement";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -113,9 +114,7 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
       return (clubs ?? []).some((c: any) => {
         const sub = Array.isArray(c.club_subscriptions) ? c.club_subscriptions[0] : c.club_subscriptions;
         if (!sub) return false;
-        const isPro = sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override;
-        const active = !sub.expires_at || new Date(sub.expires_at) > new Date();
-        if (!isPro || !active) return false;
+        if (!isClubSubscriptionActive(sub)) return false;
         return c.ai_catch_up_enabled === true;
 
       });
