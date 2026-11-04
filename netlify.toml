@@ -45,6 +45,14 @@
   to = "/index.html"
   status = 200
 
+# Internet Identity alternative-origins manifest must be served as JSON,
+# not fall through to the SPA index.html below.
+[[headers]]
+  for = "/.well-known/ii-alternative-origins"
+  [headers.values]
+    Content-Type = "application/json"
+    Access-Control-Allow-Origin = "*"
+
 [[headers]]
   for = "/*"
   [headers.values]
