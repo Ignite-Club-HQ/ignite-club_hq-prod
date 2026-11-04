@@ -1,3 +1,22 @@
--- Applied on DEV only (30 Oct 2026). Intentionally empty for every other database.
--- Original bytes: docs/recovery/2026-10-30-dev-only/20261030014542_9f9534c4-b9c4-4562-97bd-1a1e10644e02.sql sha256 04d631421598ea45087e8273d9be3c2f243efa1aadde12bcc93c4918ef424980
--- PROD-safe replacement: 20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql
+DO $repair$
+DECLARE
+  project_ref text := current_setting('app.settings.project_ref', true);
+  api_url text := current_setting('app.settings.api_external_url', true);
+BEGIN
+  -- This repair is deliberately inactive on PROD and unknown environments.
+  IF project_ref IS DISTINCT FROM 'ecsdwrarzfexssxtrymj'
+     AND coalesce(api_url, '') !~ '^https://ecsdwrarzfexssxtrymj[.]supabase[.]co/?$' THEN
+    RAISE NOTICE 'Skipping DEV-only signed-out routing policy repair on this environment';
+    RETURN;
+  END IF;
+  GRANT SELECT ON public.app_settings TO anon;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public'
+    AND tablename = 'app_settings' AND policyname = 'DEV visitors can read backend routing config'
+  ) THEN
+    CREATE POLICY "DEV visitors can read backend routing config"
+    ON public.app_settings FOR SELECT TO anon
+    USING (key = 'backend_routing_config');
+  END IF;
+END
+$repair$;

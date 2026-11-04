@@ -41,6 +41,12 @@
       "sha256": "2512716ee93bcf92adc40c6cb5c28975d2546b5a0138279305ded7478e96128a",
       "prodStatus": "approved",
       "reason": "Separate invite-check trigger; does not replace profile creation"
+    },
+    {
+      "file": "20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql",
+      "sha256": "2512716ee93bcf92adc40c6cb5c28975d2546b5a0138279305ded7478e96128a",
+      "prodStatus": "approved",
+      "reason": "Separate invite-check trigger; does not replace profile creation"
     }
   ]
 }

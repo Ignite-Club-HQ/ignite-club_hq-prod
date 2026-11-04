@@ -1,3 +1,3 @@
--- Applied on DEV only (30 Oct 2026). Intentionally empty for every other database.
--- Original bytes: docs/recovery/2026-10-30-dev-only/20261030013735_7dc525a9-0b6d-4dd5-bea5-a28010ce65c8.sql sha256 603a91a91659cccdcaebd4285f6f122b537ecd13198a57801a9fc9afe832586b
--- PROD-safe replacement: 20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql
+INSERT INTO public.app_settings (key,value,description)
+VALUES ('backend_routing_config', '{"defaultBackend":"supabase","countryRules":{},"targets":[],"countryTargets":{},"clubBackendOverrides":{},"emailAuthClubs":[{"id":"966bdaec-ebf1-46da-b2b3-cc53bf05c422","name":"Bridgewater Soccer Club"},{"id":"493ee2e3-c834-487d-93be-d1c8a0dbc4a8","name":"Basket Range Cricket Club"}]}'::jsonb, 'Email sign-in retained for existing Bridgewater and Basket Range members; new email accounts require club invitations.')
+ON CONFLICT (key) DO UPDATE SET value=jsonb_set(COALESCE(public.app_settings.value,'{}'::jsonb),'{emailAuthClubs}',EXCLUDED.value->'emailAuthClubs'), updated_at=now();
