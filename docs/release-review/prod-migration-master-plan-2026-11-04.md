@@ -5,6 +5,13 @@ canisters) onto the current tested app. Nothing in this file has been deployed. 
 Paul. Standing rules: structure only (no DEV data, no PROD data rewrites, one `app_settings`
 config row excepted), canister upgrades are code-only, DEV and PROD stay separate.
 
+**Governing rule (Paul, 2026-11-04): the live site must never break and users must never be
+impacted.** Nothing reaches PROD until it is proven working on DEV or in isolated rehearsal.
+PROD is never used to test whether something works — every phase below has a DEV/rehearsal
+verification gate before its PROD step, and any failed gate stops that phase. If a live
+acceptance check (Phase 4) fails, we stop and fix forward on DEV first; no live experiments,
+no partial rollouts that degrade existing clubs, email logins, uploads or payments.
+
 Detail lives in the linked docs; this file is the order of work.
 
 ## Where things stand
