@@ -33,6 +33,7 @@ import { CompetitionWelcomeMessage } from "@/components/competitions/Competition
 import { CompetitionShareJoinLink } from "@/components/CompetitionShareJoinLink";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { competitionContactError } from "@/lib/competitionContactError";
+import { ProOnlyGate } from "@/components/competitions/ProOnlyGate";
 import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { Crown } from "lucide-react";
 import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
@@ -337,7 +338,10 @@ function SupabaseCompetitionDetailPage() {
 
   const organizerClubId = (competition as any)?.organizer_club_id ?? null;
   const { hasPro: organizerHasPro, isLoading: proLoading } = useClubProAccess(organizerClubId);
-  const canManage = isAdmin && organizerHasPro;
+  // Admin tools stay visible to every competition admin; without Pro on the
+  // organiser club they answer "Pro only" instead of running (ProOnlyGate).
+  const proLocked = isAdmin && !organizerHasPro;
+  const canManage = isAdmin;
   const contactCompetitionAdmins = useMutation({
     mutationFn: async () => {
       if (!id || !user?.id) throw new Error("Sign in to contact competition admins.");
@@ -611,6 +615,7 @@ function SupabaseCompetitionDetailPage() {
               </Button>
             )}
           {canManage && !(competition.source === "playhq" && competition.clubs?.kind !== "association") && (
+            <ProOnlyGate locked={proLocked}>
             <Sheet>
               <SheetTrigger asChild>
                 <Button
@@ -637,11 +642,14 @@ function SupabaseCompetitionDetailPage() {
                 />
               </SheetContent>
             </Sheet>
+            </ProOnlyGate>
           )}
           {canManage && (
+            <ProOnlyGate locked={proLocked}>
             <Button asChild variant="ghost" size="icon" className="h-9 w-9 min-h-11 min-w-11 sm:min-h-9 sm:min-w-9 shrink-0" aria-label="Competition settings" title="Competition settings">
               <Link to={`/competitions/${id}/settings`}><Settings className="h-[18px] w-[18px]" /></Link>
             </Button>
+            </ProOnlyGate>
           )}
           <Button asChild variant="outline" size="sm" className="h-9 shrink-0 gap-1.5">
             <Link
@@ -674,10 +682,12 @@ function SupabaseCompetitionDetailPage() {
       </header>
 
       {canManage && (
+        <ProOnlyGate locked={proLocked}>
         <CreateCompetitionEventButton
           competitionId={id!}
           teamCount={entries.filter((entry: any) => entry.status === "accepted" || entry.status === "registered").length}
         />
+        </ProOnlyGate>
       )}
 
       {competition.status !== "draft" && <><CompetitionWelcomeMessage competitionId={id ?? ""} /><CompetitionEventsList competitionId={id!} /></>}
@@ -699,12 +709,14 @@ function SupabaseCompetitionDetailPage() {
       )}
 
       {canManage && competition.status === "draft" && (
+        <ProOnlyGate locked={proLocked}>
         <DraftSetupProgress
           competitionId={id!}
           divisionsCount={divisions.length}
           acceptedCount={entries.filter((e: any) => e.status === "accepted").length}
           invitedCount={entries.filter((e: any) => e.status === "invited").length}
         />
+        </ProOnlyGate>
       )}
 
       <Tabs defaultValue={
@@ -728,11 +740,14 @@ function SupabaseCompetitionDetailPage() {
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
-          <CompetitionFixturesPanel competitionId={id!} isAdmin={canManage} divisions={divisions} entries={entries} source={competition.source} competitionStatus={competition.status} />
+          <ProOnlyGate locked={proLocked} scope="actions">
+            <CompetitionFixturesPanel competitionId={id!} isAdmin={canManage} divisions={divisions} entries={entries} source={competition.source} competitionStatus={competition.status} />
+          </ProOnlyGate>
         </TabsContent>
 
         {canViewLadder && (
           <TabsContent value="ladder" className="space-y-2">
+            <ProOnlyGate locked={proLocked} scope="actions">
             <CompetitionLadderPanel
               competitionId={id!}
               divisions={divisions}
@@ -741,17 +756,21 @@ function SupabaseCompetitionDetailPage() {
               pointsDraw={Number((competition as any)?.points_draw ?? 1)}
               pointsLoss={Number((competition as any)?.points_loss ?? 0)}
             />
+            </ProOnlyGate>
           </TabsContent>
         )}
 
         {(competition.source === "playhq" || isIcp) && (
           <TabsContent value="stats" className="space-y-2 mt-2">
-            <CompetitionPlayerStatsPanel competitionId={id ?? ""} sport={(competition as any).sport} canManage={canManage} />
+            <ProOnlyGate locked={proLocked} scope="actions">
+              <CompetitionPlayerStatsPanel competitionId={id ?? ""} sport={(competition as any).sport} canManage={canManage} />
+            </ProOnlyGate>
           </TabsContent>
         )}
 
         {isAdmin && (
           <TabsContent value="teams" className="space-y-2 mt-2">
+            <ProOnlyGate locked={proLocked} scope="actions">
             {canManage && competition.source !== "playhq" && (
               <>
                 {/* Primary actions — equal-weight recruitment CTAs */}
@@ -793,6 +812,7 @@ function SupabaseCompetitionDetailPage() {
               isAdmin={canManage}
               isCompetitionAdmin={isAdmin}
             />
+            </ProOnlyGate>
           </TabsContent>
         )}
 
