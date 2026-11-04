@@ -28,9 +28,9 @@ export interface IcsEventInput {
   time_zone?: string | null;
 }
 
-type CalendarSource = IcsEventInput & {
+export type CalendarSource = IcsEventInput & {
   timezone?: string | null;
-  clubs?: { time_zone?: string | null; timezone?: string | null } | null;
+  clubs?: { name?: string; time_zone?: string | null; timezone?: string | null } | null;
 };
 
 export const CALENDAR_EXPORT_HELP = "Couldn't open or share the calendar file. Use Add to Google Calendar for a single event, or add events manually in your calendar using the times shown in Ignite.";
@@ -46,7 +46,7 @@ function calendarEventUrl(id: string): string {
 }
 
 export function calendarExportError(error: unknown): string {
-  return error instanceof Error ? `${error.message} ${CALENDAR_EXPORT_HELP}` : CALENDAR_EXPORT_HELP;
+  return error instanceof Error && error.message !== CALENDAR_EXPORT_HELP ? `${error.message} ${CALENDAR_EXPORT_HELP}` : CALENDAR_EXPORT_HELP;
 }
 
 const PRODID = "-//Ignite Club//Schedule Export//EN";
@@ -95,6 +95,11 @@ function eventTimes(e: IcsEventInput): { start: Date; end: Date } {
   const zone = e.time_zone || "Australia/Adelaide";
   const start = combineDateAndTime(e.event_date, e.start_time, zone);
   if (!e.end_time) return { start, end: new Date(start.getTime() + 3600000) };
+  if (/T.*(?:Z|[+-]\d{2}:\d{2})$/i.test(e.end_time)) {
+    const end = combineDateAndTime(e.end_time, null, zone);
+    if (end <= start) throw new Error("Event end time must be after its start.");
+    return { start, end };
+  }
   // Derive the club's calendar date even when event_date is a UTC timestamp.
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(start);
   const date = Object.fromEntries(parts.map(p => [p.type, p.value]));
@@ -280,8 +285,11 @@ export async function addToGoogleCalendar(event: IcsEventInput): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     const result = await AppLauncher.openUrl({ url });
     if (!result.completed) throw new Error("Google Calendar couldn't open.");
-  } else if (!window.open(url, "_blank", "noopener,noreferrer")) {
-    throw new Error("Allow pop-ups to open Google Calendar, or add the event manually.");
+  } else {
+    const tab = window.open("about:blank", "_blank");
+    if (!tab) throw new Error("Allow pop-ups to open Google Calendar, or add the event manually.");
+    tab.opener = null;
+    tab.location.href = url;
   }
 }
 
