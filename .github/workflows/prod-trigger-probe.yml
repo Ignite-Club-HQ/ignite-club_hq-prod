@@ -1,0 +1,10 @@
+name: "[REPO] Live branch trigger probe"
+on:
+  push:
+    branches: [prod]
+permissions: {}
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "live branch push trigger probe"
