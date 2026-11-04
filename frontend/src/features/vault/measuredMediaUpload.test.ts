@@ -14,6 +14,7 @@ describe("Environment-scoped photo and file transport", () => {
         const path = `clubs/${club}/${name}`;
         const transport = vi.fn(async () => new Response(JSON.stringify({ Key: `${bucket}/${path}`, Id: "uploaded" }), { status: 200, headers: { "content-type": "application/json" } }));
         const client = createClient<Database>(`https://${project}.supabase.co`, "synthetic-public-key", { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: transport } });
+        vi.spyOn(client.auth, "getSession").mockResolvedValue({ data: { session: { access_token: "synthetic-test-session" } }, error: null } as never);
         const query = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: { is_pro: true, pricing_version: "usd_v2", storage_purchased_gb: 0 }, error: null }) };
         vi.spyOn(client, "from").mockReturnValue(query as never);
         const storageFrom = client.storage.from.bind(client.storage);
