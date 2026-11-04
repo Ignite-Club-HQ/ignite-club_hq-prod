@@ -61,6 +61,12 @@ safe-plan shows exactly these items and nothing else.
 
 Exit: a local PROD-context build contains Internet Identity, PROD canister IDs and the revision-6 approval, and no DEV IDs.
 
+### Phase 2 status (2026-11-05)
+- Done: hosting build already targets `frontend/` with branch-scoped PROD settings. Added stops: PROD build fails if any of the 18 live service IDs is missing/wrong, or if `routingGates.ts` is not PROD's approved snapshot. Club lookup no longer hard-codes the DEV club service.
+- Trial PROD-context build: all 18 PROD IDs, PROD database and Internet Identity present.
+- Merge warning: when merging main into prod, keep prod's own `frontend/src/live/generated/routingGates.ts` (PROD revision 6) if GitHub reports a conflict; the build now refuses DEV's copy.
+- Open: phone apps default secure sign-in to the DEV frontend bridge (`IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN` unset for PROD; no PROD frontend canister yet). Web sign-in on igniteclubhq.app is unaffected. Needs a PROD frontend canister before Codemagic PROD builds use secure sign-in.
+
 ## Phase 3 — The merge (Paul runs main → prod in GitHub)
 
 Automatic on push:
