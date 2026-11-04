@@ -10,6 +10,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
+- [ ] Rebuild structural-only Supabase promotion on main/prod, test it and run it once;
+      retain reviewed migration gates and report any live release hold without bypassing it.
 - [x] Read-only Supabase merge check: both branches trigger on prod pushes without path filters.
       PROD run 41761473545 completed real migration/function deployment steps successfully.
       Main carries a different workflow: tests followed by an unconditional release-hold exit 1.
