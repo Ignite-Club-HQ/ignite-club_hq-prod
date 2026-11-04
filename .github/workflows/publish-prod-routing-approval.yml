@@ -1,0 +1,96 @@
+name: "[PROD] Save opening approval and republish live site"
+# Verifies PROD's open groups, records the live routing approval on the PROD
+# router, commits PROD's snapshot to the prod branch (which republishes the
+# live site through the normal promotion), and never changes groups or data.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "SAVE PROD OPENING APPROVAL"
+        required: true
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      IGNITE_ICP_ENV: prod
+      RECORD_ROUTING_APPROVAL: "1"
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+    steps:
+      - name: Require confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$(echo "$CONFIRMATION" | xargs)" = 'SAVE PROD OPENING APPROVAL'
+      - uses: actions/checkout@v4
+      - name: Require the live repository prod branch
+        run: |
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+          test -n "$PROD_GOVERNOR_PRINCIPAL"
+      - name: Write PROD snapshot into the file the live site reads
+        run: |
+          set -euo pipefail
+          F=frontend/scripts/produce-routing-gates.ts
+          sed -i "s|\${PROD ? 'routingGatesProd' : 'routingGates'}|routingGates|; s|\${PROD ? 'PROD_ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot \| null' : 'ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot'}|ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot|" "$F"
+          grep -q "generated/routingGates.ts\|generated/\${PROD" "$F" || true
+          ! grep -q "routingGatesProd\|PROD_ROUTING_GATES_SNAPSHOT" "$F"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install project dependencies
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts --no-fund --no-audit
+          npm install --no-save --ignore-scripts --no-fund --no-audit @icp-sdk/core@6.1.1
+      - name: Install isolated pinned SDK
+        run: npm install --prefix "$RUNNER_TEMP/prod-open-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Resolve the existing push worker identity
+        env:
+          PROD_ICP_PUSH_WORKER_SEED: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED }}
+          PROD_ICP_PUSH_WORKER_SEED_ENC: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED_ENC }}
+          PROD_ICP_PUSH_WORKER_PASSPHRASE: ${{ secrets.PROD_ICP_PUSH_WORKER_PASSPHRASE }}
+          PROD_ICP_PUSH_WORKER_PRINCIPAL: ${{ vars.PROD_ICP_PUSH_WORKER_PRINCIPAL }}
+          DEV_PUSH_WORKER_PRINCIPAL: ${{ vars.DEV_PUSH_WORKER_PRINCIPAL }}
+        run: |
+          set -euo pipefail
+          export PUSH_WORKER_NODE_PATH="$RUNNER_TEMP/prod-open-deps/node_modules"
+          node scripts/resolve-prod-push-worker.mjs
+      - name: Verify, record approval and write snapshot
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          KEY_DIR="$RUNNER_TEMP/prod-open-key"
+          trap 'rm -rf "$KEY_DIR"' EXIT
+          mkdir -p "$KEY_DIR"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$KEY_DIR/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$KEY_DIR/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEY_DIR/key.enc" -out "$KEY_DIR/key.pem" -pass file:"$KEY_DIR/pass"
+          rm -f "$KEY_DIR/key.enc" "$KEY_DIR/pass"
+          cd frontend
+          npx --yes tsx@4 scripts/produce-routing-gates.ts "$KEY_DIR/key.pem" "$RUNNER_TEMP/prod-routing-report.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Commit PROD snapshot (republishes the live site)
+        run: |
+          set -euo pipefail
+          git config user.name "Paul Cranwell"
+          git config user.email "paul@igniteclubhq.app"
+          git add frontend/src/live/generated/routingGates.ts
+          if git diff --cached --quiet; then echo "Snapshot unchanged"; exit 0; fi
+          git commit -m "chore: PROD routing snapshot"
+          git push
+      # Bot pushes don't trigger workflows, so start the normal promotion,
+      # which upgrades nothing unchanged and republishes the live web app.
+      - name: Republish live web app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run promote-icp-prod.yml --ref prod -f action=promote
