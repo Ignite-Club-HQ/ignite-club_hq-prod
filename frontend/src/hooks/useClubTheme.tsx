@@ -1,3 +1,4 @@
+import { isClubSubscriptionActive } from "@/lib/proEntitlement";
 import { readMembershipInScope } from "@/live/membershipRouting";
 import { createContext, useContext, useEffect, useLayoutEffect, useState, useCallback, ReactNode } from "react";
 import { useQuery, keepPreviousData, useQueryClient } from "@tanstack/react-query";
@@ -874,7 +875,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           theme_dark_accent_h,
           theme_dark_accent_s,
           theme_dark_accent_l,
-          club_subscriptions(is_pro, is_pro_football, expires_at)
+          club_subscriptions(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at)
         `)
         .in("id", clubIds)
         .is("deleted_at", null);
@@ -889,8 +890,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           const subs = club.club_subscriptions as any;
           const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] : 
                      (subs && !Array.isArray(subs) ? subs : null);
-          const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) && 
-            (!sub.expires_at || new Date(sub.expires_at) > new Date());
+          const hasProFromSub = isClubSubscriptionActive(sub);
           // Check club.is_pro flag directly (synced by trigger)
           const hasPro = club.is_pro === true || hasProFromSub === true;
           const hasTheme = club.theme_primary_h !== null;

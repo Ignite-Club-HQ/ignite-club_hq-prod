@@ -564,7 +564,7 @@ function SupabaseCreateEventPage() {
             .maybeSingle();
           if (!data) return false;
           const hasAccess = data.is_pro_football || data.admin_pro_football_override;
-          const notExpired = !data.expires_at || new Date(data.expires_at) > new Date();
+          const notExpired = !!data.admin_pro_football_override || !data.expires_at || new Date(data.expires_at) > new Date();
           return hasAccess && notExpired;
         },
         // Canister Pro flags: team grant -> club grant -> caller IAP, same as

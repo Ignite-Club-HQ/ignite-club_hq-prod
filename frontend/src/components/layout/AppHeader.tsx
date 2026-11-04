@@ -1,3 +1,4 @@
+import { isClubSubscriptionActive } from "@/lib/proEntitlement";
 import { acrossLists } from "@/live/featureScopes";
 import { NotificationMessageText } from "@/components/notifications/NotificationMessageText";
 import { writeOnce } from "@/live/clubScope";
@@ -211,7 +212,7 @@ function LogoClubThemeDropdown() {
           theme_primary_s,
           theme_primary_l,
           theme_enabled,
-          club_subscriptions(is_pro, is_pro_football, expires_at)
+          club_subscriptions(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at)
         `)
         .in("id", clubIds)
         .is("deleted_at", null)
@@ -237,8 +238,7 @@ function LogoClubThemeDropdown() {
         const subs = club.club_subscriptions as any;
         const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] :
                    (subs && !Array.isArray(subs) ? subs : null);
-        const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) &&
-          (!sub.expires_at || new Date(sub.expires_at) > new Date());
+        const hasProFromSub = isClubSubscriptionActive(sub);
         const hasPro = club.is_pro === true || hasProFromSub === true;
         const hasTheme = club.theme_primary_h !== null;
         const themeEnabled = (club as any).theme_enabled !== false; // Default to true

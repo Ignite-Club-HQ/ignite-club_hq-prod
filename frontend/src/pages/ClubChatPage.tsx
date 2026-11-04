@@ -1,3 +1,4 @@
+import { isClubSubscriptionActive } from "@/lib/proEntitlement";
 import { prefetchMessagePolls } from "@/lib/pollReadRepository";
 import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import { confirmPendingSend } from "@/lib/pendingSendKeeper";
@@ -488,9 +489,7 @@ export default function ClubChatPage() {
 
   // Club chat only accessible with club-level Pro subscription (not team-level Pro)
   const hasClubProAccess = clubSubscription && 
-    (clubSubscription.is_pro || clubSubscription.is_pro_football || 
-     clubSubscription.admin_pro_override || clubSubscription.admin_pro_football_override) && 
-    (!clubSubscription.expires_at || new Date(clubSubscription.expires_at) > new Date());
+    isClubSubscriptionActive(clubSubscription);
 
   // Pro feature check: club messaging requires club-level Pro (NOT team-level Pro)
   // Note: app_admin and club_admin can still access for admin/support purposes, but the club must have Pro

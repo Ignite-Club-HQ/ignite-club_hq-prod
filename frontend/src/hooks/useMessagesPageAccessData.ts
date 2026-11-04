@@ -1,3 +1,4 @@
+import { isClubSubscriptionActive } from "@/lib/proEntitlement";
 import { useMemo } from "react";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { useQuery } from "@tanstack/react-query";
@@ -247,10 +248,6 @@ function isActiveProSubscription(subscription: {
   expires_at?: string | null;
 }) {
   return !!(
-    (subscription.is_pro ||
-      subscription.is_pro_football ||
-      subscription.admin_pro_override ||
-      subscription.admin_pro_football_override) &&
-    (!subscription.expires_at || new Date(subscription.expires_at) > new Date())
+    isClubSubscriptionActive(subscription)
   );
 }

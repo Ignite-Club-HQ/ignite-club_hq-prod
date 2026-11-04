@@ -1,3 +1,4 @@
+import { isClubSubscriptionActive } from "@/lib/proEntitlement";
 import { Building2, Check, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,7 +76,7 @@ export function ClubThemeToggle() {
           theme_primary_s,
           theme_primary_l,
           theme_enabled,
-          club_subscriptions(is_pro, is_pro_football, expires_at)
+          club_subscriptions(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at)
         `)
         .in("id", clubIds)
         .is("deleted_at", null)
@@ -101,8 +102,7 @@ export function ClubThemeToggle() {
         const subs = club.club_subscriptions;
         const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] : 
                    (subs && !Array.isArray(subs) ? subs : null);
-        const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) && 
-          (!sub.expires_at || new Date(sub.expires_at) > new Date());
+        const hasProFromSub = isClubSubscriptionActive(sub);
         // Check club.is_pro flag directly (synced by trigger)
         const hasPro = club.is_pro === true || hasProFromSub === true;
         const hasTheme = club.theme_primary_h !== null;
