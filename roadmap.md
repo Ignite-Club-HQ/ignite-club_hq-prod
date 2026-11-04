@@ -16,6 +16,13 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 ## Next
 - [x] Funding account topped up and ordinary member access commissioned.
 - [x] Both PROD groups opened with Paul's approval and live readback.
+- [ ] **Merge `main` into `prod` so the live site connects to the canisters.** igniteclubhq.app
+      still serves the legacy build (Supabase-only, no Internet Identity, no opening approval).
+      The canister-connected frontend lives on `main`; merging it to `prod` is what makes the
+      live site use the canisters. The prod Netlify build currently runs `npm run build` on the
+      legacy root app, so the merge must also leave the prod build producing the canister app.
+      Verify after merge: the served bundle contains Internet Identity and the PROD routing
+      approval, then sign in at igniteclubhq.app and create a club.
 - [ ] Onboard the first clubs.
 
 ## Parked (post-launch)
