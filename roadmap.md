@@ -10,7 +10,7 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
-- [ ] Repair four full-suite failure areas (notification cards, event-group assignments, pending inbox previews, photo storage contract), reproduce and verify in Supabase/ICP modes; DEV/local only, no PROD changes.
+- [x] Repair reproduced notification/inbox/photo test failures and verify all four reported areas: 40 Supabase/34 ICP tests passed; 43 related files per mode passed (450/425 tests). Event-group failures not reproduced; no source change needed there. Full-suite rerun not included; no PROD changes. See docs/release-review/test-failure-repairs-2026-11-04.md.
 - [x] Calendar export frontend repair: native cache→FileOpener→Share→visible error, Google option, club-zone UTC, public links and byte folding; 25 calendar/menu tests and 21 related read tests passed (5 mode skips), helper tests also pass in Los Angeles/Tokyo. See docs/release-review/calendar-export-verification-2026-11-04.md.
 - [ ] Calendar physical acceptance before promotion: single event and whole schedule on real iPhone/Android, correct saved times and working links; blocked on physical devices/local synced DEV build and authenticated access. After approved release repeat on both phones. No database, notification, RSVP or PROD-data changes authorized.
 - [x] Build invitation-default/welcome-DM PROD candidate: 12 exact-SQL tests and 24 frontend tests passed (1 mode skip). See docs/release-review/invitation-welcome-build-2026-11-04.md; existing invitation lifecycle unchanged, no hosted writes.
