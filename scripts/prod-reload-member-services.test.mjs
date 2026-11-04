@@ -10,6 +10,7 @@ const builds = { club_domain: { hashes: ['h'] }, media_blob_store: { hashes: ['x
 
 test('requires applied settings and exactly 24 services', () => {
   assert.throws(() => reloadTargets({ phase: 'planned', plan: { targets } }), /applied/);
+  assert.equal(reloadTargets({ phase: 'commissioned', plan: { targets } }).length, 24);
   assert.throws(() => reloadTargets({ phase: 'settings-applied', plan: { targets: targets.slice(1) } }), /twenty-four/);
   assert.equal(reloadTargets(receipt).length, 24);
 });
