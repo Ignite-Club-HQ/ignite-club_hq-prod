@@ -66,7 +66,13 @@ describe("competitionContactError", () => {
     expect(result.title).toBe("You run this competition");
   });
 
-  it("always reports a destructive toast", () => {
-    expect(competitionContactError(new Error("whatever")).variant).toBe("destructive");
+  it("shows the organiser's note as a plain note, not a red error", () => {
+    expect(competitionContactError(new Error("You are an admin of this competition")).variant).toBe("default");
+  });
+
+  it("keeps real failures styled as errors", () => {
+    for (const raw of ["Failed to fetch", "Competition not found", "column chat_groups.competition_scope does not exist"]) {
+      expect(competitionContactError(new Error(raw)).variant).toBe("destructive");
+    }
   });
 });
