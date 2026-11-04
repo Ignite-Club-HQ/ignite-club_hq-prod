@@ -10,8 +10,16 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
-- [ ] Verify Supabase main→prod merge trigger and deployment coverage read-only; identify
-      blockers without changing PROD databases, history, credentials, storage or cron.
+- [x] Read-only Supabase merge check: both branches trigger on prod pushes without path filters.
+      PROD run 41761473545 completed real migration/function deployment steps successfully.
+      Main carries a different workflow: tests followed by an unconditional release-hold exit 1.
+      Existing release-safety tests: 15 passed. No database commands or deploys performed by this check.
+- [ ] Resolve Supabase workflow divergence before main→prod merge: main's release hold cannot
+      deploy; PROD's legacy runner also repairs migration history, credentials and cron beyond
+      the approved structure-only scope. Requires reviewed target history/signup before-image
+      and complete pending migration plan before enabling a scoped deployment runner.
+      Promotion covers committed migrations/functions, not arbitrary DEV dashboard changes,
+      secrets, authentication settings or DEV data.
 - [x] Refreshed PROD's approval and read back snapshot revision 6 for both groups; run 41758472686 succeeded without dispatching publication.
 - [x] Existing PROD Netlify config builds the legacy root app with `npm run build`; provider auto-deploy settings remain unverified.
 
