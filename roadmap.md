@@ -22,10 +22,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
       PROD run 41761473545 completed real migration/function deployment steps successfully.
       Main carries a different workflow: tests followed by an unconditional release-hold exit 1.
       Existing release-safety tests: 15 passed. No database commands or deploys performed by this check.
-- [ ] Resolve Supabase workflow divergence before main→prod merge: main's release hold cannot
-      deploy; PROD's legacy runner also repairs migration history, credentials and cron beyond
-      the approved structure-only scope. Requires reviewed target history/signup before-image
-      and complete pending migration plan before enabling a scoped deployment runner.
+- [x] Replaced divergent Supabase workflows with the same structural-only runner; legacy
+      history/credential/cron repairs removed. Release remains held by source/evidence issues above.
       Promotion covers committed migrations/functions, not arbitrary DEV dashboard changes,
       secrets, authentication settings or DEV data.
       Paul reaffirmed: schema, edge-function code, RLS and grants only; no DEV data copying
