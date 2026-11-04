@@ -126,4 +126,33 @@ Exit: all pass; any failure → stop, no data fixes without approval.
 1. Function fingerprints: all 5 match DEV — closed.
 2. Competition target check: existing items identical to DEV; only candidate additions missing — fits.
 3. backend_routing_config: was absent; Paul inserted the one allowed config row (Bridgewater + Basket Range email clubs, same IDs as DEV); readback matches DEV exactly.
-4. Netlify prod site settings: pending.
+4. Netlify prod site settings: closed — repository `Ignite-Club-HQ/ignite-club_hq-prod`,
+   production branch `prod`, branch deploys limited to the production branch,
+   `VITE_SUPABASE_PUBLISHABLE_KEY` present and scoped to Production, and
+   `PROD_RELEASE_READ_TOKEN` added by Paul (Builds scope, Production context only)
+   so the live build's promotion-evidence check can read workflow results.
+   The dashboard's Base `/`, command `bun run build` and Publish `dist` are inert:
+   `netlify.toml` in the repository overrides the UI for those settings.
+
+### Phase 2 status (5 Nov 2026) — complete, rides the merge
+
+`main` already carries everything the live build needs, so the merge delivers it:
+
+- `netlify.toml`: base `frontend`, publish `dist-live`, command
+  `node ../scripts/host-build-env.mjs`, prod/dev deploy-context environments,
+  `/api/*` redirects, `ii-alternative-origins` served as JSON, security headers.
+- Build scripts: `host-build-env.mjs`, `icp-environments.mjs`,
+  `prod-publication-gate.mjs`, `prod-connection-check-policy.mjs`,
+  `prod-hybrid-build.mjs`, `ensure-frontend-deps.mjs`.
+- Endpoint handlers `frontend/netlify/functions/{fetch-link-preview,register-club-backend}.mjs`.
+- `frontend/public/.well-known/ii-alternative-origins` with the four approved origins.
+
+Two merge-time notes:
+
+1. If `netlify.toml` conflicts, take **main's** version (the new live config).
+   `routingGates.ts` is the opposite: keep **prod's** version there.
+2. The live build runs the promotion-evidence check at build start, and it can
+   lose the race against the two promotion workflows that the same push starts.
+   If the deploy fails with "Production promotion evidence unavailable" or
+   "... has not succeeded for this commit", the previous live site stays up
+   (safe). Re-trigger the deploy from Netlify once both workflows are green.
