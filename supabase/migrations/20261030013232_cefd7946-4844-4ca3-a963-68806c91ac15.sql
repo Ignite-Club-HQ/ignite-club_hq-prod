@@ -1,3 +1,3 @@
-REVOKE EXECUTE ON FUNCTION public.email_signup_invite_allowed(text,text) FROM anon, authenticated;
-REVOKE ALL ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.handle_new_user() TO service_role;
+-- Applied on DEV only (30 Oct 2026). Intentionally empty for every other database.
+-- Original bytes: docs/recovery/2026-10-30-dev-only/20261030013232_cefd7946-4844-4ca3-a963-68806c91ac15.sql sha256 dec4beb61ba2ff29e4e22171c2d4058121e296144d4e1842b26940abc329e051
+-- PROD-safe replacement: 20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql
