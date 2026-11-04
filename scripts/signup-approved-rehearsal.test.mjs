@@ -25,7 +25,6 @@ test('exact approved signup migration preserves existing accounts and profile cr
   try {
     const assertions = `
       DO $$ DECLARE rejected boolean := false; BEGIN
-        INSERT INTO auth.users VALUES ('10000000-0000-0000-0000-000000000001', 'existing@example.test', '{"provider":"email"}', '{}');
         BEGIN
           INSERT INTO auth.users VALUES (gen_random_uuid(), 'uninvited@example.test', '{"provider":"email"}', '{}');
         EXCEPTION WHEN SQLSTATE 'P0001' THEN rejected := true; END;
@@ -50,7 +49,7 @@ test('exact approved signup migration preserves existing accounts and profile cr
     const fixture = readFileSync('scripts/signup-rehearsal-fixture.sql', 'utf8');
     // Existing account is created before installing the new guard.
     const preexisting = "INSERT INTO auth.users VALUES ('10000000-0000-0000-0000-000000000001', 'existing@example.test', '{\"provider\":\"email\"}', '{}');";
-    writeFileSync(path.join(directory, 'rehearsal.sql'), fixture + '\n' + preexisting + '\n' + source + '\n' + assertions.replace(preexisting, ''));
+    writeFileSync(path.join(directory, 'rehearsal.sql'), fixture + '\n' + preexisting + '\n' + source + '\n' + assertions);
     if (root) assert.equal(spawnSync('chown', ['-R', 'lovable', directory], { env }).status, 0);
     command('initdb', ['-D', path.join(directory, 'data'), '-A', 'trust', '-U', 'rehearsal', '--no-locale']);
     command('pg_ctl', ['-D', path.join(directory, 'data'), '-l', path.join(directory, 'server.log'), '-o', `-c listen_addresses='' -k ${directory} -p 55440`, '-w', 'start']);
