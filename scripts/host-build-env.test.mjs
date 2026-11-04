@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveHostBuildEnv } from './host-build-env.mjs';
+import { resolveHostBuildEnv, assertProdIdsComplete } from './host-build-env.mjs';
+import { PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 test('main stays on DEV with the retained public key name', () => {
   const result = resolveHostBuildEnv({ BRANCH: 'main', VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_fixture' });
   assert.equal(result.IGNITE_LIVE_SUPABASE_URL, 'https://ecsdwrarzfexssxtrymj.supabase.co');
@@ -18,4 +19,12 @@ test('cross-environment urls and private or conflicting keys refuse', () => {
   assert.throws(() => resolveHostBuildEnv({ ...env, VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_other' }));
   assert.throws(() => resolveHostBuildEnv({ ...env, IGNITE_LIVE_SUPABASE_ANON_KEY: 'sb_secret_private' }));
   assert.throws(() => resolveHostBuildEnv({ BRANCH: 'main' }));
+});test('PROD build refuses an empty, partial or altered live service table', () => {
+  assert.throws(() => assertProdIdsComplete({}));
+  const [first] = Object.keys(PROD_CHECK_IDS);
+  const partial = { ...PROD_CHECK_IDS }; delete partial[first];
+  assert.throws(() => assertProdIdsComplete(partial));
+  assert.throws(() => assertProdIdsComplete({ ...PROD_CHECK_IDS, [first]: 'mzzzv-taaaa-aaaal-qxlrq-cai' }));
+  assert.equal(Object.keys(PROD_CHECK_IDS).length, 18);
+  assert.doesNotThrow(() => assertProdIdsComplete({ ...PROD_CHECK_IDS }));
 });
