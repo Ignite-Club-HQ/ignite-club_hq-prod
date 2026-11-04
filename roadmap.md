@@ -11,7 +11,7 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 
 ## In progress
 - [x] Compare remaining Supabase feature migrations against PROD evidence (Paul uploaded the expanded PROD catalog 4 Nov ~05:58 UTC; 1,515 rows). Results saved in docs/release-review/remaining-feature-compatibility-2026-11-04.md: real gaps = welcome DM + profile country, invitation message defaults, competition news admin helpers, competition vault access functions, official email invites, memory reports; competition events present but version uncertain; role removal present; scores/AI/free-media stay held. No deployment or data writes.
-- [ ] Prepare DEV-tested, safe-only releases for the confirmed PROD gaps (welcome DM + profile country first), each with owner approval before merge.
+- [ ] Prepare DEV-tested, safe-only releases for the confirmed PROD gaps (welcome DM + profile country first), each with owner approval before merge. Consolidated checklist: docs/release-review/prod-follow-up-checklist-2026-11-04.md (gaps, held items, pending decisions).
 - [x] Held items path forward written: docs/release-review/held-items-path-forward-2026-11-04.md.
 - [ ] Paul runs the 5-function fingerprint check on PROD (closes competition events + role removal if matching DEV).
 - [ ] After live site rebuild: PROD-only email-club settings row with PROD club IDs, then one invited sign-up test.
