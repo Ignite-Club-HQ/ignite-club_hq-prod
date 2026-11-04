@@ -17,7 +17,10 @@ import type { _SERVICE } from '../src/lab/bindings/shard_router/declarations/sha
 import { readPinnedGroupRegistry } from '../src/live/groupRegistryPager';
 import { ADMISSION_DOMAINS, ADMISSION_FLAG, ADMISSION_AUTHORITY } from '../src/live/groupRemovalWiring';
 
-const GOVERNOR = 'vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae';
+// PROD runs bind PROD's governor and mappings; DEV is unchanged.
+const PROD = process.env.IGNITE_ICP_ENV === 'prod';
+const GOVERNOR = PROD ? (process.env.PROD_GOVERNOR_PRINCIPAL ?? '') : 'vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae';
+if (!GOVERNOR) throw new Error('PROD_GOVERNOR_PRINCIPAL required for PROD');
 
 const [groupIdsArg, pem, reportPath] = process.argv.slice(2);
 if (!groupIdsArg || !pem || !reportPath) throw new Error('Usage: set-group-service-settings <group_ids> <operator.pem> <report.json>');
@@ -25,7 +28,7 @@ if (process.env.CONFIRMATION?.trim() !== 'SET SERVICE SETTINGS') throw new Error
 const wanted = groupIdsArg.split(',').map(s => s.trim()).filter(Boolean);
 if (!wanted.length || wanted.some(id => !/^[a-z0-9-]{1,32}$/.test(id))) throw new Error('Invalid group id list');
 
-const ids = JSON.parse(readFileSync(new URL('../../deploy/mainnet/.icp/data/mappings/ic.ids.json', import.meta.url), 'utf8'));
+const ids = JSON.parse(readFileSync(new URL(`../../deploy/${PROD ? 'prod' : 'mainnet'}/.icp/data/mappings/ic.ids.json`, import.meta.url), 'utf8'));
 const routerId = ids.shard_router as string, identityAccess = ids.identity_access as string;
 if (!routerId || !identityAccess) throw new Error('Shared router/identity mappings missing');
 const identity = loadOperatorIdentity(pem);
