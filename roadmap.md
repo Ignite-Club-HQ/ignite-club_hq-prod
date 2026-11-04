@@ -56,6 +56,7 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Existing PROD Netlify config builds the legacy root app with `npm run build`; provider auto-deploy settings remain unverified.
 
 ## Next
+- [ ] Follow the ordered PROD migration plan: docs/release-review/prod-migration-master-plan-2026-11-04.md (Phase 0 read-only checks → DB batches → website build → merge → live tests → held switches).
 - [x] Funding account topped up and ordinary member access commissioned.
 - [x] Both PROD groups opened with Paul's approval and live readback.
 - [ ] **Merge `main` into `prod` so the live site connects to the canisters.** igniteclubhq.app
