@@ -1,0 +1,261 @@
+{
+  "date": "2026-11-04",
+  "scope": "structure-only candidates; no production execution",
+  "deploymentAuthorizedByReport": false,
+  "targetReadPerformed": false,
+  "parserPasses": 10,
+  "parserHeld": 14,
+  "focusedTests": {
+    "passed": 26,
+    "failed": 0
+  },
+  "candidates": [
+    {
+      "file": "20260928122526_ced7e676-cb91-4f86-8692-6fc48d3f937a.sql",
+      "issues": [],
+      "sha256": "a94f1bab45b53823140ac363a317f9dadb30c08386cb34f108704f64c2646160"
+    },
+    {
+      "file": "20261003053838_37b36ac1-6aca-4330-81cc-ce7df6d6d8ad.sql",
+      "issues": [],
+      "sha256": "fd765af6b7f6a77c67e62c4ebfd80c30fc315ad0dfa1bcde81ba17233af62d9c"
+    },
+    {
+      "file": "20261004012137_a065d87d-15b2-4be7-83f5-87ff95998c1c.sql",
+      "issues": [
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.has_role: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.has_role: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.is_club_member: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.has_role: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review"
+      ],
+      "sha256": "455fa5980b68048a657486734ce8ce047f109306a3f73cb0377bc76081e58852"
+    },
+    {
+      "file": "20261004045741_f67d8540-1138-4bf3-a0cb-54eac96ac751.sql",
+      "issues": [],
+      "sha256": "4d4ccd00f2492ddf8a0128b27cf326d10297e77ac68d8853a262564328d09923"
+    },
+    {
+      "file": "20261007010000_add_competition_ladder_visibility.sql",
+      "issues": [],
+      "sha256": "c311c29a1a2416ac9913d1e523c5789cfd5c56b8b6f1660139e6d5b5238b9025"
+    },
+    {
+      "file": "20261007020000_add_event_duty_team.sql",
+      "issues": [],
+      "sha256": "da015608d0e7f7e197e6cf2c13bb80d9f5e5668aecfbbfa14b17532a3237b7b8"
+    },
+    {
+      "file": "20261009090000_add_competition_media_scope.sql",
+      "issues": [
+        "Function expression public.is_competition_media_member: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.is_competition_media_member: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.is_competition_media_member: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.is_competition_media_member: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review"
+      ],
+      "sha256": "cd94c882d815597341d751768f36bd91df07bfa9ce63158a02665ebb8ced7262"
+    },
+    {
+      "file": "20261009100000_create_competition_event_fanout.sql",
+      "issues": [
+        "public.competition_event_operations: explicit service_role grant required in the same migration"
+      ],
+      "sha256": "2d1bad9c131125f27f61494a69d9c2e8cb5ac29348965f9a50ed9f6fc6628fba"
+    },
+    {
+      "file": "20261010000000_add_club_invite_message_defaults.sql",
+      "issues": [
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "public.club_invite_message_defaults: explicit service_role grant required in the same migration"
+      ],
+      "sha256": "07a5ba9c923e31008f0701762300e793c76050e39cfeae5f36af611f96cb12ec"
+    },
+    {
+      "file": "20261010010000_mini_league_news_audience.sql",
+      "issues": [
+        "Function expression public.is_club_member: requires separate review",
+        "Function expression cardinality: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression unnest: requires separate review",
+        "Function expression public.is_team_member: requires separate review",
+        "Function expression public.can_view_mini_league: requires separate review",
+        "Function expression public.is_competition_audience: requires separate review",
+        "Function expression public.is_competition_news_admin: requires separate review",
+        "Function expression public.is_competition_news_admin: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.is_competition_news_admin: requires separate review",
+        "Function expression public.is_competition_news_admin: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.is_competition_news_admin: requires separate review"
+      ],
+      "sha256": "63faafa72ae2c534b506b082d85ad3e9758ca40ea15177a93a2f494a7c1c1bdb"
+    },
+    {
+      "file": "20261011000000_add_competition_admin_inbox.sql",
+      "issues": [],
+      "sha256": "aaa0fb34ba6f337b758fdb1a73984f89ece3860af659789cbc6f4c0476d1a7f5"
+    },
+    {
+      "file": "20261012020000_add_welcome_email_contract.sql",
+      "issues": [
+        "Function expression char_length: requires separate review",
+        "Function expression char_length: requires separate review",
+        "Function expression public.can_manage_team_roster: requires separate review",
+        "Function expression public.can_manage_team_roster: requires separate review",
+        "Function expression public.can_manage_team_roster: requires separate review",
+        "Function expression public.can_manage_team_roster: requires separate review",
+        "Function expression public.can_manage_team_roster: requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "public.welcome_email_deliveries: explicit service_role grant required in the same migration",
+        "public.welcome_email_settings: explicit service_role grant required in the same migration"
+      ],
+      "sha256": "3bb1894419914103bff6130bee0ef852dd0d5dd419db70312bc4dd85612e5491"
+    },
+    {
+      "file": "20261013000000_add_icp_welcome_email_deliveries.sql",
+      "issues": [
+        "Function expression char_length: requires separate review",
+        "public.icp_welcome_email_deliveries: explicit service_role grant required in the same migration"
+      ],
+      "sha256": "58ae459c5e8c1208640d0d6fde8224f95f8e7e0599a80dba013224cd30a34a0c"
+    },
+    {
+      "file": "20261014000000_allow_competition_admin_team_invites.sql",
+      "issues": [
+        "Function expression public.can_invite_players_to_team: requires separate review",
+        "Function expression public.can_invite_players_to_team: requires separate review",
+        "Function expression public.can_invite_players_to_team: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.can_invite_players_to_team: requires separate review"
+      ],
+      "sha256": "b4e8dc6982358830a7b97ecaa120cc8a1d31ffe4f28cc987c57df8f42b589f98"
+    },
+    {
+      "file": "20261014010000_allow_competition_fixture_read.sql",
+      "issues": [
+        "Function expression public.can_view_competition_fixture_event: requires separate review"
+      ],
+      "sha256": "84d5968e19b9d04abe807c9ba761d5903a8867d30640802d486036499f598e50"
+    },
+    {
+      "file": "20261014014920_9fbf1b37-eb60-4620-a9e6-3feb869e47da.sql",
+      "issues": [
+        "Function expression public.can_view_pending_role_request_profile: requires separate review"
+      ],
+      "sha256": "9ab596de692f2e4f3834e47ce2eb607b5656c13492a4123bc5dbf3bb825bf064"
+    },
+    {
+      "file": "20261014014957_9d34abc5-4c3e-4424-9610-cf061575c744.sql",
+      "issues": [],
+      "sha256": "5a366b00ca754f0c57c85d876baa37dc9bceb11f9740836731f195e447a183a0"
+    },
+    {
+      "file": "20261014015130_9b611a01-b847-4092-bc65-7e0e15420f43.sql",
+      "issues": [],
+      "sha256": "3e03542b9955d512bc84c0470292ae4776a1e01a8bd39f8cde595c9492c73607"
+    },
+    {
+      "file": "20261014020000_add_official_join_links.sql",
+      "issues": [
+        "Function expression public.is_competition_admin: requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "public.competition_role_links: explicit service_role grant required in the same migration"
+      ],
+      "sha256": "7b2fdf24e5d85677b77e244cdc2a10c44fd2630028f312fa51035e268fbcc7fb"
+    },
+    {
+      "file": "20261014030000_email_bound_official_invites.sql",
+      "issues": [
+        "Function expression char_length: requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "public.competition_role_email_invites: explicit service_role grant required in the same migration"
+      ],
+      "sha256": "6b3c97a8c67c067ced57f464167f1ff8032d270d763fc68f195f8245917b683a"
+    },
+    {
+      "file": "20261014062816_5eb2c17c-857d-45a2-bb07-af0b74f1bd55.sql",
+      "issues": [],
+      "sha256": "799944591acd3f069d68e7c108267be92c7168a5fdf5c3a3f0511307eb0c2bf2"
+    },
+    {
+      "file": "20261015185653_cc94e100-9ed3-4a6a-a750-bbf949694c6c.sql",
+      "issues": [
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review"
+      ],
+      "sha256": "4636081a9031d29aced1102e6c252700141b7ba8f54d79353457ec13c2c851cc"
+    },
+    {
+      "file": "20261015192331_dbec16fd-1649-4a11-85ed-95857aabd325.sql",
+      "issues": [
+        "Function expression lower: requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review",
+        "Function expression public.is_competition_admin: requires separate review",
+        "SubLink: release-time query requires separate review",
+        "SelectStmt: release-time query requires separate review"
+      ],
+      "sha256": "2eceb377f507af97cd8ac27878b11550ae0929ead24ce21721e60d4077cd5559"
+    },
+    {
+      "file": "20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql",
+      "issues": [],
+      "sha256": "2512716ee93bcf92adc40c6cb5c28975d2546b5a0138279305ded7478e96128a"
+    }
+  ]
+}
