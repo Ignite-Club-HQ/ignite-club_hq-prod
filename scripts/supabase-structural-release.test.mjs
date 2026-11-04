@@ -21,9 +21,11 @@ test('future blocked source absent on both branch and target stays non-executabl
   const blocked = { migrations: [{ ...policy.migrations[0], prodStatus: 'blocked' }] };
   assert.deepEqual(planRelease(blocked, {}, [], { [file]: sql }), { plan: [], issues: [] });
   assert.ok(planRelease(blocked, {}, []).issues.length > 0);
-  assert.ok(planRelease(blocked, {}, [], { [file]: sql + ' changed' }).issues.length > 0);
+  assert.throws(() => planRelease(blocked, {}, [], { [file]: sql + ' changed' }), /exact blocked/);
   assert.ok(planRelease(blocked, {}, [{ version: file.split('_')[0] }], { [file]: sql }).issues.length > 0);
   assert.ok(planRelease(blocked, { [file]: sql }, [], { [file]: sql }).issues.length > 0);
+  assert.throws(() => planRelease(blocked, {}, [], { unrelated: sql }), /exact blocked/);
+  assert.throws(() => planRelease(blocked, {}, [], []), /archive required/);
 });
 test('shared function changes deploy all functions, deletion never happens', () => {
   assert.deepEqual(selectFunctions(['supabase/functions/_shared/auth.ts'], ['b', 'a']), ['a', 'b']);

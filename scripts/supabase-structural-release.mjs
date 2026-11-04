@@ -11,6 +11,15 @@ export const hash = value => createHash('sha256').update(value).digest('hex');
 
 export function planRelease(policy, files, ledger, heldSources = {}) {
   if (!Array.isArray(ledger) || ledger.length > 10000) throw new Error('Bounded live migration ledger required');
+  if (!heldSources || typeof heldSources !== 'object' || Array.isArray(heldSources) || Object.keys(heldSources).length > 6) throw new Error('Bounded protected-source archive required');
+  if (!policy || !Array.isArray(policy.migrations)) throw new Error('Migration policy required');
+  // Validate every policy entry with the unchanged auditor before narrowing to
+  // executable sources. Ignore its issues here; the live audit below owns them.
+  auditAuthMigrationPlan(policy, files, ledger.map(row => row.version), []);
+  for (const [name, source] of Object.entries(heldSources)) {
+    const entry = policy.migrations.find(item => item.file === name);
+    if (!entry || entry.prodStatus !== 'blocked' || typeof source !== 'string' || hash(source) !== entry.sha256) throw new Error('Archive must contain only exact blocked policy sources');
+  }
   const versions = ledger.map(row => row.version);
   const pending = Object.keys(files).filter(file => !versions.includes(file.split('_')[0])).sort();
   const plan = pending.map(file => ({ file, sha256: hash(files[file]) }));
