@@ -9,12 +9,24 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const PROD_REF = 'yabcfiuntwqjwvschnji';
 export const hash = value => createHash('sha256').update(value).digest('hex');
 
-export function planRelease(policy, files, ledger) {
+export function planRelease(policy, files, ledger, heldSources = {}) {
   if (!Array.isArray(ledger) || ledger.length > 10000) throw new Error('Bounded live migration ledger required');
   const versions = ledger.map(row => row.version);
   const pending = Object.keys(files).filter(file => !versions.includes(file.split('_')[0])).sort();
   const plan = pending.map(file => ({ file, sha256: hash(files[file]) }));
-  const issues = auditAuthMigrationPlan(policy, files, versions, plan);
+  // A policy can refer to future main-only sources absent from this branch AND
+  // target ledger. Preserve their bytes outside executable migrations; never
+  // use this archive to excuse missing applied or modified executable SQL.
+  const archivedIssues = [];
+  const activePolicy = { ...policy, migrations: policy.migrations.filter(entry => {
+    if (Object.hasOwn(files, entry.file) || versions.includes(entry.file.split('_')[0])) return true;
+    const archived = heldSources[entry.file];
+    if (entry.prodStatus !== 'blocked' || typeof archived !== 'string' || hash(archived) !== entry.sha256) {
+      archivedIssues.push(`${entry.file}: absent future source has no fingerprint-matched held archive`);
+    }
+    return false;
+  }) };
+  const issues = [...archivedIssues, ...auditAuthMigrationPlan(activePolicy, files, versions, plan)];
   const localVersions = new Set(Object.keys(files).map(file => file.split('_')[0]));
   for (const row of ledger) {
     if (!localVersions.has(row.version)) issues.push(`${row.version}: target history has no source migration; no repair is authorized`);
@@ -49,7 +61,8 @@ function main() {
   const ledger = JSON.parse(run('psql', [connection, '-XAt', '-v', 'ON_ERROR_STOP=1', '-c', "SELECT coalesce(json_agg(x ORDER BY version), '[]'::json) FROM (SELECT version FROM supabase_migrations.schema_migrations ORDER BY version LIMIT 10001) x"], {
     env: { ...process.env, PGPASSWORD: process.env.SUPABASE_DB_PASSWORD, PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=30000' },
   }));
-  const { plan, issues } = planRelease(policy, files, ledger);
+  const heldSources = JSON.parse(readFileSync(path.join(root, 'scripts/structural-held-sources.json'), 'utf8'));
+  const { plan, issues } = planRelease(policy, files, ledger, heldSources);
   const pendingFiles = Object.fromEntries(plan.map(entry => [entry.file, files[entry.file]]));
   const sqlCheck = spawnSync('python3', ['scripts/structural-sql-check.py'], { cwd: root, input: JSON.stringify(pendingFiles), encoding: 'utf8' });
   if (sqlCheck.error || ![0, 1].includes(sqlCheck.status)) issues.push('SQL parser unavailable; release held');
@@ -74,7 +87,7 @@ function main() {
   }
   run('supabase', ['link', '--project-ref', PROD_REF], { stdio: 'inherit' });
   // Full checked source inventory only: no filtered tree, repair or include-all.
-  run('supabase', ['db', 'push', '--linked', '--yes'], { stdio: 'inherit' });
+  if (plan.length) run('supabase', ['db', 'push', '--linked', '--yes'], { stdio: 'inherit' });
   report.phase = 'schema-applied'; save();
   for (const name of functions) {
     run('supabase', ['functions', 'deploy', name, '--project-ref', PROD_REF], { stdio: 'inherit' });

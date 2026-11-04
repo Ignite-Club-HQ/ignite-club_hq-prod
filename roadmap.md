@@ -10,6 +10,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
+- [ ] Fix protected-source mismatch without executing DEV-only migrations; rerun the
+      structural release and distinguish a successful no-change run from main code deployment.
 - [x] Rebuilt structural-only Supabase promotion on main/prod; 42 focused tests passed.
       Automatic push run 41764557107 passed source tests and read the live migration ledger,
       then stopped before ALL writes: prod lacks six fingerprint-protected 30 October

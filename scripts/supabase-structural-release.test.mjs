@@ -17,6 +17,14 @@ test('unclassified and edited SQL cannot be deployed', () => {
 test('unknown target history is held rather than repaired', () => {
   assert.ok(planRelease(policy, { [file]: sql }, [{ version: '20200101000000' }]).issues.some(issue => issue.includes('no repair')));
 });
+test('future blocked source absent on both branch and target stays non-executable in archive', () => {
+  const blocked = { migrations: [{ ...policy.migrations[0], prodStatus: 'blocked' }] };
+  assert.deepEqual(planRelease(blocked, {}, [], { [file]: sql }), { plan: [], issues: [] });
+  assert.ok(planRelease(blocked, {}, []).issues.length > 0);
+  assert.ok(planRelease(blocked, {}, [], { [file]: sql + ' changed' }).issues.length > 0);
+  assert.ok(planRelease(blocked, {}, [{ version: file.split('_')[0] }], { [file]: sql }).issues.length > 0);
+  assert.ok(planRelease(blocked, { [file]: sql }, [], { [file]: sql }).issues.length > 0);
+});
 test('shared function changes deploy all functions, deletion never happens', () => {
   assert.deepEqual(selectFunctions(['supabase/functions/_shared/auth.ts'], ['b', 'a']), ['a', 'b']);
   assert.throws(() => selectFunctions(['supabase/functions/deleted/index.ts'], ['a']), /no deletion/);
