@@ -10,15 +10,12 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Member-access tool (8 files) copied to the live branch; live branch now at `b4fb2c8b`.
 
 ## In progress
-- [ ] Buy 5 trillion fuel for the funding account that supplies all 18 live services.
-      Payment ID `prod-fuel-20261104-01`, run 41724788201.
-      **Blocker: Paul must open the run and pay the Stripe link (about US$7.30) within 85 minutes.**
-      If it lapses, reconcile that same payment ID — never create a second order.
+- [x] Refreshed PROD's approval and read back snapshot revision 6 for both groups; run 41758472686 succeeded without dispatching publication.
+- [x] Existing PROD Netlify config builds the legacy root app with `npm run build`; provider auto-deploy settings remain unverified.
 
 ## Next
-- [ ] Commission ordinary member access on PROD so signed-in members can use live clubs.
-- [ ] Port the "open group to everyone" tool from DEV to the live branch (it exists only on DEV today),
-      then open the PROD groups so clubs can be added. **Needs Paul's go-ahead.**
+- [x] Funding account topped up and ordinary member access commissioned.
+- [x] Both PROD groups opened with Paul's approval and live readback.
 - [ ] Onboard the first clubs.
 
 ## Parked (post-launch)
