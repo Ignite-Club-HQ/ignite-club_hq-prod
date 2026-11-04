@@ -33,7 +33,16 @@ describe("Environment-scoped photo and file transport", () => {
         const [url, options] = transport.mock.calls[0] as unknown as [string, RequestInit];
         expect(url).toBe(`https://${project}.supabase.co/storage/v1/object/${bucket}/${path}`);
         expect(options.method).toBe("POST");
-        expect((options.body as FormData).get("")).toBe(file);
+        const sentFile = (options.body as FormData).get("") as File;
+        expect(sentFile.size).toBe(file.size);
+        expect(sentFile.type).toBe(mime);
+        const sentBytes = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsText(sentFile);
+        });
+        expect(sentBytes).toBe("actual-file-bytes");
         expect(unrelatedFetch).not.toHaveBeenCalled();
       });
     }
