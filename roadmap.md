@@ -54,3 +54,4 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 
 ## Parked (post-launch)
 - [ ] Club deletion: build and test on DEV first, then promote.
+- [ ] Live database release review: 38 database changes from main are still waiting for the live (PROD) database, not only the six from 30 Oct. The new separate email-invite check (20261104031935) is on DEV and needs approval in the same review. The release checks deliberately hold until every change is classified. Blocked on: Paul's decision on how to handle DEV-only changes that are already applied (they can't be skipped or edited without breaking saved fingerprints).
