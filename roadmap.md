@@ -61,3 +61,4 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] Hidden-score change (20261021003048 + 20261021003143) cannot reach the live database through a merge in any form: the structural checker rejects both files (57 + 1 findings) because copying scores and emptying the old columns are data writes. Releasing it later needs structure first, then a separately approved data run that copies scores and keeps an archive. Verified the copy is lossless and the app already reads scores from the protected table.
 
 - [ ] Release hybrid welcome message + profile country (DEV applied 4 Nov) to PROD via main→prod merge; needs PROD Ignite team account (system profile) for welcome message to send.
+- [ ] Merge main→prod to send the approved email sign-up check live (approved-only release; blocked on Paul running the merge). Live check only refuses sign-ups once the live email-club settings entry exists.
