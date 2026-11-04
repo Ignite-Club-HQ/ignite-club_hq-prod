@@ -19,7 +19,7 @@ import { ADMISSION_DOMAINS, ADMISSION_FLAG, ADMISSION_AUTHORITY } from '../src/l
 
 // PROD runs bind PROD's governor and mappings; DEV is unchanged.
 const PROD = process.env.IGNITE_ICP_ENV === 'prod';
-const GOVERNOR = PROD ? (process.env.PROD_GOVERNOR_PRINCIPAL ?? '') : 'vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae';
+const GOVERNOR = process.env.PROD_GOVERNOR_PRINCIPAL && PROD ? process.env.PROD_GOVERNOR_PRINCIPAL : (PROD ? '' : 'vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae');
 if (!GOVERNOR) throw new Error('PROD_GOVERNOR_PRINCIPAL required for PROD');
 
 const [groupIdsArg, pem, reportPath] = process.argv.slice(2);
@@ -104,7 +104,10 @@ for (const group of groups) {
   const clubDomain = domains.find(d => d.domain === 'club_domain');
   if (!clubDomain) throw new Error(`Group ${group.id} has no club_domain`);
   save({ ...report, pending: { phase: 'creator-binding', groupId: group.id } });
-  await setEnv(clubDomain.id, { IGNITE_NEW_CLUB_PLACEMENT_ROUTER: routerId, IGNITE_NEW_CLUB_PLACEMENT_GROUP: group.id, IGNITE_NEW_CLUB_PLACEMENT_TARGET: 'mainnet' });
+  // The original group links its clubs service through the display release (set-once);
+  // later empty groups use the owner-test deletion identity below.
+  await setEnv(clubDomain.id, { IGNITE_NEW_CLUB_PLACEMENT_ROUTER: routerId, IGNITE_NEW_CLUB_PLACEMENT_GROUP: group.id, IGNITE_NEW_CLUB_PLACEMENT_TARGET: 'mainnet',
+    ...(group.id === 'g2' ? {} : { IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE: '1' }) });
   const clubEnv = await envOf(clubDomain.id);
   const binding = Object.fromEntries(clubEnv.map(e => [e.name, e.value]));
   if (binding.IGNITE_NEW_CLUB_PLACEMENT_ROUTER !== routerId || binding.IGNITE_NEW_CLUB_PLACEMENT_GROUP !== group.id ||
@@ -139,6 +142,7 @@ const linker = (id: string) => Actor.createActor(() => IDL.Service({
   pin_owner_test_deletion_registry: IDL.Func([IDL.Record({ registry: IDL.Principal, registry_revision: IDL.Nat64, target_alias: IDL.Text,
     deployment_id: IDL.Text, deployment_revision: IDL.Nat64, host: IDL.Text, network_kind: IDL.Text })], [unit], []),
   set_owner_test_deletion_identity: IDL.Func([IDL.Principal], [unit], []),
+  link_display_identity_authority: IDL.Func([IDL.Principal], [unit], []),
 }), { agent, canisterId: pid(id) }) as unknown as Record<string, (...a: unknown[]) => Promise<{ Ok: null } | { Err: string }>>;
 
 save({ ...report, pending: { phase: 'account-service-link' } });
@@ -160,7 +164,9 @@ for (const group of groups) {
   const club = group.domains.find(d => d.domain === 'club_domain')!.canister.toText();
   const bound = val(await readRows(club), 'identity_access');
   if (!bound) {
-    const r = await linker(club).set_owner_test_deletion_identity(pid(identityAccess));
+    const r = group.id === 'g2' ? await linker(club).set_owner_test_deletion_identity(pid(identityAccess))
+      : await linker(club).link_display_identity_authority(pid(identityAccess));
+    if ('Err' in r && r.Err === 'Private club-name displays not released') throw new Error(`${group.id} club service has the display release saved but has not loaded it yet (SETTINGS_NOT_LOADED); reload, then rerun.`);
     if ('Err' in r && r.Err === 'Complete Group 2 placement binding required') throw new Error(`${group.id} club service has the placement settings saved but has not loaded them yet (SETTINGS_NOT_LOADED). The "Add new group" run reloads and retries this automatically.`);
     ok(r); link[`${group.id}ClubIdentity`] = 'set';
   }
