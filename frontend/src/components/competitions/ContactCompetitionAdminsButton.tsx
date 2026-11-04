@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
+import { competitionContactError } from "@/lib/competitionContactError";
 
 interface ContactableCompetition {
   id: string;
@@ -50,11 +51,9 @@ export function useOpenCompetitionAdminChat() {
       if (error) throw error;
       navigate(`/groups/${data}`);
     } catch (err: any) {
-      toast({
-        title: "Unable to contact competition admins",
-        description: err.message || "Please try again later",
-        variant: "destructive",
-      });
+      const friendly = competitionContactError(err);
+      console.warn("[competition-admin-chat]", friendly.technicalMessage);
+      toast({ title: friendly.title, description: friendly.description, variant: friendly.variant });
     } finally {
       setBusyId(null);
     }

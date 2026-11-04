@@ -32,6 +32,7 @@ import { CompetitionEventsList } from "@/components/competitions/CompetitionEven
 import { CompetitionWelcomeMessage } from "@/components/competitions/CompetitionWelcomeMessage";
 import { CompetitionShareJoinLink } from "@/components/CompetitionShareJoinLink";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { competitionContactError } from "@/lib/competitionContactError";
 import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { Crown } from "lucide-react";
 import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
@@ -350,7 +351,11 @@ function SupabaseCompetitionDetailPage() {
       }, organizerClubId ? writeOnce({ clubId: organizerClubId }) : undefined);
     },
     onSuccess: (conversationId) => navigate(`/groups/${encodeURIComponent(conversationId)}`),
-    onError: (error: Error) => toast({ title: "Could not open competition inbox", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => {
+      const friendly = competitionContactError(error);
+      console.warn("[competition-admin-chat]", friendly.technicalMessage);
+      toast({ title: friendly.title, description: friendly.description, variant: friendly.variant });
+    },
   });
 
   const { data: divisions = [], isLoading: divisionsLoading } = useQuery({
