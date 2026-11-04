@@ -32,6 +32,7 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
       commit 65a6c5cf) did not start the promote job. Fix by dropping the promote job's `paths:`
       filter (the job is idempotent: run 13 finished in 40s with nothing to upgrade), or watch the
       first merge and dispatch `action=promote` by hand if it does not start.
+      Paul approved removing the path filter; apply to main and prod and verify a push-triggered run.
 - [ ] Onboard the first clubs.
 
 ## Parked (post-launch)
