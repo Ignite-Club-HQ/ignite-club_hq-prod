@@ -63,6 +63,8 @@ describe("pending inbox previews", () => {
   });
 
   it("yields to a newer remote preview that lands while the send is in flight", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-28T23:00:00Z"));
     const client = new QueryClient();
     const key = ["my-chat-groups-with-messages", "paul"];
     const data = { groups: [{ id: "chat" }], latestMessages: {} };
