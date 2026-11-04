@@ -63,6 +63,31 @@ describe("Combined club media allowance", () => {
     await expect(uploadWithinClubMediaAllowance("club-a", 1, upload, fakeClient({ error: new Error("denied") }).client)).rejects.toThrow("denied");
     expect(upload).not.toHaveBeenCalled();
   });
+  it("checks the actual Blob size before trusting a declared allowance", async () => {
+    const upload = vi.fn();
+    const file = new Blob(["three"]);
+    await expect(uploadWithinClubMediaAllowance("club-a", 1, upload, fakeClient().client, null, { bucket: "photos", path: "clubs/club-a/image.png", file })).rejects.toThrow("File size does not match");
+    expect(upload).not.toHaveBeenCalled();
+  });
+  it("rejects a file path owned by a different club", async () => {
+    const upload = vi.fn();
+    const file = new Blob(["file"]);
+    await expect(uploadWithinClubMediaAllowance("club-a", file.size, upload, fakeClient().client, null, { bucket: "photos", path: "clubs/club-b/file.pdf", file })).rejects.toThrow("does not belong");
+    expect(upload).not.toHaveBeenCalled();
+  });
+  it("preserves Storage authorization errors without a fallback write", async () => {
+    const denied = { data: null, error: { message: "new row violates row-level security policy", statusCode: "403" } };
+    const upload = vi.fn().mockResolvedValue(denied);
+    const file = new Blob(["file"]);
+    await expect(uploadWithinClubMediaAllowance("club-a", file.size, upload, fakeClient().client, null, { bucket: "photos", path: "clubs/club-a/file.pdf", file })).resolves.toBe(denied);
+    expect(upload).toHaveBeenCalledTimes(1);
+  });
+  it("does not replay a Storage write when its outcome is unknown", async () => {
+    const upload = vi.fn().mockRejectedValue(new Error("network response lost"));
+    const file = new Blob(["file"]);
+    await expect(uploadWithinClubMediaAllowance("club-a", file.size, upload, fakeClient().client, null, { bucket: "photos", path: "clubs/club-a/file.pdf", file })).rejects.toThrow("network response lost");
+    expect(upload).toHaveBeenCalledTimes(1);
+  });
   it("checks Free combined storage as well as cycle rules", async () => {
     const fake = fakeClient({ pro: false });
     const upload = vi.fn().mockResolvedValue("uploaded");
