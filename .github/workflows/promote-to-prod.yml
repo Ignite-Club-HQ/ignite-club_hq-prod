@@ -49,7 +49,6 @@ jobs:
       PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       RELEASE_BEFORE: ${{ github.event.before || inputs.before }}
-      RELEASE_REPORT_DIR: ${{ runner.temp }}/supabase-structural-release
     steps:
       - uses: actions/checkout@v4
         with:
