@@ -8082,6 +8082,7 @@ export type Database = {
           ai_catch_up_enabled: boolean
           avatar_url: string | null
           club_switcher_hint_seen_at: string | null
+          country: string | null
           created_at: string
           display_name: string | null
           email_hash: string | null
@@ -8107,6 +8108,7 @@ export type Database = {
           ai_catch_up_enabled?: boolean
           avatar_url?: string | null
           club_switcher_hint_seen_at?: string | null
+          country?: string | null
           created_at?: string
           display_name?: string | null
           email_hash?: string | null
@@ -8132,6 +8134,7 @@ export type Database = {
           ai_catch_up_enabled?: boolean
           avatar_url?: string | null
           club_switcher_hint_seen_at?: string | null
+          country?: string | null
           created_at?: string
           display_name?: string | null
           email_hash?: string | null
@@ -13520,6 +13523,10 @@ export type Database = {
           _sponsor_name?: string
         }
         Returns: undefined
+      }
+      send_welcome_dm: {
+        Args: { p_message?: string; p_user_id: string }
+        Returns: string
       }
       set_internal_dispatch_credentials: {
         Args: { _functions_base_url: string; _service_role_key: string }
