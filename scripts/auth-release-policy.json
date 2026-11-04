@@ -35,12 +35,6 @@
       "sha256": "2473fbe32c64f366620256194adbd69592beb8849b3b231fb1a919964cd0cd3d",
       "prodStatus": "blocked",
       "reason": "DEV-only permission repair, not PROD activation"
-    },
-    {
-      "file": "20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql",
-      "sha256": "2512716ee93bcf92adc40c6cb5c28975d2546b5a0138279305ded7478e96128a",
-      "prodStatus": "approved",
-      "reason": "Separate invite-check trigger; never replaces profile creation"
     }
   ]
 }
