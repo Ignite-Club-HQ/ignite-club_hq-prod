@@ -121,3 +121,9 @@ Exit: all pass; any failure → stop, no data fixes without approval.
 `competition-functions-build-2026-11-04.md`, `invitation-welcome-build-2026-11-04.md`,
 `photo-file-upload-fix-2026-11-04.md`, `supabase-promotion-safety-2026-11-04.md`,
 `prod-db-classification-2026-11-04.md`, `../../roadmap.md`.
+
+### Phase 0 results (5 Nov 2026)
+1. Function fingerprints: all 5 match DEV — closed.
+2. Competition target check: existing items identical to DEV; only candidate additions missing — fits.
+3. backend_routing_config: was absent; Paul inserted the one allowed config row (Bridgewater + Basket Range email clubs, same IDs as DEV); readback matches DEV exactly.
+4. Netlify prod site settings: pending.
