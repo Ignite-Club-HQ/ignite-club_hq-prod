@@ -1,7 +1,4 @@
-name: "[PROD] Save opening approval and republish live site"
-# Verifies PROD's open groups, records the live routing approval on the PROD
-# router, commits PROD's snapshot to the prod branch (which republishes the
-# live site through the normal promotion), and never changes groups or data.
+name: "[PROD] Refresh opening approval only"
 on:
   workflow_dispatch:
     inputs:
@@ -10,7 +7,6 @@ on:
         required: true
 permissions:
   contents: write
-  actions: write
 concurrency:
   group: ignite-prod-governor-deployment
   cancel-in-progress: false
@@ -34,13 +30,9 @@ jobs:
           test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
           test "$GITHUB_REF" = 'refs/heads/prod'
           test -n "$PROD_GOVERNOR_PRINCIPAL"
-      - name: Write PROD snapshot into the file the live site reads
+      - name: Require the snapshot file consumed by this branch
         run: |
-          set -euo pipefail
-          F=frontend/scripts/produce-routing-gates.ts
-          sed -i "s|\${PROD ? 'routingGatesProd' : 'routingGates'}|routingGates|; s|\${PROD ? 'PROD_ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot \| null' : 'ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot'}|ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot|" "$F"
-          grep -q "generated/routingGates.ts\|generated/\${PROD" "$F" || true
-          ! grep -q "routingGatesProd\|PROD_ROUTING_GATES_SNAPSHOT" "$F"
+          ! grep -q 'routingGatesProd\|PROD_ROUTING_GATES_SNAPSHOT' frontend/scripts/produce-routing-gates.ts
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
@@ -79,18 +71,12 @@ jobs:
           rm -f "$KEY_DIR/key.enc" "$KEY_DIR/pass"
           cd frontend
           npx --yes tsx@4 scripts/produce-routing-gates.ts "$KEY_DIR/key.pem" "$RUNNER_TEMP/prod-routing-report.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Commit PROD snapshot (republishes the live site)
+      - name: Commit PROD snapshot without requesting release
         run: |
           set -euo pipefail
           git config user.name "Paul Cranwell"
           git config user.email "paul@igniteclubhq.app"
           git add frontend/src/live/generated/routingGates.ts
           if git diff --cached --quiet; then echo "Snapshot unchanged"; exit 0; fi
-          git commit -m "chore: PROD routing snapshot"
+          git commit -m "chore: refresh PROD routing snapshot [skip ci]"
           git push
-      # Bot pushes don't trigger workflows, so start the normal promotion,
-      # which upgrades nothing unchanged and republishes the live web app.
-      - name: Republish live web app
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run promote-icp-prod.yml --ref prod -f action=promote
