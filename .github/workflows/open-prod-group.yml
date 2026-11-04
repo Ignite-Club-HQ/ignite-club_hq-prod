@@ -1,0 +1,65 @@
+name: "[PROD] Open or close a group to new clubs"
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: preview (read-only), open or close
+        required: true
+        type: choice
+        default: preview
+        options: [preview, open, close]
+      group_id:
+        description: Registered group id
+        required: true
+        default: base
+      confirmation:
+        description: "OPEN <GROUP> TO NEW CLUBS / CLOSE <GROUP> TO NEW CLUBS (empty for preview)"
+        required: false
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  open:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    env:
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the live repository prod branch
+        run: |
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install dependencies
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts --no-fund --no-audit
+          npm install --no-save --ignore-scripts --no-fund --no-audit @icp-sdk/core@6.1.1
+      - name: Restore signing key and run
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+          ACTION: ${{ inputs.action }}
+          GROUP_ID: ${{ inputs.group_id }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          KEY_DIR="$RUNNER_TEMP/prod-open-key"
+          trap 'rm -rf "$KEY_DIR"' EXIT
+          mkdir -p "$KEY_DIR"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$KEY_DIR/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$KEY_DIR/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEY_DIR/key.enc" -out "$KEY_DIR/key.pem" -pass file:"$KEY_DIR/pass"
+          rm -f "$KEY_DIR/key.enc" "$KEY_DIR/pass"
+          cd frontend
+          npx --yes tsx@4 scripts/prod-open-group.ts "$ACTION" "$GROUP_ID" "$KEY_DIR/key.pem" "$RUNNER_TEMP/prod-open-report.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
