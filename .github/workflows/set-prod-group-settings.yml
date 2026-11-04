@@ -72,4 +72,4 @@ jobs:
           grep -q "^const GOVERNOR = process.env.PROD_GOVERNOR_PRINCIPAL" scripts/set-group-service-settings.ts
           grep -q "deploy/prod/.icp/data/mappings" scripts/set-group-service-settings.ts
           ! grep -q "deploy/mainnet/" scripts/set-group-service-settings.ts
-          npx --yes tsx@4 scripts/set-group-service-settings.ts g1,g2 "$KEY_DIR/key.pem" "$RUNNER_TEMP/prod-settings-report.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          npx --yes tsx@4 scripts/set-group-service-settings.ts base,g2 "$KEY_DIR/key.pem" "$RUNNER_TEMP/prod-settings-report.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
