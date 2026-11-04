@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { planSafeStaging, readSafeInputs, SAFE_TARGET } from './supabase-safe-staging.mjs';
@@ -62,4 +63,28 @@ test('repository manifest accounts for every original and keeps privacy and acti
   for (const version of ['20261021003048', '20261021003143', '20261030052009', '20261008014417', '20261012000000', '20261012010000']) {
     assert.equal(report.sourceInventory.find(entry => entry.file.startsWith(version))?.disposition, 'hold');
   }
+});
+test('workflow runner safe-plan stops before every write and records a held phase', () => {
+  const temp = mkdtempSync(path.join(tmpdir(), 'safe-runner-'));
+  try {
+    const log = path.join(temp, 'commands');
+    writeFileSync(path.join(temp, 'psql'), '#!/bin/sh\nprintf "psql %s\\n" "$PGOPTIONS" >> "$SAFE_TEST_LOG"\nprintf "[]"\n', { mode: 0o755 });
+    writeFileSync(path.join(temp, 'supabase'), '#!/bin/sh\nprintf "FORBIDDEN WRITE\\n" >> "$SAFE_TEST_LOG"\nexit 88\n', { mode: 0o755 });
+    const result = spawnSync(process.execPath, ['scripts/supabase-structural-release.mjs'], {
+      encoding: 'utf8', env: { ...process.env, PATH: `${temp}:${process.env.PATH}`,
+        SAFE_TEST_LOG: log, GITHUB_REF: 'refs/heads/prod', PROJECT_REF: SAFE_TARGET,
+        SUPABASE_ACCESS_TOKEN: 'fixture-only', SUPABASE_DB_PASSWORD: 'fixture-only',
+        GITHUB_SHA: 'a'.repeat(40), RELEASE_MODE: 'safe-plan', RELEASE_REPORT_DIR: temp },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(readFileSync(path.join(temp, 'release-report.json'), 'utf8'));
+    assert.equal(report.phase, 'safe-plan-held');
+    assert.equal(report.deploymentAuthorized, false);
+    assert.deepEqual(report.functions, []);
+    assert.equal(report.candidates.length, 6);
+    assert.equal(report.held.length, 33);
+    const commands = readFileSync(log, 'utf8');
+    assert.match(commands, /default_transaction_read_only=on/);
+    assert.doesNotMatch(commands, /FORBIDDEN WRITE/);
+  } finally { rmSync(temp, { recursive: true, force: true }); }
 });
