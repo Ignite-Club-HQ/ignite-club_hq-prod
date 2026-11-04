@@ -21,7 +21,6 @@ import { getShareUrl } from "@/lib/shareUtils";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { exportEventIcs } from "@/lib/icsExport";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

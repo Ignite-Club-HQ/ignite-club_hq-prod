@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { fetchEventDetail } from "@/features/events/eventDetailRepository";
-import { exportEventIcs } from "@/lib/icsExport";
-import { getShareUrl } from "@/lib/shareUtils";
+import { exportEventIcs, mapEventToCalendar, addToGoogleCalendar, calendarExportError } from "@/lib/icsExport";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import type { useToast } from "@/hooks/use-toast";
 
@@ -91,39 +91,32 @@ export function EventOverviewSection({
           <div className="flex items-center gap-3">
             <Clock className="h-5 w-5 text-primary" />
             <span className="flex-1">{event.event_date ? format(parseISO(event.event_date), "EEEE, MMMM d 'at' h:mm a") : ""}</span>
-            <Button
+            <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button
               variant="ghost"
               size="icon"
               className="shrink-0 h-8 w-8 -mr-2"
               aria-label="Add to calendar"
               title="Add to calendar"
-              onClick={async () => {
-                try {
-                  await exportEventIcs({
-                    id: event.id,
-                    title: event.title,
-                    type: event.type,
-                    event_date: event.event_date,
-                    start_time: (event as any).start_time,
-                    end_time: (event as any).end_time,
-                    description: event.description,
-                    location_name: (event as any).location_name,
-                    address: event.address,
-                    suburb: (event as any).suburb,
-                    state: (event as any).state,
-                    postcode: (event as any).postcode,
-                    is_cancelled: event.is_cancelled,
-                    updated_at: (event as any).updated_at,
-                    url: getShareUrl("event", eventId),
-                  });
-                  toast({ title: "Calendar file ready", description: "Open it to add this event to your calendar." });
-                } catch (err) {
-                  toast({ title: "Couldn't export event", description: (err as Error).message, variant: "destructive" });
-                }
-              }}
             >
               <CalendarPlus className="h-4 w-4 text-muted-foreground" />
-            </Button>
+            </Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={async () => {
+                try {
+                  await exportEventIcs(mapEventToCalendar(event));
+                  toast({ title: "Calendar file ready", description: "Open it to add this event to your calendar." });
+                } catch (err) {
+                  toast({ title: "Couldn't export event", description: calendarExportError(err), variant: "destructive" });
+                }
+              }}
+            }>Add to calendar (.ics)</DropdownMenuItem>
+            <DropdownMenuItem onSelect={async () => {
+              try { await addToGoogleCalendar(mapEventToCalendar(event)); }
+              catch (err) { toast({ title: "Couldn't open Google Calendar", description: calendarExportError(err), variant: "destructive" }); }
+            }}>Add to Google Calendar</DropdownMenuItem>
+            </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           {event.address ? (
             <div className="flex items-start gap-3">

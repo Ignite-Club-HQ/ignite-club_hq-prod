@@ -29,6 +29,7 @@
     "check:step1": "npm run check:topology && npm run check:candid-drift"
   },
   "dependencies": {
+    "@capacitor-community/file-opener": "8.0.1",
     "@capacitor-firebase/messaging": "^8.5.2",
     "@capacitor/app": "^8.1.1",
     "@capacitor/app-launcher": "^8.0.1",
