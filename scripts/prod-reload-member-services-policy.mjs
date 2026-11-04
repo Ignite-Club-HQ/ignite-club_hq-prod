@@ -6,7 +6,7 @@ export const RELOAD_RECEIPT_PATH = 'prod-group-setup/member-reload.json';
 export const NO_ARG_SERVICES = Object.freeze(['media_blob_store']);
 
 export function reloadTargets(memberReceipt) {
-  if (memberReceipt?.phase !== 'settings-applied')
+  if (!['settings-applied', 'commissioned'].includes(memberReceipt?.phase))
     throw new Error('Member-access settings must be applied before reload');
   const targets = memberReceipt.plan?.targets ?? [];
   if (targets.length !== 24 || new Set(targets.map(t => t.id)).size !== 24)
