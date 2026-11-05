@@ -46,7 +46,7 @@ export function resolveHostBuildEnv(env) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const env = resolveHostBuildEnv(process.env);
-    if (env.IGNITE_ICP_ENV === 'prod') await verifyProdPublication(env, { waitMs: 20 * 60 * 1000 });
+    if (env.IGNITE_ICP_ENV === 'prod') await verifyProdPublication(env, { waitMs: 12 * 60 * 1000 });
     const ids = assertIsolated(env.IGNITE_ICP_ENV, loadIds(env.IGNITE_ICP_ENV));
     if (env.IGNITE_ICP_ENV === 'prod') {
       assertProdIdsComplete(ids);
