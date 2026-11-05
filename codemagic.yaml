@@ -339,9 +339,21 @@ workflows:
       - name: Scaffold and sync Capacitor iOS
         working_directory: frontend
         script: |
+          set -euo pipefail
           [ -f dist-live/index.html ] || cp dist-live/live-index.html dist-live/index.html
-          npx cap add ios
+          [ -d ios/App ] || npx cap add ios
           npx cap sync ios
+          # cap sync can return success without running CocoaPods, leaving no
+          # App.xcworkspace for the xcodebuild step. Guarantee it explicitly.
+          if [ ! -d ios/App/App.xcworkspace ]; then
+            echo "cap sync did not create App.xcworkspace — running pod install explicitly"
+            (cd ios/App && pod install)
+          fi
+          if [ ! -d ios/App/App.xcworkspace ]; then
+            echo "App.xcworkspace still missing after pod install"
+            ls -la ios ios/App || true
+            exit 1
+          fi
           # Internet Identity sign-in returns via com.igniteclubhq.app://ii-callback
           PL=ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$PL" 2>/dev/null || true
