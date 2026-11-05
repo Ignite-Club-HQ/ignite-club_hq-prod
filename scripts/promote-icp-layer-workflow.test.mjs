@@ -58,3 +58,17 @@ test('the live release workflow can provision without a web-app layer', () => {
   assert.match(promote, /webapp: \$\{\{ steps\.webapp\.outputs\.present \}\}/, 'that fact must be a job output');
   assert.match(promote, /needs\.backend\.outputs\.webapp == 'true'/, 'the web-app publishing job must only run where the layer exists');
 });
+
+test('backend prod pushes never implicitly publish a frontend canister', () => {
+  const promote = read('promote-icp-prod.yml');
+  assert.match(promote, /push:\n\s+branches: \[prod\]/);
+  assert.match(promote, /publish_frontend:[\s\S]*?default: false/);
+  const frontend = promote.slice(promote.indexOf('\n  frontend:'));
+  assert.match(frontend, /github\.event_name == 'workflow_dispatch' && inputs\.publish_frontend == true/);
+  assert.match(frontend, /ref: \$\{\{ github.sha \}\}/);
+  assert.doesNotMatch(frontend, /ref: prod|--mode auto|--mode reinstall|git push|git commit/);
+  assert.match(frontend, /test -f deploy\/frontend-prod\/\.icp\/data\/mappings\/ic.ids.json/);
+  assert.ok(frontend.indexOf('test -f deploy/frontend-prod') < frontend.indexOf('Restore the PROD governor'));
+  assert.match(frontend, /icp deploy -e ic frontend --mode upgrade --yes/);
+  assert.doesNotMatch(frontend, /canister start frontend -e ic \|\| true/);
+});
