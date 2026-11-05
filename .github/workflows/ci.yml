@@ -39,6 +39,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --ignore-scripts --no-fund --no-audit
       - run: npm run check:step1
+      - run: node --test scripts/generated-contract-syntax.test.mjs
       - run: npm run lint
       - run: npm run typecheck:product
       - run: npx vitest run --config vitest.legacy.config.mjs src/live/localRuntimeMode.test.ts src/live/disabledLabRuntime.test.ts
