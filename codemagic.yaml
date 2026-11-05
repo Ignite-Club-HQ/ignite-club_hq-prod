@@ -3,7 +3,9 @@
 # Workflows:
 #   android-debug   — unsigned debug APK, no signing secrets needed. Use this first to
 #                     prove the pipeline end to end.
-#   android-workflow — signed AAB for Google Play. Requires the environment
+#   android-workflow — signed AAB file for manual upload to Google Play. Nothing
+#                     is published automatically: the build ends with the .aab as
+#                     a downloadable artifact. Requires the environment
 #                     variables listed below to be configured in the Codemagic
 #                     UI (Application -> Environment variables, group
 #                     "android_release"):
@@ -289,11 +291,11 @@ workflows:
     artifacts:
       - frontend/android/app/build/outputs/bundle/release/*.aab
       - frontend/android/upload_certificate.pem
-    publishing:
-      google_play:
-        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
-        track: internal
-        submit_as_draft: true
+    # No publishing block on purpose: this build only produces the signed .aab
+    # file (downloaded from the build's Files tab) and Paul uploads it to Google
+    # Play himself. google_play_credentials stays in the group list because the
+    # versionCode step reads the current Play build numbers so the new file's
+    # number is always higher — that lookup is read-only and uploads nothing.
 
   # Proves the iOS toolchain without needing an Apple Developer account: builds
   # the app for the simulator with code signing switched off. The .app cannot be
