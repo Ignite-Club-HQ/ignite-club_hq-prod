@@ -21,6 +21,7 @@ import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker"
 import { isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { mimeToExtension } from "@/lib/binaryUtils";
 import { compressImage } from "@/lib/imageCompression";
+import { saveProfileCompatible } from "@/lib/profileSave";
 
 // Profile photos render at most ~96px in the UI — 384px covers high-DPR
 // screens with headroom, and the small file keeps the encrypted on-chain
@@ -40,6 +41,25 @@ export default function EditProfilePage() {
   const [saving, setSaving] = useState(false);
   const [leaderboardOptOut, setLeaderboardOptOut] = useState(false);
   const [country, setCountry] = useState<string>("");
+  const [countrySupported, setCountrySupported] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCountrySupported(false);
+    if (isIcpLive || !user) return;
+    const id = user.id;
+    void (async () => {
+      try {
+        // Auth boot deliberately selects only legacy fields. Probe the optional
+        // field separately so neither old schemas nor startup are affected.
+        const { data, error } = await supabase.from('profiles').select('country').eq('id', id).maybeSingle();
+        if (cancelled || error || !data || !Object.prototype.hasOwnProperty.call(data, 'country')) return;
+        setCountry((data as { country: string | null }).country ?? '');
+        setCountrySupported(true);
+      } catch (error) { console.warn('[profile] optional country unavailable', error); }
+    })();
+    return () => { cancelled = true; };
+  }, [isIcpLive, user?.id]);
 
   useEffect(() => {
     if (profile) {
@@ -320,36 +340,42 @@ export default function EditProfilePage() {
       return;
     }
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
+    let result: Awaited<ReturnType<typeof saveProfileCompatible>>;
+    try {
+      result = await saveProfileCompatible({
         display_name: displayName.trim(),
         avatar_url: avatarUrl.trim() || null,
         leaderboard_opt_out: leaderboardOptOut,
-        country: country || null,
-      } as any)
-      .eq("id", user!.id);
+      }, country || null, countrySupported, values => supabase
+        .from("profiles").update(values).eq("id", user.id));
+    } catch (error) {
+      console.error('[profile] save failed', error);
+      setSaving(false);
+      toast({ title: "Profile not saved", description: "Please check your connection and try again.", variant: "destructive" });
+      return;
+    }
 
     setSaving(false);
 
-    if (error) {
+    if (result.error) {
+      console.error('[profile] save refused', result.error);
       toast({
         title: "Failed to update profile",
-        description: error.message,
+        description: "Your changes weren't saved. Please try again, or sign in again if the problem continues.",
         variant: "destructive",
       });
       return;
     }
 
     updateProfileCache({
-      id: user!.id,
+      id: user.id,
       display_name: displayName.trim(),
       avatar_url: avatarUrl.trim() || null,
     });
 
-    setProfileCountry(country || null);
+    if (result.countrySaved) setProfileCountry(country || null);
     await refreshProfile();
-    toast({ title: "Profile updated!" });
+    toast({ title: "Profile updated!", description: countrySupported && !result.countrySaved ? "Your other changes are saved, but country isn't available yet." : undefined });
     navigate("/profile");
   };
 
@@ -457,7 +483,7 @@ export default function EditProfilePage() {
           )}
 
           {/* Country */}
-          {!isIcpLive && (
+          {!isIcpLive && countrySupported && (
             <div className="space-y-2">
               <Label htmlFor="country">Country</Label>
               <Select value={country || "unset"} onValueChange={(v) => setCountry(v === "unset" ? "" : v)}>

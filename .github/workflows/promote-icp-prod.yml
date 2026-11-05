@@ -1,6 +1,6 @@
 # Ignite Club HQ — PROD (live) ICP canisters. The ICP equivalent of DEV→PROD
 # database migrations: merging main → prod upgrades the live canisters whose
-# code changed, keeping their data, then republishes the live web app.
+# code changed, keeping their data. Frontend publication is separately opt-in.
 #
 #   push to prod            -> promote (upgrade changed PROD canisters + PROD web app)
 #   Run workflow: provision -> one-off creation + wiring of the PROD canister set
@@ -28,6 +28,11 @@ on:
         description: "For provision type: PROVISION PROD CANISTERS"
         required: false
         default: ""
+      publish_frontend:
+        description: "Separately publish an existing PROD frontend canister after reviewing this exact prod commit"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -233,7 +238,7 @@ jobs:
 
   frontend:
     needs: backend
-    if: needs.backend.result == 'success' && needs.backend.outputs.webapp == 'true' && (needs.backend.outputs.provisioned == 'true' || inputs.action == 'provision')
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_frontend == true && needs.backend.result == 'success' && needs.backend.outputs.webapp == 'true' && needs.backend.outputs.provisioned == 'true'
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 40
@@ -245,7 +250,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: prod
+          # Pin the dispatch commit rather than floating to newer prod code.
+          ref: ${{ github.sha }}
+      - name: Require an existing approved frontend mapping before any canister operation
+        run: |
+          test "$GITHUB_REF" = refs/heads/prod
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -f deploy/frontend-prod/.icp/data/mappings/ic.ids.json || { echo '::error::PROD frontend is not mapped; publication cannot create it'; exit 1; }
+          jq -e '.frontend | type == "string" and length > 0' deploy/frontend-prod/.icp/data/mappings/ic.ids.json
+          node scripts/icp-environments.mjs guard prod
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
@@ -267,7 +280,7 @@ jobs:
           test -n "$IGNITE_LIVE_SUPABASE_ANON_KEY" || { echo "::error::Set repository variable PROD_SUPABASE_ANON_KEY (public anon key)"; exit 1; }
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
-          npm ci --ignore-scripts --no-fund --no-audit
+          node ../scripts/ensure-frontend-deps.mjs
           node ../scripts/sync-canister-ids.mjs
           npm run build:live
           node scripts/prepare-canister-dist.mjs
@@ -299,21 +312,15 @@ jobs:
         working-directory: deploy/frontend-prod
         run: |
           set -euo pipefail
-          if jq -e '.frontend // empty' .icp/data/mappings/ic.ids.json >/dev/null 2>&1; then icp canister start frontend -e ic || true; fi
+          icp canister start frontend -e ic
           # Never reinterpret a sync failure as permission to erase stored files.
-          icp deploy -e ic frontend --mode auto --yes --cycles 1000000000000
+          icp deploy -e ic frontend --mode upgrade --yes
           CLUB="$(node -e "console.log(require('../prod/.icp/data/mappings/ic.ids.json').club_domain)")"
           icp canister settings update frontend --add-controller "$CLUB" -e ic --force
           echo "### PROD web app: https://$(jq -r '.frontend' .icp/data/mappings/ic.ids.json).icp.net" >> "$GITHUB_STEP_SUMMARY"
-      - name: Commit PROD frontend canister ID
-        if: always()
+      - name: Verify publication kept the existing frontend mapping
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add -f deploy/frontend-prod/.icp/data/mappings/ic.ids.json 2>/dev/null || exit 0
-          git diff --cached --quiet && exit 0
-          git commit -m "Record PROD frontend canister ID [skip ci]"
-          for i in 1 2 3; do git pull --rebase --autostash -X theirs origin prod && git push origin HEAD:prod && exit 0; sleep 5; done
+          git diff --exit-code -- deploy/frontend-prod/.icp/data/mappings/ic.ids.json
       - name: Remove signing material
         if: always()
         run: rm -rf "$ICP_HOME"
