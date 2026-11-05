@@ -137,12 +137,13 @@ export async function listMediaCommentReactions(
       if (error) throw error;
       return (data ?? []) as MediaCommentReaction[];
     },
+    // ICP comments carry no reactions yet; no club data is read.
     icp: async () => [] as MediaCommentReaction[],
-  }, { commentId });
+  }, { shared: "app" });
 }
 
 export async function deleteMediaComment(
-  input: { commentId: string },
+  input: { commentId: string; clubId?: string | null },
   client: IgniteSupabaseClient = supabase,
 ): Promise<void> {
   return withFeatureBackend("media", {
@@ -153,5 +154,5 @@ export async function deleteMediaComment(
     icp: async (ctx) => {
       await deleteLiveComment(ctx, input.commentId);
     },
-  }, writeOnce({ commentId: input.commentId }));
+  }, input.clubId ? writeOnce({ clubId: input.clubId }) : writeOnce({ shared: "app" }));
 }

@@ -47,6 +47,8 @@ interface CommentReaction {
 
 interface PhotoCommentProps {
   id: string;
+  /** Club that owns the photo; routes ICP comment deletes to that club's group. */
+  clubId?: string | null;
   text: string;
   userId: string;
   displayName?: string | null;
@@ -62,6 +64,7 @@ interface PhotoCommentProps {
 
 export const PhotoComment = memo(function PhotoComment({
   id,
+  clubId,
   text,
   userId,
   displayName,
@@ -319,7 +322,7 @@ export const PhotoComment = memo(function PhotoComment({
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await deleteMediaComment({ commentId: id });
+      await deleteMediaComment({ commentId: id, clubId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-photo-comments"] });
