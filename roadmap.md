@@ -2,7 +2,8 @@
 
 ## Current pre-merge verdict — 5 November 2026 triple-check
 - [x] Rechecked exact six approved database migrations: 39 safety tests, 2 signup rehearsals, 24 competition and 12 invitation/welcome rehearsal tests passed; 45 original hashes/inventory valid. No PROD execution.
-- [ ] Current request: fix the 68 website source-check diagnostics caused by generated parameter `new`, add syntax regression coverage, and rerun source/release checks; no PROD changes. Hosted recheck is required before readiness.
+- [x] Repaired the source of the 68 website diagnostics: renamed only TypeScript principal parameter labels in both generated trees (20 files); syntax regression now passes, topology/drift/lint/runtime checks pass. Release rerun: 96/97 tests pass (existing workflow-env-names failure); 24 competition + 12 invitation/welcome rehearsals pass. No PROD changes. Evidence: docs/release-review/website-source-errors-fix-2026-11-05.md.
+- [ ] Confirm the same GitHub source check on the synchronized repaired commit: GitHub still showed the previous main commit/run at the last read; do not rerun old bytes or claim hosted typecheck success.
 - [ ] Resolve the reproduced workflow-env-names test failure (27/28 pass) and the unconditional PROD pull-request hold in ci.yml through the existing reviewed release path, not a bypass.
 - [ ] Preserve existing Supabase profile saves when PROD lacks profiles.country: current EditProfilePage always writes it; the six approved migrations do not add it. Requires tested compatibility fix or separately approved structure.
 - [ ] Verify anonymous access to only backend_routing_config on PROD; SQL Editor row readback proves existence, not signed-out access. Do not assume approved migrations grant it.
