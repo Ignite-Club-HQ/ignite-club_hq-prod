@@ -56,7 +56,7 @@ export async function searchEncryptedGuardianProfiles(
       verifyBindings(page.rows, confirmed);
       for (const row of hydrated) {
         const subject = row.principal.toText();
-        if (subject !== caller && row.display_name?.toLocaleLowerCase().includes(needle) && matches.length < limit) matches.push({ id: subject, display_name: row.display_name, avatar_url: row.avatar_ref[0] ?? null });
+        if (subject !== caller && row.display_name?.toLocaleLowerCase().includes(needle) && matches.length < limit) matches.push({ id: subject, display_name: row.display_name, avatar_url: (row as { avatar_ref?: [] | [string] }).avatar_ref?.[0] ?? null });
       }
       if (matches.length >= limit || !next) {
         // A later page can invalidate an earlier name without reusing its key.

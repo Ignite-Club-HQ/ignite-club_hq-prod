@@ -71,7 +71,7 @@ export function useDesktopNavAccess() {
                   try {
                     const t = (await readMembershipInScope(ctx, { teamId: id }, (scoped) => getLiveTeam(scoped, id)))[0];
                     return t
-                      ? { id: t.id, name: t.name ?? "Team", club_id: (t.club_id ?? t.club) ?? null }
+                      ? { id: t.id, name: t.name ?? "Team", club_id: (t.club_id ?? (t as { club?: string }).club) ?? null }
                       : null;
                   } catch {
                     return null;
