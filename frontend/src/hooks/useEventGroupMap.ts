@@ -88,7 +88,7 @@ export function useEventGroupMap({ clubId, grouping, targetTeamIds, scopedRoster
     enabled: !!enabled && !!clubId && (grouping === "level" || grouping === "team"),
     staleTime: 60_000,
     queryFn: async () => {
-      const teams = await withFeatureBackend("membership", {
+      const teams = await withFeatureBackend<any>("membership", {
         supabase: async () => {
           let teamsQuery = supabase
             .from("teams")
