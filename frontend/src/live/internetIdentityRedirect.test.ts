@@ -32,3 +32,12 @@ describe("phone sign-in uses a full-page redirect instead of a second tab", () =
     expect(shouldUseRedirectSignIn("http://localhost:8080", ANDROID)).toBe(false);
   });
 });
+
+describe("live website return allow-list", () => {
+  it("lists the live website's /auth return address", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const file = JSON.parse(readFileSync(resolve(__dirname, "../../public/.well-known/ii-auth-callbacks"), "utf8"));
+    expect(file.callbacks).toContain("https://igniteclubhq.app/auth");
+  });
+});
