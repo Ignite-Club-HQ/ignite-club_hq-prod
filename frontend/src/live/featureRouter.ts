@@ -45,7 +45,7 @@ export const FEATURE_GROUP_DOMAIN: Record<FeatureArea, GroupDomain | null> = {
 };
 /** Club scope for a call. writeKey marks a write (idempotency key); attempts
  * 1 = never auto-retry (creates without a canister idempotency key). */
-export type ClubScope = ({ clubId: string } | { photoId: string } | { galleryCardId: string } | { newsId: string } | { competitionId: string } | { competitionMatchId: string } | { eoiId: string } | { seasonId: string } | { vaultFileId: string } | { vaultFolderId: string } | { notificationId: string } | { scheduledMessageId: string } | { eventGroupId: string } | { miniLeagueId: string } | { eventId: string } | { conversationId: string } | { teamId: string } | { clubLinkId: string } | { roleRequestId: string }
+export type ClubScope<T = unknown> = ({ clubId: string } | { photoId: string } | { galleryCardId: string } | { newsId: string } | { competitionId: string } | { competitionMatchId: string } | { eoiId: string } | { seasonId: string } | { vaultFileId: string } | { vaultFolderId: string } | { notificationId: string } | { scheduledMessageId: string } | { eventGroupId: string } | { miniLeagueId: string } | { eventId: string } | { conversationId: string } | { teamId: string } | { clubLinkId: string } | { roleRequestId: string }
   /** Not club data: person-to-person (DMs, blocks, presence) or app-wide
    * settings. Always served by the shared canisters, never by a group. */
   | { shared: 'person' | 'app' }
@@ -56,8 +56,8 @@ export type ClubScope = ({ clubId: string } | { photoId: string } | { galleryCar
   /** Spans the caller's clubs (inbox, unread counts, "my events"): asked of
    * the shared canisters and every group the caller belongs to at the same
    * time, then combined with merge. Reads only. */
-  | { everyGroup: true; merge: (parts: unknown[]) => unknown; requireComplete?: boolean }
-  | { memberGroups: true; merge: (parts: unknown[]) => unknown }
+  | { everyGroup: true; merge: (parts: T[]) => unknown; requireComplete?: boolean }
+  | { memberGroups: true; merge: (parts: T[]) => unknown }
 ) & { writeKey?: string; attempts?: number; /** internal: club not moved, use shared canisters */ legacy?: true };
 /** Combine list results from several groups (one array per group). */
 export const mergeLists = <T,>(parts: T[][]): T[] => parts.flat();
@@ -65,7 +65,7 @@ export const mergeLists = <T,>(parts: T[][]): T[] => parts.flat();
 export async function withFeatureBackend<T>(
   feature: FeatureArea,
   providers: FeatureBackendProviders<T>,
-  scope?: ClubScope,
+  scope?: ClubScope<T>,
 ): Promise<T> {
   if (isSignedInWithEmail()) return providers.supabase();
   const knownIcpSession = hasInternetIdentitySessionStored() || readAuthChoice() === "icp";
@@ -110,7 +110,7 @@ export async function withFeatureBackend<T>(
 }
 
 /** Both ICP sign-in paths obey the same scope/activation boundary. */
-async function dispatchIcp<T>(feature: FeatureArea, providers: FeatureBackendProviders<T>, context: FeatureBackendContext, scope?: ClubScope): Promise<T> {
+async function dispatchIcp<T>(feature: FeatureArea, providers: FeatureBackendProviders<T>, context: FeatureBackendContext, scope?: ClubScope<T>): Promise<T> {
   if (scope && 'newClubId' in scope && !scope.legacy) {
     scope.newClubId = await nextOwnerTestClubId(context, scope.newClubId);
   }
