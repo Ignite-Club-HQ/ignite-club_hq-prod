@@ -18,6 +18,19 @@ class CodemagicEnvironmentTests(unittest.TestCase):
                 environment = section.group(1).split("    scripts:", 1)[0]
                 self.assertRegex(environment, r"(?m)^        - supabase_prod$")
 
+    def test_android_store_build_hands_over_a_file_without_publishing(self):
+        # Paul uploads to Google Play himself: the store build must expose the
+        # signed .aab and must never publish to Play from CI.
+        source = (ROOT / "codemagic.yaml").read_text()
+        store = re.search(r"^  android-workflow:\n(.*?)(?=^  [\w-]+:|\Z)", source, re.M | re.S)
+        self.assertIsNotNone(store)
+        if store is None:
+            return
+        section = store.group(1)
+        self.assertNotIn("google_play:", section)
+        self.assertNotIn("submit_as_draft", source)
+        self.assertIn("- frontend/android/app/build/outputs/bundle/release/*.aab", section)
+
     def test_ios_builds_use_spm_project_not_cocoapods_workspace(self):
         # Capacitor 8 scaffolds iOS with Swift Package Manager (CapApp-SPM):
         # cap add ios creates App.xcodeproj only — no Podfile, no
