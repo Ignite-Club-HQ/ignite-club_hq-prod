@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { planSafeApply } from './supabase-safe-apply.mjs';
 import { planSafeStaging, readSafeInputs, SAFE_TARGET } from './supabase-safe-staging.mjs';
