@@ -9,7 +9,7 @@ function reader(change = {}) {
     const id = workflow === 'promote-to-prod.yml' ? 1 : 2;
     const data = url.includes('/jobs?')
       ? { total_count: 1, jobs: [{ name: url.includes('/1/') ? 'Production database deployment' : 'backend', status: 'completed', conclusion: 'success', ...change.job }] }
-      : { total_count: 1, workflow_runs: [{ id, path: `.github/workflows/${workflow}`, head_sha: sha, head_branch: 'prod', event: 'push', ...change.run }] };
+      : { total_count: 1, workflow_runs: [{ id, path: `.github/workflows/${workflow}`, head_sha: sha, head_branch: 'prod', event: 'push', status: 'completed', ...change.run }] };
     return { ok: change.ok !== false, json: async () => data };
   };
 }
@@ -53,7 +53,7 @@ function recordReader({ message = 'Record PROD canister release [skip ci]', auth
       const id = workflow === 'promote-to-prod.yml' ? 1 : 2;
       data = url.includes('/jobs?')
         ? { total_count: 1, jobs: [{ name: url.includes('/1/') ? 'Production database deployment' : 'backend', status: 'completed', conclusion: 'success' }] }
-        : { total_count: 1, workflow_runs: [{ id, path: `.github/workflows/${workflow}`, head_sha: parentSha, head_branch: 'prod', event: 'push' }] };
+        : { total_count: 1, workflow_runs: [{ id, path: `.github/workflows/${workflow}`, head_sha: parentSha, head_branch: 'prod', event: 'push', status: 'completed' }] };
     }
     return { ok: true, json: async () => data };
   };
