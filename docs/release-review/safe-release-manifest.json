@@ -243,6 +243,36 @@
       "sha256": "6b0c981d5666204b031233d00aef422b367f430530354c1fead25b054a5d044a",
       "disposition": "hold",
       "reason": "Hybrid welcome message and profile country; DEV testing pending before live release"
+    },
+    {
+      "file": "20261105000000_competition_fixture_visibility.sql",
+      "sha256": "5a26aa388f88158ce9740cafdfb899caad7d3ee63ef1a673408a9d2fd195ef03",
+      "disposition": "candidate",
+      "reason": "Owner-approved batch 1 (fixture visibility); reviewed policy helper expression recorded in the safe-apply reviewed-findings ledger"
+    },
+    {
+      "file": "20261105000100_competition_vault_access.sql",
+      "sha256": "d1ed20e9ab606228bffbe2d72f0d9cb4b9c77191c676cd0e216c6750540e2dde",
+      "disposition": "candidate",
+      "reason": "Owner-approved batch 2 (competition Vault manager access); parser-clean and reuses the existing is_competition_admin boundary"
+    },
+    {
+      "file": "20261105000200_competition_role_email_invites.sql",
+      "sha256": "f5c8dff5e76489235aae6970e24acf4b5a17fe009e193daa2c9d8b0b13039118",
+      "disposition": "candidate",
+      "reason": "Owner-approved batch 3 (official email invitations); reviewed helper expressions recorded in the safe-apply reviewed-findings ledger"
+    },
+    {
+      "file": "20261105000300_club_invite_message_defaults.sql",
+      "sha256": "5192720eb3e5ad47899903a5b2d34476ba02403e9307728772db5f34d384ee91",
+      "disposition": "candidate",
+      "reason": "Owner-approved batch 4 (club invitation message defaults); reviewed policy subqueries recorded in the safe-apply reviewed-findings ledger"
+    },
+    {
+      "file": "20261105000400_send_welcome_dm.sql",
+      "sha256": "44323b96a91658f94478fb41ee25a4f221cda270debb67bb3dbc9bbc1cf2e224",
+      "disposition": "candidate",
+      "reason": "Owner-approved batch 5 (one-time welcome direct message); parser-clean; PROD sender profile existence confirmed read-only 5 Nov 2026"
     }
   ]
 }
