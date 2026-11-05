@@ -54,7 +54,9 @@ CREATE FUNCTION public.is_competition_admin(_user_id uuid,_competition_id uuid) 
 CREATE FUNCTION public.accept_competition_role_link(p_token text) RETURNS text LANGUAGE sql AS $$ SELECT 'existing-link'::text $$;
 CREATE TABLE before_definitions AS SELECT pg_get_functiondef('public.accept_competition_role_link(text)'::regprocedure) AS link,pg_get_triggerdef(oid) AS trigger FROM pg_trigger WHERE tgname='existing_role_sync';
 """)
-            cls.sql((ROOT/'docs/release-review/competition-functions-prod-candidate.sql').read_text())
+            cls.sql((ROOT/'supabase/migrations'/'20261105000000_competition_fixture_visibility.sql').read_text()
+                    + (ROOT/'supabase/migrations'/'20261105000100_competition_vault_access.sql').read_text()
+                    + (ROOT/'supabase/migrations'/'20261105000200_competition_role_email_invites.sql').read_text())
         except BaseException:
             cls.tearDownClass()
             raise
