@@ -237,7 +237,7 @@ function GroupInfrastructureContent() {
     () =>
       [...(q.data?.readings.values() ?? [])]
         .filter((r) => r.memoryBytes != null)
-        .map((r) => ({ key: r.key, memoryMb: r.memoryBytes! / 1e6 })),
+        .map((r) => ({ key: r.key, mb: r.memoryBytes! / 1e6 })),
     [q.data],
   );
 
@@ -285,8 +285,8 @@ function GroupInfrastructureContent() {
 
       {liveRows.length > 0 && (
         <>
-          <CanisterMemoryTrendCard live={liveRows} history={reports.data ?? []} />
-          <CanisterMemoryForecastCard live={liveRows} history={reports.data ?? []} />
+          <CanisterMemoryTrendCard live={liveMem} history={reports.data ?? []} />
+          <CanisterMemoryForecastCard live={liveMem} history={reports.data ?? []} />
         </>
       )}
       <MemoryReportsCard liveRows={liveRows} />
@@ -508,7 +508,7 @@ function MemoryReportsCard({ liveRows }: { liveRows: { key: string; mb: number }
     },
     onError: (e) => toast.error((e as Error).message),
   });
-  const liveReadings: MemoryReading[] = liveRows.map((r) => ({ name: r.key, memory_mb: Math.round(r.memoryMb) }));
+  const liveReadings: MemoryReading[] = liveRows.map((r) => ({ name: r.key, memory_mb: Math.round(r.mb) }));
 
   return (
     <Card>
