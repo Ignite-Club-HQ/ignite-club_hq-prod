@@ -10,10 +10,14 @@ export function settingsTargets(ids, page, receipt) {
   for (const groupId of ['base', 'g2']) {
     const group = page.groups.find(g => g.id === groupId), placement = page.placements.find(p => p.group_id === groupId);
     const expected = groupId === 'base' ? ids : { ...second.domains, media_blob_store: second.photoStore };
-    if (!group || !placement || group.target_alias !== 'mainnet' || placement.deployment_id !== 'prod' || placement.host !== 'https://icp-api.io' || placement.network_kind !== 'public_mainnet') throw Error('PROD placement mismatch');
+    if (!group || !placement || group.target_alias !== 'mainnet' || placement.deployment_id !== 'prod' || placement.host !== 'https://icp-api.io' || placement.network_kind !== 'public_mainnet' || placement.additional_subnets_enabled !== false || placement.approved_subnets?.length !== 1 || placement.primary_subnet !== placement.approved_subnets[0]) throw Error('PROD placement mismatch');
     for (const name of HUMAN_DOMAINS) {
       const id = name === 'media_blob_store' ? group.photo_store?.[0] : group.domains.find(d => d.domain === name)?.canister;
       if (id !== expected[name]) throw Error('PROD group inventory mismatch');
+      if (name !== 'media_blob_store') {
+        const placed = placement.domains.find(d => d.domain === name);
+        if (placed?.canister !== id || placed?.subnet !== placement.primary_subnet) throw Error('PROD placement service mismatch');
+      }
       rows.push({ groupId, name, id });
     }
   }

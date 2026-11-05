@@ -14,7 +14,7 @@ async function main() {
   if (!['check','apply'].includes(action)) throw Error('Check or apply required');
   const handles = await readRoutingGate(env, { log: false });
   const { ids, page, agent, Actor, IDL, Principal } = handles;
-  const receipt = await githubJournal(env, fetch, { branch: 'prod-group-setup', path: 'prod-group-setup/g2-registration.json' }).load();
+  const receipt = await githubJournal(env, fetch, { branch: 'prod-group-setup', path: 'prod-group-setup/g2-registration.json' }).load({readOnly:true});
   const targets = settingsTargets(ids, page, receipt);
   const pid = id => Principal.fromText(id);
   const Env = IDL.Vec(IDL.Record({ name: IDL.Text, value: IDL.Text }));
@@ -40,7 +40,7 @@ async function main() {
   console.log(JSON.stringify(report));
   if (action === 'check') return;
   const journal = githubJournal(env,fetch,{branch:'prod-group-setup',path:'prod-group-setup/settings-promotion.json'});
-  let state = await journal.load();
+  let state = await journal.load({readOnly:true});
   if (state?.pending) throw Error('Interrupted settings promotion requires read-only review; no replay');
   state = {source:env.GITHUB_SHA,configurationRevision:page.configuration_revision[0],pending:null,completed:[]};
   const artifacts = new Map();
@@ -60,7 +60,7 @@ async function main() {
     },read,
     intent:async p=>{
       await assertRevision();
-      state.pending={id:p.id,name:p.name,moduleHash:p.moduleHash,before:settingsCommitment(p.before),after:settingsCommitment(p.next)};
+      state.pending={kind:'settings-and-exact-code-restart',id:p.id,name:p.name,moduleHash:p.moduleHash,before:settingsCommitment(p.before),after:settingsCommitment(p.next)};
       await journal.save(state);
     },
     write:p=>mgmt(p.id).update_settings({canister_id:pid(p.id),settings:{environment_variables:[p.next]}}),
