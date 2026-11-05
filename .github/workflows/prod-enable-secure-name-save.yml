@@ -1,0 +1,85 @@
+name: "[PROD] Turn on secure name saving"
+# Switches on encrypted own-name saving on the live account service and its
+# name store. check is read-only. enable merges settings (never replaces),
+# restarts the name store on its exact current code (data kept) and reads back.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "check reads only; enable switches it on"
+        type: choice
+        default: check
+        options: [check, enable]
+      confirmation:
+        description: "enable: ENABLE SECURE NAME SAVING"
+        required: false
+permissions:
+  contents: write
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  secure-name:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    env:
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+      SECURE_NAME_ACTION: ${{ inputs.action }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the live repository prod branch
+        run: |
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+          test -n "$PROD_GOVERNOR_PRINCIPAL"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install pinned CLI
+        run: npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+      - name: Test switch-on rules
+        run: node --test scripts/prod-secure-name-save-policy.test.mjs scripts/secure-name-release-policy.test.mjs
+      - name: Install isolated pinned SDK
+        run: npm install --prefix "$RUNNER_TEMP/prod-secure-name-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Bake the PROD governor into canister configs (this checkout only)
+        run: |
+          set -euo pipefail
+          SENTINEL='gwyap-pqop5-msidu-vlkov-zuejr-7gqjr-dwvkx-2yhgy-mdaxt-2giwn-cae'
+          grep -rl "$SENTINEL" backend deploy/prod scripts | xargs -r sed -i "s|$SENTINEL|$PROD_GOVERNOR_PRINCIPAL|g"
+      - name: Build the name store with the pinned CLI
+        working-directory: deploy/prod
+        run: icp build pii_access_control
+      - name: Restore existing signing key and run selected action
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          export ICP_HOME="$RUNNER_TEMP/prod-secure-name-key"
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/prod-secure-name-deps"
+          export CHECK_REPORT_DIR="$RUNNER_TEMP/prod-secure-name-report"
+          export SECURE_NAME_PII_WASM="$GITHUB_WORKSPACE/deploy/prod/.icp/cache/artifacts/pii_access_control"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          test -n "${PROD_GOVERNOR_PEM_ENC:-}"
+          test -n "${PROD_GOVERNOR_PASSPHRASE:-}"
+          mkdir -p "$ICP_HOME"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
+          rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
+          export CHECK_KEY_PEM="$ICP_HOME/key.pem"
+          node scripts/prod-secure-name-save.mjs
+      - name: Save evidence (names only, no values)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-secure-name
+          path: ${{ runner.temp }}/prod-secure-name-report/*.json
+          if-no-files-found: ignore
