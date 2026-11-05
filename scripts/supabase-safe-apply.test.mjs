@@ -105,3 +105,14 @@ test('every recorded finding matches the live parser output byte for byte', () =
   }
   for (const f of reviewed.findings) assert.ok(live.has(`${f.file}\u0000${f.finding}`));
 });
+
+test('the five batch files are the reviewed candidates split without edits', () => {
+  const strip = name => readFileSync(`supabase/migrations/${name}`, 'utf8').split('\n').slice(1).join('\n');
+  const competition = ['20261105000000_competition_fixture_visibility.sql',
+    '20261105000100_competition_vault_access.sql', '20261105000200_competition_role_email_invites.sql']
+    .map(strip).join('\n');
+  const invitation = ['20261105000300_club_invite_message_defaults.sql', '20261105000400_send_welcome_dm.sql']
+    .map(strip).join('\n');
+  assert.equal(competition, readFileSync('docs/release-review/competition-functions-prod-candidate.sql', 'utf8'));
+  assert.equal(invitation, readFileSync('docs/release-review/invitation-welcome-prod-candidate.sql', 'utf8'));
+});
