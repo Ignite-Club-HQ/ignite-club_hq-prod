@@ -22,6 +22,7 @@ import type { FeatureBackendContext } from "@/live/featureRouter";
 export type RsvpChild = { id: string; name: string; parent_id?: string | null };
 
 export type RsvpChildScopeEvent = {
+  id?: string;
   team_id: string | null;
   club_id: string | null;
   target_team_ids?: string[] | null;

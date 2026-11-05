@@ -85,7 +85,7 @@ export function ClubInviteEmailSettings({ clubId }: Props) {
         icp: async (ctx) => {
           const { getLiveClubInviteMessageDefault } = await import("@/live/features/club");
           const value = await getLiveClubInviteMessageDefault(ctx, clubId);
-          return value?.message ?? "";
+          return value[0]?.message ?? "";
         },
       }, { clubId: clubId! }),
   });

@@ -85,6 +85,6 @@ export async function runTransfer(start: Transfer, a: TransferAdapter): Promise<
     await step(next);
   }
   if (t.phase === 'cutover') { await a.purgeSource(t.fromGroup, t.clubId); await step(release(t)); }
-  if (t.phase === 'released') await a.cleanupTerminal?.(t);
+  if ((t.phase as string) === 'released') await a.cleanupTerminal?.(t);
   return t;
 }
