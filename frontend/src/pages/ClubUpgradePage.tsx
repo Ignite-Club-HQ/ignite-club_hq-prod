@@ -451,7 +451,6 @@ export default function ClubUpgradePage() {
         .from("club_subscriptions")
         .upsert({
           club_id: clubId!,
-          // DB enum lacks small/growing; surfaced in release notes rather than silently remapped.
           plan: plan as Database["public"]["Enums"]["club_subscription_plan"],
           team_limit: teamLimit,
           ...updateData,

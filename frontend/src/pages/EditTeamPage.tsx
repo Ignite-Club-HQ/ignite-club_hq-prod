@@ -111,7 +111,13 @@ export default function EditTeamPage() {
           if (!team) return null;
           const clubOpt = await getLiveClubProfile(ctx, team.club_id);
           const club = clubOpt[0];
+          const clubLive = await import("@/live/features/club");
+          const schedule = (await clubLive.listLiveTeamClassSchedules(ctx, team.club_id).catch(() => new Map())).get(team.id);
           return {
+            class_day: schedule?.day ?? null,
+            class_time: schedule?.time ?? null,
+            class_duration_minutes: schedule?.durationMinutes ?? null,
+            class_capacity: schedule?.capacity ?? null,
             id: team.id,
             name: team.name,
             club_id: team.club_id,
@@ -364,7 +370,7 @@ export default function EditTeamPage() {
             logo_url: logoUrl ? [logoUrl] : [],
             team_type: teamType ? [teamType] : [],
             folder_id: folderId ? [folderId] : [],
-            // Class-mode and auto-RSVP DM fields stay Supabase-only.
+            // Class schedule saves separately below; auto-RSVP DM fields stay Supabase-only.
             // Shell-team claim fields are not editable from this flow.
             archived: !isActive,
             is_shell: false,
@@ -382,6 +388,13 @@ export default function EditTeamPage() {
             playhq_competition_id: team!.playhq_competition_id,
             playhq_auto_create_events: team!.playhq_auto_create_events,
           });
+          if ((team?.clubs as any)?.class_mode_enabled) {
+            const { setLiveTeamClassSchedule } = await import("@/live/features/club");
+            await setLiveTeamClassSchedule(ctx, id!, {
+              day: classDay || null, time: classTime || null,
+              durationMinutes: classDuration, capacity: classCapacity,
+            });
+          }
           return null;
         } catch (error) {
           return error as Error;

@@ -572,6 +572,13 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Principal,
     'team_id' : IDL.Text,
   });
+  const TeamClassScheduleRow = IDL.Record({
+    'day' : IDL.Text,
+    'duration_minutes' : IDL.Opt(IDL.Nat),
+    'time' : IDL.Opt(IDL.Text),
+    'team_id' : IDL.Text,
+    'capacity' : IDL.Opt(IDL.Nat),
+  });
   const TeamFolder = IDL.Record({
     'id' : IDL.Text,
     'name' : IDL.Text,
@@ -737,6 +744,12 @@ export const idlFactory = ({ IDL }) => {
     'source_user' : IDL.Text,
     'expires_ms' : IDL.Nat64,
     'token_hash' : IDL.Text,
+  });
+  const TeamClassSchedule = IDL.Record({
+    'day' : IDL.Text,
+    'duration_minutes' : IDL.Opt(IDL.Nat),
+    'time' : IDL.Opt(IDL.Text),
+    'capacity' : IDL.Opt(IDL.Nat),
   });
   const Main = IDL.Service({
     'accept_identity_link' : IDL.Func(
@@ -1701,6 +1714,16 @@ export const idlFactory = ({ IDL }) => {
     'list_team_captains' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Vec(TeamCaptain), 'Err' : IDL.Text })],
+        ['query'],
+      ),
+    'list_team_class_schedules' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Vec(TeamClassScheduleRow),
+            'Err' : IDL.Text,
+          }),
+        ],
         ['query'],
       ),
     'list_team_creation_requests' : IDL.Func(
@@ -3055,6 +3078,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'set_season_public_eoi_config' : IDL.Func(
         [IDL.Text, IDL.Opt(IDL.Text), IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'set_team_class_schedule' : IDL.Func(
+        [IDL.Text, IDL.Opt(TeamClassSchedule)],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),

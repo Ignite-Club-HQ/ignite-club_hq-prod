@@ -1998,3 +1998,51 @@ export async function requestLiveParentRoleWithChild(
     "Request parent role",
   );
 }
+
+// ---- Class schedules (class-mode teams) ----
+export interface LiveTeamClassSchedule {
+  day: string;
+  time: string | null;
+  durationMinutes: number | null;
+  capacity: number | null;
+}
+
+/** Class schedules for a club's teams, keyed by team id. Older canisters without
+ *  the method yield an empty map so class pages simply show no classes. */
+export async function listLiveTeamClassSchedules(
+  ctx: FeatureBackendContext,
+  clubId: string,
+): Promise<Map<string, LiveTeamClassSchedule>> {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  const out = new Map<string, LiveTeamClassSchedule>();
+  if (typeof (actor as any).list_team_class_schedules !== "function") return out;
+  const rows = await unwrapCandid(actor.list_team_class_schedules(clubId), "List class schedules");
+  for (const r of rows) {
+    out.set(r.team_id, {
+      day: r.day,
+      time: r.time[0] ?? null,
+      durationMinutes: r.duration_minutes[0] !== undefined ? Number(r.duration_minutes[0]) : null,
+      capacity: r.capacity[0] !== undefined ? Number(r.capacity[0]) : null,
+    });
+  }
+  return out;
+}
+
+/** Sets (or clears, when day is empty) a team's class schedule. Club admins only. */
+export async function setLiveTeamClassSchedule(
+  ctx: FeatureBackendContext,
+  teamId: string,
+  schedule: { day: string | null; time: string | null; durationMinutes: number | null; capacity: number | null },
+): Promise<void> {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  const toNat = (n: number | null) => (n != null && Number.isFinite(n) && n >= 0 ? [BigInt(Math.round(n))] as [bigint] : [] as []);
+  const value = schedule.day
+    ? [{
+        day: schedule.day,
+        time: schedule.time ? [schedule.time] as [string] : [] as [],
+        duration_minutes: toNat(schedule.durationMinutes),
+        capacity: toNat(schedule.capacity),
+      }] as const
+    : [] as const;
+  await unwrapCandid(actor.set_team_class_schedule(teamId, value as any), "Save class schedule");
+}
