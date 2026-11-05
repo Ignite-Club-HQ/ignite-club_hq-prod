@@ -39,12 +39,13 @@ test('an owner-reviewed finding on the exact fingerprinted file releases the bat
 });
 test('a finding the ledger does not carry still stops the batch', () => {
   assert.throws(() => planSafeApply(approval(a), staged, files, [flagged, `${a}: data write`], ledger()), /structural/);
-  assert.throws(() => planSafeApply(approval(a), staged, files, [flagged], { ...ledger(), findings: [] }), /ledger/);
+  assert.throws(() => planSafeApply(approval(a), staged, files, [flagged], { ...ledger(), findings: [] }), /structural/);
+  assert.throws(() => planSafeApply(approval(a), staged, files, [flagged], { ...ledger(), reviewedBy: '  ' }), /ledger/);
 });
 test('an edited file invalidates its recorded finding review', () => {
   const edited = { ...files, [a]: files[a] + ' -- changed' };
   const ok = { ...approval(a), migrations: [{ file: a, sha256: digest(edited[a]) }] };
-  assert.throws(() => planSafeApply(ok, staged, edited, [flagged], ledger()), /fingerprint/);
+  assert.throws(() => planSafeApply(ok, staged, edited, [flagged], ledger()), /structural/);
 });
 test('a review that undercounts occurrences stops the batch', () => {
   const twice = [flagged, flagged];
