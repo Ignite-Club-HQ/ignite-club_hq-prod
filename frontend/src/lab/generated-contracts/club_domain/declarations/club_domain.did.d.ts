@@ -1127,6 +1127,11 @@ export interface Main {
     { 'Ok' : Array<TeamCaptain> } |
       { 'Err' : string }
   >,
+  'list_team_class_schedules' : ActorMethod<
+    [string],
+    { 'Ok' : Array<TeamClassScheduleRow> } |
+      { 'Err' : string }
+  >,
   'list_team_creation_requests' : ActorMethod<
     [string],
     { 'Ok' : Array<TeamCreationRequest> } |
@@ -2290,6 +2295,11 @@ export interface Main {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  'set_team_class_schedule' : ActorMethod<
+    [string, [] | [TeamClassSchedule]],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'set_team_folder' : ActorMethod<
     [string, [] | [string]],
     { 'Ok' : ClubTeam } |
@@ -2718,6 +2728,19 @@ export interface State {
 }
 export interface Team { 'id' : string, 'club' : string }
 export interface TeamCaptain { 'user' : Principal, 'team_id' : string }
+export interface TeamClassSchedule {
+  'day' : string,
+  'duration_minutes' : [] | [bigint],
+  'time' : [] | [string],
+  'capacity' : [] | [bigint],
+}
+export interface TeamClassScheduleRow {
+  'day' : string,
+  'duration_minutes' : [] | [bigint],
+  'time' : [] | [string],
+  'team_id' : string,
+  'capacity' : [] | [bigint],
+}
 export interface TeamCreationRequest {
   'id' : string,
   'status' : string,

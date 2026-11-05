@@ -219,6 +219,14 @@ export interface Config {
   'governor' : Principal,
   'acl_version' : bigint,
 }
+export interface Configuration {
+  'protocol' : number,
+  'admission_required' : boolean,
+  'removal_enabled' : boolean,
+  'authority' : [] | [Principal],
+  'receiver' : Principal,
+  'rehearsal' : boolean,
+}
 export interface Cursor {
   'offset' : bigint,
   'phase' : bigint,
@@ -1119,6 +1127,11 @@ export interface Main {
     { 'Ok' : Array<TeamCaptain> } |
       { 'Err' : string }
   >,
+  'list_team_class_schedules' : ActorMethod<
+    [string],
+    { 'Ok' : Array<TeamClassScheduleRow> } |
+      { 'Err' : string }
+  >,
   'list_team_creation_requests' : ActorMethod<
     [string],
     { 'Ok' : Array<TeamCreationRequest> } |
@@ -1550,6 +1563,11 @@ export interface Main {
   'read_account_profile_team_history' : ActorMethod<
     [string],
     Array<ProfileTeamHistoryEntry>
+  >,
+  'read_account_protection_configuration' : ActorMethod<
+    [],
+    { 'Ok' : Configuration } |
+      { 'Err' : string }
   >,
   'read_account_read_competition_team_access' : ActorMethod<
     [string, Principal],
@@ -2277,6 +2295,11 @@ export interface Main {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  'set_team_class_schedule' : ActorMethod<
+    [string, [] | [TeamClassSchedule]],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'set_team_folder' : ActorMethod<
     [string, [] | [string]],
     { 'Ok' : ClubTeam } |
@@ -2705,6 +2728,19 @@ export interface State {
 }
 export interface Team { 'id' : string, 'club' : string }
 export interface TeamCaptain { 'user' : Principal, 'team_id' : string }
+export interface TeamClassSchedule {
+  'day' : string,
+  'duration_minutes' : [] | [bigint],
+  'time' : [] | [string],
+  'capacity' : [] | [bigint],
+}
+export interface TeamClassScheduleRow {
+  'day' : string,
+  'duration_minutes' : [] | [bigint],
+  'time' : [] | [string],
+  'team_id' : string,
+  'capacity' : [] | [bigint],
+}
 export interface TeamCreationRequest {
   'id' : string,
   'status' : string,
