@@ -1,6 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Current pre-merge verdict — 5 November 2026 triple-check
+- [ ] Current batch: confirm repaired GitHub source checks; resolve reviewed release-policy checks; preserve profile saves without country; verify public sign-in/competition-news access evidence; isolate frontend-canister/native publication. DEV/offline edits only, no production release.
 - [x] Rechecked exact six approved database migrations: 39 safety tests, 2 signup rehearsals, 24 competition and 12 invitation/welcome rehearsal tests passed; 45 original hashes/inventory valid. No PROD execution.
 - [x] Repaired the source of the 68 website diagnostics: renamed only TypeScript principal parameter labels in both generated trees (20 files); syntax regression now passes, topology/drift/lint/runtime checks pass. Release rerun: 96/97 tests pass (existing workflow-env-names failure); 24 competition + 12 invitation/welcome rehearsals pass. No PROD changes. Evidence: docs/release-review/website-source-errors-fix-2026-11-05.md.
 - [ ] Confirm the same GitHub source check on the synchronized repaired commit: GitHub still showed the previous main commit/run at the last read; do not rerun old bytes or claim hosted typecheck success.
