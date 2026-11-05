@@ -477,7 +477,7 @@ export function useTeamNamesByIds(teamIds?: string[] | null, clubIdHint?: string
           const teams = await Promise.all(ids.map(id => getLiveTeam(ctx, id)));
           return teams.flatMap(t => t[0] ? [{ id: t[0].id, name: t[0].name }] : []);
         }
-      }, clubIdHint ? { clubId: clubIdHint } : { everyGroup: true, merge: (parts) => [...new Map(parts.flat().map((row) => [row.id, row])).values()] });
+      }, clubIdHint ? { clubId: clubIdHint } : { everyGroup: true, merge: mergeListsById });
     },
     enabled: ids.length > 0,
     staleTime: 5 * 60 * 1000,
