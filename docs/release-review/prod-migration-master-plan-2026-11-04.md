@@ -161,3 +161,38 @@ Two merge-time notes:
 - Approved: batch 1 fixture visibility, 2 Vault access, 3 official email invites (`competition-functions-prod-candidate.sql`), 4 invitation message defaults.
 - Batch 5 welcome DM: approved, conditional on PROD read-only check that the fixed Ignite Support sender profile exists; sender creation is not approved.
 - Remaining before merge: register approved SQL in the fingerprinted release inventory; post-merge live tests with Paul-chosen test accounts.
+
+## Phase 1 registration (5 Nov 2026) — complete
+
+The five approved batches are now real migration files in `supabase/migrations/`,
+split one file per approved batch so each can be held or applied on its own:
+
+| Batch | File |
+| --- | --- |
+| 1 fixture visibility | `20261105000000_competition_fixture_visibility.sql` |
+| 2 Vault access | `20261105000100_competition_vault_access.sql` |
+| 3 official email invites | `20261105000200_competition_role_email_invites.sql` |
+| 4 invitation message defaults | `20261105000300_club_invite_message_defaults.sql` |
+| 5 welcome direct message | `20261105000400_send_welcome_dm.sql` |
+
+Their bytes are the two reviewed candidate files split without edits, enforced by
+a test that rebuilds each candidate from the batch files.
+
+Registered inventory (all fingerprinted, `sha256`):
+
+- `safe-release-manifest.json` — 45 sources: 11 candidates, 34 held.
+- `safe-apply-approval.json` — 6 approved migrations (signup check + the five
+  batches), owner `Paul Cranwell`, target `yabcfiuntwqjwvschnji`.
+- `safe-apply-reviewed-findings.json` — 5 owner-reviewed structural-check findings
+  (1 on fixture visibility, 2 on email invites, 2 on invitation defaults covering
+  10 occurrences). Any finding this ledger does not carry still stops the release,
+  and editing a file invalidates its recorded review.
+
+Verification: 38 release-safety tests pass; both rehearsal suites pass against the
+exact migration bytes (24 competition-function tests, 12 invitation/welcome tests)
+on disposable socket-only databases. The PROD sender-profile existence check came
+back `true`/`true`, so batch 5's condition is met.
+
+Nothing has run against the live database. Batch 5's `CREATE FUNCTION` and the held
+`20261104040343_f83a6a5c-8bb9-43a8-b65e-cb020f2a9363.sql` both define
+`public.send_welcome_dm`; only one may ever be applied, and the held file stays held.
