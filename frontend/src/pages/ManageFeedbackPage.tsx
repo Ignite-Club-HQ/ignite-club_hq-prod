@@ -280,7 +280,7 @@ function SupabaseManageFeedbackPage() {
                         <h3 className="font-semibold">{item.title}</h3>
                         {item.description && (
                           <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
-                            {item.description}
+                            {String(item.description)}
                           </p>
                         )}
                         <p className="text-xs text-muted-foreground mt-2">

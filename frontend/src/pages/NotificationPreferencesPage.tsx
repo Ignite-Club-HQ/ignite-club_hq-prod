@@ -121,7 +121,7 @@ function IcpNotificationPreferencesPage() {
       withFeatureBackend("notifications", {
         supabase: async () => new Map<string, string | null>(),
         icp: async (ctx) => {
-          const profiles = await withDeadline(listLiveProfilesByIds(ctx, ids), 20_000, "names").catch(() => []);
+          const profiles = await withDeadline(listLiveProfilesByIds(ctx, ids), 20_000, "names").catch(() => [] as Awaited<ReturnType<typeof listLiveProfilesByIds>>);
           return new Map<string, string | null>(profiles.map(p => [p.account_id, p.display_name ?? null]));
         },
       }, { shared: "person" }),
