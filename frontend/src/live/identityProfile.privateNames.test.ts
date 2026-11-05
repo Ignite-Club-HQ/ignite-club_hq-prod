@@ -54,10 +54,15 @@ it('production saves publish only a verified encrypted reference without enablin
   expect(mocks.authority).toHaveBeenCalledOnce(); expect(mocks.get).not.toHaveBeenCalled(); expect(mocks.set).toHaveBeenCalledWith(reference, undefined); expect(mocks.prepare).toHaveBeenCalledOnce();
   expect(mocks.refresh).not.toHaveBeenCalled(); expect(mocks.grants).not.toHaveBeenCalled(); expect(mocks.cache.mock.calls[0][1].displayName).toBe('After');
 });
-it('unreleased production saving never falls back to plaintext or a PII side copy', async () => {
+it('unreleased production saving uses the canister plain save (canister decides) with no PII side copy', async () => {
   mocks.rehearsal.mockReturnValue(false); mocks.authority.mockRejectedValue(Error('Secure personal-name saving is not released'));
-  await expect(saveIcpIdentityProfile(identity, subject, { displayName: 'After' }, target)).rejects.toThrow('not released');
-  expect(mocks.prepare).not.toHaveBeenCalled(); expect(mocks.set).not.toHaveBeenCalled(); expect(mocks.cache).not.toHaveBeenCalled();
+  await saveIcpIdentityProfile(identity, subject, { displayName: 'After' }, target);
+  expect(mocks.prepare).not.toHaveBeenCalled(); expect(mocks.set).toHaveBeenCalledWith('After', undefined);
+});
+it('other secure-name refusals still stop the save', async () => {
+  mocks.rehearsal.mockReturnValue(false); mocks.authority.mockRejectedValue(Error('Secure personal-name authority is not configured'));
+  await expect(saveIcpIdentityProfile(identity, subject, { displayName: 'After' }, target)).rejects.toThrow('not configured');
+  expect(mocks.set).not.toHaveBeenCalled(); expect(mocks.cache).not.toHaveBeenCalled();
 });
 it('operator authority drift refuses before any encrypted or identity write', async () => {
   mocks.rehearsal.mockReturnValue(false); mocks.authority.mockResolvedValue(Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai'));
