@@ -508,7 +508,7 @@ function MemoryReportsCard({ liveRows }: { liveRows: { key: string; mb: number }
     },
     onError: (e) => toast.error((e as Error).message),
   });
-  const liveReadings: MemoryReading[] = liveRows.map((r) => ({ name: r.key, memory_mb: Math.round(r.mb) }));
+  const liveReadings: MemoryReading[] = liveRows.map((r) => ({ name: r.key, memory_mb: Math.round(r.memoryMb) }));
 
   return (
     <Card>
