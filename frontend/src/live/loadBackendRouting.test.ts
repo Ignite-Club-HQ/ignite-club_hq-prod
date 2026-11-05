@@ -14,7 +14,10 @@ vi.mock("./appConfig", () => ({ readLiveAppConfig: onChainRead }));
 // Drives the canister-hosted branch directly: jsdom will not let tests swap
 // window.location.hostname, so a hostname spy silently skipped this path.
 const bootstrapFromIcp = vi.hoisted(() => ({ value: false }));
-vi.mock("./icpBootstrap", () => ({ shouldBootstrapFromIcp: () => bootstrapFromIcp.value }));
+vi.mock("./icpBootstrap", async (importActual) => {
+  const actual = await importActual<typeof import("./icpBootstrap")>();
+  return { shouldBootstrapFromIcp: () => bootstrapFromIcp.value || actual.shouldBootstrapFromIcp() };
+});
 const selectChain = {
   select: () => selectChain,
   eq: () => selectChain,
