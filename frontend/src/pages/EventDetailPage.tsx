@@ -215,7 +215,7 @@ export default function EventDetailPage() {
   // Track when user views this event
   useEventViewTracking(id, useIcpLab ? undefined : user?.id);
 
-  const { data: event, isLoading, error: eventError, isFetching: isEventFetching } = useQuery({
+  const { data: event, isLoading, error: eventError, isFetching: isEventFetching } = useQuery<any>({
     queryKey: ["event", useIcpLab ? "icp" : "supabase", localIcpPersona, id],
     queryFn: async ({ signal }) => {
       if (useIcpLab && id) {
