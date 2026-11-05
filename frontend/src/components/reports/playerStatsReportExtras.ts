@@ -223,7 +223,7 @@ async function fetchReportExtrasIcp(
         const names=new Map(profiles.map(p=>[p.account_id,p.display_name]));
         const {resolveLivePiiTextBatch}=await import("@/live/features/vault");
         const childNames=await resolveLivePiiTextBatch(ctx,[...assignments.captains,...assignments.goalkeepers].flatMap(a=>a.ref_kind==="child"?[a.ref_id]:[]),"name","competition_report_honours","Authorized report honours");
-        const nameFor=(a:(typeof assignments.captains)[number])=>a.ref_kind==="account"?names.get(a.ref_id)??"Player":childNames.get(a.ref_id)??"Player";
+        const nameFor=(a:{ref_kind:string;ref_id:string})=>a.ref_kind==="account"?names.get(a.ref_id)??"Player":childNames.get(a.ref_id)??"Player";
         const goalkeeperPlayers = new Set<PlayerKey>();
         for(const stat of stats) {
           const key=playerKey(stat.user_id[0],stat.child_id);if(!key)continue;
@@ -262,7 +262,7 @@ async function fetchReportExtrasIcp(
           periodScores: gr?.scores_hidden?[]:normalisePeriods(parseArray(gr?.period_scores_json)),
           captainNames: assignments.captains.map(nameFor),
           pomNames: gr?.mvp_player_name?.[0] ? [gr.mvp_player_name[0]] : [],
-          goalkeeperNames: assignments.goalkeepers.map((a) => nameFor(a as Parameters<typeof nameFor>[0])),
+          goalkeeperNames: assignments.goalkeepers.map(nameFor),
           playerGoals: gr?.scores_hidden?0:stats.reduce((total,s)=>total+Number(s.goals_scored),0),
           scorers,
         });
