@@ -2037,7 +2037,7 @@ export async function setLiveTeamClassSchedule(
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
   const toNat = (n: number | null): [] | [bigint] =>
     (n != null && Number.isFinite(n) && n >= 0 ? [BigInt(Math.round(n))] : []);
-  const value: [] | [TeamClassSchedule] = schedule.day
+  const value: Parameters<ClubDomainActor["set_team_class_schedule"]>[1] = schedule.day
     ? [{
         day: schedule.day,
         time: candidOpt(schedule.time),
