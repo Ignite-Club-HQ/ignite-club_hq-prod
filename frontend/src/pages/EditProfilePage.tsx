@@ -41,7 +41,25 @@ export default function EditProfilePage() {
   const [saving, setSaving] = useState(false);
   const [leaderboardOptOut, setLeaderboardOptOut] = useState(false);
   const [country, setCountry] = useState<string>("");
-  const countrySupported = !!profile && Object.prototype.hasOwnProperty.call(profile, "country");
+  const [countrySupported, setCountrySupported] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCountrySupported(false);
+    if (isIcpLive || !user) return;
+    const id = user.id;
+    void (async () => {
+      try {
+        // Auth boot deliberately selects only legacy fields. Probe the optional
+        // field separately so neither old schemas nor startup are affected.
+        const { data, error } = await supabase.from('profiles').select('country').eq('id', id).maybeSingle();
+        if (cancelled || error || !data || !Object.prototype.hasOwnProperty.call(data, 'country')) return;
+        setCountry((data as { country: string | null }).country ?? '');
+        setCountrySupported(true);
+      } catch (error) { console.warn('[profile] optional country unavailable', error); }
+    })();
+    return () => { cancelled = true; };
+  }, [isIcpLive, user?.id]);
 
   useEffect(() => {
     if (profile) {
