@@ -1,7 +1,7 @@
 # Codemagic CI for Ignite Club HQ native apps.
 #
 # Workflows:
-#   android-debug   — unsigned debug APK, no secrets needed. Use this first to
+#   android-debug   — unsigned debug APK, no signing secrets needed. Use this first to
 #                     prove the pipeline end to end.
 #   android-workflow — signed AAB for Google Play. Requires the environment
 #                     variables listed below to be configured in the Codemagic
@@ -30,6 +30,8 @@
 # All workflows build the live web app (frontend/scripts/build-live.mjs ->
 # frontend/dist-live), scaffold the Capacitor native project in CI (android/ and
 # ios/ are intentionally NOT committed), sync, then build natively.
+# All four import supabase_prod; set IGNITE_LIVE_SUPABASE_ANON_KEY there to
+# the PROD Supabase publishable/anon key (never a service-role or secret key).
 #
 # NOTE on the install step: scripts/ensure-frontend-deps.mjs lives at the repo
 # root, not inside frontend/. It resolves frontend/ itself, so it must be run
@@ -44,6 +46,8 @@ workflows:
     environment:
       node: 22
       java: 21
+      groups:
+        - supabase_prod
     scripts:
       - name: Install frontend dependencies
         script: node scripts/ensure-frontend-deps.mjs
@@ -302,6 +306,8 @@ workflows:
       node: 22
       xcode: latest
       cocoapods: default
+      groups:
+        - supabase_prod
     scripts:
       - name: Install frontend dependencies
         script: node scripts/ensure-frontend-deps.mjs
