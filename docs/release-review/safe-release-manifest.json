@@ -273,6 +273,12 @@
       "sha256": "44323b96a91658f94478fb41ee25a4f221cda270debb67bb3dbc9bbc1cf2e224",
       "disposition": "candidate",
       "reason": "Owner-approved batch 5 (one-time welcome direct message); parser-clean; PROD sender profile existence confirmed read-only 5 Nov 2026"
+    },
+    {
+      "file": "20261105030600_011ccdbd-6203-4517-88c0-ee23c0bd84e0.sql",
+      "sha256": "0f3bff05c7d5d0957cf362647a1b1d75c7f301b213491ae5f298845a83609c3a",
+      "disposition": "hold",
+      "reason": "Small/growing plan enum values; already added on PROD by owner-run SQL on 5 Nov 2026 (readback confirmed), so held from automatic apply"
     }
   ]
 }
