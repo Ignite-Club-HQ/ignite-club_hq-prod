@@ -3,6 +3,22 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+export const PLAY_MAX_VERSION_CODE = 2100000000;
+
+/**
+ * Android build numbers never touch Play Console. Minutes since the epoch are
+ * always increasing, never reused, and far below Google Play's limit, so the
+ * build needs no Google credentials yet still cannot repeat a past upload.
+ * (Play rejects a too-low versionCode with a clear error, so a stale number
+ * fails loudly instead of overwriting anything.)
+ */
+export function timeBasedBuildNumber(nowMs = Date.now()) {
+  const minutes = Math.floor(nowMs / 60000);
+  if (!Number.isSafeInteger(minutes) || minutes <= 0) throw new Error('Clock time is not usable for a build number');
+  if (minutes > PLAY_MAX_VERSION_CODE) throw new Error('Time-based build number exceeds the Google Play limit');
+  return minutes;
+}
+
 export function nextBuildNumber(values, max = Number.MAX_SAFE_INTEGER) {
   if (!Array.isArray(values) || !values.length) throw new Error('Store build evidence is required');
   const numbers = values.map(value => {
@@ -17,12 +33,13 @@ export function nextBuildNumber(values, max = Number.MAX_SAFE_INTEGER) {
   return next;
 }
 
+/**
+ * iOS still asks Apple for the highest released build: the App Store Connect
+ * integration is already configured, and Apple has no reusable-number scheme.
+ * Android deliberately has no branch here — see timeBasedBuildNumber.
+ */
 export function readNextStoreBuild(platform, query) {
-  if (platform === 'android') {
-    const values = ['internal', 'alpha', 'beta', 'production'].map(track =>
-      query('google-play', ['get-latest-build-number', '--package-name', 'app.lovable.igniteteamhub', '--tracks', track]));
-    return nextBuildNumber(values, 2100000000);
-  }
+  if (platform === 'android') throw new Error('Android build numbers are time-based; the store is never queried');
   if (platform === 'ios') {
     return nextBuildNumber(['get-latest-app-store-build-number', 'get-latest-testflight-build-number'].map(command =>
       query('app-store-connect', [command, '--platform', 'IOS', '6758928691'])));
@@ -45,6 +62,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       const read = field => execFileSync('/usr/libexec/PlistBuddy', ['-c', `Print :${field}`, plist], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
       assertArchivedVersion(expected, { appId: read('CFBundleIdentifier'), version: read('CFBundleShortVersionString'), build: read('CFBundleVersion') });
       console.log('IPA identity and version verified');
+    } else if (platform === 'android') {
+      console.log(timeBasedBuildNumber());
     } else {
       const next = readNextStoreBuild(platform, (command, params) => {
         try { return execFileSync(command, params, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); }

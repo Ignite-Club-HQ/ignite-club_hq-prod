@@ -4,11 +4,12 @@
 #   android-debug   — unsigned debug APK, no signing secrets needed. Use this first to
 #                     prove the pipeline end to end.
 #   android-workflow — signed AAB file for manual upload to Google Play. Nothing
-#                     is published automatically: the build ends with the .aab as
-#                     a downloadable artifact. Requires the environment
-#                     variables listed below to be configured in the Codemagic
-#                     UI (Application -> Environment variables, group
-#                     "android_release"):
+#                     is published automatically and no Google Play credentials
+#                     are needed: the build ends with the .aab as a
+#                     downloadable artifact. Requires the environment variables
+#                     listed below to be configured in the Codemagic UI
+#                     (Application -> Environment variables, group
+#                     "android_signing"):
 #   Signing key — EITHER generate one in the Codemagic UI (app -> Code
 #                       signing -> Android -> Generate keystore; no Java needed,
 #                       its variables are injected automatically), OR set:
@@ -125,10 +126,11 @@ workflows:
       # ignite_upload is the only upload key Codemagic holds. Play Console must
       # have it registered (App integrity -> Request upload key reset) — the
       # build log prints its certificate for that request.
-      # Same settings group the pre-merge prod workflow used (Play
-      # credentials + upload keystore as CM_KEYSTORE_PATH etc.).
+      # Upload keystore + passwords come from android_signing (CM_KEYSTORE_PATH
+      # etc.). No Google Play credentials anywhere: this build hands over the
+      # .aab file for manual upload and the versionCode is time-based, so the
+      # build neither reads from nor writes to Play Console.
       groups:
-        - google_play_credentials
         - android_signing
         - supabase_prod
     scripts:
@@ -241,7 +243,7 @@ workflows:
           # far below Play's 2,100,000,000 limit. Written straight into the
           # generated defaultConfig (replacing Capacitor's "versionCode 1") so
           # no second Gradle block can be ignored or overridden.
-          # Next number after the latest Play build (pre-merge behaviour).
+          # Time-based (minutes since 1970): never reused, needs no Play access.
           VC=$(node ../../scripts/native-release-version.mjs android)
           sed -i -E "s/versionCode[[:space:]]+[0-9]+/versionCode $VC/; s/versionName[[:space:]]+\"[^\"]*\"/versionName \"1.0.$VC\"/" app/build.gradle
           grep -q "versionCode $VC" app/build.gradle || { echo "Could not set versionCode in app/build.gradle"; grep -n "version" app/build.gradle; exit 1; }
@@ -293,9 +295,9 @@ workflows:
       - frontend/android/upload_certificate.pem
     # No publishing block on purpose: this build only produces the signed .aab
     # file (downloaded from the build's Files tab) and Paul uploads it to Google
-    # Play himself. google_play_credentials stays in the group list because the
-    # versionCode step reads the current Play build numbers so the new file's
-    # number is always higher — that lookup is read-only and uploads nothing.
+    # Play himself. Nothing is read from or written to Play Console — the
+    # versionCode is minutes since the epoch, so it can never repeat a number
+    # Play has already seen.
 
   # Proves the iOS toolchain without needing an Apple Developer account: builds
   # the app for the simulator with code signing switched off. The .app cannot be
