@@ -39,7 +39,7 @@ export function assertPromotionEvidence(sha, workflow, job, runs, jobsByRun) {
 }
 
 /** Read-only GitHub evidence; neither a preflight nor a skipped job authorizes publication. */
-export async function verifyProdPublication(env, { databaseOnly = false, fetcher = fetch } = {}) {
+export async function verifyProdPublication(env, { databaseOnly = false, fetcher = fetch, waitMs = 0, pollMs = 30000, sleep = ms => new Promise(r => setTimeout(r, ms)) } = {}) {
   const sha = env.COMMIT_REF || env.CM_COMMIT || env.GITHUB_SHA;
   const branch = env.BRANCH || env.CM_BRANCH || env.GITHUB_REF_NAME;
   if (branch !== 'prod' || !/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('Publication requires the exact prod source commit');
@@ -61,7 +61,9 @@ export async function verifyProdPublication(env, { databaseOnly = false, fetcher
     if (!next) break;
     evidenceSha = next;
   }
+  const deadline = Date.now() + waitMs;
   for (const [workflow, job] of databaseOnly ? requirements.slice(0, 1) : requirements) {
+   for (;;) {
     const result = await read(`actions/workflows/${workflow}/runs?head_sha=${evidenceSha}&branch=prod&per_page=100`);
     if (!Array.isArray(result.workflow_runs) || result.total_count > 100) throw new Error('Incomplete promotion evidence');
     const runs = result.workflow_runs;
@@ -74,7 +76,16 @@ export async function verifyProdPublication(env, { databaseOnly = false, fetcher
       if (!Array.isArray(result.jobs) || result.total_count > 100) throw new Error('Incomplete promotion job evidence');
       jobsByRun[candidate.id] = result.jobs;
     }
+    // Wait only while the promotion is still missing or running; a finished failure blocks at once.
+    const pending = !candidate || candidate.status !== 'completed';
+    if (pending && Date.now() + pollMs <= deadline) {
+      console.log(`Waiting for ${job} to finish for ${evidenceSha.slice(0, 7)}...`);
+      await sleep(pollMs);
+      continue;
+    }
     assertPromotionEvidence(evidenceSha, workflow, job, runs, jobsByRun);
+    break;
+   }
   }
 }
 
