@@ -21,7 +21,7 @@ Result: `npm run typecheck:product` → 0 diagnostics (was 499 new). Full tests:
 - Event detail query typed explicitly; multi-group merge parts typed `any[]`; a few mixed-backend reads typed `<any>`.
 - Test fixtures narrower than generated service types marked with `@ts-expect-error` (fails if the mismatch disappears).
 
-## Follow-ups (not fixed)
-- DEV database lacks `notify_mini_league_news` / `notify_competition_news`; posting still succeeds, notification step logs a warning.
-- Club upgrade plan values `small`/`growing` are not in the database plan enum.
-- Canister teams have no class schedule fields, so the ICP upcoming-classes widget stays empty.
+## Follow-ups (fixed 2026-11-05)
+- News alerts: composer now always calls `notify_club_news`, which already resolves mini-league and competition audiences. No DB change.
+- Plans: DEV migration adds `small`/`growing` to `club_subscription_plan`. PROD needs the same additive migration approved before the upgrade page is used there.
+- Class schedules: club_domain migration `20261125_000000_team_class_schedules` adds a separate `teamClassSchedules` store, `list_team_class_schedules` (public) and `set_team_class_schedule` (club admin). Create/edit team, class enrolment and the upcoming-classes card use it in ICP mode. Needs a DEV club_domain upgrade before it works; older canisters return no classes.
