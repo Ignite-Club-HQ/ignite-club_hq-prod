@@ -89,7 +89,13 @@ export async function verifyProdPublication(env, { databaseOnly = false, fetcher
   }
 }
 
+/** CLI wait for in-flight promotion runs, in ms; invalid values mean no wait. */
+export function cliWaitMs(env) {
+  const value = Number(env.PROD_PUBLICATION_GATE_WAIT_MS ?? 0);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { await verifyProdPublication(process.env, { databaseOnly: process.argv.includes('--database-only') }); }
+  try { await verifyProdPublication(process.env, { databaseOnly: process.argv.includes('--database-only'), waitMs: cliWaitMs(process.env) }); }
   catch (error) { console.error(error.message); process.exitCode = 1; }
 }
