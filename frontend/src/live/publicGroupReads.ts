@@ -17,7 +17,7 @@ export function publicReadTargets(base: IcpTargetConfig, snapshot: RoutingGatesS
 
 export async function readUniquePublicGroup<T>(base: IcpTargetConfig, read: (target: IcpTargetConfig) => Promise<T | null>): Promise<T | null> {
   const rows = await Promise.all((await readFreshPublicTargets(base)).map(read));
-  const found = rows.filter((row): row is T => row !== null);
+  const found = rows.filter((row): row is Awaited<T> => row !== null);
   if (found.length > 1) throw new Error("Public resource has multiple owners");
   return found[0] ?? null;
 }

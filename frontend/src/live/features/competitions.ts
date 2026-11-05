@@ -995,7 +995,7 @@ export async function syncLiveOfficialChats(
     const existing = chats.find((c) => c.scope === scope);
     const label = role === "referee" ? "Referees" : "Committee";
     if (!existing) {
-      const entries: Array<[InstanceType<typeof Principal>, string]> = [[me, "owner"]];
+      const entries: Array<[Principal, string]> = [[me, "owner"]];
       for (const h of holders) if (h !== me.toText()) entries.push([Principal.fromText(h), "member"]);
       const meta = await messaging.createLiveGroupWithRoles(ctx, clubId, null, `${competitionName} – ${label}`, "competition", entries);
       const { actor } = await connectLiveCompetitionDomain(ctx.target, ctx.identity);

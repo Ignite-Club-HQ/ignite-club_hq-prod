@@ -230,7 +230,7 @@ export function createClubDispatcher(deps: DispatchDeps) {
       const parts = [shared, ...groups];
       if (requireComplete) {
         const failure = parts.find(p => !p.ok);
-        if (failure && !failure.ok) throw failure.error;
+        if (failure && !failure.ok) throw (failure as { ok: false; error: unknown }).error;
       }
       const ok = parts.filter((p): p is { ok: true; value: T } => p.ok);
       if (ok.length === 0) { const first = parts.find(p => !p.ok) as { ok: false; error: unknown }; throw first.error; }
