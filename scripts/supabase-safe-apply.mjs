@@ -34,9 +34,18 @@ export function planSafeApply(approval, staged, files, findings, reviewed = null
       throw new Error(`${item.file}: approved fingerprint does not match source`);
     }
     if (!candidates.has(item.file)) { skipped.push(item.file); continue; } // already applied
-    const own = findings.filter(f => String(f).startsWith(`${item.file}: `));
-    const unreviewed = own.filter(f => !ledgerCovers(ledger, item, String(f)));
-    if (unreviewed.length) throw new Error(`${item.file}: structural check failed (${unreviewed[0]})`);
+    const own = findings.filter(f => String(f).startsWith(`${item.file}: `)).map(String);
+    const counts = new Map();
+    for (const f of own) {
+      const text = f.slice(item.file.length + 2);
+      counts.set(text, (counts.get(text) ?? 0) + 1);
+    }
+    for (const [text, count] of counts) {
+      const entry = ledger.get(`${item.file}\u0000${text}`);
+      if (!entry || entry.sha256 !== item.sha256 || entry.occurrences < count) {
+        throw new Error(`${item.file}: structural check failed (${text})`);
+      }
+    }
     apply.push({ file: item.file, version: item.file.split('_')[0], name: item.file.slice(15, -4) });
   }
   apply.sort((x, y) => x.file.localeCompare(y.file));
@@ -66,15 +75,3 @@ function readReviewedLedger(reviewed, approvedFiles) {
   }
   return map;
 }
-
-function ledgerCovers(ledger, item, finding) {
-  const entry = ledger.get(`${item.file}\u0000${finding.slice(item.file.length + 2)}`);
-  return Boolean(entry && entry.sha256 === item.sha256 && entry.occurrences >= countOf(ledger, item, finding));
-}
-
-function countOf(ledger, item, finding) {
-  return ledgerCounts.get(`${item.file}\u0000${finding}`) ?? 1;
-}
-
-// Occurrence counts are recomputed per planSafeApply call from the findings array.
-const ledgerCounts = new Map();
