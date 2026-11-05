@@ -258,6 +258,7 @@ describe.runIf(supabaseMode)("Vault upload transaction — Supabase", () => {
     }, fake.client, fake.dependencies);
 
     expect(fake.uploadBuckets).toEqual(["competition-vault"]);
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     expect(fake.upload.mock.calls[0][0]).toContain("clubs/club-a/competitions/competition-a/");
     expect(fake.inserts[0]).toMatchObject({
       club_id: "club-a",

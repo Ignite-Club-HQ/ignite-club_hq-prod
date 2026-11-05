@@ -17,6 +17,7 @@ describe('attendance identity after responding', () => {
     hook.rerender({ ...props, rsvps: [{ id: 'event:paul:self', user_id: 'paul', child_id: null, status: 'going', profiles: null }] });
     expect(hook.result.current.notResponded).toHaveLength(0);
     expect(hook.result.current.goingRsvps).toHaveLength(1);
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const card = render(<EventAttendeeCard rsvp={hook.result.current.goingRsvps[0]} currentStatus="going" />);
     expect(card.getByText('Paul Cranwell')).toBeTruthy();
     expect(card.queryByText('Unknown')).toBeNull();

@@ -3,6 +3,7 @@ import { resolvePublicInviteCode } from "./invitePublicRead";
 const m = vi.hoisted(() => ({ targets: vi.fn(), resolve: vi.fn() }));
 vi.mock("./publicGroupReads", () => ({ readFreshPublicTargets: m.targets }));
 vi.mock("./features/club", () => ({ resolveLiveInviteShortCode: m.resolve }));
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const base = { canisterIds: { club_domain: "g1" } } as Parameters<typeof resolvePublicInviteCode>[0];
 beforeEach(() => { m.targets.mockReset().mockResolvedValue([base, { canisterIds: { club_domain: "g2" } }]); m.resolve.mockReset(); });
 describe("public ICP short invite discovery", () => {

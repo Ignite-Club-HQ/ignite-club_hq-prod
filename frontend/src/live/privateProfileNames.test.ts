@@ -13,6 +13,7 @@ import { retirePrivateProfileSession } from './privateProfileSession';
 
 const subject = "mbrvi-lvde7-gdspi-hamp3-nxj43-p4tt6-at6q5-jlbit-eehve-7xqwc-wqe";
 const authority = "rrkah-fqaaa-aaaaa-aaaaq-cai";
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const ctx = { identity: { getPrincipal: () => Principal.fromText(subject) }, target: { host: "https://icp-api.io", canisterIds: { pii_access_control: authority } } } as FeatureBackendContext;
 const reference = privateProfileNameReference(authority, subject);
 
@@ -29,6 +30,7 @@ beforeEach(() => {
 });
 
 describe('essential own-name copy maintenance', () => {
+  // @ts-expect-error -- test fixture intentionally narrower than the generated service type
   const ctx = { identity: { getPrincipal: () => Principal.fromText(subject) }, target: { host: 'http://localhost:4943', canisterIds: { pii_access_control: authority } } } as FeatureBackendContext;
   const discover = () => Promise.resolve(['club-1', 'club-1', 'club-2']);
   const enable = () => {
@@ -295,6 +297,7 @@ describe("original-authority display rehearsal", () => {
 
   it('withholds decrypted names if the resolver route mutates during closing confirmation', async () => {
     const route = lease();
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     route.confirm = async () => { route.context.target.canisterIds.pii_access_control = authority; };
     expect(await hydratePrivateProfileNames(ctx, [{ display_name: foreignReference }], { resolveAuthority: async () => route })).toEqual([{ display_name: null }]);
     expect(mocks.decrypt).toHaveBeenCalled();

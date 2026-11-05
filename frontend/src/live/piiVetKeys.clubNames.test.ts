@@ -8,6 +8,7 @@ vi.mock('./mediaDecrypt', () => ({clearIcpPhotoResolutionCache: vi.fn()}));
 vi.mock('@icp-sdk/vetkeys', () => ({DerivedPublicKey: {deserialize: () => 'public'}, EncryptedVetKey: {deserialize: () => ({decryptAndVerify: mocks.decrypt})}, TransportSecretKey: {random: () => ({publicKeyBytes: () => new Uint8Array(48)})}, VetKey: {deserialize: () => ({serialize: () => new Uint8Array([8])})}, IbeCiphertext: {}, IbeIdentity: {}, IbeSeed: {}}));
 import {fetchClubNameVetKey, clearPiiVetKeyCache} from './piiVetKeys';
 const authority = Principal.fromText('rrkah-fqaaa-aaaaa-aaaaq-cai');
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const ctx = {identity: {getPrincipal: () => Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai')}, target: {host: 'https://icp-api.io', canisterIds: {pii_access_control: authority.toText()}}} as FeatureBackendContext;
 const scope = {kind: 'club' as const, authority, resource: 'club-1', profile_revision: 0n};
 beforeEach(() => {clearPiiVetKeyCache(); vi.clearAllMocks(); mocks.load.mockReturnValue(null); mocks.derive.mockResolvedValue({Ok: [1]}); mocks.decrypt.mockReturnValue({serialize: () => new Uint8Array([8])});});

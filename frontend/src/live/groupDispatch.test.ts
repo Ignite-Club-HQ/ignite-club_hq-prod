@@ -19,6 +19,7 @@ describe('club-scoped dispatcher', () => {
     const { d, session } = deps(ON);
     let finish: ((value: typeof session) => void) | undefined;
     d.open = vi.fn(() => new Promise<typeof session>(resolve => { finish = resolve; }));
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const dispatcher = createClubDispatcher(d);
     const opening = dispatcher.memberClubIds();
     await vi.waitFor(() => expect(d.open).toHaveBeenCalledTimes(1));
@@ -33,6 +34,7 @@ describe('club-scoped dispatcher', () => {
   });
   it('a settled session still refreshes after membership reconciliation', async () => {
     const { d } = deps(ON);
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const dispatcher = createClubDispatcher(d);
     await dispatcher.memberClubIds();
     await dispatcher.refreshMembershipSession();
@@ -40,6 +42,7 @@ describe('club-scoped dispatcher', () => {
   });
   it('verified legacy members do not reopen the session on every club read', async () => {
     const { d, session } = deps(ON);
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const dispatcher = createClubDispatcher({ ...d, open: vi.fn(async () => ({ ...session, isLegacyMember: (id: string) => id === 'legacy-club' })) });
     await dispatcher.read('events', 'legacy-club', 'events_domain', async () => 'events');
     await dispatcher.read('messaging', 'legacy-club', 'messaging_domain', async () => 'chats');
@@ -86,18 +89,21 @@ describe('club-scoped dispatcher', () => {
     ['points', 'club_points_domain'],
   ] as const)('routes %s saves once to the club group', async (feature, domain) => {
     const { d, session } = deps(ON);
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const dispatcher = createClubDispatcher(d);
     expect(await dispatcher.write(feature, 'moved', domain, 'once', async () => 'saved', 1)).toBe('group');
     expect(session.writeClub).toHaveBeenCalledWith('moved', domain, 'once', expect.any(Function), 1);
     expect(d.legacy).not.toHaveBeenCalled();
   });
   it('switched off: always the shared canisters, never opens a group session', async () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const { d } = deps(); const x = createClubDispatcher(d);
     expect(await x.read('events', 'moved', 'events_domain', async () => 'r')).toBe('legacy');
     expect(await x.write('events', 'moved', 'events_domain', 'k', async () => 'w')).toBe('legacy');
     expect(d.open).not.toHaveBeenCalled();
   });
   it('switched on: moved clubs go to their group, unmoved clubs stay on the shared canisters', async () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const { d, session } = deps(ON); const x = createClubDispatcher(d);
     expect(await x.read('events', 'moved', 'events_domain', async () => 'r')).toBe('group');
     expect(await x.write('events', 'moved', 'events_domain', 'k', async () => 'w', 1)).toBe('group');
@@ -110,18 +116,24 @@ describe('club-scoped dispatcher', () => {
   });
   it('a group failure is reported, never retried on the shared canisters', async () => {
     const { d, session } = deps(ON); session.readClub.mockRejectedValueOnce(new Error('Request timed out'));
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     await expect(createClubDispatcher(d).read('events', 'moved', 'events_domain', async () => 'r')).rejects.toThrow('timed out');
     expect(d.legacy).not.toHaveBeenCalled();
   });
   it('a different signed-in person gets a fresh session', async () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const a = deps(ON, 'p1'); await createClubDispatcher(a.d).read('events', 'moved', 'events_domain', async () => 1);
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const b = deps(ON, 'p2'); await createClubDispatcher(b.d).read('events', 'moved', 'events_domain', async () => 1);
     expect(a.session.dispose).toHaveBeenCalled(); expect(b.d.open).toHaveBeenCalledTimes(1);
   });
   it('the same person switching deployment endpoints cannot reuse a group session', async () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const a = deps(ON); await createClubDispatcher(a.d).read('events', 'moved', 'events_domain', async () => 1);
     const b = deps(ON); const original = b.d.context;
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     b.d.context = async () => ({ ...await original(), target: { alias: 'other', host: 'https://other.invalid', networkKind: 'cloud_engine', canisterIds: {} } }) as never;
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     await createClubDispatcher(b.d).read('events', 'moved', 'events_domain', async () => 1);
     expect(a.session.dispose).toHaveBeenCalled(); expect(b.d.open).toHaveBeenCalledTimes(1);
   });
@@ -237,6 +249,7 @@ describe('entity scopes', () => {
 
 describe('lists spanning several clubs', () => {
   it('switched off: asks only the shared canisters', async () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const { d } = deps(); const x = createClubDispatcher(d);
     expect(await x.readAcross('events', 'events_domain', async () => ['a'], (p: string[][]) => p.flat())).toEqual(['legacy']);
     expect(d.open).not.toHaveBeenCalled();

@@ -12,6 +12,7 @@ function fixture() {
   const snapshot: AccountRegistrySnapshot = { revision: 8n, groups, placements: groups.map(group => ({ group_id: group.id, deployment_id: "ignite", deployment_revision: 3n, host: "https://icp-api.io", network_kind: "public_mainnet", primary_subnet: subnet, approved_subnets: [subnet], additional_subnets_enabled: false, domains: group.domains.map(row => ({ ...row, subnet })) })) };
   const authority = groups[1].domains.find(row => row.domain === "pii_access_control")?.canister.toText() ?? "";
   const binding = { targetAlias: "mainnet", deploymentId: "ignite", deploymentRevision: 3n, host: "https://icp-api.io", networkKind: "public_mainnet", registryRevision: 8n, requiredClubAuthorities: [groups[0].domains[0].canister.toText()] };
+  // @ts-expect-error -- test fixture intentionally narrower than the generated service type
   const ctx = { identity: { getPrincipal: () => p(90) }, target: { alias: "mainnet", host: binding.host, networkKind: "public_mainnet", canisterIds: { pii_access_control: p(11).toText(), club_domain: p(1).toText() } } } as FeatureBackendContext;
   const read = vi.fn(async () => snapshot);
   return { ctx, snapshot, authority, binding, read, resolve: createPrivateProfileAuthorityResolver(ctx, binding, read) };

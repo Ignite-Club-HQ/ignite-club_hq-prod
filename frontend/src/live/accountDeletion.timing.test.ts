@@ -56,6 +56,7 @@ describe.skipIf(!enabled)('real local admin deletion registry reservation',()=>{
     }
     id.setPrincipal(governor); const manifest=ok(await id.read_removal_history_manifest());
     ok(await id.set_group_inventory_binding({registry:router.canisterId,registry_revision:revision,target_alias:'mainnet',deployment_id:'boundary',deployment_revision:1n,host:'https://icp-api.io',network_kind:'public_mainnet'},manifest.revision));
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const targets=clubs.map(c=>({alias:'mainnet',host:'https://icp-api.io',networkKind:'public_mainnet',canisterIds:{club_domain:c.canisterId.toText(),identity_access:shared.canisterId.toText(),shard_router:router.canisterId.toText()}} as IcpTargetConfig));
     let beforePrepare: (()=>Promise<void>)|undefined, beforeCommit:(()=>Promise<void>)|undefined;
     const attempted:any[]=[];

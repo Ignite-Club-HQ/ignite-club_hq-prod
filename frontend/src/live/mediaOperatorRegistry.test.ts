@@ -14,6 +14,7 @@ describe('complete consensus media registry', () => {
     expect(f.actor.read_media_quota_store_registry).toHaveBeenCalledTimes(2); expect(result.revision).toBe('7');
   });
   it('refuses omitted registered stores, including orphan storage', async () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const f = fixture(); f.actor.read_media_quota_store_registry.mockResolvedValue({ Ok: { active: true, stores: [{ toText: () => 's' }, { toText: () => 'orphan-store' }] } });
     await expect(f.read()).rejects.toThrow('differ');
   });

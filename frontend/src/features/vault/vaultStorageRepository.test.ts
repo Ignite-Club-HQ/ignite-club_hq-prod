@@ -195,6 +195,7 @@ describe.runIf(!supabaseMode)("Vault storage accounting — ICP fallback", () =>
     const { getLiveClubMediaBytes } = await import("@/live/blobStoreUpload");
     vi.mocked(getLiveClubMediaBytes).mockResolvedValue({ finalized: 5_000, pending: 20 });
     await expect(fetchVaultStorageBreakdown("club-a", scriptedClient({}).client)).resolves.toMatchObject({ total: 5_020 });
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     expect(getLiveClubMediaBytes).toHaveBeenCalledWith(live.context.target, live.context.identity, "club-a");
   });
 

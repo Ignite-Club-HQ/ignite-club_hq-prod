@@ -41,6 +41,7 @@ describe('team ownership across groups', () => {
 
   it('confirms original-group teams in the shared directory', async () => {
     const { dispatcher, lookup } = setup();
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     lookup.mockImplementation(async ctx => ctx.target.alias === 'shared' ? 'original-club' : null);
     expect(await dispatcher.readFor('membership', { teamId: 'original-u9' }, 'club_domain', async ctx => ctx.target.alias)).toBe('shared');
     expect(lookup).toHaveBeenCalledTimes(2);

@@ -136,6 +136,7 @@ describe("withFeatureBackend", () => {
     const icpFn = vi.fn(async (ctx: { target: { canisterIds: { events_domain: string } } }) =>
       ctx.target.canisterIds.events_domain);
 
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     await expect(withFeatureBackend("events", { supabase: supabaseFn, icp: icpFn }, { eventId: "event-1" }))
       .resolves.toBe("group-events");
 

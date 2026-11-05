@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 // @ts-expect-error Worker helper is intentionally plain JavaScript for GitHub Node execution.
 import { unwrapQueueResult } from "../../../scripts/icp-push-results.mjs";
 describe("push worker canister results", () => {

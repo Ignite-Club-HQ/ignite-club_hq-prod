@@ -74,6 +74,7 @@ describe("mapLiveHomeEvent", () => {
   };
 
   it("maps the canister event to the HomePage Event shape", () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const mapped = mapLiveHomeEvent(canisterEvent, new Map([["club-1", "Ignite FC"]]));
     expect(mapped.id).toBe("evt-1");
     expect(mapped.title).toBe("Saturday training");
@@ -85,6 +86,7 @@ describe("mapLiveHomeEvent", () => {
 
   it("maps canister type, location, and cancellation through", () => {
     const mapped = mapLiveHomeEvent(
+      // @ts-expect-error -- test fixture intentionally narrower than the generated service type
       { ...canisterEvent, event_type: "game", location: ["Riverside Oval"], cancelled: true },
       new Map(),
     );
@@ -94,11 +96,13 @@ describe("mapLiveHomeEvent", () => {
   });
 
   it("maps the mini_league type to social (HomePage union has no mini_league)", () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const mapped = mapLiveHomeEvent({ ...canisterEvent, event_type: "mini_league" }, new Map());
     expect(mapped.type).toBe("training");
   });
 
   it("handles missing team, club profile, and provisional fields", () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const mapped = mapLiveHomeEvent({ ...canisterEvent, team_id: [] }, new Map());
     expect(mapped.team_id).toBeNull();
     expect(mapped.clubs).toEqual({ name: "", sport: null });
@@ -110,6 +114,7 @@ describe("mapLiveHomeEvent", () => {
 
   it("resolves the team name so the Next Up card can title the game", () => {
     const mapped = mapLiveHomeEvent(
+      // @ts-expect-error -- test fixture intentionally narrower than the generated service type
       { ...canisterEvent, event_type: "game", title: "", opponent: ["Rovers"] },
       new Map(),
       new Map([["team-1", "U9"]]),
@@ -120,6 +125,7 @@ describe("mapLiveHomeEvent", () => {
 
   it("falls back to the team name alone when the game has no opponent", () => {
     const mapped = mapLiveHomeEvent(
+      // @ts-expect-error -- test fixture intentionally narrower than the generated service type
       { ...canisterEvent, event_type: "game", title: "  " },
       new Map(),
       new Map([["team-1", "U9"]]),
@@ -129,6 +135,7 @@ describe("mapLiveHomeEvent", () => {
 
   it("keeps a stored title even when a team name is available", () => {
     const mapped = mapLiveHomeEvent(
+      // @ts-expect-error -- test fixture intentionally narrower than the generated service type
       canisterEvent,
       new Map(),
       new Map([["team-1", "U9"]]),

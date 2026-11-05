@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Principal } from '@icp-sdk/core/principal';
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 // @ts-expect-error Node worker helper intentionally uses JavaScript.
 import { pushQueueIds, runPushQueues, deliverPushItem } from '../../../scripts/icp-push-batch.mjs';
 

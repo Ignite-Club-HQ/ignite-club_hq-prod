@@ -35,6 +35,7 @@ describe('default club chat recovery', () => {
   });
   it('never reuses another account or canister success marker', async () => {
     await ensureLiveDefaultClubChats(ctx, 'scoped');
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const other = { ...ctx, target: { host: 'https://icp-api.io', canisterIds: { messaging_domain: 'other-group' } } } as never;
     await ensureLiveDefaultClubChats(other, 'scoped');
     expect(mocks.create).toHaveBeenCalledTimes(6);

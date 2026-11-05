@@ -38,6 +38,7 @@ describe("ICP AI recap administration", () => {
   });
   it("enables only eligible active Pro clubs and their members", async () => {
     open(); fireEvent.click(await screen.findByRole("button", { name: "Enable for ALL Pro clubs (1)" }));
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     fireEvent.click(screen.getByRole("button", { name: "Enable", exact: true }));
     await waitFor(() => expect(m.members).toHaveBeenCalledWith({}, "active"));
     expect(m.flag).toHaveBeenCalledTimes(1); expect(m.flag).toHaveBeenCalledWith({}, "active", true);
@@ -46,6 +47,7 @@ describe("ICP AI recap administration", () => {
   });
   it("does not report rejected bulk enables as success", async () => {
     m.members.mockRejectedValue(new Error("App admin required")); open();
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     fireEvent.click(await screen.findByRole("button", { name: "Enable for ALL Pro clubs (1)" })); fireEvent.click(screen.getByRole("button", { name: "Enable", exact: true }));
     await waitFor(() => expect(m.error).toHaveBeenCalledWith("Failed: Acknowledged 1 club flags and 0 member updates (0 members); the attempted step is unconfirmed. Do not retry the whole batch.")); expect(m.success).not.toHaveBeenCalled(); expect(m.rpc).not.toHaveBeenCalled();
   });

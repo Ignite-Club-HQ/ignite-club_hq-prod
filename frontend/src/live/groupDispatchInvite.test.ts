@@ -18,6 +18,7 @@ beforeEach(() => clearGroupDispatchCache());
 
 describe('invite routing', () => {
   it('switched off: invites use the shared canisters', async () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const { d } = world({ g1: ['tok'] }, OFF);
     expect(await createClubDispatcher(d as never).forInvite('membership', 'tok', async (c: any) => c.group)).toBe('shared');
     expect(d.open).not.toHaveBeenCalled();

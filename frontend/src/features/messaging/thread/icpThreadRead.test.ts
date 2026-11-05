@@ -42,6 +42,7 @@ describe('ICP existing thread opening', () => {
   it('returns readable messages without invoking a stalled provisioning mutation', async () => {
     const provision = vi.fn(() => new Promise(() => {}));
     const read = vi.fn().mockResolvedValue({ messages: [{ id: 'saved-message' }] });
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     expect((await readIcpThreadPage(read, provision)).messages[0].id).toBe('saved-message');
     expect(provision).not.toHaveBeenCalled();
   });

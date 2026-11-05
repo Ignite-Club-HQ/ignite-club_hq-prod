@@ -22,6 +22,7 @@ let server: PocketIcServer, pic: PocketIc;
 describe.skipIf(!enabled)('production operator transport (real signed calls)', () => {
   beforeAll(async () => {
     server = await PocketIcServer.start();
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     pic = await PocketIc.create(server.getUrl(), { nns: { state: { type: 'new' } }, application: [{ state: { type: 'new' } }] });
   }, 60000);
   afterAll(async () => { await pic?.stopLive().catch(() => {}); await pic?.tearDown(); await server?.stop(); }, 60000);

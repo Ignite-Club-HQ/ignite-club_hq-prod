@@ -8,6 +8,7 @@ vi.mock("./domains", () => ({ connectLiveClubDomain: vi.fn(async () => ({ actor:
 import { searchScopedProfileCandidates, searchScopedClubProfiles } from "./scopedProfileSearch";
 const subject = "mbrvi-lvde7-gdspi-hamp3-nxj43-p4tt6-at6q5-jlbit-eehve-7xqwc-wqe";
 const authority = "rrkah-fqaaa-aaaaa-aaaaq-cai";
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const ctx = { identity: { getPrincipal: () => Principal.fromText(subject) }, target: { canisterIds: { club_domain: authority } } } as FeatureBackendContext;
 const row = { principal: Principal.fromText(subject), account_id: "account-id", display_name: "Paul Cranwell", avatar_ref: ["avatar"] };
 beforeEach(() => {

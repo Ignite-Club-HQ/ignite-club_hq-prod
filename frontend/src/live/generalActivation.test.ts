@@ -85,7 +85,9 @@ describe('general routing switch', () => {
 
   it('is inactive without a router or when signed out', async () => {
     state.snapshot = snapshot();
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     expect(await routingActive({ ...ctx, target: { ...ctx.target, canisterIds: {} } } as never)).toBe(false);
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const anon = { identity: { getPrincipal: () => ({ toText: () => '2vxsx-fae' }) }, target: ctx.target } as never;
     expect(await routingActive(anon)).toBe(false);
   });

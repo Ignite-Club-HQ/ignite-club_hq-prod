@@ -90,6 +90,7 @@ describe.skipIf(!enabled)('account deletion all-service drain (real contracts)',
     ok(await media.actor.begin_upload('clubs/c1/photo.jpg', 'image/jpeg', 10n, 1));
 
     // Full admin deletion through the real entrypoint (ungrouped path).
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const target = { canisterIds: { club_domain: club.canisterId.toText(), identity_access: identity.canisterId.toText() } } as IcpTargetConfig;
     seam.identity = async () => ({ client: {
       eraseAccount: async (accountId: string) => { identity.actor.setPrincipal(governor); ok(await identity.actor.erase_account(accountId)); },

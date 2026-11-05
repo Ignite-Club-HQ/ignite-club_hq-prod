@@ -26,6 +26,7 @@ import { resolveLivePiiTextBatch } from './features/vault';
 import { clearPiiVetKeyCache } from './piiVetKeys';
 import { CLUB_KEY_TTL_MS } from './deviceMediaCache';
 
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const ctx = {
   identity: { getPrincipal: () => Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai') },
   target: { host: 'https://icp-api.io', canisterIds: { pii_access_control: 'rrkah-fqaaa-aaaaa-aaaaq-cai' } },

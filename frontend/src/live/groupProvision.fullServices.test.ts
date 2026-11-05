@@ -12,6 +12,7 @@ const ok = (r: any) => { expect(r.Err).toBeUndefined(); expect('Ok' in r).toBe(t
 const contracts = import.meta.glob('../lab/bindings/*/declarations/*.did.js');
 let server: PocketIcServer, pic: PocketIc;
 describe.skipIf(!enabled)('complete closed new-group real-service wiring', () => {
+  // @ts-expect-error -- test fixture intentionally narrower than the generated service type
   beforeAll(async () => { server = await PocketIcServer.start(); pic = await PocketIc.create(server.getUrl(), { fiduciary: { state: { type: 'new' } } }); }, 60000);
   afterAll(async () => { await pic?.tearDown(); await server?.stop(); }, 60000);
   it('installs all twelve routed services plus blob storage, configures as governor and reads real business results', async () => {

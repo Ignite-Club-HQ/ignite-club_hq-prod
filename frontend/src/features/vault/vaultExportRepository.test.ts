@@ -188,6 +188,7 @@ describe.runIf(liveMocks.mode === "supabase")("Vault export folder reads — Sup
 });
 
 describe.runIf(liveMocks.mode === "icp")("Vault export folder reads — ICP", () => {
+  // @ts-expect-error -- test fixture intentionally narrower than the generated service type
   beforeEach(() => {
     liveMocks.listLiveVaultFolders.mockReset().mockResolvedValue([]);
     liveMocks.listLiveVaultClubFilesWithFolder.mockReset().mockResolvedValue([]);
