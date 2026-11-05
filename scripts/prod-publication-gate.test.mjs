@@ -68,3 +68,21 @@ for (const [name, change] of [
 ]) test(`does not inherit parent evidence for ${name}`, async () => {
   await assert.rejects(verifyProdPublication(env, { fetcher: recordReader(change) }));
 });
+
+test('waits while promotion is still running, then publishes', async () => {
+  let polls = 0;
+  const base = reader();
+  const fetcher = async url => {
+    if (url.includes('/runs?') && url.includes('promote-to-prod') && polls < 2) {
+      return { ok: true, json: async () => ({ total_count: 1, workflow_runs: [{ id: 1, path: '.github/workflows/promote-to-prod.yml', head_sha: sha, head_branch: 'prod', event: 'push', status: 'in_progress' }] }) };
+    }
+    return base(url);
+  };
+  await verifyProdPublication(env, { fetcher, waitMs: 60000, pollMs: 1, sleep: async () => { polls++; } });
+  assert.equal(polls, 2);
+});
+test('finished failure blocks without waiting', async () => {
+  let polls = 0;
+  await assert.rejects(verifyProdPublication(env, { fetcher: reader({ run: { status: 'completed' }, job: { conclusion: 'failure' } }), waitMs: 60000, pollMs: 1, sleep: async () => { polls++; } }));
+  assert.equal(polls, 0);
+});
