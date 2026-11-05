@@ -22,6 +22,11 @@ describe("phone sign-in uses a full-page redirect instead of a second tab", () =
   it("other canister addresses also redirect", () => {
     expect(shouldUseRedirectSignIn("https://proe7-kqaaa-aaaas-qg6gq-cai.icp.net", ANDROID)).toBe(true);
   });
+  it("phones on the live website redirect (its /auth is in the allow-list)", () => {
+    expect(shouldUseRedirectSignIn("https://igniteclubhq.app", ANDROID)).toBe(true);
+    expect(shouldUseRedirectSignIn("https://igniteclubhq.app", IPHONE)).toBe(true);
+    expect(shouldUseRedirectSignIn("https://igniteclubhq.app", MAC, 0)).toBe(false);
+  });
   it("addresses without a return allow-list keep the sign-in window", () => {
     expect(shouldUseRedirectSignIn("https://ignite-canister-connect.lovable.app", ANDROID)).toBe(false);
     expect(shouldUseRedirectSignIn("http://localhost:8080", ANDROID)).toBe(false);
