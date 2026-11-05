@@ -20,7 +20,7 @@
     "feeCycles": "100000000",
     "targetT": "3"
   },
-  "phase": "transferring",
+  "phase": "topups-complete",
   "createdAt": "2026-11-05T03:34:28.394Z",
   "order": {
     "order_id": "co-111-55731782036ce53fcf2a4abdde61483a",
@@ -63,5 +63,6 @@
       "phase": "verified",
       "afterCycles": "2999941596262"
     }
-  ]
+  ],
+  "topupsComplete": true
 }
