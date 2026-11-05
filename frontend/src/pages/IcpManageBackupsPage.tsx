@@ -158,7 +158,7 @@ export default function IcpManageBackupsPage() {
         <h2 className="text-lg font-semibold">Domain exports</h2>
         <p className="text-sm text-muted-foreground">Privileged exports. Vault snapshots remain separately restorable. Media bytes and full club configuration are not included.</p>
         {BACKUP_DOMAINS.map(domain => <div key={domain} className="flex items-center justify-between gap-3 border-b py-2">
-          <span className="text-sm">{domain.replaceAll("_", " ")}</span>
+          <span className="text-sm">{domain.split("_").join(" ")}</span>
           <Button variant="outline" size="icon" aria-label={`Export ${domain}`} disabled={!!busy} onClick={async () => {
             setBusy(domain);
             try {
