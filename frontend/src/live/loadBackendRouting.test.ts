@@ -86,6 +86,14 @@ describe("loadBackendRoutingConfig precedence", () => {
     expect(getBackendRoutingConfig().defaultBackend).toBe("icp");
     expect(maybeSingle).not.toHaveBeenCalled();
   });
+  it("a signed-out visit to the canister-hosted site reads the Supabase row when no on-chain copy exists", async () => {
+    vi.spyOn(window, "location", "get").mockReturnValue({ ...window.location, hostname: "u3mrq-uiaaa-aaaac-bgioq-cai.icp0.io" } as Location);
+    queryResult = { data: { value: icpConfig }, error: null };
+    await loadBackendRoutingConfig();
+    expect(maybeSingle).toHaveBeenCalled();
+    expect(getBackendRoutingConfig().defaultBackend).toBe("icp");
+    vi.restoreAllMocks();
+  });
   it("applies the stored row and caches it", async () => {
     queryResult = { data: { value: icpConfig }, error: null };
     await loadBackendRoutingConfig();
