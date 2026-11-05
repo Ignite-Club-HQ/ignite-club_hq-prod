@@ -18,6 +18,18 @@ class CodemagicEnvironmentTests(unittest.TestCase):
                 environment = section.group(1).split("    scripts:", 1)[0]
                 self.assertRegex(environment, r"(?m)^        - supabase_prod$")
 
+    def test_ios_debug_scaffold_guarantees_workspace(self):
+        # cap sync can succeed without running CocoaPods, leaving no
+        # App.xcworkspace for the xcodebuild step. The debug scaffold must
+        # fall back to an explicit pod install and fail loudly if the
+        # workspace is still missing.
+        source = (ROOT / "codemagic.yaml").read_text()
+        section = re.search(r"^  ios-debug:\n(.*?)(?=^  [\w-]+:|\Z)", source, re.M | re.S)
+        self.assertIsNotNone(section)
+        scaffold = section.group(1).split("Build for simulator", 1)[0]
+        self.assertIn("pod install", scaffold)
+        self.assertIn("App.xcworkspace still missing", scaffold)
+
 
 if __name__ == "__main__":
     unittest.main()
