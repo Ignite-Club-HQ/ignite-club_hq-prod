@@ -125,13 +125,20 @@ writeFileSync(`${out}/.well-known/ic-architecture`, JSON.stringify(manifest, nul
 // must request derivations for that origin to get the user's real principal.
 writeFileSync(`${out}/.well-known/ii-derivation-origin`, `https://${frontendCanisterId}.icp0.io\n`);
 
+// The canister must reach the same database the bundle was built against
+// (DEV or PROD); a hardcoded DEV host blocked PROD routing/auth reads.
+const supabaseOrigin = new URL(
+  process.env.IGNITE_LIVE_SUPABASE_URL || "https://ecsdwrarzfexssxtrymj.supabase.co",
+).origin;
+const supabaseWs = supabaseOrigin.replace(/^https:/, "wss:");
+
 const csp = [
   "default-src 'none'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self'",
-  "connect-src 'self' https://api.giphy.com https://ecsdwrarzfexssxtrymj.supabase.co wss://ecsdwrarzfexssxtrymj.supabase.co https://icp-api.io https://*.icp0.io https://*.ic0.app https://*.icp.net https://id.ai https://api.country.is https://photon.komoot.io",
+  `connect-src 'self' https://api.giphy.com ${supabaseOrigin} ${supabaseWs} https://icp-api.io https://*.icp0.io https://*.ic0.app https://*.icp.net https://id.ai https://api.country.is https://photon.komoot.io`,
   "frame-src https://id.ai https://www.google.com https://www.youtube.com",
   "object-src 'none'",
   "worker-src 'self'",
