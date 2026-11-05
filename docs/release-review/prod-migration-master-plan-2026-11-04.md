@@ -196,3 +196,24 @@ back `true`/`true`, so batch 5's condition is met.
 Nothing has run against the live database. Batch 5's `CREATE FUNCTION` and the held
 `20261104040343_f83a6a5c-8bb9-43a8-b65e-cb020f2a9363.sql` both define
 `public.send_welcome_dm`; only one may ever be applied, and the held file stays held.
+
+### Pre-existing script test failures (unrelated to these batches)
+
+The full `scripts/*.test.mjs` run shows 12 failures. All 12 were re-run with the
+five new migration files removed and the manifest and approval restored to their
+pre-registration state, and all 12 failed identically there, so none is caused by
+this registration:
+
+- `auth-exact-staging.test.mjs` (3) and `smaller-release-review.test.mjs` (2) —
+  guards holding a hard-coded 38-file migration inventory; the tree already had 40
+  files before this registration.
+- `prod-release-review.test.mjs` (2) — owner-export evidence expecting the same
+  38-file inventory.
+- `assemble-smaller-runtime.test.mjs` (1) — needs an extracted production source.
+- `canister-health.test.mjs` (1) — reads live canister fuel and memory over HTTPS.
+- `group-general-opening-workflow.test.mjs` (2) — `PROD is not defined` and
+  `process is not defined` inside the test's own evaluated snippets.
+- `workflow-env-names.test.mjs` (1) — PROD-claim allowlist drift.
+
+These need their own cleanup pass; none of them gates the merge, and none touches
+the safe-apply path that carries the six approved batches.
