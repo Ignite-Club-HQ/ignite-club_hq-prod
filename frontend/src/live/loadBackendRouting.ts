@@ -66,7 +66,10 @@ export async function fetchStoredBackendRoutingConfig(): Promise<BackendRoutingC
   // Email users retain the existing dual-provider precedence.
   if (shouldBootstrapFromIcp()) {
     const onChain = decodeOnChain(await readLiveAppConfig(BACKEND_ROUTING_CONFIG_KEY));
-    return onChain ? parseBackendRoutingConfig(onChain) : null;
+    if (onChain) return parseBackendRoutingConfig(onChain);
+    // A signed-out visit to the canister-hosted site with no on-chain copy
+    // must still read the public Supabase row, or /auth loses its sign-in tabs.
+    if (hasInternetIdentitySessionStored() || readAuthChoice() === "icp") return null;
   }
   let row: unknown = null;
   let rowError: unknown = null;
