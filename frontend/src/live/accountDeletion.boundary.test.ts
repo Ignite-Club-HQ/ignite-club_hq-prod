@@ -44,12 +44,12 @@ describe.skipIf(!enabled)('local deletion activation boundary (real club/identit
   async function fixture() {
     const primary = p(sequence++), linked = p(sequence++);
     const env = [{ name: 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL', value: '1' }];
-    const shared = await pic.setupCanister({ idlFactory: identityIdl, wasm: process.env.IDENTITY_ACCESS_WASM,
+    const shared = await pic.setupCanister<any>({ idlFactory: identityIdl, wasm: process.env.IDENTITY_ACCESS_WASM,
       sender: governor, controllers: [governor], environmentVariables: env,
       arg: IDL.encode([IDL.Record({ governor: IDL.Principal })], [{ governor }]) });
     const clubs = [];
     for (const name of ['legacy', 'new']) {
-      const c = await pic.setupCanister({ idlFactory: clubIdl, wasm: process.env.CLUB_DOMAIN_WASM,
+      const c = await pic.setupCanister<any>({ idlFactory: clubIdl, wasm: process.env.CLUB_DOMAIN_WASM,
         sender: governor, controllers: [governor],
         arg: IDL.encode([IDL.Principal], [governor]) });
       c.actor.setPrincipal(governor);

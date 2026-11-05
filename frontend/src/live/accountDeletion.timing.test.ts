@@ -27,14 +27,14 @@ describe.skipIf(!enabled)('real local admin deletion registry reservation',()=>{
   afterAll(async()=>{ await pic?.tearDown(); await server?.stop(); },60000);
   async function fixture(){
     const env=[{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'}];
-    const shared=await pic.setupCanister({idlFactory:identityIdl,wasm:process.env.IDENTITY_ACCESS_WASM,sender:governor,controllers:[governor],environmentVariables:env,
+    const shared=await pic.setupCanister<any>({idlFactory:identityIdl,wasm:process.env.IDENTITY_ACCESS_WASM,sender:governor,controllers:[governor],environmentVariables:env,
       arg:IDL.encode([IDL.Record({governor:IDL.Principal})],[{governor}])});
-    const router=await pic.setupCanister({idlFactory:routerIdl,wasm:process.env.SHARD_ROUTER_WASM,sender:governor,controllers:[governor],
+    const router=await pic.setupCanister<any>({idlFactory:routerIdl,wasm:process.env.SHARD_ROUTER_WASM,sender:governor,controllers:[governor],
       arg:IDL.encode([IDL.Record({governor:IDL.Principal})],[{governor}])});
     router.actor.setPrincipal(governor); ok(await router.actor.set_deletion_authority(shared.canisterId));
     const clubs=[];
     for(const name of ['legacy','new']){
-      const c=await pic.setupCanister({idlFactory:clubIdl,wasm:process.env.CLUB_DOMAIN_WASM,sender:governor,controllers:[governor],arg:IDL.encode([IDL.Principal],[governor])});
+      const c=await pic.setupCanister<any>({idlFactory:clubIdl,wasm:process.env.CLUB_DOMAIN_WASM,sender:governor,controllers:[governor],arg:IDL.encode([IDL.Principal],[governor])});
       c.actor.setPrincipal(governor); ok(await c.actor.create_club(name,name,name,[],[]));
       for(const principal of [user,linked,bystander]) ok(await c.actor.add_role_grant(principal,name,'player',[]));
       await pic.updateCanisterSettings({canisterId:c.canisterId,sender:governor,environmentVariables:env});
@@ -171,7 +171,7 @@ describe.skipIf(!enabled)('real local admin deletion registry reservation',()=>{
   },60000);
   it('opens the protocol with the production release flag alone, and stays closed without it',async()=>{
     const setup=async(environmentVariables:{name:string,value:string}[])=>{
-      const c=await pic.setupCanister({idlFactory:identityIdl,wasm:process.env.IDENTITY_ACCESS_WASM,sender:governor,controllers:[governor],environmentVariables,
+      const c=await pic.setupCanister<any>({idlFactory:identityIdl,wasm:process.env.IDENTITY_ACCESS_WASM,sender:governor,controllers:[governor],environmentVariables,
         arg:IDL.encode([IDL.Record({governor:IDL.Principal})],[{governor}])});
       c.actor.setPrincipal(governor); ok(await c.actor.register_account()); return c.actor;
     };
