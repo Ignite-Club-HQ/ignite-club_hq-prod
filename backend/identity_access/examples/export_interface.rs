@@ -1,0 +1,1 @@
+fn main() { print!("{}", identity_access::export_interface()); }

@@ -1,0 +1,260 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { withFeatureBackend } from "@/live/featureRouter";
+import { writeOnce } from "@/live/clubScope";
+import { forwardLiveMessage, listLiveGroupsByClub, listLiveGroupsByTeam } from "@/live/features/messaging";
+import { recordLiveChatNotifyBatch } from "@/live/features/notifications";
+import { getLiveClubProfile } from "@/live/features/club";
+import { getLiveMyRoleGrants } from "@/live/features/membership";
+import { selectCachedProfileById } from "@/lib/profileCache";
+import { toast } from "sonner";
+
+/** A chat group the current user can forward INTO. */
+export interface ForwardDestinationGroup {
+  id: string;
+  name: string;
+  club_id: string | null;
+  team_id: string | null;
+  club_name?: string | null;
+}
+
+/**
+ * Lists all chat_groups the current user is a member of, sorted by name.
+ * Used as forward-message destinations. v1 supports group chats only.
+ */
+export function useForwardDestinations(userId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["forward-destinations", userId],
+    enabled: !!userId && enabled,
+    staleTime: 60_000,
+    queryFn: async (): Promise<ForwardDestinationGroup[]> => {
+      return withFeatureBackend("messaging", {
+        supabase: async () => {
+      // 1) membership → group ids
+      const { data: memberships, error: memErr } = await supabase
+        .from("group_members")
+        .select("group_id")
+        .eq("user_id", userId!);
+      if (memErr) throw memErr;
+      const ids = (memberships ?? []).map((m) => m.group_id);
+      if (ids.length === 0) return [];
+
+      // 2) live group rows (filter deleted + closed-to-forwarding + personal groups)
+      const { data: groups, error: gErr } = await supabase
+        .from("chat_groups")
+        .select("id, name, club_id, team_id, deleted_at")
+        .in("id", ids)
+        .is("deleted_at", null)
+        .not("club_id", "is", null);
+      if (gErr) throw gErr;
+
+      const clubIds = Array.from(
+        new Set((groups ?? []).map((g) => g.club_id).filter(Boolean) as string[]),
+      );
+      let clubMap = new Map<string, string>();
+      if (clubIds.length > 0) {
+        const { data: clubs } = await supabase
+          .from("clubs")
+          .select("id, name")
+          .in("id", clubIds);
+        clubMap = new Map((clubs ?? []).map((c) => [c.id, c.name as string]));
+      }
+
+      return (groups ?? [])
+        .map((g) => ({
+          id: g.id,
+          name: g.name,
+          club_id: g.club_id,
+          team_id: g.team_id,
+          club_name: g.club_id ? (clubMap.get(g.club_id) ?? null) : null,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+        },
+        icp: async (ctx) => {
+          const optionText = (value: unknown): string | null =>
+            Array.isArray(value) ? (value[0] as string | undefined) ?? null : (value as string | null | undefined) ?? null;
+          const grants = await getLiveMyRoleGrants(ctx);
+          const clubIds = [...new Set(grants.map((grant) => optionText(grant.club)).filter((id): id is string => !!id))];
+          const teamIds = [...new Set(grants.map((grant) => optionText(grant.team)).filter((id): id is string => !!id))];
+          if (clubIds.length === 0 && teamIds.length === 0) return [];
+          const [clubGroups, teamGroups] = await Promise.all([
+            Promise.all(clubIds.map((id) => listLiveGroupsByClub(ctx, id).catch(() => []))),
+            Promise.all(teamIds.map((id) => listLiveGroupsByTeam(ctx, id).catch(() => []))),
+          ]);
+          const groupsById = new Map<string, { id: string; name: string; club_id: string | null; team_id: string | null }>();
+          for (const group of [...clubGroups.flat(), ...teamGroups.flat()]) {
+            if (!group.isMember || !group.clubId) continue;
+            groupsById.set(group.conversationId, {
+              id: group.conversationId,
+              name: group.name,
+              club_id: group.clubId,
+              team_id: group.teamId,
+            });
+          }
+
+          const groups = [...groupsById.values()];
+          const names = await Promise.all([...new Set(groups.map((group) => group.club_id!))].map(async (id) => {
+            try {
+              const option = await getLiveClubProfile(ctx, id) as any;
+              const profile = Array.isArray(option) ? option[0] : option;
+              return [id, profile?.name ?? null] as const;
+            } catch {
+              return [id, null] as const;
+            }
+          }));
+          const clubNames = new Map(names);
+          return groups
+            .map((group) => ({ ...group, club_name: clubNames.get(group.club_id!) ?? null }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+        },
+      }, { everyGroup: true, merge: (parts: ForwardDestinationGroup[][]) => parts.flat() });
+    },
+  });
+}
+
+export interface ForwardSourceMessage {
+  text: string;
+  imageUrl?: string | null;
+  /** Original author id (preserved on forwarded copies). */
+  authorId: string;
+  /** Optional short label such as "Committee" — shown above the forwarded copy. */
+  sourceLabel?: string | null;
+  /**
+   * Canister message id of the original message. Required for the ICP
+   * forwarding branch (forward_message copies by id); the Supabase branch
+   * ignores it and copies the text/image fields directly.
+   */
+  messageId?: string | null;
+}
+
+/**
+ * Forwards a single source message into the selected chat groups by
+ * creating a fresh row in group_messages per destination, stamping the
+ * forwarded_* attribution columns. Same-author / same-image: the storage
+ * URL is reused (chat-attachments are publicly addressable).
+ *
+ * v1: group chat destinations only.
+ */
+export function useForwardMessageMutation(currentUserId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: {
+      source: ForwardSourceMessage;
+      destinationGroupIds: string[];
+    }) => {
+      if (!currentUserId) throw new Error("Not signed in");
+
+      const { source, destinationGroupIds } = args;
+      if (destinationGroupIds.length === 0) return { forwarded: 0 };
+
+      // One call per destination so each reaches its own club's canisters.
+      let forwardedViaIcp = false;
+      for (const dest of destinationGroupIds) {
+      forwardedViaIcp = await withFeatureBackend("messaging", {
+        supabase: () => false,
+        icp: async (ctx) => {
+          if (!source.messageId) {
+            throw new Error("Missing original message id — can't forward this message.");
+          }
+          for (const toConversationId of [dest]) {
+            const forwarded = await forwardLiveMessage(ctx, source.messageId!, toConversationId);
+            // Best-effort notify of the original author only: that's the one
+            // recipient this flow genuinely knows client-side (there's no
+            // group roster or mute-list query here, unlike the Supabase
+            // branch's broader notifications-table fan-out above). Never
+            // throws into the forward flow — a missed notify just means the
+            // original author doesn't hear about the forward.
+            if (source.authorId && source.authorId !== ctx.identity.getPrincipal().toText()) {
+              try {
+                await recordLiveChatNotifyBatch(ctx, {
+                  messageId: String((forwarded as { id: string }).id),
+                  conversationId: toConversationId,
+                  sender: ctx.identity.getPrincipal().toText(),
+                  preview: (source.text || "").trim().slice(0, 60) || (source.imageUrl ? "a photo" : "your message"),
+                  recipients: [source.authorId],
+                  muteList: [],
+                });
+              } catch (e) {
+                console.warn("[forward] failed to record chat notify (ICP)", e);
+              }
+            }
+          }
+          return true;
+        },
+      }, writeOnce({ conversationId: dest }));
+      }
+      if (forwardedViaIcp) {
+        return { forwarded: destinationGroupIds.length };
+      }
+
+      const now = new Date().toISOString();
+      const rows = destinationGroupIds.map((groupId) => ({
+        group_id: groupId,
+        author_id: currentUserId,
+        text: source.text ?? "",
+        image_url: source.imageUrl ?? null,
+        forwarded_from_user_id: source.authorId,
+        forwarded_at: now,
+        forwarded_source_label: source.sourceLabel ?? null,
+      }));
+
+      const { data: inserted, error } = await supabase
+        .from("group_messages")
+        .insert(rows)
+        .select("id, group_id");
+      if (error) throw error;
+
+      // Notify the original author (best-effort, never blocks success).
+      if (source.authorId && source.authorId !== currentUserId) {
+        try {
+          const [{ data: forwarder }, { data: groups }] = await Promise.all([
+            selectCachedProfileById(currentUserId),
+            supabase.from("chat_groups").select("id, name, club_id").in("id", destinationGroupIds),
+          ]);
+          const forwarderName = forwarder?.display_name?.trim() || "Someone";
+          const groupMap = new Map((groups ?? []).map((g) => [g.id, g]));
+          const preview = (source.text || "").trim().slice(0, 60) || (source.imageUrl ? "a photo" : "your message");
+
+          const notificationRows = (inserted ?? []).map((m) => {
+            const g = groupMap.get(m.group_id);
+            return {
+              user_id: source.authorId,
+              type: "message_forwarded",
+              message: `${forwarderName} forwarded your message "${preview}" to ${g?.name ?? "a group chat"}`,
+              related_id: m.id,
+              club_id: g?.club_id ?? null,
+            };
+          });
+          if (notificationRows.length > 0) {
+            const { resolveAuthBackend } = await import("@/live/authBackendMode");
+            if (resolveAuthBackend() === "icp") {
+              // Covered by the canister-side fanOutChatNotify on messaging_domain's
+              // forward path — no direct notification write needed here.
+            } else {
+              await supabase.from("notifications").insert(notificationRows);
+            }
+          }
+        } catch (e) {
+          // Non-fatal — author just won't get a forward notification
+          console.warn("[forward] failed to notify original author", e);
+        }
+      }
+
+      return { forwarded: destinationGroupIds.length };
+    },
+    onSuccess: ({ forwarded }) => {
+      toast.success(
+        forwarded === 1
+          ? "Message forwarded"
+          : `Forwarded to ${forwarded} chats`,
+      );
+      // Invalidate group message caches so destination chats refresh if open.
+      queryClient.invalidateQueries({ queryKey: ["group-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["messages-page-inbox"] });
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to forward message");
+    },
+  });
+}

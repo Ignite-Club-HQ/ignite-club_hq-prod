@@ -1,0 +1,3 @@
+DO $$ BEGIN IF (SELECT system_identifier::text FROM pg_control_system()) <> '7581440907192989109' THEN RAISE EXCEPTION 'DEV database only'; END IF; END $$;
+ALTER FUNCTION public.remove_exact_competition_role(uuid,uuid,uuid,text) SECURITY INVOKER;
+CREATE POLICY "Leave own non-owner competition role" ON public.competition_roles FOR DELETE TO authenticated USING (user_id=(SELECT auth.uid()) AND role::text<>'owner');

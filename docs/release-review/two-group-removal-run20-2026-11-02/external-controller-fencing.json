@@ -1,0 +1,127 @@
+{
+  "schema": 1,
+  "kind": "external-controller-fencing-isolated",
+  "passed": true,
+  "externalControllerFencing": true,
+  "releaseAuthorized": false,
+  "checks": [
+    {
+      "name": "Independent recovery acceptance is signed, armed and verified before any controller change",
+      "passed": true
+    },
+    {
+      "name": "Every target reads back exactly one independent controller with an unchanged module",
+      "passed": true
+    },
+    {
+      "name": "Independent lifecycle reader still authenticates every fenced target and sees the handover",
+      "passed": true
+    },
+    {
+      "name": "Fencing the witness preserves its recovery journal unchanged",
+      "passed": true
+    },
+    {
+      "name": "Former operator is refused control reads, re-adding itself, reinstalling and upgrading every target",
+      "passed": true
+    },
+    {
+      "name": "An unrelated principal cannot read or change control of any fenced target",
+      "passed": true
+    },
+    {
+      "name": "Fencing the witness itself invalidates the earlier signed acceptance until a fresh one is armed",
+      "passed": true
+    },
+    {
+      "name": "Fencing changes who controls code, not what the canister still refuses or serves",
+      "passed": true
+    },
+    {
+      "name": "A fresh signed acceptance restores recovery reads under fenced lifecycle counts; fencing is reversible",
+      "passed": true
+    },
+    {
+      "name": "Changing control of a participant alone, with the witness untouched, invalidates the signed acceptance",
+      "passed": true
+    },
+    {
+      "name": "Exclusive control returns only through the fence, leaving the accepted journal intact",
+      "passed": true
+    }
+  ],
+  "modules": {
+    "identity_access": 5020620,
+    "recovery_witness": 1643941
+  },
+  "targets": [
+    {
+      "name": "identity",
+      "canister": "lxzze-o7777-77777-aaaaa-cai",
+      "controllerBefore": "f7crg-kabae",
+      "controllerAfter": "fhcbw-237p4",
+      "moduleHashBefore": "91c0f998083d4331e41262ee2813d2a370d8cbedc691cd576389c8c57bf5aa40",
+      "moduleHashAfter": "91c0f998083d4331e41262ee2813d2a370d8cbedc691cd576389c8c57bf5aa40",
+      "memorySizeBefore": "88251818",
+      "memorySizeAfter": "88252040",
+      "formerOperatorRefusals": {
+        "settings": "Canister call failed: Only controllers of canister lxzze-o7777-77777-aaaaa-cai can call ic00 method update_settings. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false",
+        "reinstall": "Canister call failed: Only controllers of canister lxzze-o7777-77777-aaaaa-cai can call ic00 method clear_chunk_store. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false",
+        "upgrade": "Canister call failed: Only controllers of canister lxzze-o7777-77777-aaaaa-cai can call ic00 method clear_chunk_store. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false",
+        "status": "Canister call failed: Only the controllers of the canister lxzze-o7777-77777-aaaaa-cai can control it.\nCanister's controllers: fhcbw-237p4\nSender's ID: f7crg-kabae\nExecute this call from a controller of the target canister or add the current caller as a controller. See documentation: https://docs.in"
+      },
+      "strangerRefusals": {
+        "status": "Canister call failed: Only the controllers of the canister lxzze-o7777-77777-aaaaa-cai can control it.\nCanister's controllers: fhcbw-237p4\nSender's ID: dxzxd-kqdae\nExecute this call from a controller of the target canister or add the current caller as a controller. See documentation: https://docs.in",
+        "settings": "Canister call failed: Only controllers of canister lxzze-o7777-77777-aaaaa-cai can call ic00 method update_settings. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false"
+      }
+    },
+    {
+      "name": "witness",
+      "canister": "lqy7q-dh777-77777-aaaaq-cai",
+      "controllerBefore": "f7crg-kabae",
+      "controllerAfter": "fhcbw-237p4",
+      "moduleHashBefore": "92edfe9e9e900068164a8cd214dbcfbd329c7ee72581b4cd5b87f89828cd1971",
+      "moduleHashAfter": "92edfe9e9e900068164a8cd214dbcfbd329c7ee72581b4cd5b87f89828cd1971",
+      "memorySizeBefore": "44898179",
+      "memorySizeAfter": "44898401",
+      "formerOperatorRefusals": {
+        "settings": "Canister call failed: Only controllers of canister lqy7q-dh777-77777-aaaaq-cai can call ic00 method update_settings. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false",
+        "reinstall": "Canister call failed: Only controllers of canister lqy7q-dh777-77777-aaaaq-cai can call ic00 method install_code. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false",
+        "upgrade": "Canister call failed: Only controllers of canister lqy7q-dh777-77777-aaaaq-cai can call ic00 method install_code. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false",
+        "status": "Canister call failed: Only the controllers of the canister lqy7q-dh777-77777-aaaaq-cai can control it.\nCanister's controllers: fhcbw-237p4\nSender's ID: f7crg-kabae\nExecute this call from a controller of the target canister or add the current caller as a controller. See documentation: https://docs.in"
+      },
+      "strangerRefusals": {
+        "status": "Canister call failed: Only the controllers of the canister lqy7q-dh777-77777-aaaaq-cai can control it.\nCanister's controllers: fhcbw-237p4\nSender's ID: dxzxd-kqdae\nExecute this call from a controller of the target canister or add the current caller as a controller. See documentation: https://docs.in",
+        "settings": "Canister call failed: Only controllers of canister lqy7q-dh777-77777-aaaaq-cai can call ic00 method update_settings. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false"
+      }
+    },
+    {
+      "name": "participant",
+      "canister": "lz3um-vp777-77777-aaaba-cai",
+      "controllerBefore": "f7crg-kabae",
+      "controllerAfter": "fhcbw-237p4",
+      "moduleHashBefore": "91c0f998083d4331e41262ee2813d2a370d8cbedc691cd576389c8c57bf5aa40",
+      "moduleHashAfter": "91c0f998083d4331e41262ee2813d2a370d8cbedc691cd576389c8c57bf5aa40",
+      "memorySizeBefore": "54697386",
+      "memorySizeAfter": "54697608",
+      "formerOperatorRefusals": {
+        "settings": "Canister call failed: Only controllers of canister lz3um-vp777-77777-aaaba-cai can call ic00 method update_settings. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false",
+        "reinstall": "Canister call failed: Only controllers of canister lz3um-vp777-77777-aaaba-cai can call ic00 method clear_chunk_store. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false",
+        "upgrade": "Canister call failed: Only controllers of canister lz3um-vp777-77777-aaaba-cai can call ic00 method clear_chunk_store. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false",
+        "status": "Canister call failed: Only the controllers of the canister lz3um-vp777-77777-aaaba-cai can control it.\nCanister's controllers: fhcbw-237p4\nSender's ID: f7crg-kabae\nExecute this call from a controller of the target canister or add the current caller as a controller. See documentation: https://docs.in"
+      },
+      "strangerRefusals": {
+        "status": "Canister call failed: Only the controllers of the canister lz3um-vp777-77777-aaaba-cai can control it.\nCanister's controllers: fhcbw-237p4\nSender's ID: dxzxd-kqdae\nExecute this call from a controller of the target canister or add the current caller as a controller. See documentation: https://docs.in",
+        "settings": "Canister call failed: Only controllers of canister lz3um-vp777-77777-aaaba-cai can call ic00 method update_settings. Reject code: CanisterError. Error code: CanisterInvalidController. Certified: false"
+      }
+    }
+  ],
+  "host": {
+    "faults": 1,
+    "writeBit": 1,
+    "recovered": true,
+    "sourceSha256": "2cc4fde3d7846f696c53a4bcd418a03abeee0b0191dc1cd4884e42db56d7da6b",
+    "kernel": "Linux 7.0.0-1017-azure"
+  },
+  "stage": "only the independent fence can hand control back"
+}

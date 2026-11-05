@@ -1,0 +1,65 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {generateKeyPairSync,sign} from 'node:crypto';
+import {assertEmptyHistory,verifySignature,assertArtifactPlan,assertReviewedReceivers,jobTransition,identityPreparationDecision,protectionReviewContext} from './prod-protection-review.mjs';
+test('history revision may advance for inventory provisioning but no removal row is ignored',()=>{
+  const h={revision:'8',principal_denials:'0',erased_accounts:'0',pending_intents:'0',removal_barriers:'0',removal_subjects:'0',removal_receipts:'0',removal_completions:'0'};
+  assert.doesNotThrow(()=>assertEmptyHistory(h,'8'));
+  for(const k of Object.keys(h).filter(k=>k!=='revision'))assert.throws(()=>assertEmptyHistory({...h,[k]:'1'},'8'));
+  assert.throws(()=>assertEmptyHistory(h,'7'));
+});
+test('recovery approval requires the real independently pinned account signature',()=>{
+  const {publicKey,privateKey}=generateKeyPairSync('ed25519');const key=publicKey.export({format:'der',type:'spki'}).subarray(-32).toString('hex');
+  const b=Buffer.from('review');const signature=sign(null,b,privateKey);verifySignature(b,signature,key);
+  assert.throws(()=>verifySignature(Buffer.from('substituted review'),signature,key));
+});
+test('identity upgrade cannot promote its newly computed hash into its own approval',()=>{
+  const p={version:1,sourceCommit:'a'.repeat(40),identityModuleHash:'b'.repeat(64),pins:{witness:'w'},receivers:[{id:'r',hash:'c'}],openingAuthorized:false};
+  const expected={sourceCommit:p.sourceCommit,identityHash:p.identityModuleHash,pins:p.pins,receivers:p.receivers};assertArtifactPlan(p,expected);
+  for(const change of [{identityHash:'d'.repeat(64)},{sourceCommit:'e'.repeat(40)},{pins:{witness:'foreign'}}])assert.throws(()=>assertArtifactPlan(p,{...expected,...change}));
+});
+test('rerunning predecessor jobs never overwrites later signatures or reviews',()=>{
+  const r={phase:'protection-reviewed',purpose:'protection'};
+  for(const job of ['prepare','account-inventory','recovery-inventory','deliver-inventory'])assert.equal(jobTransition(job,r),'done');
+  assert.equal(jobTransition('account-protection',r),'run');assert.equal(jobTransition('recovery-protection',r),'reject');
+  assert.equal(jobTransition('account-inventory',{phase:'inventory-reviewed',purpose:'protection'}),'reject');
+});
+test('independent signers refuse receiver program or inventory drift from the reviewed plan',()=>{
+  const targets=[{id:'r',subnet:'s'}],receiver={id:'r',subnet:'s',moduleHash:'a',controllers:['g']},plan={receivers:[receiver]};
+  assertReviewedReceivers(plan,targets,[receiver]);
+  for(const field of ['moduleHash','subnet','controllers'])assert.throws(()=>assertReviewedReceivers(plan,targets,[{...receiver,[field]:field==='controllers'?['other']:'other'}]));
+  assert.throws(()=>assertReviewedReceivers(plan,targets,[]));
+  assert.throws(()=>assertReviewedReceivers({receivers:[]},targets,[receiver]));
+});
+test('already installed reviewed identity never requires a same-program upgrade',()=>{
+  assert.equal(identityPreparationDecision('reviewed','reviewed','original'),'already-installed');
+  assert.equal(identityPreparationDecision('original','reviewed','original'),'upgrade');
+  assert.throws(()=>identityPreparationDecision('foreign','reviewed','original'));
+});
+test('delivered and verified protection jobs must perform fresh final verification on restart',()=>{
+  for(const phase of ['protection-delivered','verified'])
+    assert.equal(jobTransition('deliver-protection',{phase,purpose:'protection',pending:null}),'run');
+});
+test('interrupted inventory continuation preserves original proofs until a complete protection review exists',()=>{
+  const receipt={phase:'inventory-delivered',purpose:'inventory',pending:null,runId:'inventory-run',body:'inventory-body',
+    proofs:{inventory:'certificate'},approval:'signed-inventory',acceptance:'signed-recovery',
+    inventoryApproval:'signed-inventory',inventoryAcceptance:'signed-recovery',fenceEvidence:{revision:'1'}};
+  const before=structuredClone(receipt);
+  const first=protectionReviewContext(receipt,'protection-run');
+  assert.deepEqual(receipt,before);
+  assert.equal(first.purpose,'protection');assert.equal(first.runId,'protection-run');
+  assert.deepEqual(first.inventoryStage.proofs,{inventory:'certificate'});
+  assert.equal(jobTransition('deliver-inventory',receipt),'done');
+  assert.deepEqual(protectionReviewContext(receipt,'protection-run'),first);
+  assert.throws(()=>protectionReviewContext({...receipt,pending:{kind:'inventory'}},'protection-run'));
+  assert.throws(()=>protectionReviewContext({...receipt,purpose:'protection'},'protection-run'));
+});
+test('signers hash exact canister bytes only when they decode to the reviewed value',async()=>{
+  const {IDL}=await import('../frontend/node_modules/@icp-sdk/core/lib/esm/candid/index.js');const {approvalBytes:ab}=await import('./prod-protection-review.mjs');
+  const T=IDL.Record({a:IDL.Nat64,b:IDL.Vec(IDL.Nat8)}),body={a:1n,b:new Uint8Array([1])};
+  // A different but valid type table (as Rust emits) must still be accepted and hashed exactly.
+  const foreign=Buffer.from(IDL.encode([IDL.Record({b:IDL.Vec(IDL.Nat8),a:IDL.Nat64})],[{a:1n,b:new Uint8Array([1])}]));
+  assert.equal(ab(IDL,T,body,foreign).subarray(-32).toString('hex'),(await import('node:crypto')).createHash('sha256').update(foreign).digest('hex'));
+  assert.throws(()=>ab(IDL,T,body,Buffer.from(IDL.encode([T],[{a:2n,b:new Uint8Array([1])}]))),/differs/);
+  assert.throws(()=>ab(IDL,T,body),/encoding required/);
+});

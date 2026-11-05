@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "projectRef": "yabcfiuntwqjwvschnji",
+  "reviewedBy": "Paul Cranwell",
+  "reviewedAt": "2026-11-05T00:08:00Z",
+  "note": "Each entry is one exact structural-check finding on one fingerprint-matched approved file. Findings not listed here stop the release.",
+  "findings": [
+    {
+      "file": "20261105000000_competition_fixture_visibility.sql",
+      "sha256": "5a26aa388f88158ce9740cafdfb899caad7d3ee63ef1a673408a9d2fd195ef03",
+      "finding": "Function expression public.can_view_competition_fixture_event: requires separate review",
+      "occurrences": 1
+    },
+    {
+      "file": "20261105000200_competition_role_email_invites.sql",
+      "sha256": "f5c8dff5e76489235aae6970e24acf4b5a17fe009e193daa2c9d8b0b13039118",
+      "finding": "Function expression char_length: requires separate review",
+      "occurrences": 1
+    },
+    {
+      "file": "20261105000200_competition_role_email_invites.sql",
+      "sha256": "f5c8dff5e76489235aae6970e24acf4b5a17fe009e193daa2c9d8b0b13039118",
+      "finding": "Function expression public.is_competition_admin: requires separate review",
+      "occurrences": 1
+    },
+    {
+      "file": "20261105000300_club_invite_message_defaults.sql",
+      "sha256": "5192720eb3e5ad47899903a5b2d34476ba02403e9307728772db5f34d384ee91",
+      "finding": "SelectStmt: release-time query requires separate review",
+      "occurrences": 5
+    },
+    {
+      "file": "20261105000300_club_invite_message_defaults.sql",
+      "sha256": "5192720eb3e5ad47899903a5b2d34476ba02403e9307728772db5f34d384ee91",
+      "finding": "SubLink: release-time query requires separate review",
+      "occurrences": 5
+    }
+  ]
+}

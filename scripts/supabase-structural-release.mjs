@@ -4,6 +4,8 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditAuthMigrationPlan } from './auth-release-preflight.mjs';
+import { readSafeInputs, planSafeStaging } from './supabase-safe-staging.mjs';
+import { planSafeApply } from './supabase-safe-apply.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const PROD_REF = 'yabcfiuntwqjwvschnji';
@@ -70,6 +72,54 @@ function main() {
   const ledger = JSON.parse(run('psql', [connection, '-XAt', '-v', 'ON_ERROR_STOP=1', '-c', "SELECT coalesce(json_agg(x ORDER BY version), '[]'::json) FROM (SELECT version FROM supabase_migrations.schema_migrations ORDER BY version LIMIT 10001) x"], {
     env: { ...process.env, PGPASSWORD: process.env.SUPABASE_DB_PASSWORD, PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=30000' },
   }));
+  // Safe-only mode is an exact diagnostic staging path, not a filtered db push.
+  // It always returns before linking, schema writes or edge-function deployment.
+  if (process.env.RELEASE_MODE === 'safe-apply') {
+    const input = readSafeInputs(root);
+    const staged = planSafeStaging(input.manifest, input.files, policy, ledger);
+    const candidates = Object.fromEntries(staged.candidates.map(entry => [entry.file, input.files[entry.file]]));
+    const check = spawnSync('python3', ['scripts/structural-sql-check.py'], { cwd: root, input: JSON.stringify(candidates), encoding: 'utf8' });
+    if (check.error || ![0, 1].includes(check.status)) throw new Error('Safe-apply SQL parser unavailable');
+    const findings = JSON.parse(check.stdout);
+    if (!Array.isArray(findings)) throw new Error('Safe-apply SQL result unreadable');
+    const approval = JSON.parse(readFileSync(path.join(root, 'docs/release-review/safe-apply-approval.json'), 'utf8'));
+    const reviewedPath = path.join(root, 'docs/release-review/safe-apply-reviewed-findings.json');
+    const reviewed = existsSync(reviewedPath) ? JSON.parse(readFileSync(reviewedPath, 'utf8')) : null;
+    const { apply, skipped } = planSafeApply(approval, staged, input.files, findings, reviewed);
+    const report = { commit: process.env.GITHUB_SHA, project: PROD_REF, phase: 'safe-apply-checked',
+      apply: apply.map(x => x.file), alreadyApplied: skipped, held: staged.held.map(x => x.file), dataCopy: false, functions: [] };
+    const save = () => writeFileSync(path.join(output, 'release-report.json'), JSON.stringify(report, null, 2));
+    save();
+    for (const item of apply) {
+      // One transaction per approved file: its exact SQL plus its own truthful ledger row.
+      const sql = `${input.files[item.file]}\n;\nINSERT INTO supabase_migrations.schema_migrations (version, name) VALUES ('${item.version}', '${item.name}');\n`;
+      run('psql', [connection, '-X', '-v', 'ON_ERROR_STOP=1', '--single-transaction', '-q'], {
+        input: sql, env: { ...process.env, PGPASSWORD: process.env.SUPABASE_DB_PASSWORD, PGOPTIONS: '-c statement_timeout=60000 -c lock_timeout=5000' },
+      });
+      report.applied = [...(report.applied || []), item.file]; save();
+    }
+    report.phase = 'safe-apply-complete'; save();
+    console.log(`Safe-apply complete: ${apply.length} approved migrations applied, ${skipped.length} already present, ${staged.held.length} held untouched; no data copy.`);
+    return;
+  }
+  if (process.env.RELEASE_MODE === 'safe-plan') {
+    const input = readSafeInputs(root);
+    const staged = planSafeStaging(input.manifest, input.files, policy, ledger);
+    const candidates = Object.fromEntries(staged.candidates.map(entry => [entry.file, input.files[entry.file]]));
+    const check = spawnSync('python3', ['scripts/structural-sql-check.py'], {
+      cwd: root, input: JSON.stringify(candidates), encoding: 'utf8',
+    });
+    if (check.error || ![0, 1].includes(check.status)) throw new Error('Safe-stage SQL parser unavailable');
+    const findings = JSON.parse(check.stdout);
+    if (!Array.isArray(findings)) throw new Error('Safe-stage SQL result unreadable');
+    staged.issues.push(...findings);
+    const report = { ...staged, commit: process.env.GITHUB_SHA, project: PROD_REF,
+      phase: 'safe-plan-held', dataCopy: false, functions: [] };
+    writeFileSync(path.join(output, 'release-report.json'), JSON.stringify(report, null, 2));
+    console.log(`Safe-only review: ${staged.candidates.length} candidates, ${staged.held.length} held originals. No database or function writes; target acceptance still required.`);
+    return;
+  }
+  if (process.env.RELEASE_MODE && process.env.RELEASE_MODE !== 'full') throw new Error('Unknown release mode');
   const heldSources = JSON.parse(readFileSync(path.join(root, 'scripts/structural-held-sources.json'), 'utf8'));
   const { plan, issues } = planRelease(policy, files, ledger, heldSources);
   const pendingFiles = Object.fromEntries(plan.map(entry => [entry.file, files[entry.file]]));

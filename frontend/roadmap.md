@@ -1,0 +1,163 @@
+- ICP-read sweep (partial): routed useEventGoingAttendees via events.getLiveEventRosterDetailed and useGroupChatUnreadCache via messaging.myLiveUnreadCounts; confirmed useChatOnlineCount/useBlockedUsers wired to messaging_domain (Phase 1 pass: added presence_heartbeat/online_count/block_user/unblock_user/list_blocked_users/has_blocked via migration 20261001_120000.mo, blocking enforced on DM send/create/can_dm; hooks route via withFeatureBackend); remaining ~55 DEGRADED items (useProfiles, useProfileTeamHistory, useClubSeasons, useChatSharedMedia, EventCancellationRecipients/GroupMap, admin analytics tabs, carousels, link cards, etc.) still need per-file wiring — see chat for full triage.
+- Competitions/mini-leagues finish pass: DONE (2026-10-02). Wired CompetitionShareJoinLink (create/rotate join link), CompetitionMemberChatCard (chat_enabled toggle + admins_only via competition_domain migration 20261004_000000), ManageMiniLeagueAdminsSheet, MiniLeagueParentJoinLinkCard, TeamCompetitionsSection entry invite accept/decline (canManageEntryTeam/invite_team/respond_to_entry_invite), MiniLeagueAdminJoinLinkCard (join-link role param, claim_admin_join_link), ManagePlayersDialog/MiniLeagueSettingsDialog delete/duplicate/update/remove (canister-side cascade mirrors the Supabase FK cascades). ManagePlayersDialog pending-status lookup: DONE — mini_league_domain gained get_player_guardian_status (PlayerGuardianStatus); dialog routed via withFeatureBackend("mini_leagues"). Child cascade cleanup on player delete: DONE — remove_player/remove_member drop the child assignment rows canister-side. AddSecondParentDialog wired (linkLiveGuardian + fanOutLiveNotifications, idempotency key).
+- Messaging dialogs: DONE (2026-10-02) — AddGroupMembersDialog, CreateGroupDialog, StartDMDialog all route via withFeatureBackend (addLiveGroupMembers/createLiveGroupWithRoles/getOrCreateLiveDm, verified in src/components/chat/); ChatParticipantsList remove/leave routes to removeLiveGroupMember/leaveLiveGroup. GlobalChatRecapSheet: DONE — messaging_domain generate_chat_recap (HTTPS outcall, set_recap_config for the AI endpoint/key); sheet routed via withFeatureBackend.
+
+## ICP audit round2 — frontend findings F1–F11 (gated/wired)
+- F1 NextUpCarousel.tsx useChildRsvps: DONE (Phase 3, 2026-10-02) — household RSVP roll-up via events_domain my_child_rsvps + club_domain list_children + mini_league_domain list_players; PII-decrypted names via fetchLiveHomeChildren.
+- F2 AccountRecoveryBanner.tsx: gated the `profiles.scheduled_deletion_at` status query to Supabase-auth users only, matching the already-gated mutation.
+- F3 AddClubAdminSheet.tsx: DONE (Phase 2, 2026-10-01) — existingMembers via club_domain list_role_grants, clubBranding via get_club_branding, fuzzy search via identity_access search_profiles; addExistingUser → add_role_grant + best-effort notification_queue enqueue; addPendingMember → club-domain pending invite (id doubles as /join/p/<id> token). Invite email send stays Supabase-gated (skipped for II; share link shown instead).
+- F4 AddressAutocomplete.tsx: gated google-places-search invokes (autocomplete/details/reverse) off for II users; manual text entry still works.
+- F5 AssociationEventsPanel.tsx: DONE (Phase 3, 2026-10-02) — events_domain AssociationEvent store (migration 20261003_000000) with create_association_event per-club fan-out and admin-gated list_association_events; panel reads + creates via canister in ICP mode.
+- F6 MemberSubscriptionPaymentsManager.tsx: DONE (Phase 3, 2026-10-02) — club_domain MemberPayment store (migration 20261002_000000); payments query, Mark Paid, Remove, Send Reminders all route via canister (reminders via notification_queue fan_out). Online member payments stay Supabase/Stripe by design.
+- F7 PlayHQTeamLinkCard.tsx: DONE (2026-10-02) — club_domain ClubTeam still carries playhq_team_id/playhq_competition_id/playhq_auto_create_events (get/save team fetch-modify-save in ICP mode); competition/fixture reads now route through events_domain set_playhq_config/list_playhq_competitions/list_playhq_fixtures via withFeatureBackend("events", ...). Known limitation: the PlayHQ response parser is a tolerant flat-object JSON parser (reads known fields off the top-level object, defaults missing optional fields to opt none) rather than a strict schema validator, so unexpected upstream payload shapes degrade silently instead of failing loudly. Import/materialise-into-events (playhq-materialise-team-events) stays Supabase-only by design (no canister write counterpart).
+- F8 PlayerOfMatchSelector.tsx: DONE (Phase 3, 2026-10-02) — all four POM award paths notify via notification_queue fan_out (kind player_of_match, pom_enabled prefs gate) + events_domain get_event_child; reward-unlock interpolation stays Supabase-side (rewards tables).
+- F9 SponsorOrAdCarousel.tsx: DONE (Phase 5, 2026-10-02) — cross-club sponsor lookup via caller-scoped identity_access my_role_grants (grants.flatMap(g => g.club)); all sponsor surfaces routed via withFeatureBackend.
+- F10 TermsManager.tsx: DONE (Phase 2, 2026-10-01) — full terms CRUD via club_domain save/list/set_status/delete_club_term (ClubTerm record, canister enforces no-overlapping-active-terms and derives created_at_ms/is_active server-side).
+- F11 ClubAnnouncementDialog.tsx: relaxed the announcement payload's `club_id`/`team_ids` Zod validation from `.uuid()` to non-empty `.string()` so ICP-routed club_domain string ids validate.
+
+## Governor one-shot + transfer_governorship
+
+- Verified all 13 Motoko canisters with `initialize()` already refuse re-initialization (first-caller-wins only on the *first* call; no code change needed for that part).
+- Added governor-only `transfer_governorship(new_governor : Principal)` to all 13 canisters: club_domain, club_points_domain, competition_domain, events_domain, insights_domain, media_metadata, messaging_domain, mini_league_domain, vault_domain, secret_workload_identity, pii_access_control, migration_coordinator, notification_queue.
+- All 13 compile clean with moc 1.16.1; `.did` files regenerated for each.
+- Frontend bindings regenerated for all 13 canisters into both `frontend/src/lab/bindings/<c>` and `frontend/src/lab/generated-contracts/<c>` via `icp-bindgen --force`.
+- Candid drift check: 17/17 green.
+- `backend/AGENTS.md` updated with a hard rule: deploy script must call `initialize()` immediately after canister creation, naming the deployer principal as governor (mitigates the first-caller-wins race).
+- `docs/icp-audit-2026-10-01-deep-round2.md` governor finding marked FIXED.
+
+## Typecheck ratchet cleanup (completed 2026-10-01)
+- All 60 errors from this round fixed with real boundary validation (no suppressions); product type gate reports 0 errors, 48 resolved since baseline.
+- Fixes covered: pitch-board lineup position filtering, event lineup team-size mapping, club rewards report row typing, team creation result widening, event duty recipient typing, chat virtualization channel typing, inbox open-latency arg, messages inbox cache normalization, and 9 test-file mock retypes.
+- Contract test `CreateTeamPage.icpMembership.contract.test.ts` updated to match the widened `withFeatureBackend` generic.
+- Real bug found via `JoinTeamPage.icp.test.tsx`: the provisional ICP invite mapping dropped `metadata`, so the mini-league join block for II accounts could never fire; mapping now defensively passes `metadata` (incl. `mini_league_id`) through.
+- Full suite green: shard 1/3 (1,764), 2/3 (1,423), 3/3 (1,519). Note: `EventGroupsManager.characterization` and `CreateCompetitionPage` tests are load-flaky under full shards — they pass in isolation.
+
+## NEEDS-CANISTER completion pass — Phase 3 DONE (2026-10-02)
+- F1 household RSVP roll-up: DONE — NextUpCarousel useChildRsvps + mini-league children branch now ICP-routed via events_domain my_child_rsvps and club_domain list_children + mini_league_domain list_players (client-side household filter).
+- F5 association events: DONE — events_domain gained an AssociationEvent store (new migration 20261003_000000) with create_association_event (per-club fan-out) and list_association_events (admin-gated); AssociationEventsPanel reads + creates via canister in ICP mode. PlayHQ-derived "participating clubs" default stays Supabase-only (PlayHQ data source); ICP defaults to all member clubs.
+- F6 manual payment ledger: DONE — club_domain MemberPayment store (migration 20261002_000000) with list/mark/unmark; MemberSubscriptionPaymentsManager routes payments query, Mark Paid, Remove, and Send Reminders (notification_queue fan_out, kind fee_payment_request). Online member payments stay Supabase/Stripe-gated by design; ledger is bookkeeping only.
+- F8 POM notifications: DONE — notification_queue fan_out (kind player_of_match, pom_enabled prefs gate) + events_domain get_event_child for the child branch; all four POM notification paths work in ICP mode. Reward-unlock interpolation stays Supabase-side (rewards tables).
+- Canisters: club_domain, events_domain, notification_queue compile clean (moc 1.16.1, --enhanced-migration); .did + bindings regenerated in both dirs; candid drift 17/17 green. Sandbox toolchain was wiped mid-pass; reinstalled per backend/AGENTS.md (bun add -g ic-mops && mops toolchain use moc 1.16.1).
+- Gates: tsgo 0 errors; full vitest suite 516 files / 4,706 tests green.
+- Remaining: Phase 4 (competition/mini-league admin + child-cascade gaps), Phase 5 (F9 cross-club sponsor lookup + ~55 degraded reads sweep). Live-test prerequisites unchanged: deploy the 17 canisters, paste IDs into Placement Settings, Internet Identity sign-in test.
+
+## Typegate cleanup — 10 pre-existing diagnostics fixed (2026-10-02)
+- NextUpCarousel: unwrap candid opt fields (`child_id[0]`, `child[0]`) in the my_child_rsvps branch; mini-league children branch now uses fetchLiveHomeChildren (PII-decrypted names) instead of listLiveChildren (club_domain Child has no name field); roster filter maps `child_id[0]` before the string type predicate.
+- PlayerOfMatchSelector: `get_event_child` parent_id unwrapped (`parent_id[0]`); no-points branch binds `child.parent_id[0]` before the truthy guard (an empty opt array is truthy — the old guard could fan out to a malformed recipient).
+- AssociationEventsPanel: `location[0] ?? null` for the association-event location opt.
+- MemberSubscriptionPaymentsManager: icp list branch maps canister MemberPayment onto the Supabase row shape (opt unwraps, created_at_ms → ISO timestamps, payment_status "paid", stripe_payment_intent_id null); Mark Paid icp branch now discards the returned MemberPayment to match the void supabase branch.
+- Gates: check-product-type-errors 0 diagnostics (exit 0); HomePage.nextUpFreshness contract tests 4/4; preview build OK.
+
+## Phase 5 — sponsors (partial, this pass)
+- club_domain: TeamSponsorAllocation type + teamSponsorAllocations store via migration 20261002_010000 (data-preserving); list_team_sponsor_allocations (unauthenticated display read, matching list_sponsors), set_team_sponsor_allocation (club-admin gated), delete_sponsor cascade. Compiles clean; drift 17/17.
+- Wired: SponsorOrAdCarousel (F9, cross-club lookup via my_role_grants), MessagesSponsorCarousel, ClubSponsorSection, MultiClubSponsorCarousel (ICP Pro gate = per-account identity_access entitlement), ClubTeamSponsorAllocator (reads + set write). Type gate 0 errors.
+- RESOLVED (2026-10-02): AppAdCarousel house ads fully canister-backed (insights_domain ads/settings/events); degraded read sweep completed across phases 1-5 (every read wired to a canister or listed as an allowed Supabase exception); MiniLeagueParentJoinLinkCard claim flow wired for II users.
+
+- Phase 5 (2026-10-02): house ads now fully canister-backed (insights_domain ads/settings/events + record_ad_event + ad_event_summary; AppAdCarousel, ManageAdsPage, useAdAnalytics wired via withFeatureBackend). MiniLeagueParentJoinLinkCard wired to live join links; JoinTeamPage parent-claim ICP branch added. Type ratchet 0 new; 4707 tests green; build OK.
+- Phase 5 remaining: sweep of ~22 degraded reads (Mini-Leagues admin sheets, Analytics/Admin tabs, Profiles & Seasons, Events & Tracking, EOI, Pitch Board & Game Stats); parent-join notification parity in ICP mode.
+
+## Pitch Board & Game Stats — ICP audit (this pass)
+- Checked live/features/* + featureBackend.ts: no "pitch"/"game" FeatureArea exists, and no domain canister (.did across all generated-contracts) exposes any pitch/game/lineup/substitution/formation method. Nothing available to route via withFeatureBackend yet.
+- usePitchSettings.ts, useGameStats.ts, useSaveGameResult.ts, useActiveGameSync.ts already gate their Supabase reads/writes behind `resolveAuthBackend() !== "icp"` (no-op/throw instead of a degraded UI) — confirmed correct, left as-is, no withFeatureBackend wiring possible until canisters below exist.
+- DONE (2026-10-02) usePitchSettings.ts: events_domain gained a PitchBoardSettings record + get_pitch_board_settings/save_pitch_board_settings (migration 20261004_000000); hook routed via withFeatureBackend("events").
+- DONE (2026-10-02) useGameStats.ts: events_domain gained save_game_summary, save_game_player_stats (replace-by-event-id), get_game_summary, list_game_player_stats; hook routed via withFeatureBackend("events"). Email summary (send_game_stats_email_rpc) stays Supabase-only (allowed exception).
+- DONE (2026-10-02) useSaveGameResult.ts: events_domain gained save_game_result (upsert by event_id) + get_game_result for cross-sport results; hook routed via withFeatureBackend("events").
+- DONE (2026-10-02) useActiveGameSync.ts: events_domain gained sync_active_game/deactivate_active_game/get_active_game; hook routed via withFeatureBackend("events"). Push delivery itself stays Supabase (allowed exception).
+
+## EOI feature group ICP wiring pass
+- DONE (2026-10-02) — competition_domain gained a full EOI submission entity (eoiSubmissions, migration 20261005_000000.mo) with list/stats/suggestions/my-pending reads and confirm_eoi_placement, claim_eoi_by_token, update_eoi_submission, update_eoi_status, assign_eoi_team, delete_eoi, allocate_eoi_to_team, resend/bulk-resend mutations. All four hooks (useMyEois.ts, useEoiAdmin.ts, useEoiPolish.ts, useEoiTeamBuilder.ts) now call real withFeatureBackend("competitions", ...) icp branches via frontend/src/live/features/competitions.ts wrappers (list_eoi_submissions, get_eoi_stats, get_my_pending_eois, suggest_eoi_teams, confirm_eoi_placement, claim_eoi_by_token, update_eoi_submission, update_eoi_status, assign_eoi_team, delete_eoi, allocate_eoi_to_team, resend_eoi_invite, bulk_resend_eoi_invites), with mapLiveEoiSubmission converting opt-ms/opt-principal candid fields into the existing Supabase eoi_submissions row shape the UI already consumes. Resend/bulk-resend email delivery stays on the Supabase send-eoi-invite edge function (allowed exception); the canister call is the bookkeeping half (invite_sent_at/count).
+
+## Profiles & Seasons / Events & Tracking wiring pass (2026-10-xx)
+- Audited: useProfiles.ts, useProfileTeamHistory.ts, useClubSeasons.ts, useEventCancellationRecipients.ts, useEventViews.ts, useEventMembership.ts.
+- Events & Tracking group DONE (2026-10-02): useEventCancellationRecipients routes member-count via membership.myLiveRoleGrants (caller-scoped, documented limitation); useEventViews routes record/count via events.recordLiveEventView/getLiveEventViewCount plus admin per-viewer list via list_event_views and per-user viewed-ids via list_my_viewed_event_ids; useEventMembership now evaluates canister-side via events_domain check_event_membership (fail-open branch removed).
+- Profiles & Seasons group: all items DONE (2026-10-02) — canister counterparts were built and wired:
+  - useProfiles.ts (+ fetchAndCacheProfiles/prefetchProfiles in lib/profileCache.ts): DONE (2026-10-02) — identity_access gained get_profiles_by_ids batch query; listLiveProfilesByIds wrapper in identityAccessClient.ts; profileCache flushBatch routed via withFeatureBackend("membership").
+  - useProfileTeamHistory.ts: DONE (2026-10-02) — routed via withFeatureBackend("membership") to club_domain profile_team_history; candid rows mapped (opt team_level_age, joined_at_ms -> ISO) into the existing ProfileTeamHistoryEntry shape.
+  - useClubSeasons.ts (useClubSeasons + useCurrentSeason): DONE (2026-10-02) — routed via withFeatureBackend("membership") to club_domain list_seasons/get_current_season/save_season; candid Season rows mapped into the existing Season shape (archived_at derived from status, timestamps from _ms fields). useSeasonAnalytics.ts (team summary/player stats): DONE (2026-10-02) — club_domain gained SeasonTeamSummary/SeasonPlayerStat records with list_season_team_summary/list_season_player_stats reads and admin-gated save_season_team_summary; hook routed via withFeatureBackend("membership").
+
+- ClubEngagementAnalyticsPage.tsx "analytics" feature — all previously Supabase-only reads now routed to canisters (2026-10-02):
+  - newMembers / prevNewMembers: DONE (2026-10-02) — club_domain gained list_accepted_invites(club_id, since_ms, until_ms); page routed via withFeatureBackend("membership"), candid rows mapped to the existing Supabase row shape.
+  - inviteStats: DONE (2026-10-02) — club_domain gained get_invite_stats(club_id, since_ms, until_ms); page routed via withFeatureBackend("membership").
+  - photos / photoEngagement: DONE (2026-10-02) — insights_domain gained count_photos + photo_engagement_totals with record_photo_upload/record_photo_engagement dual-writes (UploadPhotoSheet, usePhotoViews, mediaEngagementRepository); page routed via withFeatureBackend("analytics").
+  - sponsorRows: DONE (2026-10-02) — routed via withFeatureBackend("membership") to club_domain list_sponsors (active sponsors mapped to {id, name, club_id}); icpSponsorBenchmarkRows now consumes live ids.
+  - sponsorAnalytics: DONE (2026-10-02) — ICP branch maps get_sponsor_benchmarks (per-sponsor impressions/clicks) into the view/click count rows sponsorStats already consumes.
+  - competitions: DONE (2026-10-02) — ICP branch lists club competitions and keeps only those with an accepted/registered entry from this club (canister has no team soft-delete join; accepted status parity is close enough for the analytics list).
+  - CompetitionPanel stats: DONE (2026-10-02) — ICP branch computes active teams, fixtures and results-entered from competition_domain list_entries/list_matches (accepted|registered entries, completed matches). Broadcast count intentionally reads Supabase competition_broadcasts in both modes by design (the send-competition-broadcast edge function writes there in both modes — an allowed exception, not a gap); competition_engagement_summary was built on competition_domain in the EOI pass.
+- UserAnalyticsTab.tsx (admin "analytics" feature) — activityData: DONE (2026-10-02) — insights_domain gained list_user_activity (per-session page-view log) with record_user_activity dual-write from useActivityTracking; tab routed via withFeatureBackend("analytics").
+
+## Triple-check audit — unapproved Supabase dependencies in ICP mode (2026-10-02)
+Standing rule: no "not available" states. Every item below must be wired to a canister (existing method or new) — no exceptions beyond the designed list (media bytes, push, Drive import, non-IAP payments, game-stats email, competition broadcasts, PlayHQ import/materialise, admin/routing config).
+
+- [x] DONE (2026-10-02) assertSupabaseWritePath call sites — throws for II users; wire each to its canister:
+  - DONE (2026-10-02) messaging: PollCard (dead-code sites deleted), ChatDetailsSheet (mute via get/setLiveMutePreference), ChatParticipantsList (member/team removal via removeLiveRoleGrant), ClubDMSettings/ClubMessagePrivacySettings/ClubAICatchUpSettings (new messaging_domain setters, migration 20261005_000000) — all wired via withFeatureBackend("messaging"/"membership"); assertSupabaseWritePath removed from all six files.
+  - DONE (2026-10-02) club: AddClubRoleToMemberDialog (2), AddTeamMemberSheet (2 — getOrCreateInviteLink via createLiveTeamInviteLink), useAddBulkTeamMembersMutation (2 — addLiveRoleGrant/createLivePendingInvite per member), ClubThemeEditor (3 — setLiveClubThemePalette w/ dark colors, clearLiveClubTheme, setLiveClubThemeEnabled/setLiveClubLogoOnlyMode), FindOrCreateClubWizard (3) all wired via withFeatureBackend("club"/"membership"); assertSupabaseWritePath removed from all five files.
+  - DONE (2026-10-02) competitions: CompetitionShareJoinLink create/regenerate wired via withFeatureBackend("competitions") to new competition_domain list_competition_join_links + existing create/rotate join-link methods; PlayHQTeamLinkCard's single site is the allowed PlayHQ import/materialise exception (left as-is).
+  - DONE (2026-10-02) events: EventGroupsManager (all sites wired via withFeatureBackend("events") — replaceLiveEventGroups, create/rename/delete group, move/swap players), AttendanceSection (reminders dual-written via recordLiveReminderSent; push/email stays on the edge function — allowed exception), AssociationEventsPanel (dead import removed).
+- [x] DONE (2026-10-02) useUpdateScheduledMessage — wired to new notification_queue.update_scheduled_message via updateLiveScheduledMessage, withFeatureBackend("notifications"); throw removed.
+- [x] DONE (2026-10-02) resolveEventChildScope — resolveRsvpChildren/resolveEventChildRoster now have real ICP branches via getLiveMyChildren + getLiveMyChildTeamAssignments, preserving the adults-only short-circuit and team/club intersection logic (never widening results on lookup failure).
+- [x] DONE (2026-10-02) Typing indicator + pinned-message realtime — new messaging_domain set_typing/list_typing/pin_message/unpin_message/list_pinned_messages (migration 20261006_000000), wired in useTypingIndicator/usePinnedMessages via withFeatureBackend("messaging") polling. EXCEPTION (justified): chat-to-vault sync stays a silent no-op — vault_domain's folder model has no chat_group_id/role-restriction fields to match the chat-folder scheme.
+- [x] DONE (2026-10-02) StoragePurchaseDialog: removed the hard "not available" throw for ICP mode; iOS native IAP now verifies via the session-free `verify-iap-receipt-icp` edge function + identity_access `redeem_entitlement` (HMAC attestation), matching useInAppPurchase.ts. ICP web/desktop (no IAP, Stripe disabled) hides the purchase section entirely instead of showing an error; Supabase session users keep the existing `verify-iap-receipt` + Stripe checkout paths untouched.
+
+## ICP wiring follow-up (2026-10-02)
+
+Dead-lab-gate cleanup (resolveLocalAuthMode always false in prod — removed
+the unreachable fixture branch so these pages render their real, already
+feature-routed component directly):
+- SeasonsPage.tsx, SeasonDetailPage.tsx, SeasonComparePage.tsx — DONE (2026-10-02).
+  Seasons list/current-season/team-summary already route via useClubSeasons /
+  useSeasonTeamSummary (club_domain list_seasons/save_season/
+  season_team_summary). Remaining raw supabase reads on these pages (club
+  name, admin-role check, per-team player counts, archive/publish RPCs) have
+  no club_domain counterpart — NEEDS-CANISTER: season archive/publish + admin
+  role check parity.
+- ClassEnrolmentPage.tsx — DONE (2026-10-02) dead-gate removal. NEEDS-CANISTER:
+  events_domain has no class/enrolment-capacity concept; enrolment stays
+  Supabase-only until added.
+- PlayerStatsReportPage.tsx / playerStatsReportExtras.ts — DONE (2026-10-02)
+  dead-gate removal. NEEDS-CANISTER: events_domain exposes no
+  list_game_player_stats-shaped query matching game_results/captain/POM/GK
+  joins this report needs; report stays Supabase-only.
+- ManageTeamRolesPage.tsx — DONE (2026-10-02) dead-gate + fixture-only
+  "IcpLabManageTeamRolesPage" removed. NEEDS-CANISTER: wiring the full
+  roster/remove/points-reset UI to club_domain list_role_grants /
+  add_role_grant / remove_role_grant is still open; page renders the real
+  Supabase component unconditionally (safe: membership only routes to ICP
+  once club_domain is configured for that feature, and this surface isn't
+  yet ported).
+- AdminDmAttachmentsPage.tsx, AdminDeletedChatsPage.tsx — DONE (2026-10-02)
+  dead-gate + fixture-only components removed. NEEDS-CANISTER: no
+  messaging_domain/insights_domain admin moderation methods exist yet for
+  DM-attachment flagging or deleted-chat recovery; pages stay Supabase-only.
+- AssociationDetailPage.tsx — DONE (2026-10-02) dead-gate removal.
+  NEEDS-CANISTER: club_domain's ClubProfile has no association/kind/
+  parent_org_id concept and no rollup query; association clubs/rollup/
+  broadcasts/PlayHQ panels stay Supabase-only. events_domain
+  list_live_association_events exists and is already used by
+  AssociationEventsPanel for the Events tab.
+- CreateAssociationPage.tsx — NEEDS-CANISTER (2026-10-02): the real
+  resolveAuthBackend()==="icp" gate showed an "unavailable/preview" card,
+  which is a rule violation. club_domain has no association create/kind
+  method, so there is nothing to wire; the ICP-mode entry point should be
+  hidden/redirected without any card (tracked, not yet applied — see below).
+- ClubSetupWizardPage.tsx — NOT YET ADDRESSED: `useIcpLab` is threaded through
+  most of the 1302-line component (step gating, autosave, review step), not
+  isolated to one top branch. club_domain createLiveClub/saveLiveTeam exist
+  and should replace the useIcpLab branches, but this needs a dedicated pass
+  to avoid breaking the Supabase flow. NEEDS-CANISTER tracking kept until
+  that pass lands.
+- JoinClubPage.tsx, AddRoleToMemberDialog.tsx, TeamFoldersManager.tsx,
+  SignupProPage.tsx — NOT YET ADDRESSED in this pass (ran out of time budget);
+  membership.ts already exposes addLiveRoleGrant / club invite primitives
+  that AddRoleToMemberDialog and JoinClubPage should call via
+  withFeatureBackend, and SignupProPage should hide its entry point in ICP
+  mode (non-IAP payment exception) instead of showing a card. Needs a
+  follow-up pass.
+
+Gates: `cd frontend && npx tsc -p tsconfig.app.json --noEmit` could not be run
+to a clean baseline in this environment (fails before reaching project files
+with TS2688 "Cannot find type definition file" errors for third-party type
+roots, unrelated to the files touched here — looks like a pre-existing
+sandbox/typeRoots issue, not caused by this change). Manually reviewed every
+edited file; all are self-contained search/replace reductions (dead branch
+removal only, no new logic), so risk of a break is low, but this should be
+re-verified with a working tsc run before sign-off.

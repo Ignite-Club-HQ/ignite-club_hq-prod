@@ -1,0 +1,314 @@
+{
+  "repository": "Ignite-Club-HQ/ignite-club_hq-prod",
+  "commit": "96642d0750e03d933b68957d61999de3ae983b9c",
+  "files": [
+    {
+      "file": "supabase/functions/_shared/callerAuth.ts",
+      "sha256": "eee26a8e16a42e483fdc2856deb24a959d27832234fad60cf3fbe86e96f4a4db"
+    },
+    {
+      "file": "supabase/functions/_shared/clubChatBot.ts",
+      "sha256": "f3aa7c57f55f77f72130cde85ca5725203a2a631f3a94f80fd6b13025493ed54"
+    },
+    {
+      "file": "supabase/functions/_shared/cron-auth.ts",
+      "sha256": "9e463805d1f24f12fc84d875f829cf3f71b5113bc9cca972a2f2662d5cda02da"
+    },
+    {
+      "file": "supabase/functions/_shared/internal-auth.ts",
+      "sha256": "0062fa4af82c7594af0d7d29e206224ca37056c3129f4088a0d7d930829d8174"
+    },
+    {
+      "file": "supabase/functions/_shared/outboundGuard.ts",
+      "sha256": "a8d4032b84e4ec814548f93b5d2843d592c326126ea1fadd008c28b08644011f"
+    },
+    {
+      "file": "supabase/functions/_shared/pushDispatch.ts",
+      "sha256": "bb37972de7c00d237474f2e0546e6a151c7c4da9f84e10442a24f7ccd2c9f216"
+    },
+    {
+      "file": "supabase/functions/auto-rsvp-push-cron/index.ts",
+      "sha256": "45fdae1a05eef1f391e0e245903f63555571d31ed7ba084dddcf225251fabb27"
+    },
+    {
+      "file": "supabase/functions/chat-photo-gallery-reminders/index.ts",
+      "sha256": "aecda9e0634c776770e0a056cb452e378c18980be0f7e0494854a23f6a375bea"
+    },
+    {
+      "file": "supabase/functions/check-push-failure-rate/index.ts",
+      "sha256": "066b6497a92e18116e67753946b3778213d508df6d8f06c0fdbf179ab76ac785"
+    },
+    {
+      "file": "supabase/functions/cleanup-old-notifications/batchDelete.test.ts",
+      "sha256": "4d13e704c296147b116e6b2ec12b346371c95ea0c63d848e0c60877d3be905a6"
+    },
+    {
+      "file": "supabase/functions/cleanup-old-notifications/batchDelete.ts",
+      "sha256": "f2c8d28daa070feaf00338bd4c01df68f5e483c0f911e74a10fed5fb16e3d082"
+    },
+    {
+      "file": "supabase/functions/cleanup-old-notifications/index.ts",
+      "sha256": "8a6b1c95450d2b6f75f4a511209db76c726878d49948587336f5a63dcf328d12"
+    },
+    {
+      "file": "supabase/functions/cleanup-push-subscriptions/index.ts",
+      "sha256": "d44207c975f4fb681f7a56996a60054726cf61bcc67779c730e6545ab48d7fb0"
+    },
+    {
+      "file": "supabase/functions/deno.json",
+      "sha256": "ef999af8c7367ccda52b963f3f74b34fc5a487756c8afd50d598d2ff56fafe7b"
+    },
+    {
+      "file": "supabase/functions/notify-event-note/index.ts",
+      "sha256": "2310bfaede015741b288b7ea7e4f12e5d5a3924b7978471a7a329d1b14835bd9"
+    },
+    {
+      "file": "supabase/functions/notify-join-request-decision/index.ts",
+      "sha256": "348c972eef3d396936b18e5ab1fd1f4603ed52203f7cf0f6eaa4b0ad68d5a07f"
+    },
+    {
+      "file": "supabase/functions/process-event-notifications/dedupe.ts",
+      "sha256": "4e97ee0b9c6f8cc69b9073da62cb51290eaf8973ccda4e00ca62e9b8e174eb3e"
+    },
+    {
+      "file": "supabase/functions/process-event-notifications/event_notify_characterization_test.ts",
+      "sha256": "873f811c4c20c5a0574b827b05198f77a617bd4cb33fc17315a5f20120a263fd"
+    },
+    {
+      "file": "supabase/functions/process-event-notifications/fanout.ts",
+      "sha256": "07443ca496917b70596400ddf918943b1f30a0674589f778d82db4ae4f6994ee"
+    },
+    {
+      "file": "supabase/functions/process-event-notifications/index.ts",
+      "sha256": "8fe694bdf326c5278205d323ef1ab78584561bea724a5fcc2c70f61166aa7edd"
+    },
+    {
+      "file": "supabase/functions/process-event-notifications/messages.ts",
+      "sha256": "e89ca292c699489d5bf738164ce6d4ce9aaea1b05f80c126e01d2f0facef3cbc"
+    },
+    {
+      "file": "supabase/functions/process-event-notifications/push_delivery_queue_test.ts",
+      "sha256": "f869c79bf461031c2fda611f369157ba994d30a9b506dd7d9d1fa48f17c4be67"
+    },
+    {
+      "file": "supabase/functions/process-event-notifications/queueSim.ts",
+      "sha256": "675495a0fd4e26077a96b11c62a557b0f3c3d369872825d8b0c117d8a2e0260f"
+    },
+    {
+      "file": "supabase/functions/process-event-notifications/recipients.ts",
+      "sha256": "450b4f60b9ed7efc705e65d9f34f2359f3784aa5ff6f16bfd9acf084ea63e2c9"
+    },
+    {
+      "file": "supabase/functions/process-event-notifications/testFakeSupabase.ts",
+      "sha256": "1b74af9de31514328f8a345e7f586f33d1a458d224c86eb4409e93afd24e90a4"
+    },
+    {
+      "file": "supabase/functions/process-message-notifications/index.ts",
+      "sha256": "41224d5da48fe0bddf7e22ef35bf2c717f3c4a3fb239f7e31260cd8ab5843314"
+    },
+    {
+      "file": "supabase/functions/process-push-delivery-queue/delivery.ts",
+      "sha256": "b9709fdf4c05cc006e65bf5784fa2f0d2fd2e5f6e11c5bd668ce3938e0a87479"
+    },
+    {
+      "file": "supabase/functions/process-push-delivery-queue/index.ts",
+      "sha256": "a8002e0135d953660ce8af62d8982823edda12266f818544ceb5d124c344c37f"
+    },
+    {
+      "file": "supabase/functions/process-push-delivery-queue/internal_auth_test.ts",
+      "sha256": "b73fb39efda308444061073484ae7de9c126260bf2c02df49d7e49dbb7b41586"
+    },
+    {
+      "file": "supabase/functions/retry-missed-push-notifications/index.ts",
+      "sha256": "cf0be8487ee9e2308598a2dd51af0f0197f76223871b3565b663344aae43d453"
+    },
+    {
+      "file": "supabase/functions/send-association-broadcast/index.ts",
+      "sha256": "0a98199558bc0139d9076e3dd3434ce39ee2fe10d0a7917eafb13aadd1f2362a"
+    },
+    {
+      "file": "supabase/functions/send-block-alert-email/index.ts",
+      "sha256": "4fd410e0f7cce41d4f1747d814bc6160a289c81cc31ed684960cf0abce04b03e"
+    },
+    {
+      "file": "supabase/functions/send-club-announcement/index.ts",
+      "sha256": "11caabd159e33a100d19cbd783b9074c4b2a7cc3682183f52597c3a92e9714de"
+    },
+    {
+      "file": "supabase/functions/send-comment-report-email/index.ts",
+      "sha256": "bf9e2ac0d2216cc7343aa9debd445a070e313ce047f0cdb06a4ba07402b91db4"
+    },
+    {
+      "file": "supabase/functions/send-competition-broadcast/index.ts",
+      "sha256": "f1de97df8aba5f368ef08452c88f4ff373121905858d5efd994dd7c5c08406bd"
+    },
+    {
+      "file": "supabase/functions/send-duty-notification-email/index.ts",
+      "sha256": "ef1baf6e9f7521df90d5801073f549ea5da39eff93a9b1fbb48895feb7e2fc23"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/child-added.tsx",
+      "sha256": "514762dea7df77d8c531e445b5b6dfb25212067f60d4d372da9157f66b10c429"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/duty-assigned.tsx",
+      "sha256": "09a3e5435c7b7baecc1c112adb21269d4fddda04064e6a398d44800f7f695506"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/event-reminder.tsx",
+      "sha256": "481a62226a6d33963acf7984f63a4a2c69f7d1108730157d2b27798884811c3c"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/event-view-reminder.tsx",
+      "sha256": "e83fc38f73a3699ea277ec40983adb0f331aa2aad510727699ba49eac2acc178"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/game-stats-ready.tsx",
+      "sha256": "4d403f11331db634ae3bfaeb3d13dde2d682cb6e6e8b8afe05d60d590aa529ef"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/join-request-response.tsx",
+      "sha256": "0518974cc94ec0c705a8928d75e83594547a2490281bb67c396c54b8168fce93"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/magic-link.tsx",
+      "sha256": "5187d594b50cd6bff6edf19e1b4f6a61175495e0e7d1038a70c16aee743da344"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/membership-confirmation.tsx",
+      "sha256": "4a07e225bdc1eced86098475e7c9381d066f7395a942730fb3ac0a0ffeeb4bd5"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/message-notification.tsx",
+      "sha256": "3cabb6204da9c6ae2a24280e136ef7b9093c93552dab9a54c19356ed722a3beb"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/payment-failed.tsx",
+      "sha256": "7b43fa2438bc7e5b00fd35d95ab0b45eeae4752f8c0e0f1784c981b693e4aa2d"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/photo-uploaded.tsx",
+      "sha256": "7cdb9a084cff9d1ab662cf8799a9a267a7e498e821cb261a51bdfcfe54081598"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/pitch-board-notification.tsx",
+      "sha256": "2bde7b7ee73a8a090cded75fc6fec3ff5246222b4b24708bfbb92deb2722c1ad"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/points-awarded.tsx",
+      "sha256": "cbeaff549e2fd8eb47d8cda20e7c9c0cc023a5878af01998ac300af379469f5e"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/renewal-reminder.tsx",
+      "sha256": "c4a7e23ddbf9ebba13f4dd8896ae5721111eff04ee290084d59d20bb482e3659"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/reward-redeemed.tsx",
+      "sha256": "4228cf36b73777b60ad07fcdc1003bbd87b1b386b6a3c6ee58998c9f95461b93"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/sport-meta.ts",
+      "sha256": "e0e15bcb7c213a95da4a927bd71eb698c776881e8445941fe1496d946ad8bdb5"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/storage-warning.tsx",
+      "sha256": "7ab493a73e4f4e8616429f1f14fcee7df30f52b4fff2f636748d2ce064ada8dc"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/subscription-renewed.tsx",
+      "sha256": "9e5e26973c62b4e8c9d2359e6c66ca301e92998b0155f6f80d01e2db4e92068d"
+    },
+    {
+      "file": "supabase/functions/send-email/_templates/team-invite.tsx",
+      "sha256": "ae01723fa0b856c1c9c5e4bfed3039cbe93c8fff45490b02bce99cb0ed14cd68"
+    },
+    {
+      "file": "supabase/functions/send-email/index.ts",
+      "sha256": "8bc1fd915099ab95d9fbff57266ff8d8704790e845264a4eaf0a1c666a443698"
+    },
+    {
+      "file": "supabase/functions/send-enrolment-notification-email/index.ts",
+      "sha256": "cf82c086a905164da25ff7446785af8d62c32565eab1df8cf72b6a476797c570"
+    },
+    {
+      "file": "supabase/functions/send-event-reminders/index.ts",
+      "sha256": "9df88bd4f209c29f65bd0ac6e1bcefed5d35cc853ee532022dd8969c0975a19f"
+    },
+    {
+      "file": "supabase/functions/send-event-view-reminder/_templates/event-view-reminder.tsx",
+      "sha256": "af1af462ddb058993ef848bd4e18732cd8ce730c99d049fc2f548c99cbb9a74d"
+    },
+    {
+      "file": "supabase/functions/send-event-view-reminder/deno.json",
+      "sha256": "fc7cd0dfb96b8aa0529448129acf09dad06c1684a8e1d1a88b596a74779a06e4"
+    },
+    {
+      "file": "supabase/functions/send-event-view-reminder/event-view-reminder_test.ts",
+      "sha256": "902ea74ddd552ed9698be7a6742af7f2f7c1dab317a0392bc00172f7e847dd77"
+    },
+    {
+      "file": "supabase/functions/send-event-view-reminder/index.ts",
+      "sha256": "8837687075e87c07826b72e80d196ae8e2a5dce9e02ec6dccd4bc86745323aac"
+    },
+    {
+      "file": "supabase/functions/send-fcm-notification/index.ts",
+      "sha256": "0e72789f6c5ffe625a554b4652d04b299e0195f939de2592cb83683b17aac529"
+    },
+    {
+      "file": "supabase/functions/send-feedback-email/index.ts",
+      "sha256": "497c88104f9e7f9ce233ae75b5fe3f5475dce981ba92714f0c5ea895ab3c8f0c"
+    },
+    {
+      "file": "supabase/functions/send-game-stats-email/index.ts",
+      "sha256": "8b163ca66af4fd79a613fe97ccd1d3cb051f60091ea6d10295a6435d40dd1e0c"
+    },
+    {
+      "file": "supabase/functions/send-message-notification-email/index.ts",
+      "sha256": "14024a21f430cb78ff8dc2222fc71f275f7a529f2d29e2357a56359d1b1568a4"
+    },
+    {
+      "file": "supabase/functions/send-message-report-email/index.ts",
+      "sha256": "7be2d138969f2386897967fa2c936b4a84d5bfaebfd0b767f6196b726047be99"
+    },
+    {
+      "file": "supabase/functions/send-photo-notification-email/index.ts",
+      "sha256": "8413100d9ded30a83bce85f2a5cff38491e608d23adefb4648da7e973701f526"
+    },
+    {
+      "file": "supabase/functions/send-photo-report-email/index.ts",
+      "sha256": "32c8f4ad57a87d0e1577910b7d8bd9de04f7fbf0aa8cbd95bc7c6fb1c2e56f8c"
+    },
+    {
+      "file": "supabase/functions/send-pitch-board-notification-email/index.ts",
+      "sha256": "b916f46384ba21156988ccec7a4f28938235aaccc447fbebd69fd6c28a6f97e7"
+    },
+    {
+      "file": "supabase/functions/send-points-notification-email/index.ts",
+      "sha256": "a0eddaa980ead7d08e741a172a79921a89114d0b599b6f61743cd799eba7d63a"
+    },
+    {
+      "file": "supabase/functions/send-push-notification/index.ts",
+      "sha256": "5fa694d075d7ca655a5b69fcaf5cc85af44a2f5653fdff339294b32576a89f58"
+    },
+    {
+      "file": "supabase/functions/send-reward-redeemed-email/index.ts",
+      "sha256": "4dc10ec148e5057d48a33ed05f433c1136200028ad09837bab97a5051150cfa4"
+    },
+    {
+      "file": "supabase/functions/send-update-reminder/index.ts",
+      "sha256": "cf13d2b0036ace815a7cf64a20cf724614d0e2c695cd730a52a02ab862b768ce"
+    },
+    {
+      "file": "supabase/functions/share-page/index.ts",
+      "sha256": "f3e38360b869619af3b4e69aeea0e124d38a27a732059f22d9bf23a28d64b7ec"
+    },
+    {
+      "file": "supabase/functions/sync-dispatch-credentials/index.ts",
+      "sha256": "0cdaa2c928fb62b659c60e0d55167a5af3cb5f7f2d432805d52568df929b6118"
+    },
+    {
+      "file": "supabase/functions/test-push-notification/index.ts",
+      "sha256": "919d937032e8e22c4bf6a171aaaba0387c5e4cd5e4a6e14e7f802502ccba3048"
+    }
+  ]
+}

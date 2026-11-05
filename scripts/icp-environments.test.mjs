@@ -100,6 +100,9 @@ const wf = (name) => readFileSync(path.join(REPO_ROOT, ".github/workflows", name
 test("merging into prod promotes PROD canisters automatically, with PROD keys only", () => {
   const y = wf("promote-icp-prod.yml");
   assert.match(y, /push:\n\s+branches: \[prod\]/);
+  const pushTrigger = y.split("  push:\n")[1]?.split("  workflow_dispatch:")[0];
+  assert.ok(pushTrigger, "prod push trigger must exist");
+  assert.doesNotMatch(pushTrigger, /\bpaths(?:-ignore)?:/, "every prod push must start promotion, regardless of changed paths");
   assert.match(y, /secrets\.PROD_GOVERNOR_PEM/);
   assert.doesNotMatch(y, /secrets\.(DEPLOYER_PEM|GOVERNOR_PEM)\b/);
   assert.match(y, /--mode upgrade --no-create/);

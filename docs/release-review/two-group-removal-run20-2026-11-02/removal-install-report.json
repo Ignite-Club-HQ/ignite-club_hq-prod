@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "kind": "local-installation-only",
+  "passed": true,
+  "releaseAuthorized": false,
+  "receiverAcceptance": false,
+  "binarySha256": "f5009e61bcbff297435a67a8ef9fc02178ebb9ab3ee1ec3ac81f4fc3d49319c4",
+  "wasmSha256": "54818e0bf56e67668647e8eccee665d23b14c81c966242ab32604aed51bf0de9",
+  "stage": "passed",
+  "host": {
+    "faults": 1,
+    "writeBit": 1,
+    "recovered": true,
+    "sourceSha256": "2cc4fde3d7846f696c53a4bcd418a03abeee0b0191dc1cd4884e42db56d7da6b",
+    "kernel": "Linux 7.0.0-1017-azure"
+  },
+  "binaryVersion": "pocket-ic-server 14.0.0",
+  "elapsedMs": 680
+}

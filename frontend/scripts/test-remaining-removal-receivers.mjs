@@ -1,0 +1,104 @@
+// Real local actors, always-eligible delayed authority. Candidate non-rehearsal
+// modes are local test inputs only, never production release/opening evidence.
+import assert from 'node:assert/strict';
+import { PocketIc } from '@dfinity/pic';
+import { IDL } from '@icp-sdk/core/candid';
+import { Principal } from '@icp-sdk/core/principal';
+import { startRemovalLocalServer } from './removal-local-supervisor.mjs';
+import { removalInstallPreflight } from './removal-install-preflight.mjs';
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
+const principal=n=>Principal.fromUint8Array(Uint8Array.from([n,1]));
+const governor=principal(1), removed=principal(2), survivor=principal(3);
+const candidate = process.env.REMOVAL_TEST_MODE === 'production-candidate';
+const requestType=IDL.Record({account_id:IDL.Text,generation:IDL.Nat64,inventory_digest:IDL.Vec(IDL.Nat8),subjects:IDL.Vec(IDL.Principal)});
+const receipt=IDL.Record({request:requestType,receiver:IDL.Principal,outstanding:IDL.Nat});
+const relayIdl=({IDL:I})=>I.Service({
+  hold_admission:I.Func([],[],[]),release_admission:I.Func([],[],[]),admission_progress:I.Func([],[I.Nat,I.Bool],['query']),
+  prepare:I.Func([I.Principal,requestType],[I.Variant({Ok:I.Null,Err:I.Text})],[]),
+  drain:I.Func([I.Principal,requestType],[I.Variant({Ok:receipt,Err:I.Text})],[]),
+  seal:I.Func([I.Principal,requestType],[I.Variant({Ok:receipt,Err:I.Text})],[]),
+});
+const ok=r=>{assert.ok('Ok' in r,String(r.Err));return r.Ok};
+const probes={
+  events_domain:['read_account_list_my_viewed_event_ids',[[]]],
+  competition_domain:['read_account_list_competitions',['club']],
+  mini_league_domain:['read_account_get_mini_leagues',[[]]],
+  club_points_domain:['read_account_get_user_points',['club',removed.toText()]],
+  media_metadata:['read_account_get_asset',['unknown']],
+  insights_domain:['record_web_vital',['LCP',12,'good','/receiver']],
+  notification_queue:['read_account_get_push_alert_settings',[]],
+};
+await removalInstallPreflight({ binary: process.env.POCKET_IC_BIN,
+ wasm: process.env.REMOVAL_INSTALL_PROBE_WASM, reportPath: process.env.REMOVAL_INSTALL_REPORT });
+const report={schema:1,kind:'seven-service-receiver-races-only',mode:candidate?'production-candidate':'rehearsal',
+ releaseAuthorized:false,fullInventoryAcceptance:false,passed:false,services:[]};
+const server=await startRemovalLocalServer({binary:process.env.POCKET_IC_BIN,hardTtlSeconds:900});let pic;
+let stage='create local replica';
+try{
+ pic=await PocketIc.create(server.url,{processingTimeoutMs:120000});
+ assert.ok(process.env.REMOVAL_RELAY_WASM,'Real relay Wasm required');
+ stage='install local removal relay';
+ const relay=await pic.setupCanister({idlFactory:relayIdl,wasm:process.env.REMOVAL_RELAY_WASM,sender:governor,controllers:[governor],arg:IDL.encode([],[])});
+ for(const [domain,[method,args]] of Object.entries(probes)){
+  stage=`test ${domain}`;
+  console.log('Testing',domain,candidate ? 'non-rehearsal candidate' : 'rehearsal');
+  assert.ok(process.env[domain.toUpperCase()+'_WASM'],domain+' real Wasm required');
+  const evidence={domain,passed:false,wasmSha256:createHash('sha256').update(readFileSync(process.env[domain.toUpperCase()+'_WASM'])).digest('hex')};
+  report.services.push(evidence);
+  const {idlFactory}=await import(`../src/lab/bindings/${domain}/declarations/${domain}.did.js`);
+  const service=await pic.setupCanister({idlFactory,wasm:process.env[domain.toUpperCase()+'_WASM'],sender:governor,controllers:[governor],
+   environmentVariables:[...(candidate ? [{name:'IGNITE_ACCOUNT_ADMISSION_RELEASE',value:'1'},{name:'IGNITE_ACCOUNT_REMOVAL_RELEASE',value:'1'}]
+     : [{name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'}]),{name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:relay.canisterId.toText()}],arg:IDL.encode([IDL.Principal],[governor])});
+  const signature=idlFactory({IDL})._fields.find(([n])=>n===method)?.[1];assert.ok(signature,domain+' real method');
+  service.actor.setPrincipal(removed);await service.actor[method](...args); // positive, no hold
+  const request={account_id:'removed-'+domain,generation:9n,inventory_digest:new Uint8Array(32).fill(9),subjects:[removed]};
+  await relay.actor.hold_admission();
+  const pending=await pic.client.submitCall({canisterId:service.canisterId,sender:removed,method,payload:new Uint8Array(IDL.encode(signature.argTypes,args))});
+  let observed=false;
+  for(let round=0;round<80;round++){await pic.tick(1);const [count,held]=await relay.actor.admission_progress();if(count>0n&&held){observed=true;break}}
+  assert.ok(observed,domain+' actually reached admission callback');
+  ok(await relay.actor.prepare(service.canisterId,request));
+  assert.ok(ok(await relay.actor.drain(service.canisterId,request)).outstanding>0n,domain+' held operation cannot drain');
+  assert.ok('Err' in await relay.actor.seal(service.canisterId,request),domain+' cannot seal held work');
+  await relay.actor.release_admission();
+  await assert.rejects(()=>pic.client.awaitCall(pending),undefined,domain+' late eligible reply must be denied');
+  assert.equal(ok(await relay.actor.seal(service.canisterId,request)).outstanding,0n);
+  await pic.upgradeCanister({canisterId:service.canisterId,wasm:process.env[domain.toUpperCase()+'_WASM'],sender:governor,arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
+  service.actor.setPrincipal(removed);await assert.rejects(()=>service.actor[method](...args));
+  service.actor.setPrincipal(survivor);await service.actor[method](...args);
+  assert.equal(ok(await relay.actor.seal(service.canisterId,request)).outstanding,0n);
+  service.actor.setPrincipal(governor);assert.ok('err' in await service.actor.rekey_principal(removed,survivor,false));
+  if (candidate) {
+    await pic.updateCanisterSettings({canisterId:service.canisterId,sender:governor,
+      environmentVariables:[{name:'IGNITE_ACCOUNT_SERVICE_IDENTITY',value:relay.canisterId.toText()}]});
+    await pic.upgradeCanister({canisterId:service.canisterId,wasm:process.env[domain.toUpperCase()+'_WASM'],sender:governor,
+      arg:IDL.encode([IDL.Principal],[governor]),upgradeModeOptions:{skip_pre_upgrade:[],wasm_memory_persistence:[{keep:null}]}});
+    service.actor.setPrincipal(removed);await assert.rejects(()=>service.actor[method](...args));
+    service.actor.setPrincipal(survivor);await service.actor[method](...args);
+  }
+  console.log('PASS',domain,'observed held admission, late eligible denial, fresh seal, upgrade fence, survivor access');
+  evidence.passed=true;
+ }
+ report.passed=true;
+}catch(error){
+ report.failure=error?.name??'Error';
+ console.error('Removal test stopped at:',stage);
+ throw error;
+}finally{
+ // A busy instance can refuse deletion indefinitely. Always stop this local
+ // server even when teardown rejects; no production process is involved.
+ try{if(pic)await Promise.race([pic.tearDown(),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Local replica cleanup timed out')),5000))]);}
+ catch(error){console.error('Local cleanup:',error.message);}
+ finally{
+  try{await server.stop();}
+  finally{
+   report.stage=stage;
+   if(process.env.REMOVAL_RECEIVER_REPORT){
+    mkdirSync(path.dirname(process.env.REMOVAL_RECEIVER_REPORT),{recursive:true});
+    writeFileSync(process.env.REMOVAL_RECEIVER_REPORT,JSON.stringify(report,null,2)+'\n');
+   }
+  }
+ }
+}

@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "kind": "two-group-complete-removal",
+  "passed": true,
+  "releaseAuthorized": false,
+  "fullInventoryAcceptance": false,
+  "productionAuthorization": false,
+  "identityMode": "local-rehearsal",
+  "mode": "local-rehearsal",
+  "checks": [
+    {
+      "name": "Non-rehearsal identity denies unaccepted alias readers; authorization disable generation survives upgrade and preserves own account",
+      "passed": true
+    },
+    {
+      "name": "Unfenced legacy queue recovery still resets one processing item for authenticated retry",
+      "passed": true
+    },
+    {
+      "name": "All 24 receiver effective configurations authenticate identity, reject outsiders and match selected guard mode",
+      "passed": true
+    },
+    {
+      "name": "Real closed base/g2 registry, 24 human receivers, two timers, shared workload and supplemental router",
+      "passed": true
+    },
+    {
+      "name": "Four infrastructure receivers configured once; alias timer worker and primary workload are real retained obligations",
+      "passed": true
+    },
+    {
+      "name": "Both aliases and survivor read actual encrypted photos and retained club messages",
+      "passed": true
+    },
+    {
+      "name": "Removing one club membership preserves other-group private access",
+      "passed": true
+    },
+    {
+      "name": "Unreached receiver denies both aliases before its local fence is prepared",
+      "passed": true
+    },
+    {
+      "name": "All 24 human receivers drain both aliases; two external leases survive upgrade until authenticated settlement",
+      "passed": true
+    },
+    {
+      "name": "24 upgraded receivers still deny both aliases while survivor retains ciphertext, Vault and chat history",
+      "passed": true
+    },
+    {
+      "name": "Infrastructure fences deny both aliases while survivor keeps access; seals refuse retained obligations",
+      "passed": true
+    },
+    {
+      "name": "Governor settles infrastructure obligations; fences survive router, workload and timer upgrades",
+      "passed": true
+    },
+    {
+      "name": "Complete global seals cover all 28 frozen targets; no erasure, release or opening is implied",
+      "passed": true
+    },
+    {
+      "name": "Immutable terminal fencing completion survives replay and identity upgrade; history, data, survivor access and authority locks remain",
+      "passed": true
+    }
+  ],
+  "modules": {
+    "club_domain": "d5e8f6dcc5904fe9be65667133fabf4346c0c1f551881b685d8f05f7a4ef60b8",
+    "events_domain": "5b280e7d593d69a73871e6428f315de0523c5a857bc1527205c3bc07c4e74370",
+    "messaging_domain": "57e075a140f3fe18bdc7b1d5fec1dca421d2496ae4ae49edab8e903f214e8e32",
+    "vault_domain": "f35a32416f963836b1da25f90738e11fb45fd6438f0f5b09fbf1360782584f2d",
+    "competition_domain": "89b014fe10dd0fd37b1bcdb7865db078b1f385f4780245e8e324fa8a3e139bd1",
+    "club_points_domain": "9373360787306df9bd55cd0fde5614b3bec454086f0e77b428ce67a34805735e",
+    "mini_league_domain": "e3a1b01721fc5411c4391f224175182eed1820b5e6fca248317ab0116028d89b",
+    "media_metadata": "9d4cb0583584ac93be9762287f032b0a3b08f2921eff894eebc21ef010d53531",
+    "insights_domain": "ee6031bc4bcf10a17c465614a131fb5acc66cef3554e05b48f8f8f654208afb9",
+    "notification_queue": "4f3f009c98e3ce9a41257983ccbe84e04f4f30b5ca1bb17a104d543dfe19c6b8",
+    "pii_access_control": "f3afc5738c452e0d984e8cc962c6da94176331260896e61496bc182295926366",
+    "media_blob_store": "f822c1a3203abb301ea1e88e76a9e45379e05a99253861a799f5fa17c94b2835",
+    "identity_access": "0b70b0752a4119f5e9b03c02f717234d9d5a68bb297d188826969a4770c068e0",
+    "shard_router": "6b1b9bcafb5cad934913f5c7d966c99031f56148b306df54849c21640f42ed16",
+    "timer_jobs": "5005b3e75bd740cd8a0aa7ada7bfb9b9f2c41fb73c0000676af87b120d1dc98a",
+    "secret_workload_identity": "764e298c292821e1e4d23cd4af26d550eb1023de97c87f25e8e77f411b1f5abf"
+  },
+  "unresolvedInfrastructure": [],
+  "completeSeals": 28,
+  "terminalFencingCompletion": true,
+  "stage": "persist immutable terminal fencing completion"
+}

@@ -1,0 +1,390 @@
+import { memo, useEffect, useState } from "react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { currentChatScope } from "@/live/chatScope";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Check, Eye, EyeOff } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
+import type { ReaderInfo } from "@/hooks/useMessageReads";
+import { resolveAuthBackend } from "@/live/authBackendMode";
+import { usePrivateChatProfiles } from "@/hooks/usePrivateChatProfiles";
+import { privateProfileSearchRehearsalEnabled } from "@/live/privateProfileSearchMode";
+import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
+
+type MessageType = "team" | "club" | "broadcast" | "group" | "dm" | "club_admin";
+
+const MESSAGE_ID_FIELDS: Record<MessageType, string> = {
+  team: "team_message_id",
+  club: "club_message_id",
+  group: "group_message_id",
+  broadcast: "broadcast_message_id",
+  dm: "direct_message_id",
+  club_admin: "club_admin_message_id",
+};
+
+interface ReadReceiptSheetProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  readers: ReaderInfo[];
+  messageId: string;
+  messageType: MessageType;
+  contextId: string;
+  currentUserId?: string;
+}
+
+interface MemberInfo {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+export const ReadReceiptSheet = memo(function ReadReceiptSheet({
+  open,
+  onOpenChange,
+  readers: propReaders,
+  messageId,
+  messageType,
+  contextId,
+  currentUserId,
+}: ReadReceiptSheetProps) {
+  const [allMembers, setAllMembers] = useState<MemberInfo[]>([]);
+  const [fetchedReaders, setFetchedReaders] = useState<ReaderInfo[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const privateNames = (privateProfileSearchRehearsalEnabled() || (!['dm', 'broadcast'].includes(messageType) && privateClubNameDisplaysEnabled())) && resolveAuthBackend() === "icp";
+  const baseReaders = propReaders.length > 0 ? propReaders : fetchedReaders;
+  const getPrivateProfile = usePrivateChatProfiles(contextId, currentUserId,
+    [...baseReaders.map(row => row.user_id), ...allMembers.map(row => row.user_id)], privateNames && open, messageType === 'dm' ? 'direct' : 'group', messageType === 'broadcast' ? messageId : undefined);
+  const scopedLabel = (row: MemberInfo) => privateNames ? {
+    ...row, display_name: getPrivateProfile(row.user_id)?.display_name ?? null,
+    avatar_url: getPrivateProfile(row.user_id)?.avatar_url ?? null,
+  } : row;
+  const readers = baseReaders.map(scopedLabel);
+  const visibleMembers = allMembers.map(scopedLabel);
+
+  // Internet Identity accounts: messaging_domain exposes list_read_receipts
+  // (listLiveReadReceipts) plus get_group_metadata for the group member
+  // roster, so read/unread state renders from the canister instead of being
+  // silently skipped. Team/club contextIds have no canister membership list
+  // here, so those fall back to showing only the resolved readers (same
+  // fallback path the Supabase branch uses when `allMembers` is empty).
+  useEffect(() => {
+    if (!open || !messageId) return;
+    if (resolveAuthBackend() !== "icp") return;
+
+    let cancelled = false;
+    const fetchIcp = async () => {
+      setLoading(true);
+      try {
+        const { withFeatureBackend } = await import("@/live/featureRouter");
+        const receipts = await withFeatureBackend("messaging", {
+          supabase: async () => [],
+          icp: async (ctx) => {
+            const { listLiveReadReceipts, listLiveBroadcastMessageReaders } = await import("@/live/features/messaging");
+            return messageType === 'broadcast' && privateNames
+              ? listLiveBroadcastMessageReaders(ctx, [messageId])
+              : listLiveReadReceipts(ctx, contextId || messageId);
+          },
+        }, contextId ? { conversationId: contextId } : currentChatScope());
+        if (cancelled) return;
+
+        const readerIds = [
+          ...new Set(
+            receipts
+              .filter((r) => r.messageId === messageId && r.read)
+              .map((r) => r.user.toText())
+              .filter((id) => id !== currentUserId)
+          ),
+        ];
+
+        let memberIds: string[] = [];
+        if (messageType === "group" && contextId) {
+          try {
+            const meta = await withFeatureBackend("messaging", {
+              supabase: async () => null,
+              icp: async (ctx) => {
+                const { getLiveGroupMetadata } = await import("@/live/features/messaging");
+                return getLiveGroupMetadata(ctx, contextId);
+              },
+            }, contextId ? { conversationId: contextId } : currentChatScope());
+            memberIds = (meta?.members ?? [])
+              .map((p) => p.toText())
+              .filter((id) => id !== currentUserId);
+          } catch {
+            // Members list is best-effort; readers still render without it.
+          }
+        }
+
+        const allIds = [...new Set([...readerIds, ...memberIds])];
+        let profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
+        if (!privateNames && allIds.length > 0) {
+          const profiles = await withFeatureBackend("messaging", {
+            supabase: async () => [],
+            icp: async (ctx) => {
+              const { listLiveProfilesByIds } = await import("@/live/features/identityAccessClient");
+              return listLiveProfilesByIds(ctx, allIds);
+            },
+          }, { shared: "app" });
+          for (const p of profiles as any[]) {
+            profileMap.set(p.account_id, { display_name: p.display_name ?? null, avatar_url: p.avatar_url ?? null });
+          }
+        }
+        if (cancelled) return;
+
+        setFetchedReaders(
+          readerIds.map((id) => ({
+            user_id: id,
+            display_name: profileMap.get(id)?.display_name ?? null,
+            avatar_url: profileMap.get(id)?.avatar_url ?? null,
+          }))
+        );
+        if (memberIds.length > 0) {
+          setAllMembers(
+            memberIds.map((id) => ({
+              user_id: id,
+              display_name: profileMap.get(id)?.display_name ?? null,
+              avatar_url: profileMap.get(id)?.avatar_url ?? null,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Error fetching ICP read receipt data:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchIcp();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, messageId, contextId, messageType, currentUserId, privateNames]);
+
+  useEffect(() => {
+    if (!open || !messageId) return;
+    if (resolveAuthBackend() === "icp") return;
+
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const field = MESSAGE_ID_FIELDS[messageType];
+
+        // Kick off all independent queries in parallel
+        const readsPromise = (supabase
+          .from("message_reads")
+          .select(`${field}, user_id`) as any)
+          .eq(field, messageId);
+
+        const needsMembers =
+          messageType !== "dm" && messageType !== "broadcast" && !!contextId;
+
+        let membersPromise: Promise<string[]> = Promise.resolve([]);
+        if (needsMembers) {
+          if (messageType === "team") {
+            membersPromise = Promise.resolve(
+              supabase.from("user_roles").select("user_id").eq("team_id", contextId)
+            ).then(({ data }) => [...new Set((data || []).map((r: any) => r.user_id))]);
+          } else if (messageType === "club") {
+            membersPromise = Promise.resolve(
+              supabase.from("user_roles").select("user_id").eq("club_id", contextId)
+            ).then(({ data }) => [...new Set((data || []).map((r: any) => r.user_id))]);
+          } else if (messageType === "group") {
+            membersPromise = (async () => {
+              const memberIds = new Set<string>();
+              const [gmRes, giRes] = await Promise.all([
+                Promise.resolve(supabase.from("group_members").select("user_id").eq("group_id", contextId)),
+                Promise.resolve(
+                  supabase
+                    .from("chat_groups")
+                    .select("club_id, team_id, allowed_roles")
+                    .eq("id", contextId)
+                    .maybeSingle()
+                ),
+              ]);
+
+              for (const r of gmRes.data || []) memberIds.add((r as any).user_id);
+              const groupInfo = giRes.data as any;
+              const roleQueries: Promise<any>[] = [];
+              if (groupInfo?.club_id && groupInfo?.allowed_roles?.length) {
+                roleQueries.push(
+                  Promise.resolve(
+                    supabase
+                      .from("user_roles")
+                      .select("user_id")
+                      .eq("club_id", groupInfo.club_id)
+                      .in("role", groupInfo.allowed_roles)
+                  )
+                );
+              }
+              if (groupInfo?.team_id && groupInfo?.allowed_roles?.length) {
+                roleQueries.push(
+                  Promise.resolve(
+                    supabase
+                      .from("user_roles")
+                      .select("user_id")
+                      .eq("team_id", groupInfo.team_id)
+                      .in("role", groupInfo.allowed_roles)
+                  )
+                );
+              }
+
+              const roleResults = await Promise.all(roleQueries);
+              for (const res of roleResults) {
+                for (const r of res.data || []) memberIds.add((r as any).user_id);
+              }
+              return [...memberIds];
+            })();
+          }
+        }
+
+        const [readsRes, memberIdsRaw] = await Promise.all([readsPromise, membersPromise]);
+
+        const readerUserIds = new Set<string>();
+        for (const row of (readsRes as any).data || []) {
+          const userId = (row as any).user_id as string;
+          if (userId !== currentUserId) readerUserIds.add(userId);
+        }
+
+        const memberIds = memberIdsRaw.filter((id) => id !== currentUserId);
+
+        // Single profile fetch for both readers and members
+        const allIds = new Set<string>([...readerUserIds, ...memberIds]);
+        let profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
+        if (allIds.size > 0) {
+          const { data: profiles } = await selectCachedProfilesByIds(Array.from(allIds));
+          for (const p of profiles || []) {
+            profileMap.set(p.id, { display_name: p.display_name, avatar_url: p.avatar_url });
+          }
+        }
+
+        setFetchedReaders(
+          Array.from(readerUserIds).map((id) => ({
+            user_id: id,
+            display_name: profileMap.get(id)?.display_name ?? null,
+            avatar_url: profileMap.get(id)?.avatar_url ?? null,
+          }))
+        );
+
+        if (needsMembers) {
+          setAllMembers(
+            memberIds.map((id) => ({
+              user_id: id,
+              display_name: profileMap.get(id)?.display_name ?? null,
+              avatar_url: profileMap.get(id)?.avatar_url ?? null,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Error fetching read receipt data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [open, messageId, contextId, messageType, currentUserId]);
+
+
+  const readerIds = new Set(readers.map((r) => r.user_id));
+  const isDm = messageType === "dm";
+
+  const readMembers = isDm
+    ? readers
+    : visibleMembers.length > 0
+      ? visibleMembers.filter((m) => readerIds.has(m.user_id))
+      : readers;
+
+  const unreadMembers = isDm || visibleMembers.length === 0
+    ? []
+    : visibleMembers.filter((m) => !readerIds.has(m.user_id));
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="max-h-[70vh] rounded-t-2xl">
+        <SheetHeader className="pb-2">
+          <SheetTitle className="text-base">Message Read By</SheetTitle>
+        </SheetHeader>
+
+        <div className="overflow-y-auto max-h-[55vh] space-y-4">
+          {loading && (
+            <p className="text-xs text-muted-foreground text-center py-4">Loading...</p>
+          )}
+
+          {!loading && (
+            <>
+              {/* Read section */}
+              <div>
+                <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>Read ({readMembers.length})</span>
+                </div>
+                {readMembers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground pl-5">No one has read this yet</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {readMembers.map((member) => (
+                      <MemberRow
+                        key={member.user_id}
+                        name={member.display_name}
+                        avatarUrl={member.avatar_url}
+                        isRead
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Unread section */}
+              {unreadMembers.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+                    <EyeOff className="h-3.5 w-3.5" />
+                    <span>Not yet read ({unreadMembers.length})</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {unreadMembers.map((member) => (
+                      <MemberRow
+                        key={member.user_id}
+                        name={member.display_name}
+                        avatarUrl={member.avatar_url}
+                        isRead={false}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+});
+
+function MemberRow({
+  name,
+  avatarUrl,
+  isRead,
+}: {
+  name: string | null;
+  avatarUrl: string | null;
+  isRead: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 py-1 px-1">
+      <Avatar className="h-7 w-7">
+        <AvatarImage src={avatarUrl || undefined} />
+        <AvatarFallback className="text-[11px] bg-muted text-muted-foreground">
+          {(name || "?").charAt(0).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <span className="text-sm flex-1 truncate">{name || "Unknown"}</span>
+      {isRead && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+    </div>
+  );
+}
