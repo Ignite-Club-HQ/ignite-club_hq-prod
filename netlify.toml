@@ -53,6 +53,13 @@
     Content-Type = "application/json"
     Access-Control-Allow-Origin = "*"
 
+# Phone sign-in return allow-list read by Internet Identity (id.ai).
+[[headers]]
+  for = "/.well-known/ii-auth-callbacks"
+  [headers.values]
+    Content-Type = "application/json"
+    Access-Control-Allow-Origin = "*"
+
 [[headers]]
   for = "/*"
   [headers.values]
