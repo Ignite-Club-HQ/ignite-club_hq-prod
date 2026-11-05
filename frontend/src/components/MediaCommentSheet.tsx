@@ -558,6 +558,7 @@ export function MediaCommentSheet({
                 <div key={comment.id}>
                   <PhotoComment
                     id={comment.id}
+                    clubId={clubId}
                     text={comment.text}
                     userId={comment.user_id}
                     displayName={comment.profiles?.display_name}
@@ -573,6 +574,7 @@ export function MediaCommentSheet({
                   />
                   <CommentRepliesThread
                     replies={replies}
+                    clubId={clubId}
                     parentDisplayName={comment.profiles?.display_name}
                     currentUserId={currentUserId}
                     onInteractionChange={setIsCommentInteracting}
