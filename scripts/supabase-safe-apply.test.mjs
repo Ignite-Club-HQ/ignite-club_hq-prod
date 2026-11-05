@@ -119,3 +119,49 @@ test('the five batch files are the reviewed candidates split without edits', () 
   assert.equal(competition, readFileSync('docs/release-review/competition-functions-prod-candidate.sql', 'utf8'));
   assert.equal(invitation, readFileSync('docs/release-review/invitation-welcome-prod-candidate.sql', 'utf8'));
 });
+
+test('the safe-apply runner applies exactly the six approved batches, one transaction each', () => {
+  const temp = mkdtempSync(path.join(tmpdir(), 'safe-apply-runner-'));
+  const log = path.join(temp, 'commands');
+  try {
+    writeFileSync(path.join(temp, 'psql'), [
+      '#!/bin/sh',
+      'for a in "$@"; do',
+      '  if [ "$a" = "--single-transaction" ]; then',
+      '    printf "\\n=== WRITE ===\\n" >> "$SAFE_TEST_LOG"',
+      '    cat >> "$SAFE_TEST_LOG"',
+      '    exit 0',
+      '  fi',
+      'done',
+      'printf "[]"',
+      '',
+    ].join('\n'), { mode: 0o755 });
+    const result = spawnSync(process.execPath, ['scripts/supabase-structural-release.mjs'], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${temp}:${process.env.PATH}`, SAFE_TEST_LOG: log,
+        GITHUB_REF: 'refs/heads/prod', PROJECT_REF: SAFE_TARGET,
+        SUPABASE_ACCESS_TOKEN: 'fixture-only', SUPABASE_DB_PASSWORD: 'fixture-only',
+        GITHUB_SHA: 'a'.repeat(40), RELEASE_MODE: 'safe-apply', RELEASE_REPORT_DIR: temp },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(readFileSync(path.join(temp, 'release-report.json'), 'utf8'));
+    assert.equal(report.phase, 'safe-apply-complete');
+    assert.deepEqual(report.apply, SIX);
+    assert.deepEqual(report.applied, SIX);
+    assert.deepEqual(report.alreadyApplied, []);
+    assert.equal(report.held.length, 34);
+    assert.equal(report.dataCopy, false);
+    const input = readSafeInputs(process.cwd());
+    const written = readFileSync(log, 'utf8').split('\n=== WRITE ===\n').slice(1);
+    assert.equal(written.length, 6, 'one transaction per approved file');
+    for (const file of SIX) {
+      const version = file.split('_')[0];
+      const name = file.slice(15, -4);
+      const chunk = written.find(part => part.startsWith(input.files[file]));
+      assert.ok(chunk, `${file}: its exact SQL was not submitted`);
+      assert.equal(chunk.match(/INSERT INTO supabase_migrations\.schema_migrations/g)?.length, 1,
+        `${file}: exactly one truthful ledger row`);
+      assert.match(chunk, new RegExp(`VALUES \\('${version}', '${name}'\\)`));
+    }
+  } finally { rmSync(temp, { recursive: true, force: true }); }
+});
