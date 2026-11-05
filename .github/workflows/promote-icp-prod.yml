@@ -282,6 +282,8 @@ jobs:
         if: steps.fmap.outputs.mode != 'skip'
         env:
           PROD_RELEASE_READ_TOKEN: ${{ github.token }}
+          # The database promotion starts on the same push; wait for it like the Netlify gate does.
+          PROD_PUBLICATION_GATE_WAIT_MS: "720000"
         run: |
           GITHUB_SHA="$(git rev-parse HEAD)" node scripts/prod-publication-gate.mjs --database-only
       - run: npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm --no-fund --no-audit
