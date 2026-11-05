@@ -1907,8 +1907,8 @@ queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined)
   // Placement includes the section: fresh unread badges must not move a row
   // from Recent to Unread while someone is reading further down the inbox.
   const placedRows = useStableVisibleList([
-    ...freshSections.unread.map(item => ({ key: item.key, item, section: "unread" as const })),
-    ...freshSections.recent.map(item => ({ key: item.key, item, section: "recent" as const })),
+    ...freshSections.unread.map(item => ({ key: item.key, item, section: "unread" as "unread" | "recent" })),
+    ...freshSections.recent.map(item => ({ key: item.key, item, section: "recent" as "unread" | "recent" })),
   ], {
     enabled: useIcpLab,
     scope: JSON.stringify([user?.id, effectiveClubFilter, query, typeFilter, showAllOps]),

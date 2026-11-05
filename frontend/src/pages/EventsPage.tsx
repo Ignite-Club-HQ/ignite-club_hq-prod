@@ -897,7 +897,7 @@ export default function EventsPage() {
         viewableCompetitionMatchIds,
         filteredData,
       );
-      filteredData = filterVisibleScheduleEvents(filteredData,
+      filteredData = filterVisibleScheduleEvents<(typeof filteredData)[number]>(filteredData,
         { teamIds, clubIds, miniLeagueIds, clubAdminClubIds },
         selectedTeamIdFilter, selectedMiniLeagueId,
         { includeReadableCompetitionEvents: true, selectedClubId: clubFilter, isVisibleTeamEvent },
