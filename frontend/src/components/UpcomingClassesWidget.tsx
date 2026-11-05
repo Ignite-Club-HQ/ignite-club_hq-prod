@@ -124,7 +124,7 @@ export function UpcomingClassesWidget() {
               if (mine.length === 0) return;
               const teamById = new Map(teams.map((t) => [t.id, t]));
               mine.forEach((e) => {
-                const t = teamById.get(e.class_id);
+                const t = teamById.get(e.class_id) as any; // class schedule fields are optional on canister teams
                 if (!t || t.archived || !t.class_day?.[0]) return;
                 if (!classes.some((c) => c.id === t.id)) {
                   classes.push({
