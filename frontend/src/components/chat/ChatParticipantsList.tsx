@@ -365,7 +365,7 @@ export function ChatParticipantsList({
                   // Pre-deploy canisters lack list_team_role_grants.
                 }
                 if (grants) {
-                  const roles = new Map(grants.map((g) => [g.account_id, g.role]));
+                  const roles = new Map<string, string>(grants.map((g) => [g.account_id, g.role] as [string, string]));
                   const profileMap = await profilesFor([...roles.keys()]);
                   return toMembers([...roles.keys()], roles, profileMap);
                 }
@@ -385,7 +385,7 @@ export function ChatParticipantsList({
                 const grants = await listLiveRoleGrants(ctx, chatId).catch(
                   () => [] as Array<{ account_id: string; role: string }>,
                 );
-                const roles = new Map(grants.map((g) => [g.account_id, g.role]));
+                const roles = new Map<string, string>(grants.map((g) => [g.account_id, g.role] as [string, string]));
                 const profileMap = await profilesFor([...roles.keys()]);
                 return toMembers([...roles.keys()], roles, profileMap);
               }
@@ -569,7 +569,7 @@ export function ChatParticipantsList({
         supabase: async () => new Map<string, any>(),
         icp: async (ctx) => {
           const profiles = await listLiveProfilesByIds(ctx, icpProfileIds, resolvedClubId ? { clubId: resolvedClubId } : undefined).catch(() => []);
-          return new Map<string, any>(profiles.map((p: any) => [p.account_id, p]));
+          return new Map<string, any>((profiles as any[]).map((p: any) => [p.account_id, p] as [string, any]));
         },
       }, { conversationId: chatId }),
     enabled: enabled && useIcpLab && icpProfileIds.length > 0,
