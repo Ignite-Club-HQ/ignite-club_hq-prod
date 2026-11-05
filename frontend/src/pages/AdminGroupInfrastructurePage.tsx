@@ -237,7 +237,7 @@ function GroupInfrastructureContent() {
     () =>
       [...(q.data?.readings.values() ?? [])]
         .filter((r) => r.memoryBytes != null)
-        .map((r) => ({ key: r.key, mb: r.memoryBytes! / 1e6 })),
+        .map((r) => ({ key: r.key, memoryMb: r.memoryBytes! / 1e6 })),
     [q.data],
   );
 
