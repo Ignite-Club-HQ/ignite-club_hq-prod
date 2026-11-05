@@ -47,7 +47,7 @@ jobs:
           icp canister top-up --help > /dev/null
       - name: Create payment link, wait and apply approved top-ups (open this log)
         env:
-          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
           ICP_HOME: ${{ runner.temp }}/infrastructure-card-identity
           GH_TOKEN: ${{ github.token }}
           PAYMENT_ID: ${{ inputs.payment_id }}
@@ -64,7 +64,7 @@ jobs:
           test -n "$DEPLOYER_PEM"
           mkdir -p "$ICP_HOME"
           trap 'rm -rf "$ICP_HOME"' EXIT
-          printf '%s' "$DEPLOYER_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$ICP_HOME/operator.pem"
+          PEM_IN="$DEPLOYER_PEM" node "$GITHUB_WORKSPACE/scripts/normalize-pem.mjs" > "$ICP_HOME/operator.pem"
           icp identity import --from-pem "$ICP_HOME/operator.pem" --storage plaintext ignite-card-deployer
           unset DEPLOYER_PEM
           cd "$RUNNER_TEMP"
