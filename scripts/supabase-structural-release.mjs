@@ -83,7 +83,9 @@ function main() {
     const findings = JSON.parse(check.stdout);
     if (!Array.isArray(findings)) throw new Error('Safe-apply SQL result unreadable');
     const approval = JSON.parse(readFileSync(path.join(root, 'docs/release-review/safe-apply-approval.json'), 'utf8'));
-    const { apply, skipped } = planSafeApply(approval, staged, input.files, findings);
+    const reviewedPath = path.join(root, 'docs/release-review/safe-apply-reviewed-findings.json');
+    const reviewed = existsSync(reviewedPath) ? JSON.parse(readFileSync(reviewedPath, 'utf8')) : null;
+    const { apply, skipped } = planSafeApply(approval, staged, input.files, findings, reviewed);
     const report = { commit: process.env.GITHUB_SHA, project: PROD_REF, phase: 'safe-apply-checked',
       apply: apply.map(x => x.file), alreadyApplied: skipped, held: staged.held.map(x => x.file), dataCopy: false, functions: [] };
     const save = () => writeFileSync(path.join(output, 'release-report.json'), JSON.stringify(report, null, 2));
