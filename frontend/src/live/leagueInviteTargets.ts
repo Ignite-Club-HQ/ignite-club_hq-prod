@@ -1,5 +1,5 @@
 import type { FeatureBackendContext } from './featureRouter';
-import { withFeatureBackend } from './featureRouter';
+import { mergeListsById, withFeatureBackend } from './featureRouter';
 import { readMembershipInScope } from './membershipRouting';
 import { mergeMiniLeagueRows } from './miniLeagueRouting';
 import { readLeagueClub, readManageableLeagues } from './leagueReads';
@@ -40,7 +40,7 @@ async function readInviteTargetsNow(ctx: FeatureBackendContext) {
     optional(withFeatureBackend('competitions', {
       supabase: async () => { throw new Error('Internet Identity required'); },
       icp: async scoped => (await import('./features/competitions')).listLiveMyNewsCompetitions(scoped),
-    }, { everyGroup: true, merge: (parts) => [...new Map(parts.flat().map(row => [row.id, row])).values()] })),
+    }, { everyGroup: true, merge: mergeListsById })),
   ]);
   const teamIds = [...new Set(grants.flatMap(g => g.team))];
   // A team grant already names its club: route straight there instead of

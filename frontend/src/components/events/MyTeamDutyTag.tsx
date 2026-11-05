@@ -76,7 +76,7 @@ export function useMyDutyTeamAccess() {
           )),
         };
       },
-    }, { everyGroup: true, merge: (parts) => ({
+    }, { everyGroup: true, merge: (parts: Array<{ teamIds: string[]; leagueAdminClubIds: string[] }>) => ({
       teamIds: [...new Set(parts.flatMap(p => p.teamIds))],
       leagueAdminClubIds: [...new Set(parts.flatMap(p => p.leagueAdminClubIds))],
     }) }),

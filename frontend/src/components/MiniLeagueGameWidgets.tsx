@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Timer, ExternalLink, LayoutGrid, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { withFeatureBackend } from "@/live/featureRouter";
+import { mergeListsById, withFeatureBackend } from "@/live/featureRouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
@@ -107,7 +107,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
           };
         },
         icp: async ctx => (await import("@/live/leagueReads")).readLiveLeagueMemberships(ctx),
-      }, { everyGroup: true, merge: (parts) => ({ parentLeagueIds: [...new Set(parts.flatMap(p => p.parentLeagueIds))], adminLeagueIds: [...new Set(parts.flatMap(p => p.adminLeagueIds))], allLeagueIds: [...new Set(parts.flatMap(p => p.allLeagueIds))], isAppAdmin: parts.some(p => p.isAppAdmin) }) }),
+      }, { everyGroup: true, merge: (parts: Array<{ parentLeagueIds: string[]; adminLeagueIds: string[]; allLeagueIds: string[]; isAppAdmin: boolean }>) => ({ parentLeagueIds: [...new Set(parts.flatMap(p => p.parentLeagueIds))], adminLeagueIds: [...new Set(parts.flatMap(p => p.adminLeagueIds))], allLeagueIds: [...new Set(parts.flatMap(p => p.allLeagueIds))], isAppAdmin: parts.some(p => p.isAppAdmin) }) }),
     enabled: !!user,
     staleTime: 30000,
   });
@@ -273,7 +273,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
       return activeMatches;
         },
         icp: async ctx => (await import("@/live/leagueReads")).readLiveLeagueMatches(ctx, userLeagueMemberships?.allLeagueIds ?? [], activeClubFilter),
-      }, activeClubFilter ? { clubId: activeClubFilter } : { everyGroup: true, merge: parts => [...new Map(parts.flat().map(row => [row.id, row])).values()] }),
+      }, activeClubFilter ? { clubId: activeClubFilter } : { everyGroup: true, merge: mergeListsById }),
     enabled: !!user && !!userLeagueMemberships?.allLeagueIds?.length,
     refetchInterval: 5000, // Refresh every 5 seconds to get updated timer states
   });

@@ -56,11 +56,16 @@ export type ClubScope = ({ clubId: string } | { photoId: string } | { galleryCar
   /** Spans the caller's clubs (inbox, unread counts, "my events"): asked of
    * the shared canisters and every group the caller belongs to at the same
    * time, then combined with merge. Reads only. */
-  | { everyGroup: true; merge: (parts: any[]) => unknown; requireComplete?: boolean }
-  | { memberGroups: true; merge: (parts: any[]) => unknown }
+  | { everyGroup: true; merge: (parts: unknown[]) => unknown; requireComplete?: boolean }
+  | { memberGroups: true; merge: (parts: unknown[]) => unknown }
 ) & { writeKey?: string; attempts?: number; /** internal: club not moved, use shared canisters */ legacy?: true };
 /** Combine list results from several groups (one array per group). */
 export const mergeLists = <T,>(parts: T[][]): T[] => parts.flat();
+
+/** Combine list results from several groups, keeping the first copy of each
+ * row's id (the same row can be answered by more than one group). */
+export const mergeListsById = <T extends { id: string }>(parts: T[][]): T[] =>
+  [...new Map(parts.flat().map((row) => [row.id, row])).values()];
 
 export async function withFeatureBackend<T>(
   feature: FeatureArea,
