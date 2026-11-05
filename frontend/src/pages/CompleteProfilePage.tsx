@@ -469,7 +469,9 @@ function SupabaseCompleteProfilePage() {
         // A photo picked on this screen is a base64 data URL; the canister
         // profile stores it as the avatar reference directly. Skip only
         // pathological sizes so a huge image can't blow the ingress limit.
-        const avatarRef = avatarUrl && avatarUrl.length <= 500_000 ? avatarUrl : null;
+        // The canister refuses avatar references over 512 characters, so a
+        // picked photo (base64) is left out rather than failing the save.
+        const avatarRef = avatarUrl && avatarUrl.length <= 512 ? avatarUrl : null;
         savedIcpProfile = await saveIcpIdentityProfile(identity, user.id, {
           displayName: displayName.trim(),
           avatarRef,

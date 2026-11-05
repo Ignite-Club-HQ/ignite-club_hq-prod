@@ -61,10 +61,21 @@ export async function saveIcpIdentityProfile(
     };
     // Production requires the authenticated canister capability. Missing or
     // unreleased capabilities fail closed, never restore plaintext saving.
+    // When the canister has not switched secure saving on, it accepts a plain
+    // name itself (and refuses one once released), so the canister — not the
+    // browser — decides; only that exact refusal falls through to a plain save.
+    let authorityText: string | null = null;
     if (!privateProfileSearchRehearsalEnabled()) {
       active();
-      const authority = (await client.readSecureNameAuthority()).toText();
+      try {
+        authorityText = (await client.readSecureNameAuthority()).toText();
+      } catch (error) {
+        if (!(error instanceof Error && error.message === 'Secure personal-name saving is not released')) throw error;
+      }
       active();
+    }
+    if (!privateProfileSearchRehearsalEnabled() && authorityText !== null) {
+      const authority = authorityText;
       if (authority !== target.canisterIds.pii_access_control) throw Error('The original secure name authority is not configured in this app; no name was changed.');
       const { preparePrivateOwnProfileName } = await import('./privateProfileNames');
       nameToSave = await preparePrivateOwnProfileName({ identity, target }, input.displayName);
@@ -87,7 +98,7 @@ export async function saveIcpIdentityProfile(
       }
       active();
       privateNameMaintained = true;
-    } else {
+    } else if (privateProfileSearchRehearsalEnabled()) {
       if (!isLoopbackRehearsalHost(target.host)) throw Error('Private profile save requires a loopback rehearsal target.');
       active();
       const current = await client.getProfile();
