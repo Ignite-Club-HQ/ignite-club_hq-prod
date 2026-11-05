@@ -71,7 +71,7 @@ export function BoardViewerDialog({
         }, { teamId: gameId });
         if (cancelled) return;
         setGame({ teamId: gameId, teamName: getCachedTeam(gameId)?.name ?? 'Team', sport: 'soccer',
-          members: grants.map(r => ({ id: `${gameId}:${r.user.toText()}:${r.role}`, user_id: r.user.toText(), role: r.role, profiles: null })) });
+          members: grants.map(r => ({ id: `${gameId}:${r.account_id}:${r.role}`, user_id: r.account_id, role: r.role, profiles: null })) });
         setLoading(false);
         return;
       }

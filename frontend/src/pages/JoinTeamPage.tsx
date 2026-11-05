@@ -1988,10 +1988,10 @@ function SupabaseJoinTeamPage() {
           supabase: async () => [],
           icp: async (ctx) => {
             const { listLiveTeamRoleGrants } = await import("@/live/features/membership");
-            const grants = (await listLiveTeamRoleGrants(ctx, invite.team_id!)) as Array<{ role: string; user: { toText(): string } }>;
+            const grants = (await listLiveTeamRoleGrants(ctx, invite.team_id!)) as Array<{ role: string; account_id: string }>;
             return grants
               .filter((g) => g.role === "team_admin" || g.role === "coach" || g.role === "club_admin")
-              .map((g) => ({ user_id: g.user.toText() }));
+              .map((g) => ({ user_id: g.account_id }));
           },
         }, { teamId: invite?.team_id as string });
       } else {

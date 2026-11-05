@@ -614,7 +614,7 @@ export function IcpMediaFeedPage() {
           if (!remove) return addLiveReaction(ctx, post.representativeAssetId, emoji, Date.now());
           const reactions = await listLiveReactions(ctx, post.representativeAssetId);
           const mine = reactions.find(r => r.user.toText() === ctx.identity.getPrincipal().toText());
-          if (mine) return removeLiveReaction(ctx, mine.id);
+          if (mine) return removeLiveReaction(ctx, mine.asset_id);
         },
       }, writeOnce({ clubId: post.clubId })),
     // Instant on-screen update; the canister save finishes in the background.
