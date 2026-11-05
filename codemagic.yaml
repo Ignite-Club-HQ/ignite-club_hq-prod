@@ -343,14 +343,10 @@ workflows:
           [ -f dist-live/index.html ] || cp dist-live/live-index.html dist-live/index.html
           [ -d ios/App ] || npx cap add ios
           npx cap sync ios
-          # cap sync can return success without running CocoaPods, leaving no
-          # App.xcworkspace for the xcodebuild step. Guarantee it explicitly.
-          if [ ! -d ios/App/App.xcworkspace ]; then
-            echo "cap sync did not create App.xcworkspace — running pod install explicitly"
-            (cd ios/App && pod install)
-          fi
-          if [ ! -d ios/App/App.xcworkspace ]; then
-            echo "App.xcworkspace still missing after pod install"
+          # Capacitor 8 scaffolds iOS with Swift Package Manager (CapApp-SPM):
+          # there is no Podfile and no Xcode workspace — build the .xcodeproj.
+          if [ ! -d ios/App/App.xcodeproj ]; then
+            echo "App.xcodeproj missing after cap add/sync"
             ls -la ios ios/App || true
             exit 1
           fi
@@ -364,7 +360,7 @@ workflows:
         working_directory: frontend/ios/App
         script: |
           xcodebuild build \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -scheme App \
             -configuration Debug \
             -sdk iphonesimulator \
@@ -392,7 +388,8 @@ workflows:
       groups:
         - supabase_prod
       vars:
-        XCODE_WORKSPACE: App.xcworkspace
+        # Capacitor 8 scaffolds iOS with Swift Package Manager — no workspace.
+        XCODE_PROJECT: App.xcodeproj
         XCODE_SCHEME: App
         # App Store Connect -> App -> General -> App Information -> the numeric
         # Apple ID. Fill this in once the app record exists.
@@ -441,9 +438,6 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$PL"
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$PL"
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string com.igniteclubhq.app" "$PL"
-      - name: Install CocoaPods dependencies
-        working_directory: frontend/ios/App
-        script: pod install
       - name: Wire Firebase push (iOS)
         working_directory: frontend
         script: |
