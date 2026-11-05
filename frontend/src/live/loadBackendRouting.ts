@@ -19,7 +19,12 @@ import {
 import { isFeatureCanisterConfigured, resolveFeatureBackend, type FeatureArea } from "./featureBackend";
 import { getActiveIcpTarget, registerIcpEngineResolver, type IcpTargetConfig } from "./targetRegistry";
 import { getCurrentCountry } from "./userCountry";
-import { isSignedInWithEmail, isIcpProviderMounted } from "./authBackendMode";
+import {
+  hasInternetIdentitySessionStored,
+  isSignedInWithEmail,
+  isIcpProviderMounted,
+  readAuthChoice,
+} from "./authBackendMode";
 import { shouldBootstrapFromIcp } from "./icpBootstrap";
 
 export { isSignedInWithEmail };

@@ -11,6 +11,13 @@ let queryResult: { data: { value: unknown } | null; error: unknown } = { data: n
 const maybeSingle = vi.fn(async () => queryResult);
 const onChainRead = vi.hoisted(() => vi.fn());
 vi.mock("./appConfig", () => ({ readLiveAppConfig: onChainRead }));
+// Drives the canister-hosted branch directly: jsdom will not let tests swap
+// window.location.hostname, so a hostname spy silently skipped this path.
+const bootstrapFromIcp = vi.hoisted(() => ({ value: false }));
+vi.mock("./icpBootstrap", async (importActual) => {
+  const actual = await importActual<typeof import("./icpBootstrap")>();
+  return { shouldBootstrapFromIcp: () => bootstrapFromIcp.value || actual.shouldBootstrapFromIcp() };
+});
 const selectChain = {
   select: () => selectChain,
   eq: () => selectChain,
@@ -87,12 +94,16 @@ describe("loadBackendRoutingConfig precedence", () => {
     expect(maybeSingle).not.toHaveBeenCalled();
   });
   it("a signed-out visit to the canister-hosted site reads the Supabase row when no on-chain copy exists", async () => {
-    vi.spyOn(window, "location", "get").mockReturnValue({ ...window.location, hostname: "u3mrq-uiaaa-aaaac-bgioq-cai.icp0.io" } as Location);
+    bootstrapFromIcp.value = true;
+    onChainRead.mockResolvedValue(null);
     queryResult = { data: { value: icpConfig }, error: null };
-    await loadBackendRoutingConfig();
-    expect(maybeSingle).toHaveBeenCalled();
-    expect(getBackendRoutingConfig().defaultBackend).toBe("icp");
-    vi.restoreAllMocks();
+    try {
+      await loadBackendRoutingConfig();
+      expect(maybeSingle).toHaveBeenCalled();
+      expect(getBackendRoutingConfig().defaultBackend).toBe("icp");
+    } finally {
+      bootstrapFromIcp.value = false;
+    }
   });
   it("applies the stored row and caches it", async () => {
     queryResult = { data: { value: icpConfig }, error: null };
