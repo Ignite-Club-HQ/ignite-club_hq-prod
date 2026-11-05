@@ -20,7 +20,7 @@
     "feeCycles": "100000000",
     "targetT": "3"
   },
-  "phase": "delivered",
+  "phase": "transferring",
   "createdAt": "2026-11-05T03:34:28.394Z",
   "order": {
     "order_id": "co-111-55731782036ce53fcf2a4abdde61483a",
@@ -53,5 +53,14 @@
     "balance": "2013665186546"
   },
   "balanceAfter": "2013665186546",
-  "testReady": true
+  "testReady": true,
+  "transfers": [
+    {
+      "id": "zu4gk-vqaaa-aaaal-qxp5a-cai",
+      "name": "notification_queue",
+      "amount": "2008248597362",
+      "beforeCycles": "991695543435",
+      "phase": "transferring"
+    }
+  ]
 }
