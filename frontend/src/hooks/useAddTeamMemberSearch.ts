@@ -263,7 +263,7 @@ export function useAddTeamMemberSearch({
           }
           const rolesByUser = new Map<string, { role: LiveMemberRole; team_id: string | null }[]>();
           for (const grant of grants as any[]) {
-            const userId = grant.user?.toText ? grant.user.toText() : String(grant.user);
+            const userId = grant.account_id ?? (grant.user?.toText ? grant.user.toText() : String(grant.user));
             if (!identityLookupIds.includes(userId)) continue;
             const roles = rolesByUser.get(userId) || [];
             roles.push({ role: grant.role as LiveMemberRole, team_id: grant.team?.[0] ?? null });

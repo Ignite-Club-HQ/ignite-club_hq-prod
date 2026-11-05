@@ -303,7 +303,7 @@ export default function ClubDetailPage() {
           teamList.map((t) => listLiveTeamRoleGrants(ctx, t.id).catch(() => [] as any[])),
         );
         const users = new Set<string>();
-        for (const list of grantLists) for (const g of list as any[]) users.add(g.user.toText());
+        for (const list of grantLists) for (const g of list as any[]) users.add(g.account_id);
         return { total: users.size, adults: users.size, juniors: 0, growth: 0, monthChange: 0 };
       }
 
