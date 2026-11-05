@@ -262,7 +262,7 @@ async function fetchReportExtrasIcp(
           periodScores: gr?.scores_hidden?[]:normalisePeriods(parseArray(gr?.period_scores_json)),
           captainNames: assignments.captains.map(nameFor),
           pomNames: gr?.mvp_player_name?.[0] ? [gr.mvp_player_name[0]] : [],
-          goalkeeperNames: assignments.goalkeepers.map(nameFor),
+          goalkeeperNames: assignments.goalkeepers.map((a) => nameFor(a as Parameters<typeof nameFor>[0])),
           playerGoals: gr?.scores_hidden?0:stats.reduce((total,s)=>total+Number(s.goals_scored),0),
           scorers,
         });
