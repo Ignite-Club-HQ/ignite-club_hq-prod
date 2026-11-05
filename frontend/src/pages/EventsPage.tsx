@@ -1201,7 +1201,11 @@ export default function EventsPage() {
       <div className="flex flex-col items-center justify-center gap-4 py-20 px-6 text-center">
         <p className="text-lg font-semibold text-foreground">Unable to load your schedule</p>
         <p className="text-sm text-muted-foreground max-w-sm">
-          {membershipsError instanceof Error ? membershipsError.message : "Your team memberships could not be loaded."}
+          {(() => {
+            // Never show raw service refusal text; log it for diagnosis.
+            console.error("[EventsPage] memberships load failed", membershipsError);
+            return "We couldn't load your teams right now. Please try again in a moment — if it keeps happening, let your club admin know.";
+          })()}
         </p>
         <Button onClick={() => refetchMemberships()} variant="outline" className="gap-2">
           <RefreshCw className="h-4 w-4" />
