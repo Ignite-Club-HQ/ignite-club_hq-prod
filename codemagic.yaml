@@ -344,7 +344,7 @@ workflows:
           [ -d ios/App ] || npx cap add ios
           npx cap sync ios
           # Capacitor 8 scaffolds iOS with Swift Package Manager (CapApp-SPM):
-          # there is no Podfile and no App.xcworkspace — build the .xcodeproj.
+          # there is no Podfile and no Xcode workspace — build the .xcodeproj.
           if [ ! -d ios/App/App.xcodeproj ]; then
             echo "App.xcodeproj missing after cap add/sync"
             ls -la ios ios/App || true
