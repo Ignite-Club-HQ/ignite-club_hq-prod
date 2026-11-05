@@ -104,6 +104,7 @@ const ALLOWLIST_CONFIG = {
 
 describe("email sign-in allowlist", () => {
   beforeEach(() => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     applyBackendRoutingConfig(ALLOWLIST_CONFIG);
     localStorage.setItem("ignite.authChoice", "supabase");
   });
@@ -147,6 +148,7 @@ describe("email sign-in allowlist", () => {
     [BRIDGE, "Bridgewater Soccer Club"],
     ["493ee2e3-c834-487d-93be-d1c8a0dbc4a8", "Basket Range Cricket Club"],
   ])("keeps team-only members of %s", async (clubId, name) => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     applyBackendRoutingConfig({ ...ALLOWLIST_CONFIG, emailAuthClubs: [{ id: clubId, name }] });
     emailUser(null);
     state.emailRead.mockImplementation((table: string) => query({

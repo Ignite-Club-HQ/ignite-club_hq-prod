@@ -257,7 +257,7 @@ export default function MatchCaptainSelector({
     (r) => !r.child_id && r.user_id && playerUserIds.includes(r.user_id.replace(/^principal:/, ""))
   );
 
-  const displayedCaptain = captain ?? seasonCaptain;
+  const displayedCaptain: { user_id: string; profiles: any; child_id?: string | null; children?: any; isSeasonCaptain?: boolean } | null | undefined = captain ?? seasonCaptain;
   const displayedRsvp = displayedCaptain ? rsvps.find(r => displayedCaptain.child_id
     ? r.child_id === displayedCaptain.child_id
     : !r.child_id && r.user_id?.replace(/^principal:/, "") === displayedCaptain.user_id?.replace(/^principal:/, "")) : null;

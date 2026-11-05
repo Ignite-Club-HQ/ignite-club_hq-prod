@@ -5,7 +5,9 @@ it('wires every participant authority reciprocally before accepting traffic', as
   const club = vi.fn(async () => ({ Ok: undefined })), comp = vi.fn(async () => ({ Ok: undefined }));
   await wireCompetitionGroupAuthorities(groups, { club: () => ({ set_competition_authorities: club }), competition: () => ({ set_participant_club_authorities: comp }) });
   expect(club).toHaveBeenCalledTimes(2); expect(comp).toHaveBeenCalledTimes(2);
+  // @ts-expect-error -- test fixture intentionally narrower than the generated service type
   expect(club.mock.calls[0][0].map(p => p.toText())).toEqual(groups.map(g => g.competitionDomain));
+  // @ts-expect-error -- test fixture intentionally narrower than the generated service type
   expect(comp.mock.calls[0][0].map(p => p.toText())).toEqual(groups.map(g => g.clubDomain));
 });
 it('stops on authority refusal without enabling anything', async () => {

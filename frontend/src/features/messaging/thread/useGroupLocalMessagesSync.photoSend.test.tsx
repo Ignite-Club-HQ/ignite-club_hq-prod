@@ -28,6 +28,7 @@ describe("group photo send local rendering", () => {
     act(() => rerender({ messages: [saved] }));
     expect(result.current?.map((row) => row.id)).toEqual(["saved-photo"]);
     expect(result.current?.[0]?.image_url).toBe("https://stored/photo");
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     act(() => rerender({ messages: [{ ...saved, optimistic_id: undefined }] }));
     expect(result.current?.map((row) => row.id)).toEqual(["saved-photo"]);
   });

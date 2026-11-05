@@ -16,6 +16,7 @@ interface Reply {
 
 interface CommentRepliesThreadProps {
   replies: Reply[];
+  clubId?: string | null;
   parentDisplayName?: string | null;
   currentUserId?: string;
   onReply: (commentId: string, name: string) => void;
@@ -26,6 +27,7 @@ interface CommentRepliesThreadProps {
 
 export const CommentRepliesThread = memo(function CommentRepliesThread({
   replies,
+  clubId,
   parentDisplayName,
   currentUserId,
   onReply,
@@ -49,6 +51,7 @@ export const CommentRepliesThread = memo(function CommentRepliesThread({
         <PhotoComment
           key={reply.id}
           id={reply.id}
+          clubId={clubId}
           text={reply.text}
           userId={reply.user_id}
           displayName={reply.profiles?.display_name}

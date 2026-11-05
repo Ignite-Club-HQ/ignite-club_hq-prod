@@ -15,6 +15,7 @@ vi.mock("./domains", () => ({ connectLiveClubDomain: async (target: IcpTargetCon
 vi.mock("./identityAccess", () => ({ connectLiveIdentityAccessClientWithIdentity: async () => ({ client: { prepareAccountDeletion: m.prepare, commitAccountDeletion: m.commit, settleAccountDeletion: m.settle, eraseAccount: m.erase, dispose: m.dispose } }) }));
 beforeEach(() => { vi.clearAllMocks(); m.active = false; m.targets = []; m.validate.mockResolvedValue(undefined);
   m.prepare.mockResolvedValue(undefined); m.commit.mockResolvedValue(undefined); m.settle.mockResolvedValue(undefined); m.revoke.mockResolvedValue({ Ok: null }); m.erase.mockResolvedValue(undefined); });
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const target = (id: string) => ({ host: 'https://icp-api.io', networkKind: 'public_mainnet',
   canisterIds: { club_domain: id } }) as IcpTargetConfig;
 describe("administrator erasure", () => {

@@ -80,7 +80,7 @@ export function CompetitionOfficialJoinLinksCard({
   const createLink = useMutation({
     mutationFn: () => {
       const token = newToken();
-      return withFeatureBackend("competitions", {
+      return withFeatureBackend<any>("competitions", {
         supabase: async () => {
           const db = supabase as any;
           const { data: auth } = await supabase.auth.getUser();

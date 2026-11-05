@@ -14,6 +14,7 @@ describe('team pending invitation reads', () => {
   it('retains pending and resent exact-team invitations without reading old email data', async () => {
     mocks.list.mockResolvedValue(['pending', 'resent', 'accepted', 'revoked'].map((status, i) => ({
       id: String(i), team_id: ['hawks'], role: ['parent'], status, created_at_ms: 1000n, email: 'do-not-display@example.invalid',
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     })).concat([{ id: 'other', team_id: ['other-team'], role: ['coach'], status: 'pending', created_at_ms: 1000n }]));
     const rows = await readIcpTeamPendingInvites('club', 'hawks');
     expect(rows.map(row => row.id)).toEqual(['0', '1']);

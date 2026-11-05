@@ -78,11 +78,13 @@ export async function resolveGameStatsTeamId(
   if (!eventId) return null;
   if (resolveAuthBackend() === "icp") {
     return withFeatureBackend("events", { supabase: async () => null, icp: async ctx => {
-      const { connectLiveEventsDomain } = await import("@/live/domains");
-      const { unwrapCandid } = await import("@/live/features/candid");
-      const {actor}=await connectLiveEventsDomain(ctx.target,ctx.identity);
-      const rows = await unwrapCandid(actor.get_event(eventId),"Resolve game team");
-      return rows[0]?.team_id[0] ?? null;
+      const { getListedLiveEvent, listLiveEvents } = await import("@/live/features/events");
+      const opt = (v: unknown) => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null)) as string | null;
+      const known = getListedLiveEvent(eventId);
+      if (known) return opt(known.team_id);
+      const events = await listLiveEvents(ctx);
+      const found = events.find((event) => event.id === eventId);
+      return found ? opt(found.team_id) : null;
     } }, {eventId});
   }
   const { data } = await supabase

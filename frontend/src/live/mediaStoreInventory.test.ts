@@ -15,6 +15,7 @@ function fixture() {
       next: index === 4 ? [] : [{ phase: { [phases[index + 1]]: null }, offset: 0n, after: '' }] } };
   });
   const registry: StoreInventoryRegistry = { deploymentId: 'd', revision: 'r1', complete: true,
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     stores: [{ canisterId: 'store-a', quotaAuthority: 'quota', actor: { club_media_inventory_page: call } as MediaInventoryActor }] };
   return { page, call, registry, read: vi.fn(async () => registry) };
 }

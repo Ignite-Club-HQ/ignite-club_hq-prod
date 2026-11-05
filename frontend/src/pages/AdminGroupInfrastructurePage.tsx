@@ -240,6 +240,7 @@ function GroupInfrastructureContent() {
         .map((r) => ({ key: r.key, mb: r.memoryBytes! / 1e6 })),
     [q.data],
   );
+  const liveMem = useMemo(() => liveRows.map((r) => ({ key: r.key, memoryMb: r.mb })), [liveRows]);
 
   return (
     <div className="container max-w-4xl py-6 space-y-4">
@@ -285,8 +286,8 @@ function GroupInfrastructureContent() {
 
       {liveRows.length > 0 && (
         <>
-          <CanisterMemoryTrendCard live={liveRows} history={reports.data ?? []} />
-          <CanisterMemoryForecastCard live={liveRows} history={reports.data ?? []} />
+          <CanisterMemoryTrendCard live={liveMem} history={reports.data ?? []} />
+          <CanisterMemoryForecastCard live={liveMem} history={reports.data ?? []} />
         </>
       )}
       <MemoryReportsCard liveRows={liveRows} />

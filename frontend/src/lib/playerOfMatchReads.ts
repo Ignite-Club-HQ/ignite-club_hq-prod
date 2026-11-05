@@ -3,7 +3,7 @@ import { withFeatureBackend } from '@/live/featureRouter';
 
 /** Team rewards take precedence; only club-wide rewards are a fallback. */
 export async function readPlayerOfMatchRewards(clubId: string, teamId?: string | null) {
-  return withFeatureBackend('points', {
+  return withFeatureBackend<any>('points', {
     supabase: async () => {
       if (teamId) {
         const { data, error } = await supabase.from('club_rewards').select('*')

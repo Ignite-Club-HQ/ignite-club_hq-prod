@@ -321,9 +321,9 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
       if (isIcpBackend) return data.id;
 
       const notificationResult = audience === "mini_league"
-        ? await supabase.rpc("notify_mini_league_news", { _news_id: data.id, _send_push: sendPush })
+        ? await (supabase.rpc as any)("notify_mini_league_news", { _news_id: data.id, _send_push: sendPush })
         : audience === "competition"
-          ? await supabase.rpc("notify_competition_news", { _news_id: data.id, _send_push: sendPush })
+          ? await (supabase.rpc as any)("notify_competition_news", { _news_id: data.id, _send_push: sendPush })
           : await supabase.rpc("notify_club_news", { _news_id: data.id, _send_push: sendPush });
       const notifyErr = notificationResult.error;
       if (notifyErr) {
@@ -659,24 +659,6 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
                   ))
                 )}
               </div>
-            )}
-            {audience === "mini_league" && (
-              <MobileCardSelect
-                label="Mini league"
-                value={miniLeagueId}
-                onValueChange={setMiniLeagueId}
-                options={miniLeagues.map((league) => ({ value: league.id, label: league.name }))}
-                placeholder="Select mini league"
-              />
-            )}
-            {audience === "competition" && (
-              <MobileCardSelect
-                label="Competition"
-                value={competitionId}
-                onValueChange={setCompetitionId}
-                options={competitions.map((competition) => ({ value: competition.id, label: competition.name }))}
-                placeholder="Select competition"
-              />
             )}
           </div>
 

@@ -45,7 +45,7 @@ interface ActiveGameRow {
 /** Maps an events_domain ActiveGame (sync_active_game record) to the Supabase-shaped row this page renders. */
 function toActiveGameRow(game: {
   id: string;
-  team_id?: string | null;
+  team_id?: string | null | [] | [string];
   user_id: { toText?: () => string } | string;
   is_active: boolean;
   updated_at_ms: bigint | number;
@@ -63,7 +63,7 @@ function toActiveGameRow(game: {
   };
   return {
     id: game.id,
-    team_id: game.team_id ?? null,
+    team_id: (Array.isArray(game.team_id) ? game.team_id[0] : game.team_id) ?? null,
     user_id: userId,
     is_active: game.is_active,
     updated_at: updatedAt,

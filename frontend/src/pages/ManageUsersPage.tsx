@@ -496,8 +496,8 @@ function SupabaseManageUsersPage() {
             import("@/live/features/identityAccessClient"),
           ]);
           const principals = (await listLiveAppAdmins(ctx)).map((p) => p.toText());
-          const profiles = await listLiveProfilesByIds(ctx, principals).catch(() => []);
-          const byId = new Map(profiles.map((p: { account_id: string; display_name?: string | null; avatar_url?: string | null }) => [p.account_id, p]));
+          const profiles = await listLiveProfilesByIds(ctx, principals).catch(() => [] as Awaited<ReturnType<typeof listLiveProfilesByIds>>);
+          const byId = new Map(profiles.map((p) => [p.account_id, { display_name: p.display_name ?? null, avatar_url: p.avatar_ref?.[0] ?? null }] as const));
           return principals.map((id) => {
             const p = byId.get(id);
             return { id, user_id: id, created_at: null, profiles: { id, display_name: p?.display_name ?? null, avatar_url: p?.avatar_url ?? null } };

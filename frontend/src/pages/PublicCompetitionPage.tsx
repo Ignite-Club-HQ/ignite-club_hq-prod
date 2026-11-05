@@ -89,7 +89,24 @@ function IcpPublicCompetitionPage() {
     enabled: !!id,
     queryFn: async () => {
       const { fetchLivePublicCompetitionPage } = await import("@/live/features/competitions");
-      return fetchLivePublicCompetitionPage(id!);
+      const page = await fetchLivePublicCompetitionPage(id!);
+      if (!page) return page;
+      // Canister optionals arrive as [] | [value]; flatten once so the ladder,
+      // hidden-division filter and fixture list compare plain values.
+      const opt = <T,>(v: [] | [T] | T | undefined): T | undefined =>
+        Array.isArray(v) ? (v as T[])[0] : (v ?? undefined);
+      const matches: LiveMatch[] = page.matches.map((m) => ({
+        id: m.id,
+        status: m.status,
+        round_number: opt(m.round_number),
+        home_team: m.home_team,
+        away_team: m.away_team,
+        home_score: opt(m.home_score) ?? null,
+        away_score: opt(m.away_score) ?? null,
+        division_id: opt(m.division_id),
+        scheduled_at_ms: opt(m.scheduled_at_ms),
+      }));
+      return { ...page, matches };
     },
     retry: 1,
   });
@@ -108,7 +125,8 @@ function IcpPublicCompetitionPage() {
     );
   }
 
-  const { competition, matches, hide_ladder, hidden_divisions } = data;
+  const { competition, hide_ladder, hidden_divisions } = data;
+  const matches = data.matches as LiveMatch[];
   const hidden = new Set(hidden_divisions);
   const sortedMatches = [...matches].sort(
     (a, b) => Number(a.scheduled_at_ms ?? 0n) - Number(b.scheduled_at_ms ?? 0n),

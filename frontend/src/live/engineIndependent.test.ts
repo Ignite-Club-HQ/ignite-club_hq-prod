@@ -181,6 +181,7 @@ describe('country/group preparation preserves immutable placement', () => {
   });
   it('refuses stale existing deployment bindings without moving the club', () => {
     const p = placement(); const d = p.table.deployments.get('ic'); if (!d) throw new Error('fixture');
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     p.table.deployments.set('ic', { ...d, revision: 2n });
     expect(() => planClubPlacement({ ...p, clubId: 'existing' })).toThrow('mismatched');
     expect(p.table.routing.assignments.get('existing')).toEqual({ clubId: 'existing', groupId: 'a', revision: 2n });
@@ -196,12 +197,15 @@ describe('country/group preparation preserves immutable placement', () => {
     p.countries.countryDeployments.set('AU', 'engine');
     const d = p.table.deployments.get('ic'); if (!d) throw new Error('fixture missing');
     const engine: GroupDeployment = { ...d, id: 'engine', networkKind: 'cloud_engine' };
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     p.table.deployments.set('engine', engine); p.approvedDeployments.set('engine', engine);
     expect(planClubPlacement(p)).toMatchObject({ kind: 'blocked', deploymentId: 'engine' });
   });
   it('rejects partial group inventories and missing photo stores', () => {
     const p = placement(); const a = p.table.routing.groups.get('a'); if (!a) throw new Error('fixture');
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     p.table.routing.groups.set('a', { ...a, domains: a.domains.slice(1) }); expect(() => planClubPlacement(p)).toThrow('Incomplete');
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     p.table.routing.groups.set('a', { ...a, photoStore: undefined }); expect(() => planClubPlacement(p)).toThrow('photo store');
   });
   it('blocks stale capacity, unapproved subnets and closed groups', () => {
@@ -245,6 +249,7 @@ describe('engine acceptance harness', () => {
       if (fault === 'mismatch') e.record.assertions[0].observed = 'failure';
       if (fault === 'duplicate-assertions') e.record.assertions.push({ ...e.record.assertions[0] });
       if (fault === 'foreign-inventory') e.record.canisterIds.club_domain = id(90);
+      // @ts-expect-error -- test fixture intentionally narrower than the generated service type
       if (fault === 'oversized-record') e.record.assertions = Array.from({ length: 20 }, (_, i) => ({ name: `a${i}`, expected: 'x'.repeat(1024), observed: 'x'.repeat(1024) }));
       return e;
     });

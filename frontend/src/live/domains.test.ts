@@ -38,11 +38,15 @@ describe('dev-only domain protected reads', () => {
   });
   it('passes published loopback reads through unchanged until the canister demands a protected read', async () => {
     vi.stubEnv('DEV', false);
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     mocks.actor.list_files = vi.fn().mockResolvedValue({ Ok: [] });
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     mocks.actor.read_account_list_files = vi.fn();
     const connection = await connectLiveVaultDomain(target('http://localhost:4943'), identity);
     expect(await connection.actor.list_files('c')).toEqual({ Ok: [] });
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     expect(mocks.actor.list_files).toHaveBeenCalledWith('c');
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     expect(mocks.actor.read_account_list_files).not.toHaveBeenCalled();
   });
   it('connects real mapped reads only for a dev loopback target', async () => {

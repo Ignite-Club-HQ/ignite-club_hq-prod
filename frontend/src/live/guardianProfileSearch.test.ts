@@ -8,6 +8,7 @@ import { searchEncryptedGuardianProfiles } from "./guardianProfileSearch";
 const authority="rrkah-fqaaa-aaaaa-aaaaq-cai";
 const principal=Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
 const caller=Principal.fromText("r7inp-6aaaa-aaaaa-aaabq-cai");
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const ctx={target:{canisterIds:{club_domain:authority}},identity:{getPrincipal:()=>caller}} as FeatureBackendContext;
 const row={principal,account_id:"account",display_name:"Paul Cranwell",avatar_ref:[]};
 const next={after:"account",revision:7n,binding:new Uint8Array([1]),expires_at_ns:100n};

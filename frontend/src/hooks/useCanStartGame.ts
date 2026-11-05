@@ -55,7 +55,7 @@ export function useCanStartGame(event: EventLike | null | undefined) {
               .eq("team_id", event.team_id)
               .in("role", ["team_admin", "coach"])
               .limit(1)
-          : Promise.resolve({ data: [] as any[] }),
+          : Promise.resolve({ data: [] as any[], error: null }),
         supabase
           .from("duties")
           .select("id")

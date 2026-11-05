@@ -37,7 +37,9 @@ describe("class calendar enrolment parity", () => {
       <Routes><Route path="/clubs/:clubId/enrol" element={<ClassEnrolmentPage/>}/></Routes>
     </MemoryRouter></QueryClientProvider>);
     await screen.findByText("Senior skills");
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     fireEvent.click(screen.getByRole("button", {name:"Calendar",exact:true}));
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     fireEvent.click(await screen.findByRole("button", {name:"Join Waitlist",exact:true}));
     await waitFor(() => expect(inserts).toHaveBeenCalledWith({user_id:"adult",team_id:"class",term_id:"term",status:"waitlisted",waitlist_position:1}));
   });

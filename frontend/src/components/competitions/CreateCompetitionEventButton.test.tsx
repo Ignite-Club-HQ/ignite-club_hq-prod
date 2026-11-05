@@ -42,6 +42,7 @@ describe("CreateCompetitionEventButton", () => {
   });
 
   it("submits a validated event through the selected backend and refreshes the schedule", async () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue("operation-1");
     render(<CreateCompetitionEventButton competitionId="competition-1" teamCount={3} />);
 
@@ -70,6 +71,7 @@ describe("CreateCompetitionEventButton", () => {
 
   it("routes the same event contract through the ICP competition adapter", async () => {
     backendMode.value = "icp";
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue("operation-icp");
     render(<CreateCompetitionEventButton competitionId="competition-icp" teamCount={2} />);
 

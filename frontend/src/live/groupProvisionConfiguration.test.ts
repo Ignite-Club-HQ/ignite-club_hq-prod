@@ -45,6 +45,7 @@ describe('closed-group reciprocal configuration', () => {
   });
   it('persists each mutation intent then receipt and does not repeat acknowledged configuration', async () => {
     const w = world();
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     w.transport.call = vi.fn(async (_id, method) => {
       expect(w.saved().pending?.kind).toBe('configure');
       expect(w.saved().pending?.operation).toContain(method);
@@ -101,6 +102,7 @@ describe('closed-group reciprocal configuration', () => {
     expect(adapter.enableGroup).not.toHaveBeenCalled();
   });
   it('executor never runs health or registration after configuration refusal', async () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const w = world(); w.transport.call = vi.fn(async () => ({ Err: 'forbidden' }));
     const adapter: ProvisionAdapter = { createCanister: vi.fn(), install: vi.fn(),
       configure: (p, checkpoint) => configureProvisionGroup(p, checkpoint, w.transport, id(92), globals),

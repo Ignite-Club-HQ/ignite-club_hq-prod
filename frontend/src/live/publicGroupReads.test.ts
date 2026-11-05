@@ -4,6 +4,7 @@ const read=vi.hoisted(()=>vi.fn());
 vi.mock("./domains",()=>({connectLiveShardRouter:async()=>({actor:{read_public_group_targets:read}})}));
 import type { IcpTargetConfig } from "./targetRegistry";
 import type { RoutingGatesSnapshot } from "./generalActivation";
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const base = { host: "https://icp-api.io", canisterIds: { shard_router: "router", competition_domain: "g1" } } as IcpTargetConfig;
 const snapshot = { host: base.host, routerCanisterId: "router", groups: [{ id: "g2", domains: [{ domain: "competition_domain", canisterId: "g2" }] }] } as RoutingGatesSnapshot;
 describe("public group read inventory", () => {

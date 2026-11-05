@@ -27,7 +27,9 @@ describe("Vault attachment selection", () => {
     mocks.counts.mockResolvedValue(new Map());
     const picked = vi.fn();
     const view = render(<QueryClientProvider client={client}><VaultPickerSheet open clubId="goat" onOpenChange={vi.fn()} onPick={picked} /></QueryClientProvider>);
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     await waitFor(() => expect(screen.getByRole("button", { name: "Share", exact: true })).toBeDefined());
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     fireEvent.click(screen.getByRole("button", { name: "Share", exact: true }));
     expect(picked).toHaveBeenCalledWith({ kind: "folder", id: "rules", name: "Rules" });
     expect(client.getQueryData(["vault-folder-card", "rules", true, "paul"])).toEqual({ id: "rules", name: "Rules", club_id: "goat", team_id: null });

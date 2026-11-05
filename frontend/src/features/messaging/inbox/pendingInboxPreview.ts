@@ -129,7 +129,7 @@ export function applyPendingInboxPreview(
   const preview = buildRealtimePreview(
     { text: input.text, image_url: input.image_url, created_at: new Date().toISOString() },
     "You",
-    scope === "dm" ? { author_id: userId } : {},
+    scope === "dm" ? { author_id: userId } as Partial<InboxPreviewMessage> : {},
   );
   const marks = markMapFor(client);
 
@@ -152,7 +152,7 @@ export function applyPendingInboxPreview(
   const key = [prefixes[scope], userId];
   const query = client.getQueryCache().find({ queryKey: key, exact: true });
   const data = query?.state.data as
-    | { [key: string]: { id: string }[] | undefined; latestMessages?: Record<string, InboxPreviewMessage> }
+    | ({ [key: string]: { id: string }[] | undefined } & { latestMessages?: Record<string, InboxPreviewMessage> })
     | undefined;
   if (!query || !data?.[collections[scope]]?.some((row) => row.id === targetId)) return;
   registerMark(marks, query.queryHash, markKey(scope, userId, targetId), {

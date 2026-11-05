@@ -17,6 +17,7 @@ import { retirePrivateProfileSession } from './privateProfileSession';
 const subject = Principal.fromUint8Array(Uint8Array.of(3, 1)).toText();
 const sink = 'rrkah-fqaaa-aaaaa-aaaaq-cai';
 const identity = { getPrincipal: () => Principal.fromText(subject) } as Identity;
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const target = { alias: 'test', host: 'http://localhost:4943', canisterIds: { pii_access_control: sink, identity_access: sink } } as IcpTargetConfig;
 const reference = `pii-display-name:v1:${sink}:${subject}`;
 beforeEach(() => {

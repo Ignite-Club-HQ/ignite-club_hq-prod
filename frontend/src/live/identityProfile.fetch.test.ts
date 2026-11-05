@@ -12,6 +12,7 @@ import { fetchIcpIdentityProfile } from './identityProfile';
 const principal = Principal.fromUint8Array(Uint8Array.of(3, 1)).toText();
 const identity = { getPrincipal: () => Principal.fromText(principal) } as Identity;
 const authority = 'rrkah-fqaaa-aaaaa-aaaaq-cai';
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const target = { alias: 'test', host: 'https://icp-api.io', canisterIds: { identity_access: authority, pii_access_control: authority } } as IcpTargetConfig;
 const reference = `pii-display-name:v1:${authority}:${principal}`;
 beforeEach(() => {

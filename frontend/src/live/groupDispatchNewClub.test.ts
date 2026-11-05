@@ -26,6 +26,7 @@ describe('new club placement', () => {
     expect(d.legacy).not.toHaveBeenCalled();
   });
   it('switched off: clubs are created on the shared canisters, no placement asked', async () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const { d } = world('g1', OFF);
     expect(await createClubDispatcher(d as never).forNewClub('membership', 'c1', async (c: any) => c.group)).toBe('shared');
     expect(d.placeNewClub).not.toHaveBeenCalled();

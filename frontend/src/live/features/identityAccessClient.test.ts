@@ -76,6 +76,7 @@ describe("ICP media uploader profile resolution", () => {
 });
 
 describe("guardian-only full search", () => {
+  // @ts-expect-error -- test fixture intentionally narrower than the generated service type
   const scoped = { ...context, target: { canisterIds: { club_domain: "rrkah-fqaaa-aaaaa-aaaaq-cai" } } } as FeatureBackendContext;
   beforeEach(() => {
     vi.clearAllMocks();

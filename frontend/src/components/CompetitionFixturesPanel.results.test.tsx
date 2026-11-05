@@ -128,6 +128,7 @@ describe("CompetitionFixturesPanel result management", () => {
     expect(screen.getByRole("button", { name: /edit score/i })).toBeInTheDocument();
   });
 
+  // @ts-expect-error -- test fixture intentionally narrower than the generated service type
   it.each([null, []])("excludes masked signed-in ladder results (%j) with custom competition points", (masked) => {
     const entries = ["h", "a"].map(team_id => ({ team_id, status: "accepted", division_id: null }));
     const game = { status: "completed", home_team: "h", away_team: "a", home_score: masked, away_score: masked };

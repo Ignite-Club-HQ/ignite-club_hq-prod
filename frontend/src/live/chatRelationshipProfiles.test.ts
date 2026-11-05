@@ -158,6 +158,7 @@ describe('rehearsal chat relationship names', () => {
   });
   it('rejects account drift during decryption and never reads a closing audience for the new account', async () => {
     const owner = context();
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     mocks.profiles.mockImplementation(async () => { owner.identity = { ...identity }; return []; });
     await expect(readChatRelationshipProfiles(owner, 'chat', ['person'])).rejects.toThrow('changed');
     expect(mocks.metadata).toHaveBeenCalledTimes(1);

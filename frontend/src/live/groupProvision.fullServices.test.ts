@@ -12,6 +12,7 @@ const ok = (r: any) => { expect(r.Err).toBeUndefined(); expect('Ok' in r).toBe(t
 const contracts = import.meta.glob('../lab/bindings/*/declarations/*.did.js');
 let server: PocketIcServer, pic: PocketIc;
 describe.skipIf(!enabled)('complete closed new-group real-service wiring', () => {
+  // @ts-expect-error -- test fixture intentionally narrower than the generated service type
   beforeAll(async () => { server = await PocketIcServer.start(); pic = await PocketIc.create(server.getUrl(), { fiduciary: { state: { type: 'new' } } }); }, 60000);
   afterAll(async () => { await pic?.tearDown(); await server?.stop(); }, 60000);
   it('installs all twelve routed services plus blob storage, configures as governor and reads real business results', async () => {
@@ -26,7 +27,7 @@ describe.skipIf(!enabled)('complete closed new-group real-service wiring', () =>
       if (!wasm) throw Error(`Missing real artifact: ${name}`);
       const { idlFactory } = await load(name);
       const environmentVariables = name === 'pii_access_control' ? [{ name: 'VETKD_KEY_NAME', value: 'key_1' }] : name === 'media_blob_store' ? [{ name: 'GOVERNOR_PRINCIPAL', value: governor.toText() }] : [];
-      const service = await pic.setupCanister({ idlFactory, wasm, sender: governor, controllers: [governor], environmentVariables,
+      const service = await pic.setupCanister<any>({ idlFactory, wasm, sender: governor, controllers: [governor], environmentVariables,
         arg: IDL.encode(name === 'timer_jobs' ? [] : [IDL.Principal], name === 'timer_jobs' ? [] : [governor]) });
       service.actor.setPrincipal(governor); services.set(name, service);
       if (name === 'timer_jobs') {
@@ -38,7 +39,7 @@ describe.skipIf(!enabled)('complete closed new-group real-service wiring', () =>
     for (const domain of PER_GROUP_DOMAINS) await install(domain);
     const blob = await install('media_blob_store');
     const identityModule = await load('identity_access');
-    const identity = await pic.setupCanister({ idlFactory: identityModule.idlFactory, wasm: process.env.IDENTITY_ACCESS_WASM,
+    const identity = await pic.setupCanister<any>({ idlFactory: identityModule.idlFactory, wasm: process.env.IDENTITY_ACCESS_WASM,
       sender: governor, controllers: [governor], arg: IDL.encode([IDL.Record({ governor: IDL.Principal })], [{ governor }]) });
     const globals = { identityAccess: identity.canisterId.toText(), pushWorker: worker.toText(), mediaBlobStore: blob.canisterId.toText() };
     let saved: Provision = { id: 'closed-complete', groupId: 'new', deploymentId: 'local', subnetId: principal(80).toText(), phase: 'installed', expectedRevision: 0n,

@@ -29,6 +29,7 @@ describe('cross-group membership discovery', () => {
     await expect(discoverMemberships(table(), 'mainnet', ['p1'], { gone: 'x' }, 10, empty)).rejects.toThrow('Stale');
   });
   it('ignores groups of another deployment', async () => {
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const t = table(); t.groups.set('eu', { ...group('eu'), targetAlias: 'eu-engine' });
     const asked: string[] = [];
     await discoverMemberships(t, 'mainnet', ['p1'], null, 10, async g => { asked.push(g); return { memberships: [], nextCursor: null }; });

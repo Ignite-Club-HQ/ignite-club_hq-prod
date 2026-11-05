@@ -43,8 +43,8 @@ describe.skipIf(!enabled)('account deletion all-service drain (real contracts)',
   it('erased principal is denied in vault, events, messaging and media after admin deletion', async () => {
     const govArg = IDL.encode([IDL.Principal], [governor]);
     const setup = (idlFactory: any, wasm: string, withArg = true) =>
-      pic.setupCanister({ idlFactory, wasm, sender: governor, controllers: [governor], ...(withArg ? { arg: govArg } : {}) });
-    const identity = await pic.setupCanister({ idlFactory: identityIdl, wasm: process.env.IDENTITY_ACCESS_WASM!,
+      pic.setupCanister<any>({ idlFactory, wasm, sender: governor, controllers: [governor], ...(withArg ? { arg: govArg } : {}) });
+    const identity = await pic.setupCanister<any>({ idlFactory: identityIdl, wasm: process.env.IDENTITY_ACCESS_WASM!,
       sender: governor, controllers: [governor],
       environmentVariables: [{ name: 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL', value: '1' }],
       arg: IDL.encode([IDL.Record({ governor: IDL.Principal })], [{ governor }]) });
@@ -52,7 +52,7 @@ describe.skipIf(!enabled)('account deletion all-service drain (real contracts)',
     const vault = await setup(vaultIdl, process.env.VAULT_DOMAIN_WASM!);
     const events = setup(eventsIdl, process.env.EVENTS_DOMAIN_WASM!);
     const messaging = await setup(messagingIdl, process.env.MESSAGING_DOMAIN_WASM!);
-    const media = await pic.setupCanister({ idlFactory: mediaIdl, wasm: process.env.MEDIA_BLOB_STORE_WASM!, sender: governor, controllers: [governor],
+    const media = await pic.setupCanister<any>({ idlFactory: mediaIdl, wasm: process.env.MEDIA_BLOB_STORE_WASM!, sender: governor, controllers: [governor],
       environmentVariables: [{ name: 'GOVERNOR_PRINCIPAL', value: governor.toText() }] });
 
     // Wire every service's club authorization source to the real club canister.
@@ -90,6 +90,7 @@ describe.skipIf(!enabled)('account deletion all-service drain (real contracts)',
     ok(await media.actor.begin_upload('clubs/c1/photo.jpg', 'image/jpeg', 10n, 1));
 
     // Full admin deletion through the real entrypoint (ungrouped path).
+    // @ts-expect-error -- test fixture intentionally narrower than the generated service type
     const target = { canisterIds: { club_domain: club.canisterId.toText(), identity_access: identity.canisterId.toText() } } as IcpTargetConfig;
     seam.identity = async () => ({ client: {
       eraseAccount: async (accountId: string) => { identity.actor.setPrincipal(governor); ok(await identity.actor.erase_account(accountId)); },

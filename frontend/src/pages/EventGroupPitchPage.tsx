@@ -222,7 +222,7 @@ function SupabaseEventGroupPitchPage() {
           return {
             minutes_per_half: league.minutes_per_half,
             club_id: league.club_id,
-            clubs: { sport: (await (await import("@/live/leagueReads")).readLeagueClub(ctx, league.club_id))?.sport ?? null },
+            clubs: { sport: (await (await import("@/live/leagueReads")).readLeagueClub(ctx, league.club_id))?.sport?.[0] ?? null },
           };
         },
       }, { miniLeagueId: group?.event?.mini_league_id ?? "" }),

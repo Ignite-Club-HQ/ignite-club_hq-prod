@@ -215,7 +215,7 @@ export default function EventDetailPage() {
   // Track when user views this event
   useEventViewTracking(id, useIcpLab ? undefined : user?.id);
 
-  const { data: event, isLoading, error: eventError, isFetching: isEventFetching } = useQuery({
+  const { data: event, isLoading, error: eventError, isFetching: isEventFetching } = useQuery<any>({
     queryKey: ["event", useIcpLab ? "icp" : "supabase", localIcpPersona, id],
     queryFn: async ({ signal }) => {
       if (useIcpLab && id) {
@@ -394,8 +394,8 @@ export default function EventDetailPage() {
     queryFn: ({ signal }) => withFeatureBackend("events", {
       supabase: async () => ({ children: new Map<string, string>(), profiles: [] }),
       icp: async ctx => {
-        const children = [...new Set((baseRsvps ?? []).map(row => row.child_id).filter((value): value is string => !!value))];
-        const adults = [...new Set((baseRsvps ?? []).filter(row => !row.child_id).map(row => row.user_id))];
+        const children = [...new Set(((baseRsvps ?? []) as any[]).map(row => row.child_id).filter((value): value is string => !!value))];
+        const adults = [...new Set(((baseRsvps ?? []) as any[]).filter(row => !row.child_id).map(row => row.user_id))];
         const result = await readEventDisplayNames(
           () => resolveLivePiiTextBatch(ctx, children, "name", "event_roster", "Event roster child names"),
           () => event?.club_id ? readRelationshipProfiles(ctx, adults, { kind: 'club', resource: event.club_id }, signal) : listLiveProfilesByIds(ctx, adults),

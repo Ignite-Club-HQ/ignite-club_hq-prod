@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-// @ts-expect-error Worker helper is intentionally plain JavaScript for GitHub Node execution.
 import { unwrapQueueResult } from "../../../scripts/icp-push-results.mjs";
 describe("push worker canister results", () => {
   it("unwraps the actual device-token result variant", () => expect(unwrapQueueResult({ Ok: [{ user: "member", token: "device" }] }, "tokens")).toEqual([{ user: "member", token: "device" }]));

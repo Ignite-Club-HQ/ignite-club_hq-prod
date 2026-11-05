@@ -7,6 +7,7 @@ vi.mock("./deviceMediaCache", () => ({ loadStoredClubKey: mocks.load, storeClubK
 vi.mock("./mediaDecrypt", () => ({ clearIcpPhotoResolutionCache: vi.fn() }));
 vi.mock("@icp-sdk/vetkeys", () => ({ DerivedPublicKey: { deserialize: () => "public" }, EncryptedVetKey: { deserialize: () => ({ decryptAndVerify: mocks.decrypt }) }, TransportSecretKey: { random: () => ({ publicKeyBytes: () => new Uint8Array([1]) }) }, VetKey: { deserialize: () => "stored" }, IbeCiphertext: {}, IbeIdentity: {}, IbeSeed: {} }));
 import { fetchPiiVetKeys } from "./piiVetKeys";
+// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const ctx = { identity: { getPrincipal: () => Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai") }, target: { host: "https://icp-api.io", canisterIds: { pii_access_control: "rrkah-fqaaa-aaaaa-aaaaq-cai" } } } as FeatureBackendContext;
 beforeEach(() => {
   vi.clearAllMocks();

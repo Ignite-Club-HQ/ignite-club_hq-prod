@@ -11,6 +11,7 @@ function fixture() {
   const groups=["g1","g2"].map((id,n)=>({id,target_alias:"mainnet",domains:GROUP_DOMAINS.map((domain,i)=>({domain,canister:p(1+n*20+i)}))}));
   const placements=groups.map(g=>({group_id:g.id,deployment_id:"ignite",deployment_revision:3n,host:"https://icp-api.io",network_kind:"public_mainnet",primary_subnet:subnet,approved_subnets:[subnet],additional_subnets_enabled:false,domains:g.domains.map(d=>({...d,subnet}))}));
   const binding={targetAlias:"mainnet",deploymentId:"ignite",deploymentRevision:3n,host:"https://icp-api.io",networkKind:"public_mainnet",registryRevision:8n,requiredClubAuthorities:[groups[0].domains[0].canister.toText()]};
+  // @ts-expect-error -- test fixture intentionally narrower than the generated service type
   const ctx={identity:{getPrincipal:()=>p(90)},target:{alias:"mainnet",host:binding.host,networkKind:"public_mainnet",canisterIds:{club_domain:groups[0].domains[0].canister.toText(),pii_access_control:p(11).toText()}}} as FeatureBackendContext;
   const reply={Ok:{revision:8n,groups,placements,next_cursor:[]}};
   mocks.page.mockResolvedValue(reply);

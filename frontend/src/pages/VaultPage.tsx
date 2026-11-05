@@ -519,7 +519,7 @@ function SupabaseVaultPage() {
       if (!urlFolderId || initialLoadComplete || !userClubs) return;
       
       try {
-        const result = await withReadDeadline(readChatVaultCard(vaultClubHint ? { clubId: vaultClubHint } : undefined, { vaultFolderId: urlFolderId }, scope => withFeatureBackend("vault", {
+        const result = await withReadDeadline(readChatVaultCard(vaultClubHint ? { clubId: vaultClubHint } : undefined, { vaultFolderId: urlFolderId }, scope => withFeatureBackend<any>("vault", {
           supabase: async () => {
             // Fetch the folder to get its details
             const { data: folder, error } = await supabase
