@@ -122,7 +122,7 @@ export async function listHistory(scope: { teamId?: string; clubId?: string }, l
       }
       return rows;
     },
-  }, scope);
+  }, scope.clubId ? { clubId: scope.clubId } : { teamId: scope.teamId ?? "" });
 }
 
 export async function deleteHistory(row: HistoryResult): Promise<void> {
