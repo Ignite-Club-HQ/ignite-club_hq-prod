@@ -15,7 +15,7 @@ const SIX = ['20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql',
 test('offline validation preserves all originals and exactly six approved sources, not deployment authority', () => {
   const r = validateSafeSources(root);
   assert.deepEqual(r.approved, SIX);
-  assert.equal(r.held.length, 34);
+  assert.equal(r.held.length, 35);
   assert.deepEqual(r.sourceInventory.map(({ file, sha256 }) => ({ file, sha256 })),
     readSafeInputs(root).manifest.sources.map(({ file, sha256 }) => ({ file, sha256 })));
   assert.equal(r.deploymentAuthorized, false);
