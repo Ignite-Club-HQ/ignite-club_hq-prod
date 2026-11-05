@@ -149,7 +149,7 @@ test('the safe-apply runner applies exactly the six approved batches, one transa
     assert.deepEqual(report.apply, SIX);
     assert.deepEqual(report.applied, SIX);
     assert.deepEqual(report.alreadyApplied, []);
-    assert.equal(report.held.length, 34);
+    assert.equal(report.held.length, 35);
     assert.equal(report.dataCopy, false);
     const input = readSafeInputs(process.cwd());
     const written = readFileSync(log, 'utf8').split('\n=== WRITE ===\n').slice(1);
