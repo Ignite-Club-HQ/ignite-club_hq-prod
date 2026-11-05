@@ -18,6 +18,8 @@ Both key creation and verification workflows now explicitly enforce the prod bra
 
 ### 4. Production evidence/access
 
+Update, 5 November: Paul confirmed applying the approved visitor-read permission. Repeated anonymous live requests now return HTTP 200 with exactly one `backend_routing_config` row, and HTTP 200 with zero unrelated settings rows. The returned configuration retains the Supabase default and the two retained email clubs. This closes the previously reproduced signed-out routing-read failure; the agent performed no production writes. Hosted latest-commit CI and actual proposed merge comparison remain unverified.
+
 A bounded anonymous request using the public anon key extracted from the actual live website returned:
 
 - `app_settings`, key `backend_routing_config`, limit 1: HTTP 200, **0 rows**.
