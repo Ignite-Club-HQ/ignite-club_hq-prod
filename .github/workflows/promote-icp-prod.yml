@@ -1,6 +1,6 @@
 # Ignite Club HQ — PROD (live) ICP canisters. The ICP equivalent of DEV→PROD
 # database migrations: merging main → prod upgrades the live canisters whose
-# code changed, keeping their data, then republishes the live web app.
+# code changed, keeping their data. Frontend publication is separately opt-in.
 #
 #   push to prod            -> promote (upgrade changed PROD canisters + PROD web app)
 #   Run workflow: provision -> one-off creation + wiring of the PROD canister set
@@ -28,6 +28,11 @@ on:
         description: "For provision type: PROVISION PROD CANISTERS"
         required: false
         default: ""
+      publish_frontend:
+        description: "Separately publish an existing PROD frontend canister after reviewing this exact prod commit"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -233,7 +238,7 @@ jobs:
 
   frontend:
     needs: backend
-    if: needs.backend.result == 'success' && needs.backend.outputs.webapp == 'true' && (needs.backend.outputs.provisioned == 'true' || inputs.action == 'provision')
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_frontend == true && needs.backend.result == 'success' && needs.backend.outputs.webapp == 'true' && needs.backend.outputs.provisioned == 'true'
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 40
@@ -246,6 +251,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: prod
+          # Pin the dispatch commit rather than floating to newer prod code.
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
