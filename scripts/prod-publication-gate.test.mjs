@@ -39,7 +39,7 @@ test('missing or short source revision and non-prod source fail before retrieval
 test('ICP frontend checks database only to avoid waiting on itself', async () => {
   let requests = 0;
   await verifyProdPublication(env, { databaseOnly: true, fetcher: async url => { requests++; assert.doesNotMatch(url, /promote-icp/); return reader()(url); } });
-  assert.equal(requests, 2);
+  assert.equal(requests, 3);
 });
 const parentSha = 'c'.repeat(40);
 function recordReader({ message = 'Record PROD canister release [skip ci]', author = 'github-actions[bot]', files = [{ filename: 'deploy/prod/release.json', status: 'modified' }] } = {}) {

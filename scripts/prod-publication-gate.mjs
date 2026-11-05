@@ -26,7 +26,7 @@ const requirements = [
   ['promote-icp-prod.yml', 'backend'],
 ];
 
-export function assertPromotionEvidence(evidenceSha, workflow, job, runs, jobsByRun) {
+export function assertPromotionEvidence(sha, workflow, job, runs, jobsByRun) {
   if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('Exact production commit required');
   const candidates = runs.filter(run => run.head_sha === sha && run.head_branch === 'prod'
     && run.path === `.github/workflows/${workflow}` && ['push', 'workflow_dispatch'].includes(run.event));
