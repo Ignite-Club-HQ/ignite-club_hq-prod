@@ -34,6 +34,8 @@ import {
   listLiveClubTerms,
   getLiveClubProfile,
   listLiveTeams,
+  listLiveTeamClassSchedules,
+  type LiveTeamClassSchedule,
   listMyLiveOwnChildren,
 } from "@/live/features/club";
 
@@ -150,17 +152,20 @@ function SupabaseClassEnrolmentPage() {
           }>;
         },
         icp: async (ctx) => {
-          const rows: any[] = await listLiveTeams(ctx, clubId!);
+          const [rows, schedules] = await Promise.all([
+            listLiveTeams(ctx, clubId!),
+            listLiveTeamClassSchedules(ctx, clubId!).catch(() => new Map<string, LiveTeamClassSchedule>()),
+          ]);
           return rows
-            .filter((r) => !r.archived && r.class_day?.[0])
+            .filter((r) => !r.archived && r.deleted_at_ms.length === 0 && schedules.has(r.id))
             .map((r) => ({
               id: r.id,
               name: r.name,
-              class_day: r.class_day[0] || null,
-              class_time: r.class_time?.[0] || null,
-              class_duration_minutes: r.class_duration_minutes?.[0] ? Number(r.class_duration_minutes[0]) : null,
-              class_capacity: r.class_capacity?.[0] ? Number(r.class_capacity[0]) : null,
-              level_age: r.level_age?.[0] || null,
+              class_day: schedules.get(r.id)!.day,
+              class_time: schedules.get(r.id)!.time,
+              class_duration_minutes: schedules.get(r.id)!.durationMinutes,
+              class_capacity: schedules.get(r.id)!.capacity,
+              level_age: r.age_group?.[0] || null,
               logo_url: r.logo_url?.[0] || null,
               team_type: ((r.team_type?.[0] ?? r.team_type) as unknown as TeamType) || "mixed",
             }));

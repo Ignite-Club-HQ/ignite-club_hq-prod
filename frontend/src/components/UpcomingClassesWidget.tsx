@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { fetchLiveHomeChildren } from "@/live/features/homeFeed";
 import { getLiveMyRoleGrants, listLiveChildren } from "@/live/features/membership";
-import { getLiveClubProfile, listLiveTeams, listLiveClassEnrolments } from "@/live/features/club";
+import { getLiveClubProfile, listLiveTeams, listLiveClassEnrolments, listLiveTeamClassSchedules, type LiveTeamClassSchedule } from "@/live/features/club";
 
 const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const TODAY_INDEX = new Date().getDay(); // 0=Sun
@@ -112,10 +112,11 @@ export function UpcomingClassesWidget() {
           const childNamesByTeam: Record<string, string[]> = {};
           await Promise.all(
             [...clubIds].map(async (clubId) => {
-              const [enrolments, teams, profile] = await Promise.all([
+              const [enrolments, teams, profile, schedules] = await Promise.all([
                 listLiveClassEnrolments(ctx, clubId).catch(() => []),
                 listLiveTeams(ctx, clubId).catch(() => [] as Awaited<ReturnType<typeof listLiveTeams>>),
                 getLiveClubProfile(ctx, clubId).catch(() => [] as [] | [{ name: string }]),
+                listLiveTeamClassSchedules(ctx, clubId).catch(() => new Map<string, LiveTeamClassSchedule>()),
               ]);
               const clubName = profile[0]?.name ?? null;
               const mine = enrolments.filter(
@@ -124,18 +125,17 @@ export function UpcomingClassesWidget() {
               if (mine.length === 0) return;
               const teamById = new Map(teams.map((t) => [t.id, t]));
               mine.forEach((e) => {
-                const t = teamById.get(e.class_id) as any; // class schedule fields are optional on canister teams
-                if (!t || t.archived || !t.class_day?.[0]) return;
+                const t = teamById.get(e.class_id);
+                const s = t ? schedules.get(t.id) : undefined;
+                if (!t || t.archived || !s) return;
                 if (!classes.some((c) => c.id === t.id)) {
                   classes.push({
                     id: t.id,
                     name: t.name,
-                    class_day: t.class_day[0] || null,
-                    class_time: t.class_time?.[0] || null,
-                    class_duration_minutes: t.class_duration_minutes?.[0]
-                      ? Number(t.class_duration_minutes[0])
-                      : null,
-                    level_age: t.level_age?.[0] || null,
+                    class_day: s.day,
+                    class_time: s.time,
+                    class_duration_minutes: s.durationMinutes,
+                    level_age: t.age_group?.[0] || null,
                     club_id: clubId,
                     clubs: clubName ? { name: clubName } : null,
                   });

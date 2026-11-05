@@ -532,6 +532,13 @@ export default function CreateTeamPage() {
             playhq_competition_id: [],
             playhq_auto_create_events: false,
           });
+          if (club?.class_mode_enabled && classDay) {
+            const { setLiveTeamClassSchedule } = await import("@/live/features/club");
+            await setLiveTeamClassSchedule(ctx, id, {
+              day: classDay, time: classTime || null,
+              durationMinutes: classDuration, capacity: classCapacity,
+            });
+          }
           return { data: { id, name: name.trim() }, error: null };
         } catch (error) {
           return { data: null, error: error as { code?: string } };
