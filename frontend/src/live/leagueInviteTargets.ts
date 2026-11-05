@@ -1,5 +1,5 @@
 import type { FeatureBackendContext } from './featureRouter';
-import { withFeatureBackend } from './featureRouter';
+import { mergeListsById, withFeatureBackend } from './featureRouter';
 import { readMembershipInScope } from './membershipRouting';
 import { mergeMiniLeagueRows } from './miniLeagueRouting';
 import { readLeagueClub, readManageableLeagues } from './leagueReads';

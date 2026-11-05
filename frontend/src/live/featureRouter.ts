@@ -62,6 +62,11 @@ export type ClubScope = ({ clubId: string } | { photoId: string } | { galleryCar
 /** Combine list results from several groups (one array per group). */
 export const mergeLists = <T,>(parts: T[][]): T[] => parts.flat();
 
+/** Combine list results from several groups, keeping the first copy of each
+ * row's id (the same row can be answered by more than one group). */
+export const mergeListsById = <T extends { id: string }>(parts: T[][]): T[] =>
+  [...new Map(parts.flat().map((row) => [row.id, row])).values()];
+
 export async function withFeatureBackend<T>(
   feature: FeatureArea,
   providers: FeatureBackendProviders<T>,

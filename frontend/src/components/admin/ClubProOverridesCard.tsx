@@ -42,7 +42,7 @@ async function loadClubs(): Promise<ClubRow[]> {
         return { id: c.id, name: c.name, pro: Boolean(s?.is_pro || s?.admin_pro_override) };
       });
     },
-  }, { everyGroup: true, merge: (parts) => [...new Map(parts.flat().map((row) => [row.id, row])).values()].sort((a, b) => a.name.localeCompare(b.name)) });
+  }, { everyGroup: true, merge: (parts: Array<Array<{ id: string; name: string; pro: boolean }>>) => [...new Map(parts.flat().map((row) => [row.id, row])).values()].sort((a, b) => a.name.localeCompare(b.name)) });
 }
 
 function blankSubscription(clubId: string): LiveClubSubscription {

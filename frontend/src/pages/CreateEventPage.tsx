@@ -54,7 +54,7 @@ import { DutyMemberSelect } from "@/components/DutyMemberSelect";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { creationClubChoices } from "@/lib/creationClubChoices";
 import { cn } from "@/lib/utils";
-import { withFeatureBackend } from "@/live/featureRouter";
+import { mergeListsById, withFeatureBackend } from "@/live/featureRouter";
 import { listLiveEvents } from "@/live/features/events";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { listLiveMiniLeaguesByClub } from "@/live/features/miniLeagues";

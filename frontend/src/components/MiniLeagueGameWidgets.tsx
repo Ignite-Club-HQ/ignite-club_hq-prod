@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Timer, ExternalLink, LayoutGrid, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { withFeatureBackend } from "@/live/featureRouter";
+import { mergeListsById, withFeatureBackend } from "@/live/featureRouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
