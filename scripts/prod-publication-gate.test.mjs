@@ -86,3 +86,11 @@ test('finished failure blocks without waiting', async () => {
   await assert.rejects(verifyProdPublication(env, { fetcher: reader({ run: { status: 'completed' }, job: { conclusion: 'failure' } }), waitMs: 60000, pollMs: 1, sleep: async () => { polls++; } }));
   assert.equal(polls, 0);
 });
+
+test('CLI wait comes only from a positive PROD_PUBLICATION_GATE_WAIT_MS', async () => {
+  const { cliWaitMs } = await import('./prod-publication-gate.mjs');
+  assert.equal(cliWaitMs({}), 0);
+  assert.equal(cliWaitMs({ PROD_PUBLICATION_GATE_WAIT_MS: '720000' }), 720000);
+  assert.equal(cliWaitMs({ PROD_PUBLICATION_GATE_WAIT_MS: 'abc' }), 0);
+  assert.equal(cliWaitMs({ PROD_PUBLICATION_GATE_WAIT_MS: '-5' }), 0);
+});
