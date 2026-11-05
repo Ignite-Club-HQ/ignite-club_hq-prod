@@ -1,0 +1,81 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { withFeatureBackend } from "@/live/featureRouter";
+import { withReadDeadline } from "@/live/readDeadline";
+// features/insights is imported lazily in the icp provider below so the ICP
+// SDK stays out of the entry chunk (this hook runs on most pages).
+
+/**
+ * Single authoritative source of app-admin permission detection.
+ *
+ * Every consumer must use this hook so that the shared React Query key
+ * `["is-app-admin", userId]` is always populated by the *same* query
+ * function with the *same* boolean contract and the same enablement rules.
+ *
+ * Previously each page re-declared its own `useQuery` on that key with
+ * subtly different `enabled` gates (`authReady && !!user`, `!!user &&
+ * initialized`, `!!user`) and different staleTime/retry settings. Whichever
+ * copy mounted first owned the shared cache entry, so a stricter gate on one
+ * page could leave `data === undefined` (permission unresolved) even though
+ * the user is a confirmed app admin — which is exactly how the Broadcast
+ * composer stayed hidden on a cold direct visit to `/messages/broadcast`.
+ *
+ * Contract:
+ * - `isAppAdmin` is `true` ONLY when the lookup resolved and found the role.
+ *   Loading, error and unauthenticated states all resolve to `false`, so a
+ *   failed or unresolved query can never grant privileged UI.
+ * - Backend authorization remains the final layer; this is UI gating only.
+ *
+ * Routing: Supabase checks the `user_roles` table; the ICP branch asks
+ * insights_domain's `is_app_admin` (the "admin" feature area), so an app
+ * admin signed in with Internet Identity still sees the admin tooling.
+ */
+export const isAppAdminQueryKey = (userId: string | null | undefined) =>
+  ["is-app-admin", userId] as const;
+
+export async function fetchIsAppAdmin(userId: string): Promise<boolean> {
+  // Bounded: a stuck routing or canister call must reject (and resolve to
+  // non-admin) rather than leave every consumer's `isAppAdmin` undefined
+  // forever — Vault's club list is gated on this resolving at all.
+  return withReadDeadline(withFeatureBackend("admin", {
+    supabase: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("role", "app_admin")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return !!data;
+    },
+    icp: async (ctx) => (await import("@/live/features/insights")).isLiveAppAdmin(ctx),
+  }), "App admin check");
+}
+
+export interface UseIsAppAdminResult {
+  isAppAdmin: boolean;
+  isLoading: boolean;
+  error: unknown;
+}
+
+export function useIsAppAdmin(): UseIsAppAdminResult {
+  const { user } = useAuth();
+  const userId = user?.id;
+
+  const query = useQuery({
+    queryKey: isAppAdminQueryKey(userId),
+    queryFn: () => fetchIsAppAdmin(userId!),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+
+  return {
+    // Never infer admin from anything but a resolved `true`.
+    isAppAdmin: query.data === true,
+    isLoading: !!userId && query.isPending,
+    error: query.error,
+  };
+}

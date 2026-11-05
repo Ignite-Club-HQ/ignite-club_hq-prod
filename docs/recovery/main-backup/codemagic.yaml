@@ -1,0 +1,1315 @@
+workflows:
+  android-debug-workflow:
+    name: Android Debug Build (DEV)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - android_signing
+      vars:
+        # DEV track — builds against committed .env (dev Supabase).
+        # App ID is always the PROD bundle; use Google Play Internal testing
+        # track to separate DEV builds from Production.
+        LOVABLE_ENV: "dev"
+      java: 21
+      node: 22
+    scripts:
+      - name: Install dependencies
+        script: npm ci --no-audit --no-fund
+      - name: Confirm env
+        script: |
+          echo "LOVABLE_ENV=$LOVABLE_ENV"
+          grep VITE_SUPABASE_URL .env || true
+      - name: Build web app
+        script: npm run build
+      - name: Add Android platform
+        script: npx cap add android || true
+      - name: Copy Firebase config
+        script: |
+          mkdir -p android/app
+          cp firebase/google-services.json android/app/google-services.json
+      - name: Sync Capacitor
+        script: npx cap sync android
+      - name: Patch Firebase receiver for Android 12+
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "FirebaseInstanceIdReceiver" "$MANIFEST"; then
+            sed -i '' 's|</application>|<receiver android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver" android:exported="true" android:permission="com.google.android.c2dm.permission.SEND"><intent-filter><action android:name="com.google.android.c2dm.intent.RECEIVE" /></intent-filter></receiver></application>|' "$MANIFEST"
+            echo "FirebaseInstanceIdReceiver injected into AndroidManifest.xml"
+          else
+            echo "FirebaseInstanceIdReceiver already present"
+          fi
+      - name: Add AdMob App ID to AndroidManifest
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "com.google.android.gms.ads.APPLICATION_ID" "$MANIFEST"; then
+            sed -i '' '/<\/application>/i\
+                <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>
+            ' "$MANIFEST"
+            echo "AdMob App ID injected into AndroidManifest.xml"
+          else
+            echo "AdMob App ID already present"
+          fi
+      - name: Add Crashlytics Gradle plugin
+        script: |
+          cd android
+          # Add crashlytics classpath to project build.gradle (macOS sed doesn't support \n)
+          if ! grep -q "firebase-crashlytics-gradle" build.gradle 2>/dev/null; then
+            sed -i '' '/dependencies {/a\
+                    classpath "com.google.firebase:firebase-crashlytics-gradle:3.0.3"
+            ' build.gradle
+          fi
+          echo "=== Project build.gradle dependencies ==="
+          grep -A5 "dependencies {" build.gradle
+          # Apply crashlytics plugin to app build.gradle
+          if ! grep -q "firebase-crashlytics" app/build.gradle 2>/dev/null; then
+            echo "" >> app/build.gradle
+            echo "apply plugin: 'com.google.firebase.crashlytics'" >> app/build.gradle
+          fi
+          echo "=== app/build.gradle tail ==="
+          tail -5 app/build.gradle
+      - name: Copy app icons
+        script: |
+          # Remove ALL Capacitor default icons first (including vector drawables and all density folders)
+          rm -rf android/app/src/main/res/mipmap-*
+          rm -rf android/app/src/main/res/drawable/ic_launcher*
+          rm -rf android/app/src/main/res/drawable-v24
+          rm -rf android/app/src/main/res/drawable-hdpi
+          rm -rf android/app/src/main/res/drawable-mdpi
+          rm -rf android/app/src/main/res/drawable-xhdpi
+          rm -rf android/app/src/main/res/drawable-xxhdpi
+          rm -rf android/app/src/main/res/drawable-xxxhdpi
+          rm -f android/app/src/main/res/drawable/ic_launcher_background.xml
+          rm -f android/app/src/main/res/drawable/splash.png
+          # Copy our mipmap directories (includes mipmap-anydpi-v26 for adaptive icons)
+          cp -r android-assets/mipmap-* android/app/src/main/res/
+          # Copy drawable assets (foreground icon and notification icon)
+          mkdir -p android/app/src/main/res/drawable
+          cp android-assets/drawable/ic_launcher_foreground.png android/app/src/main/res/drawable/
+          cp android-assets/drawable/ic_launcher_background.xml android/app/src/main/res/drawable/
+          cp android-assets/drawable/ic_notification.xml android/app/src/main/res/drawable/
+          # Remove ALL Capacitor default colors.xml files to avoid duplicate resource errors
+          rm -f android/app/src/main/res/values/colors.xml
+          rm -f android/app/src/main/res/values-night/colors.xml
+          # Copy our colors.xml with uniquely named resources
+          mkdir -p android/app/src/main/res/values
+          cp android-assets/res-values/colors.xml android/app/src/main/res/values/colors.xml
+          # Debug: List what we have
+          echo "=== drawable contents ===" && ls -la android/app/src/main/res/drawable/
+          echo "=== mipmap-hdpi contents ===" && ls -la android/app/src/main/res/mipmap-hdpi/
+          echo "=== mipmap-anydpi-v26 contents ===" && ls -la android/app/src/main/res/mipmap-anydpi-v26/
+      - name: Add custom URL scheme intent-filter
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q 'android:scheme="igniteclubhq"' "$MANIFEST"; then
+            # Insert intent-filter before the closing </activity> tag (first occurrence)
+            sed -i '' '/<\/activity>/i\
+                <intent-filter>\
+                    <action android:name="android.intent.action.VIEW" />\
+                    <category android:name="android.intent.category.DEFAULT" />\
+                    <category android:name="android.intent.category.BROWSABLE" />\
+                    <data android:scheme="igniteclubhq" />\
+                </intent-filter>
+            ' "$MANIFEST"
+            echo "=== igniteclubhq:// intent-filter injected ==="
+          else
+            echo "=== igniteclubhq:// intent-filter already present ==="
+          fi
+      - name: Add App Links intent-filter for igniteclubhq.app
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q 'android:host="igniteclubhq.app"' "$MANIFEST"; then
+            # Insert App Links intent-filter before the closing </activity> tag
+            sed -i '' '/<\/activity>/i\
+                <intent-filter android:autoVerify="true">\
+                    <action android:name="android.intent.action.VIEW" />\
+                    <category android:name="android.intent.category.DEFAULT" />\
+                    <category android:name="android.intent.category.BROWSABLE" />\
+                    <data android:scheme="https" android:host="igniteclubhq.app" />\
+                </intent-filter>
+            ' "$MANIFEST"
+            echo "=== App Links intent-filter for igniteclubhq.app injected ==="
+          else
+            echo "=== App Links intent-filter for igniteclubhq.app already present ==="
+          fi
+      - name: Configure notification icon
+        script: |
+          # Add meta-data for default notification icon and color to AndroidManifest.xml
+          # macOS sed requires '' after -i for in-place editing without backup
+          sed -i '' 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>|' android/app/src/main/AndroidManifest.xml
+      - name: Disable lint abort for release
+        script: |
+          cd android/app
+          # Append lintOptions to disable abort on error
+          cat >> build.gradle << 'GRADLE'
+
+          android {
+              lintOptions {
+                  abortOnError false
+              }
+          }
+          GRADLE
+      - name: Set up keystore
+        script: |
+          echo $CM_KEYSTORE | base64 --decode > /tmp/ignite-upload.keystore
+          cat > android/key.properties << EOF
+          storeFile=/tmp/ignite-upload.keystore
+          storePassword=$CM_KEYSTORE_PASSWORD
+          keyAlias=$CM_KEY_ALIAS
+          keyPassword=$CM_KEY_PASSWORD
+          EOF
+      - name: Configure signing in build.gradle
+        script: |
+          cd android/app
+          cat >> build.gradle << 'GRADLE'
+
+          android {
+              signingConfigs {
+                  release {
+                      def props = new Properties()
+                      props.load(new FileInputStream(rootProject.file("key.properties")))
+                      storeFile file(props['storeFile'])
+                      storePassword props['storePassword']
+                      keyAlias props['keyAlias']
+                      keyPassword props['keyPassword']
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          GRADLE
+      - name: Increment version code
+        script: |
+          GRADLE_FILE="android/app/build.gradle"
+          # Use epoch-based versionCode to guarantee uniqueness across all builds
+          # Format: minutes since 2024-01-01 — gives ~4 years of unique codes
+          EPOCH_BASE=1704067200  # 2024-01-01 00:00:00 UTC
+          NOW=$(date +%s)
+          NEW_VC=$(( NOW - EPOCH_BASE ))
+          echo "=== Target versionCode: $NEW_VC (epoch-seconds, timestamp: $NOW) ==="
+          echo "=== Before replacement ==="
+          grep -n "versionCode" "$GRADLE_FILE" || echo "WARNING: no versionCode found!"
+          # Use a broad regex to replace any versionCode value (handles both Groovy and Kotlin DSL)
+          sed -i '' -E "s/versionCode[ =]+[0-9]+/versionCode = $NEW_VC/" "$GRADLE_FILE"
+          echo "=== After replacement ==="
+          grep -n "versionCode" "$GRADLE_FILE"
+      - name: Build Android Release
+        script: |
+          cd android
+          ./gradlew clean
+          ./gradlew bundleRelease
+    # No artifacts published for DEV — build validates only.
+    # Downloadable .aab is produced by the PROD android-workflow.
+  ios-debug-workflow:
+    name: iOS Debug Build (DEV)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      vars:
+        # DEV track — builds against committed .env (dev Supabase).
+        # App ID is always the PROD bundle; use Google Play Internal testing
+        # track to separate DEV builds from Production.
+        LOVABLE_ENV: "dev"
+      xcode: latest
+      node: 22
+    scripts:
+      - name: Install dependencies
+        script: npm ci --no-audit --no-fund
+      - name: Confirm env
+        script: |
+          echo "LOVABLE_ENV=$LOVABLE_ENV"
+          grep VITE_SUPABASE_URL .env || true
+      - name: Build web app
+        script: npm run build
+      - name: Add iOS platform
+        script: npx cap add ios || true
+      - name: Sync Capacitor
+        script: npx cap sync ios
+      - name: Ensure GADApplicationIdentifier in Info.plist
+        script: |
+          PLIST="ios/App/App/Info.plist"
+          if ! /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST" 2>/dev/null; then
+            echo "=== Injecting GADApplicationIdentifier into Info.plist ==="
+            /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string ca-app-pub-3940256099942544~3347511713" "$PLIST"
+          else
+            echo "=== GADApplicationIdentifier already present ==="
+          fi
+          /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
+      - name: Patch AppDelegate for Firebase, Crashlytics & Push Notifications
+        script: |
+          DELEGATE="ios/App/App/AppDelegate.swift"
+          echo "=== Patching AppDelegate.swift with push notification support ==="
+          cat > "$DELEGATE" << 'SWIFT'
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+          import FirebaseCrashlytics
+          import FirebaseMessaging
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
+
+              var window: UIWindow?
+
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  Messaging.messaging().delegate = self
+                  UNUserNotificationCenter.current().delegate = self
+                  application.registerForRemoteNotifications()
+                  return true
+              }
+
+              // MARK: - APNs Token Forwarding
+              func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+                  Messaging.messaging().apnsToken = deviceToken
+              }
+
+              func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+                  print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
+              }
+
+              // MARK: - Background Notification Handling
+              func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+                  completionHandler(.newData)
+              }
+
+              // MARK: - Firebase MessagingDelegate
+              func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+                  if let token = fcmToken {
+                      print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
+                  }
+              }
+
+              // MARK: - UNUserNotificationCenterDelegate
+              func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+                  completionHandler([.banner, .badge, .sound])
+              }
+
+              func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+                  completionHandler()
+              }
+
+              func applicationWillResignActive(_ application: UIApplication) {}
+              func applicationDidEnterBackground(_ application: UIApplication) {}
+              func applicationWillEnterForeground(_ application: UIApplication) {}
+              func applicationDidBecomeActive(_ application: UIApplication) {}
+              func applicationWillTerminate(_ application: UIApplication) {}
+
+              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+              }
+          }
+          SWIFT
+          echo "=== Patched AppDelegate.swift with push support ==="
+      - name: Overwrite SPM Package.swift with full dependencies
+        script: |
+          PACKAGE="ios/App/CapApp-SPM/Package.swift"
+          echo "=== Overwriting Package.swift with full push notification dependencies ==="
+          cat > "$PACKAGE" << 'SWIFTPKG'
+          // swift-tools-version: 5.9
+          import PackageDescription
+
+          let package = Package(
+              name: "CapApp-SPM",
+              platforms: [.iOS(.v15)],
+              products: [
+                  .library(
+                      name: "CapApp-SPM",
+                      targets: ["CapApp-SPM"])
+              ],
+              dependencies: [
+                  .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.0"),
+                  .package(url: "https://github.com/firebase/firebase-ios-sdk.git", .upToNextMajor(from: "12.7.0")),
+                  .package(name: "CapacitorFirebaseMessaging", path: "../../../node_modules/@capacitor-firebase/messaging"),
+                  .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
+                  .package(name: "CapacitorBrowser", path: "../../../node_modules/@capacitor/browser"),
+                  .package(name: "CapacitorCamera", path: "../../../node_modules/@capacitor/camera"),
+                  .package(name: "CapacitorKeyboard", path: "../../../node_modules/@capacitor/keyboard"),
+                  .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
+                  .package(name: "CapacitorShare", path: "../../../node_modules/@capacitor/share"),
+                  .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
+                  .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/@capgo/capacitor-native-biometric")
+              ],
+              targets: [
+                  .target(
+                      name: "CapApp-SPM",
+                      dependencies: [
+                          .product(name: "Capacitor", package: "capacitor-swift-pm"),
+                          .product(name: "Cordova", package: "capacitor-swift-pm"),
+                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
+                          .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
+                          .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
+                          .product(name: "CapacitorFirebaseMessaging", package: "CapacitorFirebaseMessaging"),
+                          .product(name: "CapacitorApp", package: "CapacitorApp"),
+                          .product(name: "CapacitorBrowser", package: "CapacitorBrowser"),
+                          .product(name: "CapacitorCamera", package: "CapacitorCamera"),
+                          .product(name: "CapacitorKeyboard", package: "CapacitorKeyboard"),
+                          .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
+                          .product(name: "CapacitorShare", package: "CapacitorShare"),
+                          .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
+                          .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric")
+                      ]
+                  )
+              ]
+          )
+          SWIFTPKG
+          echo "=== Package.swift overwritten ==="
+          cat "$PACKAGE"
+      - name: Generate push notification entitlements
+        script: |
+          ENTITLEMENTS="ios/App/App/App.entitlements"
+          echo "=== Generating push notification entitlements ==="
+          cat > "$ENTITLEMENTS" << 'ENTXML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>aps-environment</key>
+              <string>development</string>
+          </dict>
+          </plist>
+          ENTXML
+
+          # Link entitlements to Xcode project
+          ruby << 'RUBY_SCRIPT'
+          require 'xcodeproj'
+
+          project_path = 'ios/App/App.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          target = project.targets.find { |t| t.name == 'App' }
+
+          target.build_configurations.each do |config|
+            config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
+          end
+
+          # Also add entitlements file to project if not already there
+          app_group = project.main_group.find_subpath('App', false)
+          existing_ref = app_group.files.find { |f| f.path == 'App.entitlements' }
+          if existing_ref.nil?
+            app_group.new_file('App.entitlements')
+          end
+
+          project.save
+          puts "=== Linked App.entitlements to Xcode project ==="
+          RUBY_SCRIPT
+      - name: Inject UIBackgroundModes into Info.plist
+        script: |
+          PLIST="ios/App/App/Info.plist"
+          echo "=== Injecting UIBackgroundModes for push notifications ==="
+          if ! /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" 2>/dev/null; then
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST"
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" "$PLIST"
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" "$PLIST"
+            echo "=== UIBackgroundModes added ==="
+          else
+            echo "=== UIBackgroundModes already present ==="
+          fi
+          # Also add NSPhotoLibraryAddUsageDescription if missing
+          if ! /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST" 2>/dev/null; then
+            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Save photos to your library'" "$PLIST"
+          fi
+          /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST"
+      - name: Copy Firebase config and add to Xcode project
+        script: |
+          cp firebase/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          echo "=== Copied Firebase config to iOS ==="
+          
+          # Add GoogleService-Info.plist to Xcode project so it's included in the bundle
+          ruby << 'RUBY_SCRIPT'
+          require 'xcodeproj'
+          
+          project_path = 'ios/App/App.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          
+          target = project.targets.find { |t| t.name == 'App' }
+          app_group = project.main_group.find_subpath('App', false)
+          
+          existing_ref = app_group.files.find { |f| f.path == 'GoogleService-Info.plist' }
+          
+          if existing_ref.nil?
+            file_ref = app_group.new_file('GoogleService-Info.plist')
+            target.resources_build_phase.add_file_reference(file_ref)
+            project.save
+            puts "=== Added GoogleService-Info.plist to Xcode project ==="
+          else
+            puts "=== GoogleService-Info.plist already in project ==="
+          end
+          RUBY_SCRIPT
+      - name: Copy app icons
+        script: |
+          cp android-assets/mipmap-xxxhdpi/ic_launcher.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+      - name: Build iOS Debug
+        script: |
+          cd ios/App
+          xcodebuild -project App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+    artifacts:
+      - ios/App/build/Build/Products/Debug-iphonesimulator/*.app
+
+  ios-workflow:
+    name: iOS Build & Publish
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: Codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.lovable.igniteteamhub
+      groups:
+        # Codemagic UI → Environment variables → add group `supabase_prod`
+        # containing (secure):
+        #   VITE_SUPABASE_PUBLISHABLE_KEY = <prod anon key>
+        - supabase_prod
+      vars:
+        # Numeric App Store ID for this app — used to ask ASC for the latest
+        # build number for this exact marketing version via the Codemagic-managed integration. Public value;
+        # safe to commit. Find it in App Store Connect → My Apps → App
+        # Information → "Apple ID". This may also be supplied as a Codemagic env var.
+        APP_STORE_APPLE_ID: "6758928691"
+        # PROD track — switches capacitor.config.ts to the prod appId /
+        # display name and (see next step) rewrites .env to prod Supabase.
+        LOVABLE_ENV: "prod"
+        VITE_SUPABASE_URL: "https://yabcfiuntwqjwvschnji.supabase.co"
+        VITE_SUPABASE_PROJECT_ID: "yabcfiuntwqjwvschnji"
+      xcode: latest
+      node: 22
+    scripts:
+      - name: Install dependencies
+        script: npm ci --no-audit --no-fund
+      - name: Rewrite .env for PROD
+        # Overwrites the committed dev .env with prod values so Vite bakes
+        # the prod Supabase URL + anon key into the bundle. Fails fast if
+        # the anon key isn't set (missing supabase_prod group in Codemagic).
+        script: |
+          set -euo pipefail
+          if [ -z "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+            echo "::error:: VITE_SUPABASE_PUBLISHABLE_KEY not set — add 'supabase_prod' env group in Codemagic"
+            exit 1
+          fi
+          cat > .env <<EOF
+          VITE_SUPABASE_URL="${VITE_SUPABASE_URL}"
+          VITE_SUPABASE_PROJECT_ID="${VITE_SUPABASE_PROJECT_ID}"
+          VITE_SUPABASE_PUBLISHABLE_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY}"
+          EOF
+          echo "=== .env rewritten for PROD ==="
+          grep -v PUBLISHABLE_KEY .env
+      - name: Build web app
+        script: |
+          npm run build
+          echo "=== Verifying dist folder exists ==="
+          ls -la dist/
+      - name: Add iOS platform
+        script: |
+          echo "=== Capacitor version ==="
+          npx cap --version
+          echo "=== Adding iOS platform ==="
+          npx cap add ios || echo "iOS platform may already exist"
+          echo "=== Checking ios folder structure ==="
+          ls -la ios/ || echo "ERROR: ios folder not created!"
+          ls -la ios/App/ || echo "ERROR: ios/App folder not found!"
+      - name: Copy Firebase config and add to Xcode project
+        script: |
+          # Copy GoogleService-Info.plist to iOS app directory
+          cp firebase/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          echo "=== Copied Firebase config to iOS ==="
+          
+          # Add GoogleService-Info.plist to Xcode project using Ruby script
+          # This is necessary because just copying the file doesn't add it to the bundle
+          ruby << 'RUBY_SCRIPT'
+          require 'xcodeproj'
+          
+          project_path = 'ios/App/App.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          
+          # Find the App target
+          target = project.targets.find { |t| t.name == 'App' }
+          
+          # Find the App group
+          app_group = project.main_group.find_subpath('App', false)
+          
+          # Check if GoogleService-Info.plist already exists in project
+          existing_ref = app_group.files.find { |f| f.path == 'GoogleService-Info.plist' }
+          
+          if existing_ref.nil?
+            # Add file reference
+            file_ref = app_group.new_file('GoogleService-Info.plist')
+            
+            # Add to resources build phase
+            target.resources_build_phase.add_file_reference(file_ref)
+            
+            project.save
+            puts "=== Added GoogleService-Info.plist to Xcode project ==="
+          else
+            puts "=== GoogleService-Info.plist already in project ==="
+          end
+          RUBY_SCRIPT
+      - name: Sync Capacitor
+        script: |
+          npx cap sync ios
+          echo "=== Verifying SPM Package.swift exists ==="
+          cat ios/App/CapApp-SPM/Package.swift | head -20
+      - name: Ensure GADApplicationIdentifier in Info.plist
+        script: |
+          PLIST="ios/App/App/Info.plist"
+          if ! /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST" 2>/dev/null; then
+            echo "=== Injecting GADApplicationIdentifier into Info.plist ==="
+            /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string ca-app-pub-3940256099942544~3347511713" "$PLIST"
+          else
+            echo "=== GADApplicationIdentifier already present ==="
+          fi
+          /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
+      - name: Patch AppDelegate for Firebase, Crashlytics & Push Notifications
+        script: |
+          DELEGATE="ios/App/App/AppDelegate.swift"
+          echo "=== Patching AppDelegate.swift with push notification support ==="
+          cat > "$DELEGATE" << 'SWIFT'
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+          import FirebaseCrashlytics
+          import FirebaseMessaging
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
+
+              var window: UIWindow?
+
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  Messaging.messaging().delegate = self
+                  UNUserNotificationCenter.current().delegate = self
+                  application.registerForRemoteNotifications()
+                  return true
+              }
+
+              // MARK: - APNs Token Forwarding
+              func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+                  Messaging.messaging().apnsToken = deviceToken
+              }
+
+              func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+                  print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
+              }
+
+              // MARK: - Background Notification Handling
+              func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+                  completionHandler(.newData)
+              }
+
+              // MARK: - Firebase MessagingDelegate
+              func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+                  if let token = fcmToken {
+                      print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
+                  }
+              }
+
+              // MARK: - UNUserNotificationCenterDelegate
+              func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+                  completionHandler([.banner, .badge, .sound])
+              }
+
+              func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+                  completionHandler()
+              }
+
+              func applicationWillResignActive(_ application: UIApplication) {}
+              func applicationDidEnterBackground(_ application: UIApplication) {}
+              func applicationWillEnterForeground(_ application: UIApplication) {}
+              func applicationDidBecomeActive(_ application: UIApplication) {}
+              func applicationWillTerminate(_ application: UIApplication) {}
+
+              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+              }
+          }
+          SWIFT
+          echo "=== Patched AppDelegate.swift with push support ==="
+          cat "$DELEGATE"
+      - name: Overwrite SPM Package.swift with full dependencies
+        script: |
+          PACKAGE="ios/App/CapApp-SPM/Package.swift"
+          echo "=== Overwriting Package.swift with full push notification dependencies ==="
+          cat > "$PACKAGE" << 'SWIFTPKG'
+          // swift-tools-version: 5.9
+          import PackageDescription
+
+          let package = Package(
+              name: "CapApp-SPM",
+              platforms: [.iOS(.v15)],
+              products: [
+                  .library(
+                      name: "CapApp-SPM",
+                      targets: ["CapApp-SPM"])
+              ],
+              dependencies: [
+                  .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.0"),
+                  .package(url: "https://github.com/firebase/firebase-ios-sdk.git", .upToNextMajor(from: "12.7.0")),
+                  .package(name: "CapacitorFirebaseMessaging", path: "../../../node_modules/@capacitor-firebase/messaging"),
+                  .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
+                  .package(name: "CapacitorBrowser", path: "../../../node_modules/@capacitor/browser"),
+                  .package(name: "CapacitorCamera", path: "../../../node_modules/@capacitor/camera"),
+                  .package(name: "CapacitorKeyboard", path: "../../../node_modules/@capacitor/keyboard"),
+                  .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
+                  .package(name: "CapacitorShare", path: "../../../node_modules/@capacitor/share"),
+                  .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
+                  .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/@capgo/capacitor-native-biometric")
+              ],
+              targets: [
+                  .target(
+                      name: "CapApp-SPM",
+                      dependencies: [
+                          .product(name: "Capacitor", package: "capacitor-swift-pm"),
+                          .product(name: "Cordova", package: "capacitor-swift-pm"),
+                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
+                          .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
+                          .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
+                          .product(name: "CapacitorFirebaseMessaging", package: "CapacitorFirebaseMessaging"),
+                          .product(name: "CapacitorApp", package: "CapacitorApp"),
+                          .product(name: "CapacitorBrowser", package: "CapacitorBrowser"),
+                          .product(name: "CapacitorCamera", package: "CapacitorCamera"),
+                          .product(name: "CapacitorKeyboard", package: "CapacitorKeyboard"),
+                          .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
+                          .product(name: "CapacitorShare", package: "CapacitorShare"),
+                          .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
+                          .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric")
+                      ]
+                  )
+              ]
+          )
+          SWIFTPKG
+          echo "=== Package.swift overwritten ==="
+          cat "$PACKAGE"
+      - name: Generate push notification entitlements
+        script: |
+          ENTITLEMENTS="ios/App/App/App.entitlements"
+          echo "=== Generating push notification entitlements ==="
+          cat > "$ENTITLEMENTS" << 'ENTXML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>aps-environment</key>
+              <string>production</string>
+          </dict>
+          </plist>
+          ENTXML
+
+          # Link entitlements to Xcode project
+          ruby << 'RUBY_SCRIPT'
+          require 'xcodeproj'
+
+          project_path = 'ios/App/App.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          target = project.targets.find { |t| t.name == 'App' }
+
+          target.build_configurations.each do |config|
+            config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
+          end
+
+          app_group = project.main_group.find_subpath('App', false)
+          existing_ref = app_group.files.find { |f| f.path == 'App.entitlements' }
+          if existing_ref.nil?
+            app_group.new_file('App.entitlements')
+          end
+
+          project.save
+          puts "=== Linked App.entitlements to Xcode project ==="
+          RUBY_SCRIPT
+      - name: Inject UIBackgroundModes into Info.plist
+        script: |
+          PLIST="ios/App/App/Info.plist"
+          echo "=== Injecting UIBackgroundModes for push notifications ==="
+          if ! /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" 2>/dev/null; then
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST"
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" "$PLIST"
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" "$PLIST"
+            echo "=== UIBackgroundModes added ==="
+          else
+            echo "=== UIBackgroundModes already present ==="
+          fi
+          if ! /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST" 2>/dev/null; then
+            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Save photos to your library'" "$PLIST"
+          fi
+          /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST"
+      - name: Copy app icons
+        script: |
+          # Copy Ignite icon to iOS app icon (use the highest resolution Android icon)
+          # iOS requires 1024x1024 icon named appropriately
+          cp android-assets/mipmap-xxxhdpi/ic_launcher.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+          echo "=== Copied Ignite icon to iOS ==="
+          ls -la ios/App/App/Assets.xcassets/AppIcon.appiconset/
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Set marketing version and auto-increment build number
+        script: |
+          set -euo pipefail
+          ROOT_DIR="$(pwd)"
+          APP_VERSION=$(node -p "require('./package.json').version")
+          BUNDLE_ID="app.lovable.igniteteamhub"
+          PROJECT_FILE="$ROOT_DIR/ios/App/App.xcodeproj/project.pbxproj"
+          PLIST_FILE="$ROOT_DIR/ios/App/App/Info.plist"
+
+          APP_ID="${APP_STORE_APPLE_ID:-}"
+          if ! echo "$APP_ID" | grep -Eq '^[0-9]+$'; then
+            echo "=== APP_STORE_APPLE_ID is not set to a numeric value; resolving by bundle id $BUNDLE_ID ==="
+            APPS_JSON=$(app-store-connect apps list \
+              --bundle-id-identifier "$BUNDLE_ID" \
+              --strict-match-identifier \
+              --json)
+            APP_ID=$(echo "$APPS_JSON" | node -e "const fs=require('fs'); const input=fs.readFileSync(0,'utf8'); const json=JSON.parse(input); const apps=Array.isArray(json) ? json : (json.data || json.apps || []); const app=apps[0] || {}; const id=app.id || app.appStoreId || (app.attributes && (app.attributes.appleId || app.attributes.appleID)) || ''; process.stdout.write(String(id));")
+          fi
+
+          if ! echo "$APP_ID" | grep -Eq '^[0-9]+$'; then
+            echo "ERROR: Could not resolve numeric Apple ID for $BUNDLE_ID. Set APP_STORE_APPLE_ID in Codemagic to the App Store Connect Apple ID."
+            exit 1
+          fi
+
+          latest_build_for_version() {
+            local label="$1"
+            shift
+            local output
+            local status
+            set +e
+            output=$("$@" 2>&1)
+            status=$?
+            set -e
+
+            if [ "$status" -ne 0 ]; then
+              if echo "$output" | grep -Eiq 'not[[:space:]-]?found|no[[:space:]]+(build|version|resource|data)|does not exist|404'; then
+                echo "0"
+                return 0
+              fi
+              echo "ERROR: Could not read latest $label build number from App Store Connect." >&2
+              echo "$output" >&2
+              return "$status"
+            fi
+
+            local parsed
+            parsed=$(echo "$output" | tr -d '\r' | grep -Eo '[0-9]+' | tail -1 || true)
+            echo "${parsed:-0}"
+          }
+
+          LATEST_APP_STORE_GLOBAL=$(latest_build_for_version "App Store" \
+            app-store-connect get-latest-app-store-build-number \
+              --platform IOS \
+              "$APP_ID")
+          LATEST_TESTFLIGHT_GLOBAL=$(latest_build_for_version "TestFlight" \
+            app-store-connect get-latest-testflight-build-number \
+              --platform IOS \
+              "$APP_ID")
+          LATEST_APP_STORE_VERSION=$(latest_build_for_version "App Store $APP_VERSION" \
+            app-store-connect get-latest-app-store-build-number \
+              --version-string "$APP_VERSION" \
+              --platform IOS \
+              "$APP_ID")
+          LATEST_TESTFLIGHT_VERSION=$(latest_build_for_version "TestFlight $APP_VERSION" \
+            app-store-connect get-latest-testflight-build-number \
+              --pre-release-version "$APP_VERSION" \
+              --platform IOS \
+              "$APP_ID")
+
+          LOCAL_BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_FILE" 2>/dev/null || echo "0")
+          TIMESTAMP_BUILD_NUMBER=$(date -u +%Y%m%d%H%M%S)
+
+          LATEST=$LATEST_APP_STORE_GLOBAL
+          for candidate in "$LATEST_TESTFLIGHT_GLOBAL" "$LATEST_APP_STORE_VERSION" "$LATEST_TESTFLIGHT_VERSION"; do
+            if [ "$candidate" -gt "$LATEST" ]; then
+              LATEST="$candidate"
+            fi
+          done
+          NEXT_BUILD_NUMBER=$((LATEST + 1))
+
+          if echo "$LOCAL_BUILD_NUMBER" | grep -Eq '^[0-9]+$' && [ "$LOCAL_BUILD_NUMBER" -gt "$NEXT_BUILD_NUMBER" ]; then
+            NEXT_BUILD_NUMBER="$LOCAL_BUILD_NUMBER"
+          fi
+          if [ "$TIMESTAMP_BUILD_NUMBER" -gt "$NEXT_BUILD_NUMBER" ]; then
+            NEXT_BUILD_NUMBER="$TIMESTAMP_BUILD_NUMBER"
+          fi
+
+          echo "=== iOS marketing version: $APP_VERSION ==="
+          echo "=== Local committed build number: $LOCAL_BUILD_NUMBER ==="
+          echo "=== Timestamp-safe build floor: $TIMESTAMP_BUILD_NUMBER ==="
+          echo "=== Latest App Store build overall: $LATEST_APP_STORE_GLOBAL ==="
+          echo "=== Latest TestFlight build overall: $LATEST_TESTFLIGHT_GLOBAL ==="
+          echo "=== Latest App Store build for $APP_VERSION: $LATEST_APP_STORE_VERSION ==="
+          echo "=== Latest TestFlight build for $APP_VERSION: $LATEST_TESTFLIGHT_VERSION ==="
+          echo "=== Using next ASC-safe build number: $NEXT_BUILD_NUMBER ==="
+
+          sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = $APP_VERSION;/g" "$PROJECT_FILE"
+          sed -i '' "s/CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $NEXT_BUILD_NUMBER;/g" "$PROJECT_FILE"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" "$PLIST_FILE"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEXT_BUILD_NUMBER" "$PLIST_FILE"
+
+          cat > "$ROOT_DIR/.codemagic-ios-version.env" <<EOF
+          APP_VERSION=$APP_VERSION
+          NEXT_BUILD_NUMBER=$NEXT_BUILD_NUMBER
+          EOF
+      - name: Add Crashlytics run script to Xcode project
+        script: |
+          cd ios/App
+          ruby << 'RUBY_SCRIPT'
+          require 'xcodeproj'
+          
+          project_path = 'App.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          target = project.targets.find { |t| t.name == 'App' }
+          
+          # Check if we already added it
+          existing = target.shell_script_build_phases.find { |p| p.name == 'Firebase Crashlytics' }
+          if existing.nil?
+            phase = target.new_shell_script_build_phase('Firebase Crashlytics')
+            # Use the official Crashlytics/run script from SPM checkouts
+            phase.shell_script = <<~SCRIPT
+              if [ "${DWARF_DSYM_FOLDER_PATH}" ]; then
+                # Official Firebase Crashlytics run script for SPM
+                SCRIPT_PATH="${BUILD_DIR%Build/*}SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run"
+                if [ -f "$SCRIPT_PATH" ]; then
+                  echo "Running Firebase Crashlytics script at: $SCRIPT_PATH"
+                  "$SCRIPT_PATH"
+                else
+                  echo "warning: Firebase Crashlytics run script not found at $SCRIPT_PATH"
+                  # Fallback: search for upload-symbols
+                  UPLOAD_SYMBOLS=$(find "${BUILD_DIR%Build/*}SourcePackages" -name "upload-symbols" -type f 2>/dev/null | head -1)
+                  if [ -n "$UPLOAD_SYMBOLS" ]; then
+                    echo "Found upload-symbols at: $UPLOAD_SYMBOLS"
+                    "$UPLOAD_SYMBOLS" -gsp "${SRCROOT}/App/GoogleService-Info.plist" -p ios "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}"
+                  else
+                    echo "warning: Could not find upload-symbols binary either"
+                  fi
+                fi
+              fi
+            SCRIPT
+            phase.input_paths = [
+              '${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}',
+              '$(SRCROOT)/App/GoogleService-Info.plist',
+              '$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist'
+            ]
+            project.save
+            puts "=== Added Firebase Crashlytics run script build phase ==="
+          else
+            puts "=== Firebase Crashlytics run script already exists ==="
+          end
+          RUBY_SCRIPT
+      - name: Build iOS Release
+        script: |
+          set -euo pipefail
+          cd ios/App
+          source ../../.codemagic-ios-version.env
+          xcodebuild -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/App.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            archive
+
+          ARCHIVE_PLIST="build/App.xcarchive/Products/Applications/App.app/Info.plist"
+          echo "=== Archived app version check ==="
+          ARCHIVED_MARKETING_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$ARCHIVE_PLIST")
+          ARCHIVED_BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$ARCHIVE_PLIST")
+          echo "$ARCHIVED_MARKETING_VERSION"
+          echo "$ARCHIVED_BUILD_NUMBER"
+
+          if [ "$ARCHIVED_MARKETING_VERSION" != "$APP_VERSION" ]; then
+            echo "ERROR: Archived CFBundleShortVersionString ($ARCHIVED_MARKETING_VERSION) does not match package.json version ($APP_VERSION)"
+            exit 1
+          fi
+
+          if [ "$ARCHIVED_BUILD_NUMBER" != "$NEXT_BUILD_NUMBER" ]; then
+            echo "ERROR: Archived CFBundleVersion ($ARCHIVED_BUILD_NUMBER) does not match expected build number ($NEXT_BUILD_NUMBER)"
+            exit 1
+          fi
+      - name: Export IPA
+        script: |
+          cd ios/App
+          xcodebuild -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist ~/export_options.plist
+    artifacts:
+      - ios/App/build/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # Note: Internal testers are added directly in App Store Connect, not via beta_groups
+
+  android-workflow:
+    name: Android Build (PROD)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - android_signing
+        - supabase_prod
+      vars:
+        # PROD track — builds against prod Supabase.
+        # App ID is the PROD bundle; upload .aab to Google Play Production track.
+        LOVABLE_ENV: "prod"
+        VITE_SUPABASE_URL: "https://yabcfiuntwqjwvschnji.supabase.co"
+        VITE_SUPABASE_PROJECT_ID: "yabcfiuntwqjwvschnji"
+      java: 21
+      node: 22
+    scripts:
+      - name: Install dependencies
+        script: npm ci --no-audit --no-fund
+      - name: Rewrite .env for PROD
+        script: |
+          set -euo pipefail
+          if [ -z "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+            echo "::error:: VITE_SUPABASE_PUBLISHABLE_KEY not set — add 'supabase_prod' env group in Codemagic"
+            exit 1
+          fi
+          cat > .env <<EOF
+          VITE_SUPABASE_URL="${VITE_SUPABASE_URL}"
+          VITE_SUPABASE_PROJECT_ID="${VITE_SUPABASE_PROJECT_ID}"
+          VITE_SUPABASE_PUBLISHABLE_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY}"
+          EOF
+          echo "=== .env rewritten for PROD ==="
+          grep -v PUBLISHABLE_KEY .env
+      - name: Confirm env
+        script: |
+          echo "LOVABLE_ENV=$LOVABLE_ENV"
+          grep VITE_SUPABASE_URL .env || true
+      - name: Build web app
+        script: npm run build
+      - name: Add Android platform
+        script: npx cap add android || true
+      - name: Copy Firebase config
+        script: |
+          mkdir -p android/app
+          cp firebase/google-services.json android/app/google-services.json
+      - name: Sync Capacitor
+        script: npx cap sync android
+      - name: Patch Firebase receiver for Android 12+
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "FirebaseInstanceIdReceiver" "$MANIFEST"; then
+            sed -i '' 's|</application>|<receiver android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver" android:exported="true" android:permission="com.google.android.c2dm.permission.SEND"><intent-filter><action android:name="com.google.android.c2dm.intent.RECEIVE" /></intent-filter></receiver></application>|' "$MANIFEST"
+            echo "FirebaseInstanceIdReceiver injected into AndroidManifest.xml"
+          else
+            echo "FirebaseInstanceIdReceiver already present"
+          fi
+      - name: Add AdMob App ID to AndroidManifest
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "com.google.android.gms.ads.APPLICATION_ID" "$MANIFEST"; then
+            sed -i '' '/<\/application>/i\
+                <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>
+            ' "$MANIFEST"
+            echo "AdMob App ID injected into AndroidManifest.xml"
+          else
+            echo "AdMob App ID already present"
+          fi
+      - name: Add Crashlytics Gradle plugin
+        script: |
+          cd android
+          if ! grep -q "firebase-crashlytics-gradle" build.gradle 2>/dev/null; then
+            sed -i '' '/dependencies {/a\
+                    classpath "com.google.firebase:firebase-crashlytics-gradle:3.0.3"
+            ' build.gradle
+          fi
+          echo "=== Project build.gradle dependencies ==="
+          grep -A5 "dependencies {" build.gradle
+          if ! grep -q "firebase-crashlytics" app/build.gradle 2>/dev/null; then
+            echo "" >> app/build.gradle
+            echo "apply plugin: 'com.google.firebase.crashlytics'" >> app/build.gradle
+          fi
+          echo "=== app/build.gradle tail ==="
+          tail -5 app/build.gradle
+      - name: Copy app icons
+        script: |
+          rm -rf android/app/src/main/res/mipmap-*
+          rm -rf android/app/src/main/res/drawable/ic_launcher*
+          rm -rf android/app/src/main/res/drawable-v24
+          rm -rf android/app/src/main/res/drawable-hdpi
+          rm -rf android/app/src/main/res/drawable-mdpi
+          rm -rf android/app/src/main/res/drawable-xhdpi
+          rm -rf android/app/src/main/res/drawable-xxhdpi
+          rm -rf android/app/src/main/res/drawable-xxxhdpi
+          rm -f android/app/src/main/res/drawable/ic_launcher_background.xml
+          rm -f android/app/src/main/res/drawable/splash.png
+          cp -r android-assets/mipmap-* android/app/src/main/res/
+          mkdir -p android/app/src/main/res/drawable
+          cp android-assets/drawable/ic_launcher_foreground.png android/app/src/main/res/drawable/
+          cp android-assets/drawable/ic_launcher_background.xml android/app/src/main/res/drawable/
+          cp android-assets/drawable/ic_notification.xml android/app/src/main/res/drawable/
+          rm -f android/app/src/main/res/values/colors.xml
+          rm -f android/app/src/main/res/values-night/colors.xml
+          mkdir -p android/app/src/main/res/values
+          cp android-assets/res-values/colors.xml android/app/src/main/res/values/colors.xml
+          echo "=== drawable contents ===" && ls -la android/app/src/main/res/drawable/
+          echo "=== mipmap-hdpi contents ===" && ls -la android/app/src/main/res/mipmap-hdpi/
+          echo "=== mipmap-anydpi-v26 contents ===" && ls -la android/app/src/main/res/mipmap-anydpi-v26/
+      - name: Add custom URL scheme intent-filter
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q 'android:scheme="igniteclubhq"' "$MANIFEST"; then
+            sed -i '' '/<\/activity>/i\
+                <intent-filter>\
+                    <action android:name="android.intent.action.VIEW" />\
+                    <category android:name="android.intent.category.DEFAULT" />\
+                    <category android:name="android.intent.category.BROWSABLE" />\
+                    <data android:scheme="igniteclubhq" />\
+                </intent-filter>
+            ' "$MANIFEST"
+            echo "=== igniteclubhq:// intent-filter injected ==="
+          else
+            echo "=== igniteclubhq:// intent-filter already present ==="
+          fi
+      - name: Add App Links intent-filter for igniteclubhq.app
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q 'android:host="igniteclubhq.app"' "$MANIFEST"; then
+            sed -i '' '/<\/activity>/i\
+                <intent-filter android:autoVerify="true">\
+                    <action android:name="android.intent.action.VIEW" />\
+                    <category android:name="android.intent.category.DEFAULT" />\
+                    <category android:name="android.intent.category.BROWSABLE" />\
+                    <data android:scheme="https" android:host="igniteclubhq.app" />\
+                </intent-filter>
+            ' "$MANIFEST"
+            echo "=== App Links intent-filter for igniteclubhq.app injected ==="
+          else
+            echo "=== App Links intent-filter for igniteclubhq.app already present ==="
+          fi
+      - name: Configure notification icon
+        script: |
+          sed -i '' 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>|' android/app/src/main/AndroidManifest.xml
+      - name: Disable lint abort for release
+        script: |
+          cd android/app
+          cat >> build.gradle << 'GRADLE'
+
+          android {
+              lintOptions {
+                  abortOnError false
+              }
+          }
+          GRADLE
+      - name: Set up keystore
+        script: |
+          echo $CM_KEYSTORE | base64 --decode > /tmp/ignite-upload.keystore
+          cat > android/key.properties << EOF
+          storeFile=/tmp/ignite-upload.keystore
+          storePassword=$CM_KEYSTORE_PASSWORD
+          keyAlias=$CM_KEY_ALIAS
+          keyPassword=$CM_KEY_PASSWORD
+          EOF
+      - name: Configure signing in build.gradle
+        script: |
+          cd android/app
+          cat >> build.gradle << 'GRADLE'
+
+          android {
+              signingConfigs {
+                  release {
+                      def props = new Properties()
+                      props.load(new FileInputStream(rootProject.file("key.properties")))
+                      storeFile file(props['storeFile'])
+                      storePassword props['storePassword']
+                      keyAlias props['keyAlias']
+                      keyPassword props['keyPassword']
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          GRADLE
+      - name: Increment version code
+        script: |
+          GRADLE_FILE="android/app/build.gradle"
+          EPOCH_BASE=1704067200
+          NOW=$(date +%s)
+          NEW_VC=$(( NOW - EPOCH_BASE ))
+          echo "=== Target versionCode: $NEW_VC (epoch-seconds, timestamp: $NOW) ==="
+          echo "=== Before replacement ==="
+          grep -n "versionCode" "$GRADLE_FILE" || echo "WARNING: no versionCode found!"
+          sed -i '' -E "s/versionCode[ =]+[0-9]+/versionCode = $NEW_VC/" "$GRADLE_FILE"
+          echo "=== After replacement ==="
+          grep -n "versionCode" "$GRADLE_FILE"
+      - name: Build Android Release
+        script: |
+          cd android
+          ./gradlew clean
+          ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+
+  # ---------------------------------------------------------------------------
+  # Actual Android OS resume regression test.
+  #
+  # Runs the harness in `tests/android-os/` inside a REAL Android emulator and
+  # drives genuine OS lifecycle transitions (home/recents, lock/unlock, radio
+  # off/on) via adb. It pins the regression from 0ee10f109: a blanket
+  # `refetchQueries({ type: 'active' })` on every resume, which saturated the
+  # WebView's ~6-connection-per-origin pool and froze the app until force-quit.
+  #
+  # SAFETY — this workflow is deliberately inert:
+  #   * no `environment.groups` (so no Supabase / signing / store credentials)
+  #   * isolated package id `app.igniteclubhq.androidosresumetest`
+  #   * debug APK only; never signed, never published
+  #   * `verify-safety.mjs` hard-fails the build if any Supabase, database or
+  #     signing credential or reference is detected, before and after build
+  # ---------------------------------------------------------------------------
+  android-os-resume-test:
+    name: Actual Android OS resume regression
+    max_build_duration: 35
+    instance_type: linux_x2
+    environment:
+      java: 21
+      node: 22
+      vars:
+        AOS_TEST_APP_ID: "app.igniteclubhq.androidosresumetest"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: codespaces-review
+          include: true
+          source: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Safety guard — no Supabase, database or signing credentials
+        script: |
+          set -e
+          node tests/android-os/verify-safety.mjs
+      - name: Install dependencies
+        script: npm ci --no-audit --no-fund
+      - name: Harness isolation guard test
+        script: npx vitest run src/test/androidOsHarness.guard.test.ts
+      - name: Resume/reconnect unit guard tests
+        script: |
+          npx vitest run \
+            src/test/resumeVsReconnectRecovery.guard.test.ts \
+            src/test/androidResumeZombieRequests.guard.test.ts \
+            src/test/androidInboxResume.guard.test.ts \
+            src/test/chatResumeWatchdog.guard.test.ts
+      - name: Build isolated harness web app
+        script: npm run test:android-os:build
+      - name: Generate disposable Capacitor Android project
+        script: |
+          set -e
+          cd tests/android-os/workspace
+          rm -rf .generated
+          ../../../node_modules/.bin/cap add android
+          ../../../node_modules/.bin/cap sync android
+      - name: Post-build safety guard
+        script: node tests/android-os/verify-safety.mjs --post
+      - name: Build unsigned debug APK
+        script: |
+          set -e
+          cd tests/android-os/workspace/.generated/android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+          ls -la app/build/outputs/apk/debug/
+      - name: Boot Android emulator
+        script: |
+          set -e
+          SDK="${ANDROID_SDK_ROOT:-$HOME/programs/android-sdk-macosx}"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64" >/dev/null
+          echo no | "$SDK/cmdline-tools/latest/bin/avdmanager" create avd \
+            -n aos_resume -k "system-images;android-34;google_apis;x86_64" --force
+          nohup "$SDK/emulator/emulator" -avd aos_resume \
+            -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect \
+            -accel auto -memory 2048 >/tmp/emulator.log 2>&1 &
+          adb wait-for-device
+          for i in $(seq 1 120); do
+            [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break
+            sleep 5
+          done
+          adb shell input keyevent 82 || true
+          adb devices
+      - name: Run Android OS resume regression suite
+        script: bash tests/android-os/run-emulator-test.sh
+      - name: Emulator log tail (diagnostics)
+        script: tail -n 200 /tmp/emulator.log || true
+        ignore_failure: true
+    artifacts:
+      - test-results/android-os/**
+      - tests/android-os/workspace/.generated/android/app/build/reports/**
+      - tests/android-os/workspace/.generated/android/app/build/outputs/apk/debug/app-debug.apk
+      - /tmp/emulator.log
+
+  ios-os-resume-test:
+    name: Actual iOS Simulator resume regression
+    max_build_duration: 35
+    instance_type: mac_mini_m2
+    environment:
+      node: 22
+      xcode: latest
+      vars:
+        IOS_OS_TEST_APP_ID: "app.igniteclubhq.iososresumetest"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: codespaces-review
+          include: true
+          source: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Safety guard - no Supabase, database or signing credentials
+        script: |
+          set -e
+          node tests/ios-os/verify-safety.mjs
+      - name: Install repository dependencies
+        script: npm ci --no-audit --no-fund
+      - name: Harness isolation guard test
+        script: npx vitest run src/test/iosOsHarness.guard.test.ts
+      - name: Resume/reconnect unit guard tests
+        script: |
+          npx vitest run \
+            src/test/resumeVsReconnectRecovery.guard.test.ts \
+            src/test/androidResumeZombieRequests.guard.test.ts \
+            src/test/androidInboxResume.guard.test.ts \
+            src/test/chatResumeWatchdog.guard.test.ts
+      - name: Build the synthetic WKWebView bundle
+        script: npm run test:ios-os:build
+      - name: Generate disposable Capacitor iOS project
+        script: |
+          set -e
+          cd tests/ios-os/workspace
+          rm -rf .generated
+          ../../../node_modules/.bin/cap add ios
+          ../../../node_modules/.bin/cap sync ios
+      - name: Post-build safety guard
+        script: node tests/ios-os/verify-safety.mjs --post
+      - name: Install Appium and the XCUITest driver
+        script: |
+          set -e
+          npm install --no-save appium@2 webdriverio@9
+          npx appium driver install xcuitest || npx appium driver update xcuitest
+      - name: Run the iOS Simulator resume regression suite
+        script: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          node tests/ios-os/run-simulator-test.mjs
+        # Simulator-only builds are unsigned: CODE_SIGNING_ALLOWED=NO
+      - name: Diagnostics tail
+        script: tail -n 200 test-results/ios-os/appium.log || true
+        ignore_failure: true
+    artifacts:
+      - test-results/ios-os/**

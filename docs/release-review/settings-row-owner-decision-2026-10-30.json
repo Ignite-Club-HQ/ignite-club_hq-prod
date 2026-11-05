@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-10-30T11:04:00Z",
+  "ownerRequest": "That single setting is ok add to plan",
+  "standingRule": "Production merges may change only structures; no production data is changed.",
+  "approvedException": {
+    "migration": "20261030013735",
+    "table": "public.app_settings",
+    "key": "backend_routing_config",
+    "effect": "inserts one application-configuration row (upsert keyed on key, updates only value and updated_at)",
+    "retainedClubIds": [
+      "966bdaec-ebf1-46da-b2b3-cc53bf05c422",
+      "493ee2e3-c834-487d-93be-d1c8a0dbc4a8"
+    ],
+    "boundedBy": "scripts/prod-release-no-data.test.mjs"
+  },
+  "noOtherRowsPreApproved": true,
+  "deploymentAuthorized": false,
+  "mergeAuthorized": false,
+  "runnerConsumable": false,
+  "reason": "The owner approved the shape of the release (structures plus this one settings row). Merging, running the migrations and deploying remain separate owner decisions.",
+  "planFile": "docs/release-review/prod-checks-2026-10-30.md"
+}

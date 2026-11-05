@@ -251,6 +251,9 @@ module {
   // club admin can pre-create a "shell" team for a coach/manager who has
   // not signed up yet, mint a claim token, and the invited person claims
   // it (becoming team_admin) via `claim_shell_team`.
+  public type TeamClassSchedule = { day : Text; time : ?Text; duration_minutes : ?Nat; capacity : ?Nat };
+  public type TeamClassScheduleRow = { team_id : Text; day : Text; time : ?Text; duration_minutes : ?Nat; capacity : ?Nat };
+
   public type ClubTeam = {
     id : Text;
     name : Text;

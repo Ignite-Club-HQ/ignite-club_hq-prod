@@ -86,6 +86,11 @@ pub fn close(head:&Head)->Outcome<Head> {
     Ok(Head {epoch:head.epoch.checked_add(1).ok_or("Recovery epoch exhausted")?, accepted:None,..head.clone()})
 }
 pub fn signing_bytes(b: &Acceptance)->Outcome<Vec<u8>> {
+    let mut result=b"ignite:independent-recovery-acceptance:lifecycle-v2\0".to_vec();
+    result.extend(Sha256::digest(encoding(b)?)); Ok(result)
+}
+// Exact Rust Candid bytes; type tables are not canonical across encoders.
+pub fn encoding(b: &Acceptance)->Outcome<Vec<u8>> {
     if b.participants.len()<2 || b.participants.len()>MAX_TARGETS+1 ||
         b.participants.iter().any(|p|!principal_ok(p.canister)) ||
         b.participants.iter().map(|p|p.canister).collect::<BTreeSet<_>>().len()!=b.participants.len() ||
@@ -94,8 +99,7 @@ pub fn signing_bytes(b: &Acceptance)->Outcome<Vec<u8>> {
         b.journal_digest.len()!=32 || !principal_ok(b.identity) || !principal_ok(b.witness) ||
         b.identity==b.witness || b.participants.iter().any(|p|p.canister==b.witness) ||
         b.witness_version==0 || !b.participants.iter().any(|p|p.canister==b.identity && p.changes==b.identity_version) {return Err("Exact bounded independent recovery scope required".into());}
-    let mut result=b"ignite:independent-recovery-acceptance:lifecycle-v2\0".to_vec();
-    result.extend(Sha256::digest(candid::encode_one(b).map_err(|_|"Invalid recovery acceptance")?)); Ok(result)
+    candid::encode_one(b).map_err(|_|"Invalid recovery acceptance".into())
 }
 pub fn accept(head:&Head,a:&SignedAcceptance,witness:Principal,version:u64,now:u64,key:&VerifyingKey)->Outcome<Head> {
     let b=&a.body; let bytes=signing_bytes(b)?;
@@ -136,6 +140,19 @@ pub fn subject_progress_signing_bytes(b:&Acceptance)->Outcome<Vec<u8>> {
 pub fn validate_subject_progress(a:&SignedAcceptance,key:&VerifyingKey)->Outcome<()> {
     let signature=Signature::from_slice(&a.signature).map_err(|_|"Separate subject progress signature required")?;
     key.verify_strict(&subject_progress_signing_bytes(&a.body)?,&signature).map_err(|_|"Separate subject progress signature required".into())
+}
+/// Current infrastructure effectiveness, not a person/account authorization.
+/// Both signatures and both arming values must belong to the exact same scope.
+pub fn verify_protection_baseline(head:&Head,baseline:&SignedAcceptance,r:&WitnessRequest,
+    caller:Principal,witness:Principal,version:u64,global_armed:u64,subject_armed:u64,now:u64,key:&VerifyingKey)->Outcome<WitnessReceipt> {
+    if version==0 || global_armed!=version || subject_armed!=version || baseline.body.witness!=witness ||
+       baseline.body.witness_version!=version || head.accepted.as_ref().is_none_or(|a|a.body!=baseline.body) {
+        return Err("Current global and subject protection baseline required".into());
+    }
+    validate_subject_progress(baseline,key)?;
+    let accepted=head.accepted.as_ref().ok_or("Recovery remains fenced")?;
+    accept(head,accepted,witness,version,now,key)?;
+    verify(head,r,caller,now)
 }
 
 #[cfg(test)] mod tests {
@@ -219,5 +236,23 @@ pub fn validate_subject_progress(a:&SignedAcceptance,key:&VerifyingKey)->Outcome
         a.signature=key.sign(&subject_progress_signing_bytes(&a.body).unwrap()).to_bytes().to_vec();
         assert!(validate_subject_progress(&a,&k).is_ok());
         a.body.generation+=1;assert!(validate_subject_progress(&a,&k).is_err());
+    }
+    #[test] fn effectiveness_requires_both_armed_signatures_and_reacceptance_disarms_subjects() {
+        let(h,a,k,r)=fixture();let accepted=accept(&h,&a,p(1),4,1,&k).unwrap();
+        let mut baseline=a.clone();baseline.signature=SigningKey::from_bytes(&[8;32])
+            .sign(&subject_progress_signing_bytes(&baseline.body).unwrap()).to_bytes().to_vec();
+        let check=|head:&Head,b:&SignedAcceptance,global,subject,now|verify_protection_baseline(head,b,&r,p(2),p(1),4,global,subject,now,&k);
+        assert_eq!(check(&accepted,&baseline,4,4,1).unwrap().request,r);
+        // Same-body reacceptance leaves HEAD equal but deliberately clears subject arming.
+        let reaccepted=accept(&accepted,&a,p(1),4,1,&k).unwrap();assert_eq!(reaccepted,accepted);
+        assert!(verify(&reaccepted,&r,p(2),1).is_ok());
+        assert!(check(&reaccepted,&baseline,4,0,1).is_err());
+        assert!(check(&accepted,&baseline,0,4,1).is_err());
+        assert!(check(&accepted,&a,4,4,1).is_err());
+        assert!(check(&accepted,&baseline,4,4,100).is_err());
+        let mut foreign=baseline.clone();foreign.body.generation+=1;
+        assert!(check(&accepted,&foreign,4,4,1).is_err());
+        assert!(verify_protection_baseline(&accepted,&baseline,&r,p(9),p(1),4,4,4,1,&k).is_err());
+        assert!(verify_protection_baseline(&accepted,&baseline,&r,p(2),p(1),5,4,4,1,&k).is_err());
     }
 }

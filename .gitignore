@@ -1,29 +1,25 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# iOS OS resume regression harness (generated, never committed)
-tests/ios-os/workspace/.generated/
-tests/ios-os/workspace/www/
-test-results/
+node_modules/
+frontend/dist*/
+frontend/.lab-cache*/
+frontend/.vitest-cache/
+frontend/.test-results/
+.mops/
+.env*
+**/.env*
+!.env.example
+*.pem
+.icp/
+# Keep the mainnet canister ID mapping (reruns must reuse existing canisters)
+!deploy/mainnet/.icp/
+deploy/mainnet/.icp/*
+!deploy/mainnet/.icp/data/
+deploy/mainnet/.icp/data/*
+!deploy/mainnet/.icp/data/mappings/
+.local-icp/
+target/
+# Keep the frontend canister ID mapping too
+!deploy/frontend/.icp/
+deploy/frontend/.icp/*
+!deploy/frontend/.icp/data/
+deploy/frontend/.icp/data/*
+!deploy/frontend/.icp/data/mappings/

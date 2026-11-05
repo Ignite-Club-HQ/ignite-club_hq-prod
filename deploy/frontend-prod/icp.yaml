@@ -1,0 +1,14 @@
+# Ignite web app (PROD) on its own ICP frontend canister. Published only by
+# .github/workflows/promote-icp-prod.yml from the prod branch.
+canisters:
+  - name: frontend
+    recipe:
+      type: "@dfinity/static-site@v0.4.0"
+      configuration:
+        dir: dist
+
+environments:
+  - name: ic
+    network: ic
+    canisters:
+      - frontend

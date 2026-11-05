@@ -1,0 +1,196 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
+import { withFeatureBackend } from "@/live/featureRouter";
+import { writeOnce } from "@/live/clubScope";
+import { listLiveSponsors, listLiveTeamSponsorAllocations, setLiveTeamSponsorAllocation, getLiveTeam } from "@/live/features/club";
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Building2, Check, Loader2, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+interface Sponsor {
+  id: string;
+  name: string;
+  logo_url: string | null;
+}
+
+interface TeamSponsorSelectorProps {
+  teamId: string;
+  currentSponsorId: string | null;
+  onUpdate?: () => void;
+}
+
+export function TeamSponsorSelector({ 
+  teamId, 
+  currentSponsorId,
+  onUpdate 
+}: TeamSponsorSelectorProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch allocated sponsors for this team (set by club admin)
+  const { data: sponsors = [], isLoading } = useQuery({
+    queryKey: ["team-allocated-sponsors", teamId],
+    queryFn: async () => {
+      if (isFeatureRoutedToIcp("membership")) {
+        return withFeatureBackend("membership", {
+          supabase: async () => [] as Sponsor[],
+          icp: async (ctx) => {
+            // The team record carries club_id; sponsor details join from the
+            // club's sponsor list.
+            const team = await getLiveTeam(ctx, teamId).catch(() => null);
+            const teamRow = (Array.isArray(team) ? team[0] : team) as { club_id?: string; club?: string } | null;
+            const clubId = teamRow?.club_id ?? teamRow?.club;
+            if (!clubId) return [] as Sponsor[];
+            const [allSponsors, allocations] = await Promise.all([
+              listLiveSponsors(ctx, clubId),
+              listLiveTeamSponsorAllocations(ctx, clubId),
+            ]);
+            const allocatedIds = new Set(
+              (allocations as Array<{ team_id: string; sponsor_id: string; allocated: boolean }>)
+                .filter((a) => a.team_id === teamId && a.allocated)
+                .map((a) => a.sponsor_id),
+            );
+            return (allSponsors as Array<{ id: string; name: string; logo_url: [] | [string] }>)
+              .filter((s) => allocatedIds.has(s.id))
+              .map((s) => ({ id: s.id, name: s.name, logo_url: s.logo_url[0] ?? null }));
+          },
+        }, { teamId: teamId! });
+      }
+      const { data, error } = await supabase
+        .from("team_sponsor_allocations")
+        .select("sponsors:sponsor_id(id, name, logo_url)")
+        .eq("team_id", teamId);
+
+      if (error) throw error;
+      return data
+        .map(a => a.sponsors as unknown as Sponsor)
+        .filter(Boolean);
+    },
+  });
+
+  const updateTeamSponsorMutation = useMutation({
+    mutationFn: async (sponsorId: string | null) => {
+      if (isFeatureRoutedToIcp("membership")) {
+        await withFeatureBackend("membership", {
+          supabase: async () => undefined,
+          icp: async (ctx) => {
+            // Clear every currently allocated sponsor, then allocate the new
+            // one (mirrors the single-sponsor teams.sponsor_id semantics).
+            const team = await getLiveTeam(ctx, teamId).catch(() => null);
+            const teamRow = (Array.isArray(team) ? team[0] : team) as { club_id?: string; club?: string } | null;
+            const clubId = teamRow?.club_id ?? teamRow?.club;
+            if (!clubId) throw new Error("Club could not be resolved for this team.");
+            const allocations = await listLiveTeamSponsorAllocations(ctx, clubId) as Array<{ team_id: string; sponsor_id: string; allocated: boolean }>;
+            await Promise.all(
+              allocations
+                .filter((a) => a.team_id === teamId && a.allocated && a.sponsor_id !== sponsorId)
+                .map((a) => setLiveTeamSponsorAllocation(ctx, a.sponsor_id, teamId, false)),
+            );
+            if (sponsorId) {
+              await setLiveTeamSponsorAllocation(ctx, sponsorId, teamId, true);
+            }
+          },
+        }, writeOnce({ teamId: teamId! }));
+        return;
+      }
+      const { error } = await supabase
+        .from("teams")
+        .update({ sponsor_id: sponsorId })
+        .eq("id", teamId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team", teamId] });
+      onUpdate?.();
+      toast({ title: "Team sponsor updated" });
+    },
+    onError: (error) => {
+      toast({ title: "Failed to update sponsor", description: error.message, variant: "destructive" });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (sponsors.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-4 text-center text-muted-foreground text-sm">
+          <Building2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          <p>No sponsors allocated</p>
+          <p className="text-xs">Ask a club admin to allocate sponsors to this team</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            Team Sponsor
+          </CardTitle>
+          {currentSponsorId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => updateTeamSponsorMutation.mutate(null)}
+              disabled={updateTeamSponsorMutation.isPending}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Clear
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {!currentSponsorId && (
+          <p className="text-sm text-muted-foreground mb-2">
+            Select a sponsor to display on this team's page
+          </p>
+        )}
+        
+        {sponsors.map((sponsor) => {
+          const isSelected = sponsor.id === currentSponsorId;
+          return (
+            <div 
+              key={sponsor.id} 
+              className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                isSelected 
+                  ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                  : "border-border hover:border-primary/50 hover:bg-muted/50"
+              }`}
+              onClick={() => updateTeamSponsorMutation.mutate(isSelected ? null : sponsor.id)}
+            >
+              <Avatar className="h-10 w-10">
+                <AvatarImage src={sponsor.logo_url || undefined} />
+                <AvatarFallback className="bg-secondary text-sm">
+                  {sponsor.name.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="font-medium flex-1">{sponsor.name}</span>
+              {isSelected && (
+                <Badge variant="default" className="gap-1">
+                  <Check className="h-3 w-3" />
+                  Selected
+                </Badge>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}

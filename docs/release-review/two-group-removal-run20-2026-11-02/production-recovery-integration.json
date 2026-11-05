@@ -1,0 +1,63 @@
+{
+  "kind": "production-identity-recovery-transport-isolated",
+  "passed": true,
+  "identityMode": "production",
+  "productionAuthorization": false,
+  "fullInventoryAcceptance": false,
+  "externalControllerFencing": false,
+  "releaseAuthorized": false,
+  "checks": [
+    {
+      "name": "Real identity has immutable test pins and rejects rehearsal-only setters and unapproved reads",
+      "passed": true
+    },
+    {
+      "name": "Owner-only disposable reader obtains real module and change-count evidence and detects upgrades",
+      "passed": true
+    },
+    {
+      "name": "Signed live witness acceptance succeeds; forged signatures, wrong callers and stale request fields fail",
+      "passed": true
+    },
+    {
+      "name": "Repeated ordinary updates and callbacks preserve both general and subject acceptance",
+      "passed": true
+    },
+    {
+      "name": "Real accepted witness snapshot cannot revive prior approval after restoration",
+      "passed": true
+    },
+    {
+      "name": "Production identity writes and reads back a disable record through real inter-canister calls",
+      "passed": true
+    },
+    {
+      "name": "Unavailable witness leaves local disable immediate and retry acknowledges the same generation",
+      "passed": true
+    },
+    {
+      "name": "Identity restore/upgrade cannot erase independent disable progress and preserves the other user account",
+      "passed": true
+    },
+    {
+      "name": "Previously successful witness reads reject real participant upgrades and expired acceptance",
+      "passed": true
+    },
+    {
+      "name": "Same-Wasm witness upgrade clears v2 arming and refuses old signed acceptance",
+      "passed": true
+    }
+  ],
+  "modules": {
+    "identity_access": "582154b0a3ace6a881b3a4045669402ca4ab5c41cf38e0b91e5b78f5d61f19d6",
+    "recovery_witness": "500d44b3c4b7087c8b0766602d5b8cf389150665c77563fc409917291dabb4f0"
+  },
+  "host": {
+    "faults": 1,
+    "writeBit": 1,
+    "recovered": true,
+    "sourceSha256": "2cc4fde3d7846f696c53a4bcd418a03abeee0b0191dc1cd4884e42db56d7da6b",
+    "kernel": "Linux 7.0.0-1017-azure"
+  },
+  "stage": "same-Wasm witness upgrade cannot retain either acceptance"
+}
