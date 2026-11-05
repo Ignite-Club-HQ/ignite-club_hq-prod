@@ -2015,7 +2015,7 @@ export async function listLiveTeamClassSchedules(
 ): Promise<Map<string, LiveTeamClassSchedule>> {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
   const out = new Map<string, LiveTeamClassSchedule>();
-  if (typeof (actor as any).list_team_class_schedules !== "function") return out;
+  if (typeof actor.list_team_class_schedules !== "function") return out;
   const rows = await unwrapCandid(actor.list_team_class_schedules(clubId), "List class schedules");
   for (const r of rows) {
     out.set(r.team_id, {
@@ -2035,14 +2035,15 @@ export async function setLiveTeamClassSchedule(
   schedule: { day: string | null; time: string | null; durationMinutes: number | null; capacity: number | null },
 ): Promise<void> {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  const toNat = (n: number | null) => (n != null && Number.isFinite(n) && n >= 0 ? [BigInt(Math.round(n))] as [bigint] : [] as []);
-  const value = schedule.day
+  const toNat = (n: number | null): [] | [bigint] =>
+    (n != null && Number.isFinite(n) && n >= 0 ? [BigInt(Math.round(n))] : []);
+  const value: [] | [TeamClassSchedule] = schedule.day
     ? [{
         day: schedule.day,
-        time: schedule.time ? [schedule.time] as [string] : [] as [],
+        time: candidOpt(schedule.time),
         duration_minutes: toNat(schedule.durationMinutes),
         capacity: toNat(schedule.capacity),
-      }] as const
-    : [] as const;
-  await unwrapCandid(actor.set_team_class_schedule(teamId, value as any), "Save class schedule");
+      }]
+    : [];
+  await unwrapCandid(actor.set_team_class_schedule(teamId, value), "Save class schedule");
 }
