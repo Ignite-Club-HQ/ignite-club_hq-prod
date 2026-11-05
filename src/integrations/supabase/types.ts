@@ -13768,7 +13768,12 @@ export type Database = {
         | "committee_member"
         | "association_admin"
         | "competition_admin"
-      club_subscription_plan: "starter" | "standard" | "unlimited"
+      club_subscription_plan:
+        | "starter"
+        | "standard"
+        | "unlimited"
+        | "small"
+        | "growing"
       duty_status: "open" | "completed"
       enrolment_status: "enrolled" | "waitlisted" | "withdrawn"
       eoi_source: "website" | "app" | "admin"
@@ -13946,7 +13951,13 @@ export const Constants = {
         "association_admin",
         "competition_admin",
       ],
-      club_subscription_plan: ["starter", "standard", "unlimited"],
+      club_subscription_plan: [
+        "starter",
+        "standard",
+        "unlimited",
+        "small",
+        "growing",
+      ],
       duty_status: ["open", "completed"],
       enrolment_status: ["enrolled", "waitlisted", "withdrawn"],
       eoi_source: ["website", "app", "admin"],
