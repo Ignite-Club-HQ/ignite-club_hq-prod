@@ -1226,7 +1226,7 @@ persistent actor class Main(governorInit : Principal) = this {
         };
       };
       #Ok
-    } finally { removalReceiver.leave() };
+    } finally { removalReceiver.leave(caller) };
   };
 
   // Team folders (Supabase team_folders counterpart): club-admin-managed
