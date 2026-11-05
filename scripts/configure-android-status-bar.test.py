@@ -58,7 +58,10 @@ class AndroidStatusBarTests(unittest.TestCase):
         self.assertIn("bundle_identifier: app.lovable.igniteteamhub", workflow)
         self.assertIn("  android-workflow:", workflow)
         self.assertIn("  ios-workflow:", workflow)
-        self.assertIn("- google_play_credentials", workflow)
+        # Play credentials were dropped: the store build hands over the .aab
+        # file and the versionCode is time-based, so an empty
+        # google_play_credentials group must never block a build again.
+        self.assertNotIn("- google_play_credentials", workflow)
 
 
 if __name__ == "__main__":

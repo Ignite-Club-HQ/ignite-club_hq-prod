@@ -18,17 +18,34 @@ class CodemagicEnvironmentTests(unittest.TestCase):
                 environment = section.group(1).split("    scripts:", 1)[0]
                 self.assertRegex(environment, r"(?m)^        - supabase_prod$")
 
-    def test_ios_debug_scaffold_guarantees_workspace(self):
-        # cap sync can succeed without running CocoaPods, leaving no
-        # App.xcworkspace for the xcodebuild step. The debug scaffold must
-        # fall back to an explicit pod install and fail loudly if the
-        # workspace is still missing.
+    def test_android_store_build_hands_over_a_file_without_publishing(self):
+        # Paul uploads to Google Play himself: the store build must expose the
+        # signed .aab and must never publish to Play from CI.
         source = (ROOT / "codemagic.yaml").read_text()
-        section = re.search(r"^  ios-debug:\n(.*?)(?=^  [\w-]+:|\Z)", source, re.M | re.S)
-        self.assertIsNotNone(section)
-        scaffold = section.group(1).split("Build for simulator", 1)[0]
-        self.assertIn("pod install", scaffold)
-        self.assertIn("App.xcworkspace still missing", scaffold)
+        store = re.search(r"^  android-workflow:\n(.*?)(?=^  [\w-]+:|\Z)", source, re.M | re.S)
+        self.assertIsNotNone(store)
+        if store is None:
+            return
+        section = store.group(1)
+        self.assertNotIn("google_play:", section)
+        self.assertNotIn("submit_as_draft", source)
+        self.assertNotIn("- google_play_credentials", section)
+        self.assertIn("- frontend/android/app/build/outputs/bundle/release/*.aab", section)
+
+    def test_ios_builds_use_spm_project_not_cocoapods_workspace(self):
+        # Capacitor 8 scaffolds iOS with Swift Package Manager (CapApp-SPM):
+        # cap add ios creates App.xcodeproj only — no Podfile, no
+        # App.xcworkspace. Both iOS workflows must build the project and
+        # never run pod install.
+        source = (ROOT / "codemagic.yaml").read_text()
+        self.assertNotIn("pod install", source)
+        self.assertNotIn("App.xcworkspace", source)
+        debug = re.search(r"^  ios-debug:\n(.*?)(?=^  [\w-]+:|\Z)", source, re.M | re.S)
+        self.assertIsNotNone(debug)
+        self.assertIn("-project App.xcodeproj", debug.group(1))
+        store = re.search(r"^  ios-workflow:\n(.*?)(?=^  [\w-]+:|\Z)", source, re.M | re.S)
+        self.assertIsNotNone(store)
+        self.assertIn("XCODE_PROJECT: App.xcodeproj", store.group(1))
 
 
 if __name__ == "__main__":
