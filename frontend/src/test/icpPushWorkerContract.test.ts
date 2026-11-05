@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { IDL } from '@icp-sdk/core/candid';
-// @ts-expect-error -- test fixture intentionally narrower than the generated service type
 // @ts-expect-error Worker modules execute directly in Node.
 import { createPushQueueIdl, notificationKey } from '../../../scripts/icp-push-contract.mjs';
 import { idlFactory } from '../lab/bindings/notification_queue/declarations/notification_queue.did.js';
