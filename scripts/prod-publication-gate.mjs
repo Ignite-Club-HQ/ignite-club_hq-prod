@@ -5,7 +5,7 @@ export const RELEASE_REPOSITORY = 'Ignite-Club-HQ/ignite-club_hq-prod';
 // Bookkeeping commits written by promote-icp-prod.yml after a successful upgrade.
 // They carry [skip ci], so no promotion runs for them; evidence is read from their parent.
 export const RELEASE_RECORD_MESSAGE = 'Record PROD canister release [skip ci]';
-export const RELEASE_RECORD_FILES = new Set(['deploy/prod/release.json', 'deploy/prod/.icp/data/mappings/ic.ids.json']);
+export const RELEASE_RECORD_FILES = new Set(['deploy/prod/release.json', 'deploy/prod/.icp/data/mappings/ic.ids.json', 'deploy/frontend-prod/.icp/data/mappings/ic.ids.json']);
 const MAX_RECORD_HOPS = 3;
 
 /** Returns the parent when `commit`/`comparison` prove a pure release-record commit, else null. */
