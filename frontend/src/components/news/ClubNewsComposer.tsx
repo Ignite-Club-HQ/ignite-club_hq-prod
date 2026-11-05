@@ -320,11 +320,9 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
       // the post went to the canister to avoid Supabase RPCs on canister ids.
       if (isIcpBackend) return data.id;
 
-      const notificationResult = audience === "mini_league"
-        ? await (supabase.rpc as any)("notify_mini_league_news", { _news_id: data.id, _send_push: sendPush })
-        : audience === "competition"
-          ? await (supabase.rpc as any)("notify_competition_news", { _news_id: data.id, _send_push: sendPush })
-          : await supabase.rpc("notify_club_news", { _news_id: data.id, _send_push: sendPush });
+      // notify_club_news resolves club, team, mini-league and competition
+      // audiences server-side from the stored post targets.
+      const notificationResult = await supabase.rpc("notify_club_news", { _news_id: data.id, _send_push: sendPush });
       const notifyErr = notificationResult.error;
       if (notifyErr) {
         // The post is published; notification failure must not lose the post.
