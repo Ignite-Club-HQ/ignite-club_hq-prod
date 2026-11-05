@@ -200,6 +200,9 @@ jobs:
             (cd frontend && npm install --no-save --no-package-lock --no-fund --no-audit @icp-sdk/core@5.4.0 @icp-sdk/vetkeys@0.7.0)
           fi
           node frontend/scripts/media-key-deploy-preflight.mjs before "$IDS" "$RECEIPT" prod ic
+          node --test scripts/prod-preserve-settings-policy.test.mjs
+          npm install --prefix "$RUNNER_TEMP/preserve-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+          export PRESERVE_DEPS_DIR="$RUNNER_TEMP/preserve-deps"
           for NAME in $NAMES; do
             echo "==> Upgrading $NAME"
             if [ "$NAME" = identity_access ]; then
