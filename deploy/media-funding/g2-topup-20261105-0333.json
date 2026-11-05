@@ -1,0 +1,25 @@
+{
+  "plan": {
+    "paymentId": "g2-topup-20261105-0333",
+    "purpose": "top-ups",
+    "groupId": "g2",
+    "principal": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+    "scenario": "top-ups",
+    "testId": "g2",
+    "targetCycles": "2008348597362",
+    "balanceBefore": "787535698",
+    "shortfallCycles": "2007561061664",
+    "topups": [
+      {
+        "name": "notification_queue",
+        "id": "zu4gk-vqaaa-aaaal-qxp5a-cai",
+        "cycles": "991751402638",
+        "amount": "2008248597362"
+      }
+    ],
+    "feeCycles": "100000000",
+    "targetT": "3"
+  },
+  "phase": "creating-order",
+  "createdAt": "2026-11-05T03:34:28.394Z"
+}
