@@ -1,5 +1,16 @@
 # Roadmap — launch the live (PROD) system
 
+## Current pre-merge verdict — 5 November 2026 triple-check
+- [x] Rechecked exact six approved database migrations: 39 safety tests, 2 signup rehearsals, 24 competition and 12 invitation/welcome rehearsal tests passed; 45 original hashes/inventory valid. No PROD execution.
+- [ ] Fix current GitHub frontend CI failure: run 41939926187 at b807998d1 reports 68 new TypeScript parse errors after generated contracts use reserved parameter `new`. Re-run the same hosted check before readiness.
+- [ ] Resolve the reproduced workflow-env-names test failure (27/28 pass) and the unconditional PROD pull-request hold in ci.yml through the existing reviewed release path, not a bypass.
+- [ ] Preserve existing Supabase profile saves when PROD lacks profiles.country: current EditProfilePage always writes it; the six approved migrations do not add it. Requires tested compatibility fix or separately approved structure.
+- [ ] Verify anonymous access to only backend_routing_config on PROD; SQL Editor row readback proves existence, not signed-out access. Do not assume approved migrations grant it.
+- [ ] Review actual merged tree: retain the entire PROD routingGates.ts and PROD deployment mappings; take main netlify.toml. Keep unresolved competition-news compatibility explicitly scoped.
+- [ ] Separate PROD frontend-canister/native release decision: expected frontend mapping is absent remotely; current frontend job uses mode auto and floating prod checkout. Website readiness does not authorize new canister creation or certify native secure sign-in.
+
+This verdict supersedes stale readiness/blocker descriptions below. No main-to-prod merge is recommended until the confirmed source/CI/profile blockers are resolved; live permissions/acceptance remain evidence limitations, not proven failures.
+
 Direction: move both environments **forward** onto the same current code. No rollbacks, no
 reinstalls, no safeguard work below. Groups stay closed until Paul says "open groups".
 

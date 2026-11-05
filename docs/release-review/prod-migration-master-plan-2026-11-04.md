@@ -217,3 +217,72 @@ this registration:
 
 These need their own cleanup pass; none of them gates the merge, and none touches
 the safe-apply path that carries the six approved batches.
+
+## Triple-check correction — 5 November 2026
+
+**Do not merge yet.** Registration readiness is not full-app readiness. This section
+supersedes the earlier unconditional merge recommendation and the statement that all
+remaining failures are unrelated cleanup.
+
+Read-only GitHub evidence: main `b807998d1ccf0e216369e168d0cbe2ce1ab58c80`, prod
+`904fa6e58e8745ecddb624c77fed33a0fd7fdd7b`; source-check run `41939926187` failed.
+No application source, backend, permissions, deployment, or production data changed.
+
+### Confirmed work before recommending the merge
+
+1. **Frontend source check is red:** hosted `typecheck:product` reports 68 new
+   TypeScript parse diagnostics from generated contract parameters named `new`,
+   including live club_domain bindings. The build step was skipped. Fix the
+   generator/output compatibility on DEV and require the same hosted check green;
+   do not hide the errors by refreshing its baseline.
+2. **Release-policy CI is red:** exact CI test command locally reproduced 27 passes
+   and one failure in `workflow-env-names.test.mjs` (a PROD protection signing-key
+   workflow lacks the expected explicit prod-ref text). In addition, `ci.yml`
+   unconditionally exits for PRs targeting prod, saying database evidence remains
+   unintegrated. Resolve these using the existing approved release mechanism;
+   do not override failed checks to force a merge. The branch protection endpoint
+   reports no classic protection; this does not certify absence of rulesets or safety.
+3. **Existing profile editing regresses:** `EditProfilePage.tsx:323–344` always
+   includes `country` in Supabase updates, even when editing only the name/avatar.
+   Recorded PROD evidence says `profiles.country` is absent; none of the approved
+   six migrations adds it. Supply a tested compatibility-safe frontend write or
+   separately approved structural column before publication. Existing login reads
+   do not require this column, so this is not a claim that all logins fail.
+
+### Evidence gaps / merge-time and separately held scope
+
+- The PROD routing row exists and was owner-verified, but SQL Editor reads do not
+  prove anonymous boot access. Approved SQL does not add its anonymous policy.
+  Verify cold signed-out access to this one row without exposing other settings;
+  absence is not established by this audit.
+- Competition-news authorization/helpers remain only partially catalogued;
+  confirm compatible existing RLS/functions or explicitly defer that surface.
+  `clubs.country` is not an active dependency (current creation uses home_country),
+  and missing memory reports are contained admin diagnostics, not core blockers.
+- Remote PROD backend mapping has 18 IDs; approved routing snapshot is revision 6.
+  Preserve its entire file even if a merge reports no conflict, plus all PROD
+  mappings; take main's netlify.toml. An actual merged tree has not been tested.
+- Remote `deploy/frontend-prod/.icp/data/mappings/ic.ids.json` is absent. The
+  frontend-canister job uses a floating `ref: prod` and `icp deploy --mode auto`.
+  Do not equate Netlify website readiness with authorization to create a canister
+  or native secure-sign-in readiness; resolve that separate target/release scope.
+- Netlify token/public-key scoping is owner-reported, not independently read here;
+  future exact-merge-commit DB/backend promotion evidence cannot exist before merge.
+  Keep the established wait/retry publication procedure.
+
+### Reverification passed
+
+- Exact inventory: 45 originals, 11 candidates, 34 held; six approved files and all
+  recorded hashes match. The reviewed-finding ledger covers 13 occurrences across
+  five distinct entries. Unreviewed findings still stop application.
+- Database direct gates: 39 passed; approved and isolated signup rehearsals: 2
+  passed; exact competition SQL: 24 passed; invitation/welcome SQL: 12 passed.
+- Website/environment/promotion targeted checks: 49 passed. Email-policy checks:
+  3 passed. These do not negate the current hosted CI failure or prove live flows.
+- Welcome sender positive check remains Paul's supplied true/true result.
+  Database transactions are per-file, not one transaction for the complete six;
+  later failure may leave earlier structural batches committed while hosting holds.
+
+Production remains unchanged. Authenticated PROD uploads, retained-email-club
+flows, physical-phone calendar acceptance and separately approved activation work
+remain unverified; do not present local rehearsals as hosted acceptance.
