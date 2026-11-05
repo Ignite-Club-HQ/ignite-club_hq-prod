@@ -29,6 +29,7 @@ class CodemagicEnvironmentTests(unittest.TestCase):
         section = store.group(1)
         self.assertNotIn("google_play:", section)
         self.assertNotIn("submit_as_draft", source)
+        self.assertNotIn("- google_play_credentials", section)
         self.assertIn("- frontend/android/app/build/outputs/bundle/release/*.aab", section)
 
     def test_ios_builds_use_spm_project_not_cocoapods_workspace(self):
