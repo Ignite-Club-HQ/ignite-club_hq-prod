@@ -2,7 +2,7 @@
  * only; no writes, public query fallback or authorization evidence. */
 import { Actor, type HttpAgent } from '@icp-sdk/core/agent';
 import { idlFactory as clubIdl } from '../src/lab/bindings/club_domain/declarations/club_domain.did.js';
-import type { _SERVICE as ClubService, Cursor } from '../src/lab/bindings/club_domain/declarations/club_domain.did';
+import type { _SERVICE as ClubService, Cursor__1 as Cursor } from '../src/lab/bindings/club_domain/declarations/club_domain.did';
 import { directorySources } from '../../scripts/membership-lookup-release-policy.mjs';
 import { fingerprint } from '../../scripts/membership-source-configuration.mjs';
 
