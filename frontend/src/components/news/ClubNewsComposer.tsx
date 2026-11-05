@@ -660,24 +660,6 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
                 )}
               </div>
             )}
-            {audience === "mini_league" && (
-              <MobileCardSelect
-                label="Mini league"
-                value={miniLeagueId}
-                onValueChange={setMiniLeagueId}
-                options={miniLeagues.map((league) => ({ value: league.id, label: league.name }))}
-                placeholder="Select mini league"
-              />
-            )}
-            {audience === "competition" && (
-              <MobileCardSelect
-                label="Competition"
-                value={competitionId}
-                onValueChange={setCompetitionId}
-                options={competitions.map((competition) => ({ value: competition.id, label: competition.name }))}
-                placeholder="Select competition"
-              />
-            )}
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3">
