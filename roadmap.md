@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## PROD settings promotion — 5 November 2026
+- [ ] Build and rehearse allowlisted PROD settings promotion across base and g2; preserve data, keys and separately approved feature switches.
+- [ ] Verify authenticated events loading on igniteclubhq.app after the tested promotion reaches prod; requires merged source and an Internet Identity session.
+
 ## Current pre-merge verdict — 5 November 2026 triple-check
 - [x] Phone-app compatibility audit of the 8 planned PROD DB changes: 7 safe for current iOS/Android apps; email-signup check risk LOW (invited members sign up via website first; login unaffected). Paul accepted 5 Nov — all 8 ride the merge. Saved: docs/release-review/phone-app-compat-audit-2026-11-05.md. No PROD changes.
 - [x] Paul approved the currently missing club plans, small and growing, at 04:10 UTC on 5 November. Exact structural SQL/hash recorded in docs/release-review/club-plans-owner-approval-2026-11-05.md; no PROD execution.
