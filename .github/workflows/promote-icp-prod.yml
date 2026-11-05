@@ -1,6 +1,6 @@
 # Ignite Club HQ — PROD (live) ICP canisters. The ICP equivalent of DEV→PROD
 # database migrations: merging main → prod upgrades the live canisters whose
-# code changed, keeping their data. Frontend publication is separately opt-in.
+# code changed, keeping their data, then republishes the PROD frontend canister.
 #
 #   push to prod            -> promote (upgrade changed PROD canisters + PROD web app)
 #   Run workflow: provision -> one-off creation + wiring of the PROD canister set
@@ -29,10 +29,14 @@ on:
         required: false
         default: ""
       publish_frontend:
-        description: "Separately publish an existing PROD frontend canister after reviewing this exact prod commit"
+        description: "Publish the PROD frontend canister now (also runs automatically on every push to prod once it exists)"
         type: boolean
         required: false
         default: false
+      create_frontend:
+        description: "One-off: create the PROD frontend canister if missing (spends ~1T cycles). Type CREATE PROD FRONTEND"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -238,7 +242,7 @@ jobs:
 
   frontend:
     needs: backend
-    if: github.event_name == 'workflow_dispatch' && inputs.publish_frontend == true && needs.backend.result == 'success' && needs.backend.outputs.webapp == 'true' && needs.backend.outputs.provisioned == 'true'
+    if: (github.event_name == 'push' || inputs.publish_frontend == true || inputs.create_frontend == 'CREATE PROD FRONTEND') && needs.backend.result == 'success' && needs.backend.outputs.webapp == 'true' && needs.backend.outputs.provisioned == 'true'
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 40
@@ -252,23 +256,37 @@ jobs:
         with:
           # Pin the dispatch commit rather than floating to newer prod code.
           ref: ${{ github.sha }}
-      - name: Require an existing approved frontend mapping before any canister operation
+      - name: Require an existing frontend mapping, or an explicit one-off creation
+        id: fmap
+        env:
+          CREATE: ${{ inputs.create_frontend }}
         run: |
           test "$GITHUB_REF" = refs/heads/prod
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test -f deploy/frontend-prod/.icp/data/mappings/ic.ids.json || { echo '::error::PROD frontend is not mapped; publication cannot create it'; exit 1; }
-          jq -e '.frontend | type == "string" and length > 0' deploy/frontend-prod/.icp/data/mappings/ic.ids.json
+          M=deploy/frontend-prod/.icp/data/mappings/ic.ids.json
+          if [ -f "$M" ] && jq -e '.frontend | type == "string" and length > 0' "$M" >/dev/null; then
+            echo "mode=upgrade" >> "$GITHUB_OUTPUT"
+          elif [ "$CREATE" = "CREATE PROD FRONTEND" ]; then
+            echo "mode=create" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::PROD frontend canister not created yet; run this workflow once with create_frontend = CREATE PROD FRONTEND"
+            echo "### PROD frontend canister not created yet; publication skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "mode=skip" >> "$GITHUB_OUTPUT"
+          fi
           node scripts/icp-environments.mjs guard prod
       - uses: actions/setup-node@v4
+        if: steps.fmap.outputs.mode != 'skip'
         with:
           node-version: "22.12.0"
       - name: Require database promotion for the checked out production commit
+        if: steps.fmap.outputs.mode != 'skip'
         env:
           PROD_RELEASE_READ_TOKEN: ${{ github.token }}
         run: |
           GITHUB_SHA="$(git rev-parse HEAD)" node scripts/prod-publication-gate.mjs --database-only
       - run: npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm --no-fund --no-audit
       - name: Build the PROD web app (PROD database + PROD canisters)
+        if: steps.fmap.outputs.mode != 'skip'
         working-directory: frontend
         env:
           IGNITE_LIVE_BUILD: "1"
@@ -286,6 +304,7 @@ jobs:
           node scripts/prepare-canister-dist.mjs
           rm -rf ../deploy/frontend-prod/dist && cp -r dist-canister ../deploy/frontend-prod/dist
       - name: Restore the PROD governor
+        if: steps.fmap.outputs.mode != 'skip'
         env:
           PROD_GOVERNOR_PEM: ${{ secrets.PROD_GOVERNOR_PEM }}
           PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
@@ -309,18 +328,38 @@ jobs:
           icp identity default ignite-prod-governor
           node --input-type=module -e "import {assertGovernor} from './scripts/icp-environments.mjs'; assertGovernor('prod', process.argv[1]);" "$(icp identity principal)"
       - name: Publish to the PROD frontend canister
+        if: steps.fmap.outputs.mode != 'skip'
         working-directory: deploy/frontend-prod
         run: |
           set -euo pipefail
-          icp canister start frontend -e ic
-          # Never reinterpret a sync failure as permission to erase stored files.
-          icp deploy -e ic frontend --mode upgrade --yes
+          if [ "${{ steps.fmap.outputs.mode }}" = create ]; then
+            # One-off creation; explicit confirmation required above.
+            icp deploy -e ic frontend --mode auto --yes --cycles 1000000000000
+          else
+            icp canister start frontend -e ic
+            # Never reinterpret a sync failure as permission to erase stored files.
+            icp deploy -e ic frontend --mode upgrade --yes
+          fi
           CLUB="$(node -e "console.log(require('../prod/.icp/data/mappings/ic.ids.json').club_domain)")"
           icp canister settings update frontend --add-controller "$CLUB" -e ic --force
           echo "### PROD web app: https://$(jq -r '.frontend' .icp/data/mappings/ic.ids.json).icp.net" >> "$GITHUB_STEP_SUMMARY"
       - name: Verify publication kept the existing frontend mapping
+        if: steps.fmap.outputs.mode == 'upgrade'
         run: |
           git diff --exit-code -- deploy/frontend-prod/.icp/data/mappings/ic.ids.json
+      - name: Record the newly created PROD frontend canister ID
+        if: steps.fmap.outputs.mode == 'create'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -f deploy/frontend-prod/.icp/data/mappings/ic.ids.json
+          git diff --cached --quiet && { echo "::error::Creation produced no mapping"; exit 1; }
+          git commit -m "Record PROD canister release [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin prod && git push origin HEAD:prod && exit 0
+            sleep 5
+          done
+          echo "::error::Could not save PROD frontend canister ID"; exit 1
       - name: Remove signing material
         if: always()
         run: rm -rf "$ICP_HOME"

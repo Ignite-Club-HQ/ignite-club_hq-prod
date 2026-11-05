@@ -23,12 +23,13 @@ jobs:
         run: node scripts/ensure-frontend-deps.mjs
       - name: Write existing governor key
         env:
-          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+          # GOVERNOR_PEM holds the governor key when DEPLOYER_PEM is the web-app publisher key.
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
         run: |
           set -euo pipefail
           test -n "$DEPLOYER_PEM" || { echo "::error::Existing DEPLOYER_PEM required"; exit 1; }
           umask 077
-          printf '%s' "$DEPLOYER_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$RUNNER_TEMP/operator.pem"
+          PEM_IN="$DEPLOYER_PEM" node scripts/normalize-pem.mjs > "$RUNNER_TEMP/operator.pem"
       - name: Report every registered group's health
         working-directory: frontend
         run: |
