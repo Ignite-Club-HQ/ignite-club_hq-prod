@@ -125,7 +125,8 @@ function IcpPublicCompetitionPage() {
     );
   }
 
-  const { competition, matches, hide_ladder, hidden_divisions } = data;
+  const { competition, hide_ladder, hidden_divisions } = data;
+  const matches = data.matches as LiveMatch[];
   const hidden = new Set(hidden_divisions);
   const sortedMatches = [...matches].sort(
     (a, b) => Number(a.scheduled_at_ms ?? 0n) - Number(b.scheduled_at_ms ?? 0n),
