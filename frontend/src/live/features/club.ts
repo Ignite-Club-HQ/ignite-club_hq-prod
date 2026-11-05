@@ -2020,7 +2020,7 @@ export async function listLiveTeamClassSchedules(
   for (const r of rows) {
     out.set(r.team_id, {
       day: r.day,
-      time: candidOpt(r.time) ?? null,
+      time: r.time[0] ?? null,
       durationMinutes: r.duration_minutes[0] !== undefined ? Number(r.duration_minutes[0]) : null,
       capacity: r.capacity[0] !== undefined ? Number(r.capacity[0]) : null,
     });
