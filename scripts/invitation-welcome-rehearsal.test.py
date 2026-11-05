@@ -48,7 +48,8 @@ GRANT SELECT ON public.direct_messages TO authenticated;
 CREATE POLICY existing_participant_reads ON public.direct_messages FOR SELECT TO authenticated USING(EXISTS(SELECT 1 FROM public.direct_conversations c WHERE c.id=conversation_id AND auth.uid() IN(c.participant_1,c.participant_2)));
 GRANT SELECT ON public.direct_conversations TO authenticated;
 """)
-            cls.run_sql((ROOT/'docs/release-review/invitation-welcome-prod-candidate.sql').read_text())
+            cls.run_sql((ROOT/'supabase/migrations'/'20261105000300_club_invite_message_defaults.sql').read_text()
+                        + (ROOT/'supabase/migrations'/'20261105000400_send_welcome_dm.sql').read_text())
         except BaseException: cls.tearDownClass();raise
     @classmethod
     def tearDownClass(cls):
