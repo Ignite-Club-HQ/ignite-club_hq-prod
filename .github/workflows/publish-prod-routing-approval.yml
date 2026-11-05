@@ -1,4 +1,7 @@
-name: "[PROD] Refresh opening approval only"
+name: "[PROD] Save opening approval and republish live site"
+# Verifies PROD's open groups, records the live routing approval on the PROD
+# router, commits PROD's snapshot to the prod branch (which republishes the
+# live site through the normal promotion), and never changes groups or data.
 on:
   workflow_dispatch:
     inputs:
@@ -7,6 +10,7 @@ on:
         required: true
 permissions:
   contents: write
+  actions: write
 concurrency:
   group: ignite-prod-governor-deployment
   cancel-in-progress: false
@@ -20,38 +24,34 @@ jobs:
       RECORD_ROUTING_APPROVAL: "1"
       PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Require approved prod context
+      - name: Require confirmation
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$(echo "$CONFIRMATION" | xargs)" = 'SAVE PROD OPENING APPROVAL'
+      - uses: actions/checkout@v4
+      - name: Require the live repository prod branch
         run: |
-          test "$CONFIRMATION" = 'SAVE PROD OPENING APPROVAL'
           test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
           test "$GITHUB_REF" = 'refs/heads/prod'
           test -n "$PROD_GOVERNOR_PRINCIPAL"
-      - name: Use the snapshot consumed by this branch
+      - name: Write PROD snapshot into the file the live site reads
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('frontend/scripts/produce-routing-gates.ts')
-          s = p.read_text()
-          s = s.replace("${PROD ? 'routingGatesProd' : 'routingGates'}", 'routingGates')
-          s = s.replace("${PROD ? 'PROD_ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot | null' : 'ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot'}", 'ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot')
-          if 'routingGatesProd' in s or 'PROD_ROUTING_GATES_SNAPSHOT' in s:
-              raise RuntimeError('Unresolved snapshot output')
-          p.write_text(s)
-          PY
+          set -euo pipefail
+          F=frontend/scripts/produce-routing-gates.ts
+          sed -i "s|\${PROD ? 'routingGatesProd' : 'routingGates'}|routingGates|; s|\${PROD ? 'PROD_ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot \| null' : 'ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot'}|ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot|" "$F"
+          grep -q "generated/routingGates.ts\|generated/\${PROD" "$F" || true
+          ! grep -q "routingGatesProd\|PROD_ROUTING_GATES_SNAPSHOT" "$F"
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
-      - name: Install dependencies
+      - name: Install project dependencies
         working-directory: frontend
         run: |
           npm ci --ignore-scripts --no-fund --no-audit
           npm install --no-save --ignore-scripts --no-fund --no-audit @icp-sdk/core@6.1.1
       - name: Install isolated pinned SDK
         run: npm install --prefix "$RUNNER_TEMP/prod-open-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
-      - name: Resolve existing worker
+      - name: Resolve the existing push worker identity
         env:
           PROD_ICP_PUSH_WORKER_SEED: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED }}
           PROD_ICP_PUSH_WORKER_SEED_ENC: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED_ENC }}
@@ -59,9 +59,10 @@ jobs:
           PROD_ICP_PUSH_WORKER_PRINCIPAL: ${{ vars.PROD_ICP_PUSH_WORKER_PRINCIPAL }}
           DEV_PUSH_WORKER_PRINCIPAL: ${{ vars.DEV_PUSH_WORKER_PRINCIPAL }}
         run: |
+          set -euo pipefail
           export PUSH_WORKER_NODE_PATH="$RUNNER_TEMP/prod-open-deps/node_modules"
           node scripts/resolve-prod-push-worker.mjs
-      - name: Verify and save approval
+      - name: Verify, record approval and write snapshot
         env:
           PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
           PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
@@ -78,12 +79,18 @@ jobs:
           rm -f "$KEY_DIR/key.enc" "$KEY_DIR/pass"
           cd frontend
           npx --yes tsx@4 scripts/produce-routing-gates.ts "$KEY_DIR/key.pem" "$RUNNER_TEMP/prod-routing-report.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Save snapshot without dispatching release
+      - name: Commit PROD snapshot (republishes the live site)
         run: |
           set -euo pipefail
           git config user.name "Paul Cranwell"
           git config user.email "paul@igniteclubhq.app"
           git add frontend/src/live/generated/routingGates.ts
-          if git diff --cached --quiet; then echo 'Snapshot unchanged'; exit 0; fi
-          git commit -m 'chore: refresh PROD routing snapshot [skip ci]'
+          if git diff --cached --quiet; then echo "Snapshot unchanged"; exit 0; fi
+          git commit -m "chore: PROD routing snapshot"
           git push
+      # Bot pushes don't trigger workflows, so start the normal promotion,
+      # which upgrades nothing unchanged and republishes the live web app.
+      - name: Republish live web app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run promote-icp-prod.yml --ref prod -f action=promote

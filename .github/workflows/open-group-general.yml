@@ -1,0 +1,138 @@
+name: "[TEST] Open Group 2 to everyone"
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Configure settings, record hashes, verify, register closed, open to everyone, or close
+        required: true
+        type: choice
+        default: check
+        options: [settings, prepare-hashes, snapshot, register-closed, check, open, close]
+      approval_file:
+        description: Committed Group 2 general-opening approval JSON
+        required: false
+        default: deploy/groups/g2/general-opening.json
+      group_ids:
+        description: Group ids to configure service settings for (settings action only)
+        required: false
+        default: g2
+      confirmation:
+        description: SET SERVICE SETTINGS / REGISTER GROUP 2 CLOSED / OPEN GROUP 2 TO EVERYONE / CLOSE GROUP 2 TO NEW CLUBS (empty for check, prepare-hashes, snapshot)
+        required: false
+        default: ''
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+jobs:
+  general-opening:
+    runs-on: ubuntu-latest
+    environment: group-2-admin-controls
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Install project dependencies
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Test opening safeguards
+        run: node --test scripts/group-general-opening-workflow.test.mjs scripts/group2-upgrade-rules.test.mjs scripts/opening-worker.test.mjs
+      - name: Resolve existing notification worker
+        if: inputs.action != 'settings' && inputs.action != 'register-closed'
+        env:
+          ICP_PUSH_WORKER_SEED: ${{ secrets.ICP_PUSH_WORKER_SEED }}
+          PUSH_WORKER_PRINCIPAL: ${{ vars.PUSH_WORKER_PRINCIPAL }}
+        run: bash scripts/resolve-group-push-worker.sh
+      - name: Write existing governor key
+        env:
+          # GOVERNOR_PEM holds the governor (vk34m-…) key when DEPLOYER_PEM is the web-app publisher key.
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOYER_PEM" || { echo "::error::Existing DEPLOYER_PEM required"; exit 1; }
+          umask 077
+          PEM_FILE="$RUNNER_TEMP/operator.pem"
+          python3 - "$PEM_FILE" <<'PY'
+          import base64, os, re, sys
+          raw = os.environ["DEPLOYER_PEM"].replace("\r", "").replace("\\n", "\n")
+          # Phones/notes apps turn "-----" into en/em dashes and add odd spaces.
+          raw = re.sub(r"[\u2010-\u2015\u2212]", "-", raw).replace("\u00a0", " ").strip().strip('"\'')
+          # Accept a whole PEM that was base64-encoded before saving.
+          if "BEGIN" not in raw.upper():
+              try:
+                  dec = base64.b64decode(re.sub(r"\s+", "", raw), validate=True).decode("ascii")
+                  if "BEGIN" in dec.upper():
+                      raw = dec
+              except Exception:
+                  pass
+          hdr = r"-{2,}\s*BEGIN\s+((?:EC\s+|ENCRYPTED\s+)?PRIVATE\s+KEY)\s*-{2,}"
+          labels = re.findall(r"-{2,}\s*BEGIN\s+([A-Za-z0-9 ]+?)\s*-{2,}", raw, re.I)
+          print("PEM blocks found:", labels or "none")
+          if not labels:
+              print("Secret contains word BEGIN:", "BEGIN" in raw.upper(), "| contains PRIVATE:", "PRIVATE" in raw.upper())
+          m = re.search(hdr + r"(.*?)-{2,}\s*END\s+\1\s*-{2,}", raw, re.S | re.I)
+          if not m:
+              print("::error::DEPLOYER_PEM has no complete PRIVATE KEY block (BEGIN…END lines with matching names).")
+              sys.exit(1)
+          m_label = re.sub(r"\s+", " ", m.group(1).upper())
+          if m_label == "ENCRYPTED PRIVATE KEY":
+              print("::error::DEPLOYER_PEM is password-protected. Re-export it without encryption (dfx identity export).")
+              sys.exit(1)
+          body = re.sub(r"\s+", "", m.group(2))
+          if not re.fullmatch(r"[A-Za-z0-9+/=]+", body):
+              print("::error::DEPLOYER_PEM key body contains characters that are not base64 — it was altered when pasting.")
+              sys.exit(1)
+          lines = [body[i:i + 64] for i in range(0, len(body), 64)]
+          with open(sys.argv[1], "w") as f:
+              f.write(f"-----BEGIN {m_label}-----\n" + "\n".join(lines) + f"\n-----END {m_label}-----\n")
+          print(f"Using {m_label} block.")
+          PY
+      - name: Run the selected action
+        working-directory: frontend
+        env:
+          ACTION: ${{ inputs.action }}
+          APPROVAL_FILE: ${{ inputs.approval_file }}
+          GROUP_IDS: ${{ inputs.group_ids }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          case "$ACTION" in
+            settings)
+              npx --yes tsx@4 scripts/set-group-service-settings.ts "$GROUP_IDS" "$RUNNER_TEMP/operator.pem" "$RUNNER_TEMP/settings-report.json";;
+            snapshot)
+              npx --yes tsx@4 scripts/produce-routing-gates.ts "$RUNNER_TEMP/operator.pem" "$RUNNER_TEMP/routing-gates-report.json";;
+            *)
+              case "$APPROVAL_FILE" in deploy/groups/g2/*.json) ;; *) echo "::error::Approval must be committed under deploy/groups/g2"; exit 1;; esac
+              npx --yes tsx@4 scripts/open-group-general.ts "$ACTION" "../$APPROVAL_FILE" "$RUNNER_TEMP/operator.pem" "$RUNNER_TEMP/general-opening-report.json";;
+          esac
+      - name: Commit generated approval and snapshot
+        id: commit
+        if: inputs.action == 'prepare-hashes' || inputs.action == 'snapshot'
+        run: |
+          set -euo pipefail
+          git config user.name "ignite-governor-bot"
+          git config user.email "noreply@igniteclubhq.app"
+          git add deploy/groups/g2/general-opening.json
+          if [ -f frontend/src/live/generated/routingGates.ts ]; then git add frontend/src/live/generated/routingGates.ts; fi
+          if git diff --cached --quiet; then echo "changed=false" >> "$GITHUB_OUTPUT"; else
+            git commit -m "chore: routing snapshot for ${GITHUB_REF_NAME} [skip ci]"; git push; echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+      # The snapshot is compiled into the web app, and bot pushes never trigger
+      # other workflows, so republish the frontend explicitly or the live site
+      # keeps the stale snapshot and fails closed.
+      - name: Republish web app with the new snapshot
+        if: inputs.action == 'snapshot' && github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-frontend-canister.yml --ref main
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/operator.pem"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: group-general-opening-report
+          path: ${{ runner.temp }}/*-report.json
+          if-no-files-found: ignore

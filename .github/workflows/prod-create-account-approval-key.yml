@@ -43,6 +43,7 @@ jobs:
           node-version: "22.12.0"
       - name: Check exact production and independent context
         run: |
+          test "$GITHUB_REF" = refs/heads/prod || { echo '::error::Run this workflow from the prod branch only'; exit 1; }
           node --input-type=module -e "import {assertAccountKeyContext} from './scripts/prod-account-key-policy.mjs'; assertAccountKeyContext(process.env);"
       - name: Test no-replacement and independent key protections
         run: node --test scripts/prod-account-key.test.mjs scripts/prod-push-key.test.mjs

@@ -36,7 +36,20 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-fund --no-audit
           npm install --no-save --ignore-scripts --no-fund --no-audit @icp-sdk/core@6.1.1
-      - name: Restore existing signing key and set the settings
+      - name: Install isolated pinned SDK
+        run: npm install --prefix "$RUNNER_TEMP/prod-open-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Resolve the existing push worker identity
+        env:
+          PROD_ICP_PUSH_WORKER_SEED: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED }}
+          PROD_ICP_PUSH_WORKER_SEED_ENC: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED_ENC }}
+          PROD_ICP_PUSH_WORKER_PASSPHRASE: ${{ secrets.PROD_ICP_PUSH_WORKER_PASSPHRASE }}
+          PROD_ICP_PUSH_WORKER_PRINCIPAL: ${{ vars.PROD_ICP_PUSH_WORKER_PRINCIPAL }}
+          DEV_PUSH_WORKER_PRINCIPAL: ${{ vars.DEV_PUSH_WORKER_PRINCIPAL }}
+        run: |
+          set -euo pipefail
+          export PUSH_WORKER_NODE_PATH="$RUNNER_TEMP/prod-open-deps/node_modules"
+          node scripts/resolve-prod-push-worker.mjs
+      - name: Restore existing signing key and run the read-only check
         env:
           PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
           PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
@@ -54,5 +67,4 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEY_DIR/key.enc" -out "$KEY_DIR/key.pem" -pass file:"$KEY_DIR/pass"
           rm -f "$KEY_DIR/key.enc" "$KEY_DIR/pass"
           cd frontend
-          grep -q "IGNITE_ICP_ENV === 'prod'" scripts/set-group-service-settings.ts
           npx --yes tsx@4 scripts/set-group-service-settings.ts base,g2 "$KEY_DIR/key.pem" "$RUNNER_TEMP/prod-settings-report.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"

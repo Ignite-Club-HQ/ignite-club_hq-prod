@@ -112,6 +112,21 @@ type TeamCreationRequest =
    status: text;
    team_id: opt text;
  };
+type TeamClassScheduleRow = 
+ record {
+   capacity: opt nat;
+   day: text;
+   duration_minutes: opt nat;
+   team_id: text;
+   time: opt text;
+ };
+type TeamClassSchedule = 
+ record {
+   capacity: opt nat;
+   day: text;
+   duration_minutes: opt nat;
+   time: opt text;
+ };
 type TeamCaptain = 
  record {
    team_id: text;
@@ -1287,6 +1302,11 @@ type Main =
        Err: text;
        Ok: vec TeamCaptain;
      }) query;
+   list_team_class_schedules: (club_id: text) ->
+    (variant {
+       Err: text;
+       Ok: vec TeamClassScheduleRow;
+     }) query;
    list_team_creation_requests: (club_id: text) ->
     (variant {
        Err: text;
@@ -2412,6 +2432,11 @@ type Main =
                              Err: text;
                              Ok;
                            });
+   set_team_class_schedule: (team_id: text, schedule:
+    opt TeamClassSchedule) -> (variant {
+                                 Err: text;
+                                 Ok;
+                               });
    set_team_folder: (team_id: text, folder_id: opt text) ->
     (variant {
        Err: text;

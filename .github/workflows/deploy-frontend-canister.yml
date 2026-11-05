@@ -1,0 +1,214 @@
+# Ignite web app → ICP frontend canister (replaces Netlify file hosting).
+#
+# Runs on every push to main that touches the frontend, or manually.
+# Uses the same DEPLOYER_PEM secret as "[TEST] Deploy canisters (legacy base/Group 1)".
+# The first run creates the canister (~0.5T cycles from the deployer's cycles
+# balance) and commits deploy/frontend/.icp/data/mappings/ic.ids.json so later
+# runs reuse it. The site is then live at https://<canister-id>.icp.net.
+#
+# Optional repository variables (Settings → Variables): IGNITE_LIVE_SUPABASE_URL,
+# IGNITE_LIVE_SUPABASE_ANON_KEY (both public values; defaults below).
+
+name: "[TEST] Deploy web app (frontend canister)"
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: ["frontend/**", "deploy/frontend/**", ".github/workflows/deploy-frontend-canister.yml", "!frontend/scripts/**", "!frontend/**/*.test.*", "!frontend/**/*.md"]
+
+concurrency:
+  group: deploy-frontend-canister
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      ICP_HOME: ${{ github.workspace }}/.icp-home
+      # Large bundles need more than the default 60s plugin compute limit.
+      ICP_CLI_PLUGIN_COMPUTE_LIMIT_SECS: "1800"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+
+      - name: Install deploy tools
+        run: npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm --no-fund --no-audit
+
+      - name: Build web app
+        working-directory: frontend
+        env:
+          IGNITE_LIVE_BUILD: "1"
+          IGNITE_LIVE_SUPABASE_URL: ${{ vars.IGNITE_LIVE_SUPABASE_URL || 'https://ecsdwrarzfexssxtrymj.supabase.co' }}
+          IGNITE_LIVE_SUPABASE_ANON_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0' }}
+          # Canister-hosted app is ICP-first. Used only when neither the Supabase
+          # app_settings row nor club_domain's on-chain copy exists — without it
+          # the app silently defaults to Supabase and II users load nothing.
+          IGNITE_LIVE_BACKEND_ROUTING_JSON: ${{ vars.IGNITE_LIVE_BACKEND_ROUTING_JSON || '{"defaultBackend":"icp","countryRules":{},"targets":[{"id":"icp/main/v1","backend":"icp","kind":"icp-mainnet","alias":"main","version":"v1","enabled":true}],"countryTargets":{},"clubBackendOverrides":{}}' }}
+          IGNITE_LIVE_PRIVATE_CLUB_NAME_DISPLAYS: "1"
+        run: |
+          set -euo pipefail
+          # DEV/test canisters only; refuses any PROD canister in the table.
+          export IGNITE_ICP_ENV=dev
+          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids dev)"
+          npm ci --ignore-scripts --no-fund --no-audit
+          node ../scripts/sync-canister-ids.mjs || true
+          npm run build:live
+          node scripts/prepare-canister-dist.mjs
+          # The static-site plugin may only read files inside deploy/frontend.
+          rm -rf ../deploy/frontend/dist
+          cp -r dist-canister ../deploy/frontend/dist
+
+      # No asset-history carry-over: it re-stamped old files on every deploy so
+      # they never aged out and the upload grew to ~34k files (one build is ~600).
+      # Tabs left open on an old version recover via lazyWithRetry's reload.
+      - name: Report upload size
+        run: |
+          echo "Files in this deploy: $(find deploy/frontend/dist -type f | wc -l)"
+
+      - name: Restore deployer identity
+        env:
+          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEPLOYER_PEM" ]; then
+            echo "::error::DEPLOYER_PEM secret missing — run the mainnet canister workflow first."
+            exit 1
+          fi
+          mkdir -p "$ICP_HOME/identity/keys"
+          PEM_FILE="$ICP_HOME/identity/keys/ignite-governor.pem"
+          # Keep only the PRIVATE KEY block (dfx secp256k1 exports also carry an
+          # "EC PARAMETERS" block, and pasted text may include a principal line
+          # or be flattened onto one line). Rewraps the base64 body at 64 chars.
+          # Prints block labels only — never key material.
+          python3 - "$PEM_FILE" <<'PY'
+          import base64, os, re, sys
+          raw = os.environ["DEPLOYER_PEM"].replace("\r", "").replace("\\n", "\n")
+          # Phones/notes apps turn "-----" into en/em dashes and add odd spaces.
+          raw = re.sub(r"[\u2010-\u2015\u2212]", "-", raw).replace("\u00a0", " ").strip().strip('"\'')
+          # Accept a whole PEM that was base64-encoded before saving.
+          if "BEGIN" not in raw.upper():
+              try:
+                  dec = base64.b64decode(re.sub(r"\s+", "", raw), validate=True).decode("ascii")
+                  if "BEGIN" in dec.upper():
+                      raw = dec
+              except Exception:
+                  pass
+          hdr = r"-{2,}\s*BEGIN\s+((?:EC\s+|ENCRYPTED\s+)?PRIVATE\s+KEY)\s*-{2,}"
+          labels = re.findall(r"-{2,}\s*BEGIN\s+([A-Za-z0-9 ]+?)\s*-{2,}", raw, re.I)
+          print("PEM blocks found:", labels or "none")
+          if not labels:
+              print("Secret contains word BEGIN:", "BEGIN" in raw.upper(), "| contains PRIVATE:", "PRIVATE" in raw.upper())
+          m = re.search(hdr + r"(.*?)-{2,}\s*END\s+\1\s*-{2,}", raw, re.S | re.I)
+          if not m:
+              print("::error::DEPLOYER_PEM has no complete PRIVATE KEY block (BEGIN…END lines with matching names).")
+              sys.exit(1)
+          m_label = re.sub(r"\s+", " ", m.group(1).upper())
+          if m_label == "ENCRYPTED PRIVATE KEY":
+              print("::error::DEPLOYER_PEM is password-protected. Re-export it without encryption (dfx identity export).")
+              sys.exit(1)
+          body = re.sub(r"\s+", "", m.group(2))
+          if not re.fullmatch(r"[A-Za-z0-9+/=]+", body):
+              print("::error::DEPLOYER_PEM key body contains characters that are not base64 — it was altered when pasting.")
+              sys.exit(1)
+          lines = [body[i:i + 64] for i in range(0, len(body), 64)]
+          with open(sys.argv[1], "w") as f:
+              f.write(f"-----BEGIN {m_label}-----\n" + "\n".join(lines) + f"\n-----END {m_label}-----\n")
+          print(f"Using {m_label} block.")
+          PY
+          icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor
+          icp identity default ignite-governor
+          echo "Deployer: $(icp identity principal)"
+
+      - name: Convert any ICP into cycles
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/icp-no-project" && cd "$RUNNER_TEMP/icp-no-project"
+          echo "Cycles balance: $(icp cycles balance -n ic 2>/dev/null || true)"
+          RAW="$(icp token balance -n ic 2>/dev/null || true)"
+          echo "ICP balance: $RAW"
+          AMT="$(echo "$RAW" | grep -oE '[0-9]+(\.[0-9]+)?' | head -1 || true)"
+          MINT="$(awk -v b="${AMT:-0}" 'BEGIN{ m = b - 0.0001; if (m <= 0) m = 0; printf "%.8f", m }')"
+          if [ "$MINT" != "0.00000000" ]; then
+            echo "==> Converting $MINT ICP into cycles"
+            icp cycles mint --icp "$MINT" -n ic
+          fi
+          echo "Cycles balance now: $(icp cycles balance -n ic 2>/dev/null || true)"
+
+      - name: Upload to frontend canister
+        working-directory: deploy/frontend
+        run: |
+          set -euo pipefail
+          # Make sure the canister has room to install/upload (it ran dry once).
+          # Try smaller amounts if the deploy account is short on cycles.
+          # Only spend deploy-account cycles when the website canister is actually low;
+          # topping up on every push drained the account shared with tests and group funding.
+          FUEL=$(icp canister status frontend -e ic --json 2>/dev/null | node -e 'let t="";process.stdin.on("data",d=>t+=d).on("end",()=>{let v=null;const walk=o=>{if(o&&typeof o==="object")for(const[k,x]of Object.entries(o)){if(v===null&&/^(cycles|balance|cycles_balance)$/i.test(k)&&/^\d[\d_]*$/.test(String(x).replace(/ cycles$/,"")))v=String(x).replace(/[_ a-z]/gi,"");else walk(x)}};try{walk(JSON.parse(t))}catch{};console.log(v??"")})' || true)
+          TOPPED=""
+          AMOUNTS="0.3T 0.15T 0.1T 0.05T"
+          if [ -n "$FUEL" ] && [ "$FUEL" -ge 2000000000000 ] 2>/dev/null; then
+            echo "Website canister holds $FUEL cycles; no top-up needed."; AMOUNTS=""; TOPPED="skipped"
+          elif [ -z "$FUEL" ]; then
+            echo "::warning::Could not read website canister fuel; topping up minimally."; AMOUNTS="0.05T"
+          fi
+          for A in $AMOUNTS; do
+            if icp canister top-up frontend --amount "$A" -e ic; then TOPPED="$A"; echo "Topped up $A"; break; fi
+          done
+          [ -n "$TOPPED" ] || echo "::warning::Top-up skipped — the deploy account needs more cycles (send ICP to it)."
+          # Sync calls require a running canister. A prior failed deploy left it
+          # stopped, and a stopped canister refuses every call — start it first
+          # and prove it is running before uploading. Never reinstall: that would
+          # wipe the stored site.
+          if [ -f .icp/data/mappings/ic.ids.json ] && jq -e '.frontend // empty' .icp/data/mappings/ic.ids.json >/dev/null; then
+            echo "Ensuring frontend canister is running..."
+            # "already running" is fine; only a real rejection matters.
+            icp canister start frontend -e ic || true
+            sleep 5
+            STATUS_JSON="$(icp canister status frontend -e ic --json 2>/dev/null || true)"
+            echo "Status after start: $STATUS_JSON"
+            if echo "$STATUS_JSON" | grep -qi stopped; then
+              # Start is rejected while the balance sits below the freezing
+              # threshold; top up once and retry.
+              echo "::warning::Canister still stopped — topping up 1T and retrying start."
+              icp canister top-up frontend --amount 1T -e ic || true
+              icp canister start frontend -e ic || true
+              sleep 5
+              STATUS_JSON="$(icp canister status frontend -e ic --json 2>/dev/null || true)"
+              echo "Status after retry: $STATUS_JSON"
+            fi
+            if echo "$STATUS_JSON" | grep -qi stopped; then
+              echo "::error::Frontend canister is stopped and would not start. Top it up with more cycles (Top up canister cycles workflow) and rerun this workflow."
+              exit 1
+            fi
+          fi
+          # Never reinterpret a sync failure as permission to erase stored files.
+          icp deploy -e ic frontend --mode auto --yes --cycles 1000000000000
+          ID="$(jq -r '.frontend' .icp/data/mappings/ic.ids.json)"
+          # Let club_domain read this canister's cycle balance (admin settings panel).
+          # Hard fail: without this grant the admin balances card cannot read the
+          # web-app canister's cycles (it silently showed "—" once before).
+          icp canister settings update frontend --add-controller mzzzv-taaaa-aaaal-qxlrq-cai -e ic --force
+          echo "::notice::Web app live at https://$ID.icp.net"
+          echo "### Web app deployed: https://$ID.icp.net" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit frontend canister ID
+        run: |
+          set -euo pipefail
+          IDS="deploy/frontend/.icp/data/mappings/ic.ids.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -f "$IDS"
+          if git diff --cached --quiet; then echo "Mapping unchanged."; exit 0; fi
+          git commit -m "Record frontend canister ID [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase --autostash -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep 5
+          done
+          exit 1

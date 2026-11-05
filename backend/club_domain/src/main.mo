@@ -260,6 +260,8 @@ persistent actor class Main(governorInit : Principal) = this {
   var parentInvites : [Types.ParentInvite];
   var roleRequests : [Types.RoleRequest];
   var roleRequestChildren : [(Text, Text)];
+  // (team_id, class schedule) mirroring Supabase teams.class_* columns.
+  var teamClassSchedules : [(Text, Types.TeamClassSchedule)];
   var teamInvites : [Types.TeamInvite];
   var teamInviteLinks : [Types.TeamInviteLink];
   var pendingInvites : [Types.PendingInvite];
@@ -1191,6 +1193,40 @@ persistent actor class Main(governorInit : Principal) = this {
   public query func list_teams_multi(club_ids : [Text]) : async { #Ok : [Types.ClubTeam]; #Err : Text } {
     if (club_ids.size() > 200) return #Err("Too many ids");
     #Ok(teams.filter(func(t) = club_ids.any(func(i) = i == t.club_id)))
+  };
+
+  // Class schedules (day/time/duration/capacity) for class-mode teams.
+  // Website-safe like list_teams, so the read is unauthenticated.
+  public query func list_team_class_schedules(club_id : Text) : async { #Ok : [Types.TeamClassScheduleRow]; #Err : Text } {
+    var res : [Types.TeamClassScheduleRow] = [];
+    for ((teamId, s) in teamClassSchedules.values()) {
+      if (teams.any(func(t) = t.id == teamId and t.club_id == club_id)) {
+        res := res.concat([{ team_id = teamId; day = s.day; time = s.time; duration_minutes = s.duration_minutes; capacity = s.capacity }]);
+      };
+    };
+    #Ok(res)
+  };
+
+  // Club admins set (or clear with null) a team's class schedule.
+  public shared ({ caller }) func set_team_class_schedule(team_id : Text, schedule : ?Types.TeamClassSchedule) : async { #Ok; #Err : Text } {
+    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+    try {
+      await admitAccount(caller);
+      auth(caller);
+      let team = switch (teams.find(func(t) = t.id == team_id)) { case (?t) t; case null return #Err("Team not found") };
+      if (team.club_id == "" or not isAdmin(caller, team.club_id)) return #Err("Club admin required");
+      if (isTransferFenced(team.club_id)) return #Err("Club is temporarily locked for a transfer");
+      let rest = teamClassSchedules.filter(func(e) = e.0 != team_id);
+      switch (schedule) {
+        case null { teamClassSchedules := rest };
+        case (?s) {
+          if (s.day.size() == 0 or s.day.size() > 16) return #Err("Invalid class day");
+          switch (s.time) { case (?t) { if (t.size() > 16) return #Err("Invalid class time") }; case null {} };
+          teamClassSchedules := rest.concat([(team_id, s)]);
+        };
+      };
+      #Ok
+    } finally { removalReceiver.leave(caller) };
   };
 
   // Team folders (Supabase team_folders counterpart): club-admin-managed

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "projectRef": "yabcfiuntwqjwvschnji",
+  "approvedBy": "Paul Cranwell",
+  "approvedAt": "2026-11-05T00:08:00Z",
+  "scope": "Six structural batches only: email signup invitation check, competition fixture visibility, competition Vault manager access, official email invitations for competition officials, club invitation message defaults, and the one-time welcome direct message. No data rows, no score changes, no bucket or scheduler settings.",
+  "migrations": [
+    {
+      "file": "20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql",
+      "sha256": "2512716ee93bcf92adc40c6cb5c28975d2546b5a0138279305ded7478e96128a"
+    },
+    {
+      "file": "20261105000000_competition_fixture_visibility.sql",
+      "sha256": "5a26aa388f88158ce9740cafdfb899caad7d3ee63ef1a673408a9d2fd195ef03"
+    },
+    {
+      "file": "20261105000100_competition_vault_access.sql",
+      "sha256": "d1ed20e9ab606228bffbe2d72f0d9cb4b9c77191c676cd0e216c6750540e2dde"
+    },
+    {
+      "file": "20261105000200_competition_role_email_invites.sql",
+      "sha256": "f5c8dff5e76489235aae6970e24acf4b5a17fe009e193daa2c9d8b0b13039118"
+    },
+    {
+      "file": "20261105000300_club_invite_message_defaults.sql",
+      "sha256": "5192720eb3e5ad47899903a5b2d34476ba02403e9307728772db5f34d384ee91"
+    },
+    {
+      "file": "20261105000400_send_welcome_dm.sql",
+      "sha256": "44323b96a91658f94478fb41ee25a4f221cda270debb67bb3dbc9bbc1cf2e224"
+    }
+  ]
+}

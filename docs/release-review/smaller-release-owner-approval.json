@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-10-30T07:19:31Z",
+  "ownerRequest": "Approve the database release plan so the sign-in tabs and admin tools can deploy to PROD safely.",
+  "scopeApprovalRecorded": true,
+  "reviewFile": "docs/release-review/smaller-release-review.json",
+  "reviewSha256": "d9fa7c15282fd5bfab776b51629c19f90fff9f3740322d900ab865cc6224a89e",
+  "readinessApproved": false,
+  "deploymentAuthorized": false,
+  "mergeAuthorized": false,
+  "runnerConsumable": false,
+  "reason": "The referenced review is not an executable database release plan. Exact source isolation, target staging and hosted acceptance are incomplete; owner intent cannot establish these facts.",
+  "scope": ["Sign-in tabs and retained email access", "Existing Placement Settings administrator controls without expanded permissions"],
+  "excluded": ["Score/History changes", "AI score review activation", "Unverified new administrator capabilities", "Verbatim execution of all 38 main migrations"],
+  "remainingConditions": [
+    "Assemble selective source and dependency scope against exact production commit",
+    "Review exact target-specific original/replacement staging mechanism",
+    "Independently reconcile current target definitions and verify signup/profile/invitation lifecycle",
+    "Verify hosted sign-in, administrator access and publication configuration"
+  ]
+}

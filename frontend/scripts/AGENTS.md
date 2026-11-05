@@ -1,0 +1,3 @@
+- PocketIC long waits poll /read/ingress_status with the library's own await-request encoder (struct raw_message_id), never client.ingressStatus(). Why: the pinned library sends a bare string the server rejects.
+- Owned PocketIC servers set both idle and hard TTL to the bounded test budget; integration cleanup preserves primary failures and records cleanup errors separately. Why: synchronous pin builds can exceed the default idle timeout and teardown must not hide their original failure.
+- Source CI parses both generated contract trees with generated-contract-syntax.test.mjs; normalize reserved parameter labels before committing generated output, without changing wire contracts. Why: method-name drift checks cannot catch invalid TypeScript identifiers.

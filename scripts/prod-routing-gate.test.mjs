@@ -64,6 +64,31 @@ const review = (overrides = {}) => reviewRoutingGate(state(overrides));
 const codes = r => r.gaps.map(g => g.code);
 const textOf = r => r.gaps.map(g => `${g.code}: ${g.detail}`).join('\n');
 
+function ordinaryState() {
+  const s=state();
+  s.identityConfig.push(['ordinary_member_access','true'],['global_account_operations_deferred','true']);
+  for (const service of s.services) if (checksAdmission(service.name)) service.environment=[
+    {name:'IGNITE_ACCOUNT_ADMISSION_RELEASE',value:'1'},
+    {name:ADMISSION_AUTHORITY,value:identity},
+  ];
+  return s;
+}
+test('ordinary member admission can be ready without granting global removal',()=>{
+  const r=reviewRoutingGate(ordinaryState());
+  assert.equal(r.gateComplete,true);assert.equal(r.approvalReady,true);
+  assert.equal(r.openingAuthorized,false);assert.equal(r.admissionAuthorized,false);
+});
+test('ordinary launch requires the explicit global erasure hold',()=>{
+  const s=ordinaryState();s.identityConfig=s.identityConfig.filter(r=>r[0]!=='global_account_operations_deferred');
+  assert.ok(codes(reviewRoutingGate(s)).includes('GLOBAL_ACCOUNT_OPERATIONS_UNVERIFIED'));
+});
+test('ordinary launch refuses a disabled member gate and an enabled removal gate',()=>{
+  const s=ordinaryState();s.services[0].environment=s.services[0].environment.filter(e=>e.name!=='IGNITE_ACCOUNT_ADMISSION_RELEASE');
+  assert.ok(codes(reviewRoutingGate(s)).includes('MEMBER_ADMISSION_OFF'));
+  const removal=ordinaryState();removal.services[0].environment.push({name:'IGNITE_ACCOUNT_REMOVAL_RELEASE',value:'1'});
+  assert.ok(codes(reviewRoutingGate(removal)).includes('GLOBAL_REMOVAL_NOT_DEFERRED'));
+});
+
 test('rehearsal-wired services never constitute production removal acceptance', () => {
   const r = review();
   assert.equal(codes(r).filter(c => c === 'PRODUCTION_ADMISSION_PATH_UNRELEASED').length, 24);
