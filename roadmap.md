@@ -1,6 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Current pre-merge verdict — 5 November 2026 triple-check
+- [x] Phone-app compatibility audit of the 8 planned PROD DB changes: 7 safe for current iOS/Android apps; email-signup check risk LOW (invited members sign up via website first; login unaffected). Paul accepted 5 Nov — all 8 ride the merge. Saved: docs/release-review/phone-app-compat-audit-2026-11-05.md. No PROD changes.
 - [x] Paul approved the currently missing club plans, small and growing, at 04:10 UTC on 5 November. Exact structural SQL/hash recorded in docs/release-review/club-plans-owner-approval-2026-11-05.md; no PROD execution.
 - [x] Plan additions confirmed on PROD: Paul ran the ALTER TYPE and the readback on 5 Nov ~04:30 UTC shows all five values — starter, standard, unlimited, small, growing. Existing six-migration automated approval remains unchanged.
 - [ ] Consolidated batch complete where possible: policy/profile/publication fixes tested; final GitHub source check waits on synchronized commit; public PROD routing read returned zero rows and needs owner-approved access repair; competition-news function/policy bodies need bounded read-only target evidence. See docs/release-review/merge-unblock-five-steps-2026-11-05.md. No production changes.

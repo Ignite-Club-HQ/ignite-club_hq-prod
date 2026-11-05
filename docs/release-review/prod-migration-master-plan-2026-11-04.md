@@ -47,7 +47,7 @@ Without these the new frontend regresses on PROD (see `full-app-prod-regression-
 | 4 | Competition news admin helpers | DEV migration exists | Build PROD candidate + isolated tests; fingerprint |
 | 5 | Memory reports table | DEV migration exists | Build PROD candidate; fingerprint |
 | 6 | `welcome_email_settings` table (structure only, no activation) | DEV migration exists | Build candidate; fingerprint |
-| — | Email-signup guard | Approved, rehearsed | Rides the merge (dormant until club list set) |
+| — | Email-signup guard | Approved, rehearsed; phone-app risk assessed LOW and accepted by Paul 5 Nov (`phone-app-compat-audit-2026-11-05.md`) | Rides the merge (dormant until club list set) |
 
 Exit: every batch registered in the approved-only inventory with Paul's sign-off; DB promotion
 safe-plan shows exactly these items and nothing else.
