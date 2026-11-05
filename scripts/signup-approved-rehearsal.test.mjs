@@ -8,8 +8,8 @@ import { createHash } from 'node:crypto';
 
 test('exact approved signup migration preserves existing accounts and profile creation', () => {
   const approval = JSON.parse(readFileSync('docs/release-review/safe-apply-approval.json', 'utf8'));
-  assert.equal(approval.migrations.length, 1);
-  const approved = approval.migrations[0];
+  const approved = approval.migrations.find(m => m.file === '20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql');
+  assert.ok(approved, 'the email signup invitation check must stay owner-approved');
   const source = readFileSync(`supabase/migrations/${approved.file}`, 'utf8');
   assert.equal(createHash('sha256').update(source).digest('hex'), approved.sha256);
   const directory = mkdtempSync(path.join(tmpdir(), 'ignite-approved-signup-'));
