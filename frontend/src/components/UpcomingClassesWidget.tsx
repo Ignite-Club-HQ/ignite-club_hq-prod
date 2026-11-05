@@ -86,7 +86,7 @@ export function UpcomingClassesWidget() {
         icp: async (ctx) => {
           // 1. Children linked to this account (names decrypted best-effort)
           const [childrenWithNames, rawChildren, grants] = await Promise.all([
-            fetchLiveHomeChildren(ctx).catch(() => []),
+            fetchLiveHomeChildren(ctx).catch(() => [] as Awaited<ReturnType<typeof fetchLiveHomeChildren>>),
             listLiveChildren(ctx).catch(() => []),
             getLiveMyRoleGrants(ctx).catch(() => []),
           ]);
@@ -114,7 +114,7 @@ export function UpcomingClassesWidget() {
             [...clubIds].map(async (clubId) => {
               const [enrolments, teams, profile] = await Promise.all([
                 listLiveClassEnrolments(ctx, clubId).catch(() => []),
-                listLiveTeams(ctx, clubId).catch(() => []),
+                listLiveTeams(ctx, clubId).catch(() => [] as Awaited<ReturnType<typeof listLiveTeams>>),
                 getLiveClubProfile(ctx, clubId).catch(() => [] as [] | [{ name: string }]),
               ]);
               const clubName = profile[0]?.name ?? null;
