@@ -1,0 +1,5 @@
+{
+  "callbacks": [
+    "https://igniteclubhq.app/auth"
+  ]
+}
