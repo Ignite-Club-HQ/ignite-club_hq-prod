@@ -212,8 +212,16 @@ jobs:
               (cd deploy/prod && icp build identity_access)
               grep -aq "$IGNITE_PRODUCTION_ACCOUNT_WITNESS" deploy/prod/.icp/cache/artifacts/identity_access || { echo "::error::identity_access was built without its pins"; exit 1; }
             fi
+            # Switches set outside the code (e.g. secure name saving) must survive:
+            # record live settings, upgrade, then put back anything removed and
+            # restart on the same code so the service reads them again.
+            node scripts/prod-preserve-settings.mjs save "$NAME"
             # Upgrade only — never create, never reinstall (EOP memory kept).
             (cd deploy/prod && icp deploy "$NAME" -e ic -y --mode upgrade --no-create)
+            if [ "$(node scripts/prod-preserve-settings.mjs restore "$NAME")" = restored ]; then
+              echo "::notice::$NAME live settings were restored after upgrade"
+              (cd deploy/prod && icp canister install "$NAME" -e ic --mode upgrade --wasm-memory-persistence keep -y)
+            fi
             node scripts/record-prod-release.mjs "$NAME" "$GITHUB_SHA"
           done
           node frontend/scripts/media-key-deploy-preflight.mjs after "$IDS" "$RECEIPT" prod ic
