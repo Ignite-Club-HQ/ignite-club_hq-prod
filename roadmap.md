@@ -120,3 +120,11 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 
 - [ ] Release hybrid welcome message + profile country (DEV applied 4 Nov) to PROD via main→prod merge; needs PROD Ignite team account (system profile) for welcome message to send.
 - [ ] Merge main→prod to send the approved email sign-up check live (approved-only release; blocked on Paul running the merge). Live check only refuses sign-ups once the live email-club settings entry exists.
+
+## ICP home performance (2026-11-06)
+- [x] Carousel: trial status + club profile read alongside team rows (batched calls); 6-team simulated cold median 2134→1430ms, warm 608→421ms
+- [x] Home feed events already coalesce into list_events_multi per routed target — no change
+- [x] Home/carousel load ICP feature code on demand
+- [x] Canister caching headers no longer contradictory (takes effect next frontend deploy)
+- [x] Startup stage marks (sign-in click → carousel loaded) via window.__igniteStages
+- [ ] Real-device cold/warm median/p95 on TEST — needs Paul signing in with Internet Identity
