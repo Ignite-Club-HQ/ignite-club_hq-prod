@@ -1,0 +1,47 @@
+// Startup timing marks for the ICP sign-in → home journey. Stage names only —
+// never principals, names, club/team ids or any other member data.
+// Read in DevTools with `window.__igniteStages` or performance.getEntriesByType("mark").
+export const PERF_STAGES = [
+  "sign_in_click",
+  "identity_complete",
+  "account_ready",
+  "profile_resolved",
+  "home_first_paint",
+  "first_team_card",
+  "carousel_loaded",
+] as const;
+export type PerfStage = (typeof PERF_STAGES)[number];
+
+type StageMap = Partial<Record<PerfStage, number>>;
+const stages: StageMap = {};
+let reported = false;
+
+function now(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+/** Records the first occurrence of a stage in this page load (ms since navigation start). */
+export function markStage(stage: PerfStage): void {
+  if (stages[stage] !== undefined) return;
+  stages[stage] = Math.round(now());
+  try { performance.mark(`ignite:${stage}`); } catch { /* unsupported */ }
+  if (typeof window !== "undefined") (window as unknown as { __igniteStages?: StageMap }).__igniteStages = { ...stages };
+  if (stage === "carousel_loaded" && !reported) {
+    reported = true;
+    console.info("[perf] startup stages (ms)", { ...stages });
+  }
+}
+
+/** A fresh sign-in tap restarts the sign-in stages so repeat attempts are measured on their own. */
+export function restartSignInStages(): void {
+  for (const s of ["sign_in_click", "identity_complete", "account_ready", "profile_resolved"] as const) delete stages[s];
+}
+
+export function getStages(): StageMap {
+  return { ...stages };
+}
+
+export function resetStagesForTests(): void {
+  for (const k of Object.keys(stages) as PerfStage[]) delete stages[k];
+  reported = false;
+}
