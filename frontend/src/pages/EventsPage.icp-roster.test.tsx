@@ -243,11 +243,20 @@ describe("EventsPage roster-derived team scope routing", () => {
     const inventory = client.getQueryCache().getAll().filter(query => query.queryKey[0] === 'events' || query.queryKey[0] === 'icp-schedule-fixtures');
     fireEvent.click(screen.getByRole('button', { name: 'Calendar view' }));
     expect(screen.getByRole('button', { name: 'Calendar view' })).toHaveAttribute('aria-pressed', 'true');
-    await waitFor(() => expect(client.getQueryCache().getAll().filter(query => query.queryKey[0] === 'events' || query.queryKey[0] === 'icp-schedule-fixtures')).toEqual(inventory));
+    // Calendar view deliberately loads a 12-month past window (365-day
+    // lookback) on top of the list's queries; the list's queries are reused.
+    const scheduleQueries = () => client.getQueryCache().getAll().filter(query => query.queryKey[0] === 'events' || query.queryKey[0] === 'icp-schedule-fixtures');
+    await waitFor(() => expect(scheduleQueries().every(query => query.state.fetchStatus === 'idle')).toBe(true));
+    for (const query of inventory) expect(scheduleQueries()).toContain(query);
+    for (const query of scheduleQueries().filter(query => !inventory.includes(query))) expect(query.queryKey).toContain(365);
+    const readsAfterCalendar = eventsRoutedToIcp ? scheduleMocks.events.mock.calls.length : queriedTables.filter(table => table === 'events').length;
+    const fixtureReadsAfterCalendar = competitionMocks.listLivePublicCompetitions.mock.calls.length;
     fireEvent.click(screen.getByRole('button', { name: 'List view' }));
     for (const type of types) expect(screen.getByText(`${type} event`)).toBeInTheDocument();
-    expect(eventsRoutedToIcp ? scheduleMocks.events.mock.calls.length : queriedTables.filter(table => table === 'events').length).toBe(reads);
-    expect(competitionMocks.listLivePublicCompetitions.mock.calls.length).toBe(fixtureReads);
+    expect(eventsRoutedToIcp ? scheduleMocks.events.mock.calls.length : queriedTables.filter(table => table === 'events').length).toBe(readsAfterCalendar);
+    expect(readsAfterCalendar).toBeGreaterThanOrEqual(reads);
+    expect(competitionMocks.listLivePublicCompetitions.mock.calls.length).toBe(fixtureReadsAfterCalendar);
+    expect(fixtureReadsAfterCalendar).toBeGreaterThanOrEqual(fixtureReads);
     expect(reads).toBeGreaterThan(0);
   });
   it('renders ready Group 1 events before Group 2 or the Group 1 profile finishes', async () => {
