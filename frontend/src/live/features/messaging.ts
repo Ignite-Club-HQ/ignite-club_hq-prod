@@ -214,7 +214,7 @@ export function warmLiveLatestMessagesPage(ctx: FeatureBackendContext, conversat
   page.catch(() => warmLatestPages.delete(key));
   return page;
 }
-export function clearWarmLiveLatestPages(): void { warmLatestPages.clear(); }
+export function clearWarmLiveLatestPages(): void { warmLatestPages.clear(); resetLiveOpenFreshness(); }
 
 export async function listLiveLatestMessagesPage(
   ctx: FeatureBackendContext,
@@ -227,7 +227,8 @@ export async function listLiveLatestMessagesPage(
     const hit = warmLatestPages.get(key);
     warmLatestPages.delete(key);
     if (hit && Date.now() - hit.at < WARM_PAGE_TTL_MS) {
-      try { return (await hit.page) as Awaited<ReturnType<typeof readLatestMessagesPage>>; } catch { /* fall through to a fresh read */ }
+      if (limit > 1) traceReadStart(conversationId);
+      try { const warm = (await hit.page); if (limit > 1) { traceConnected(conversationId); traceReadDone(conversationId, "warm"); } return warm as Awaited<ReturnType<typeof readLatestMessagesPage>>; } catch { /* fall through to a fresh read */ }
     }
   }
   return readLatestMessagesPage(ctx, conversationId, before, limit);
@@ -307,7 +308,7 @@ async function readLatestMessagesPage(
     }
   }
   try {
-    return await unwrapCandid(
+    const page = await unwrapCandid(
       actor.list_latest_messages_page(
         conversationId,
         candidOpt(before === null ? undefined : BigInt(before)),
@@ -315,6 +316,9 @@ async function readLatestMessagesPage(
       ),
       "List latest messages",
     );
+    if (before === null) noteSeenLatest(conversationId, (page as { latest_sequence?: unknown }).latest_sequence);
+    if (traced) traceReadDone(conversationId, "update");
+    return page;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // Canisters deployed before this method existed reject the call outright
