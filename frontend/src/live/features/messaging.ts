@@ -140,8 +140,12 @@ export function noteLiveConversationWrite(conversationId: string, at = Date.now(
 }
 export function shouldTryQueryOpen(conversationId: string, now = Date.now()): boolean {
   if (!openConversationQuerySupported) return false;
-  const wrote = recentWrites.get(conversationId);
-  return wrote === undefined || now - wrote > QUERY_OPEN_WRITE_FENCE_MS;
+  // "*" = a write addressed by message/poll id (conversation unknown here).
+  for (const key of [conversationId, "*"]) {
+    const wrote = recentWrites.get(key);
+    if (wrote !== undefined && now - wrote <= QUERY_OPEN_WRITE_FENCE_MS) return false;
+  }
+  return true;
 }
 function toBig(v: unknown): bigint | null {
   try { return typeof v === "bigint" ? v : typeof v === "number" ? BigInt(v) : null; } catch { return null; }
@@ -435,11 +439,13 @@ export async function updateLiveMessage(
   body: string,
 ) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite("*");
   return unwrapCandid(actor.update_message(messageId, body), "Update message");
 }
 
 export async function deleteLiveMessage(ctx: FeatureBackendContext, messageId: string) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite("*");
   return unwrapCandid(actor.delete_message(messageId), "Delete message");
 }
 
@@ -1021,6 +1027,7 @@ export async function createLivePoll(
 
 export async function voteLivePoll(ctx: FeatureBackendContext, pollId: string, optionIndex: number) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite("*");
   return unwrapCandid(actor.vote_poll(pollId, optionIndex), "Vote poll");
 }
 
@@ -1125,6 +1132,7 @@ export async function registerLiveAttachmentMetadata(
 
 export async function toggleLiveReaction(ctx: FeatureBackendContext, messageId: string, emoji: string) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite("*");
   return unwrapCandid(actor.toggle_reaction(messageId, emoji), "Toggle reaction");
 }
 
@@ -1270,6 +1278,7 @@ export async function setLiveUserMessagingSettings(
 
 export async function deleteLivePoll(ctx: FeatureBackendContext, pollId: string) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite("*");
   return unwrapCandid(actor.delete_poll(pollId), "Delete poll");
 }
 
@@ -1352,6 +1361,7 @@ export async function pinLiveMessage(
   messageId: string,
 ): Promise<LivePinnedMessage> {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite(conversationId);
   const raw = await unwrapCandid(actor.pin_message(conversationId, messageId), "Pin message");
   return toLivePinnedMessage(raw);
 }
@@ -1362,6 +1372,7 @@ export async function unpinLiveMessage(
   messageId: string,
 ) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite(conversationId);
   return unwrapCandid(actor.unpin_message(conversationId, messageId), "Unpin message");
 }
 
