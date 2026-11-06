@@ -768,6 +768,8 @@ export default function EventsPage() {
     staleTime: 5 * 60 * 1000,
     refetchOnMount: 'always',
     refetchOnReconnect: 'always',
+    // Switching to Calendar widens the window; keep showing what we have.
+    placeholderData: (prev) => prev,
   });
 
   const memberScheduleKey = ['events', 'icp-member-schedule', user?.id, localIcpPersona, teamFilter, clubFilter, pastDaysBack, userMemberships?.teamIds, userMemberships?.clubIds, viewerRoleScope];
@@ -793,6 +795,7 @@ export default function EventsPage() {
       },
     }, { shared: 'person' }),
     staleTime: 5 * 60 * 1000, refetchOnMount: 'always', refetchOnReconnect: 'always',
+    placeholderData: (prev) => prev,
   });
 
   const legacyEventsQuery = useQuery({
