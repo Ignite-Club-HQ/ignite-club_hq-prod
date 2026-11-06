@@ -63,6 +63,7 @@ export async function readRoutingGate() {
       install_chunked_code: async args=>{
         calls.push('restart:'+id);
         const name = f.targets.find(t=>t.id === id).name;
+        if(name === 'media_blob_store' && !Buffer.from(args.arg).equals(Buffer.from(IDL.encode([],[])))) throw Error('Unexpected blob store argument');
         const decoded = IDL.decode(name === 'media_blob_store' ? [] : [IDL.Principal], args.arg);
         if(name === 'media_blob_store' && decoded.length) throw Error('Unexpected blob store argument');
         if(name !== 'media_blob_store' && decoded[0].toText() !== process.env.PROD_GOVERNOR_PRINCIPAL) throw Error('Wrong governor argument');
