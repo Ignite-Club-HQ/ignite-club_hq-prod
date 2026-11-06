@@ -244,6 +244,20 @@ function IcpEditEventPage() {
   );
 }
 
+const RESTORED_BASELINE = "\u0000restored";
+
+type EditEventDraftForm = {
+  title: string; type: EventType; eventDateTime: string; address: string; description: string;
+  selectedClubId: string; selectedTeamId: string; dutyTeamId: string | null;
+  reminderEnabled: boolean; reminderHours: number; price: string; paidEvent: boolean;
+  allowGuests: boolean; maxGuestsPerMember: number; enableRecurring: boolean;
+  recurrencePattern: EventRecurrencePattern; recurrenceInterval: number; recurrenceDays: number[];
+  recurrenceEndDate: string; duties: { id?: string; name: string; assignedTo: string | null }[];
+  dutiesToDelete: string[]; opponent: string; isBye: boolean; arrivalMinutesBefore: string;
+  rsvpAudience: RsvpAudience | null; restrictedRoles: ClubEventRole[]; adultsOnly: boolean;
+  rsvpGrouping: "" | "level" | "team"; targetTeamIds: string[] | null;
+};
+
 function SupabaseEditEventPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -868,12 +882,23 @@ function SupabaseEditEventPage() {
     setRsvpAudience(d.rsvpAudience); setRestrictedRoles(d.restrictedRoles); setAdultsOnly(d.adultsOnly);
     setRsvpGrouping(d.rsvpGrouping); setTargetTeamIds(d.targetTeamIds);
     dutiesRestoredRef.current = true;
+    draftBaselineRef.current = RESTORED_BASELINE;
   }
   const dutiesRestoredRef = useRef(false);
+  // Form as loaded from the event; a draft is kept only once it differs.
+  const draftBaselineRef = useRef<string | null>(null);
   const draftJson = JSON.stringify(draftForm);
   useEffect(() => {
     // Only after the form holds the event (never save the empty initial form).
     if (populatedForRef.current !== id || !user?.id || !id) return;
+    if (draftBaselineRef.current === null) {
+      draftBaselineRef.current = draftJson;
+      return;
+    }
+    if (draftJson === draftBaselineRef.current) {
+      clearEventEditDraft(user.id, id);
+      return;
+    }
     const t = setTimeout(() => saveEventEditDraft(user.id, id, JSON.parse(draftJson)), 400);
     return () => clearTimeout(t);
   }, [draftJson, id, user?.id]);
@@ -891,6 +916,8 @@ function SupabaseEditEventPage() {
   useEffect(() => {
     // A restored draft already carries the member's duty edits.
     if (existingDuties && !dutiesRestoredRef.current) {
+      // Loaded duties are part of the baseline, not an unsaved change.
+      if (draftBaselineRef.current !== RESTORED_BASELINE) draftBaselineRef.current = null;
       setDuties(existingDuties.map(d => ({
         id: d.id,
         name: d.name,
