@@ -25,7 +25,9 @@ try {
   pic=await PocketIc.create(server.getUrl());
   const setup=(idlFactory,wasm,extra={})=>pic.setupCanister({idlFactory,wasm,sender:governor,controllers:[governor],arg:IDL.encode([IDL.Principal],[governor]),...extra});
   const identity=await setup(identityIdl,files.IDENTITY_ACCESS,{targetCanisterId:Principal.fromText(PROD_CHECK_IDS.identity_access),environmentVariables:[{name:'IGNITE_BOUND_DELETION_RELEASE',value:'1'}],arg:IDL.encode([IDL.Record({governor:IDL.Principal})],[{governor}])});
+  console.log('Local identity installed');
   const router=await setup(routerIdl,files.SHARD_ROUTER,{arg:IDL.encode([IDL.Record({governor:IDL.Principal})],[{governor}])});
+  console.log('Local router installed');
   const club=await setup(clubIdl,files.CLUB_DOMAIN),events=await setup(eventsIdl,files.EVENTS_DOMAIN);
   const a=club.actor,e=events.actor,id=identity.actor;
   for(const actor of [a,e,id,router.actor]) actor.setPrincipal(governor);
@@ -90,6 +92,6 @@ try {
   assert.deepEqual(await call(eventsIdl,events,member,'read_account_list_events',[['retained-club'],['retained-team']]),beforeEvents);
   assert.equal(ok(await router.actor.list_groups())[0].accepting,false);
   console.log('PASS real replica: repaired production admission; retained full event and role records; same Wasm and switches; foreign visibility and suspension denials; restoration and closed group preserved. No live acceptance claimed.');
-} catch(error) {primary=error;throw error;} finally {
+} catch(error) {primary=error;console.error(error);throw error;} finally {
   for(const cleanup of [()=>pic?.tearDown(),()=>server.stop()]) try {await cleanup();} catch(error) {if(primary) console.error('Replica cleanup also failed');else throw error;}
 }
