@@ -160,6 +160,10 @@ interface Team {
 
 export default function HomePage() {
   const { user, profile, refreshProfile, initialized, profileNamePending } = useAuth();
+  useEffect(() => {
+    const id = requestAnimationFrame(() => markStage("home_first_paint"));
+    return () => cancelAnimationFrame(id);
+  }, []);
   // Quietly prepare "Invite people" choices so the sheet opens instantly.
   useEffect(() => {
     if (!user?.id || !isFeatureRoutedToIcp("membership")) return;
