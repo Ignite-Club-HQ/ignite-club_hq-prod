@@ -1,0 +1,108 @@
+# PROD settings compatibility promotion
+
+## Built scope
+
+The existing promotion workflow now checks 24 human-data receivers across the
+PROD base and independent g2 inventories, even when no canister code changed.
+The base addresses are pinned; g2 addresses come from the acknowledged original
+registration receipt and must match current PROD registry placements.
+
+For already-enabled production admission only, it sets the account authority to
+the PROD identity service and clears the incompatible local-rehearsal switch.
+It preserves all other settings, including keys, secure name saving, removal,
+notifications, and existing group open/closed status. Dormant admission/removal
+is not activated. Foreign authority, rehearsal-only protection, or removal
+without admission stops for separate review.
+
+All changed receivers must have an artifact matching their exact running module
+before settings writes begin. Changes use durable hash-only intents, immediate
+settings readback, identical-code upgrade with Wasm memory kept, and a second
+readback. An interrupted intent stops subsequent runs; it is not blindly replayed.
+No DEV values or business data are copied. The existing broader protection
+activation hold is unchanged.
+
+## Verification and remaining limits
+
+### Real replica attempt — 6 November 2026
+
+GitHub run 42139076566 (main `0f5948ad`, 00:44–00:48 UTC) passed
+host preflight, all 42 helper checks and compilation, installed four real
+services, and reproduced `Conflicting account protection configuration` on
+both club and event reads. The first repaired receiver retained its Wasm hash
+and every intended setting, but the test incorrectly compared settings as an
+ordered array: management returned the same rows sorted by name. Replaced only
+that test assertion with the existing production `settingsCommitment`, which
+is order-independent and rejects duplicates. A regression verifies unchanged
+reordering passes while changed values, missing rows and duplicates fail.
+Full retained-data/access-denial verification still requires the rerun; this
+initial failed run is not a passed repair or production acceptance.
+
+Retry diagnosis: the existing native host preflight reports Linux 4.19.0-gvisor,
+one recovered write fault, but `writeBit=0` rather than the required `1`.
+This sandbox cannot supply the metadata used by IC memory tracking; increasing
+the installation timeout is not acceptance. The test now refuses before server
+startup on an incompatible host and runs on the separate native GitHub runner
+`[TEST] Check PROD settings repair (isolated)`, with contents-read permission,
+no deployment secrets, no live requests, and four real compiled services.
+The harness also uses the library's actual camelCase management status fields,
+Candid-aware complete-record comparisons, bounded owned-server cleanup, and a
+hash-bound result report. Remote result remains pending; no live acceptance or
+merge readiness is claimed yet. All 42 focused policy/rehearsal/host/cleanup and
+Candid comparison checks passed; workflow YAML and harness syntax are valid.
+The repaired harness produced a hash-bound failed report at host preflight,
+before any replica was started. GitHub returned 404 for the new workflow and its
+runs endpoint while the source was not yet synchronized; no remote execution
+or passing replica result is claimed. The workflow automatically runs when
+these test files reach main, and can also be started manually on main.
+
+Compiled current club_domain/events_domain with moc 1.16.1 and enhanced
+migrations, and identity_access/shard_router with the local Rust Wasm toolchain.
+Created a disposable PocketIC test harness using the actual production settings
+policy and local allocation of the PROD identity address (no live connection).
+The identity install never completed: PocketIC operation polling timed out,
+including with a 180-second processing budget. No conflict/repair assertions
+were reached; the harness is unverified and is not added to promotion CI.
+This attempt is not a passed settings test and does not clear merge readiness.
+No PROD credentials, requests or writes were used. Next verification requires
+a working isolated replica installation, not substituting a mock authority or
+testing uncertain settings against live users.
+
+### Executable offline rehearsal — 6 November 2026
+
+The actual `check` and `apply` commands run in isolated child processes, using
+real policy, Candid encoding/decoding, Wasm hashing, compressed artifacts and
+report files. Only the routing/network and journal boundaries are substituted;
+no credentials, live calls, paid actions or PROD writes occur.
+
+The rehearsal reproduced two executable defects: the plain persistent photo
+store received a governor argument instead of an empty argument list, and the
+last verification accepted unrelated settings drift on an unchanged receiver.
+Both now have regression tests and fixes. Prior acknowledged journal evidence
+is retained rather than discarded; unresolved intents still stop without replay.
+
+Coverage includes 24-target read-only checks, admission repair, preservation of
+keys and separate switches, identical-module memory-preserving restart, gzip,
+missing artifacts, registry drift, journal failure, pre-existing pending intent,
+settings readback failure, lost restart reply and final unchanged-service drift.
+Fixture records are checked for preservation, but this is not a replica upgrade
+of the application or proof of live data preservation. Signed-in live events
+acceptance remains separate, and is not certified by these rehearsals.
+
+Result: 26/26 executable rehearsal and policy/preservation tests passed; executable
+syntax and workflow YAML validation passed; preview reports build OK. No PROD
+execution or authenticated events acceptance was performed. This evidence alone
+does not certify a break-free live release under the standing production rule.
+
+Focused policy tests cover PROD-only addresses, both groups, preservation,
+dormant-release holds, drift, exact-code preflight and acknowledgments.
+
+A read-only browser visit to `https://igniteclubhq.app/events` redirected to
+`/auth`. No Internet Identity session is available in this sandbox, so the
+authenticated events screen has not been verified. The new promotion step has
+not run in PROD: it requires the tested source to reach the prod branch. If g2
+runs older code than the available exact artifact, the step stops without
+changing settings rather than silently upgrading or reinstalling that group.
+
+After merge, inspect the filtered `prod-settings-check` artifact and promotion
+result, then sign in with the affected Internet Identity account and confirm
+teams and events load. A passing sign-in page is not events acceptance.

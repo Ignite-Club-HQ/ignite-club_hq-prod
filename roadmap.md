@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## PROD settings promotion — 5 November 2026
+- [ ] Real replica settings test: GitHub run 42139076566 installed all four real services and reproduced the exact protection conflict, then failed only on settings-array ordering during repaired readback. Test now uses the production order-independent commitment, with a regression rejecting changed/missing/duplicate settings; rerun awaits synchronized source. No PROD access; full replica acceptance remains unconfirmed.
+- [x] Executable offline rehearsal complete: 26 tests passed; reproduced and fixed blob-store upgrade arguments and final unchanged-service drift detection. Workflow YAML valid; no PROD calls. This is not replica/live events acceptance.
+- [x] Built and tested allowlisted PROD settings compatibility across base and g2; preserves data, keys and separately approved feature switches. No PROD execution; exact running artifact required before repair.
+- [ ] Verify authenticated events loading on igniteclubhq.app after the tested promotion reaches prod; requires merged source and an Internet Identity session.
+
 ## Current pre-merge verdict — 5 November 2026 triple-check
 - [x] Phone-app compatibility audit of the 8 planned PROD DB changes: 7 safe for current iOS/Android apps; email-signup check risk LOW (invited members sign up via website first; login unaffected). Paul accepted 5 Nov — all 8 ride the merge. Saved: docs/release-review/phone-app-compat-audit-2026-11-05.md. No PROD changes.
 - [x] Paul approved the currently missing club plans, small and growing, at 04:10 UTC on 5 November. Exact structural SQL/hash recorded in docs/release-review/club-plans-owner-approval-2026-11-05.md; no PROD execution.
