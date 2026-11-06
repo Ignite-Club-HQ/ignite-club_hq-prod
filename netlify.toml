@@ -43,6 +43,16 @@
   to = "/.netlify/functions/register-club-backend"
   status = 200
 
+# Whole site is served from the PROD frontend canister; Netlify only proxies.
+# force = true so Netlify's own built files never shadow the canister.
+# Rollback: delete this rule to fall back to the SPA rule below.
+[[redirects]]
+  from = "/*"
+  to = "https://u3mrq-uiaaa-aaaac-bgioq-cai.icp0.io/:splat"
+  status = 200
+  force = true
+  conditions = {}
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
