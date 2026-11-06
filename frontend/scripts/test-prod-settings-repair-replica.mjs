@@ -12,6 +12,7 @@ import { idlFactory as eventsIdl } from '../src/lab/bindings/events_domain/decla
 import { idlFactory as identityIdl } from '../src/lab/bindings/identity_access/declarations/identity_access.did.js';
 import { idlFactory as routerIdl } from '../src/lab/bindings/shard_router/declarations/shard_router.did.js';
 import { matchingProdSettings } from '../../scripts/prod-settings-promotion-policy.mjs';
+import { settingsCommitment } from '../../scripts/prod-protection-policy.mjs';
 import { PROD_CHECK_IDS } from '../../scripts/prod-connection-check-policy.mjs';
 import { removalHostPreflight } from './removal-host-preflight.mjs';
 import { startRemovalLocalServer, finishRemovalLocalTest } from './removal-local-supervisor.mjs';
@@ -94,7 +95,7 @@ try {
     const status=await pic.canisterStatus({canisterId:service.canisterId,sender:governor});
     assert.ok(status.moduleHash,'Installed module hash required');
     assert.equal(Buffer.from(status.moduleHash).toString('hex'),hash(wasm));
-    assert.deepEqual(status.settings.environmentVariables,repaired.next);
+    assert.equal(settingsCommitment(status.settings.environmentVariables),settingsCommitment(repaired.next));
     const env=new Map(status.settings.environmentVariables.map(r=>[r.name,r.value]));
     assert.equal(env.get('IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL'),'0');assert.equal(env.get('IGNITE_ACCOUNT_ADMISSION_RELEASE'),'1');
     assert.equal(env.get('VETKD_KEY_NAME'),'key_1');assert.equal(env.get('IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE'),'1');

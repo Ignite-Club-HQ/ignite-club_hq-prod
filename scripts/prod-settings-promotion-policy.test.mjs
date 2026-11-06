@@ -4,6 +4,7 @@ import { matchingProdSettings, applySettingsPlan, settingsTargets } from './prod
 import { PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 import { GROUP_DOMAINS } from './prod-group-readiness.mjs';
 import { hashPlan } from './prod-base-group-policy.mjs';
+import { settingsCommitment } from './prod-protection-policy.mjs';
 const identity = 'wb3hl-byaaa-aaaai-ayeqa-cai';
 const row = (name, value) => ({ name, value });
 const base = [row('IGNITE_ACCOUNT_ADMISSION_RELEASE','1'), row('IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL','1'), row('VETKD_KEY_NAME','key_1'), row('IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE','1')];
@@ -68,4 +69,12 @@ test('successful repair reads back settings and the same module before acknowled
   let env=base; const calls=[];
   await applySettingsPlan([p],{prepare:async()=>calls.push('prepare'),read:async()=>({environment:env,moduleHash:'same'}),intent:async()=>calls.push('intent'),write:async()=>{env=p.next;calls.push('write');},restart:async()=>calls.push('restart'),ack:async()=>calls.push('ack')});
   assert.deepEqual(calls,['prepare','intent','write','restart','ack']);
+});
+test('repair readback ignores ordering but detects changed, missing and duplicate settings', () => {
+  const expected=matchingProdSettings(base,identity).next;
+  assert.equal(settingsCommitment([...expected].reverse()),settingsCommitment(expected));
+  const changed=expected.map(r=>r.name==='VETKD_KEY_NAME'?{...r,value:'test_key_1'}:r);
+  assert.notEqual(settingsCommitment(changed),settingsCommitment(expected));
+  assert.notEqual(settingsCommitment(expected.slice(1)),settingsCommitment(expected));
+  assert.throws(()=>settingsCommitment([...expected,expected[0]]),/Unique/);
 });

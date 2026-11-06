@@ -25,6 +25,18 @@ activation hold is unchanged.
 
 ### Real replica attempt — 6 November 2026
 
+GitHub run 42139076566 (main `0f5948ad`, 00:44–00:48 UTC) passed
+host preflight, all 42 helper checks and compilation, installed four real
+services, and reproduced `Conflicting account protection configuration` on
+both club and event reads. The first repaired receiver retained its Wasm hash
+and every intended setting, but the test incorrectly compared settings as an
+ordered array: management returned the same rows sorted by name. Replaced only
+that test assertion with the existing production `settingsCommitment`, which
+is order-independent and rejects duplicates. A regression verifies unchanged
+reordering passes while changed values, missing rows and duplicates fail.
+Full retained-data/access-denial verification still requires the rerun; this
+initial failed run is not a passed repair or production acceptance.
+
 Retry diagnosis: the existing native host preflight reports Linux 4.19.0-gvisor,
 one recovered write fault, but `writeBit=0` rather than the required `1`.
 This sandbox cannot supply the metadata used by IC memory tracking; increasing
