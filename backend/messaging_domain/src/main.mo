@@ -1985,6 +1985,69 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
+  // Query twin of open_conversation for the first visible page. Same gates
+  // (legacy-query denial, removal fence, private-name window, club membership
+  // through club_domain's is_club_member query, message/pin visibility) and
+  // the same bounded selection. Any refusal or unreachable authority returns
+  // #Err / traps so clients fall back to the consensus update — never wider.
+  // Protected account modes trap in denyLegacyAccountQuery (updates only).
+  public shared composite query ({ caller }) func open_conversation_query(conversation_id : Text, limit : Nat16) : async {
+    #Ok : { page : Types.MessagePage; reactions : [Types.Reaction]; pins : ?[Types.PinnedMessage]; polls : [Types.PollResults] };
+    #Err : Text;
+  } {
+    denyLegacyAccountQuery();
+    switch (privateNameWriterGate.enter()) { case (#Ok(_)) {}; case (#Err(reason)) return #Err(reason) };
+    if (caller.equal(Principal.anonymous())) return #Err("Conversation access forbidden");
+    if (removalReceiver.denied(caller)) return #Err("Account removal fenced");
+    if (limit == 0 or limit > 100) return #Err("Invalid page size");
+    switch (conversations.find(func(c) = c.id == conversation_id)) {
+      case null {};
+      case (?c) {
+        if (requiresClubMembership(c) and not isGovernor(caller)) {
+          let ?cd = clubDomainCanister else return #Err("Club chat authority unavailable");
+          if (isFenced(c.club_id)) return #Err("Club chat authorization changed");
+          let authority : actor { is_club_member : shared query (Principal, Text) -> async Bool } = actor(cd.toText());
+          let member = try { await authority.is_club_member(caller, c.club_id) } catch (_) { return #Err("Club chat authority unavailable") };
+          if (not member) return #Err("Club chat access forbidden");
+        };
+      };
+    };
+    if (not canReadTeamMessages(caller, conversation_id)) return #Err("Conversation access forbidden");
+    let latest = conversationLatestSequence(conversation_id);
+    var matching : Nat = 0;
+    for (m in messages.values()) { if (m.conversation_id == conversation_id) { matching += 1 } };
+    let limit_n = Nat16.toNat(limit);
+    let skip = if (matching > limit_n) { matching - limit_n } else { 0 };
+    var page_messages : [Types.Message] = [];
+    var seen : Nat = 0;
+    var oldest_in_page : Nat64 = 0;
+    var oldest_set = false;
+    for (m in messages.values()) {
+      if (m.conversation_id == conversation_id) {
+        if (seen >= skip) {
+          page_messages := page_messages.concat([m]);
+          if (not oldest_set or m.sequence < oldest_in_page) { oldest_in_page := m.sequence; oldest_set := true };
+        };
+        seen += 1;
+      };
+    };
+    var page_reactions : [Types.Reaction] = [];
+    for (r in reactions.values()) {
+      if (page_messages.find(func(m : Types.Message) : Bool { m.id == r.message_id }) != null) {
+        page_reactions := page_reactions.concat([r]);
+      };
+    };
+    let pins : ?[Types.PinnedMessage] = if (not canAccessConversation(caller, conversation_id)) null
+      else ?pinnedMessages.filter(func(p) = p.conversation_id == conversation_id);
+    let next_seq : ?Nat64 = if (skip > 0 and oldest_set) ?oldest_in_page else null;
+    #Ok({
+      page = { messages = page_messages; next_sequence = next_seq; latest_sequence = latest };
+      reactions = page_reactions;
+      pins;
+      polls = conversationPagePolls(conversation_id, page_messages);
+    })
+  };
+
   // Call only after the opening endpoint's account/conversation checks.
   // Both wire twins use the same bounded selection and vote aggregation.
   func conversationPagePolls(conversation_id : Text, page_messages : [Types.Message]) : [Types.PollResults] {
