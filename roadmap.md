@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## ICP home carousel — 6 November 2026
+- [ ] Remove unnecessary serial carousel reads; reproduce with delayed-request tests and rerun relevant home tests. No PROD changes.
+- [ ] Verify signed-in ICP carousel on a real device after merge; requires an Internet Identity session/device.
+
 ## PROD settings promotion — 5 November 2026
 - [ ] Live repair (run 42141334879) stopped before any write: g2 record read from wrong branch. Fixed and rehearsed; waiting on next main→prod merge, then confirm Events and Media load on igniteclubhq.app.
 - [x] Real replica settings test passed on GitHub after ordering fix. Earlier: run 42139076566 installed all four real services and reproduced the exact protection conflict, then failed only on settings-array ordering during repaired readback. Test now uses the production order-independent commitment, with a regression rejecting changed/missing/duplicate settings; rerun awaits synchronized source. No PROD access; full replica acceptance remains unconfirmed.
