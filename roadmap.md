@@ -1,5 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
+## Paul's production app-admin access — 6 November 2026
+- [ ] Identify Paul's existing production website account and compare its current app-admin grants before granting only that account. Blocked on the production website sign-in ID: the connector screenshot reports possible derivation-origin duplication. Existing grant/check workflows target DEV; do not dispatch them as PROD tools.
+
 ## TEST alternative-address assistant identity — 6 November 2026
 - [x] Paul accepted ICP MCP App Operator Terms v1.1 as authorised operator for TEST discovery publication.
 - [x] Prepared DEV-only discovery for ignite-club-launchpad.lovable.app, declaring existing DEV canister identity and exact DEV services; 3 isolation tests passed, local HTTP files verified, preview build OK. No PROD/sign-in changes; public URL still requires TEST publication.
