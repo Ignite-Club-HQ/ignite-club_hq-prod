@@ -46,10 +46,20 @@ import {
 } from "@/lab/hybridHomeRsvpRepository";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
-import { getLiveClubProfile, getLiveTeam, listLiveClubs, listLiveTeams } from "@/live/features/club";
-import { requestLiveRole, listLiveRoleRequests } from "@/live/features/membership";
-import { getLiveMyRoleGrants } from "@/live/features/membership";
-import { isLiveAppAdmin } from "@/live/features/insights";
+import { markStage } from "@/lib/perfStages";
+// ICP feature modules load on first use so the home chunk does not pull the
+// ICP SDK + candid bindings before first paint (see frontend/AGENTS.md entry-chunk rule).
+const getLiveClubProfile: typeof import("@/live/features/club").getLiveClubProfile = (async (...args: unknown[]) => ((await import("@/live/features/club")).getLiveClubProfile as (...a: unknown[]) => unknown)(...args)) as never;
+const getLiveTeam: typeof import("@/live/features/club").getLiveTeam = (async (...args: unknown[]) => ((await import("@/live/features/club")).getLiveTeam as (...a: unknown[]) => unknown)(...args)) as never;
+const listLiveClubs: typeof import("@/live/features/club").listLiveClubs = (async (...args: unknown[]) => ((await import("@/live/features/club")).listLiveClubs as (...a: unknown[]) => unknown)(...args)) as never;
+const listLiveTeams: typeof import("@/live/features/club").listLiveTeams = (async (...args: unknown[]) => ((await import("@/live/features/club")).listLiveTeams as (...a: unknown[]) => unknown)(...args)) as never;
+const requestLiveRole: typeof import("@/live/features/membership").requestLiveRole = (async (...args: unknown[]) => ((await import("@/live/features/membership")).requestLiveRole as (...a: unknown[]) => unknown)(...args)) as never;
+const listLiveRoleRequests: typeof import("@/live/features/membership").listLiveRoleRequests = (async (...args: unknown[]) => ((await import("@/live/features/membership")).listLiveRoleRequests as (...a: unknown[]) => unknown)(...args)) as never;
+const getLiveMyRoleGrants: typeof import("@/live/features/membership").getLiveMyRoleGrants = (async (...args: unknown[]) => ((await import("@/live/features/membership")).getLiveMyRoleGrants as (...a: unknown[]) => unknown)(...args)) as never;
+const isLiveAppAdmin: typeof import("@/live/features/insights").isLiveAppAdmin = (async (...args: unknown[]) => ((await import("@/live/features/insights")).isLiveAppAdmin as (...a: unknown[]) => unknown)(...args)) as never;
+const getLiveClubPointsSettings: typeof import("@/live/features/points").getLiveClubPointsSettings = (async (...args: unknown[]) => ((await import("@/live/features/points")).getLiveClubPointsSettings as (...a: unknown[]) => unknown)(...args)) as never;
+const listLiveMiniLeaguesByClub: typeof import("@/live/features/miniLeagues").listLiveMiniLeaguesByClub = (async (...args: unknown[]) => ((await import("@/live/features/miniLeagues")).listLiveMiniLeaguesByClub as (...a: unknown[]) => unknown)(...args)) as never;
+const listLivePublicMiniLeagues: typeof import("@/live/features/miniLeagues").listLivePublicMiniLeagues = (async (...args: unknown[]) => ((await import("@/live/features/miniLeagues")).listLivePublicMiniLeagues as (...a: unknown[]) => unknown)(...args)) as never;
 import {
   fetchLiveCallerIapPro,
   listLiveClubSubscriptions,
@@ -58,9 +68,7 @@ import {
   liveHasFootballPro,
   resolveLiveProFootballAccess,
 } from "@/live/features/proAccess";
-import { getLiveClubPointsSettings } from "@/live/features/points";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
-import { listLiveMiniLeaguesByClub, listLivePublicMiniLeagues } from "@/live/features/miniLeagues";
 import {
   fetchLiveHomeChildren,
   fetchLiveHomeFeed,

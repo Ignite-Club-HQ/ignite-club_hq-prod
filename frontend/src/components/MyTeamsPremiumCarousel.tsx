@@ -22,7 +22,7 @@ import { format, isToday, isTomorrow, parseISO, differenceInDays } from "date-fn
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { mergeLists, withFeatureBackend } from "@/live/featureRouter";
 import { fetchIcpCarouselItems, type TeamOrLeague } from "@/components/home/icpCarouselItems";
-import { listLiveEvents } from "@/live/features/events";
+const listLiveEvents: typeof import("@/live/features/events").listLiveEvents = (async (...args: unknown[]) => ((await import("@/live/features/events")).listLiveEvents as (...a: unknown[]) => unknown)(...args)) as never;
 import { useCarouselResumeRecovery } from '@/hooks/useCarouselResumeRecovery';
 import { markStage } from "@/lib/perfStages";
 
