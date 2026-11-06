@@ -10,12 +10,15 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { recordLivePerfSample } from "@/live/features/insights";
+import { recordLivePerfSamplesBatch } from "@/live/features/insights";
+import { classifyChatOpen, takeChatOpenBreakdown, type ChatOpenBreakdown } from "./chatOpenTrace";
 import { Capacitor } from "@capacitor/core";
 import { mark as coldMark, snapshotStages, logStagesToConsole, stopLongTaskWindow } from "./coldStartMarks";
 
 export type ChatPerfKind = "dm" | "team" | "club" | "group";
-export type ChatPerfSource = "notification" | "cold_open";
+/** Callers pass notification | cold_open; the logger relabels opens that
+ *  painted from cache (or repeat opens this session) as cached_open. */
+export type ChatPerfSource = "notification" | "cold_open" | "cached_open";
 
 interface LogArgs {
   kind: ChatPerfKind;
@@ -41,8 +44,12 @@ export function isTrueColdOpen(chatMountDeltaMs: number | undefined): boolean {
 export async function logChatOpenLatency(args: LogArgs): Promise<void> {
   try {
     if (!args.userId) return;
+    const renderTs = Date.now();
     // Record the render mark first so the stage snapshot includes it.
     coldMark("chat_render");
+    const openClass = classifyChatOpen(args.targetId, args.source === "notification", args.fromCache);
+    const breakdown = takeChatOpenBreakdown(args.targetId, args.startTs, renderTs);
+    recordBreakdownLocally(args.kind, openClass, breakdown);
     // For cold_open, anchor startTs to the earliest signal we have (notif_tap
     // or performance.timeOrigin / boot) so tap_to_render_ms includes the
     // pre-mount prefix (native webview init, auth resolve, chunk fetch,
@@ -97,7 +104,13 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
       void withFeatureBackend("analytics", {
         supabase: async () => { supabaseInsert(); },
         icp: async (ctx) => {
-          await recordLivePerfSample(ctx, "chat_open", args.source, tap_to_render_ms, args.fromCache, platform);
+          // Legacy surface keeps the tap/launch anchor; chat_open_v2 is the
+          // per-open tap→first-message total with honest cold/cached labels,
+          // and chat_open_stage:* carries the stage split (durations only).
+          await recordLivePerfSamplesBatch(ctx, [
+            { surface: "chat_open", source: args.source, duration_ms: tap_to_render_ms, cache_hit: args.fromCache, platform },
+            ...breakdownSamples(args.kind, openClass, breakdown, args.fromCache, platform),
+          ]);
         },
       }, { shared: "app" }).catch(() => {});
     };
@@ -121,4 +134,26 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
   } catch {
     // ignore
   }
+}
+
+const STAGE_KEYS = ["js_load_ms", "auth_wait_ms", "connect_ms", "authz_fallback_ms", "canister_ms", "render_ms", "enrichment_ms"] as const;
+
+export function breakdownSamples(kind: ChatPerfKind, openClass: string, b: ChatOpenBreakdown, fromCache: boolean, platform: string) {
+  const source = `${kind}:${openClass}:${b.read_path ?? "unknown"}`;
+  const out = [{ surface: "chat_open_v2", source, duration_ms: Math.min(b.total_ms, 600_000), cache_hit: fromCache, platform }];
+  for (const key of STAGE_KEYS) {
+    const v = b[key];
+    if (typeof v === "number") out.push({ surface: `chat_open_stage:${key.replace(/_ms$/, "")}`, source, duration_ms: Math.min(v, 600_000), cache_hit: fromCache, platform });
+  }
+  return out;
+}
+
+/** In-page record for benchmarking (window.__igniteChatOpens); no ids. */
+function recordBreakdownLocally(kind: ChatPerfKind, openClass: string, b: ChatOpenBreakdown) {
+  try {
+    const w = window as unknown as { __igniteChatOpens?: unknown[] };
+    (w.__igniteChatOpens ??= []).push({ kind, open: openClass, ...b });
+    if (w.__igniteChatOpens.length > 200) w.__igniteChatOpens.shift();
+    console.info(`[perf] chat open ${kind}/${openClass}/${b.read_path ?? "?"}: ${b.total_ms}ms`, b);
+  } catch { /* ignore */ }
 }
