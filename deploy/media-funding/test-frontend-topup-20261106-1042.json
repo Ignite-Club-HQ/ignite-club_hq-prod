@@ -1,0 +1,31 @@
+{
+  "plan": {
+    "paymentId": "test-frontend-topup-20261106-1042",
+    "purpose": "top-ups",
+    "groupId": "g1",
+    "principal": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+    "scenario": "top-ups",
+    "testId": "g1",
+    "targetCycles": "4733691669645",
+    "balanceBefore": "5316589184",
+    "shortfallCycles": "4728375080461",
+    "topups": [
+      {
+        "name": "club_domain",
+        "id": "mzzzv-taaaa-aaaal-qxlrq-cai",
+        "cycles": "868582884475",
+        "amount": "2131417115525"
+      },
+      {
+        "name": "frontend",
+        "id": "proe7-kqaaa-aaaas-qg6gq-cai",
+        "cycles": "397925445880",
+        "amount": "2602074554120"
+      }
+    ],
+    "feeCycles": "100000000",
+    "targetT": "3"
+  },
+  "phase": "creating-order",
+  "createdAt": "2026-11-06T10:43:39.594Z"
+}
