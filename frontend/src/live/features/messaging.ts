@@ -3,6 +3,9 @@ import { connectLiveClubDomain, connectLiveMessagingDomain } from "../domains";
 import type { FeatureBackendContext } from "../featureRouter";
 import { candidOpt, unwrapCandid } from "./candid";
 import { batched, groupBy } from "./batching";
+import {
+  traceConnected, traceEnrichmentDone, traceQueryRefused, traceReadDone, traceReadStart, type ChatReadPath,
+} from "@/lib/chatOpenTrace";
 
 type MessagingActor = Awaited<ReturnType<typeof connectLiveMessagingDomain>>["actor"];
 const msgConn = (ctx: FeatureBackendContext) => () => connectLiveMessagingDomain(ctx.target, ctx.identity);
@@ -121,6 +124,50 @@ export async function listLiveMessagesPage(
 // instead of making their own round trips. null = unknown, false = canister
 // predates open_conversation (fall back to separate calls).
 let openConversationSupported: boolean | null = null;
+
+// Quick-read (composite query) first page. Same on-canister checks as the
+// consensus open; any refusal falls back to it. Freshness guards: skip the
+// quick read briefly after this device writes to the chat (a lagging replica
+// could omit the just-sent message), and discard a quick read whose
+// latest_sequence is behind one this device already saw (never regress).
+let openConversationQuerySupported = true;
+export const QUERY_OPEN_WRITE_FENCE_MS = 8_000;
+const recentWrites = new Map<string, number>();
+const seenLatest = new Map<string, bigint>();
+export function noteLiveConversationWrite(conversationId: string, at = Date.now()): void {
+  recentWrites.set(conversationId, at);
+  if (recentWrites.size > 200) recentWrites.delete(recentWrites.keys().next().value as string);
+}
+export function shouldTryQueryOpen(conversationId: string, now = Date.now()): boolean {
+  if (!openConversationQuerySupported) return false;
+  // "*" = a write addressed by message/poll id (conversation unknown here).
+  for (const key of [conversationId, "*"]) {
+    const wrote = recentWrites.get(key);
+    if (wrote !== undefined && now - wrote <= QUERY_OPEN_WRITE_FENCE_MS) return false;
+  }
+  return true;
+}
+function toBig(v: unknown): bigint | null {
+  try { return typeof v === "bigint" ? v : typeof v === "number" ? BigInt(v) : null; } catch { return null; }
+}
+export function noteSeenLatest(conversationId: string, latest: unknown): void {
+  const v = toBig(latest);
+  if (v === null) return;
+  const prev = seenLatest.get(conversationId);
+  if (prev === undefined || v > prev) seenLatest.set(conversationId, v);
+  if (seenLatest.size > 500) seenLatest.delete(seenLatest.keys().next().value as string);
+}
+export function isStaleAgainstSeen(conversationId: string, latest: unknown): boolean {
+  const v = toBig(latest);
+  const prev = seenLatest.get(conversationId);
+  return v === null ? true : prev !== undefined && v < prev;
+}
+/** Sign-out / test reset. */
+export function resetLiveOpenFreshness(): void {
+  recentWrites.clear();
+  seenLatest.clear();
+  openConversationQuerySupported = true;
+}
 const OPEN_BUNDLE_TTL_MS = 10_000;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
 const openBundleCache = new Map<string, { at: number; reactions: LiveReaction[] | null; pins: any[] | null; polls: Map<string, unknown> | null }>();
@@ -167,7 +214,7 @@ export function warmLiveLatestMessagesPage(ctx: FeatureBackendContext, conversat
   page.catch(() => warmLatestPages.delete(key));
   return page;
 }
-export function clearWarmLiveLatestPages(): void { warmLatestPages.clear(); }
+export function clearWarmLiveLatestPages(): void { warmLatestPages.clear(); resetLiveOpenFreshness(); }
 
 export async function listLiveLatestMessagesPage(
   ctx: FeatureBackendContext,
@@ -180,7 +227,8 @@ export async function listLiveLatestMessagesPage(
     const hit = warmLatestPages.get(key);
     warmLatestPages.delete(key);
     if (hit && Date.now() - hit.at < WARM_PAGE_TTL_MS) {
-      try { return (await hit.page) as Awaited<ReturnType<typeof readLatestMessagesPage>>; } catch { /* fall through to a fresh read */ }
+      if (limit > 1) traceReadStart(conversationId);
+      try { const warm = (await hit.page); if (limit > 1) { traceConnected(conversationId); traceReadDone(conversationId, "warm"); } return warm as Awaited<ReturnType<typeof readLatestMessagesPage>>; } catch { /* fall through to a fresh read */ }
     }
   }
   return readLatestMessagesPage(ctx, conversationId, before, limit);
@@ -192,15 +240,47 @@ async function readLatestMessagesPage(
   before: number | null,
   limit: number,
 ) {
+  const traced = before === null && limit > 1;
+  if (traced) traceReadStart(conversationId);
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  if (traced) traceConnected(conversationId);
   if (before === null && openConversationSupported !== false) {
     try {
-      const bundle = await unwrapCandid(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
-        (actor as any).open_conversation(conversationId, limit),
-        "Open conversation",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
-      ) as any;
+      let bundle: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any -- untyped candid actor
+      let path: ChatReadPath = "update";
+      if (shouldTryQueryOpen(conversationId)) {
+        try {
+          bundle = await unwrapCandid(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
+            (actor as any).open_conversation_query(conversationId, limit),
+            "Open conversation",
+          );
+          if (isStaleAgainstSeen(conversationId, bundle?.page?.latest_sequence)) bundle = null;
+          else path = "query";
+        } catch (err) {
+          // Refusals (protected mode, membership authority unreachable or
+          // denied, older canister) all fall through to the consensus read,
+          // which re-applies every check and reports the real outcome.
+          const message = err instanceof Error ? err.message : String(err);
+          if (/has no (?:query |update |composite_query |)method|IC0536|IC0504|is not a function/i.test(message)) {
+            openConversationQuerySupported = false;
+          }
+          bundle = null;
+        }
+        if (!bundle) {
+          if (traced) traceQueryRefused(conversationId);
+          path = "query_refused_update";
+        }
+      }
+      if (!bundle) {
+        bundle = await unwrapCandid(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
+          (actor as any).open_conversation(conversationId, limit),
+          "Open conversation",
+        );
+      }
+      noteSeenLatest(conversationId, bundle?.page?.latest_sequence);
+      if (traced) { traceReadDone(conversationId, path); traceEnrichmentDone(conversationId); }
       openConversationSupported = true;
       const pins = Array.isArray(bundle.pins) && bundle.pins.length > 0 ? bundle.pins[0] : null;
       // Poll results bundled with the page (absent on canisters deployed
@@ -228,7 +308,7 @@ async function readLatestMessagesPage(
     }
   }
   try {
-    return await unwrapCandid(
+    const page = await unwrapCandid(
       actor.list_latest_messages_page(
         conversationId,
         candidOpt(before === null ? undefined : BigInt(before)),
@@ -236,6 +316,9 @@ async function readLatestMessagesPage(
       ),
       "List latest messages",
     );
+    if (before === null) noteSeenLatest(conversationId, (page as { latest_sequence?: unknown }).latest_sequence);
+    if (traced) traceReadDone(conversationId, "update");
+    return page;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // Canisters deployed before this method existed reject the call outright
@@ -285,6 +368,7 @@ export async function sendLiveMessage(
   // (the full address still travels in `url`, which allows 2048 chars).
   const safeBody = body.trim() === "" && attachment ? " " : body;
   const refId = attachment ? await shortCanisterRefId(attachment.refId) : "";
+  noteLiveConversationWrite(conversationId);
   const sent = await unwrapCandid(
     actor.send_message(
       conversationId,
@@ -359,11 +443,13 @@ export async function updateLiveMessage(
   body: string,
 ) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite("*");
   return unwrapCandid(actor.update_message(messageId, body), "Update message");
 }
 
 export async function deleteLiveMessage(ctx: FeatureBackendContext, messageId: string) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite("*");
   return unwrapCandid(actor.delete_message(messageId), "Delete message");
 }
 
@@ -945,6 +1031,7 @@ export async function createLivePoll(
 
 export async function voteLivePoll(ctx: FeatureBackendContext, pollId: string, optionIndex: number) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite("*");
   return unwrapCandid(actor.vote_poll(pollId, optionIndex), "Vote poll");
 }
 
@@ -1049,6 +1136,7 @@ export async function registerLiveAttachmentMetadata(
 
 export async function toggleLiveReaction(ctx: FeatureBackendContext, messageId: string, emoji: string) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite("*");
   return unwrapCandid(actor.toggle_reaction(messageId, emoji), "Toggle reaction");
 }
 
@@ -1194,6 +1282,7 @@ export async function setLiveUserMessagingSettings(
 
 export async function deleteLivePoll(ctx: FeatureBackendContext, pollId: string) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite("*");
   return unwrapCandid(actor.delete_poll(pollId), "Delete poll");
 }
 
@@ -1276,6 +1365,7 @@ export async function pinLiveMessage(
   messageId: string,
 ): Promise<LivePinnedMessage> {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite(conversationId);
   const raw = await unwrapCandid(actor.pin_message(conversationId, messageId), "Pin message");
   return toLivePinnedMessage(raw);
 }
@@ -1286,6 +1376,7 @@ export async function unpinLiveMessage(
   messageId: string,
 ) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  noteLiveConversationWrite(conversationId);
   return unwrapCandid(actor.unpin_message(conversationId, messageId), "Unpin message");
 }
 

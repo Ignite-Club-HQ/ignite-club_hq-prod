@@ -703,7 +703,7 @@ export interface MainInterface {
         stable_bytes: bigint;
         heap_bytes: bigint;
     }>;
-    merge_principal(old: Principal, new_principal: Principal, dry_run: boolean): Promise<{
+    merge_principal(old: Principal, new: Principal, dry_run: boolean): Promise<{
         __kind__: "ok";
         ok: bigint;
     } | {
@@ -726,6 +726,18 @@ export interface MainInterface {
         Err: string;
     }>;
     open_conversation(conversation_id: string, limit: number): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            page: MessagePage;
+            pins?: Array<PinnedMessage>;
+            polls: Array<PollResults>;
+            reactions: Array<Reaction>;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
+    open_conversation_query(conversation_id: string, limit: number): Promise<{
         __kind__: "Ok";
         Ok: {
             page: MessagePage;
@@ -1131,7 +1143,7 @@ export interface MainInterface {
         __kind__: "Err";
         Err: string;
     }>;
-    rekey_principal(old: Principal, new_principal: Principal, dry_run: boolean): Promise<{
+    rekey_principal(old: Principal, new: Principal, dry_run: boolean): Promise<{
         __kind__: "ok";
         ok: bigint;
     } | {
@@ -2469,6 +2481,21 @@ export class Messaging_domain implements messaging_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.open_conversation(arg0, arg1);
+        return from_candid_variant_n93(result);
+    }
+    async open_conversation_query(arg0: string, arg1: number): Promise<{
+        __kind__: "Ok";
+        Ok: {
+            page: MessagePage;
+            pins?: Array<PinnedMessage>;
+            polls: Array<PollResults>;
+            reactions: Array<Reaction>;
+        };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.open_conversation_query(arg0, arg1);
         return from_candid_variant_n93(result);
     }
     async open_private_name_writer_window(arg0: Request): Promise<{

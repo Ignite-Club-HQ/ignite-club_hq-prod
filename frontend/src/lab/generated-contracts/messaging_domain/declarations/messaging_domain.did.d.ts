@@ -550,6 +550,18 @@ export interface Main {
       } |
       { 'Err' : string }
   >,
+  'open_conversation_query' : ActorMethod<
+    [string, number],
+    {
+        'Ok' : {
+          'page' : MessagePage,
+          'pins' : [] | [Array<PinnedMessage>],
+          'polls' : Array<PollResults>,
+          'reactions' : Array<Reaction>,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'open_private_name_writer_window' : ActorMethod<
     [Request],
     { 'Ok' : null } |
