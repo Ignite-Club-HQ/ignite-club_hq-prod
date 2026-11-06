@@ -8,6 +8,7 @@ import { withFeatureBackend } from "@/live/featureRouter";
 import { subscribeToPushNotifications } from "@/lib/pushNotifications";
 import { prefetchUserData } from "@/lib/prefetchData";
 import { clearProfileCache } from "@/lib/profileCache";
+import { markStage, restartSignInStages } from "@/lib/perfStages";
 import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { clearUserScopedCaches } from "@/lib/clearUserScopedCaches";
@@ -1576,7 +1577,13 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       window.removeEventListener("pageshow", onReturn);
     };
   }, [iiSignInReady, principal]);
+  useEffect(() => {
+    if (profileResolved && profile) markStage("profile_resolved");
+  }, [profileResolved, profile]);
   const signInWithIcp = async (): Promise<{ error: Error | null }> => {
+    // Must stay synchronous before signIn() (iOS/popup gesture rules).
+    restartSignInStages();
+    markStage("sign_in_click");
     try {
       // Use the already-preloaded module reference when available so this
       // call chain reaches `signInWithInternetIdentity()` (and, inside it,

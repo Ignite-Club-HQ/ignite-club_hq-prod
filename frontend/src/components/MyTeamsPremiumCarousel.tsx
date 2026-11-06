@@ -24,6 +24,7 @@ import { mergeLists, withFeatureBackend } from "@/live/featureRouter";
 import { fetchIcpCarouselItems, type TeamOrLeague } from "@/components/home/icpCarouselItems";
 import { listLiveEvents } from "@/live/features/events";
 import { useCarouselResumeRecovery } from '@/hooks/useCarouselResumeRecovery';
+import { markStage } from "@/lib/perfStages";
 
 // Render Supabase storage URLs through the image-transform endpoint at a tiny
 // width so the 28×28 avatar thumbnails don't download full-resolution originals.
@@ -1093,8 +1094,14 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   const [hasSettledFetch, setHasSettledFetch] = useState(false);
   useEffect(() => setHasSettledFetch(false), [user?.id, activeClubFilter]);
   useEffect(() => {
-    if (!isLoading && !isFetching && !isError) setHasSettledFetch(true);
+    if (!isLoading && !isFetching && !isError) {
+      setHasSettledFetch(true);
+      markStage("carousel_loaded");
+    }
   }, [isLoading, isFetching, isError]);
+  useEffect(() => {
+    if (sortedItems.length > 0 || renderedCompetitionItems.length > 0) markStage("first_team_card");
+  });
 
   // Persist snapshot for instant cold-start on next visit
   useEffect(() => {
