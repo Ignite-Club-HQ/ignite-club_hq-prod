@@ -1189,7 +1189,7 @@ function SupabaseEditEventPage() {
     } catch (error: any) {
       console.error("Error updating event:", error);
       const failure = classifyEventSaveFailure(error);
-      if (failure === "session_before_send") {
+      if (failure === "session_before_send" && saveStage === "before_send") {
         // Nothing was sent. Keep the form (draft is already on this device)
         // and let the sign-in check decide: a really-ended session goes to
         // sign-in and returns here; a momentary blip just stays put.
