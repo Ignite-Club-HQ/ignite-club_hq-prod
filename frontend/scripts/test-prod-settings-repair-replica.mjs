@@ -22,7 +22,7 @@ const files=Object.fromEntries(['CLUB_DOMAIN','EVENTS_DOMAIN','IDENTITY_ACCESS',
 const server=await PocketIcServer.start({binPath:process.env.POCKET_IC_BIN,ttl:600});
 let pic, primary;
 try {
-  pic=await PocketIc.create(server.getUrl());
+  pic=await PocketIc.create(server.getUrl(),{processingTimeoutMs:180_000});
   const setup=(idlFactory,wasm,extra={})=>pic.setupCanister({idlFactory,wasm,sender:governor,controllers:[governor],arg:IDL.encode([IDL.Principal],[governor]),...extra});
   const identity=await setup(identityIdl,files.IDENTITY_ACCESS,{targetCanisterId:Principal.fromText(PROD_CHECK_IDS.identity_access),environmentVariables:[{name:'IGNITE_BOUND_DELETION_RELEASE',value:'1'}],arg:IDL.encode([IDL.Record({governor:IDL.Principal})],[{governor}])});
   console.log('Local identity installed');
