@@ -1,6 +1,6 @@
 import type { FeatureBackendContext } from "@/live/featureRouter";
 import { getLiveMyRoleGrants } from "@/live/features/membership";
-import { getLiveTeam, getLiveClubProfile } from "@/live/features/club";
+import { getLiveTeam, getLiveClubProfile, getLiveTeamSubscription } from "@/live/features/club";
 import { listMyLiveMiniLeagues, listLiveMiniLeaguesByClub, getLiveMiniLeague } from "@/live/features/miniLeagues";
 
 export interface TeamOrLeague {
@@ -28,30 +28,26 @@ export async function fetchIcpCarouselItems(
     team: [] | [string];
     role: string;
   }[];
-  const teamIds = [...new Set(grants.filter((g) => g.team[0]).map((g) => g.team[0]!))];
+  const teamIds = [...new Set(grants.flatMap((g) => g.team))];
   const leagueAdminClubIds = [...new Set(
-    grants.filter((g) => g.club[0] && g.role === "league_admin").map((g) => g.club[0]!),
+    grants.flatMap((g) => g.role === "league_admin" ? g.club : []),
   )];
 
-  const clubMeta = new Map<string, { name: string; logo_url: string | null; sport: string | null }>();
-  const getClubMeta = async (clubId: string) => {
-    let meta = clubMeta.get(clubId);
-    if (!meta) {
-      try {
-        const opt = (await getLiveClubProfile(ctx, clubId)) as any;
-        const p = Array.isArray(opt) ? opt[0] : opt;
-        meta = { name: p?.name ?? "", logo_url: p?.logo_url?.[0] ?? null, sport: p?.sport ?? null };
-      } catch {
-        meta = { name: "", logo_url: null, sport: null };
-      }
-      clubMeta.set(clubId, meta);
-    }
-    return meta;
+  type ClubMeta = { name: string; logo_url: string | null; sport: string | null };
+  const clubMeta = new Map<string, Promise<ClubMeta>>();
+  const getClubMeta = (clubId: string): Promise<ClubMeta> => {
+    const existing = clubMeta.get(clubId);
+    if (existing) return existing;
+    const pending = getLiveClubProfile(ctx, clubId).then(([p]) => ({
+      name: p?.name ?? "", logo_url: p?.logo_url[0] ?? null, sport: p?.sport ?? null,
+    }), () => ({ name: "", logo_url: null, sport: null }));
+    clubMeta.set(clubId, pending);
+    return pending;
   };
 
   const result: TeamOrLeague[] = [];
 
-  await Promise.all(
+  const teams = Promise.all(
     teamIds.map(async (teamId) => {
       try {
         const raw = (await getLiveTeam(ctx, teamId)) as any;
@@ -63,13 +59,11 @@ export async function fetchIcpCarouselItems(
         const canManage =
           teamRoles.some((g) => ["coach", "team_admin"].includes(g.role)) ||
           clubRoles.some((g) => ["club_admin", "app_admin"].includes(g.role));
-        const meta = await getClubMeta(team.club_id);
-        let isOnTrial = false;
-        try {
-          const { getLiveTeamSubscription } = await import("@/live/features/club");
-          const sub = await getLiveTeamSubscription(ctx, team.id);
-          isOnTrial = !!(sub?.is_pro && sub?.trial_ends_at_ms);
-        } catch { /* subscription row absent — not on trial */ }
+        const [meta, sub] = await Promise.all([
+          getClubMeta(team.club_id),
+          getLiveTeamSubscription(ctx, team.id).catch(() => null),
+        ]);
+        const isOnTrial = !!(sub?.is_pro && sub?.trial_ends_at_ms);
         result.push({
           id: team.id,
           name: team.name,
@@ -90,19 +84,13 @@ export async function fetchIcpCarouselItems(
     }),
   );
 
+  const leagues = (async () => {
   const leagueIds = new Set<string>();
-  try {
-    const mine = (await listMyLiveMiniLeagues(ctx)) as any[];
-    for (const l of mine || []) if (l?.id) leagueIds.add(l.id);
-  } catch (error) { throw error; }
-  await Promise.all(
-    leagueAdminClubIds.map(async (clubId) => {
-      try {
-        const ls = (await listLiveMiniLeaguesByClub(ctx, clubId)) as any[];
-        for (const l of ls || []) if (l?.id) leagueIds.add(l.id);
-      } catch (error) { throw error; }
-    }),
-  );
+  const [mine, byClub] = await Promise.all([
+    listMyLiveMiniLeagues(ctx),
+    Promise.all(leagueAdminClubIds.map(id => listLiveMiniLeaguesByClub(ctx, id))),
+  ]);
+  for (const league of [...mine, ...byClub.flat()]) leagueIds.add(league.id);
   await Promise.all(
     [...leagueIds].map(async (leagueId) => {
       try {
@@ -125,6 +113,10 @@ export async function fetchIcpCarouselItems(
       } catch (error) { throw error; }
     }),
   );
+
+  })();
+  // Failed inventories still reject; never certify an empty carousel.
+  await Promise.all([teams, leagues]);
 
   return result.sort((a, b) => {
     if (a.canManage && !b.canManage) return -1;
