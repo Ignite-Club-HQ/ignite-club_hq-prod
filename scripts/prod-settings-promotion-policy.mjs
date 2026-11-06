@@ -56,7 +56,7 @@ export async function applySettingsPlan(plans, io) {
     if (settingsCommitment((await io.read(p)).environment) !== settingsCommitment(p.next)) throw Error('Settings readback mismatch; stop');
     await io.restart(p);
     const after = await io.read(p);
-    if (after.moduleHash !== p.moduleHash || settingsCommitment(after.environment) !== settingsCommitment(p.next)) throw Error('Restart readback mismatch; stop');
+    if (after.moduleHash !== (p.installHash ?? p.moduleHash) || settingsCommitment(after.environment) !== settingsCommitment(p.next)) throw Error('Restart readback mismatch; stop');
     await io.ack(p);
   }
 }

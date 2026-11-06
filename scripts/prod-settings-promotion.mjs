@@ -54,13 +54,21 @@ async function main() {
     prepare:async p=>{
       await assertRevision();
       let bytes = readFileSync(path.join(env.PROD_SETTINGS_WASM_DIR,p.name));
-      if (wasmHash(bytes) !== p.moduleHash) throw Error('Exact running PROD code unavailable; no settings changed');
+      const builtHash = wasmHash(bytes);
+      if (builtHash !== p.moduleHash) {
+        // Group 2 is never upgraded by merges, so it may run older code. Only
+        // accept the build that the base group is already running (upgraded and
+        // verified earlier in this same run); anything else stops untouched.
+        const base = plans.find(b => b.groupId === 'base' && b.name === p.name);
+        if (p.groupId !== 'g2' || !base || base.moduleHash !== builtHash) throw Error('Exact running PROD code unavailable; no settings changed');
+        p.installHash = builtHash;
+      }
       if(bytes[0]===0x1f&&bytes[1]===0x8b) bytes=gunzipSync(bytes);
       artifacts.set(p.id,bytes);
     },read,
     intent:async p=>{
       await assertRevision();
-      state.pending={kind:'settings-and-exact-code-restart',id:p.id,name:p.name,moduleHash:p.moduleHash,before:settingsCommitment(p.before),after:settingsCommitment(p.next)};
+      state.pending={kind:'settings-and-exact-code-restart',id:p.id,name:p.name,moduleHash:p.installHash ?? p.moduleHash,previousModuleHash:p.moduleHash,before:settingsCommitment(p.before),after:settingsCommitment(p.next)};
       await journal.save(state);
     },
     write:p=>mgmt(p.id).update_settings({canister_id:pid(p.id),settings:{environment_variables:[p.next]}}),
@@ -71,14 +79,14 @@ async function main() {
       const actor=mgmt(p.id),chunks=[];
       for(let offset=0;offset<bytes.length;offset+=1_000_000) chunks.push(await actor.upload_chunk({canister_id:pid(p.id),chunk:bytes.subarray(offset,offset+1_000_000)}));
       const arg = p.name === 'media_blob_store' ? Uint8Array.from(IDL.encode([], [])) : governorArg;
-      await actor.install_chunked_code({mode:{upgrade:[{skip_pre_upgrade:[false],wasm_memory_persistence:[{keep:null}]}]},target_canister:pid(p.id),store_canister:[],chunk_hashes_list:chunks,wasm_module_hash:Buffer.from(p.moduleHash,'hex'),arg,sender_canister_version:[]});
+      await actor.install_chunked_code({mode:{upgrade:[{skip_pre_upgrade:[false],wasm_memory_persistence:[{keep:null}]}]},target_canister:pid(p.id),store_canister:[],chunk_hashes_list:chunks,wasm_module_hash:Buffer.from(p.installHash ?? p.moduleHash,'hex'),arg,sender_canister_version:[]});
     },
     ack:async p=>{state.completed.push(p.id);state.pending=null;await journal.save(state);},
   });
   // Repeat all settings checks, including unchanged group services.
   for(const p of plans) {
     const actual = await read(p);
-    if(actual.moduleHash !== p.moduleHash || settingsCommitment(actual.environment) !== settingsCommitment(p.next)) throw Error('Final PROD settings or module mismatch');
+    if(actual.moduleHash !== (p.installHash ?? p.moduleHash) || settingsCommitment(actual.environment) !== settingsCommitment(p.next)) throw Error('Final PROD settings or module mismatch');
   }
   console.log('PROD settings compatibility checked across both groups; data and separate feature switches retained.');
 }
