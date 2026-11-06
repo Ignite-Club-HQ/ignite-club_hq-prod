@@ -70,6 +70,7 @@ describe("getCurrentInternetIdentity cold-start wait", () => {
   });
 
   it("shares one warm-up across concurrent callers", async () => {
+    localStorage.setItem("ignite_icp_internet_identity_session", STORED_SESSION);
     const mod = await freshModule();
     const [a, b] = await Promise.all([
       mod.getCurrentInternetIdentity(),
@@ -81,11 +82,21 @@ describe("getCurrentInternetIdentity cold-start wait", () => {
   });
 
   it("answers null (bounded) when the warm-up fails", async () => {
+    localStorage.setItem("ignite_icp_internet_identity_session", STORED_SESSION);
     state.constructFails = true;
     const mod = await freshModule();
     const started = Date.now();
     const identity = await mod.getCurrentInternetIdentity();
     expect(identity).toBeNull();
     expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  it("answers null immediately when no sign-in is stored (nothing to wait for)", async () => {
+    const mod = await freshModule();
+    const started = Date.now();
+    const identity = await mod.getCurrentInternetIdentity();
+    expect(identity).toBeNull();
+    expect(Date.now() - started).toBeLessThan(state.constructDelayMs);
+    expect(state.constructed).toBe(0);
   });
 });
