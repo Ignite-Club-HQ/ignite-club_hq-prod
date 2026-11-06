@@ -133,4 +133,5 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Quick-read first page (open_conversation_query) with consensus fallback, write fence and no-regress guard; tests pass.
 - [x] Per-open timing: tap anchor, JS load, auth wait, connect, refused-quick-read, canister, render, enrichment; honest cold_open vs cached_open labels (chat_open_v2 / chat_open_stage:*).
 - [x] Removed DM notification-open double fetch (invalidate no longer aborts the in-flight load).
-- [ ] Deploy messaging service to TEST, then collect phone samples for before/after median and p95 (blocked on TEST deploy + Paul's Android opens).
+- [x] TEST messaging service upgraded (both groups); quick read live on TEST and refuses signed-out callers.
+- [ ] Collect Android before/after samples (waiting on Paul's phone chat opens).
