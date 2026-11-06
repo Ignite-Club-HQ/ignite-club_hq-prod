@@ -4,6 +4,9 @@
   base = "frontend"
   publish = "dist-live"
   command = "node ../scripts/host-build-env.mjs"
+  # Skip pull-request previews: they build main against the live public key,
+  # which host-build-env rightly refuses. Exit 0 = skip, anything else = build.
+  ignore = 'test "$CONTEXT" = "deploy-preview"'
 
 [build.environment]
   NODE_VERSION = "22.12.0"
