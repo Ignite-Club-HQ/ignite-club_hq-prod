@@ -1,6 +1,6 @@
 {
   "canisters": {
-    "identity_access": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
+    "identity_access": "2c3f491b525570d07ab87cb7dd00e1e0059ec636",
     "placement_registry": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "migration_coordinator": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "secret_workload_identity": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
@@ -19,5 +19,5 @@
     "insights_domain": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "shard_router": "58c00a79f20b8254794d102a346b2a6ee3d1f43d"
   },
-  "updatedAt": "2026-11-05T08:53:48.584Z"
+  "updatedAt": "2026-11-06T03:09:38.860Z"
 }
