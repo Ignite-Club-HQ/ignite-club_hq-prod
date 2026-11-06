@@ -2,7 +2,7 @@
 
 ## Paul's production app-admin access — 6 November 2026
 - [x] Paul supplied his exact production website sign-in ID. Prepared production-only check/grant workflow for that login with encrypted existing governor key, bounded existing-account lookup and identity/insights readback; five permission tests passed and workflow YAML validated. No club memberships or identities are changed.
-- [ ] Production read-only check succeeded (run 42174631808); Paul explicitly requested execution and grant run 42174718425 was dispatched from prod. Await its exact-account identity/insights readback. Existing TEST grant/check workflows remain DEV-only.
+- [x] Production read-only check succeeded (run 42174631808); owner-approved grant run 42174718425 completed successfully on prod with exact-account identity admin and both insights admin readbacks enforced. Only Paul's confirmed existing login was granted; no identity links, club memberships or other users changed. Website/assistant session refresh remains Paul's interactive confirmation.
 
 ## TEST alternative-address assistant identity — 6 November 2026
 - [x] Paul accepted ICP MCP App Operator Terms v1.1 as authorised operator for TEST discovery publication.
