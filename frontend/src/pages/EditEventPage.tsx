@@ -1,5 +1,5 @@
 import { mergeLists } from "@/live/featureRouter";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, MapPin, Bell, Calendar, FileText, DollarSign, ClipboardList, Users, UserPlus } from "lucide-react";
@@ -46,6 +46,9 @@ import {
   syncEventDuties,
   updateEventTransaction,
 } from "@/features/events/editEventWorkflow";
+import { clearEventEditDraft, loadEventEditDraft, saveEventEditDraft } from "@/features/events/eventEditDraft";
+import { classifyEventSaveFailure, uncertainSaveBlocksResubmit, type EventSaveStage } from "@/features/events/eventSaveOutcome";
+import { recordEventEditStage, type EventEditKind } from "@/lib/eventEditTrace";
 import { type SavedLocation } from "@/components/AddressAutocomplete";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
 import { EventAudienceSelector } from "@/components/event/EventAudienceSelector";
@@ -245,7 +248,13 @@ function SupabaseEditEventPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const editSeries = searchParams.get('series') === 'true';
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
+  const pageMountedAtRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
+  const populatedForRef = useRef<string | null>(null);
+  const formOpenReportedRef = useRef(false);
+  // Set after a recurring conversion whose outcome could not be confirmed:
+  // re-submitting could create the series twice, so it is blocked here.
+  const [conversionUncertain, setConversionUncertain] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -396,6 +405,21 @@ function SupabaseEditEventPage() {
   const { data: event, isLoading } = useQuery({
     queryKey: ["event-edit", id],
     queryFn: async () => {
+      const loadStartedAt = performance.now();
+      try {
+        return await loadEventForEdit();
+      } finally {
+        recordEventEditStage("details_load", "ordinary", performance.now() - loadStartedAt);
+      }
+    },
+    // A focus refetch (e.g. returning from the sign-in window) must never
+    // overwrite what the member is typing; the form is populated once.
+    refetchOnWindowFocus: false,
+    enabled: !!id,
+  });
+
+  async function loadEventForEdit() {
+    {
       // Internet Identity accounts: the event lives on the events canister,
       // not Supabase — load it in the same shape the detail page uses.
       if (resolveAuthBackend() === "icp") {
@@ -436,9 +460,8 @@ function SupabaseEditEventPage() {
           return { ...data, mini_leagues: league ? { id: league.id, name: league.name } : null };
         },
       }, { eventId: id ?? "" });
-    },
-    enabled: !!id,
-  });
+    }
+  }
 
   // Check if this is a recurring event
   const isRecurring = event?.is_recurring || event?.parent_event_id;
@@ -769,9 +792,11 @@ function SupabaseEditEventPage() {
   }, [isClubLevelAdmin, allClubTeams, userTeams, event, selectedClubId]);
 
 
-  // Populate form with existing data
+  // Populate form with existing data — once per event, then restore any
+  // unsaved draft kept through a sign-in round trip.
   useEffect(() => {
-    if (event) {
+    if (event && populatedForRef.current !== id) {
+      populatedForRef.current = id ?? null;
       setTitle(event.title);
       setType(event.type as EventType);
       setDescription(event.description || "");
@@ -811,8 +836,47 @@ function SupabaseEditEventPage() {
 
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
+
+      const draft = user?.id && id ? loadEventEditDraft<EditEventDraftForm>(user.id, id) : null;
+      if (draft) {
+        applyDraft(draft);
+        toast({ title: "Unsaved changes restored", description: "We kept the changes you made before signing in again. Check them, then tap Save." });
+      }
+      if (!formOpenReportedRef.current) {
+        formOpenReportedRef.current = true;
+        recordEventEditStage("form_open", "ordinary", performance.now() - pageMountedAtRef.current);
+      }
     }
-  }, [event]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event, id, user?.id]);
+
+  const draftForm: EditEventDraftForm = {
+    title, type, eventDateTime, address, description, selectedClubId, selectedTeamId, dutyTeamId,
+    reminderEnabled, reminderHours, price, paidEvent, allowGuests, maxGuestsPerMember,
+    enableRecurring, recurrencePattern, recurrenceInterval, recurrenceDays, recurrenceEndDate,
+    duties, dutiesToDelete, opponent, isBye, arrivalMinutesBefore, rsvpAudience, restrictedRoles,
+    adultsOnly, rsvpGrouping, targetTeamIds,
+  };
+  function applyDraft(d: EditEventDraftForm) {
+    setTitle(d.title); setType(d.type); setEventDateTime(d.eventDateTime); setAddress(d.address);
+    setDescription(d.description); setSelectedClubId(d.selectedClubId); setSelectedTeamId(d.selectedTeamId);
+    setDutyTeamId(d.dutyTeamId); setReminderEnabled(d.reminderEnabled); setReminderHours(d.reminderHours);
+    setPrice(d.price); setPaidEvent(d.paidEvent); setAllowGuests(d.allowGuests); setMaxGuestsPerMember(d.maxGuestsPerMember);
+    setEnableRecurring(d.enableRecurring); setRecurrencePattern(d.recurrencePattern); setRecurrenceInterval(d.recurrenceInterval);
+    setRecurrenceDays(d.recurrenceDays); setRecurrenceEndDate(d.recurrenceEndDate); setDuties(d.duties);
+    setDutiesToDelete(d.dutiesToDelete); setOpponent(d.opponent); setIsBye(d.isBye); setArrivalMinutesBefore(d.arrivalMinutesBefore);
+    setRsvpAudience(d.rsvpAudience); setRestrictedRoles(d.restrictedRoles); setAdultsOnly(d.adultsOnly);
+    setRsvpGrouping(d.rsvpGrouping); setTargetTeamIds(d.targetTeamIds);
+    dutiesRestoredRef.current = true;
+  }
+  const dutiesRestoredRef = useRef(false);
+  const draftJson = JSON.stringify(draftForm);
+  useEffect(() => {
+    // Only after the form holds the event (never save the empty initial form).
+    if (populatedForRef.current !== id || !user?.id || !id) return;
+    const t = setTimeout(() => saveEventEditDraft(user.id, id, JSON.parse(draftJson)), 400);
+    return () => clearTimeout(t);
+  }, [draftJson, id, user?.id]);
 
   useEffect(() => {
     if (!selectedTeamId) {
@@ -825,7 +889,8 @@ function SupabaseEditEventPage() {
 
   // Load existing duties
   useEffect(() => {
-    if (existingDuties) {
+    // A restored draft already carries the member's duty edits.
+    if (existingDuties && !dutiesRestoredRef.current) {
       setDuties(existingDuties.map(d => ({
         id: d.id,
         name: d.name,
