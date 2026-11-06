@@ -25,6 +25,24 @@ activation hold is unchanged.
 
 ### Real replica attempt — 6 November 2026
 
+Retry diagnosis: the existing native host preflight reports Linux 4.19.0-gvisor,
+one recovered write fault, but `writeBit=0` rather than the required `1`.
+This sandbox cannot supply the metadata used by IC memory tracking; increasing
+the installation timeout is not acceptance. The test now refuses before server
+startup on an incompatible host and runs on the separate native GitHub runner
+`[TEST] Check PROD settings repair (isolated)`, with contents-read permission,
+no deployment secrets, no live requests, and four real compiled services.
+The harness also uses the library's actual camelCase management status fields,
+Candid-aware complete-record comparisons, bounded owned-server cleanup, and a
+hash-bound result report. Remote result remains pending; no live acceptance or
+merge readiness is claimed yet. All 42 focused policy/rehearsal/host/cleanup and
+Candid comparison checks passed; workflow YAML and harness syntax are valid.
+The repaired harness produced a hash-bound failed report at host preflight,
+before any replica was started. GitHub returned 404 for the new workflow and its
+runs endpoint while the source was not yet synchronized; no remote execution
+or passing replica result is claimed. The workflow automatically runs when
+these test files reach main, and can also be started manually on main.
+
 Compiled current club_domain/events_domain with moc 1.16.1 and enhanced
 migrations, and identity_access/shard_router with the local Rust Wasm toolchain.
 Created a disposable PocketIC test harness using the actual production settings

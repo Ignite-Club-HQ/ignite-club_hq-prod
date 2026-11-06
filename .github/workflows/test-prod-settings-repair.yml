@@ -1,0 +1,66 @@
+name: "[TEST] Check PROD settings repair (isolated)"
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/test-prod-settings-repair.yml
+      - frontend/scripts/test-prod-settings-repair-replica.mjs
+permissions:
+  contents: read
+jobs:
+  settings-repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Install existing dependencies and pinned tools
+        run: |
+          set -euo pipefail
+          node scripts/ensure-frontend-deps.mjs
+          bun add -g ic-mops@3.5.1
+          mops toolchain use moc 1.16.1
+          (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
+      - name: Check repair policy and isolated test helpers
+        run: |
+          node --test scripts/prod-settings-promotion-policy.test.mjs scripts/prod-settings-promotion-rehearsal.test.mjs scripts/prod-preserve-settings-policy.test.mjs frontend/scripts/removal-host-preflight.test.mjs frontend/scripts/removal-local-supervisor.test.mjs frontend/scripts/account-recovery-candid.test.mjs
+      - name: Check native host before building
+        run: node --input-type=module -e "import {removalHostPreflight} from './frontend/scripts/removal-host-preflight.mjs'; console.log(removalHostPreflight());"
+      - name: Build four real services without deployed mappings
+        run: |
+          set -euo pipefail
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          for d in club_domain events_domain; do
+            (cd backend/$d && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/$d.wasm src/main.mo)
+          done
+          cargo build --locked --release --target wasm32-unknown-unknown -p identity_access -p shard_router
+      - name: Reproduce conflict and verify repaired event access
+        working-directory: frontend
+        env:
+          PROD_SETTINGS_REPLICA_REPORT: ${{ runner.temp }}/prod-settings-replica.json
+        run: |
+          set -euo pipefail
+          export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
+          export CLUB_DOMAIN_WASM="$GITHUB_WORKSPACE/backend/club_domain/.mops/.build/club_domain.wasm"
+          export EVENTS_DOMAIN_WASM="$GITHUB_WORKSPACE/backend/events_domain/.mops/.build/events_domain.wasm"
+          export IDENTITY_ACCESS_WASM="$GITHUB_WORKSPACE/target/wasm32-unknown-unknown/release/identity_access.wasm"
+          export SHARD_ROUTER_WASM="$GITHUB_WORKSPACE/target/wasm32-unknown-unknown/release/shard_router.wasm"
+          timeout --kill-after=5s 640s node scripts/test-prod-settings-repair-replica.mjs
+      - name: Save isolated evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-settings-repair-isolated
+          path: ${{ runner.temp }}/prod-settings-replica.json
+          if-no-files-found: warn
