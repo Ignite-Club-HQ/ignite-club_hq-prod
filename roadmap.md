@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Paul's production app-admin access — 6 November 2026
+- [x] Paul supplied his exact production website sign-in ID. Prepared production-only check/grant workflow for that login with encrypted existing governor key, bounded existing-account lookup and identity/insights readback; five permission tests passed and workflow YAML validated. No club memberships or identities are changed.
+- [ ] Run the read-only check, then the explicitly approved grant and verify production admin access. Blocked on new workflow synchronization to GitHub (main returned 404 during this turn); no production grant has run. Existing TEST grant/check workflows remain DEV-only.
+
 ## TEST alternative-address assistant identity — 6 November 2026
 - [x] Paul accepted ICP MCP App Operator Terms v1.1 as authorised operator for TEST discovery publication.
 - [x] Prepared DEV-only discovery for ignite-club-launchpad.lovable.app, declaring existing DEV canister identity and exact DEV services; 3 isolation tests passed, local HTTP files verified, preview build OK. No PROD/sign-in changes; public URL still requires TEST publication.
