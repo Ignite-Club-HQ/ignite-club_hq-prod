@@ -44,6 +44,11 @@ Fixture records are checked for preservation, but this is not a replica upgrade
 of the application or proof of live data preservation. Signed-in live events
 acceptance remains separate, and is not certified by these rehearsals.
 
+Result: 26/26 executable rehearsal and policy/preservation tests passed; executable
+syntax and workflow YAML validation passed; preview reports build OK. No PROD
+execution or authenticated events acceptance was performed. This evidence alone
+does not certify a break-free live release under the standing production rule.
+
 Focused policy tests cover PROD-only addresses, both groups, preservation,
 dormant-release holds, drift, exact-code preflight and acknowledgments.
 
