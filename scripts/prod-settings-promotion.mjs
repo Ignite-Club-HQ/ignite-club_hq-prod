@@ -42,7 +42,7 @@ async function main() {
   const journal = githubJournal(env,fetch,{branch:'prod-group-setup',path:'prod-group-setup/settings-promotion.json'});
   let state = await journal.load({readOnly:true});
   if (state?.pending) throw Error('Interrupted settings promotion requires read-only review; no replay');
-  state = {source:env.GITHUB_SHA,configurationRevision:page.configuration_revision[0],pending:null,completed:[]};
+  state = {source:env.GITHUB_SHA,configurationRevision:page.configuration_revision[0],pending:null,completed:[],previous:state ?? null};
   const artifacts = new Map();
   const router = Actor.createActor(() => IDL.Service({read_group_registry_page:IDL.Func([IDL.Text,IDL.Opt(IDL.Nat64),IDL.Opt(IDL.Text),IDL.Nat32],[IDL.Variant({Ok:IDL.Record({configuration_revision:IDL.Opt(IDL.Nat64)}),Err:IDL.Text})],[])}),{agent,canisterId:ids.shard_router});
   const assertRevision = async () => {
@@ -70,12 +70,16 @@ async function main() {
       if(!bytes) throw Error('Prepared artifact missing');
       const actor=mgmt(p.id),chunks=[];
       for(let offset=0;offset<bytes.length;offset+=1_000_000) chunks.push(await actor.upload_chunk({canister_id:pid(p.id),chunk:bytes.subarray(offset,offset+1_000_000)}));
-      await actor.install_chunked_code({mode:{upgrade:[{skip_pre_upgrade:[false],wasm_memory_persistence:[{keep:null}]}]},target_canister:pid(p.id),store_canister:[],chunk_hashes_list:chunks,wasm_module_hash:Buffer.from(p.moduleHash,'hex'),arg:governorArg,sender_canister_version:[]});
+      const arg = p.name === 'media_blob_store' ? Uint8Array.from(IDL.encode([], [])) : governorArg;
+      await actor.install_chunked_code({mode:{upgrade:[{skip_pre_upgrade:[false],wasm_memory_persistence:[{keep:null}]}]},target_canister:pid(p.id),store_canister:[],chunk_hashes_list:chunks,wasm_module_hash:Buffer.from(p.moduleHash,'hex'),arg,sender_canister_version:[]});
     },
     ack:async p=>{state.completed.push(p.id);state.pending=null;await journal.save(state);},
   });
   // Repeat all settings checks, including unchanged group services.
-  for(const p of plans) if(matchingProdSettings((await read(p)).environment,ids.identity_access).changed) throw Error('Final PROD settings mismatch');
+  for(const p of plans) {
+    const actual = await read(p);
+    if(actual.moduleHash !== p.moduleHash || settingsCommitment(actual.environment) !== settingsCommitment(p.next)) throw Error('Final PROD settings or module mismatch');
+  }
   console.log('PROD settings compatibility checked across both groups; data and separate feature switches retained.');
 }
 main().catch(()=>{console.error('PROD settings promotion stopped. Check the filtered report and any pending receipt before retrying; no automatic replay.');process.exitCode=1;});

@@ -1,6 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## PROD settings promotion — 5 November 2026
+- [x] Executable offline rehearsal complete: 26 tests passed; reproduced and fixed blob-store upgrade arguments and final unchanged-service drift detection. Workflow YAML valid; no PROD calls. This is not replica/live events acceptance.
 - [x] Built and tested allowlisted PROD settings compatibility across base and g2; preserves data, keys and separately approved feature switches. No PROD execution; exact running artifact required before repair.
 - [ ] Verify authenticated events loading on igniteclubhq.app after the tested promotion reaches prod; requires merged source and an Internet Identity session.
 

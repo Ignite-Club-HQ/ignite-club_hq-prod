@@ -23,6 +23,32 @@ activation hold is unchanged.
 
 ## Verification and remaining limits
 
+### Executable offline rehearsal — 6 November 2026
+
+The actual `check` and `apply` commands run in isolated child processes, using
+real policy, Candid encoding/decoding, Wasm hashing, compressed artifacts and
+report files. Only the routing/network and journal boundaries are substituted;
+no credentials, live calls, paid actions or PROD writes occur.
+
+The rehearsal reproduced two executable defects: the plain persistent photo
+store received a governor argument instead of an empty argument list, and the
+last verification accepted unrelated settings drift on an unchanged receiver.
+Both now have regression tests and fixes. Prior acknowledged journal evidence
+is retained rather than discarded; unresolved intents still stop without replay.
+
+Coverage includes 24-target read-only checks, admission repair, preservation of
+keys and separate switches, identical-module memory-preserving restart, gzip,
+missing artifacts, registry drift, journal failure, pre-existing pending intent,
+settings readback failure, lost restart reply and final unchanged-service drift.
+Fixture records are checked for preservation, but this is not a replica upgrade
+of the application or proof of live data preservation. Signed-in live events
+acceptance remains separate, and is not certified by these rehearsals.
+
+Result: 26/26 executable rehearsal and policy/preservation tests passed; executable
+syntax and workflow YAML validation passed; preview reports build OK. No PROD
+execution or authenticated events acceptance was performed. This evidence alone
+does not certify a break-free live release under the standing production rule.
+
 Focused policy tests cover PROD-only addresses, both groups, preservation,
 dormant-release holds, drift, exact-code preflight and acknowledgments.
 
