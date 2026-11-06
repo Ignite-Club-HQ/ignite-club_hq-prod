@@ -339,6 +339,14 @@ jobs:
           node ../scripts/ensure-frontend-deps.mjs
           node ../scripts/sync-canister-ids.mjs
           npm run build:live
+          # Sign-in and AI-agent discovery files must name the PROD frontend
+          # canister, never the DEV default. A brand-new canister has no ID yet;
+          # its first publication is corrected by the next push.
+          FMAP=../deploy/frontend-prod/.icp/data/mappings/ic.ids.json
+          if [ -f "$FMAP" ]; then
+            export IGNITE_FRONTEND_ENV=prod
+            export FRONTEND_CANISTER_ID="$(jq -r '.frontend' "$FMAP")"
+          fi
           node scripts/prepare-canister-dist.mjs
           rm -rf ../deploy/frontend-prod/dist && cp -r dist-canister ../deploy/frontend-prod/dist
       - name: Restore the PROD governor
