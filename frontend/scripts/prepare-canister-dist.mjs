@@ -52,7 +52,9 @@ writeFileSync(
         // same file) is the members' established identity; listing the
         // canister's own address lets assistants connected through it derive
         // that identity (see ii-derivation-origin below).
-        ...(isProdBuild ? [`https://${frontendCanisterId}.icp0.io`] : []),
+        // igniteclubhq.app is listed too: Internet Identity doesn't need an
+        // origin to list itself, but the ICP connector's check expects it.
+        ...(isProdBuild ? [`https://${frontendCanisterId}.icp0.io`, PROD_MEMBER_II_ORIGIN] : []),
         // DEV Lovable app addresses share the DEV canister's identity
         // (DEV_LOVABLE_ORIGINS in src/live/internetIdentityAuth.ts). Only on
         // the DEV canister: PROD must not admit DEV sites.
