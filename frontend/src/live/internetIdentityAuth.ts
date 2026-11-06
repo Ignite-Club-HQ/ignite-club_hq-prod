@@ -135,10 +135,12 @@ const II_REDIRECT_PENDING_KEY = "ignite_ii_redirect_pending";
 const II_REDIRECT_MAX_AGE_MS = 10 * 60 * 1000;
 const CANISTER_HOST = /^[a-z0-9]{5}(?:-[a-z0-9]{5}){3}-cai\.(?:icp0\.io|raw\.icp0\.io|icp\.net|raw\.icp\.net|ic0\.app|raw\.ic0\.app)$/;
 
-// The live website lists its /auth return address in
-// frontend/public/.well-known/ii-auth-callbacks (served by Netlify), so phones
-// there redirect too. www only 301s to the apex, so it is not listed.
-const REDIRECT_SIGN_IN_HOSTS = new Set(["igniteclubhq.app"]);
+// igniteclubhq.app must NEVER use the redirect: the installed phone apps claim
+// every igniteclubhq.app link (Android App Links / iOS Universal Links), so
+// Internet Identity's return to https://igniteclubhq.app/auth is captured by
+// the app instead of finishing in the browser. The website uses the second-tab
+// sign-in there; only canister addresses (not claimed by any app) redirect.
+const REDIRECT_SIGN_IN_HOSTS = new Set<string>();
 
 export function shouldUseRedirectSignIn(origin: string, userAgent: string, maxTouchPoints = 0): boolean {
   let host: string;
