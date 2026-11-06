@@ -167,6 +167,10 @@ const csp = [
   "media-src 'self' blob:",
 ].join("; ");
 
+// Cache-Control must never come from "/*": rules merge, so hashed /assets/*
+// files were served "no-cache, public, max-age=31536000, immutable". Only the
+// HTML entry points (SPA fallback serves /index.html) and sign-in files
+// revalidate; hashed assets are immutable.
 writeFileSync(
   `${out}/_headers`,
   `/*
@@ -174,6 +178,20 @@ writeFileSync(
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   Content-Security-Policy: ${csp}
+
+/index.html
+  Cache-Control: no-cache
+
+/live-index.html
+  Cache-Control: no-cache
+
+/native-sign-in.html
+  Cache-Control: no-cache
+
+/native-sign-in.js
+  Cache-Control: no-cache
+
+/.well-known/*
   Cache-Control: no-cache
 
 /.well-known/ii-alternative-origins

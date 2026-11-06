@@ -2,7 +2,7 @@
 
 ## Paul's production app-admin access — 6 November 2026
 - [x] Paul supplied his exact production website sign-in ID. Prepared production-only check/grant workflow for that login with encrypted existing governor key, bounded existing-account lookup and identity/insights readback; five permission tests passed and workflow YAML validated. No club memberships or identities are changed.
-- [ ] Run the read-only check, then the explicitly approved grant and verify production admin access. Blocked on new workflow synchronization to GitHub (main returned 404 during this turn); no production grant has run. Existing TEST grant/check workflows remain DEV-only.
+- [x] Production read-only check succeeded (run 42174631808); owner-approved grant run 42174718425 completed successfully on prod with exact-account identity admin and both insights admin readbacks enforced. Only Paul's confirmed existing login was granted; no identity links, club memberships or other users changed. Website/assistant session refresh remains Paul's interactive confirmation.
 
 ## TEST alternative-address assistant identity — 6 November 2026
 - [x] Paul accepted ICP MCP App Operator Terms v1.1 as authorised operator for TEST discovery publication.
@@ -120,3 +120,19 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 
 - [ ] Release hybrid welcome message + profile country (DEV applied 4 Nov) to PROD via main→prod merge; needs PROD Ignite team account (system profile) for welcome message to send.
 - [ ] Merge main→prod to send the approved email sign-up check live (approved-only release; blocked on Paul running the merge). Live check only refuses sign-ups once the live email-club settings entry exists.
+
+## ICP home performance (2026-11-06)
+- [x] Carousel: trial status + club profile read alongside team rows (batched calls); 6-team simulated cold median 2134→1430ms, warm 608→421ms
+- [x] Home feed events already coalesce into list_events_multi per routed target — no change
+- [x] Home/carousel load ICP feature code on demand
+- [x] Canister caching headers no longer contradictory (takes effect next frontend deploy)
+- [x] Startup stage marks (sign-in click → carousel loaded) via window.__igniteStages
+- [ ] Real-device cold/warm median/p95 on TEST — needs Paul signing in with Internet Identity
+
+## Chat open speed (TEST only)
+- [x] Quick-read first page (open_conversation_query) with consensus fallback, write fence and no-regress guard; tests pass.
+- [x] Per-open timing: tap anchor, JS load, auth wait, connect, refused-quick-read, canister, render, enrichment; honest cold_open vs cached_open labels (chat_open_v2 / chat_open_stage:*).
+- [x] Removed DM notification-open double fetch (invalidate no longer aborts the in-flight load).
+- [x] TEST messaging service upgraded (both groups); quick read live on TEST and refuses signed-out callers.
+- [ ] Collect Android before/after samples (waiting on Paul's phone chat opens).
+- [x] Cold chat open fix (2026-11-07): Paul's Speed card showed 13.1s "chat sign-in wait" — screens asked for the identity before the auth client existed and got instant "signed out", stacking fail-and-retry delays. Now getCurrentInternetIdentity waits (bounded 20s) for the shared warm-up when a stored sign-in exists, and App.tsx starts the warm-up alongside the settings load. Deployed to TEST canister 2026-11-07 (bundle live-index-B8dnmdbi.js, fix marker verified in served assets). Awaiting Paul's re-test on Android.

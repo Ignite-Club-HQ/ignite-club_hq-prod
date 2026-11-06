@@ -39,4 +39,17 @@ describe("ICP carousel parallel reads", () => {
     expect(items.map(item => item.id)).toEqual(["team-a", "team-b"]);
     expect(mocks.club).toHaveBeenCalledTimes(1);
   });
+  it("starts the trial read before the team row arrives", async () => {
+    let release: (() => void) | undefined;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    mocks.team.mockImplementation(async () => { await waiting; return [{ id: "team-a", club_id: "club-a", name: "A", deleted_at_ms: [], logo_url: [] }]; });
+    const pending = fetchIcpCarouselItems({} as never, null);
+    try { await vi.waitFor(() => expect(mocks.subscription).toHaveBeenCalledTimes(1), { timeout: 150 }); }
+    finally { release?.(); await pending; }
+  });
+  it("never shows a trial badge for a team the member cannot see", async () => {
+    mocks.team.mockResolvedValue([]);
+    mocks.subscription.mockResolvedValue({ is_pro: true, trial_ends_at_ms: [1] });
+    expect(await fetchIcpCarouselItems({} as never, null)).toEqual([]);
+  });
 });

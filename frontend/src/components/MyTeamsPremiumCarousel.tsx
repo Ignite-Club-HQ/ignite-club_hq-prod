@@ -21,9 +21,10 @@ import { clearMyTeamsCarouselCache } from "@/lib/invalidateTeamLists";
 import { format, isToday, isTomorrow, parseISO, differenceInDays } from "date-fns";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { mergeLists, withFeatureBackend } from "@/live/featureRouter";
-import { fetchIcpCarouselItems, type TeamOrLeague } from "@/components/home/icpCarouselItems";
-import { listLiveEvents } from "@/live/features/events";
+import type { TeamOrLeague } from "@/components/home/icpCarouselItems";
+const listLiveEvents: typeof import("@/live/features/events").listLiveEvents = (async (...args: unknown[]) => ((await import("@/live/features/events")).listLiveEvents as (...a: unknown[]) => unknown)(...args)) as never;
 import { useCarouselResumeRecovery } from '@/hooks/useCarouselResumeRecovery';
+import { markStage } from "@/lib/perfStages";
 
 // Render Supabase storage URLs through the image-transform endpoint at a tiny
 // width so the 28×28 avatar thumbnails don't download full-resolution originals.
@@ -504,7 +505,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
         return withReadDeadline(withFeatureBackend("competitions", {
           // Unreachable: this branch only runs when ICP mode is active.
           supabase: async () => [] as TeamOrLeague[],
-          icp: (ctx) => fetchIcpCarouselItems(ctx, null),
+          icp: async (ctx) => (await import("@/components/home/icpCarouselItems")).fetchIcpCarouselItems(ctx, null),
         }, { everyGroup: true, merge: mergeLists }), "My teams", 12_000, signal);
       }
 
@@ -1093,8 +1094,14 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   const [hasSettledFetch, setHasSettledFetch] = useState(false);
   useEffect(() => setHasSettledFetch(false), [user?.id, activeClubFilter]);
   useEffect(() => {
-    if (!isLoading && !isFetching && !isError) setHasSettledFetch(true);
+    if (!isLoading && !isFetching && !isError) {
+      setHasSettledFetch(true);
+      markStage("carousel_loaded");
+    }
   }, [isLoading, isFetching, isError]);
+  useEffect(() => {
+    if (sortedItems.length > 0 || renderedCompetitionItems.length > 0) markStage("first_team_card");
+  });
 
   // Persist snapshot for instant cold-start on next visit
   useEffect(() => {

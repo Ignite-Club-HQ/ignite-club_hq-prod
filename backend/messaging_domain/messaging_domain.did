@@ -631,6 +631,17 @@ type Main =
           reactions: vec Reaction;
         };
      });
+   open_conversation_query: (conversation_id: text, limit: nat16) ->
+    (variant {
+       Err: text;
+       Ok:
+        record {
+          page: MessagePage;
+          pins: opt vec PinnedMessage;
+          polls: vec PollResults;
+          reactions: vec Reaction;
+        };
+     }) composite_query;
    open_private_name_writer_window: (request: Request) ->
     (variant {
        Err: text;

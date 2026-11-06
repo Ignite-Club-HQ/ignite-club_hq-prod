@@ -1,3 +1,4 @@
+import { markStage } from "@/lib/perfStages";
 import type { Identity } from "@icp-sdk/core/agent";
 import { getActiveIcpTarget, type IcpTargetConfig } from "./targetRegistry";
 import { observePrivateProfilePrincipal, retirePrivateProfileSession } from './privateProfileSession';
@@ -462,7 +463,9 @@ export async function signInWithInternetIdentity(returnTo?: string): Promise<Int
     throw new Error("Internet Identity returned an anonymous principal.");
   }
   const principalText = principal.toText();
+  markStage("identity_complete");
   await provisionInternetIdentityAccount(identity, principalText, target);
+  markStage("account_ready");
   observePrivateProfilePrincipal(principalText);
   return { principal: principalText, provider: "internet-identity" };
 }
@@ -489,7 +492,9 @@ export async function resumeInternetIdentitySession(): Promise<InternetIdentityS
   const principal = identity.getPrincipal();
   if (principal.isAnonymous() || principal.toText() === "2vxsx-fae") return null;
   const principalText = principal.toText();
+  markStage("identity_complete");
   await provisionInternetIdentityAccount(identity, principalText, target);
+  markStage("account_ready");
   observePrivateProfilePrincipal(principalText);
   return { principal: principalText, provider: "internet-identity" };
 }
@@ -500,7 +505,30 @@ export async function resumeInternetIdentitySession(): Promise<InternetIdentityS
  * Feature repositories routed to ICP use this to authenticate canister calls.
  */
 export async function getCurrentInternetIdentity(): Promise<Identity | null> {
-  if (!activeClient) return null;
+  if (!activeClient) {
+    // Cold start: home/chat screens can ask for the identity before the
+    // warm-up effect has finished building the auth client. When this device
+    // holds a stored sign-in, wait for that shared warm-up once (bounded)
+    // instead of answering "signed out" and forcing callers into
+    // fail-and-retry loops — those retries stacked up to ~13s of dead time
+    // on cold chat opens. With no stored sign-in there is nothing to wait
+    // for, so answer null immediately.
+    let hasStoredSession = false;
+    try {
+      hasStoredSession = !!localStorage.getItem("ignite_icp_internet_identity_session");
+    } catch { /* storage blocked */ }
+    if (hasStoredSession) {
+      try {
+        await Promise.race([
+          warmInternetIdentityAuthClient(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Internet Identity warm-up timed out")), 20000),
+          ),
+        ]);
+      } catch { /* no client yet — fall through */ }
+    }
+    if (!activeClient) return null;
+  }
   try {
     // getIdentity() waits for the client's async restore from storage;
     // checking isAuthenticated() first can answer "no" during that window and
