@@ -230,6 +230,33 @@ export default function MessagesPage() {
     })();
     return () => { cancelled = true; };
   }, [useIcpLab, initialized, user, location.search, navigate]);
+  // Secure sign-in: make sure the Ignite welcome DM exists. Signup sends it
+  // once, but accounts created while the service was refusing calls never got
+  // it. The canister keys the welcome by caller, so repeat calls are no-ops.
+  useEffect(() => {
+    if (!useIcpLab || !initialized || !user) return;
+    const guardKey = `ignite_welcome_checked_${user.id}`;
+    try { if (sessionStorage.getItem(guardKey)) return; } catch { /* ignore */ }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [{ fetchWelcomeDmMessage }, { sendLiveWelcomeMessage }] = await Promise.all([
+          import("@/lib/welcomeMessage"),
+          import("@/live/features/messaging"),
+        ]);
+        const body = await fetchWelcomeDmMessage();
+        await withFeatureBackend("messaging", {
+          supabase: async () => {},
+          icp: (ctx) => sendLiveWelcomeMessage(ctx, body),
+        }, { shared: "person" });
+        try { sessionStorage.setItem(guardKey, "1"); } catch { /* ignore */ }
+        if (!cancelled) queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] });
+      } catch (err) {
+        console.warn("[Messages] Welcome DM check failed:", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [useIcpLab, initialized, user, queryClient]);
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     let changed = false;
