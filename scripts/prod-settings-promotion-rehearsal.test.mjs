@@ -78,7 +78,11 @@ export async function readRoutingGate() {
 export function githubJournal(env, fetcher, options) {
   return {load:async()=>{
     calls.push('journal-read:'+options.path);
-    return options.path.endsWith('g2-registration.json') ? f.receipt : (pending ? {pending} : null);
+    // Live layout: every PROD setup receipt (g2 registration included) sits on
+    // the default receipts branch; a read from any other branch finds nothing.
+    const branch = options.branch ?? 'prod-group-setup-receipts';
+    if (options.path.endsWith('g2-registration.json')) return branch === 'prod-group-setup-receipts' ? f.receipt : null;
+    return pending ? {pending} : null;
   },save:async value=>{
     calls.push(value.pending ? 'intent-save' : 'ack-save');
     if(f.scenario === 'journal-failure') throw Error('Journal readback failed');
