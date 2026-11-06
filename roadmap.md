@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Event editing routing warnings (TEST only)
+- [ ] Reproduce and repair edit-form reads of duties, club subscriptions, member roles and saved event locations that still reach Supabase for Internet Identity accounts.
+- [ ] Run routing/privacy regressions; real-phone verification requires Paul's TEST Internet Identity session. No PROD changes.
+
 ## Paul's production app-admin access — 6 November 2026
 - [x] Paul supplied his exact production website sign-in ID. Prepared production-only check/grant workflow for that login with encrypted existing governor key, bounded existing-account lookup and identity/insights readback; five permission tests passed and workflow YAML validated. No club memberships or identities are changed.
 - [x] Production read-only check succeeded (run 42174631808); owner-approved grant run 42174718425 completed successfully on prod with exact-account identity admin and both insights admin readbacks enforced. Only Paul's confirmed existing login was granted; no identity links, club memberships or other users changed. Website/assistant session refresh remains Paul's interactive confirmation.
