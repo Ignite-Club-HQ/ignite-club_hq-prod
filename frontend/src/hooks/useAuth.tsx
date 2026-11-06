@@ -1578,8 +1578,8 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     };
   }, [iiSignInReady, principal]);
   useEffect(() => {
-    if (profileResolved && profile) markStage("profile_resolved");
-  }, [profileResolved, profile]);
+    if (icpProfileResolved && icpProfile) markStage("profile_resolved");
+  }, [icpProfileResolved, icpProfile]);
   const signInWithIcp = async (): Promise<{ error: Error | null }> => {
     // Must stay synchronous before signIn() (iOS/popup gesture rules).
     restartSignInStages();
