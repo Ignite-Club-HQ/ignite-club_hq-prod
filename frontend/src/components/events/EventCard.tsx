@@ -466,9 +466,18 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
   const { data: myDuties } = useQuery({
     queryKey: ["card-my-duties", event.id, user?.id],
     queryFn: async () => {
-      if (isFeatureRoutedToIcp("events")) {
-        return withFeatureBackend("events", {
-          supabase: async () => [] as any[], // unreachable — guarded above
+      // Always dispatch: an Internet Identity member must reach ICP even while
+      // country routing still reads "Supabase" (e.g. right after a delete).
+      return withFeatureBackend("events", {
+          supabase: async () => {
+            const { data, error } = await supabase
+              .from("duties")
+              .select("id, name, start_time, end_time, status")
+              .eq("event_id", event.id)
+              .eq("assigned_to", user!.id);
+            if (error) throw error;
+            return data || [];
+          },
           icp: async (ctx) => {
             const callerText = ctx.identity.getPrincipal().toText();
             const duties = await listLiveDuties(ctx, event.id);
@@ -484,14 +493,6 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
               }));
           },
         }, { eventId: event.id });
-      }
-      const { data, error } = await supabase
-        .from("duties")
-        .select("id, name, start_time, end_time, status")
-        .eq("event_id", event.id)
-        .eq("assigned_to", user!.id);
-      if (error) throw error;
-      return data || [];
     },
     enabled: !!user?.id && !event.is_cancelled,
     staleTime: 60 * 1000,
