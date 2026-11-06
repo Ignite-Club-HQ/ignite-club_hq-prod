@@ -1568,7 +1568,9 @@ async fn live_member_binding(binding:&group_inventory::Binding,recheck:&impl Fn(
         .await.map_err(|_|"Member registry unavailable")?;
     recheck()?;
     let page:Outcome<admission::Page>=reply.candid().map_err(|_|"Invalid member registry reply")?;
-    let revision=page?.revision;
+    advance_member_binding(binding,page?.revision)
+}
+fn advance_member_binding(binding:&group_inventory::Binding,revision:u64) -> Outcome<group_inventory::Binding> {
     if revision<binding.registry_revision {return Err("Member registry drift".into());}
     let mut live=binding.clone();live.registry_revision=revision;Ok(live)
 }
