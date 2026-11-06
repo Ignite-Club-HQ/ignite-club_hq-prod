@@ -74,7 +74,8 @@
       "name": "frontend",
       "amount": "2602074554120",
       "beforeCycles": "397900405338",
-      "phase": "transfer-confirmed"
+      "phase": "verified",
+      "afterCycles": "2999971946174"
     }
   ]
 }
