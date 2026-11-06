@@ -26,7 +26,7 @@
     "feeCycles": "100000000",
     "targetT": "3"
   },
-  "phase": "checkout-ready",
+  "phase": "delivered",
   "createdAt": "2026-11-06T10:43:39.594Z",
   "order": {
     "order_id": "co-121-f7a28e07e0047b56e6ae6f7203eddd48",
@@ -45,5 +45,17 @@
     },
     "estimated_cycles": "4733701793590",
     "expires_at": "2026-11-07T11:43:43Z"
+  },
+  "result": {
+    "order_id": "co-121-f7a28e07e0047b56e6ae6f7203eddd48",
+    "status": "delivered",
+    "cycles_delivered": "4733701792000",
+    "paid": {
+      "currency": "USD",
+      "value": "6.94"
+    },
+    "refunded": null,
+    "detail": null,
+    "balance": "4739018381184"
   }
 }
