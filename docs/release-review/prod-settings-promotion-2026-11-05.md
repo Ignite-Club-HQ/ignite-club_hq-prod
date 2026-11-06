@@ -106,3 +106,5 @@ changing settings rather than silently upgrading or reinstalling that group.
 After merge, inspect the filtered `prod-settings-check` artifact and promotion
 result, then sign in with the affected Internet Identity account and confirm
 teams and events load. A passing sign-in page is not events acceptance.
+## 2026-11-06 live run 42141334879 (merge 53a03bfc)
+Code upgrades succeeded; the settings step stopped before any PROD write (no settings-promotion receipt exists). Cause: the runner read the g2 registration receipt from branch `prod-group-setup`, but every setup receipt lives on `prod-group-setup-receipts`, so the inventory check refused. The offline rehearsal's journal stub ignored branches, which hid it. Fixed: both journals use the default receipts branch, the stub now returns nothing for other branches (reproduced the failure first), and the runner prints a redacted one-line reason. Events and Media stay broken on PROD until the next main→prod merge runs the repair.
