@@ -1,6 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## PROD settings promotion — 5 November 2026
+- [ ] Rehearse the executable promotion offline, including settings/code preservation, readback failures and interrupted runs; no PROD calls.
 - [x] Built and tested allowlisted PROD settings compatibility across base and g2; preserves data, keys and separately approved feature switches. No PROD execution; exact running artifact required before repair.
 - [ ] Verify authenticated events loading on igniteclubhq.app after the tested promotion reaches prod; requires merged source and an Internet Identity session.
 
