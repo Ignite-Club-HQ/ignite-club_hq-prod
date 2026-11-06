@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
-const mocks = vi.hoisted(() => ({ queries: new Map<string, () => Promise<unknown>>(), from: vi.fn(), subscription: vi.fn(), duties: vi.fn(), grants: vi.fn(), profiles: vi.fn(), events: vi.fn() }));
+const mocks = vi.hoisted(() => ({ queries: new Map<string, () => Promise<unknown>>(), scopes: [] as unknown[], from: vi.fn(), subscription: vi.fn(), duties: vi.fn(), grants: vi.fn(), profiles: vi.fn(), events: vi.fn() }));
 const event = { id: 'evt-1', club_id: 'club-1', team_id: 'team-1', type: 'training', title: 'Training', event_date: '2026-11-08T09:00:00Z', teams: { name: 'U12' }, clubs: { name: 'Club' } };
 vi.mock('@tanstack/react-query', async importOriginal => ({
   ...await importOriginal<typeof import('@tanstack/react-query')>(),
@@ -11,7 +11,7 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
 }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'principal-1' } }) }));
 vi.mock('@/live/authBackendMode', () => ({ resolveAuthBackend: () => 'icp' }));
-vi.mock('@/live/featureRouter', () => ({ mergeLists: (p: any[]) => p.flat(), withFeatureBackend: (_f: string, providers: any) => providers.icp({ identity: {}, target: {} }) }));
+vi.mock('@/live/featureRouter', () => ({ mergeLists: (p: any[]) => p.flat(), withFeatureBackend: (_f: string, providers: any, scope: unknown) => { mocks.scopes.push(scope); return providers.icp({ identity: {}, target: {} }); } }));
 vi.mock('@/live/features/club', () => ({ getLiveClubProfile: vi.fn(), listLiveTeams: vi.fn(), getLiveClubSubscription: (...a: any[]) => mocks.subscription(...a) }));
 vi.mock('@/live/features/events', () => ({ listLiveDuties: (...a: any[]) => mocks.duties(...a), listLiveEvents: (...a: any[]) => mocks.events(...a) }));
 vi.mock('@/live/features/membership', () => ({ getLiveMyRoleGrants: vi.fn(), listLiveRoleGrants: (...a: any[]) => mocks.grants(...a), listLiveTeamRoleGrants: (...a: any[]) => mocks.grants(...a) }));
@@ -21,13 +21,13 @@ vi.mock('@/lib/eventEditTrace', () => ({ recordEventEditStage: vi.fn() }));
 import EditEventPage from './EditEventPage';
 
 beforeEach(() => {
-  cleanup(); mocks.queries.clear(); vi.clearAllMocks();
+  cleanup(); mocks.queries.clear(); mocks.scopes.length = 0; vi.clearAllMocks();
   mocks.from.mockImplementation(() => { throw new Error('ICP edit attempted Supabase'); });
   mocks.subscription.mockResolvedValue({ is_pro: true });
   mocks.duties.mockResolvedValue([{ event_id: 'evt-1', account_id: 'principal-1', duty: 'Referee', completed: false }]);
   mocks.grants.mockResolvedValue([{ account_id: 'principal:principal-1', team: ['team-1'] }]);
   mocks.profiles.mockResolvedValue([{ id: 'principal-1', display_name: 'Member', avatar_url: null }]);
-  mocks.events.mockResolvedValue([{ id: 'evt-1', address: ['Oval'], location: [], starts_at_ms: 1n }]);
+  mocks.events.mockResolvedValue([{ id: 'evt-1', address: ['Oval'], location: [], starts_at_ms: 1n, deleted: false }]);
   render(<MemoryRouter initialEntries={['/events/evt-1/edit']}><Routes><Route path='/events/:id/edit' element={<EditEventPage />} /></Routes></MemoryRouter>);
 });
 
@@ -38,5 +38,21 @@ describe('ICP edit supporting reads never reach Supabase', () => {
     if (!entry) return;
     await entry[1]();
     expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.scopes).toEqual([key === 'event-duties' ? { eventId: 'evt-1' } : key === 'event-members-for-duty' ? { teamId: 'team-1' } : { clubId: 'club-1' }]);
+  });
+  it('propagates a denied roster without reading profiles or falling back', async () => {
+    mocks.grants.mockRejectedValue(new Error('Not authorized'));
+    const query = mocks.queries.get(JSON.stringify(['event-members-for-duty', 'club-1', 'team-1']));
+    expect(query).toBeDefined();
+    if (!query) return;
+    await expect(query()).rejects.toThrow('Not authorized');
+    expect(mocks.profiles).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+  it('normalizes roster principals and scopes profile enrichment to the event club', async () => {
+    const query = mocks.queries.get(JSON.stringify(['event-members-for-duty', 'club-1', 'team-1']));
+    if (!query) throw new Error('Missing roster query');
+    expect(await query()).toEqual([{ id: 'principal-1', display_name: 'Member', avatar_url: null }]);
+    expect(mocks.profiles).toHaveBeenCalledWith(expect.anything(), ['principal-1'], { kind: 'club', resource: 'club-1' });
   });
 });
