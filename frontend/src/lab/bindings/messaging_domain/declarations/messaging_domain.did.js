@@ -848,6 +848,21 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
+    'open_conversation_query' : IDL.Func(
+        [IDL.Text, IDL.Nat16],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'page' : MessagePage,
+              'pins' : IDL.Opt(IDL.Vec(PinnedMessage)),
+              'polls' : IDL.Vec(PollResults),
+              'reactions' : IDL.Vec(Reaction),
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
+        ['composite_query'],
+      ),
     'open_private_name_writer_window' : IDL.Func(
         [Request],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
