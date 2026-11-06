@@ -7,10 +7,10 @@
     "pii_access_control": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "timer_jobs": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "club_domain": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
-    "events_domain": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
+    "events_domain": "7a542dcccb25189c5e9066dff126fc872f417f2f",
     "competition_domain": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "mini_league_domain": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
-    "messaging_domain": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
+    "messaging_domain": "7a542dcccb25189c5e9066dff126fc872f417f2f",
     "notification_queue": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "media_metadata": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "media_blob_store": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
@@ -19,5 +19,5 @@
     "insights_domain": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "shard_router": "58c00a79f20b8254794d102a346b2a6ee3d1f43d"
   },
-  "updatedAt": "2026-11-06T03:09:38.860Z"
+  "updatedAt": "2026-11-06T19:46:22.024Z"
 }
