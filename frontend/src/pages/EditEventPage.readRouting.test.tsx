@@ -4,7 +4,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 const mocks = vi.hoisted(() => ({ queries: new Map<string, () => Promise<unknown>>(), from: vi.fn(), subscription: vi.fn(), duties: vi.fn(), grants: vi.fn(), profiles: vi.fn(), events: vi.fn() }));
 const event = { id: 'evt-1', club_id: 'club-1', team_id: 'team-1', type: 'training', title: 'Training', event_date: '2026-11-08T09:00:00Z', teams: { name: 'U12' }, clubs: { name: 'Club' } };
-vi.mock('@tanstack/react-query', () => ({
+vi.mock('@tanstack/react-query', async importOriginal => ({
+  ...await importOriginal<typeof import('@tanstack/react-query')>(),
   useQuery: (options: any) => { mocks.queries.set(JSON.stringify(options.queryKey), options.queryFn); return { data: options.queryKey[0] === 'event-edit' ? event : undefined, isLoading: false }; },
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
