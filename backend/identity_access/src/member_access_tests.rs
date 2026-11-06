@@ -65,4 +65,14 @@ fn production_inventory_requires_exact_24_readers_and_separate_stores() {
     assert!(!readers.contains(&timer));
     groups[1].photo_store=groups[0].photo_store;
     assert!(admission::member_readers(&groups,&placements,&b).is_err());
+}#[test]
+fn member_reads_follow_newer_registry_revision_but_never_older() {
+    let pinned=group_inventory::Binding{registry:Principal::from_slice(&[9,80]),registry_revision:4,target_alias:"mainnet".into(),
+        deployment_id:"prod".into(),deployment_revision:1,host:"https://icp-api.io".into(),network_kind:"public_mainnet".into()};
+    // Opening both groups moved the live PROD registry from 4 to 6.
+    let live=advance_member_binding(&pinned,6).unwrap();
+    assert_eq!(live.registry_revision,6);
+    assert_eq!(live.registry,pinned.registry);assert_eq!(live.deployment_id,pinned.deployment_id);
+    assert_eq!(advance_member_binding(&pinned,4).unwrap().registry_revision,4);
+    assert!(advance_member_binding(&pinned,3).is_err());
 }

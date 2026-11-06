@@ -1540,7 +1540,7 @@ fn member_reader_access(caller:Principal,club_only:bool)->Outcome<admission::Con
     production_account_reads_clear()?;
     Ok(config)
 }
-async fn read_member_inventory(binding:&group_inventory::Binding,recheck:impl Fn()->Outcome<()>) -> Outcome<(Vec<admission::Group>,Vec<group_inventory::Placement>)> {
+async fn read_member_inventory(binding:&group_inventory::Binding,recheck:&impl Fn()->Outcome<()>) -> Outcome<(Vec<admission::Group>,Vec<group_inventory::Placement>)> {
     let mut groups=Vec::new();let mut placements=Vec::new();let mut cursor:Option<String>=None;
     loop {
         recheck()?;
@@ -1559,6 +1559,21 @@ async fn read_member_inventory(binding:&group_inventory::Binding,recheck:impl Fn
         match page.next_cursor {None=>return Ok((groups,placements)),Some(next)=>cursor=Some(next)}
     }
 }
+/// Same registry, alias and deployment as the pin; only a newer revision is
+/// accepted (never older), so a restored/rolled-back registry still fails closed.
+async fn live_member_binding(binding:&group_inventory::Binding,recheck:&impl Fn()->Outcome<()>) -> Outcome<group_inventory::Binding> {
+    recheck()?;
+    let reply=ic_cdk::call::Call::bounded_wait(binding.registry,"read_group_registry_page")
+        .with_args(&(&binding.target_alias,None::<u64>,None::<String>,1u32))
+        .await.map_err(|_|"Member registry unavailable")?;
+    recheck()?;
+    let page:Outcome<admission::Page>=reply.candid().map_err(|_|"Invalid member registry reply")?;
+    advance_member_binding(binding,page?.revision)
+}
+fn advance_member_binding(binding:&group_inventory::Binding,revision:u64) -> Outcome<group_inventory::Binding> {
+    if revision<binding.registry_revision {return Err("Member registry drift".into());}
+    let mut live=binding.clone();live.registry_revision=revision;Ok(live)
+}
 async fn verify_member_reader(caller:Principal,club_only:bool)->Outcome<()> {
     let captured=member_reader_access(caller,club_only)?;
     let binding=group_inventory_binding().ok_or("Member registry not pinned")?;
@@ -1568,10 +1583,13 @@ async fn verify_member_reader(caller:Principal,club_only:bool)->Outcome<()> {
         }
         Ok(())
     };
-    let first=read_member_inventory(&binding,recheck).await?;
-    let second=read_member_inventory(&binding,recheck).await?;
+    // Ordinary reads follow the live registry revision (opening/closing a group
+    // advances it) but still require the exact commissioned reader inventory.
+    let live=live_member_binding(&binding,&recheck).await?;
+    let first=read_member_inventory(&live,&recheck).await?;
+    let second=read_member_inventory(&live,&recheck).await?;
     if first!=second {return Err("Member registry changed".into());}
-    let (readers,clubs)=admission::member_readers(&first.0,&first.1,&binding)?;
+    let (readers,clubs)=admission::member_readers(&first.0,&first.1,&live)?;
     let mut expected_clubs=captured.club_readers.clone();expected_clubs.sort();
     let mut observed_clubs=clubs;observed_clubs.sort();
     if readers!=captured.readers || observed_clubs!=expected_clubs {return Err("Member reader inventory changed".into());}
@@ -1594,8 +1612,8 @@ async fn authorize_production_member_access(binding:group_inventory::Binding)->O
         Ok(())
     };
     review_closed_production_groups(&binding,recheck).await?;
-    let first=read_member_inventory(&binding,recheck).await?;
-    let second=read_member_inventory(&binding,recheck).await?;
+    let first=read_member_inventory(&binding,&recheck).await?;
+    let second=read_member_inventory(&binding,&recheck).await?;
     if first!=second {return Err("Member registry changed".into());}
     let (readers,club_readers)=admission::member_readers(&first.0,&first.1,&binding)?;
     if prior.readers.iter().any(|p|!readers.contains(p)) {return Err("Cannot drop existing member reader".into());}
