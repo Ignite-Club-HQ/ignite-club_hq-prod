@@ -8,6 +8,7 @@ import { readFileSync, existsSync, rmSync, cpSync, writeFileSync, mkdirSync } fr
 import path from "node:path";
 import { ensureFrontendDeps } from "./ensure-frontend-deps.mjs";
 import { syncCanisterIds } from "./sync-canister-ids.mjs";
+import { writeTestAssistantDiscovery } from "./test-assistant-discovery.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const frontendDir = path.join(projectRoot, "frontend");
@@ -98,6 +99,7 @@ const distLive = path.join(frontendDir, "dist-live");
 const distRoot = path.join(projectRoot, "dist");
 rmSync(distRoot, { recursive: true, force: true });
 cpSync(distLive, distRoot, { recursive: true });
+writeTestAssistantDiscovery(distRoot);
 console.log("copied frontend/dist-live -> dist/");
 
 // The live build's HTML entry is live-index.html, but static hosting serves

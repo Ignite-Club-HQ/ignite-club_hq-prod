@@ -1,6 +1,7 @@
 import path from "node:path";
 import { defineConfig } from "vite";
 import { visualizer } from "rollup-plugin-visualizer";
+import { testAssistantDiscoveryFiles } from "../scripts/test-assistant-discovery.mjs";
 // @ts-expect-error plain-JS Netlify function handlers have no type declarations
 // @ts-expect-error plain-JS Netlify function handlers have no type declarations
 import fetchLinkPreviewHandler from "./netlify/functions/fetch-link-preview.mjs";
@@ -61,6 +62,22 @@ export default defineConfig({
     ],
   },
   plugins: [
+    {
+      name: "ignite-test-assistant-discovery",
+      // configureServer is DEV-only; production build assets are unchanged.
+      configureServer(server) {
+        const files = testAssistantDiscoveryFiles();
+        server.middlewares.use((req, res, next) => {
+          const url = (req.url || "/").split("?")[0];
+          const file = files[url as keyof typeof files];
+          if (!file) return next();
+          res.setHeader("Content-Type", file.contentType);
+          res.setHeader("Access-Control-Allow-Origin", "*");
+          res.setHeader("Cache-Control", "no-cache");
+          res.end(file.body);
+        });
+      },
+    },
     {
       // Serves the same-origin /api endpoints in the preview that Netlify
       // Functions serve in production (frontend/netlify/functions/*). Must be

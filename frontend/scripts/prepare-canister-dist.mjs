@@ -24,7 +24,9 @@ writeFileSync(`${out}/_redirects`, "/*  /index.html  200\n");
 // others here — otherwise icp.net and icp0.io give one person two identities.
 // PROD builds must name their own frontend canister: the DEV default here
 // once leaked into PROD's sign-in and AI-agent discovery files.
-if (process.env.IGNITE_FRONTEND_ENV === "prod" && !process.env.FRONTEND_CANISTER_ID) {
+const isProdBuild = process.env.IGNITE_FRONTEND_ENV === "prod";
+const PROD_MEMBER_II_ORIGIN = "https://igniteclubhq.app";
+if (isProdBuild && !process.env.FRONTEND_CANISTER_ID) {
   throw new Error("FRONTEND_CANISTER_ID is required for PROD frontend builds");
 }
 const frontendCanisterId = process.env.FRONTEND_CANISTER_ID || "proe7-kqaaa-aaaas-qg6gq-cai";
@@ -46,6 +48,11 @@ writeFileSync(
         "https://ignite-club-heart.lovable.app",
         "https://pjx2u-tiaaa-aaaac-qhj3a-cai.icp0.io",
         "https://id-preview--4b755d42-e84b-4c9c-a8c7-5afa433410a4.lovable.app",
+        // PROD: igniteclubhq.app (proxied to this canister, so it serves this
+        // same file) is the members' established identity; listing the
+        // canister's own address lets assistants connected through it derive
+        // that identity (see ii-derivation-origin below).
+        ...(isProdBuild ? [`https://${frontendCanisterId}.icp0.io`] : []),
         // DEV Lovable app addresses share the DEV canister's identity
         // (DEV_LOVABLE_ORIGINS in src/live/internetIdentityAuth.ts). Only on
         // the DEV canister: PROD must not admit DEV sites.
@@ -128,7 +135,13 @@ writeFileSync(`${out}/.well-known/ic-architecture`, JSON.stringify(manifest, nul
 // principals against the canonical icp0.io origin (see
 // resolveDerivationOriginFor in src/live/internetIdentityAuth.ts), so agents
 // must request derivations for that origin to get the user's real principal.
-writeFileSync(`${out}/.well-known/ii-derivation-origin`, `https://${frontendCanisterId}.icp0.io\n`);
+// PROD members sign in on igniteclubhq.app (it derives as itself), so PROD
+// agents must request that identity, not the canister's, or they see an
+// empty account. Website/phone sign-in is unchanged.
+writeFileSync(
+  `${out}/.well-known/ii-derivation-origin`,
+  `${isProdBuild ? PROD_MEMBER_II_ORIGIN : `https://${frontendCanisterId}.icp0.io`}\n`,
+);
 
 // The canister must reach the same database the bundle was built against
 // (DEV or PROD); a hardcoded DEV host blocked PROD routing/auth reads.
