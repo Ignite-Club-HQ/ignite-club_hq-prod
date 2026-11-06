@@ -3,6 +3,9 @@ import { connectLiveClubDomain, connectLiveMessagingDomain } from "../domains";
 import type { FeatureBackendContext } from "../featureRouter";
 import { candidOpt, unwrapCandid } from "./candid";
 import { batched, groupBy } from "./batching";
+import {
+  traceConnected, traceEnrichmentDone, traceQueryRefused, traceReadDone, traceReadStart, type ChatReadPath,
+} from "@/lib/chatOpenTrace";
 
 type MessagingActor = Awaited<ReturnType<typeof connectLiveMessagingDomain>>["actor"];
 const msgConn = (ctx: FeatureBackendContext) => () => connectLiveMessagingDomain(ctx.target, ctx.identity);
@@ -121,6 +124,46 @@ export async function listLiveMessagesPage(
 // instead of making their own round trips. null = unknown, false = canister
 // predates open_conversation (fall back to separate calls).
 let openConversationSupported: boolean | null = null;
+
+// Quick-read (composite query) first page. Same on-canister checks as the
+// consensus open; any refusal falls back to it. Freshness guards: skip the
+// quick read briefly after this device writes to the chat (a lagging replica
+// could omit the just-sent message), and discard a quick read whose
+// latest_sequence is behind one this device already saw (never regress).
+let openConversationQuerySupported = true;
+export const QUERY_OPEN_WRITE_FENCE_MS = 8_000;
+const recentWrites = new Map<string, number>();
+const seenLatest = new Map<string, bigint>();
+export function noteLiveConversationWrite(conversationId: string, at = Date.now()): void {
+  recentWrites.set(conversationId, at);
+  if (recentWrites.size > 200) recentWrites.delete(recentWrites.keys().next().value as string);
+}
+export function shouldTryQueryOpen(conversationId: string, now = Date.now()): boolean {
+  if (!openConversationQuerySupported) return false;
+  const wrote = recentWrites.get(conversationId);
+  return wrote === undefined || now - wrote > QUERY_OPEN_WRITE_FENCE_MS;
+}
+function toBig(v: unknown): bigint | null {
+  try { return typeof v === "bigint" ? v : typeof v === "number" ? BigInt(v) : null; } catch { return null; }
+}
+export function noteSeenLatest(conversationId: string, latest: unknown): void {
+  const v = toBig(latest);
+  if (v === null) return;
+  const prev = seenLatest.get(conversationId);
+  if (prev === undefined || v > prev) seenLatest.set(conversationId, v);
+  if (seenLatest.size > 500) seenLatest.delete(seenLatest.keys().next().value as string);
+}
+export function isStaleAgainstSeen(conversationId: string, latest: unknown): boolean {
+  const v = toBig(latest);
+  const prev = seenLatest.get(conversationId);
+  return v === null ? true : prev !== undefined && v < prev;
+}
+/** Sign-out / test reset. */
+export function resetLiveOpenFreshness(): void {
+  recentWrites.clear();
+  seenLatest.clear();
+  openConversationQuerySupported = true;
+}
 const OPEN_BUNDLE_TTL_MS = 10_000;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
 const openBundleCache = new Map<string, { at: number; reactions: LiveReaction[] | null; pins: any[] | null; polls: Map<string, unknown> | null }>();
@@ -317,6 +360,7 @@ export async function sendLiveMessage(
   // (the full address still travels in `url`, which allows 2048 chars).
   const safeBody = body.trim() === "" && attachment ? " " : body;
   const refId = attachment ? await shortCanisterRefId(attachment.refId) : "";
+  noteLiveConversationWrite(conversationId);
   const sent = await unwrapCandid(
     actor.send_message(
       conversationId,
