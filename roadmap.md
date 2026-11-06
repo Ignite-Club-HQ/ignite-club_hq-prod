@@ -1,7 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## ICP home carousel — 6 November 2026
-- [ ] Remove unnecessary serial carousel reads; reproduce with delayed-request tests and rerun relevant home tests. No PROD changes.
+- [x] Removed serial team→league discovery and club→trial waits; shared in-flight club reads. All three delay regressions failed before and passed after; 24 home/carousel tests passed in each backend mode. Preview build OK; no PROD changes.
 - [ ] Verify signed-in ICP carousel on a real device after merge; requires an Internet Identity session/device.
 
 ## PROD settings promotion — 5 November 2026
