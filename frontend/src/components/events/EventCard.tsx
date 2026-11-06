@@ -41,7 +41,13 @@ import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
 import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from "@/lib/eventTypeIcon";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
-import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
+import { isFeatureRoutedToIcp as isRoutedToIcp } from "@/live/loadBackendRouting";
+import { resolveAuthBackend } from "@/live/authBackendMode";
+
+// An Internet Identity member's events always live on ICP, even while
+// country routing is still loading or momentarily reads "Supabase".
+const isFeatureRoutedToIcp = (feature: Parameters<typeof isRoutedToIcp>[0]) =>
+  resolveAuthBackend() === "icp" || isRoutedToIcp(feature);
 import { setLiveEventRsvp, adminUpsertLiveRsvp, setLiveEventCancelled, getLiveMyChildren, getLiveMyChildTeamAssignments, getMyLiveChildRsvps, getLiveGameResult, listLiveMyRsvps, getLiveEventRosterDetailed, listLiveDuties, sendLiveEventReminders } from "@/live/features/events";
 import { resolveLivePiiTextBatch } from "@/live/features/vault";
 import { resolveLiveProAccess } from "@/live/features/proAccess";
