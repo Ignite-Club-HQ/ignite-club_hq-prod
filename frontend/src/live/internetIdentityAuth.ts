@@ -1,3 +1,4 @@
+import { markStage } from "@/lib/perfStages";
 import type { Identity } from "@icp-sdk/core/agent";
 import { getActiveIcpTarget, type IcpTargetConfig } from "./targetRegistry";
 import { observePrivateProfilePrincipal, retirePrivateProfileSession } from './privateProfileSession';
@@ -462,7 +463,9 @@ export async function signInWithInternetIdentity(returnTo?: string): Promise<Int
     throw new Error("Internet Identity returned an anonymous principal.");
   }
   const principalText = principal.toText();
+  markStage("identity_complete");
   await provisionInternetIdentityAccount(identity, principalText, target);
+  markStage("account_ready");
   observePrivateProfilePrincipal(principalText);
   return { principal: principalText, provider: "internet-identity" };
 }
@@ -489,7 +492,9 @@ export async function resumeInternetIdentitySession(): Promise<InternetIdentityS
   const principal = identity.getPrincipal();
   if (principal.isAnonymous() || principal.toText() === "2vxsx-fae") return null;
   const principalText = principal.toText();
+  markStage("identity_complete");
   await provisionInternetIdentityAccount(identity, principalText, target);
+  markStage("account_ready");
   observePrivateProfilePrincipal(principalText);
   return { principal: principalText, provider: "internet-identity" };
 }
