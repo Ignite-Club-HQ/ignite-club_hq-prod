@@ -68,6 +68,13 @@
       "beforeCycles": "855190259448",
       "phase": "verified",
       "afterCycles": "2986553193257"
+    },
+    {
+      "id": "proe7-kqaaa-aaaas-qg6gq-cai",
+      "name": "frontend",
+      "amount": "2602074554120",
+      "beforeCycles": "397900405338",
+      "phase": "transferring"
     }
   ]
 }
