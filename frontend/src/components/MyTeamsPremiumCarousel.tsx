@@ -21,7 +21,7 @@ import { clearMyTeamsCarouselCache } from "@/lib/invalidateTeamLists";
 import { format, isToday, isTomorrow, parseISO, differenceInDays } from "date-fns";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { mergeLists, withFeatureBackend } from "@/live/featureRouter";
-import { fetchIcpCarouselItems, type TeamOrLeague } from "@/components/home/icpCarouselItems";
+import type { TeamOrLeague } from "@/components/home/icpCarouselItems";
 const listLiveEvents: typeof import("@/live/features/events").listLiveEvents = (async (...args: unknown[]) => ((await import("@/live/features/events")).listLiveEvents as (...a: unknown[]) => unknown)(...args)) as never;
 import { useCarouselResumeRecovery } from '@/hooks/useCarouselResumeRecovery';
 import { markStage } from "@/lib/perfStages";
@@ -505,7 +505,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
         return withReadDeadline(withFeatureBackend("competitions", {
           // Unreachable: this branch only runs when ICP mode is active.
           supabase: async () => [] as TeamOrLeague[],
-          icp: (ctx) => fetchIcpCarouselItems(ctx, null),
+          icp: async (ctx) => (await import("@/components/home/icpCarouselItems")).fetchIcpCarouselItems(ctx, null),
         }, { everyGroup: true, merge: mergeLists }), "My teams", 12_000, signal);
       }
 

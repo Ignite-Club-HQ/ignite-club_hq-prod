@@ -50,6 +50,10 @@ export async function fetchIcpCarouselItems(
   const teams = Promise.all(
     teamIds.map(async (teamId) => {
       try {
+        // The trial flag only depends on the team id, so read it alongside the
+        // team row (both coalesce into one get_teams / get_team_subscriptions
+        // call). The result is discarded unless the team itself is visible.
+        const subRead = getLiveTeamSubscription(ctx, teamId).catch(() => null);
         const raw = (await getLiveTeam(ctx, teamId)) as any;
         const team = Array.isArray(raw) ? raw[0] : raw;
         if (!team || team.archived || team.deleted_at_ms?.length) return;
@@ -61,7 +65,7 @@ export async function fetchIcpCarouselItems(
           clubRoles.some((g) => ["club_admin", "app_admin"].includes(g.role));
         const [meta, sub] = await Promise.all([
           getClubMeta(team.club_id),
-          getLiveTeamSubscription(ctx, team.id).catch(() => null),
+          subRead,
         ]);
         const isOnTrial = !!(sub?.is_pro && sub?.trial_ends_at_ms);
         result.push({
