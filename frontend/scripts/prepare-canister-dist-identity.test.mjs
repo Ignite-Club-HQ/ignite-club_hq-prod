@@ -30,6 +30,7 @@ test("PROD assistants derive igniteclubhq.app and the list admits the canister",
   const r = run({ IGNITE_FRONTEND_ENV: "prod", FRONTEND_CANISTER_ID: PROD_ID });
   assert.equal(r.derivation, "https://igniteclubhq.app");
   assert.ok(r.alts.includes(`https://${PROD_ID}.icp0.io`));
+  assert.ok(r.alts.includes("https://igniteclubhq.app"));
   for (const kept of ["https://igniteclubhq.com", "https://www.igniteclubhq.com", "https://ignite-club-heart.lovable.app"]) {
     assert.ok(r.alts.includes(kept), kept);
   }
@@ -40,4 +41,5 @@ test("TEST keeps the DEV canister identity", () => {
   const r = run({});
   assert.equal(r.derivation, "https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io");
   assert.ok(!r.alts.includes("https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io"));
+  assert.ok(!r.alts.includes("https://igniteclubhq.app"));
 });
