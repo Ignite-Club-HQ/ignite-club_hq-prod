@@ -239,7 +239,10 @@ export default function EventsPage() {
   const [showFilters, setShowFilters] = useState(false);
   // How far back (in days) to include past events. Defaults to 30; user can
   // expand on demand via the "Show older events" button on the Past tab.
-  const [pastDaysBack, setPastDaysBack] = useState<number>(30);
+  const [listPastDaysBack, setPastDaysBack] = useState<number>(30);
+  // Calendar view lets members browse earlier months, so it always loads a
+  // full year of past events instead of the list's 30-day default.
+  const pastDaysBack = viewMode === "calendar" ? 365 : listPastDaysBack;
   
   // Track if filters are active
   const hasActiveFilters = clubFilter !== null || teamFilter !== null;
