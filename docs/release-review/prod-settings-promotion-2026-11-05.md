@@ -23,6 +23,20 @@ activation hold is unchanged.
 
 ## Verification and remaining limits
 
+### Real replica attempt — 6 November 2026
+
+Compiled current club_domain/events_domain with moc 1.16.1 and enhanced
+migrations, and identity_access/shard_router with the local Rust Wasm toolchain.
+Created a disposable PocketIC test harness using the actual production settings
+policy and local allocation of the PROD identity address (no live connection).
+The identity install never completed: PocketIC operation polling timed out,
+including with a 180-second processing budget. No conflict/repair assertions
+were reached; the harness is unverified and is not added to promotion CI.
+This attempt is not a passed settings test and does not clear merge readiness.
+No PROD credentials, requests or writes were used. Next verification requires
+a working isolated replica installation, not substituting a mock authority or
+testing uncertain settings against live users.
+
 ### Executable offline rehearsal — 6 November 2026
 
 The actual `check` and `apply` commands run in isolated child processes, using
