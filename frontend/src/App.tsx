@@ -398,6 +398,18 @@ const INITIAL_THEME = getInitialTheme();
 let placementLoad: Promise<void> | null = null;
 function loadPlacementOnce(): Promise<void> {
   placementLoad ??= (async () => {
+    // Start building the Internet Identity client while the settings load,
+    // so a returning member's first home/chat read doesn't wait for it
+    // afterwards. Gated on a stored II session so email-mode devices never
+    // download the sign-in code. Dynamic import keeps it out of the boot
+    // chunk; failures are retried by the auth provider's own warm-up.
+    try {
+      if (localStorage.getItem("ignite_icp_internet_identity_session")) {
+        void import("./live/internetIdentityAuth")
+          .then((m) => m.warmInternetIdentityAuthClient())
+          .catch(() => undefined);
+      }
+    } catch { /* storage blocked */ }
     const [overrides, routing, country] = await Promise.all([
       import("./live/loadIcpAdminOverrides"),
       import("./live/loadBackendRouting"),

@@ -505,7 +505,22 @@ export async function resumeInternetIdentitySession(): Promise<InternetIdentityS
  * Feature repositories routed to ICP use this to authenticate canister calls.
  */
 export async function getCurrentInternetIdentity(): Promise<Identity | null> {
-  if (!activeClient) return null;
+  if (!activeClient) {
+    // Cold start: home/chat screens can ask for the identity before the
+    // warm-up effect has finished building the auth client. Wait for that
+    // shared warm-up once (bounded) instead of answering "signed out" and
+    // forcing callers into fail-and-retry loops — those retries stacked up
+    // to ~13s of dead time on cold chat opens.
+    try {
+      await Promise.race([
+        warmInternetIdentityAuthClient(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Internet Identity warm-up timed out")), 20000),
+        ),
+      ]);
+    } catch { /* no client yet — fall through */ }
+    if (!activeClient) return null;
+  }
   try {
     // getIdentity() waits for the client's async restore from storage;
     // checking isAuthenticated() first can answer "no" during that window and
