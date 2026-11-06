@@ -192,15 +192,47 @@ async function readLatestMessagesPage(
   before: number | null,
   limit: number,
 ) {
+  const traced = before === null && limit > 1;
+  if (traced) traceReadStart(conversationId);
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  if (traced) traceConnected(conversationId);
   if (before === null && openConversationSupported !== false) {
     try {
-      const bundle = await unwrapCandid(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
-        (actor as any).open_conversation(conversationId, limit),
-        "Open conversation",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
-      ) as any;
+      let bundle: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any -- untyped candid actor
+      let path: ChatReadPath = "update";
+      if (shouldTryQueryOpen(conversationId)) {
+        try {
+          bundle = await unwrapCandid(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
+            (actor as any).open_conversation_query(conversationId, limit),
+            "Open conversation",
+          );
+          if (isStaleAgainstSeen(conversationId, bundle?.page?.latest_sequence)) bundle = null;
+          else path = "query";
+        } catch (err) {
+          // Refusals (protected mode, membership authority unreachable or
+          // denied, older canister) all fall through to the consensus read,
+          // which re-applies every check and reports the real outcome.
+          const message = err instanceof Error ? err.message : String(err);
+          if (/has no (?:query |update |composite_query |)method|IC0536|IC0504|is not a function/i.test(message)) {
+            openConversationQuerySupported = false;
+          }
+          bundle = null;
+        }
+        if (!bundle) {
+          if (traced) traceQueryRefused(conversationId);
+          path = "query_refused_update";
+        }
+      }
+      if (!bundle) {
+        bundle = await unwrapCandid(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
+          (actor as any).open_conversation(conversationId, limit),
+          "Open conversation",
+        );
+      }
+      noteSeenLatest(conversationId, bundle?.page?.latest_sequence);
+      if (traced) { traceReadDone(conversationId, path); traceEnrichmentDone(conversationId); }
       openConversationSupported = true;
       const pins = Array.isArray(bundle.pins) && bundle.pins.length > 0 ? bundle.pins[0] : null;
       // Poll results bundled with the page (absent on canisters deployed
