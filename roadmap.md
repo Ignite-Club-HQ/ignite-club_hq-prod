@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## TEST alternative-address assistant identity — 6 November 2026
+- [x] Paul accepted ICP MCP App Operator Terms v1.1 as authorised operator for TEST discovery publication.
+- [ ] Prepare and verify DEV-only discovery at ignite-club-launchpad.lovable.app, declaring existing DEV canister identity and DEV services; no PROD/sign-in changes.
+- [ ] Publish TEST website and compare a fresh ChatGPT/Claude connection against Paul's existing TEST account; external publication and interactive Internet Identity required.
+
 ## ICP home carousel — 6 November 2026
 - [x] Removed serial team→league discovery and club→trial waits; shared in-flight club reads. All three delay regressions failed before and passed after; 24 home/carousel tests passed in each backend mode. Preview build OK; no PROD changes.
 - [ ] Verify signed-in ICP carousel on a real device after merge; requires an Internet Identity session/device.
