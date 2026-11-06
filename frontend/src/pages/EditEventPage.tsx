@@ -929,6 +929,36 @@ function SupabaseEditEventPage() {
   const handleSubmit = async (updateSeries: boolean = false) => {
     // Prevent double-submission while a save is in flight
     if (saving) return;
+    const saveTappedAt = performance.now();
+    const createsEvents = enableRecurring && !isRecurring;
+    const editKind: EventEditKind = createsEvents
+      ? "recurring_conversion"
+      : updateSeries
+        ? "recurring_series"
+        : isRecurring
+          ? "recurring_occurrence"
+          : type === "game" ? "game" : "ordinary";
+    if (createsEvents && conversionUncertain) {
+      toast({
+        title: "Check your events first",
+        description: "We couldn't confirm whether the recurring series was created last time. Open the events list to check before trying again, so it isn't created twice.",
+        variant: "destructive",
+      });
+      return;
+    }
+    let saveStage: EventSaveStage = "before_send";
+    let mainSentAt = 0;
+    let relatedStartedAt = 0;
+    const markMainSent = () => {
+      saveStage = "main_update";
+      mainSentAt = performance.now();
+      recordEventEditStage("save_start", editKind, mainSentAt - saveTappedAt);
+    };
+    const onMainCommitted = () => {
+      relatedStartedAt = performance.now();
+      recordEventEditStage("main_update", editKind, relatedStartedAt - mainSentAt);
+      saveStage = "related_updates";
+    };
     if (!title.trim() || !eventDateTime) {
       toast({
         title: "Missing information",
@@ -1063,7 +1093,9 @@ function SupabaseEditEventPage() {
 
         // Series expansion stays Supabase-only inside the workflow (no
         // canister shape for recurring series expansion).
+        markMainSent();
         const occurrences = await convertEventToRecurringSeries(supabase, {
+          onMainCommitted,
           eventId: id!,
           updates: updateData,
           selectedDate: parsedDateTime,
@@ -1087,7 +1119,9 @@ function SupabaseEditEventPage() {
         // Routed through the hybrid workflow: the whole-series update stays on
         // the transactional RPC (no canister shape); a single-event update goes
         // to the events_domain canister when ICP is the active backend.
+        markMainSent();
         await updateEventTransaction(supabase, {
+          onMainCommitted,
           eventId: id!,
           updates: updateData,
           selectedEventDate: parsedDateTime.toISOString(),
@@ -1098,7 +1132,9 @@ function SupabaseEditEventPage() {
       } else {
         // Just update this single event — the workflow keeps start_time/end_time
         // aligned with the new event_date on both backends.
+        markMainSent();
         await updateEventTransaction(supabase, {
+          onMainCommitted,
           eventId: id!,
           updates: updateData,
           selectedEventDate: parsedDateTime.toISOString(),
@@ -1134,6 +1170,9 @@ function SupabaseEditEventPage() {
       }
 
 
+      if (relatedStartedAt) recordEventEditStage("related_updates", editKind, performance.now() - relatedStartedAt);
+      if (user?.id && id) clearEventEditDraft(user.id, id);
+
       // Event update notifications are now handled automatically by the
       // on_event_updated DB trigger → process-event-notifications edge function
 
@@ -1149,6 +1188,39 @@ function SupabaseEditEventPage() {
 
     } catch (error: any) {
       console.error("Error updating event:", error);
+      const failure = classifyEventSaveFailure(error);
+      if (failure === "session_before_send") {
+        // Nothing was sent. Keep the form (draft is already on this device)
+        // and let the sign-in check decide: a really-ended session goes to
+        // sign-in and returns here; a momentary blip just stays put.
+        if (user?.id && id) saveEventEditDraft(user.id, id, draftForm);
+        toast({
+          title: "Please sign in again",
+          description: "Your sign-in needs renewing. Nothing was saved yet, and your changes are kept on this device — tap Save again after signing in.",
+          variant: "destructive",
+        });
+        void refreshProfile();
+        return;
+      }
+      if (failure === "uncertain" && saveStage === "main_update") {
+        if (uncertainSaveBlocksResubmit(failure, saveStage, createsEvents)) setConversionUncertain(true);
+        toast({
+          title: "We couldn't confirm your save",
+          description: createsEvents
+            ? "The connection dropped before we heard back, so the series may or may not have been created. Check your events list before trying again."
+            : "The connection dropped before we heard back. Your changes are still here — open the event to check, then tap Save again if needed.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (saveStage === "related_updates" && !error?.__dutyStage) {
+        toast({
+          title: "Event saved, some details not saved",
+          description: "Your main event changes were saved, but the duty team or reminder didn't update. Tap Save again to retry them.",
+          variant: "destructive",
+        });
+        return;
+      }
       if (error?.__dutyStage) {
         toast({
           title: "Event saved, duties not saved",
