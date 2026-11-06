@@ -794,7 +794,9 @@ export default function DirectMessagePage() {
   useEffect(() => {
     if (!openedFromNotificationRef.current) return;
     if (!conversationId || !authReady) return;
-    queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+    // cancelRefetch:false joins the mount fetch already in flight instead of
+    // aborting it and paying a second canister round trip on cold opens.
+    queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] }, { cancelRefetch: false });
   }, [conversationId, authReady, queryClient]);
 
   // Belt-and-braces: if the first fetch returned zero messages while auth was
