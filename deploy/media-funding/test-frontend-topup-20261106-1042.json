@@ -66,7 +66,8 @@
       "name": "club_domain",
       "amount": "2131417115525",
       "beforeCycles": "855190259448",
-      "phase": "transfer-confirmed"
+      "phase": "verified",
+      "afterCycles": "2986553193257"
     }
   ]
 }
