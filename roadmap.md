@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Event editing routing warnings (TEST only)
+- [x] Reproduced all four edit-form reads reaching Supabase under Internet Identity; routed duties, club subscriptions, member roles and saved event locations through their existing authorized scoped ICP readers. No mutation, permission or PROD changes.
+- [x] Routing regressions fail before and pass after; added denied-roster/no-fallback and club-scoped profile-enrichment checks. Seven related test files pass in both modes; preview build OK.
+- [ ] Confirm the four warnings no longer recur on Paul's TEST phone after frontend deployment; requires his Internet Identity session/device. These screenshots show routing warnings, not the cancellation member-count failure, which remains unverified.
+
 ## Paul's production app-admin access — 6 November 2026
 - [x] Paul supplied his exact production website sign-in ID. Prepared production-only check/grant workflow for that login with encrypted existing governor key, bounded existing-account lookup and identity/insights readback; five permission tests passed and workflow YAML validated. No club memberships or identities are changed.
 - [x] Production read-only check succeeded (run 42174631808); owner-approved grant run 42174718425 completed successfully on prod with exact-account identity admin and both insights admin readbacks enforced. Only Paul's confirmed existing login was granted; no identity links, club memberships or other users changed. Website/assistant session refresh remains Paul's interactive confirmation.

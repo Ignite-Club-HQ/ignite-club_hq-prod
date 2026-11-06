@@ -63,8 +63,10 @@ import { SeriesEndDateEditor } from "@/components/event/SeriesEndDateEditor";
 import { EventEditScheduleSection } from "@/components/event/EventEditScheduleSection";
 import { eventKeys } from "@/lab/eventQueryKeys";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { getLiveClubProfile, listLiveTeams } from "@/live/features/club";
-import { getLiveMyRoleGrants } from "@/live/features/membership";
+import { getLiveClubProfile, getLiveClubSubscription, listLiveTeams } from "@/live/features/club";
+import { getLiveMyRoleGrants, listLiveRoleGrants, listLiveTeamRoleGrants } from "@/live/features/membership";
+import { listLiveDuties, listLiveEvents } from "@/live/features/events";
+import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { getLiveMiniLeague, listLiveAdmins } from "@/live/features/miniLeagues";
 import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
@@ -564,12 +566,20 @@ function SupabaseEditEventPage() {
   const { data: clubSubscription } = useQuery({
     queryKey: ["club-subscription-edit", event?.club_id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("club_subscriptions")
-        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-        .eq("club_id", event!.club_id)
-        .maybeSingle();
-      return data;
+      const clubId = event?.club_id;
+      if (!clubId) return null;
+      return withFeatureBackend("membership", {
+        supabase: async () => {
+          const { data, error } = await supabase
+            .from("club_subscriptions")
+            .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+            .eq("club_id", clubId)
+            .maybeSingle();
+          if (error) throw error;
+          return data;
+        },
+        icp: ctx => getLiveClubSubscription(ctx, clubId),
+      }, { clubId });
     },
     enabled: !!event?.club_id,
   });
@@ -583,11 +593,23 @@ function SupabaseEditEventPage() {
   const { data: existingDuties } = useQuery({
     queryKey: eventKeys.duties(id),
     queryFn: async () => {
-      const { data } = await supabase
-        .from("duties")
-        .select("id, name, assigned_to, status")
-        .eq("event_id", id!);
-      return data || [];
+      if (!id) return [];
+      return withFeatureBackend("events", {
+        supabase: async () => {
+          const { data, error } = await supabase
+            .from("duties")
+            .select("id, name, assigned_to, status")
+            .eq("event_id", id);
+          if (error) throw error;
+          return data || [];
+        },
+        icp: async ctx => (await listLiveDuties(ctx, id)).map(duty => ({
+          id: `${duty.event_id}:${duty.account_id}:${duty.duty}`,
+          name: duty.duty,
+          assigned_to: duty.account_id || null,
+          status: duty.completed ? "completed" : "open",
+        })),
+      }, { eventId: id });
     },
     enabled: !!id,
   });
@@ -596,15 +618,33 @@ function SupabaseEditEventPage() {
   const { data: members } = useQuery({
     queryKey: ["event-members-for-duty", event?.club_id, event?.team_id],
     queryFn: async () => {
+      const clubId = event?.club_id;
+      if (!clubId) return [];
+      return withFeatureBackend("membership", {
+        icp: async ctx => {
+          const grants = event?.team_id
+            ? await listLiveTeamRoleGrants(ctx, event.team_id)
+            : await listLiveRoleGrants(ctx, clubId);
+          const ids = [...new Set(grants.map(grant => grant.account_id.replace(/^principal:/, "")))];
+          if (!ids.length) return [];
+          const profiles = await readRelationshipProfiles(ctx, ids, { kind: "club", resource: clubId });
+          const byId = new Map(profiles.map(profile => [profile.id.replace(/^principal:/, ""), profile]));
+          return ids.map(memberId => ({
+            id: memberId,
+            display_name: byId.get(memberId)?.display_name || "Member",
+            avatar_url: byId.get(memberId)?.avatar_url ?? null,
+          }));
+        },
+        supabase: async () => {
       // Get members from team if selected, otherwise from club
       const targetId = event?.team_id || event?.club_id;
       const idColumn = event?.team_id ? "team_id" : "club_id";
 
-      const { data: roles } = await supabase
+      const { data: roles, error } = await supabase
         .from("user_roles")
         .select("user_id, profiles!inner(id, display_name, avatar_url)")
         .eq(idColumn, targetId!);
-
+      if (error) throw error;
       if (!roles) return [];
 
       // Deduplicate by user_id
@@ -618,6 +658,8 @@ function SupabaseEditEventPage() {
         display_name: (r.profiles as any)?.display_name || "Unknown",
         avatar_url: (r.profiles as any)?.avatar_url,
       }));
+        },
+      }, event?.team_id ? { teamId: event.team_id } : { clubId });
     },
     enabled: !!event?.club_id,
   });
@@ -626,14 +668,27 @@ function SupabaseEditEventPage() {
   const { data: savedLocations } = useQuery({
     queryKey: ["saved-locations", event?.club_id],
     queryFn: async () => {
-      const { data } = await supabase
+      const clubId = event?.club_id;
+      if (!clubId) return [];
+      const data = await withFeatureBackend("events", {
+        icp: async ctx => (await listLiveEvents(ctx, clubId))
+          .filter(row => !row.deleted && row.address[0])
+          .sort((a, b) => Number(b.starts_at_ms - a.starts_at_ms))
+          .slice(0, 50)
+          .map(row => ({ address: row.address[0] ?? null, suburb: null, state: null, postcode: null })),
+        supabase: async () => {
+      const { data, error } = await supabase
         .from("events")
         .select("address, suburb, state, postcode")
-        .eq("club_id", event!.club_id)
+        .eq("club_id", clubId)
         .not("address", "is", null)
         .neq("address", "")
         .order("event_date", { ascending: false })
         .limit(50);
+      if (error) throw error;
+      return data;
+        },
+      }, { clubId });
 
       if (!data) return [];
 
