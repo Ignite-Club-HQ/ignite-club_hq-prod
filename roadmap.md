@@ -136,3 +136,9 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] TEST messaging service upgraded (both groups); quick read live on TEST and refuses signed-out callers.
 - [ ] Collect Android before/after samples (waiting on Paul's phone chat opens).
 - [x] Cold chat open fix (2026-11-07): Paul's Speed card showed 13.1s "chat sign-in wait" — screens asked for the identity before the auth client existed and got instant "signed out", stacking fail-and-retry delays. Now getCurrentInternetIdentity waits (bounded 20s) for the shared warm-up when a stored sign-in exists, and App.tsx starts the warm-up alongside the settings load. Deployed to TEST canister 2026-11-07 (bundle live-index-B8dnmdbi.js, fix marker verified in served assets). Awaiting Paul's re-test on Android.
+
+## Event edit sign-in safety (TEST only)
+- [x] Trace reauth on edit/save; only a really-ended session returns to sign-in
+- [x] Keep unsaved edit form through sign-in; no auto-retry of uncertain saves; block duplicate series
+- [x] Timings: form open, details load, save start, main save, duties/series (Speed card)
+- [ ] Real-phone check with a valid and an expired session (needs Paul on TEST after next TEST update)

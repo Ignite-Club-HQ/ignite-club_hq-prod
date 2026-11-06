@@ -2,6 +2,7 @@ import { markStage } from "@/lib/perfStages";
 import type { Identity } from "@icp-sdk/core/agent";
 import { getActiveIcpTarget, type IcpTargetConfig } from "./targetRegistry";
 import { observePrivateProfilePrincipal, retirePrivateProfileSession } from './privateProfileSession';
+import type { IcpSessionHealth } from "./icpSessionErrors";
 // NOTE: icpAgent/piiVetKeys are imported lazily at the call sites below so
 // this module — which sits on the boot path via featureRouter/useAuth — does
 // not drag the ICP agent/candid/vetKeys SDKs into the entry chunk.
@@ -559,6 +560,52 @@ export async function getCurrentInternetIdentityConfirmed(attempts = 4, delayMs 
     if (i < attempts - 1) await new Promise((r) => setTimeout(r, delayMs));
   }
   return null;
+}
+
+/**
+ * Distinguishes a session that has really ended (expired, revoked, signed
+ * out, or held only by another origin) from one this device just cannot act
+ * on for a moment (client still waking, delegation being re-minted, identity
+ * swapped mid-call). Only "ended" justifies dropping the member back to the
+ * sign-in screen; "unknown" must be retried, never treated as sign-out.
+ */
+export async function getInternetIdentitySessionHealth(): Promise<IcpSessionHealth> {
+  if (signOutRequested) return "ended";
+  let hasStoredSession = false;
+  try {
+    hasStoredSession = !!localStorage.getItem("ignite_icp_internet_identity_session");
+  } catch { /* storage blocked */ }
+  if (!activeClient) {
+    if (!hasStoredSession) return "ended";
+    try {
+      await Promise.race([
+        warmInternetIdentityAuthClient(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("warm-up timed out")), 20000)),
+      ]);
+    } catch { /* fall through */ }
+    if (!activeClient) return "unknown";
+  }
+  const client = activeClient as InternetIdentityAuthClient & { getStatus?: () => { state: string } };
+  const statusOf = () => {
+    try { return client.getStatus?.().state; } catch { return undefined; }
+  };
+  try {
+    await client.getIdentity();
+  } catch {
+    // SessionNotHeldError etc. Decide from the record, not the throw.
+    const state = statusOf();
+    if (state === "expired" || state === "signed-out" || state === "signed-in-elsewhere") return "ended";
+    return "unknown";
+  }
+  const state = statusOf();
+  if (state !== undefined) {
+    if (state === "signed-in") return "active";
+    if (state === "expired" || state === "signed-out" || state === "signed-in-elsewhere") return "ended";
+    return "unknown";
+  }
+  // Clients without getStatus (native bridge): isAuthenticated is authoritative
+  // once getIdentity has finished restoring.
+  return client.isAuthenticated() ? "active" : "ended";
 }
 
 export async function signOutInternetIdentity(): Promise<void> {

@@ -9,6 +9,7 @@ import { getActiveIcpTarget, type IcpTargetConfig } from "./targetRegistry";
 import { readOwnerTestRouteCached, nextOwnerTestClubId } from './ownerTestRouting';
 import { hasInternetIdentitySessionStored, readAuthChoice } from "./authBackendMode";
 import { reportBlockedFallback } from "./strictIcpTransport";
+import { IcpSessionRequiredError } from "./icpSessionErrors";
 
 /**
  * Runtime dispatcher that connects feature repositories to the hybrid
@@ -81,7 +82,7 @@ export async function withFeatureBackend<T>(
       throw new Error(`The ${feature} connection is not configured. Please report this problem to Ignite.`);
     }
     const identity = await getCurrentInternetIdentityConfirmed(3, 1000);
-    if (!identity) throw new Error("No active Internet Identity session. Sign in again to continue.");
+    if (!identity) throw new IcpSessionRequiredError();
     return dispatchIcp(feature, providers, { identity, target }, scope);
   }
   if (getEffectiveBackendForFeature(feature) !== "icp") {
@@ -106,7 +107,7 @@ export async function withFeatureBackend<T>(
   // Ride out the brief "no session" gap while the session renews itself.
   const identity = await getCurrentInternetIdentityConfirmed(3, 1000);
   if (!identity) {
-    throw new Error(
+    throw new IcpSessionRequiredError(
       `The "${feature}" feature is routed to the Internet Computer backend, ` +
         "but there is no active Internet Identity session. Sign in again to continue.",
     );

@@ -27,6 +27,11 @@ const SURFACES: { label: string; surface: string; table: string; column: string 
   { label: "Startup: home shown", surface: "startup:home_first_paint", table: "", column: "" },
   { label: "Startup: first team card", surface: "startup:first_team_card", table: "", column: "" },
   { label: "Startup: carousel done", surface: "startup:carousel_loaded", table: "", column: "" },
+  { label: "Event edit: form open", surface: "event_edit:form_open", table: "", column: "" },
+  { label: "· event details load", surface: "event_edit:details_load", table: "", column: "" },
+  { label: "· save tap to first write", surface: "event_edit:save_start", table: "", column: "" },
+  { label: "· main event save", surface: "event_edit:main_update", table: "", column: "" },
+  { label: "· duties / series updates", surface: "event_edit:related_updates", table: "", column: "" },
 ];
 
 export function percentileStat(values: number[]): Stat {
