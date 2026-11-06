@@ -1,0 +1,56 @@
+name: "[PROD] Align Paul's app-admin access"
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Check existing permissions or grant the owner-approved exact login"
+        type: choice
+        options: [check, grant]
+        default: check
+      confirmation:
+        description: "Grant requires: GRANT PAUL PROD APP ADMIN"
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  admin:
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+      ADMIN_ACTION: ${{ inputs.action }}
+      ADMIN_CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Test exact-login permission boundaries
+        run: node --test scripts/prod-app-admin-policy.test.mjs
+      - name: Install isolated pinned SDK
+        run: npm install --prefix "$RUNNER_TEMP/prod-admin-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Read or align Paul's existing production account
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export ICP_HOME="$RUNNER_TEMP/prod-admin-key"
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/prod-admin-deps"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          test -n "$PROD_GOVERNOR_PEM_ENC"
+          test -n "$PROD_GOVERNOR_PASSPHRASE"
+          mkdir -p "$ICP_HOME"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
+          rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
+          export CHECK_KEY_PEM="$ICP_HOME/key.pem"
+          node scripts/prod-app-admin.mjs

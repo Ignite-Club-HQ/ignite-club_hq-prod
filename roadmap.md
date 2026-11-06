@@ -1,7 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
 ## Paul's production app-admin access — 6 November 2026
-- [ ] Identify Paul's existing production website account and compare its current app-admin grants before granting only that account. Blocked on the production website sign-in ID: the connector screenshot reports possible derivation-origin duplication. Existing grant/check workflows target DEV; do not dispatch them as PROD tools.
+- [x] Paul supplied his exact production website sign-in ID. Prepared production-only check/grant workflow for that login with encrypted existing governor key, bounded existing-account lookup and identity/insights readback; five permission tests passed and workflow YAML validated. No club memberships or identities are changed.
+- [ ] Run the read-only check, then the explicitly approved grant and verify production admin access. Blocked on new workflow synchronization to GitHub (main returned 404 during this turn); no production grant has run. Existing TEST grant/check workflows remain DEV-only.
 
 ## TEST alternative-address assistant identity — 6 November 2026
 - [x] Paul accepted ICP MCP App Operator Terms v1.1 as authorised operator for TEST discovery publication.
