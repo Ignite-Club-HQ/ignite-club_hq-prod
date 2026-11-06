@@ -14,7 +14,7 @@ async function main() {
   if (!['check','apply'].includes(action)) throw Error('Check or apply required');
   const handles = await readRoutingGate(env, { log: false });
   const { ids, page, agent, Actor, IDL, Principal } = handles;
-  const receipt = await githubJournal(env, fetch, { branch: 'prod-group-setup', path: 'prod-group-setup/g2-registration.json' }).load({readOnly:true});
+  const receipt = await githubJournal(env, fetch, { path: 'prod-group-setup/g2-registration.json', label: 'g2 registration' }).load({readOnly:true});
   const targets = settingsTargets(ids, page, receipt);
   const pid = id => Principal.fromText(id);
   const Env = IDL.Vec(IDL.Record({ name: IDL.Text, value: IDL.Text }));
@@ -39,7 +39,7 @@ async function main() {
   writeFileSync(path.join(env.CHECK_REPORT_DIR,'prod-settings-check.json'),JSON.stringify({source:env.GITHUB_SHA,configurationRevision:page.configuration_revision[0],services:report,dataChanged:false},null,2));
   console.log(JSON.stringify(report));
   if (action === 'check') return;
-  const journal = githubJournal(env,fetch,{branch:'prod-group-setup',path:'prod-group-setup/settings-promotion.json'});
+  const journal = githubJournal(env,fetch,{path:'prod-group-setup/settings-promotion.json',label:'settings promotion'});
   let state = await journal.load({readOnly:true});
   if (state?.pending) throw Error('Interrupted settings promotion requires read-only review; no replay');
   state = {source:env.GITHUB_SHA,configurationRevision:page.configuration_revision[0],pending:null,completed:[],previous:state ?? null};
@@ -82,4 +82,4 @@ async function main() {
   }
   console.log('PROD settings compatibility checked across both groups; data and separate feature switches retained.');
 }
-main().catch(()=>{console.error('PROD settings promotion stopped. Check the filtered report and any pending receipt before retrying; no automatic replay.');process.exitCode=1;});
+main().catch(e=>{console.error(`Reason: ${String(e?.message ?? e).replace(/[A-Za-z0-9+/=_-]{48,}/g,'[redacted]').slice(0,300)}`);console.error('PROD settings promotion stopped. Check the filtered report and any pending receipt before retrying; no automatic replay.');process.exitCode=1;});
