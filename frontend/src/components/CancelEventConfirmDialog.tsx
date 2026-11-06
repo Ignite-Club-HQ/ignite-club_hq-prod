@@ -45,7 +45,7 @@ export function CancelEventConfirmDialog({
   const [customMessage, setCustomMessage] = useState("");
   const [sendPushNotification, setSendPushNotification] = useState(true);
   const keyboardBottomInset = useNativeKeyboardBottomInset();
-  const { memberCount, isLoading, recipientLookupFailed } = useEventCancellationRecipients({
+  const { memberCount, isLoading, recipientLookupFailed, recipientLookupReason } = useEventCancellationRecipients({
     open,
     eventId,
     teamId,
@@ -148,7 +148,7 @@ export function CancelEventConfirmDialog({
             >
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-warning" />
               <span>
-                Recipients could not be verified. You can still cancel this event,
+                Recipients could not be verified{recipientLookupReason ? ` — ${recipientLookupReason}` : "."} You can still cancel this event,
                 but push notifications will not be sent.
               </span>
             </div>

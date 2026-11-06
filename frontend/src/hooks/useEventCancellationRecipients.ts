@@ -23,6 +23,7 @@ export function useEventCancellationRecipients({
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [recipientLookupFailed, setRecipientLookupFailed] = useState(false);
+  const [recipientLookupReason, setRecipientLookupReason] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -37,15 +38,22 @@ export function useEventCancellationRecipients({
     async function fetchMemberCount(reqId: number): Promise<void> {
       setIsLoading(true);
       setRecipientLookupFailed(false);
+      setRecipientLookupReason(null);
       const isCurrent = () => requestIdRef.current === reqId;
 
       try {
         if (resolveAuthBackend() === 'icp') {
           if (!eventId) throw new Error('Missing event ID');
-          const count = await withFeatureBackend('events', {
+          const read = () => withFeatureBackend('events', {
             supabase: async () => 0,
             icp: ctx => readLiveEventCancellationAudience(ctx, eventId),
           }, { eventId });
+          // A read only: one retry absorbs a membership check that raced a
+          // concurrent change ("Event or permission changed").
+          const count = await read().catch(async (first) => {
+            if (!isCurrent()) throw first;
+            return read();
+          });
           if (isCurrent()) setMemberCount(count);
           return;
         }
@@ -113,11 +121,24 @@ export function useEventCancellationRecipients({
         if (!isCurrent()) return;
         setMemberCount(null);
         setRecipientLookupFailed(true);
+        setRecipientLookupReason(describeRecipientLookupFailure(error));
       } finally {
         if (isCurrent()) setIsLoading(false);
       }
     }
   }, [open, eventId, teamId, clubId, miniLeagueId]);
 
-  return { memberCount, isLoading, recipientLookupFailed };
+  return { memberCount, isLoading, recipientLookupFailed, recipientLookupReason };
+}
+
+/** Plain-English reason for the cancel dialog; raw text stays in the console. */
+export function describeRecipientLookupFailure(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  if (/management forbidden|permission changed/i.test(raw)) return "Your coach or admin role for this team couldn't be confirmed.";
+  if (/not found/i.test(raw)) return "This event couldn't be found on the club's service.";
+  if (/authority unavailable|membership unavailable|audience unavailable|authority required/i.test(raw)) return "The club's member list couldn't be reached.";
+  if (/exceeds bound|exceeds 500/i.test(raw)) return "This team has too many members to check here.";
+  if (/locked|fenced|capacity/i.test(raw)) return "The club is temporarily locked for maintenance.";
+  if (/Internet Identity|sign-?in|session/i.test(raw)) return "Your sign-in needs refreshing.";
+  return "The member check didn't respond.";
 }
