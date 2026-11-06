@@ -15,6 +15,18 @@ const SURFACES: { label: string; surface: string; table: string; column: string 
   { label: "Chat open", surface: "chat_open", table: "chat_open_perf", column: "tap_to_render_ms" },
   { label: "Schedule open", surface: "schedule_open", table: "schedule_open_perf", column: "tap_to_paint_ms" },
   { label: "Live updates", surface: "realtime", table: "realtime_perf_samples", column: "latency_ms" },
+  { label: "Chat: tap to first message", surface: "chat_open_v2", table: "", column: "" },
+  { label: "· chat sign-in wait", surface: "chat_open_stage:auth_wait", table: "", column: "" },
+  { label: "· chat connecting", surface: "chat_open_stage:connect", table: "", column: "" },
+  { label: "· chat service reply", surface: "chat_open_stage:canister", table: "", column: "" },
+  { label: "· chat quick-read refused", surface: "chat_open_stage:authz_fallback", table: "", column: "" },
+  { label: "· chat loading code", surface: "chat_open_stage:js_load", table: "", column: "" },
+  { label: "· chat drawing", surface: "chat_open_stage:render", table: "", column: "" },
+  { label: "Startup: identity done", surface: "startup:identity_complete", table: "", column: "" },
+  { label: "Startup: profile ready", surface: "startup:profile_resolved", table: "", column: "" },
+  { label: "Startup: home shown", surface: "startup:home_first_paint", table: "", column: "" },
+  { label: "Startup: first team card", surface: "startup:first_team_card", table: "", column: "" },
+  { label: "Startup: carousel done", surface: "startup:carousel_loaded", table: "", column: "" },
 ];
 
 export function percentileStat(values: number[]): Stat {
@@ -56,7 +68,7 @@ async function loadAll(): Promise<Row[]> {
   const sinceIso = new Date(since).toISOString();
   return Promise.all(SURFACES.map(async (s) => ({
     label: s.label,
-    supabase: await loadSupabase(s.table, s.column, sinceIso),
+    supabase: s.table ? await loadSupabase(s.table, s.column, sinceIso) : null,
     icp: await loadIcp(s.surface, since, until),
   })));
 }
