@@ -2,7 +2,7 @@
 
 ## TEST alternative-address assistant identity — 6 November 2026
 - [x] Paul accepted ICP MCP App Operator Terms v1.1 as authorised operator for TEST discovery publication.
-- [ ] Prepare and verify DEV-only discovery at ignite-club-launchpad.lovable.app, declaring existing DEV canister identity and DEV services; no PROD/sign-in changes.
+- [x] Prepared DEV-only discovery for ignite-club-launchpad.lovable.app, declaring existing DEV canister identity and exact DEV services; 3 isolation tests passed, local HTTP files verified, preview build OK. No PROD/sign-in changes; public URL still requires TEST publication.
 - [ ] Publish TEST website and compare a fresh ChatGPT/Claude connection against Paul's existing TEST account; external publication and interactive Internet Identity required.
 
 ## ICP home carousel — 6 November 2026
