@@ -22,6 +22,11 @@ writeFileSync(`${out}/_redirects`, "/*  /index.html  200\n");
 // https://<id>.icp0.io (see resolveDerivationOriginFor in
 // src/live/internetIdentityAuth.ts), so the canonical address must list the
 // others here — otherwise icp.net and icp0.io give one person two identities.
+// PROD builds must name their own frontend canister: the DEV default here
+// once leaked into PROD's sign-in and AI-agent discovery files.
+if (process.env.IGNITE_FRONTEND_ENV === "prod" && !process.env.FRONTEND_CANISTER_ID) {
+  throw new Error("FRONTEND_CANISTER_ID is required for PROD frontend builds");
+}
 const frontendCanisterId = process.env.FRONTEND_CANISTER_ID || "proe7-kqaaa-aaaas-qg6gq-cai";
 mkdirSync(`${out}/.well-known`, { recursive: true });
 writeFileSync(
