@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback, useMemo, type Context } from "react";
 import { markMountedAuthProvider } from "@/live/authBackendMode";
-import type { User, Session } from "@supabase/supabase-js";
+import { User, Session } from "@supabase/supabase-js";
 import { useQueryClient, onlineManager } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
+import { subscribeToPushNotifications } from "@/lib/pushNotifications";
+import { prefetchUserData } from "@/lib/prefetchData";
 import { clearProfileCache } from "@/lib/profileCache";
-import { markStage, restartSignInStages, finishStartupAttempt } from "@/lib/perfStages";
+import { markStage, restartSignInStages } from "@/lib/perfStages";
 import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { clearUserScopedCaches } from "@/lib/clearUserScopedCaches";
@@ -17,6 +19,7 @@ import { mark as coldMark } from "@/lib/coldStartMarks";
 import { navigateApp } from "@/lib/appNavigator";
 
 
+import { syncPasskeyAccountsFromDatabase } from "@/hooks/usePasskey";
 import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
 import { fetchUnreadMessageCounts, getTotalUnreadMessageCount } from "@/lib/unreadMessageCounts";
 import { markProfileCompleted } from "@/components/InviteFlowProgress";
@@ -450,13 +453,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchProfile(userId, 5, false).catch(() => {});
         // Prefetch other data
         setTimeout(() => {
-          void import("@/lib/prefetchData").then(m => m.prefetchUserData(queryClient, userId)).catch(console.error);
+          prefetchUserData(queryClient, userId).catch(console.error);
           fetchUnreadCount(userId).catch(console.error);
           const email = currentSession.user.email;
           const displayName = currentSession.user.user_metadata?.full_name || 
                              currentSession.user.user_metadata?.name;
           if (email) {
-            void import("@/hooks/usePasskey").then(m => m.syncPasskeyAccountsFromDatabase(userId, email, displayName)).catch(console.error);
+            syncPasskeyAccountsFromDatabase(userId, email, displayName).catch(console.error);
           }
         }, 100);
         return;
@@ -541,14 +544,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // Background prefetch - fire and forget
       setTimeout(() => {
-        void import("@/lib/prefetchData").then(m => m.prefetchUserData(queryClient, userId)).catch(console.error);
+        prefetchUserData(queryClient, userId).catch(console.error);
         fetchUnreadCount(userId).catch(console.error);
         // Sync passkey accounts from database to restore any lost localStorage data
         const email = sessionForBackgroundTasks.user.email;
         const displayName = sessionForBackgroundTasks.user.user_metadata?.full_name || 
                            sessionForBackgroundTasks.user.user_metadata?.name;
         if (email) {
-          void import("@/hooks/usePasskey").then(m => m.syncPasskeyAccountsFromDatabase(userId, email, displayName)).catch(console.error);
+          syncPasskeyAccountsFromDatabase(userId, email, displayName).catch(console.error);
         }
       }, 100);
       } finally {
@@ -976,7 +979,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       try {
         // Use silent mode - don't prompt, just subscribe if already permitted
-        const { subscribeToPushNotifications } = await import("@/lib/pushNotifications");
         const result = await subscribeToPushNotifications(user.id, true);
         if (result.success) {
           console.log('[Auth] Push notifications enabled on login');
@@ -1328,10 +1330,12 @@ export function useOptionalAuth(): AuthContextType | null {
 /** Local ICP session seam for staged frontend migration work. */
 /** Bounds a canister/client wait so a hung call can never spin a screen forever. */
 function withIcpTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Internet Identity request timed out")), ms);
-    promise.then(resolve, reject).finally(() => clearTimeout(timer)).catch(() => {});
-  });
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Internet Identity request timed out")), ms),
+    ),
+  ]);
 }
 
 export function IcpAuthProvider({ children, persona = "member" }: { children: ReactNode; persona?: string }) {
@@ -1374,7 +1378,6 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
   // from. Drives the "unable to load / retry" screen instead of an endless
   // spinner or a wrong redirect to profile completion.
   const [icpProfileError, setIcpProfileError] = useState(false);
-  const [verifiedPrincipal, setVerifiedPrincipal] = useState<string | null>(null);
   const icpProfileRequestRef = useRef(0);
   // The localStorage session said "signed in" but the Internet Identity
   // delegation underneath is gone (expired or cleared): drop the stale
@@ -1410,8 +1413,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     // member's own rows (events, chats, posts) show their name before the
     // background unlock completes.
     if (cached?.displayName) {
-      const name = cached.displayName;
-      void import("@/live/ownPrivateName").then((m) => m.rememberOwnPrivateName(principal, name)).catch(() => undefined);
+      void import("@/live/ownPrivateName").then((m) => m.rememberOwnPrivateName(principal, cached.displayName!)).catch(() => undefined);
     }
     setIcpProfileResolved(knownCachedIcpProfile(cached));
     setIcpNamePending(Boolean(cached && !cached.displayName && knownCachedIcpProfile(cached)));
@@ -1444,9 +1446,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
           }
           return;
         }
-        if (identity.getPrincipal().toText() !== principal) throw Error("Internet Identity session account changed");
-        if (!cancelled && icpProfileRequestRef.current === requestId) setVerifiedPrincipal(principal);
-        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal, undefined, { essentialOnly: true }), 45000);
+        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal), 45000);
         if (!cancelled && icpProfileRequestRef.current === requestId) {
           setIcpProfile(fetched);
           setIcpNamePending(false);
@@ -1455,7 +1455,6 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
         }
       } catch (error) {
         console.warn("[Auth] ICP identity profile fetch failed:", error);
-        finishStartupAttempt(/timed out/i.test(String(error)) ? "timed_out" : "failed");
         // Keep rendering from cache when there is one; with no cache, surface
         // the retry screen (AppLayout auto-retries via refreshProfile()).
         if (!cancelled && icpProfileRequestRef.current === requestId && !knownCachedIcpProfile(getCachedIcpIdentityProfile(principal))) {
@@ -1588,8 +1587,8 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     };
   }, [iiSignInReady, principal]);
   useEffect(() => {
-    if (icpProfileResolved && icpProfile && verifiedPrincipal === principal) markStage("profile_resolved");
-  }, [icpProfileResolved, icpProfile, verifiedPrincipal, principal]);
+    if (icpProfileResolved && icpProfile) markStage("profile_resolved");
+  }, [icpProfileResolved, icpProfile]);
   const signInWithIcp = async (): Promise<{ error: Error | null }> => {
     // Must stay synchronous before signIn() (iOS/popup gesture rules).
     restartSignInStages();
@@ -1606,10 +1605,8 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       );
       localStorage.setItem("ignite_icp_internet_identity_session", JSON.stringify(nextSession));
       setSession(nextSession);
-      setVerifiedPrincipal(nextSession.principal);
       return { error: null };
     } catch (error) {
-      finishStartupAttempt(/timed out/i.test(String(error)) ? "timed_out" : "failed");
       return { error: error instanceof Error ? error : new Error("Internet Identity sign-in failed.") };
     }
   };
@@ -1618,11 +1615,11 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     session: null as Session | null,
     profile,
     loading: false,
-    profileLoading: Boolean(principal) && (!icpProfileResolved || verifiedPrincipal !== principal),
+    profileLoading: Boolean(principal) && !icpProfileResolved,
     profileError: icpProfileError,
     initialized: true,
     sessionRestoration: principal ? "authenticated" as const : "signed_out" as const,
-    profileResolved: !principal || (icpProfileResolved && verifiedPrincipal === principal),
+    profileResolved: !principal || icpProfileResolved,
     profileNamePending: Boolean(principal) && icpNamePending && !icpDisplayName,
     unreadCount: 0,
     unreadMessagesCount: 0,
@@ -1716,7 +1713,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
           await clearDeadIcpSession();
           return;
         }
-        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal, undefined, { essentialOnly: true }), 45000);
+        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal), 45000);
         if (signingOutRef.current || requestId !== icpProfileRequestRef.current) return;
         setIcpProfile(fetched);
         setIcpProfileResolved(true);

@@ -22,7 +22,6 @@ export interface TeamOrLeague {
 export async function fetchIcpCarouselItems(
   ctx: FeatureBackendContext,
   activeClubFilter: string | null,
-  onProgress?: (items: TeamOrLeague[]) => void,
 ): Promise<TeamOrLeague[]> {
   const grants = (await getLiveMyRoleGrants(ctx)) as unknown as {
     club: [] | [string];
@@ -67,25 +66,23 @@ export async function fetchIcpCarouselItems(
         const canManage =
           teamRoles.some((g) => ["coach", "team_admin"].includes(g.role)) ||
           clubRoles.some((g) => ["club_admin", "app_admin"].includes(g.role));
-        // Only the authorized team row and grants are required for navigation.
-        // Brand metadata/trial badges arrive later without extra requests.
-        const card: TeamOrLeague = {
+        const [meta, sub] = await Promise.all([
+          getClubMeta(team.club_id),
+          subRead,
+        ]);
+        const isOnTrial = !!(sub?.is_pro && sub?.trial_ends_at_ms);
+        result.push({
           id: team.id,
           name: team.name,
           logo_url: team.logo_url?.[0] ?? null,
-          club_logo_url: null,
+          club_logo_url: meta.logo_url,
           type: "team",
-          club_name: "",
-          sport: null,
+          club_name: meta.name,
+          sport: meta.sport,
           club_id: team.club_id,
           canManage,
-        };
-        result.push(card);
-        onProgress?.(result.map(item => ({ ...item })));
-        const [meta, sub] = await Promise.all([getClubMeta(team.club_id), subRead]);
-        Object.assign(card, { club_logo_url: meta.logo_url, club_name: meta.name,
-          sport: meta.sport, isOnTrial: !!(sub?.is_pro && sub?.trial_ends_at_ms) });
-        onProgress?.(result.map(item => ({ ...item })));
+          isOnTrial,
+        });
       } catch (error) {
         // Absence is the successful null row above. A failed resumed request
         // must not certify an empty inventory or discard existing cards.
@@ -120,7 +117,6 @@ export async function fetchIcpCarouselItems(
           club_id: league.club_id,
           canManage: leagueAdminClubIds.includes(league.club_id),
         });
-        onProgress?.(result.map(item => ({ ...item })));
       } catch (error) { throw error; }
     }),
   );

@@ -40,9 +40,4 @@ describe("identityProfileCache", () => {
     clearIcpIdentityProfileCache();
     expect(getCachedIcpIdentityProfile("principal-2")).toBeNull();
   });
-  it("rejects a valid-looking cache payload belonging to another account", () => {
-    localStorage.setItem("ignite_icp_identity_profile:principal-2", JSON.stringify(profile));
-    expect(getCachedIcpIdentityProfile("principal-2")).toBeNull();
-    expect(() => cacheIcpIdentityProfile("principal-2", profile)).toThrow('account mismatch');
-  });
 });

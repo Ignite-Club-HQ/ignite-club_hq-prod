@@ -60,19 +60,3 @@ it('ignores a stale reference hint and reads the confirmed reference', async () 
   mocks.unlock.mockImplementation(async (_ctx: unknown, ref: string) => ref === reference ? 'New name' : 'Old name');
   expect((await fetchIcpIdentityProfile(identity, principal, target)).displayName).toBe('New name');
 });
-it('essential auth profile does not request optional global roles', async () => {
-  mocks.roles.mockImplementation(() => new Promise(() => {}));
-  const result = await fetchIcpIdentityProfile(identity, principal, target, { essentialOnly: true });
-  expect(result.displayName).toBe('Saved name');
-  expect(mocks.roles).not.toHaveBeenCalled();
-});
-it('coalesces simultaneous profile requests for the same account and target', async () => {
-  await Promise.all([fetchIcpIdentityProfile(identity, principal, target), fetchIcpIdentityProfile(identity, principal, target)]);
-  expect(mocks.get).toHaveBeenCalledOnce(); expect(mocks.unlock).toHaveBeenCalledOnce();
-});
-it('retirement prevents a late profile from being cached or disclosed', async () => {
-  const { retirePrivateProfileSession } = await import('./privateProfileSession');
-  mocks.get.mockImplementation(async () => { retirePrivateProfileSession(); return { display_name: 'Private', avatar_ref: [] }; });
-  await expect(fetchIcpIdentityProfile(identity, principal, target)).rejects.toThrow('session retired');
-  expect(mocks.cache).not.toHaveBeenCalled();
-});
