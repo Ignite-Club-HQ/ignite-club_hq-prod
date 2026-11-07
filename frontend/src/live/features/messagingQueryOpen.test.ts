@@ -28,6 +28,12 @@ beforeEach(() => {
 });
 
 describe("first-page quick read", () => {
+  it("coalesces concurrent cold reads of the same caller, target and page", async () => {
+    actor.open_conversation_query.mockResolvedValue(bundle(5));
+    await Promise.all([listLiveLatestMessagesPage(ctx, 'new-thread', null, 30), listLiveLatestMessagesPage(ctx, 'new-thread', null, 30)]);
+    expect(actor.open_conversation_query).toHaveBeenCalledTimes(1);
+  });
+
   it("serves the first page from the quick read without the consensus call", async () => {
     actor.open_conversation_query.mockResolvedValue(bundle(5));
     const page = await listLiveLatestMessagesPage(ctx, "c1", null, 50);
