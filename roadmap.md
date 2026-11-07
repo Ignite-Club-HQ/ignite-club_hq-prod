@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Reverted TEST carousel crash — 7 November 2026
+- [ ] Repair the first-card timing callback reading uninitialized arrays on skeleton/empty returns; retain Paul's reverted loading behavior and leave PROD untouched.
+- [ ] Verify regression tests and the TEST deployment separately; a local repair does not prove the canister was updated.
+
 ## Cold thread opening investigation (DEV only, 7 November 2026)
 - [x] Instrument query attempts, failure categories and fallback durations including stale-sequence/write-fence paths; late enrichment reports independently and first-message logging waits for paint. Cold/cache classification uses actual read path, not prior visits.
 - [x] Four ICP thread loaders return core pages without enrichment; skip duplicate mount invalidation during active fetches, remove duplicate team manual refresh and banner wait. Account/target-bound in-flight reads and bundles; account-change/refusal retirement preserves transient-error caches. Mount freshness and permissions unchanged.
