@@ -8,7 +8,7 @@ const lifecycle = createIcpPushLifecycle();
 let currentTicket: number | undefined;
 let activeAccount: string | undefined;
 let detach: (() => void) | undefined;
-let initialization: Promise<{ success: boolean; error?: string }> | undefined;
+let initialization: { account: string; requestPermission: boolean; attempt: number; promise: Promise<{ success: boolean; error?: string }> } | undefined;
 let epoch = 0;
 
 async function ownerContext(userId: string): Promise<{ identity: Identity; target: IcpTargetConfig }> {
@@ -26,10 +26,17 @@ async function ownerContext(userId: string): Promise<{ identity: Identity; targe
 
 /** Separate native adapter. Existing Firebase/Capacitor configuration is not changed. */
 export function initializeDevIcpNativePush(userId: string, requestPermission = true) {
-  if (initialization) return initialization;
+  const account = userId.replace(/^principal:/, '');
+  if (initialization?.account === account && initialization.attempt === epoch) {
+    if (!requestPermission || initialization.requestPermission) return initialization.promise;
+    return initialization.promise.then(() => initializeDevIcpNativePush(userId, true));
+  }
   const attempt = ++epoch;
-  initialization = initialize(userId, requestPermission, attempt).finally(() => { initialization = undefined; });
-  return initialization;
+  const promise = initialize(userId, requestPermission, attempt).finally(() => {
+    if (initialization?.attempt === attempt) initialization = undefined;
+  });
+  initialization = { account, requestPermission, attempt, promise };
+  return promise;
 }
 
 async function initialize(userId: string, requestPermission: boolean, attempt: number): Promise<{ success: boolean; error?: string }> {
@@ -57,9 +64,10 @@ async function initialize(userId: string, requestPermission: boolean, attempt: n
     const { PushNotifications } = await import('@capacitor/push-notifications');
     const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
     let permission = await PushNotifications.checkPermissions();
+    if (attempt !== epoch || !usesDevIcpPush()) return { success: false, error: 'Account changed' };
     if (permission.receive === 'prompt' && requestPermission) permission = await PushNotifications.requestPermissions();
     if (permission.receive !== 'granted') {
-      await revokeDevIcpNativePush();
+      if (attempt === epoch) await revokeDevIcpNativePush();
       return { success: false, error: 'Notifications are not enabled on this phone' };
     }
     if (!lifecycle.isCurrent(ticket) || !usesDevIcpPush()) return { success: false, error: 'Account changed' };
@@ -126,3 +134,10 @@ export function refreshDevIcpNativePush() {
 }
 
 export function devIcpPushAccount() { return activeAccount; }
+
+export function releaseDevIcpNativePush(userId: string) {
+  const account = userId.replace(/^principal:/, '');
+  // Stale effect cleanup must not revoke the newly bound account.
+  if (initialization?.account !== account && activeAccount !== account) return Promise.resolve();
+  return revokeDevIcpNativePush();
+}

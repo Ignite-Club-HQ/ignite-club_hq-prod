@@ -4,7 +4,7 @@ const state = vi.hoisted(() => ({ initialize: vi.fn().mockResolvedValue({ succes
   resume: vi.fn().mockResolvedValue({ remove: vi.fn() }), user: { id: 'principal:account-a' }, navigate: vi.fn() }));
 vi.mock('@/hooks/useAuth', () => ({ useOptionalAuth: () => ({ user: state.user }) }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => state.navigate }));
-vi.mock('@/live/icpNativePush', () => ({ initializeDevIcpNativePush: state.initialize }));
+vi.mock('@/live/icpNativePush', () => ({ initializeDevIcpNativePush: state.initialize, releaseDevIcpNativePush: async () => undefined }));
 vi.mock('@/live/icpPushTap', () => ({ installDevIcpPushTaps: state.install, subscribeDevIcpPushTaps: state.subscribe }));
 vi.mock('@capacitor/app', () => ({ App: { addListener: state.resume } }));
 import { IcpDevPushManager } from './IcpDevPushManager';

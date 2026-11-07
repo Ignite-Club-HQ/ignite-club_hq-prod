@@ -12,8 +12,10 @@ export function IcpDevPushManager() {
     let disposed = false;
     let disposeTaps: (() => void) | undefined;
     let removeResume: (() => Promise<void>) | undefined;
+    let release: (() => Promise<void>) | undefined;
     void Promise.all([import('@/live/icpNativePush'), import('@/live/icpPushTap')]).then(async ([native, taps]) => {
       if (disposed) return;
+      release = () => native.releaseDevIcpNativePush(userId);
       await taps.installDevIcpPushTaps();
       if (disposed) return;
       disposeTaps = taps.subscribeDevIcpPushTaps(userId.replace(/^principal:/, ''), navigate);
@@ -32,6 +34,7 @@ export function IcpDevPushManager() {
     return () => {
       disposed = true;
       disposeTaps?.();
+      void release?.().catch(() => undefined);
       void removeResume?.();
       window.removeEventListener('ignite:icp-push-received', receive);
     };

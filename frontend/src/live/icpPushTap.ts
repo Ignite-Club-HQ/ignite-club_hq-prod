@@ -46,7 +46,7 @@ export function clearDevIcpPushTaps() { pending = undefined; consumer = undefine
 export async function installDevIcpPushTaps() {
   if (installed || !usesDevIcpPush()) return;
   const { Capacitor } = await import('@capacitor/core');
-  if (!Capacitor.isNativePlatform() || !usesDevIcpPush()) return;
+  if (installed || !Capacitor.isNativePlatform() || !usesDevIcpPush()) return;
   installed = true;
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
