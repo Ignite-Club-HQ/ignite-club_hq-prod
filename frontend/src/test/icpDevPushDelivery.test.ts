@@ -34,13 +34,13 @@ describe('isolated DEV per-device delivery core', () => {
   it('never treats an empty or invalid directory as completed delivery', async () => {
     const args = setup(); args.devices = [];
     expect(await deliverDevPush(args)).toMatchObject({ held: 1, complete: false });
-    args.devices = [{ ...devices[0], generation: undefined }];
+    args.devices = [{ ...devices[0], generation: 0 }];
     expect(await deliverDevPush(args)).toMatchObject({ held: 1, complete: false });
     expect(args.send).not.toHaveBeenCalled();
   });
   it('refuses non-atomic journals before contacting Firebase', async () => {
-    const args = setup(); args.journal.begin = undefined;
-    expect(await deliverDevPush(args)).toMatchObject({ held: 1, complete: false });
+    const args = setup();
+    expect(await deliverDevPush({ ...args, journal: { read: args.journal.read } })).toMatchObject({ held: 1, complete: false });
     expect(args.send).not.toHaveBeenCalled();
   });
   it('never resends after provider acceptance with a lost settlement', async () => {
