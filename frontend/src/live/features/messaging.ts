@@ -435,11 +435,16 @@ export async function sendLiveClubScopedMessage(
 // path itself, not a Supabase write that needs routing to a canister.
 function kickIcpPush() {
   try {
+    // TEST uses the isolated gateway once commissioned, never the legacy Supabase drain.
+    // No wake-up endpoint is called while that isolated delivery service is unavailable.
+    void import('../icpPushMode').then(({ usesDevIcpPush }) => {
+      if (usesDevIcpPush()) return;
     void import("@/integrations/supabase/client")
       .then(({ supabase }) =>
         supabase.functions.invoke("verify-iap-receipt-icp?job=push-kick", { body: {} }),
       )
       .catch(() => undefined);
+    }).catch(() => undefined);
   } catch {
     /* ignore */
   }
