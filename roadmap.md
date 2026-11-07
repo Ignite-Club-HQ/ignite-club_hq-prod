@@ -1,6 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## ICP native push isolation (DEV only, 7 November 2026)
+- [ ] Next step requested: prepare isolated Supabase Firebase transport and security/hold tests, then establish secure existing-worker handover; do not activate delivery before queue/device fencing and runner handover exist.
 - [x] Paul selected a separate Supabase-hosted sender for DEV ICP push on 7 November. Linked his saved Firebase connection and verified the generated app credential path (HTTP 200, verified), without sending anything or changing existing FCM secrets/email handlers. Assessment: docs/dev-icp-supabase-sender-2026-11-07.md.
 - [ ] Implement/activate isolated Supabase sender: blocked on securely provisioned granted TEST worker identity, durable per-device attempt journal/ownership/current mute authorization and exclusive runner handover; no sender or schedule deployed. Retain ICP registrations/queue/authorization and do not overlap GitHub recovery.
 - [x] Audited email/Supabase push, shared native ownership, ICP queues/producers and both delivery runners before runtime changes. Assessment: docs/dev-icp-push-isolation-2026-11-07.md. Existing 45 push/launch tests pass; no runtime, canister, hosted, credential or native changes.
