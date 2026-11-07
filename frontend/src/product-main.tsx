@@ -9,8 +9,11 @@ import { installSupabaseAuthRetry } from "./lib/supabaseAuthRetry";
 import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { ICP_FALLBACK_BLOCKED_EVENT, installStrictIcpTransport } from "./live/strictIcpTransport";
 import { recordTestingIssue } from "./lib/testingIssues";
+import { installChunkRecovery } from "./lib/chunkRecovery";
 import "./index.css";
 
+// First: a tab on a previous build reloads once instead of blanking screens.
+installChunkRecovery();
 installSupabaseAuthRetry();
 // Installed outside auth retry, so refused fallback requests never refresh/retry.
 installStrictIcpTransport();
