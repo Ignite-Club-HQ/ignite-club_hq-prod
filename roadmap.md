@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## ICP native push isolation (DEV only, 7 November 2026)
+- [x] Audited email/Supabase push, shared native ownership, ICP queues/producers and both delivery runners before runtime changes. Assessment: docs/dev-icp-push-isolation-2026-11-07.md. Existing 45 push/launch tests pass; no runtime, canister, hosted, credential or native changes.
+- [ ] Implement isolated ICP lifecycle/delivery after resolving mandatory shared boundaries: native tap initializer has no runtime call site; ICP logout currently clears identity without unregistering its token. Await Paul's decision on narrowly ICP-guarded integration, with email/Supabase paths/configuration frozen.
+- [ ] Configure dedicated DEV gateway/FCM access, verify current queue inventory and worker grants; credentials/hosting and separate delivery commissioning required. Do not enable the stale Supabase push-kick or concurrent recovery workers.
+- [ ] Demonstrate Android/iOS ICP delivery plus unchanged email/Supabase delivery across foreground/background/closed, taps, multiple devices, rotation/revocation/mutes/preferences and account switching. Physical DEV native devices/builds and authenticated sessions unavailable; Codemagic remains PROD-only. Not complete; no PROD deployment.
+
 ## Gallery notification refusal (DEV only, 7 November 2026)
 - [x] Screenshot confirms saved photo with a refused announcement. Traced media_metadata → club_domain → notification_queue: backend verifies uploader membership, owned team, reciprocal gallery authorities and eligible audience; no browser-selected recipients. Refusal text is collapsed to `refused`, so the screenshot cannot identify which check failed. No permission, wiring, data or production changes.
 - [x] Found and repaired a concrete TEST upgrade omission: only media_metadata.set_gallery_authorities ran, while the club's new reverse galleryMediaAuthority migration defaults to null. Upgrade runner now assigns the exact owning-group reverse link too; both calls are journaled and stop on refusal/unknown replies. Forty-two policy/regression tests pass. No backend permissions, photo data or PROD changes.
