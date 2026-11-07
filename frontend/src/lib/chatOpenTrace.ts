@@ -11,6 +11,7 @@
 export type ChatReadPath = "query" | "update" | "query_refused_update" | "warm" | "cache";
 
 interface Trace {
+  consumed?: boolean;
   queryStart?: number;
   queryDone?: number;
   fallbackStart?: number;

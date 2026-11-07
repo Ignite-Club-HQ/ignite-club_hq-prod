@@ -80,6 +80,10 @@ export function shouldSkipChatMountInvalidate(
 ): boolean {
   installVisibilityListener();
 
+  // The mount observer already owns this fresh read. Never cancel it just
+  // because its cache is old; refetchOnMount:"always" stays authoritative.
+  if (queryClient.getQueryState(queryKey)?.fetchStatus === "fetching") return true;
+
   if (killSwitchEngaged()) {
     console.log("[ChatMountInvalidate] ran", { label, reason: "kill-switch" });
     return false;

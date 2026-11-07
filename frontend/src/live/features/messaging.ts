@@ -4,8 +4,10 @@ import type { FeatureBackendContext } from "../featureRouter";
 import { candidOpt, unwrapCandid } from "./candid";
 import { batched, groupBy } from "./batching";
 import {
-  traceConnected, traceEnrichmentDone, traceQueryRefused, traceReadDone, traceReadStart, type ChatReadPath,
+  traceConnected, traceQueryRefused, traceReadDone, traceReadStart, type ChatReadPath,
+  traceQueryStart, traceQueryDone, traceFallbackStart, traceFallbackDone, queryFallbackReason, type ChatFallbackReason,
 } from "@/lib/chatOpenTrace";
+import { capturePrivateProfileSession, onPrivateProfileSessionRetired } from "@/live/privateProfileSession";
 
 type MessagingActor = Awaited<ReturnType<typeof connectLiveMessagingDomain>>["actor"];
 const msgConn = (ctx: FeatureBackendContext) => () => connectLiveMessagingDomain(ctx.target, ctx.identity);
@@ -167,12 +169,14 @@ export function resetLiveOpenFreshness(): void {
   recentWrites.clear();
   seenLatest.clear();
   openConversationQuerySupported = true;
+  openConversationSupported = null;
+  openBundleCache.clear();
 }
 const OPEN_BUNDLE_TTL_MS = 10_000;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
 const openBundleCache = new Map<string, { at: number; reactions: LiveReaction[] | null; pins: any[] | null; polls: Map<string, unknown> | null }>();
-function takeBundled<K extends "reactions" | "pins">(conversationId: string, key: K) {
-  const entry = openBundleCache.get(conversationId);
+function takeBundled<K extends "reactions" | "pins">(ctx: FeatureBackendContext, conversationId: string, key: K) {
+  const entry = openBundleCache.get(warmKey(ctx, conversationId, 0));
   if (!entry || Date.now() - entry.at > OPEN_BUNDLE_TTL_MS) return null;
   const value = entry[key];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
@@ -185,8 +189,9 @@ function takeBundled<K extends "reactions" | "pins">(conversationId: string, key
  * poll cards render without their own canister round trip. null = not bundled
  * (older canister, expired, or already consumed) — the caller fetches then.
  */
-export function takeBundledPollResult(conversationId: string, pollId: string): unknown | null {
-  const entry = openBundleCache.get(conversationId);
+export function takeBundledPollResult(conversationId: string, pollId: string, ctx?: FeatureBackendContext): unknown | null {
+  if (!ctx) return null;
+  const entry = openBundleCache.get(warmKey(ctx, conversationId, 0));
   if (!entry || Date.now() - entry.at > OPEN_BUNDLE_TTL_MS || !entry.polls) return null;
   const value = entry.polls.get(pollId) ?? null;
   entry.polls.delete(pollId);
@@ -201,7 +206,7 @@ function warmKey(ctx: FeatureBackendContext, conversationId: string, limit: numb
   let who = "anon";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- identity shape varies by provider
   try { who = (ctx.identity as any)?.getPrincipal?.().toText() ?? "anon"; } catch { /* ignore */ }
-  return `${who}|${conversationId}|${limit}`;
+  return JSON.stringify([who, ctx.target?.host, ctx.target?.networkKind, ctx.target?.canisterIds, conversationId, limit]);
 }
 /** Background-load the newest page so a later open of this chat returns at once. */
 export function warmLiveLatestMessagesPage(ctx: FeatureBackendContext, conversationId: string, limit: number): Promise<unknown> {
@@ -214,7 +219,9 @@ export function warmLiveLatestMessagesPage(ctx: FeatureBackendContext, conversat
   page.catch(() => warmLatestPages.delete(key));
   return page;
 }
-export function clearWarmLiveLatestPages(): void { warmLatestPages.clear(); resetLiveOpenFreshness(); }
+const latestReads = new Map<string, Promise<Awaited<ReturnType<typeof readLatestMessagesPage>>>>();
+export function clearWarmLiveLatestPages(): void { warmLatestPages.clear(); latestReads.clear(); resetLiveOpenFreshness(); }
+onPrivateProfileSessionRetired(clearWarmLiveLatestPages);
 
 export async function listLiveLatestMessagesPage(
   ctx: FeatureBackendContext,
@@ -231,7 +238,13 @@ export async function listLiveLatestMessagesPage(
       try { const warm = (await hit.page); if (limit > 1) { traceConnected(conversationId); traceReadDone(conversationId, "warm"); } return warm as Awaited<ReturnType<typeof readLatestMessagesPage>>; } catch { /* fall through to a fresh read */ }
     }
   }
-  return readLatestMessagesPage(ctx, conversationId, before, limit);
+  const key = `${warmKey(ctx, conversationId, limit)}|${before}`;
+  const pending = latestReads.get(key);
+  if (pending) return pending;
+  const read = readLatestMessagesPage(ctx, conversationId, before, limit);
+  latestReads.set(key, read);
+  void read.finally(() => { if (latestReads.get(key) === read) latestReads.delete(key); }).catch(() => {});
+  return read;
 }
 
 async function readLatestMessagesPage(
@@ -241,6 +254,7 @@ async function readLatestMessagesPage(
   limit: number,
 ) {
   const traced = before === null && limit > 1;
+  const assertSession = capturePrivateProfileSession();
   if (traced) traceReadStart(conversationId);
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
   if (traced) traceConnected(conversationId);
@@ -248,20 +262,27 @@ async function readLatestMessagesPage(
     try {
       let bundle: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any -- untyped candid actor
       let path: ChatReadPath = "update";
+      let fallbackReason: ChatFallbackReason = openConversationQuerySupported ? "write_fence" : "query_unsupported";
       if (shouldTryQueryOpen(conversationId)) {
+        if (traced) traceQueryStart(conversationId);
         try {
           bundle = await unwrapCandid(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
             (actor as any).open_conversation_query(conversationId, limit),
             "Open conversation",
           );
-          if (isStaleAgainstSeen(conversationId, bundle?.page?.latest_sequence)) bundle = null;
-          else path = "query";
+          if (isStaleAgainstSeen(conversationId, bundle?.page?.latest_sequence)) {
+            fallbackReason = toBig(bundle?.page?.latest_sequence) === null ? "missing_sequence" : "stale_sequence";
+            bundle = null;
+            if (traced) traceQueryDone(conversationId, fallbackReason);
+          } else { path = "query"; if (traced) traceQueryDone(conversationId); }
         } catch (err) {
           // Refusals (protected mode, membership authority unreachable or
           // denied, older canister) all fall through to the consensus read,
           // which re-applies every check and reports the real outcome.
           const message = err instanceof Error ? err.message : String(err);
+          fallbackReason = queryFallbackReason(err);
+          if (traced) traceQueryDone(conversationId, fallbackReason);
           if (/has no (?:query |update |composite_query |)method|IC0536|IC0504|is not a function/i.test(message)) {
             openConversationQuerySupported = false;
           }
@@ -273,14 +294,16 @@ async function readLatestMessagesPage(
         }
       }
       if (!bundle) {
-        bundle = await unwrapCandid(
+        if (traced) traceFallbackStart(conversationId, fallbackReason);
+        try { bundle = await unwrapCandid(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
           (actor as any).open_conversation(conversationId, limit),
           "Open conversation",
-        );
+        ); } finally { if (traced) traceFallbackDone(conversationId); }
       }
+      assertSession();
       noteSeenLatest(conversationId, bundle?.page?.latest_sequence);
-      if (traced) { traceReadDone(conversationId, path); traceEnrichmentDone(conversationId); }
+      if (traced) traceReadDone(conversationId, path);
       openConversationSupported = true;
       const pins = Array.isArray(bundle.pins) && bundle.pins.length > 0 ? bundle.pins[0] : null;
       // Poll results bundled with the page (absent on canisters deployed
@@ -290,7 +313,7 @@ async function readLatestMessagesPage(
       for (const pr of (bundle.polls ?? []) as any[]) {
         if (pr?.poll?.id) bundledPolls.set(pr.poll.id, pr);
       }
-      openBundleCache.set(conversationId, {
+      openBundleCache.set(warmKey(ctx, conversationId, 0), {
         at: Date.now(),
         reactions: bundle.reactions as LiveReaction[],
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
@@ -1156,7 +1179,7 @@ export async function listLiveReactions(
   ctx: FeatureBackendContext,
   conversationId: string,
 ): Promise<LiveReaction[]> {
-  const bundled = takeBundled(conversationId, "reactions");
+  const bundled = takeBundled(ctx, conversationId, "reactions");
   if (bundled) return bundled as LiveReaction[];
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
   return unwrapCandid(actor.list_reactions(conversationId), "List reactions");
@@ -1384,7 +1407,7 @@ export async function listLivePinnedMessages(
   ctx: FeatureBackendContext,
   conversationId: string,
 ): Promise<LivePinnedMessage[]> {
-  const bundledPins = takeBundled(conversationId, "pins");
+  const bundledPins = takeBundled(ctx, conversationId, "pins");
   if (bundledPins) return bundledPins.map(toLivePinnedMessage);
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
   const raw = await unwrapCandid(
