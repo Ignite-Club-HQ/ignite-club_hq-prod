@@ -494,50 +494,60 @@ persistent actor class Main(governorInit : Principal) = this {
       })
     )
   };
+  // Self-RSVP audience: null = any club role in the event's team scope
+  // (Supabase parity: members answer for themselves, staff included).
+  func selfRsvpRoles(event : Types.Event) : ?[Text] {
+    switch (event.restricted_to_roles) {
+      case (?restricted) { if (restricted.size() > 0) return ?restricted };
+      case null {};
+    };
+    switch (event.rsvp_audience) {
+      case (?"players_only") ?["player"];
+      case (?"parents_only") ?["parent"];
+      case _ null;
+    }
+  };
+  func roleAllowedForSelfRsvp(allowed : ?[Text], role : Text) : Bool {
+    switch (allowed) { case null true; case (?list) list.any(func(r) = r == role) }
+  };
+  func teamInEventScope(event : Types.Event, team : ?Text) : Bool {
+    let targets = event.target_team_ids ?? [];
+    switch (event.team_id) {
+      case (?t) { team == ?t or team == null };
+      case null {
+        if (targets.size() == 0) true else
+          switch (team) { case (?tm) targets.any(func(x) = x == tm); case null true }
+      };
+    }
+  };
   func canSelfRsvp(caller : Principal, event : Types.Event) : Bool {
-    if (not canView(caller, event)) return false;
-    let audienceRoles = switch (event.rsvp_audience) {
-      case (?"players_only") ["player"];
-      case (?"parents_only") ["parent"];
-      case _ ["player", "parent"];
-    };
-    let allowedRoles = switch (event.restricted_to_roles) {
-      case (?restricted) { if (restricted.size() > 0) restricted else audienceRoles };
-      case _ audienceRoles;
-    };
-    roleInEventScope(caller, event, allowedRoles)
+    if (event.deleted) return false;
+    let allowed = selfRsvpRoles(event);
+    roles.any(func(grant) =
+      grant.user.equal(caller) and grant.club_id == event.club_id and
+      roleAllowedForSelfRsvp(allowed, grant.role) and teamInEventScope(event, grant.team_id))
   };
   // Player/parent grants are never mirrored locally (only staff roles are), so
   // self-RSVP re-reads the caller's current club roles from club_domain.
   // Fails closed when the authority is unwired or unreachable.
+  // Player/parent grants are never mirrored locally (only staff roles are), so
+  // self-RSVP re-reads the caller's current club membership and roles from
+  // club_domain. The local canView mirror is deliberately NOT a precondition:
+  // it only holds staff grants and would refuse every player/parent.
+  // Fails closed when the authority is unwired, unreachable or changes.
   func freshSelfRsvp(caller : Principal, event : Types.Event) : async Bool {
-    if (not canView(caller, event)) return false;
+    if (Principal.isAnonymous(caller) or event.deleted) return false;
     let authority = clubDomainCanister ?? return false;
     let cd : actor { read_account_list_user_club_roles : shared (Principal, Text) -> async [(Text, ?Text)]; read_has_club_membership : shared (Principal, Text) -> async Bool } = actor(authority.toText());
     let member = try { await (with timeout = 10) cd.read_has_club_membership(caller, event.club_id) } catch (_) { return false };
     if (not member) return false;
     let grants = try { await (with timeout = 10) cd.read_account_list_user_club_roles(caller, event.club_id) } catch (_) { return false };
-    if (clubDomainCanister != ?authority or not events.any(func(e) = e == event)) return false;
-    let audienceRoles = switch (event.rsvp_audience) {
-      case (?"players_only") ["player"];
-      case (?"parents_only") ["parent"];
-      case _ ["player", "parent"];
-    };
-    let allowedRoles = switch (event.restricted_to_roles) {
-      case (?restricted) { if (restricted.size() > 0) restricted else audienceRoles };
-      case _ audienceRoles;
-    };
-    let targets = event.target_team_ids ?? [];
-    grants.any(func((role, team)) =
-      allowedRoles.any(func(r) = r == role) and
-      (switch (event.team_id) {
-        case (?t) { team == ?t or team == null };
-        case null {
-          if (targets.size() == 0) true else
-            switch (team) { case (?tm) targets.any(func(x) = x == tm); case null true }
-        };
-      })
-    )
+    if (clubDomainCanister != ?authority) return false;
+    // Re-read the event after the awaits: it may have been edited or deleted.
+    let current = switch (events.find(func(e) = e.id == event.id)) { case null return false; case (?e) e };
+    if (current.deleted or current.club_id != event.club_id) return false;
+    let allowed = selfRsvpRoles(current);
+    grants.any(func((role, team)) = roleAllowedForSelfRsvp(allowed, role) and teamInEventScope(current, team))
   };
   func canGuardianRsvpForChild(caller : Principal, event : Types.Event, account_id : Text, child_id : Text) : Bool {
     if (account_id != caller.toText() or not canView(caller, event) or event.adults_only) return false;
