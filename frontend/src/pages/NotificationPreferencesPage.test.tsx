@@ -18,7 +18,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-vi.mock("@/live/loadBackendRouting", () => ({ isFeatureRoutedToIcp: () => false }));
+let icpMode = false;
+vi.mock("@/live/loadBackendRouting", () => ({ isFeatureRoutedToIcp: () => icpMode }));
+vi.mock("@/live/featureRouter", () => ({ withFeatureBackend: async (_: string, branches: any) => branches.icp({}) }));
+vi.mock("@/live/adminQueueOperations", () => ({ adminQueueContexts: async () => [{}] }));
+vi.mock("@/live/adminPaging", () => ({ readAdminPages: async (read: any) => (await read(0, 500)).items }));
+vi.mock("@/live/features/notifications", () => ({ listLivePreferencesByClub: async () => ({ items: [{ user: "test-member", messages_enabled: true, events_enabled: true, media_enabled: true, email_messages_enabled: true }], total: 1n }) }));
+vi.mock("@/live/features/identityAccessClient", () => ({ listLiveProfilesByIds: async () => [] }));
 
 // ---- Mocks --------------------------------------------------------------
 
@@ -148,6 +154,7 @@ async function readStat(label: RegExp): Promise<number> {
 
 describe("NotificationPreferencesPage stats", () => {
   beforeEach(() => {
+    icpMode = false;
     isAdmin = true;
     setFixtures({});
   });
@@ -170,6 +177,14 @@ describe("NotificationPreferencesPage stats", () => {
     expect(await readStat(/Total Users/i)).toBe(2);
     // 2 profiles − 1 unique disabled user = 1 enabled. Historic bug: 2 − 3 = −1.
     expect(await readStat(/Email Enabled/i)).toBe(1);
+  });
+
+  it("does not offer an email channel in the ICP admin report, even for legacy enabled rows", async () => {
+    icpMode = true;
+    await renderPage();
+    await waitFor(() => expect(screen.getAllByText("On")).toHaveLength(3));
+    expect(screen.queryByRole("tab", { name: "Email" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Email Enabled")).not.toBeInTheDocument();
   });
 
   it("orphan preference rows are ignored", async () => {
