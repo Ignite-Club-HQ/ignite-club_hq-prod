@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Login to usable home (DEV only, 7 November 2026)
+- [ ] Consolidate auth-client/session/account/profile reads; returning accounts use caller-only query before registration; retain expiry, linking and denial checks.
+- [ ] Progressive authorized carousel rendering and independent milestone/outcome telemetry; audit JavaScript and secondary requests.
+- [ ] Run focused security/performance regressions and public mobile preview checks; document measured baselines and physical-device/authenticated acceptance limits. No PROD deployment.
+
 ## Cold thread opening investigation (DEV only, 7 November 2026)
 - [x] Instrument query attempts, failure categories and fallback durations including stale-sequence/write-fence paths; late enrichment reports independently and first-message logging waits for paint. Cold/cache classification uses actual read path, not prior visits.
 - [x] Four ICP thread loaders return core pages without enrichment; skip duplicate mount invalidation during active fetches, remove duplicate team manual refresh and banner wait. Account/target-bound in-flight reads and bundles; account-change/refusal retirement preserves transient-error caches. Mount freshness and permissions unchanged.
