@@ -41,3 +41,18 @@ describe("live website return allow-list", () => {
     expect(file.callbacks).toContain("https://igniteclubhq.app/auth");
   });
 });
+it("accepts only a pending, recent /auth callback with both protocol fields", async () => {
+  const { isInternetIdentityRedirectReturn } = await import("./internetIdentityAuth");
+  const original = location.href;
+  history.replaceState(null, "", "/auth#message=reply&state=nonce");
+  sessionStorage.removeItem("ignite_ii_redirect_pending");
+  expect(isInternetIdentityRedirectReturn()).toBe(false);
+  sessionStorage.setItem("ignite_ii_redirect_pending", String(Date.now()));
+  expect(isInternetIdentityRedirectReturn()).toBe(true);
+  history.replaceState(null, "", "/index#message=reply&state=nonce");
+  expect(isInternetIdentityRedirectReturn()).toBe(false);
+  history.replaceState(null, "", "/auth#message=reply&state=nonce");
+  sessionStorage.setItem("ignite_ii_redirect_pending", String(Date.now() - 600001));
+  expect(isInternetIdentityRedirectReturn()).toBe(false);
+  sessionStorage.removeItem("ignite_ii_redirect_pending"); history.replaceState(null, "", original);
+});
