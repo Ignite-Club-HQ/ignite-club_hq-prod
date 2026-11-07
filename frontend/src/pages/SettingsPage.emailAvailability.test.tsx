@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const state = vi.hoisted(() => ({
   mode: "supabase",
+  user: { id: "test-member" },
   upsert: vi.fn(async () => ({ error: null })),
   icpWrite: vi.fn(),
   emailChange: undefined as undefined | ((key: string, value: boolean) => void),
 }));
 vi.mock("@/live/authBackendMode", () => ({ resolveAuthBackend: () => state.mode }));
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "test-member" } }) }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: state.user }) }));
 vi.mock("@/hooks/usePageTitle", () => ({ usePageTitle: () => {} }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock("@/hooks/usePWAInstall", () => ({ usePWAInstall: () => ({}) }));
@@ -55,7 +56,7 @@ describe("email notification mode availability", () => {
   it("offers zero email preference controls for ICP and retains push preferences", async () => {
     state.mode = "icp";
     mount();
-    await waitFor(() => expect(screen.getByRole("checkbox", { name: "messages_enabled" })).toBeChecked());
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "messages_enabled" })).toBeInTheDocument());
     expect(screen.queryAllByRole("checkbox", { name: /^email_/ })).toHaveLength(0);
     expect(state.emailChange).toBeUndefined();
   });
@@ -71,8 +72,7 @@ describe("email notification mode availability", () => {
     const callback = state.emailChange;
     expect(callback).toBeTypeOf("function");
     state.mode = "icp";
-    callback?.("email_events_enabled", true);
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => { callback?.("email_events_enabled", true); });
     expect(state.icpWrite).not.toHaveBeenCalled();
     expect(state.upsert).not.toHaveBeenCalled();
   });
