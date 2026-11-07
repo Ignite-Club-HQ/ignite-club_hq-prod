@@ -115,6 +115,43 @@ describe('Next Up pending secondary reads', () => {
     client.clear();
   });
 
+  it.each(['going', 'maybe', 'not_going'])('shows %s immediately during a slow save and keeps it after acknowledgement', async (status) => {
+    state.icp = true; state.ready = true; state.savedStatus = 'maybe';
+    if (status === 'maybe') state.savedStatus = 'going';
+    let acknowledge: (() => void) | undefined;
+    state.save.mockImplementation(() => new Promise<void>((resolve) => { acknowledge = resolve; }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter><NextUpCarousel events={[event('icp-event', 'club-a')]} /></MemoryRouter></QueryClientProvider>);
+    const labels: Record<string, string> = { going: 'Going', maybe: 'Maybe', not_going: "Can't go" };
+    fireEvent.click(await screen.findByRole('button', { name: `RSVP ${labels[status]}` }));
+    await waitFor(() => expect(state.save).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: `RSVP ${labels[status]}` }).getAttribute('aria-pressed')).toBe('true');
+    expect(state.savedStatus).not.toBe(status);
+    // Supplementary reads remain slow after the write has been acknowledged.
+    client.setQueryDefaults(['hero-rsvp'], { queryFn: () => new Promise(() => {}) });
+    acknowledge?.();
+    await waitFor(() => expect(client.getQueryData(['hero-rsvp', 'icp-event', 'account-1'])).toEqual({ id: 'icp-event:account-1', status }));
+    expect(screen.getByRole('button', { name: `RSVP ${labels[status]}` }).getAttribute('aria-pressed')).toBe('true');
+    client.clear();
+  });
+
+  it('restores the previous answer when a background save fails without retrying', async () => {
+    state.icp = true; state.ready = true;
+    let refuse: ((error: Error) => void) | undefined;
+    state.save.mockImplementation(() => new Promise<void>((_resolve, reject) => { refuse = reject; }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter><NextUpCarousel events={[event('icp-event', 'club-a')]} /></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole('button', { name: 'RSVP Maybe' }));
+    await waitFor(() => expect(state.save).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'RSVP Maybe' }).getAttribute('aria-pressed')).toBe('true');
+    refuse?.(new Error('Event RSVP not allowed for this member'));
+    await waitFor(() => expect(state.toast).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'RSVP Going' }).getAttribute('aria-pressed')).toBe('true');
+    expect(client.getQueryData(['hero-rsvp', 'icp-event', 'account-1'])).toEqual({ id: 'icp-event:account-1', status: 'going' });
+    expect(state.save).toHaveBeenCalledTimes(1);
+    client.clear();
+  });
+
   it('refuses an account switch before sending an RSVP for another identity', async () => {
     state.icp = true; state.ready = true; state.userId = 'principal:other-account';
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
