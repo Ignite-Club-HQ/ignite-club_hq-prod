@@ -27,6 +27,7 @@ import { digest, validateRequest, planInventory, installArgs, validateJournal, r
 import { CLEANUP_RELEASE, cleanupEnvironment, requireCleanupWiring, activateCleanupSettings, canonicalSettingRows, supersedableSettingsStage } from '../../scripts/private-name-cleanup-release-policy.mjs';
 import { isSecureNameScope, secureNameEnvironment, secureNameChangedSettings } from '../../scripts/secure-name-release-policy.mjs';
 import { settlePublishedEvidence } from '../../scripts/all-group-publication.mjs';
+import { galleryAuthorityOperations, applyGalleryAuthorities } from '../../scripts/gallery-authority-repair-policy.mjs';
 
 const [action, scope, artifacts, pem, directory] = process.argv.slice(2);
 const CHECKED_PLAN = process.env.CHECKED_PLAN ? normalizePlan(process.env.CHECKED_PLAN) : process.env.CHECKED_PLAN;
@@ -290,15 +291,19 @@ if(!recovery)await executeUpgrades(moduleJournal,{upgradeUnchanged:scope==='full
 // gallery notifications and Vault copy authority keep working on every group.
 for(const t of targets.filter(t=>t.name==='media_metadata')){
   const {club,vault}=galleryAuthorities(inventory,t,provisions);
-  const factory=()=>IDL.Service({set_gallery_authorities:IDL.Func([IDL.Principal,IDL.Principal],[IDL.Variant({Ok:IDL.Null,Err:IDL.Text})],[])});
-  const actor=Actor.createActor(factory,{agent,canisterId:t.canisterId}) as unknown as {set_gallery_authorities(c:Principal,v:Principal):Promise<{Ok:null}|{Err:string}>};
-  await gate();
-  // This setter atomically assigns the same exact pair; repeating it is idempotent.
-  journal.galleryAuthorities??={};
-  journal.galleryAuthorities[t.canisterId]={club,vault,phase:'pending'};await persist();
-  const r=await actor.set_gallery_authorities(Principal.fromText(club),Principal.fromText(vault));
-  if('Err'in r)throw Error(`Gallery authority wiring refused for ${t.groupId}: ${r.Err}`);
-  journal.galleryAuthorities[t.canisterId]={club,vault,phase:'complete'};await persist();
+  await applyGalleryAuthorities(galleryAuthorityOperations(inventory,t,provisions), {
+    gate,
+    persist: async (operation:any,phase:string)=>{
+      journal.galleryAuthorities??={};
+      journal.galleryAuthorities[operation.canisterId]={club,vault,method:operation.method,principals:operation.principals,phase};
+      await persist();
+    },
+    call: async (operation:any)=>{
+      const factory=()=>IDL.Service({[operation.method]:IDL.Func(operation.principals.map(()=>IDL.Principal),[IDL.Variant({Ok:IDL.Null,Err:IDL.Text})],[])});
+      const actor=Actor.createActor(factory,{agent,canisterId:operation.canisterId}) as unknown as Record<string,(...args:Principal[])=>Promise<{Ok:null}|{Err:string}>>;
+      return actor[operation.method](...operation.principals.map((id:string)=>Principal.fromText(id)));
+    },
+  });
 }
 // Owner-approved one-time display link of the original Group 1 club service.
 // Set-once and idempotent on the canister; read back before continuing.
