@@ -3,6 +3,8 @@ import type { Identity } from "@icp-sdk/core/agent";
 import { getActiveIcpTarget, type IcpTargetConfig } from "./targetRegistry";
 import { observePrivateProfilePrincipal, retirePrivateProfileSession } from './privateProfileSession';
 import type { IcpSessionHealth } from "./icpSessionErrors";
+import { identityTargetKey } from "./identityTargetKey";
+import { ensureIdentityAccount } from "./ensureIdentityAccount";
 // NOTE: icpAgent/piiVetKeys are imported lazily at the call sites below so
 // this module — which sits on the boot path via featureRouter/useAuth — does
 // not drag the ICP agent/candid/vetKeys SDKs into the entry chunk.
@@ -40,6 +42,7 @@ export interface InternetIdentityAuthClient {
   signIn(options?: { returnTo?: string }): Promise<Identity>;
   signOut(options?: { returnTo?: string }): Promise<void>;
   dispose?(): void;
+  subscribe?(listener: () => void): () => void;
 }
 
 export interface InternetIdentitySession {
@@ -254,37 +257,19 @@ async function startRedirectSignIn(target: IcpTargetConfig, returnTo?: string): 
   return new Promise<never>(() => undefined);
 }
 
-// registerAccount is idempotent canister-side, but it is a paid update call
-// (~1–2s on the sign-in critical path). Once it has succeeded for a principal
-// on a target, skip it on later sign-ins/resumes so returning members get in
-// as fast as a Supabase session resume.
-const PROVISIONED_KEY_PREFIX = "ignite_ii_provisioned_v1:";
-
-function provisionedKey(principal: string, target: IcpTargetConfig): string {
-  return `${PROVISIONED_KEY_PREFIX}${target.alias}:${principal}`;
-}
-
-function isAccountProvisioned(principal: string, target: IcpTargetConfig): boolean {
-  try {
-    return localStorage.getItem(provisionedKey(principal, target)) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function markAccountProvisioned(principal: string, target: IcpTargetConfig): void {
-  try {
-    localStorage.setItem(provisionedKey(principal, target), "1");
-  } catch { /* storage full/blocked: next sign-in just re-registers */ }
-}
+// Share only ongoing checks, never a persisted authorization decision.
+const accountChecks = new Map<string, Promise<void>>();
 
 async function provisionInternetIdentityAccount(identity: Identity, principal: string, target: IcpTargetConfig): Promise<void> {
   if (accountProvisionerOverride) {
     await accountProvisionerOverride(identity, principal, target);
     return;
   }
-  if (isAccountProvisioned(principal, target)) return;
-
+  const key = `${identityTargetKey(target)}|${principal}`;
+  const existing = accountChecks.get(key);
+  if (existing) return existing;
+  const stillActive = capturePrivateProfileSession();
+  const pending = (async () => {
   const { connectLiveIdentityAccessClientWithIdentity, isLiveIdentityAccessConfigured } = await import("./identityAccess");
   if (!isLiveIdentityAccessConfigured(target)) {
     // The user has not deployed/registered an identity_access canister ID for
@@ -296,21 +281,42 @@ async function provisionInternetIdentityAccount(identity: Identity, principal: s
     return;
   }
   const { client } = await connectLiveIdentityAccessClientWithIdentity(target, identity);
-  await client.registerAccount();
-  markAccountProvisioned(principal, target);
+  try {
+    stillActive();
+    await ensureIdentityAccount(client);
+    stillActive();
+  } finally { client.dispose(); }
+  })();
+  accountChecks.set(key, pending);
+  try { await pending; }
+  finally { if (accountChecks.get(key) === pending) accountChecks.delete(key); }
 }
 
 let activeClient: InternetIdentityAuthClient | undefined;
 let activeTarget: IcpTargetConfig | undefined;
+let clientConstruction: { key: string; promise: Promise<{ client: InternetIdentityAuthClient; target: IcpTargetConfig }> } | undefined;
+let clientGeneration = 0;
 
 async function getAuthClient(): Promise<{ client: InternetIdentityAuthClient; target: IcpTargetConfig }> {
   const target = getActiveIcpTarget();
-  if (!activeClient || activeTarget?.alias !== target.alias) {
-    activeClient?.dispose?.();
-    activeClient = await createDefaultAuthClient(target);
+  const key = identityTargetKey(target);
+  if (activeClient && activeTarget && identityTargetKey(activeTarget) === key) return { client: activeClient, target };
+  if (clientConstruction?.key === key) return clientConstruction.promise;
+  const generation = ++clientGeneration;
+  activeClient?.dispose?.();
+  activeClient = undefined;
+  const promise = createDefaultAuthClient(target).then(client => {
+    if (generation !== clientGeneration || identityTargetKey(getActiveIcpTarget()) !== key) {
+      client.dispose?.();
+      throw Error("Internet Identity target changed during initialization");
+    }
+    activeClient = client;
     activeTarget = target;
-  }
-  return { client: activeClient, target };
+    return { client, target };
+  });
+  clientConstruction = { key, promise };
+  try { return await promise; }
+  finally { if (clientConstruction?.promise === promise) clientConstruction = undefined; }
 }
 
 let warmupPromise: Promise<void> | undefined;
@@ -357,7 +363,7 @@ export function isInternetIdentitySignInReady(): boolean {
 /** Synchronous fast-path used by `signInWithInternetIdentity` when already warmed. */
 function getWarmedAuthClient(): { client: InternetIdentityAuthClient; target: IcpTargetConfig } | undefined {
   const target = getActiveIcpTarget();
-  return activeClient && activeTarget?.alias === target.alias ? { client: activeClient, target } : undefined;
+  return activeClient && activeTarget && identityTargetKey(activeTarget) === identityTargetKey(target) ? { client: activeClient, target } : undefined;
 }
 
 /**
@@ -376,32 +382,33 @@ async function signInWithStoredSessionRecovery(
   returnTo?: string,
 ): Promise<Identity> {
   const signInPromise = client.signIn(returnTo ? { returnTo } : undefined);
-
+  let stopped = false;
+  let stopWatching = () => {};
+  let releaseWait: (() => void) | undefined;
+  const changed = () => releaseWait?.();
+  // The SDK notifies as soon as its validated session record changes. Polling
+  // remains a compatibility safety net for native clients, never a success gate.
+  stopWatching = client.subscribe?.(changed) ?? (() => {});
+  document.addEventListener("visibilitychange", changed);
+  window.addEventListener("focus", changed);
+  const pause = (ms: number) => new Promise<void>(resolve => {
+    const timer = setTimeout(done, ms);
+    function done() { clearTimeout(timer); releaseWait = undefined; resolve(); }
+    releaseWait = done;
+  });
   const recoveredFromStoredSession = (async (): Promise<Identity | null> => {
     if (typeof document === "undefined") return null;
-    await new Promise<void>((resolve) => {
-      if (document.visibilityState === "visible") {
-        resolve();
-        return;
-      }
-      const onVisible = () => {
-        if (document.visibilityState === "visible") {
-          document.removeEventListener("visibilitychange", onVisible);
-          resolve();
-        }
-      };
-      document.addEventListener("visibilitychange", onVisible);
-    });
     // Our tab is back in front. II stores its session near the end of the
     // ceremony, so give it a few seconds to appear.
     const deadline = Date.now() + 10_000;
-    while (Date.now() < deadline) {
+    while (!stopped && Date.now() < deadline) {
       if (client.isAuthenticated()) return client.getIdentity();
-      await new Promise((r) => setTimeout(r, 300));
+      await pause(300);
     }
     return null;
   })();
 
+  try {
   const settled = await Promise.race([
     signInPromise.then(
       (identity) => ({ kind: "signed-in" as const, identity }),
@@ -438,6 +445,13 @@ async function signInWithStoredSessionRecovery(
     }
     throw error;
   }
+  } finally {
+    stopped = true;
+    stopWatching();
+    document.removeEventListener("visibilitychange", changed);
+    window.removeEventListener("focus", changed);
+    releaseWait?.();
+  }
 }
 
 /**
@@ -465,6 +479,7 @@ export async function signInWithInternetIdentity(returnTo?: string): Promise<Int
   }
   const principalText = principal.toText();
   markStage("identity_complete");
+  observePrivateProfilePrincipal(principalText);
   await provisionInternetIdentityAccount(identity, principalText, target);
   markStage("account_ready");
   observePrivateProfilePrincipal(principalText);
@@ -482,7 +497,15 @@ export async function signInWithInternetIdentity(returnTo?: string): Promise<Int
  * back on the sign-in screen and had to tap again (which then took the
  * `isAuthenticated()` fast path). Call this on load and when the tab returns.
  */
-export async function resumeInternetIdentitySession(): Promise<InternetIdentitySession | null> {
+let resumeAttempt: Promise<InternetIdentitySession | null> | undefined;
+export function resumeInternetIdentitySession(): Promise<InternetIdentitySession | null> {
+  if (resumeAttempt) return resumeAttempt;
+  const pending = resumeSession();
+  resumeAttempt = pending;
+  void pending.finally(() => { if (resumeAttempt === pending) resumeAttempt = undefined; }).catch(() => {});
+  return pending;
+}
+async function resumeSession(): Promise<InternetIdentitySession | null> {
   // The member tapped sign out and hasn't explicitly signed back in —
   // never undo that by adopting the still-stored delegation.
   if (signOutRequested) return null;
@@ -494,7 +517,9 @@ export async function resumeInternetIdentitySession(): Promise<InternetIdentityS
   if (principal.isAnonymous() || principal.toText() === "2vxsx-fae") return null;
   const principalText = principal.toText();
   markStage("identity_complete");
+  observePrivateProfilePrincipal(principalText);
   await provisionInternetIdentityAccount(identity, principalText, target);
+  if (signOutRequested) return null;
   markStage("account_ready");
   observePrivateProfilePrincipal(principalText);
   return { principal: principalText, provider: "internet-identity" };
@@ -613,6 +638,10 @@ export async function signOutInternetIdentity(): Promise<void> {
   // clears its session state right after calling us, and a resume racing
   // in between must find this flag already set.
   signOutRequested = true;
+  ++clientGeneration;
+  clientConstruction = undefined;
+  resumeAttempt = undefined;
+  accountChecks.clear();
   retirePrivateProfileSession();
   const client = activeClient;
   activeClient = undefined;
@@ -637,6 +666,10 @@ export async function signOutInternetIdentity(): Promise<void> {
 
 export function resetInternetIdentityAuthForTests(): void {
   signOutRequested = false;
+  ++clientGeneration;
+  clientConstruction = undefined;
+  resumeAttempt = undefined;
+  accountChecks.clear();
   activeClient?.dispose?.();
   activeClient = undefined;
   activeTarget = undefined;
