@@ -10,9 +10,9 @@ describe("chat open classification", () => {
   it("labels an open that painted from cache as cached, not cold", () => {
     expect(classifyChatOpen("c1", false, true)).toBe("cached_open");
   });
-  it("labels a second open of the same chat this session as cached", () => {
+  it("keeps repeated uncached opens genuinely cold", () => {
     expect(classifyChatOpen("c1", false, false)).toBe("cold_open");
-    expect(classifyChatOpen("c1", false, false)).toBe("cached_open");
+    expect(classifyChatOpen("c1", false, false)).toBe("cold_open");
   });
   it("keeps notification opens separate", () => {
     expect(classifyChatOpen("c1", true, true)).toBe("notification");

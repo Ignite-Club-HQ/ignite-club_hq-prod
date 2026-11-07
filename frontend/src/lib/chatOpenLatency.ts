@@ -11,7 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { recordLivePerfSamplesBatch } from "@/live/features/insights";
-import { classifyChatOpen, takeChatOpenBreakdown, type ChatOpenBreakdown } from "./chatOpenTrace";
+import { classifyChatOpen, takeChatOpenBreakdown, onChatStage, type ChatOpenBreakdown } from "./chatOpenTrace";
 import { Capacitor } from "@capacitor/core";
 import { mark as coldMark, snapshotStages, logStagesToConsole, stopLongTaskWindow } from "./coldStartMarks";
 
@@ -116,7 +116,7 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
     };
     const supabaseInsert = () => {
       void supabase.from("chat_open_perf").insert({
-        user_id: args.userId!,
+        user_id: args.userId,
         chat_kind: args.kind,
         target_id: args.targetId,
         source: args.source,
@@ -136,7 +136,22 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
   }
 }
 
-const STAGE_KEYS = ["js_load_ms", "auth_wait_ms", "connect_ms", "authz_fallback_ms", "canister_ms", "render_ms", "enrichment_ms"] as const;
+const STAGE_KEYS = ["js_load_ms", "auth_wait_ms", "connect_ms", "authz_fallback_ms", "canister_ms", "render_ms", "enrichment_ms", "query_attempt_ms", "update_fallback_ms"] as const;
+
+// Independent events survive a failed open and enrichment finishing after paint.
+onChatStage(event => {
+  try {
+    const w = window as unknown as { __igniteChatStages?: unknown[] };
+    (w.__igniteChatStages ??= []).push(event);
+    if (w.__igniteChatStages.length > 500) w.__igniteChatStages.shift();
+    void withFeatureBackend("analytics", {
+      supabase: async () => {},
+      icp: ctx => recordLivePerfSamplesBatch(ctx, [{ surface: `chat_read:${event.stage}`,
+        source: event.reason ?? "completed", duration_ms: event.duration_ms, cache_hit: false,
+        platform: Capacitor.isNativePlatform() ? Capacitor.getPlatform() : /Android/i.test(navigator.userAgent) ? "android_web" : "web" }]),
+    }, { shared: "app" }).catch(() => {});
+  } catch { /* best-effort and contains no identities or raw errors */ }
+});
 
 export function breakdownSamples(kind: ChatPerfKind, openClass: string, b: ChatOpenBreakdown, fromCache: boolean, platform: string) {
   const source = `${kind}:${openClass}:${b.read_path ?? "unknown"}`;
