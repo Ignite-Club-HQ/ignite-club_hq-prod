@@ -159,7 +159,7 @@ export function takeChatOpenBreakdown(conversationId: string, mountTs: number, r
   const t = traces.get(conversationId);
   if (t) t.consumed = true;
   const tapAnchored = lastTapAt !== null && lastTapAt <= mountTs && mountTs - lastTapAt <= TAP_WINDOW_MS;
-  const anchor = tapAnchored ? (lastTapAt as number) : mountTs;
+  const anchor = tapAnchored && lastTapAt !== null ? lastTapAt : mountTs;
   const d = (a?: number, b?: number) => (a !== undefined && b !== undefined ? Math.max(0, b - a) : undefined);
   const out: ChatOpenBreakdown = { total_ms: Math.max(0, renderTs - anchor), anchored_to_tap: tapAnchored };
   if (tapAnchored) out.js_load_ms = mountTs - anchor;

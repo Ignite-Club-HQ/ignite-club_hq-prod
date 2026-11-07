@@ -14,6 +14,11 @@ export function bindChatCacheAccount(client: QueryClient, account: string | null
     client.clear();
     clearAllMessageCaches();
   }
+  if (!owners.has(client) && account === null) {
+    for (const query of client.getQueryCache().getAll()) {
+      if (CHAT_KEYS.test(String(query.queryKey[0]))) client.removeQueries({ queryKey: query.queryKey, exact: true });
+    }
+  }
   owners.set(client, account);
 }
 

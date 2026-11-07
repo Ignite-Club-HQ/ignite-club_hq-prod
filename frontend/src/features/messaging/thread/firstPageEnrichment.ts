@@ -1,6 +1,7 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { capturePrivateProfileSession } from "@/live/privateProfileSession";
 import { traceEnrichmentDone } from "@/lib/chatOpenTrace";
+import { assertReadNotAborted } from "@/live/readDeadline";
 
 /** Return authorised text now; patch only optional fields on still-present rows later. */
 export async function firstPageWithEnrichment<T extends { id: string }, D extends { messages: T[] }>(
@@ -9,9 +10,12 @@ export async function firstPageWithEnrichment<T extends { id: string }, D extend
   data: (rows: T[]) => D, signal?: AbortSignal,
 ): Promise<D> {
   const assertSession = capturePrivateProfileSession();
+  assertReadNotAborted(signal);
   let first: T[] | undefined;
   const enriched = map(rows => { first = rows; });
-  if (!first) return data(await enriched);
+  if (!first) {
+    const rows = await enriched; assertSession(); assertReadNotAborted(signal); return data(rows);
+  }
   const initial = data(first);
   const originalById = new Map(first.map(row => [row.id, row]));
   // A task boundary lets React Query commit the core page before enrichment.
@@ -22,7 +26,7 @@ export async function firstPageWithEnrichment<T extends { id: string }, D extend
       const byId = new Map(rows.map(row => [row.id, row]));
       queryClient.setQueryData<D>(key, previous => {
         if (!previous) return previous;
-        return { ...previous, messages: previous.messages.map(row => {
+        const messages = previous.messages.map(row => {
           const extra = byId.get(row.id);
           if (!extra) return row;
           const patch: Record<string, unknown> = {};
@@ -33,7 +37,9 @@ export async function firstPageWithEnrichment<T extends { id: string }, D extend
             if (field in extra && JSON.stringify(current[field] ?? null) === JSON.stringify(original?.[field] ?? null)) patch[field] = (extra as Record<string, unknown>)[field];
           }
           return { ...row, ...patch };
-        }) };
+        });
+        const refreshed = data(messages);
+        return { ...previous, messages, ...("reactions" in refreshed ? { reactions: refreshed.reactions } : {}) };
       });
       traceEnrichmentDone(conversationId);
     } catch { /* logout/revocation retires all pending disclosure */ }
