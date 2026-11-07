@@ -412,7 +412,7 @@ export default function SettingsPage() {
   };
 
   const handleEmailPreferenceChange = async (key: keyof EmailPreferences, value: boolean) => {
-    if (!user) return;
+    if (!user || resolveAuthBackend() === "icp") return;
 
     const newPrefs = { ...emailPreferences, [key]: value };
     setEmailPreferences(newPrefs);
@@ -427,31 +427,9 @@ export default function SettingsPage() {
 
           if (error) throw error;
         },
-        icp: async (ctx) => {
-          const principal = ctx.identity.getPrincipal().toText();
-          const base = icpPreferencesRef.current ?? (await getLiveNotificationPreferences(ctx, principal));
-          const merged: LiveNotificationPreferencesInput = {
-            messagesEnabled: base.messagesEnabled,
-            eventsEnabled: base.eventsEnabled,
-            mediaEnabled: base.mediaEnabled,
-            membershipEnabled: base.membershipEnabled,
-            pitchBoardEnabled: base.pitchBoardEnabled,
-            rewardsEnabled: base.rewardsEnabled,
-            adminEnabled: base.adminEnabled,
-            pomEnabled: base.pomEnabled,
-            showMessagePreview: base.showMessagePreview,
-            emailMessagesEnabled: newPrefs.email_messages_enabled,
-            emailEventsEnabled: newPrefs.email_events_enabled,
-            emailMediaEnabled: newPrefs.email_media_enabled,
-            emailMembershipEnabled: newPrefs.email_membership_enabled,
-            emailAdminEnabled: newPrefs.email_admin_enabled,
-            emailPitchBoardEnabled: newPrefs.email_pitch_board_enabled,
-            emailRewardsEnabled: newPrefs.email_rewards_enabled,
-            emailPomEnabled: newPrefs.email_pom_enabled,
-          };
-          const result = await upsertLiveNotificationPreferences(ctx, principal, merged);
-          icpPreferencesRef.current = result;
-        },
+        // Email preference changes have no ICP implementation.
+        // Recheck at dispatch in case routing changed after the click.
+        icp: async () => { throw new Error("Email notifications are unavailable for secure sign-in"); },
       }, { shared: "person" });
     } catch (error) {
       setEmailPreferences(emailPreferences);
@@ -911,6 +889,7 @@ export default function SettingsPage() {
       )}
 
       {/* Email Notifications Card */}
+      {!isIcpAccount && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -929,6 +908,7 @@ export default function SettingsPage() {
           />
         </CardContent>
       </Card>
+      )}
 
       {/* Account Link */}
       <Card 
