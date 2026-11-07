@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { clearProfileCache } from "@/lib/profileCache";
-import { markStage, restartSignInStages } from "@/lib/perfStages";
+import { markStage, restartSignInStages, finishStartupAttempt } from "@/lib/perfStages";
 import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { clearUserScopedCaches } from "@/lib/clearUserScopedCaches";
@@ -1451,6 +1451,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
         }
       } catch (error) {
         console.warn("[Auth] ICP identity profile fetch failed:", error);
+        finishStartupAttempt(/timed out/i.test(String(error)) ? "timed_out" : "failed");
         // Keep rendering from cache when there is one; with no cache, surface
         // the retry screen (AppLayout auto-retries via refreshProfile()).
         if (!cancelled && icpProfileRequestRef.current === requestId && !knownCachedIcpProfile(getCachedIcpIdentityProfile(principal))) {
@@ -1603,6 +1604,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       setSession(nextSession);
       return { error: null };
     } catch (error) {
+      finishStartupAttempt(/timed out/i.test(String(error)) ? "timed_out" : "failed");
       return { error: error instanceof Error ? error : new Error("Internet Identity sign-in failed.") };
     }
   };
