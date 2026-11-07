@@ -1,7 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
 ## ICP email notification availability (DEV only)
-- [ ] Remove email notification options from ICP member/admin preferences and prevent ICP email preference enablement; preserve Supabase behavior and test mode isolation. No PROD deployment.
+- [x] Removed ICP email controls from member settings and admin report; blocked email preference handlers in ICP, including mode changes. Supabase save/report branches unchanged. Twelve tests pass in each backend test mode; preview build OK. No service/settings/PROD changes.
+- [ ] Confirm on Paul's signed-in TEST account after frontend deployment; delegated Internet Identity session/device and canister deployment are unverified.
 
 ## ICP native push isolation (DEV only, 7 November 2026)
 - [x] Prepared isolated Supabase Firebase transport without an endpoint/scheduler: DEV host/account/mode validation, generic payloads, single bounded request, provider-status preservation and ambiguous-acceptance hold. Six new transport tests plus six existing per-device tests pass; no real send/deployment or email/PROD change.
