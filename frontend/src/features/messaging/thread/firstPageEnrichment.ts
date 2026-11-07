@@ -30,7 +30,7 @@ export async function firstPageWithEnrichment<T extends { id: string }, D extend
             const original = originalById.get(row.id) as Record<string, unknown> | undefined;
             const current = row as Record<string, unknown>;
             // A delivered reaction/edit during hydration wins over the old snapshot.
-            if (field in extra && current[field] === original?.[field]) patch[field] = (extra as Record<string, unknown>)[field];
+            if (field in extra && JSON.stringify(current[field] ?? null) === JSON.stringify(original?.[field] ?? null)) patch[field] = (extra as Record<string, unknown>)[field];
           }
           return { ...row, ...patch };
         }) };

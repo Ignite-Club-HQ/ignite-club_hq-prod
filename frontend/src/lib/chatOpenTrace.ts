@@ -29,7 +29,6 @@ const TAP_WINDOW_MS = 4_000;
 let lastTapAt: number | null = null;
 let installed = false;
 const traces = new Map<string, Trace>();
-const openedThisSession = new Set<string>();
 export type ChatFallbackReason = "stale_sequence" | "missing_sequence" | "method_missing" | "access_denied" | "authority_unavailable" | "protected_mode" | "query_error" | "write_fence" | "query_unsupported";
 export type ChatStageEvent = { stage: "query_attempt" | "query_failure" | "update_fallback" | "canister_response" | "enrichment_complete"; duration_ms: number; reason?: ChatFallbackReason };
 const stageListeners = new Set<(event: ChatStageEvent) => void>();
@@ -76,13 +75,16 @@ export function installChatTapListener(): void {
 export function __resetChatOpenTrace(): void {
   lastTapAt = null;
   traces.clear();
-  openedThisSession.clear();
 }
 export function __setLastTap(ts: number | null): void { lastTapAt = ts; }
 
 function trace(conversationId: string): Trace {
   let t = traces.get(conversationId);
   if (!t) { t = {}; traces.set(conversationId, t); }
+  if (traces.size > 200) {
+    const oldest = traces.keys().next().value;
+    if (oldest !== undefined) traces.delete(oldest);
+  }
   return t;
 }
 
@@ -121,11 +123,9 @@ export type ChatOpenClass = "notification" | "cold_open" | "cached_open";
 
 /**
  * Honest open classification. `cold_open` = nothing on screen from the local
- * cache AND the first open of this chat in this app session; anything that
- * painted from cache (or was opened earlier this session) is `cached_open`.
+ * cache; repeated opens without a usable cache are still genuinely cold.
  */
 export function classifyChatOpen(conversationId: string, notification: boolean, fromCache: boolean): ChatOpenClass {
-  openedThisSession.add(conversationId);
   if (notification) return "notification";
   return fromCache ? "cached_open" : "cold_open";
 }

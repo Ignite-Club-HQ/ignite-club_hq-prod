@@ -13,7 +13,7 @@ describe("authorised first page", () => {
     }, messages => ({ messages }));
     const core = await pending;
     expect(core.messages).toEqual([{ id: "m", text: "authorised", author: null }]);
-    qc.setQueryData(key, { messages: [{ id: "m", text: "edited" }, { id: "new", text: "delivered" }] });
+    qc.setQueryData(key, { messages: [{ id: "m", text: "edited", author: null }, { id: "new", text: "delivered" }] });
     finish([{ id: "m", text: "old", author: { display_name: "Member" } }]);
     await vi.waitFor(() => expect(qc.getQueryData(key)).toEqual({ messages: [
       { id: "m", text: "edited", author: { display_name: "Member" } }, { id: "new", text: "delivered" },
