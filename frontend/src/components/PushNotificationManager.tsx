@@ -17,6 +17,8 @@ import { mark as coldMark } from "@/lib/coldStartMarks";
 import { requestClubSwitchForNotification } from "@/lib/notificationClubSwitch";
 import { useNotificationClubSwitch } from "@/hooks/useNotificationClubSwitch";
 import { resolveAuthBackend } from "@/live/authBackendMode";
+import { usesDevIcpPush } from '@/live/icpPushMode';
+import { IcpDevPushManager } from './IcpDevPushManager';
 
 
 const APP_STORE_URL = "https://reference.invalid";
@@ -32,6 +34,10 @@ function getNativeStoreUrl() {
  * Must be placed inside AuthProvider.
  */
 export function PushNotificationManager() {
+  return usesDevIcpPush() ? <IcpDevPushManager /> : <ExistingPushNotificationManager />;
+}
+
+function ExistingPushNotificationManager() {
   // Safely get auth context - component must be inside AuthProvider
   const user = useOptionalAuth()?.user ?? null;
   const navigate = useNavigate();

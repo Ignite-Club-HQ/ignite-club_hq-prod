@@ -1639,6 +1639,15 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       navigateApp("/auth", { replace: true });
       try {
       await queryClient.cancelQueries();
+      const { usesDevIcpPush } = await import('@/live/icpPushMode');
+      if (usesDevIcpPush()) {
+        const [{ revokeDevIcpNativePush }, { clearDevIcpPushTaps }] = await Promise.all([
+          import('@/live/icpNativePush'), import('@/live/icpPushTap'),
+        ]);
+        clearDevIcpPushTaps();
+        try { await revokeDevIcpNativePush(); }
+        catch { console.warn('[ICP push] Device removal could not be confirmed'); }
+      }
       // Clear the Internet Identity session FIRST and only then drop the
       // app session: setSession(null) re-arms the silent resume effect, so
       // the stored delegation (and its block-resume flag) must already be

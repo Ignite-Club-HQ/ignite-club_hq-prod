@@ -29,6 +29,8 @@ initWebVitalsTelemetry();
 // boundary. Without this the gate stays "pending" forever and the app hangs
 // on "Starting up...".
 initDeepLinkHandler();
+// Separate TEST-only listener captures cold ICP taps without activating email listeners.
+void import('./live/icpPushTap').then(m => m.installDevIcpPushTaps()).catch(() => undefined);
 
 const root = document.getElementById("root");
 if (!root) {
