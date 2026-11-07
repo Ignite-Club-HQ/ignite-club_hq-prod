@@ -220,6 +220,7 @@ export function warmLiveLatestMessagesPage(ctx: FeatureBackendContext, conversat
   return page;
 }
 const latestReads = new Map<string, Promise<Awaited<ReturnType<typeof readLatestMessagesPage>>>>();
+const supportedByTarget = new Map<string, { update: boolean | null; query: boolean }>();
 export function clearWarmLiveLatestPages(): void { warmLatestPages.clear(); latestReads.clear(); resetLiveOpenFreshness(); }
 onPrivateProfileSessionRetired(clearWarmLiveLatestPages);
 
@@ -255,6 +256,10 @@ async function readLatestMessagesPage(
 ) {
   const traced = before === null && limit > 1;
   const assertSession = capturePrivateProfileSession();
+  const serviceKey = warmKey(ctx, "capabilities", 0);
+  const support = supportedByTarget.get(serviceKey) ?? { update: null, query: true };
+  openConversationSupported = support.update;
+  openConversationQuerySupported = support.query;
   if (traced) traceReadStart(conversationId);
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
   if (traced) traceConnected(conversationId);
@@ -285,6 +290,7 @@ async function readLatestMessagesPage(
           if (traced) traceQueryDone(conversationId, fallbackReason);
           if (/has no (?:query |update |composite_query |)method|IC0536|IC0504|is not a function/i.test(message)) {
             openConversationQuerySupported = false;
+            support.query = false; supportedByTarget.set(serviceKey, support);
           }
           bundle = null;
         }
@@ -305,6 +311,7 @@ async function readLatestMessagesPage(
       noteSeenLatest(conversationId, bundle?.page?.latest_sequence);
       if (traced) traceReadDone(conversationId, path);
       openConversationSupported = true;
+      support.update = true; supportedByTarget.set(serviceKey, support);
       const pins = Array.isArray(bundle.pins) && bundle.pins.length > 0 ? bundle.pins[0] : null;
       // Poll results bundled with the page (absent on canisters deployed
       // before the bundle included them — cards then fetch individually).
@@ -325,6 +332,7 @@ async function readLatestMessagesPage(
       const message = err instanceof Error ? err.message : String(err);
       if (/has no (?:query |update |)method|IC0536|IC0504|is not a function/i.test(message)) {
         openConversationSupported = false;
+        support.update = false; supportedByTarget.set(serviceKey, support);
       } else {
         throw err;
       }

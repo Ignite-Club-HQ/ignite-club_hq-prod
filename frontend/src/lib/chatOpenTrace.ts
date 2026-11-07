@@ -163,7 +163,7 @@ export function takeChatOpenBreakdown(conversationId: string, mountTs: number, r
   const d = (a?: number, b?: number) => (a !== undefined && b !== undefined ? Math.max(0, b - a) : undefined);
   const out: ChatOpenBreakdown = { total_ms: Math.max(0, renderTs - anchor), anchored_to_tap: tapAnchored };
   if (tapAnchored) out.js_load_ms = mountTs - anchor;
-  if (!t || t.callStart === undefined || t.callStart > renderTs) {
+  if (!t || t.callStart === undefined || t.callStart > renderTs || t.callDone === undefined) {
     // Painted from local cache before any read started.
     out.read_path = "cache";
     return out;

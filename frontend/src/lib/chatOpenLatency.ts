@@ -44,11 +44,15 @@ export function isTrueColdOpen(chatMountDeltaMs: number | undefined): boolean {
 export async function logChatOpenLatency(args: LogArgs): Promise<void> {
   try {
     if (!args.userId) return;
+    // Effects run after commit, not necessarily after pixels are visible.
+    if (typeof requestAnimationFrame === "function") await new Promise<void>(resolve =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     const renderTs = Date.now();
     // Record the render mark first so the stage snapshot includes it.
     coldMark("chat_render");
-    const openClass = classifyChatOpen(args.targetId, args.source === "notification", args.fromCache);
     const breakdown = takeChatOpenBreakdown(args.targetId, args.startTs, renderTs);
+    const fromCache = args.fromCache || breakdown.read_path === "cache" || breakdown.read_path === "warm";
+    const openClass = classifyChatOpen(args.targetId, args.source === "notification", fromCache);
     recordBreakdownLocally(args.kind, openClass, breakdown);
     // For cold_open, anchor startTs to the earliest signal we have (notif_tap
     // or performance.timeOrigin / boot) so tap_to_render_ms includes the
@@ -109,7 +113,7 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
           // and chat_open_stage:* carries the stage split (durations only).
           await recordLivePerfSamplesBatch(ctx, [
             { surface: "chat_open", source: args.source, duration_ms: tap_to_render_ms, cache_hit: args.fromCache, platform },
-            ...breakdownSamples(args.kind, openClass, breakdown, args.fromCache, platform),
+            ...breakdownSamples(args.kind, openClass, breakdown, fromCache, platform),
           ]);
         },
       }, { shared: "app" }).catch(() => {});
