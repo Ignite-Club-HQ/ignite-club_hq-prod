@@ -2,7 +2,7 @@
 
 ## ICP native push isolation (DEV only, 7 November 2026)
 - [x] Audited email/Supabase push, shared native ownership, ICP queues/producers and both delivery runners before runtime changes. Assessment: docs/dev-icp-push-isolation-2026-11-07.md. Existing 45 push/launch tests pass; no runtime, canister, hosted, credential or native changes.
-- [ ] Implement isolated ICP lifecycle/delivery after resolving mandatory shared boundaries: native tap initializer has no runtime call site; ICP logout currently clears identity without unregistering its token. Await Paul's decision on narrowly ICP-guarded integration, with email/Supabase paths/configuration frozen.
+- [ ] Implement isolated ICP lifecycle/delivery: Paul approved narrowly ICP-guarded entry additions; email/Supabase paths/configuration remain frozen. Add separate native registration/refresh/sign-out/tap handling with explicit DEV target and account checks, then test isolation.
 - [ ] Configure dedicated DEV gateway/FCM access, verify current queue inventory and worker grants; credentials/hosting and separate delivery commissioning required. Do not enable the stale Supabase push-kick or concurrent recovery workers.
 - [ ] Demonstrate Android/iOS ICP delivery plus unchanged email/Supabase delivery across foreground/background/closed, taps, multiple devices, rotation/revocation/mutes/preferences and account switching. Physical DEV native devices/builds and authenticated sessions unavailable; Codemagic remains PROD-only. Not complete; no PROD deployment.
 
