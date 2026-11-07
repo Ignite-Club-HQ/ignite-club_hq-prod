@@ -12,6 +12,7 @@ import { markStage, restartSignInStages } from "@/lib/perfStages";
 import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { clearUserScopedCaches } from "@/lib/clearUserScopedCaches";
+import { bindChatCacheAccount } from "@/lib/chatCachePrivacy";
 import { revokeAllForUser } from "@/lib/realtimeChannelRegistry";
 import { setAuthThemeHint } from "@/lib/authThemeHint";
 import { mark as coldMark } from "@/lib/coldStartMarks";
@@ -1352,6 +1353,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     }
   });
   const principal = session?.principal ?? null;
+  bindChatCacheAccount(queryClient, principal);
   const [signingOut, setSigningOut] = useState(false);
   const signingOutRef = useRef(false);
   // Real identity profile resolved from the identity_access canister
