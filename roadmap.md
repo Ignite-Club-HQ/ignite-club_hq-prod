@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Next Up RSVP repair (TEST only, 7 November 2026)
+- [ ] Reproduce the Next Up attendance save failure, repair the scoped save without weakening permissions, and run RSVP regressions.
+- [ ] Verify signed-in TEST save and readback; Paul's Internet Identity session may require phone acceptance. PROD untouched.
+
 ## Reverted TEST carousel crash — 7 November 2026
 - [x] Reproduced the exact initialization crash in three component regressions; fixed only the timing callback's skeleton/empty-return inputs, retaining Paul's reverted loading behavior. Nine carousel/recovery tests pass; preview build OK. PROD untouched.
 - [x] TEST deployment 42362790648 succeeded for repair commit fb44c0df on main at 10:13 UTC. Public TEST serves live-index-DJEskhsI and MyTeamsPremiumCarousel-CzISABkV; inspected callback uses initialized skeleton/display inputs rather than later card arrays. Reverted loading behavior retained; PROD untouched. Paul's signed-in phone acceptance remains interactive.
