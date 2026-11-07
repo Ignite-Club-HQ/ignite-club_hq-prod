@@ -34,6 +34,23 @@ describe("first-page quick read", () => {
     expect(actor.open_conversation_query).toHaveBeenCalledTimes(1);
   });
 
+  it('never shares in-flight pages across accounts or target canisters', async () => {
+    actor.open_conversation_query.mockResolvedValue(bundle(5));
+    const otherAccount = { target: {}, identity: { getPrincipal: () => ({ toText: () => 'other' }) } } as never;
+    const otherTarget = { target: { canisterIds: { messaging_domain: 'other-service' } }, identity: { getPrincipal: () => ({ toText: () => 'me' }) } } as never;
+    await Promise.all([listLiveLatestMessagesPage(ctx, 'same-thread', null, 30), listLiveLatestMessagesPage(otherAccount, 'same-thread', null, 30), listLiveLatestMessagesPage(otherTarget, 'same-thread', null, 30)]);
+    expect(actor.open_conversation_query).toHaveBeenCalledTimes(3);
+  });
+
+  it('retires failed reads so a later open actually retries authorization', async () => {
+    actor.open_conversation_query.mockResolvedValue({ Err: 'Forbidden' });
+    actor.open_conversation.mockResolvedValue({ Err: 'Forbidden' });
+    await expect(listLiveLatestMessagesPage(ctx, 'denied-thread', null, 30)).rejects.toThrow();
+    actor.open_conversation_query.mockResolvedValue(bundle(5));
+    await listLiveLatestMessagesPage(ctx, 'denied-thread', null, 30);
+    expect(actor.open_conversation_query).toHaveBeenCalledTimes(2);
+  });
+
   it("serves the first page from the quick read without the consensus call", async () => {
     actor.open_conversation_query.mockResolvedValue(bundle(5));
     const page = await listLiveLatestMessagesPage(ctx, "c1", null, 50);
