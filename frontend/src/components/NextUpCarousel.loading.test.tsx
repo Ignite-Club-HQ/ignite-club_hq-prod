@@ -4,7 +4,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextUpCarousel } from './NextUpCarousel';
 
-const state = vi.hoisted(() => ({ reads: [] as string[], icp: false, ready: false, userId: 'account-1', savedStatus: 'going', save: vi.fn(), toast: vi.fn(), scopes: [] as unknown[] }));
+const state = vi.hoisted(() => ({ reads: [] as string[], icp: false, ready: false, delayRsvpRead: false, userId: 'account-1', savedStatus: 'going', save: vi.fn(), toast: vi.fn(), scopes: [] as unknown[] }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: state.userId } }) }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: state.toast }) }));
 vi.mock('@/hooks/useCanStartGame', () => ({ useCanStartGame: () => ({ canStart: false }) }));
@@ -14,7 +14,7 @@ vi.mock('@/live/featureRouter', () => ({ withFeatureBackend: (_: string, handler
 vi.mock('@/live/features/vault', () => ({ resolveLivePiiTextBatch: async () => new Map() }));
 vi.mock('@/live/features/events', () => ({ setLiveEventRsvp: (...args: unknown[]) => state.save(...args), adminUpsertLiveRsvp: vi.fn(),
   getMyLiveChildRsvps: async () => [],
-  listLiveMyRsvps: async () => [{ event_id: 'icp-event', account_id: 'account-1', child_id: [], state: state.savedStatus }],
+  listLiveMyRsvps: async () => state.delayRsvpRead ? new Promise(() => {}) : [{ event_id: 'icp-event', account_id: 'account-1', child_id: [], state: state.savedStatus }],
   listLiveDuties: async () => [{ event_id: 'icp-event', account_id: 'account-1', duty: 'Referee', completed: true }],
   getLiveEventRosterDetailed: async () => ({ rsvps: [] }),
 }));
@@ -45,7 +45,7 @@ const event = (id: string, clubId: string) => ({
 function Location() { return <output data-testid="location">{useLocation().pathname}</output>; }
 
 describe('Next Up pending secondary reads', () => {
-  beforeEach(() => { state.reads = []; state.icp = false; state.ready = false; state.userId = 'account-1'; state.savedStatus = 'going'; state.save.mockReset(); state.toast.mockClear(); state.scopes = []; });
+  beforeEach(() => { state.reads = []; state.icp = false; state.ready = false; state.delayRsvpRead = false; state.userId = 'account-1'; state.savedStatus = 'going'; state.save.mockReset(); state.toast.mockClear(); state.scopes = []; });
   afterEach(cleanup);
 
   it('opens a known event immediately and after a club switch without waiting for attendance reads', async () => {
@@ -112,6 +112,43 @@ describe('Next Up pending secondary reads', () => {
     expect(state.save).toHaveBeenCalledTimes(1);
     expect(state.savedStatus).toBe('going');
     expect(state.reads).toEqual([]);
+    client.clear();
+  });
+
+  it.each(['going', 'maybe', 'not_going'])('shows %s immediately during a slow save and keeps it after acknowledgement', async (status) => {
+    state.icp = true; state.ready = true; state.savedStatus = 'maybe';
+    if (status === 'maybe') state.savedStatus = 'going';
+    let acknowledge: (() => void) | undefined;
+    state.save.mockImplementation(() => new Promise<void>((resolve) => { acknowledge = resolve; }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter><NextUpCarousel events={[event('icp-event', 'club-a')]} /></MemoryRouter></QueryClientProvider>);
+    const labels: Record<string, string> = { going: 'Going', maybe: 'Maybe', not_going: "Can't go" };
+    fireEvent.click(await screen.findByRole('button', { name: `RSVP ${labels[status]}` }));
+    await waitFor(() => expect(state.save).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: `RSVP ${labels[status]}` }).getAttribute('aria-pressed')).toBe('true');
+    expect(state.savedStatus).not.toBe(status);
+    // Supplementary reads remain slow after the write has been acknowledged.
+    state.delayRsvpRead = true;
+    acknowledge?.();
+    await waitFor(() => expect(client.getQueryData(['hero-rsvp', 'icp-event', 'account-1'])).toEqual({ id: 'icp-event:account-1', status }));
+    expect(screen.getByRole('button', { name: `RSVP ${labels[status]}` }).getAttribute('aria-pressed')).toBe('true');
+    client.clear();
+  });
+
+  it('restores the previous answer when a background save fails without retrying', async () => {
+    state.icp = true; state.ready = true;
+    let refuse: ((error: Error) => void) | undefined;
+    state.save.mockImplementation(() => new Promise<void>((_resolve, reject) => { refuse = reject; }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter><NextUpCarousel events={[event('icp-event', 'club-a')]} /></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole('button', { name: 'RSVP Maybe' }));
+    await waitFor(() => expect(state.save).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'RSVP Maybe' }).getAttribute('aria-pressed')).toBe('true');
+    refuse?.(new Error('Event RSVP not allowed for this member'));
+    await waitFor(() => expect(state.toast).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'RSVP Going' }).getAttribute('aria-pressed')).toBe('true');
+    expect(client.getQueryData(['hero-rsvp', 'icp-event', 'account-1'])).toEqual({ id: 'icp-event:account-1', status: 'going' });
+    expect(state.save).toHaveBeenCalledTimes(1);
     client.clear();
   });
 
