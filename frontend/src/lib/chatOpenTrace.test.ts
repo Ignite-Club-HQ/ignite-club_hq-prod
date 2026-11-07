@@ -1,10 +1,23 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetChatOpenTrace, __setLastTap, classifyChatOpen, takeChatOpenBreakdown,
-  traceConnected, traceReadDone, traceReadStart,
+  traceConnected, traceReadDone, traceReadStart, timeChatOperation,
 } from "./chatOpenTrace";
 
 beforeEach(() => __resetChatOpenTrace());
+
+describe('request timings', () => {
+  it('records concrete operation duration and failure without recording inputs or content', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(1000); __setLastTap(1000);
+    try {
+      const result = timeChatOperation('open_conversation_query', 'query', async () => { await new Promise(resolve => setTimeout(resolve, 600)); return 'private message'; });
+      await vi.advanceTimersByTimeAsync(600); await result;
+      const entries = (window as any).__igniteChatOperations;
+      expect(entries).toEqual([{ operation: 'open_conversation_query', mode: 'query', started_ms: 0, duration_ms: 600, outcome: 'ok' }]);
+      expect(JSON.stringify(entries)).not.toContain('private message');
+    } finally { vi.useRealTimers(); }
+  });
+});
 
 describe("chat open classification", () => {
   it("labels an open that painted from cache as cached, not cold", () => {
