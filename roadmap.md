@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Reverted TEST carousel crash — 7 November 2026
+- [x] Reproduced the exact initialization crash in three component regressions; fixed only the timing callback's skeleton/empty-return inputs, retaining Paul's reverted loading behavior. Nine carousel/recovery tests pass; preview build OK. PROD untouched.
+- [ ] Verify TEST serves the repair after source synchronization/deployment. GitHub TEST run 42361516421 succeeded for revert commit 59963d74; served bundle live-index-C_yP8oYx still contains the crash. The reverted source itself has this bug; old bundle naming alone does not prove the revert failed.
+
 ## Cold thread opening investigation (DEV only, 7 November 2026)
 - [x] Instrument query attempts, failure categories and fallback durations including stale-sequence/write-fence paths; late enrichment reports independently and first-message logging waits for paint. Cold/cache classification uses actual read path, not prior visits.
 - [x] Four ICP thread loaders return core pages without enrichment; skip duplicate mount invalidation during active fetches, remove duplicate team manual refresh and banner wait. Account/target-bound in-flight reads and bundles; account-change/refusal retirement preserves transient-error caches. Mount freshness and permissions unchanged.
