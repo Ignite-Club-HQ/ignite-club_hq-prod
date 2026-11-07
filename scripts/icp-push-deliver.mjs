@@ -23,6 +23,7 @@
 //                                @icp-sdk/core from (CI installs it there).
 
 import { createRequire } from "node:module";
+import { assertLegacyDevPushAllowed } from './icp-dev-push-worker-mode.mjs';
 import { unwrapQueueResult } from "./icp-push-results.mjs";
 import { createPushQueueIdl, notificationKey } from './icp-push-contract.mjs';
 import { pushQueueIds, runPushQueues, deliverPushItem } from './icp-push-batch.mjs';
@@ -237,6 +238,7 @@ async function pool(items, limit, fn) {
 // ---- Main ----
 
 async function main() {
+  assertLegacyDevPushAllowed(process.env);
   const seedHex = process.env.ICP_PUSH_WORKER_SEED ?? "";
   const saJson = process.env.FCM_SERVICE_ACCOUNT_JSON ?? "";
   if (!/^[0-9a-fA-F]{64}$/.test(seedHex) || !saJson) {

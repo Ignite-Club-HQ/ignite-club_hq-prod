@@ -31,6 +31,9 @@ concurrency:
 
 jobs:
   deliver:
+    # A separately approved handover stops both scheduled and manual legacy runs.
+    # This operational gate does not replace authoritative queue attempt fencing.
+    if: vars.ICP_DEV_PUSH_HANDOVER != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -49,6 +52,7 @@ jobs:
         env:
           PUSH_WORKER_NODE_PATH: ${{ runner.temp }}/icp-push-deps/node_modules
           ICP_PUSH_WORKER_SEED: ${{ secrets.ICP_PUSH_WORKER_SEED }}
+          ICP_DEV_PUSH_HANDOVER: ${{ vars.ICP_DEV_PUSH_HANDOVER }}
           FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
           # Empty retains the legacy singleton. Populate only after approved
           # upgrades/wiring; this does not activate group routing in the app.
