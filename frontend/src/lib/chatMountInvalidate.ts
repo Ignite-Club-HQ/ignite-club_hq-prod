@@ -86,6 +86,9 @@ export function shouldSkipChatMountInvalidate(
   }
 
   const state = queryClient.getQueryState(queryKey);
+  // refetchOnMount:"always" has already started the required fresh read.
+  // Invalidating it again can cancel/restart a partially published first page.
+  if (state?.fetchStatus === "fetching") return true;
   if (!state || !state.dataUpdatedAt || state.data == null) {
     console.log("[ChatMountInvalidate] ran", { label, reason: "no-cached-data" });
     return false;

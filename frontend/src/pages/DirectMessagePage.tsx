@@ -28,6 +28,7 @@ import { buildNewsShareToken } from "@/features/news/newsShareToken";
 import { supabase } from "@/integrations/supabase/client";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { liveMessageRow } from "@/features/messaging/thread/liveMessageRow";
+import { mapIcpDmRows } from "@/features/messaging/thread/icpDmRows";
 import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -104,7 +105,7 @@ import { recordLiveMessageSent } from "@/live/features/insights";
 import { Principal } from "@icp-sdk/core/principal";
 
 
-const MESSAGES_PER_PAGE = 15;
+const MESSAGES_PER_PAGE = 25;
 
 interface DirectMessage {
   id: string;
@@ -572,58 +573,9 @@ export default function DirectMessagePage() {
   // Memoize query key to prevent ChatMessage memo breaks
   // Canister rows → the app's DM shape. Shared by the first page load and by
   // scroll-back paging so both render identically.
-  const mapLiveDmRows = async (ctx: any, rows: any[]): Promise<DirectMessage[]> => {
-    const authorIds = [...new Set(rows.map((m: any) => m.sender.toText() as string))];
-    const profilesMap = privateChatNames ? new Map() : await fetchProfilesWithCache(authorIds);
-    // Reactions persist on the canister; restore them on every refetch.
-    // Tolerate older canisters that lack list_reactions.
-    const reactionsByMessage = new Map<string, any[]>();
-    try {
-      const liveReactions = await listLiveReactions(ctx, conversationId!);
-      for (const r of liveReactions) {
-        const uid = r.user.toText();
-        const list = reactionsByMessage.get(r.message_id) ?? [];
-        list.push({
-          id: `${r.message_id}:${uid}:${r.emoji}`,
-          user_id: uid,
-          reaction_type: r.emoji,
-        });
-        reactionsByMessage.set(r.message_id, list);
-      }
-    } catch { /* canister without list_reactions — reactions stay empty until redeploy */ }
-    // Replies persist on the canister as reply_to_id; resolve the quoted
-    // snippet from messages in the same page (targets outside the loaded page
-    // render without a quote, same as a deleted target).
-    const rawById = new Map<string, any>(rows.map((m: any) => [m.id, m]));
-    return rows
-      .slice()
-      .sort((a: any, b: any) => Number(b.sequence - a.sequence))
-      .map((m: any) => {
-        const profile = profilesMap.get(m.sender.toText());
-        const attachment = m.attachment?.[0];
-        const replyToId: string | null = m.reply_to_id?.[0] ?? null;
-        const replyTarget = replyToId ? rawById.get(replyToId) : null;
-        const replyProfile = replyTarget ? profilesMap.get(replyTarget.sender.toText()) : null;
-        return {
-          id: m.id,
-          text: m.body,
-          image_url: attachment?.kind === "image" ? (attachment.url?.[0] ?? attachment.ref_id ?? null) : null,
-          created_at: new Date(Number(m.created_at_ms)).toISOString(),
-          edited_at: m.edited_at_ms?.[0] ? new Date(Number(m.edited_at_ms[0])).toISOString() : null,
-          author_id: m.sender.toText(),
-          conversation_id: conversationId,
-          reply_to_id: replyToId,
-          deleted_at: null,
-          forwarded_from_user_id: null,
-          forwarded_at: null,
-          forwarded_source_label: null,
-          author: profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null,
-          reply_to: replyTarget
-            ? { id: replyTarget.id, text: replyTarget.body, author_id: replyTarget.sender.toText(), author: replyProfile ? { display_name: replyProfile.display_name } : null }
-            : null,
-          reactions: reactionsByMessage.get(m.id) ?? [],
-        };
-      }) as unknown as DirectMessage[];
+  const mapLiveDmRows = async (ctx: any, rows: any[], onReady?: (messages: DirectMessage[]) => void, signal?: AbortSignal): Promise<DirectMessage[]> => {
+    if (!conversationId) throw new Error("Missing direct conversation");
+    return mapIcpDmRows(ctx, conversationId, rows, privateChatNames, onReady, signal);
   };
 
   const dmQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
@@ -652,7 +604,7 @@ export default function DirectMessagePage() {
   // Fetch messages with cache support
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: dmQueryKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       markChatFetch();
       if (useIcpLab && conversationId && user?.id) {
         return withFeatureBackend("messaging", {
@@ -667,12 +619,17 @@ export default function DirectMessagePage() {
             // Newest-first page: the canister returns the newest MESSAGES_PER_PAGE
             // rows plus a backward cursor when older history remains.
             const page = await listLiveLatestMessagesPage(ctx, conversationId, null, MESSAGES_PER_PAGE);
-            const messages = await mapLiveDmRows(ctx, page.messages);
             const olderCursor =
               Array.isArray(page.next_sequence) && page.next_sequence.length > 0
                 ? Number(page.next_sequence[0])
                 : null;
             icpOlderCursorRef.current = olderCursor;
+            const messages = await mapLiveDmRows(ctx, page.messages, ready => {
+              if (signal.aborted) return;
+              queryClient.setQueryData(dmQueryKey, (current: any) => current?.messages?.length ? current : {
+                messages: ready, hasOlderMessages: olderCursor !== null,
+              });
+            }, signal);
             cacheDirectMessages(conversationId, messages);
             return {
               messages,
