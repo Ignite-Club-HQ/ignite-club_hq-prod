@@ -226,6 +226,9 @@ export async function completeInternetIdentityRedirect(): Promise<void> {
   clearRedirectPending();
   try {
     const target = getActiveIcpTarget();
+    ++clientGeneration;
+    clientConstruction = undefined;
+    warmupPromise = undefined;
     activeClient?.dispose?.();
     activeClient = await createDefaultAuthClient(target);
     activeTarget = target;
@@ -238,6 +241,9 @@ export async function completeInternetIdentityRedirect(): Promise<void> {
 }
 
 async function startRedirectSignIn(target: IcpTargetConfig, returnTo?: string): Promise<never> {
+  ++clientGeneration;
+  clientConstruction = undefined;
+  warmupPromise = undefined;
   // The return address must exactly match the allow-list entry, and the
   // library takes it from the page address when the client is built.
   if (window.location.pathname !== II_REDIRECT_CALLBACK_PATH) {
@@ -473,6 +479,7 @@ export async function signInWithInternetIdentity(returnTo?: string): Promise<Int
   const identity = client.isAuthenticated()
     ? await client.getIdentity()
     : await signInWithStoredSessionRecovery(client, returnTo);
+  const active = capturePrivateProfileSession();
   const principal = identity.getPrincipal();
   if (principal.isAnonymous() || principal.toText() === "2vxsx-fae") {
     throw new Error("Internet Identity returned an anonymous principal.");
@@ -481,6 +488,8 @@ export async function signInWithInternetIdentity(returnTo?: string): Promise<Int
   markStage("identity_complete");
   observePrivateProfilePrincipal(principalText);
   await provisionInternetIdentityAccount(identity, principalText, target);
+  active();
+  if (signOutRequested || identityTargetKey(getActiveIcpTarget()) !== identityTargetKey(target)) throw Error("Internet Identity session changed during sign-in");
   markStage("account_ready");
   observePrivateProfilePrincipal(principalText);
   return { principal: principalText, provider: "internet-identity" };

@@ -1374,6 +1374,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
   // from. Drives the "unable to load / retry" screen instead of an endless
   // spinner or a wrong redirect to profile completion.
   const [icpProfileError, setIcpProfileError] = useState(false);
+  const [verifiedPrincipal, setVerifiedPrincipal] = useState<string | null>(null);
   const icpProfileRequestRef = useRef(0);
   // The localStorage session said "signed in" but the Internet Identity
   // delegation underneath is gone (expired or cleared): drop the stale
@@ -1442,6 +1443,8 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
           }
           return;
         }
+        if (identity.getPrincipal().toText() !== principal) throw Error("Internet Identity session account changed");
+        if (!cancelled && icpProfileRequestRef.current === requestId) setVerifiedPrincipal(principal);
         const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal, undefined, { essentialOnly: true }), 45000);
         if (!cancelled && icpProfileRequestRef.current === requestId) {
           setIcpProfile(fetched);
@@ -1602,6 +1605,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       );
       localStorage.setItem("ignite_icp_internet_identity_session", JSON.stringify(nextSession));
       setSession(nextSession);
+      setVerifiedPrincipal(nextSession.principal);
       return { error: null };
     } catch (error) {
       finishStartupAttempt(/timed out/i.test(String(error)) ? "timed_out" : "failed");
@@ -1613,11 +1617,11 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     session: null as Session | null,
     profile,
     loading: false,
-    profileLoading: Boolean(principal) && !icpProfileResolved,
+    profileLoading: Boolean(principal) && (!icpProfileResolved || verifiedPrincipal !== principal),
     profileError: icpProfileError,
     initialized: true,
     sessionRestoration: principal ? "authenticated" as const : "signed_out" as const,
-    profileResolved: !principal || icpProfileResolved,
+    profileResolved: !principal || (icpProfileResolved && verifiedPrincipal === principal),
     profileNamePending: Boolean(principal) && icpNamePending && !icpDisplayName,
     unreadCount: 0,
     unreadMessagesCount: 0,

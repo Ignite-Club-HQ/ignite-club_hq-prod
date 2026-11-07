@@ -15,6 +15,7 @@ export type PerfStage = (typeof PERF_STAGES)[number];
 type StageMap = Partial<Record<PerfStage, number>>;
 const stages: StageMap = {};
 let reported = false;
+let finished = false;
 type Outcome = "success" | "failed" | "timed_out";
 let attemptStart = now();
 let reportTimer: ReturnType<typeof setTimeout> | undefined;
@@ -56,10 +57,10 @@ export function markStage(stage: PerfStage): void {
     } catch { /* unavailable */ }
   }
   queueReport();
+  if (stage === "home_first_paint") finishStartupAttempt("success");
   if (stage === "carousel_loaded" && !reported) {
     reported = true;
     console.info("[perf] startup stages (ms)", { ...stages });
-    finishStartupAttempt("success");
   }
 }
 
@@ -71,6 +72,8 @@ export function restartSignInStages(): void {
 }
 
 export function finishStartupAttempt(outcome: Outcome): void {
+  if (finished) return;
+  finished = true;
   attempts.push({ outcome, stages: { ...stages } });
   if (attempts.length > 30) attempts.shift();
   if (typeof window !== "undefined") (window as unknown as { __igniteStartupAttempts?: typeof attempts }).__igniteStartupAttempts = [...attempts];
@@ -135,6 +138,7 @@ export function getStages(): StageMap {
 export function resetStagesForTests(): void {
   for (const k of Object.keys(stages) as PerfStage[]) delete stages[k];
   reported = false;
+  finished = false;
   sent.clear();
   if (reportTimer) clearTimeout(reportTimer);
   reportTimer = undefined;
