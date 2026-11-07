@@ -2,8 +2,9 @@
 
 ## ICP native push isolation (DEV only, 7 November 2026)
 - [x] Audited email/Supabase push, shared native ownership, ICP queues/producers and both delivery runners before runtime changes. Assessment: docs/dev-icp-push-isolation-2026-11-07.md. Existing 45 push/launch tests pass; no runtime, canister, hosted, credential or native changes.
-- [ ] Implement isolated ICP lifecycle/delivery: Paul approved narrowly ICP-guarded entry additions; email/Supabase paths/configuration remain frozen. Add separate native registration/refresh/sign-out/tap handling with explicit DEV target and account checks, then test isolation.
-- [ ] Configure dedicated DEV gateway/FCM access, verify current queue inventory and worker grants; credentials/hosting and separate delivery commissioning required. Do not enable the stale Supabase push-kick or concurrent recovery workers.
+- [x] Prepared commissioning-disabled DEV ICP native lifecycle/taps and guarded shared entry points with Paul's approval; legacy email/PROD paths remain intact. Added offline per-device delivery core with generic payloads, bounded retries and uncertain-send holds. 77 focused tests pass in both backend test modes; preview build OK. No canister/native/Supabase/PROD deployment or configuration change.
+- [ ] Finish server-side installation ownership/permission status/revocation, current mute/device/category policy and fenced per-device queue recovery with live gateway adapters as one integrated commissioning batch; external hosting/credentials and DEV native acceptance are unavailable. Native registration stays disabled; no delivery claim.
+- [ ] Configure dedicated DEV gateway/FCM access, verify current queue inventory and worker grants; Firebase connection card was declined and external hosting is unavailable. Do not enable the stale Supabase push-kick or concurrent recovery workers. DEV messaging no longer invokes the stale Supabase drain.
 - [ ] Demonstrate Android/iOS ICP delivery plus unchanged email/Supabase delivery across foreground/background/closed, taps, multiple devices, rotation/revocation/mutes/preferences and account switching. Physical DEV native devices/builds and authenticated sessions unavailable; Codemagic remains PROD-only. Not complete; no PROD deployment.
 
 ## Gallery notification refusal (DEV only, 7 November 2026)
