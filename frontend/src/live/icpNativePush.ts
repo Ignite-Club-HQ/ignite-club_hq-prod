@@ -9,6 +9,7 @@ let currentTicket: number | undefined;
 let activeAccount: string | undefined;
 let detach: (() => void) | undefined;
 let initialization: Promise<{ success: boolean; error?: string }> | undefined;
+let epoch = 0;
 
 async function ownerContext(userId: string): Promise<{ identity: Identity; target: IcpTargetConfig }> {
   const [{ getCurrentInternetIdentity }, { getActiveIcpTarget }] = await Promise.all([
@@ -25,20 +26,28 @@ async function ownerContext(userId: string): Promise<{ identity: Identity; targe
 
 /** Separate native adapter. Existing Firebase/Capacitor configuration is not changed. */
 export function initializeDevIcpNativePush(userId: string, requestPermission = true) {
-  if (initialization) return initialization.then(() => initialize(userId, requestPermission));
-  initialization = initialize(userId, requestPermission).finally(() => { initialization = undefined; });
+  if (initialization) return initialization;
+  const attempt = ++epoch;
+  initialization = initialize(userId, requestPermission, attempt).finally(() => { initialization = undefined; });
   return initialization;
 }
 
-async function initialize(userId: string, requestPermission: boolean): Promise<{ success: boolean; error?: string }> {
+async function initialize(userId: string, requestPermission: boolean, attempt: number): Promise<{ success: boolean; error?: string }> {
   try {
+    // Commission only after directory ownership, gateway and dual-mode phone acceptance.
+    // An uncommissioned ICP adapter never drops through to legacy Supabase delivery.
+    if (import.meta.env.IGNITE_LIVE_DEV_ICP_PUSH_ENABLED !== 'true') {
+      return { success: false, error: 'TEST push setup is not complete yet' };
+    }
     const { Capacitor } = await import('@capacitor/core');
     if (!Capacitor.isNativePlatform()) return { success: false, error: 'Not a native app' };
     const platform = Capacitor.getPlatform();
     if (platform !== 'android' && platform !== 'ios') return { success: false, error: 'Unsupported phone' };
     const ctx = await ownerContext(userId);
+    if (attempt !== epoch) return { success: false, error: 'Account changed' };
     const account = ctx.identity.getPrincipal().toText();
     const { registerLiveDeviceToken, unregisterLiveDeviceToken } = await import('./features/notifications');
+    if (attempt !== epoch || !usesDevIcpPush()) return { success: false, error: 'Account changed' };
     const ticket = lifecycle.bind({ account, target: JSON.stringify([ctx.target.host, ctx.target.canisterIds]),
       register: (token, p) => registerLiveDeviceToken(ctx, { token, platform: p }),
       unregister: async token => { await unregisterLiveDeviceToken(ctx, token); },
@@ -65,14 +74,15 @@ async function initialize(userId: string, requestPermission: boolean): Promise<{
         window.dispatchEvent(new CustomEvent('ignite:icp-push-registration-failed'));
       });
     });
-    handles.push(tokenHandle);
+    if (disposed) await tokenHandle.remove(); else handles.push(tokenHandle);
     const receivedHandle = await PushNotifications.addListener('pushNotificationReceived', notification => {
       const data = notification.data;
       if (disposed || !lifecycle.isCurrent(ticket) || !usesDevIcpPush() ||
         data?.ignite_backend !== 'icp-dev' || data?.recipient !== account) return;
       window.dispatchEvent(new CustomEvent('ignite:icp-push-received', { detail: notification }));
     });
-    handles.push(receivedHandle);
+    if (disposed) await receivedHandle.remove(); else handles.push(receivedHandle);
+    if (disposed || !lifecycle.isCurrent(ticket) || !usesDevIcpPush()) return { success: false, error: 'Account changed' };
     // Wait for APNs readiness on iOS; its registration value is never used as FCM.
     let registrationHandle: PluginListenerHandle | undefined;
     let errorHandle: PluginListenerHandle | undefined;
@@ -100,6 +110,7 @@ async function initialize(userId: string, requestPermission: boolean): Promise<{
 }
 
 export async function revokeDevIcpNativePush(): Promise<void> {
+  epoch += 1;
   currentTicket = undefined;
   activeAccount = undefined;
   detach?.();
