@@ -29,6 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { liveMessageRow } from "@/features/messaging/thread/liveMessageRow";
 import { mapIcpDmRows } from "@/features/messaging/thread/icpDmRows";
+import { ICP_DM_FIRST_PAGE_SIZE } from '@/features/messaging/thread/chatPageLimits';
 import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -105,7 +106,7 @@ import { recordLiveMessageSent } from "@/live/features/insights";
 import { Principal } from "@icp-sdk/core/principal";
 
 
-const MESSAGES_PER_PAGE = 25;
+const MESSAGES_PER_PAGE = ICP_DM_FIRST_PAGE_SIZE;
 
 interface DirectMessage {
   id: string;

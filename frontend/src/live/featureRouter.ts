@@ -10,6 +10,7 @@ import { readOwnerTestRouteCached, nextOwnerTestClubId } from './ownerTestRoutin
 import { hasInternetIdentitySessionStored, readAuthChoice } from "./authBackendMode";
 import { reportBlockedFallback } from "./strictIcpTransport";
 import { IcpSessionRequiredError } from "./icpSessionErrors";
+import { timeChatOperation } from '@/lib/chatOpenTrace';
 
 /**
  * Runtime dispatcher that connects feature repositories to the hybrid
@@ -69,6 +70,14 @@ export const mergeListsById = <T extends { id: string }>(parts: T[][]): T[] =>
   [...new Map(parts.flat().map((row) => [row.id, row])).values()];
 
 export async function withFeatureBackend<T>(
+  feature: FeatureArea,
+  providers: FeatureBackendProviders<T>,
+  scope?: ClubScope,
+): Promise<T> {
+  return timeChatOperation(`dispatch:${feature}`, 'dispatch', () => dispatchFeatureBackend(feature, providers, scope));
+}
+
+async function dispatchFeatureBackend<T>(
   feature: FeatureArea,
   providers: FeatureBackendProviders<T>,
   scope?: ClubScope,

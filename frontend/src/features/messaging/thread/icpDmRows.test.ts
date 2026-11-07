@@ -3,8 +3,12 @@ const mocks = vi.hoisted(() => ({ profiles: vi.fn(), reactions: vi.fn() }));
 vi.mock('@/lib/profileCache', () => ({ fetchProfilesWithCache: mocks.profiles }));
 vi.mock('@/live/features/messaging', () => ({ listLiveReactions: mocks.reactions }));
 import { mapIcpDmRows } from './icpDmRows';
+import { ICP_DM_FIRST_PAGE_SIZE } from './chatPageLimits';
 const rows = [{ id: 'm1', body: 'Hello', sender: { toText: () => 'person' }, sequence: 1n, created_at_ms: 1n, attachment: [], reply_to_id: [] }];
 describe('cold direct-message text', () => {
+  it('requests a 25-message first page within the requested 20–30 range', () => {
+    expect(ICP_DM_FIRST_PAGE_SIZE).toBe(25);
+  });
   it('publishes text immediately and starts independent enrichment together', async () => {
     let finish: (value: Map<string, unknown>) => void = () => {};
     mocks.profiles.mockReturnValue(new Promise(resolve => { finish = resolve; }));
