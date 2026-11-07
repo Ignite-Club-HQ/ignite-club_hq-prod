@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## Cold thread opening investigation (DEV only, 7 November 2026)
+- [ ] Instrument every query/fallback reason and duration, first paint and late enrichment; distinguish cold from cached opens without member identifiers.
+- [ ] Decouple first authorised pages from enrichment; coalesce duplicate reads while retaining mount freshness, ordering, account isolation and revocation clearing.
+- [ ] Investigate composite-query dependencies and DEV subnet placement without changing permissions or Production.
+- [ ] Run regressions and authenticated thread checks; benchmark at least 30 genuinely cold Android opens. Physical Android/Internet Identity access is required; emulation and anonymous service timings do not qualify.
+
 ## Event editing routing warnings (TEST only)
 - [x] Reproduced all four edit-form reads reaching Supabase under Internet Identity; routed duties, club subscriptions, member roles and saved event locations through their existing authorized scoped ICP readers. No mutation, permission or PROD changes.
 - [x] Routing regressions fail before and pass after; added denied-roster/no-fallback and club-scoped profile-enrichment checks. Seven related test files pass in both modes; preview build OK.
