@@ -50,7 +50,7 @@ export function markStage(stage: PerfStage): void {
   stages[stage] = Math.round(now());
   try { performance.mark(`ignite:${stage}`); } catch { /* unsupported */ }
   if (typeof window !== "undefined") (window as unknown as { __igniteStages?: StageMap }).__igniteStages = { ...stages };
-  if (stages.sign_in_click !== undefined) {
+  if (stages.sign_in_click !== undefined && !finished) {
     try {
       sessionStorage.setItem(PENDING, JSON.stringify({ started: performance.timeOrigin + attemptStart,
         stages: Object.fromEntries(Object.entries(stages).map(([key, value]) => [key, performance.timeOrigin + value])) }));
