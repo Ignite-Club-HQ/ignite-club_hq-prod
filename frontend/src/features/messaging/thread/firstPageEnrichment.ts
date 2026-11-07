@@ -13,6 +13,7 @@ export async function firstPageWithEnrichment<T extends { id: string }, D extend
   const enriched = map(rows => { first = rows; });
   if (!first) return data(await enriched);
   const initial = data(first);
+  const originalById = new Map(first.map(row => [row.id, row]));
   // A task boundary lets React Query commit the core page before enrichment.
   void enriched.then(rows => new Promise<void>(resolve => setTimeout(() => {
     try {
@@ -26,7 +27,10 @@ export async function firstPageWithEnrichment<T extends { id: string }, D extend
           if (!extra) return row;
           const patch: Record<string, unknown> = {};
           for (const field of ["profiles", "author", "reactions", "reply_to"]) {
-            if (field in extra) patch[field] = (extra as Record<string, unknown>)[field];
+            const original = originalById.get(row.id) as Record<string, unknown> | undefined;
+            const current = row as Record<string, unknown>;
+            // A delivered reaction/edit during hydration wins over the old snapshot.
+            if (field in extra && current[field] === original?.[field]) patch[field] = (extra as Record<string, unknown>)[field];
           }
           return { ...row, ...patch };
         }) };

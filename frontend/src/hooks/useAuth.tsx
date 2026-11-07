@@ -1385,6 +1385,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     console.warn("[Auth] Stored Internet Identity session is no longer valid; returning to sign-in.");
     localStorage.removeItem("ignite_icp_internet_identity_session");
     clearIcpIdentityProfileCache();
+    clearUserScopedCaches();
     queryClient.clear();
     void import("@/live/features/events").then((m) => m.clearListedLiveEvents()).catch(() => undefined);
     void import("@/live/features/messaging").then((m) => m.clearWarmLiveLatestPages()).catch(() => undefined);
@@ -1651,6 +1652,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       // tap opens the Internet Identity window straight away.
       setIiWarmGeneration((g) => g + 1);
       localStorage.removeItem("ignite_icp_internet_identity_session");
+      clearUserScopedCaches();
       queryClient.clear();
       void import("@/live/features/events").then((m) => m.clearListedLiveEvents()).catch(() => undefined);
     void import("@/live/features/messaging").then((m) => m.clearWarmLiveLatestPages()).catch(() => undefined);

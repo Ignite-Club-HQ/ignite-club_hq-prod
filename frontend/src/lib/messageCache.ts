@@ -14,6 +14,7 @@ import { writeBoundedReadCache } from "./deviceCacheBudget";
 // navigation frame. Same on-disk shape.
 
 import { orderChatMessagesChronologically } from "@/lab/chatMessageOrdering";
+import { onPrivateProfileSessionRetired } from "@/live/privateProfileSession";
 
 export interface CachedMessage {
   id: string;
@@ -60,7 +61,12 @@ const pendingFlushTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const pendingIdleHandles = new Map<string, number>();
 
 function getCacheKey(type: ChatType, targetId: string): string {
-  return `${CACHE_KEY_PREFIX}${type}_${targetId}`;
+  let account = "signed-out";
+  try {
+    const session = JSON.parse(localStorage.getItem("ignite_icp_internet_identity_session") ?? "null");
+    if (typeof session?.principal === "string") account = session.principal;
+  } catch { /* unreadable session cannot select another account's cache */ }
+  return `${CACHE_KEY_PREFIX}${account}_${type}_${targetId}`;
 }
 
 function loadFromDisk(key: string): CacheEntry | null {
@@ -259,3 +265,4 @@ export function clearMessageCache(type: ChatType, targetId: string): void {
   }
   try { localStorage.removeItem(key); } catch {}
 }
+onPrivateProfileSessionRetired(clearAllMessageCaches);
