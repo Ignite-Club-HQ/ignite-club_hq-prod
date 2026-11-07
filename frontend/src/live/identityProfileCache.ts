@@ -26,7 +26,9 @@ export function getCachedIcpIdentityProfile(principal: string): IcpIdentityProfi
     const raw = localStorage.getItem(cacheKey(principal));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as IcpIdentityProfile;
-    if (typeof parsed?.accountId !== "string") return null;
+    if (parsed?.accountId !== principal || typeof parsed.profileMissing !== "boolean" ||
+      !(parsed.displayName === null || typeof parsed.displayName === "string") ||
+      !Array.isArray(parsed.roles)) return null;
     return parsed;
   } catch {
     localStorage.removeItem(cacheKey(principal));
@@ -35,6 +37,7 @@ export function getCachedIcpIdentityProfile(principal: string): IcpIdentityProfi
 }
 
 export function cacheIcpIdentityProfile(principal: string, profile: IcpIdentityProfile): void {
+  if (profile.accountId !== principal) throw Error("Profile cache account mismatch");
   try {
     localStorage.setItem(cacheKey(principal), JSON.stringify(profile));
   } catch {

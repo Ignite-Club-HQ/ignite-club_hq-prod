@@ -681,6 +681,8 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
   // Tombstoned teams (deleted via team or club delete) must never render,
   // no matter which cache produced the row.
+  const rawItems = isIcp && isFetching && progress?.account === user?.id
+    ? progress.items : fetchedItems;
   const items = useMemo(() => filterDeletedTeams(rawItems), [rawItems]);
 
   // A failed refetch would otherwise keep a stale localStorage snapshot on

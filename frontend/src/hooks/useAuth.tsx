@@ -1,12 +1,10 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback, useMemo, type Context } from "react";
 import { markMountedAuthProvider } from "@/live/authBackendMode";
-import { User, Session } from "@supabase/supabase-js";
+import type { User, Session } from "@supabase/supabase-js";
 import { useQueryClient, onlineManager } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { subscribeToPushNotifications } from "@/lib/pushNotifications";
-import { prefetchUserData } from "@/lib/prefetchData";
 import { clearProfileCache } from "@/lib/profileCache";
 import { markStage, restartSignInStages } from "@/lib/perfStages";
 import { clearRolesCache } from "@/lib/rolesCache";
@@ -19,7 +17,6 @@ import { mark as coldMark } from "@/lib/coldStartMarks";
 import { navigateApp } from "@/lib/appNavigator";
 
 
-import { syncPasskeyAccountsFromDatabase } from "@/hooks/usePasskey";
 import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
 import { fetchUnreadMessageCounts, getTotalUnreadMessageCount } from "@/lib/unreadMessageCounts";
 import { markProfileCompleted } from "@/components/InviteFlowProgress";
@@ -453,13 +450,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchProfile(userId, 5, false).catch(() => {});
         // Prefetch other data
         setTimeout(() => {
-          prefetchUserData(queryClient, userId).catch(console.error);
+          void import("@/lib/prefetchData").then(m => m.prefetchUserData(queryClient, userId)).catch(console.error);
           fetchUnreadCount(userId).catch(console.error);
           const email = currentSession.user.email;
           const displayName = currentSession.user.user_metadata?.full_name || 
                              currentSession.user.user_metadata?.name;
           if (email) {
-            syncPasskeyAccountsFromDatabase(userId, email, displayName).catch(console.error);
+            void import("@/hooks/usePasskey").then(m => m.syncPasskeyAccountsFromDatabase(userId, email, displayName)).catch(console.error);
           }
         }, 100);
         return;
@@ -544,14 +541,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // Background prefetch - fire and forget
       setTimeout(() => {
-        prefetchUserData(queryClient, userId).catch(console.error);
+        void import("@/lib/prefetchData").then(m => m.prefetchUserData(queryClient, userId)).catch(console.error);
         fetchUnreadCount(userId).catch(console.error);
         // Sync passkey accounts from database to restore any lost localStorage data
         const email = sessionForBackgroundTasks.user.email;
         const displayName = sessionForBackgroundTasks.user.user_metadata?.full_name || 
                            sessionForBackgroundTasks.user.user_metadata?.name;
         if (email) {
-          syncPasskeyAccountsFromDatabase(userId, email, displayName).catch(console.error);
+          void import("@/hooks/usePasskey").then(m => m.syncPasskeyAccountsFromDatabase(userId, email, displayName)).catch(console.error);
         }
       }, 100);
       } finally {
@@ -979,6 +976,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       try {
         // Use silent mode - don't prompt, just subscribe if already permitted
+        const { subscribeToPushNotifications } = await import("@/lib/pushNotifications");
         const result = await subscribeToPushNotifications(user.id, true);
         if (result.success) {
           console.log('[Auth] Push notifications enabled on login');
@@ -1330,12 +1328,10 @@ export function useOptionalAuth(): AuthContextType | null {
 /** Local ICP session seam for staged frontend migration work. */
 /** Bounds a canister/client wait so a hung call can never spin a screen forever. */
 function withIcpTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Internet Identity request timed out")), ms),
-    ),
-  ]);
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Internet Identity request timed out")), ms);
+    promise.then(resolve, reject).finally(() => clearTimeout(timer)).catch(() => {});
+  });
 }
 
 export function IcpAuthProvider({ children, persona = "member" }: { children: ReactNode; persona?: string }) {
@@ -1446,7 +1442,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
           }
           return;
         }
-        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal), 45000);
+        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal, undefined, { essentialOnly: true }), 45000);
         if (!cancelled && icpProfileRequestRef.current === requestId) {
           setIcpProfile(fetched);
           setIcpNamePending(false);
@@ -1713,7 +1709,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
           await clearDeadIcpSession();
           return;
         }
-        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal), 45000);
+        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal, undefined, { essentialOnly: true }), 45000);
         if (signingOutRef.current || requestId !== icpProfileRequestRef.current) return;
         setIcpProfile(fetched);
         setIcpProfileResolved(true);
