@@ -1410,7 +1410,8 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     // member's own rows (events, chats, posts) show their name before the
     // background unlock completes.
     if (cached?.displayName) {
-      void import("@/live/ownPrivateName").then((m) => m.rememberOwnPrivateName(principal, cached.displayName!)).catch(() => undefined);
+      const name = cached.displayName;
+      void import("@/live/ownPrivateName").then((m) => m.rememberOwnPrivateName(principal, name)).catch(() => undefined);
     }
     setIcpProfileResolved(knownCachedIcpProfile(cached));
     setIcpNamePending(Boolean(cached && !cached.displayName && knownCachedIcpProfile(cached)));
@@ -1587,8 +1588,8 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     };
   }, [iiSignInReady, principal]);
   useEffect(() => {
-    if (icpProfileResolved && icpProfile) markStage("profile_resolved");
-  }, [icpProfileResolved, icpProfile]);
+    if (icpProfileResolved && icpProfile && verifiedPrincipal === principal) markStage("profile_resolved");
+  }, [icpProfileResolved, icpProfile, verifiedPrincipal, principal]);
   const signInWithIcp = async (): Promise<{ error: Error | null }> => {
     // Must stay synchronous before signIn() (iOS/popup gesture rules).
     restartSignInStages();

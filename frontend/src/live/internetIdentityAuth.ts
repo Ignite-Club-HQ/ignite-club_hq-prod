@@ -326,6 +326,7 @@ async function getAuthClient(): Promise<{ client: InternetIdentityAuthClient; ta
 }
 
 let warmupPromise: Promise<void> | undefined;
+let warmupTargetKey: string | undefined;
 
 /**
  * Pre-constructs the Internet Identity auth client ahead of time (resolving
@@ -341,6 +342,9 @@ let warmupPromise: Promise<void> | undefined;
  */
 export function warmInternetIdentityAuthClient(): Promise<void> {
   if (getWarmedAuthClient()) return Promise.resolve();
+  const key = identityTargetKey(getActiveIcpTarget());
+  if (warmupTargetKey !== key) warmupPromise = undefined;
+  warmupTargetKey = key;
   // A failed warm-up (flaky phone connection loading the sign-in code) must
   // not be cached — otherwise the first tap pays the load and loses the
   // click, which members experienced as "I have to tap sign-in twice".
@@ -479,7 +483,6 @@ export async function signInWithInternetIdentity(returnTo?: string): Promise<Int
   const identity = client.isAuthenticated()
     ? await client.getIdentity()
     : await signInWithStoredSessionRecovery(client, returnTo);
-  const active = capturePrivateProfileSession();
   const principal = identity.getPrincipal();
   if (principal.isAnonymous() || principal.toText() === "2vxsx-fae") {
     throw new Error("Internet Identity returned an anonymous principal.");
@@ -487,6 +490,7 @@ export async function signInWithInternetIdentity(returnTo?: string): Promise<Int
   const principalText = principal.toText();
   markStage("identity_complete");
   observePrivateProfilePrincipal(principalText);
+  const active = capturePrivateProfileSession();
   await provisionInternetIdentityAccount(identity, principalText, target);
   active();
   if (signOutRequested || identityTargetKey(getActiveIcpTarget()) !== identityTargetKey(target)) throw Error("Internet Identity session changed during sign-in");
@@ -507,9 +511,12 @@ export async function signInWithInternetIdentity(returnTo?: string): Promise<Int
  * `isAuthenticated()` fast path). Call this on load and when the tab returns.
  */
 let resumeAttempt: Promise<InternetIdentitySession | null> | undefined;
+let resumeTargetKey: string | undefined;
 export function resumeInternetIdentitySession(): Promise<InternetIdentitySession | null> {
-  if (resumeAttempt) return resumeAttempt;
+  const key = identityTargetKey(getActiveIcpTarget());
+  if (resumeAttempt && resumeTargetKey === key) return resumeAttempt;
   const pending = resumeSession();
+  resumeTargetKey = key;
   resumeAttempt = pending;
   void pending.finally(() => { if (resumeAttempt === pending) resumeAttempt = undefined; }).catch(() => {});
   return pending;
@@ -527,8 +534,11 @@ async function resumeSession(): Promise<InternetIdentitySession | null> {
   const principalText = principal.toText();
   markStage("identity_complete");
   observePrivateProfilePrincipal(principalText);
+  const active = capturePrivateProfileSession();
   await provisionInternetIdentityAccount(identity, principalText, target);
+  active();
   if (signOutRequested) return null;
+  if (identityTargetKey(getActiveIcpTarget()) !== identityTargetKey(target)) throw Error("Internet Identity target changed during resume");
   markStage("account_ready");
   observePrivateProfilePrincipal(principalText);
   return { principal: principalText, provider: "internet-identity" };
