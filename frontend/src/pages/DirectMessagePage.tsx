@@ -810,7 +810,7 @@ export default function DirectMessagePage() {
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoading =
-    (!authReady && !hasMeaningfulLocal) ||
+    (!authReady && !hasMeaningfulLocal && !messagesData?.messages?.length) ||
     (messagesLoading && !messagesData && !hasMeaningfulLocal);
 
   // Android resume escape hatch: abort zombie GETs + re-issue the gating
