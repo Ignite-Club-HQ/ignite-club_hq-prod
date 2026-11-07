@@ -3,6 +3,7 @@ import { withFeatureBackend } from "@/live/featureRouter";
 import { warmLiveLatestMessagesPage } from "@/live/features/messaging";
 import { groupChatReadScope } from "./groupChatScope";
 import { runFewAtATime } from "./icpTeamThreadPage";
+import { ICP_DM_FIRST_PAGE_SIZE } from './chatPageLimits';
 
 export type WarmConversation =
   | { kind: "club"; id: string }
@@ -10,7 +11,7 @@ export type WarmConversation =
   | { kind: "dm"; id: string };
 
 // Must match each chat page's first-page size so the warm page is reused.
-const PAGE_SIZE: Record<WarmConversation["kind"], number> = { club: 30, group: 30, dm: 15 };
+const PAGE_SIZE: Record<WarmConversation["kind"], number> = { club: 30, group: 30, dm: ICP_DM_FIRST_PAGE_SIZE };
 const QUERY_KEY: Record<WarmConversation["kind"], string> = { club: "club-messages", group: "group-messages", dm: "dm-messages" };
 
 /**

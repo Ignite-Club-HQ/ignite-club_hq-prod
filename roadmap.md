@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## Cold first-open chat repair (DEV only, 7 November 2026)
+- [x] Source-traced all four chat paths; reproduced duplicate page calls and redundant mount invalidation. Identified sequential DM profile/reaction waits and the team's additional 1.5s banner gate. Real slowest ICP operation remains unmeasured.
+- [x] Focused repairs: account/full-target/page-bound in-flight reads, active mount-read reuse, DM progressive text/parallel enrichment, 25-message DM limit shared with warming, remove team banner message gate, keep authorized messages visible during profile settling; operation-only actor/dispatch timing ledger. Existing destination permissions/routing checks unchanged. 153 tests pass; preview build OK.
+- [x] Thirty deterministic uncached DM benchmark samples: first-text median/P95 2600/2600→600/600ms under fixed synthetic delays, not real network evidence. Public desktop/mobile sign-in checks: no runtime errors/overflow. Details in docs/dev-cold-chat-opening-2026-11-07.md.
+- [ ] Authenticated startup/never-cached and cached UI flows across all four types, real ICP operation rankings, Android cold median/P95 and deployed DEV acceptance: blocked on delegated DEV Internet Identity session/physical device. No performance-target or deployment claim; PROD untouched.
+
 ## Next Up RSVP repair (TEST only, 7 November 2026)
 - [x] Reproduced prefixed-account save rejection in the mounted card; normalized and verified the signer for self/child saves, added one-attempt routing and private diagnostic logs. Mounted save/readback, denied-save/no-fallback and account-switch regressions pass; permission checks unchanged. Preview build OK. This reproduction does not establish that Paul's phone failure has the same cause.
 - [ ] Verify signed-in TEST save and readback on Paul's phone: blocked on his delegated Internet Identity session/device; deployment and exact phone refusal remain unverified. PROD untouched.
