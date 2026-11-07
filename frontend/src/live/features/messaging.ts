@@ -140,8 +140,8 @@ export function noteLiveConversationWrite(conversationId: string, at = Date.now(
   recentWrites.set(conversationId, at);
   if (recentWrites.size > 200) recentWrites.delete(recentWrites.keys().next().value as string);
 }
-export function shouldTryQueryOpen(conversationId: string, now = Date.now()): boolean {
-  if (!openConversationQuerySupported) return false;
+export function shouldTryQueryOpen(conversationId: string, now = Date.now(), supported = openConversationQuerySupported): boolean {
+  if (!supported) return false;
   // "*" = a write addressed by message/poll id (conversation unknown here).
   for (const key of [conversationId, "*"]) {
     const wrote = recentWrites.get(key);
@@ -171,6 +171,7 @@ export function resetLiveOpenFreshness(): void {
   openConversationQuerySupported = true;
   openConversationSupported = null;
   openBundleCache.clear();
+  supportedByTarget.clear();
 }
 const OPEN_BUNDLE_TTL_MS = 10_000;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
@@ -236,7 +237,14 @@ export async function listLiveLatestMessagesPage(
     warmLatestPages.delete(key);
     if (hit && Date.now() - hit.at < WARM_PAGE_TTL_MS) {
       if (limit > 1) traceReadStart(conversationId);
-      try { const warm = (await hit.page); if (limit > 1) { traceConnected(conversationId); traceReadDone(conversationId, "warm"); } return warm as Awaited<ReturnType<typeof readLatestMessagesPage>>; } catch { /* fall through to a fresh read */ }
+      try {
+        const warm = await hit.page as Awaited<ReturnType<typeof readLatestMessagesPage>>;
+        if (!shouldTryQueryOpen(conversationId, Date.now(), true) || isStaleAgainstSeen(warmKey(ctx, conversationId, 0), warm.latest_sequence)) {
+          throw new Error("Warm page superseded by a newer write or page");
+        }
+        if (limit > 1) { traceConnected(conversationId); traceReadDone(conversationId, "warm"); }
+        return warm;
+      } catch { /* fall through to a fresh authorized read */ }
     }
   }
   const key = `${warmKey(ctx, conversationId, limit)}|${before}`;
@@ -258,17 +266,16 @@ async function readLatestMessagesPage(
   const assertSession = capturePrivateProfileSession();
   const serviceKey = warmKey(ctx, "capabilities", 0);
   const support = supportedByTarget.get(serviceKey) ?? { update: null, query: true };
-  openConversationSupported = support.update;
-  openConversationQuerySupported = support.query;
+  const freshnessKey = warmKey(ctx, conversationId, 0);
   if (traced) traceReadStart(conversationId);
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
   if (traced) traceConnected(conversationId);
-  if (before === null && openConversationSupported !== false) {
+  if (before === null && support.update !== false) {
     try {
       let bundle: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any -- untyped candid actor
       let path: ChatReadPath = "update";
-      let fallbackReason: ChatFallbackReason = openConversationQuerySupported ? "write_fence" : "query_unsupported";
-      if (shouldTryQueryOpen(conversationId)) {
+      let fallbackReason: ChatFallbackReason = support.query ? "write_fence" : "query_unsupported";
+      if (shouldTryQueryOpen(conversationId, Date.now(), support.query)) {
         if (traced) traceQueryStart(conversationId);
         try {
           bundle = await unwrapCandid(
@@ -276,7 +283,7 @@ async function readLatestMessagesPage(
             (actor as any).open_conversation_query(conversationId, limit),
             "Open conversation",
           );
-          if (isStaleAgainstSeen(conversationId, bundle?.page?.latest_sequence)) {
+          if (isStaleAgainstSeen(freshnessKey, bundle?.page?.latest_sequence)) {
             fallbackReason = toBig(bundle?.page?.latest_sequence) === null ? "missing_sequence" : "stale_sequence";
             bundle = null;
             if (traced) traceQueryDone(conversationId, fallbackReason);
@@ -308,7 +315,7 @@ async function readLatestMessagesPage(
         ); } finally { if (traced) traceFallbackDone(conversationId); }
       }
       assertSession();
-      noteSeenLatest(conversationId, bundle?.page?.latest_sequence);
+      noteSeenLatest(freshnessKey, bundle?.page?.latest_sequence);
       if (traced) traceReadDone(conversationId, path);
       openConversationSupported = true;
       support.update = true; supportedByTarget.set(serviceKey, support);
@@ -347,7 +354,8 @@ async function readLatestMessagesPage(
       ),
       "List latest messages",
     );
-    if (before === null) noteSeenLatest(conversationId, (page as { latest_sequence?: unknown }).latest_sequence);
+    assertSession();
+    if (before === null) noteSeenLatest(freshnessKey, (page as { latest_sequence?: unknown }).latest_sequence);
     if (traced) traceReadDone(conversationId, "update");
     return page;
   } catch (err) {

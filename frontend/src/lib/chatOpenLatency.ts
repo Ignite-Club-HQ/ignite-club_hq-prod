@@ -148,12 +148,14 @@ onChatStage(event => {
     const w = window as unknown as { __igniteChatStages?: unknown[] };
     (w.__igniteChatStages ??= []).push(event);
     if (w.__igniteChatStages.length > 500) w.__igniteChatStages.shift();
-    void withFeatureBackend("analytics", {
+    // Batch at the next task so telemetry never starts an actor handshake
+    // on the synchronous message decode/paint path.
+    setTimeout(() => { void withFeatureBackend("analytics", {
       supabase: async () => {},
       icp: ctx => recordLivePerfSamplesBatch(ctx, [{ surface: `chat_read:${event.stage}`,
         source: event.reason ?? "completed", duration_ms: event.duration_ms, cache_hit: false,
         platform: Capacitor.isNativePlatform() ? Capacitor.getPlatform() : /Android/i.test(navigator.userAgent) ? "android_web" : "web" }]),
-    }, { shared: "app" }).catch(() => {});
+    }, { shared: "app" }).catch(() => {}); }, 0);
   } catch { /* best-effort and contains no identities or raw errors */ }
 });
 
