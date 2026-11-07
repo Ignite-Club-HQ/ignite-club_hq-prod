@@ -1,5 +1,4 @@
 import { isClubSubscriptionActive } from "@/lib/proEntitlement";
-import { firstPageWithEnrichment } from "@/features/messaging/thread/firstPageEnrichment";
 import { prefetchMessagePolls } from "@/lib/pollReadRepository";
 import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import { confirmPendingSend } from "@/lib/pendingSendKeeper";
@@ -606,14 +605,23 @@ export default function ClubChatPage() {
             );
             assertReadNotAborted(signal);
             prefetchMessagePolls(queryClient, page.messages, user.id, { clubId }, true, ctx);
+            const messages = await mapLiveClubRows(ctx, page.messages, ready => {
+              assertReadNotAborted(signal);
+              const key = ["club-messages", clubId];
+              const current = queryClient.getQueryData<{ messages: Message[] }>(key);
+              if (!current?.messages?.length) queryClient.setQueryData(key, { messages: ready, hasOlderMessages: page.next_sequence.length > 0, fromCache: false });
+            }, signal);
             const olderCursor =
               Array.isArray(page.next_sequence) && page.next_sequence.length > 0
                 ? Number(page.next_sequence[0])
                 : null;
             icpOlderCursorRef.current = olderCursor;
-            return firstPageWithEnrichment(queryClient, ["club-messages", clubId], clubId,
-              ready => mapLiveClubRows(ctx, page.messages, ready, signal),
-              messages => ({ messages, hasOlderMessages: olderCursor !== null, reactions: [], fromCache: false }), signal);
+            return {
+              messages,
+              hasOlderMessages: olderCursor !== null,
+              reactions: [],
+              fromCache: false,
+            };
 
           },
         }, { clubId: clubId });

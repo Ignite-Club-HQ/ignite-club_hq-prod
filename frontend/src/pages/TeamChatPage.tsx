@@ -921,6 +921,7 @@ export default function TeamChatPage() {
   
   const handleRefresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    await queryClient.refetchQueries({ queryKey: ["team-messages", teamId], type: "active" });
   }, [queryClient, teamId]);
 
   const handleManualRefresh = useCallback(async () => {
@@ -2120,7 +2121,7 @@ export default function TeamChatPage() {
 
       {/* Messages */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
-        {showLoading ? (
+        {showLoading || !bannersReady ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-16 w-3/4" />

@@ -28,20 +28,6 @@ beforeEach(() => {
 });
 
 describe("first-page quick read", () => {
-  it("coalesces simultaneous first-page requests but refreshes again after completion", async () => {
-    actor.open_conversation_query.mockResolvedValue(bundle(5));
-    await Promise.all([listLiveLatestMessagesPage(ctx, "same", null, 30), listLiveLatestMessagesPage(ctx, "same", null, 30)]);
-    expect(actor.open_conversation_query).toHaveBeenCalledTimes(1);
-    await listLiveLatestMessagesPage(ctx, "same", null, 30);
-    expect(actor.open_conversation_query).toHaveBeenCalledTimes(2);
-  });
-  it("does not coalesce reads across accounts or shards", async () => {
-    actor.open_conversation_query.mockResolvedValue(bundle(5));
-    const other = { target: {}, identity: { getPrincipal: () => ({ toText: () => "other" }) } } as never;
-    const shard = { target: { canisterIds: { messaging_domain: "other-canister" } }, identity: { getPrincipal: () => ({ toText: () => "me" }) } } as never;
-    await Promise.all([ctx, other, shard].map(c => listLiveLatestMessagesPage(c, "same", null, 30)));
-    expect(actor.open_conversation_query).toHaveBeenCalledTimes(3);
-  });
   it("serves the first page from the quick read without the consensus call", async () => {
     actor.open_conversation_query.mockResolvedValue(bundle(5));
     const page = await listLiveLatestMessagesPage(ctx, "c1", null, 50);

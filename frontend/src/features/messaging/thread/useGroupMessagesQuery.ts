@@ -9,7 +9,6 @@ import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMod
 import { isUsableCachedThread } from "@/lib/chatThreadLoadState";
 import { assertReadNotAborted } from "@/live/readDeadline";
 import { groupChatReadScope } from './groupChatScope';
-import { firstPageWithEnrichment } from './firstPageEnrichment';
 import * as fixtureData from "@/lab/fixtureDataLayer";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { listLiveLatestMessagesPage, listLiveReactions } from "@/live/features/messaging";
@@ -292,10 +291,27 @@ const fetchGroupMessages = async ({
         Array.isArray(page.next_sequence) && page.next_sequence.length > 0
           ? Number(page.next_sequence[0])
           : null;
-      return firstPageWithEnrichment(queryClient, ["group-messages", groupId], groupId,
-        ready => mapLiveGroupRows(ctx, groupId, page.messages, ready, signal),
-        messages => ({ messages, hasOlderMessages: olderCursor !== null, olderCursor,
-          reactions: messages.flatMap(m => m.reactions ?? []) as MessageReaction[] }), signal);
+      const messages = await mapLiveGroupRows(ctx, groupId, page.messages, readyMessages => {
+        if (signal?.aborted) return;
+        // Only unblock a cold thread; do not overwrite loaded reactions or
+        // optimistic/realtime rows while a background refresh is in flight.
+        queryClient.setQueryData<GroupMessagesQueryData>(["group-messages", groupId], previous =>
+          previous?.messages.length ? previous : {
+            messages: readyMessages, reactions: [], olderCursor,
+            hasOlderMessages: olderCursor !== null,
+          });
+      }, signal);
+      // mapLiveGroupRows embeds canister reactions per message; flatten the
+      // same rows for consumers that read the flat reactions list.
+      const reactions = messages.flatMap((m: any) =>
+        ((m.reactions || []) as any[]).map((r) => ({ ...r, group_message_id: m.id })),
+      ) as MessageReaction[];
+      return {
+        messages: attachReactionsToMessages(messages, reactions),
+        hasOlderMessages: olderCursor !== null,
+        olderCursor,
+        reactions,
+      };
     },
 
   }, groupChatReadScope(queryClient, userId, groupId, clubId));
