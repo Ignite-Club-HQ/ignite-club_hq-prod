@@ -590,8 +590,6 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
     staleTime: 60 * 1000,
   });
 
-  const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
-
   const [parentRsvpOpen, setParentRsvpOpen] = useState(false);
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps, isFetched: childRsvpsFetched } = useChildRsvps(event.id, user?.id);
@@ -621,6 +619,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
   }, [event.id, onReadyChange]);
 
   const rsvpMutation = useMutation({
+    retry: false,
     mutationFn: async (status: RsvpStatus) => {
       if (!user) throw new Error("Sign in before updating your RSVP");
       // Hybrid routing: mirrors the self-RSVP write in EventCard.tsx.
@@ -635,7 +634,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
           return true;
         },
       }, writeOnce({ eventId: event.id }));
-      if (routedToIcp) return;
+      if (routedToIcp) return { id: `${event.id}:${user.id.replace(/^principal:/, "")}`, status };
 
       let rsvpId: string | null = null;
       if (myRsvp) {
@@ -645,7 +644,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       } else {
         const { data: newRsvp, error } = await supabase
           .from("rsvps")
-          .insert({ event_id: event.id, user_id: user!.id, status })
+          .insert({ event_id: event.id, user_id: user.id, status })
           .select("id")
           .single();
         if (error) throw error;
@@ -654,15 +653,19 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       // Fire-and-forget: don't block UI for points calculation
       if (status === "going" && rsvpId) {
         awardEarlyRsvpPoints({
-          userId: user!.id,
+          userId: user.id,
           eventDate: event.event_date,
           rsvpId,
           clubId: event.club_id,
           clubName: event.clubs.name,
         }).catch(console.error);
       }
+      return { id: rsvpId, status };
     },
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      // Publish the acknowledged answer before refreshing supplementary reads.
+      // Pending selection is display-only: never use it to choose INSERT vs UPDATE.
+      queryClient.setQueryData(["hero-rsvp", event.id, user?.id], saved);
       queryClient.invalidateQueries({ queryKey: ["hero-rsvp", event.id] });
       queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
       queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", event.id] });
@@ -677,6 +680,12 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       }));
     },
   });
+
+  // Show the tap immediately, without changing authoritative cached data until
+  // acknowledgement. Failure automatically reveals the previous saved answer.
+  const currentStatus = rsvpMutation.isPending && rsvpMutation.variables
+    ? rsvpMutation.variables
+    : (myRsvp?.status as RsvpStatus) ?? null;
 
   const childRsvpMutation = useMutation({
     mutationFn: async ({ childId, status }: { childId: string; status: RsvpStatus }) => {
