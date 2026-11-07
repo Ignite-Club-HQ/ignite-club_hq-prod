@@ -16,7 +16,7 @@ import { IcpAuthProvider, useAuth } from './useAuth';
 beforeEach(() => {
   localStorage.clear(); vi.clearAllMocks();
   localStorage.setItem('ignite_icp_internet_identity_session', JSON.stringify({ provider: 'internet-identity', principal: 'account-a' }));
-  mocks.confirmed.mockResolvedValue({});
+  mocks.confirmed.mockResolvedValue({ getPrincipal: () => ({ toText: () => 'account-a' }) });
 });
 
 it('adopts an acknowledged save without a second fetch and rejects an older missing-profile reply', async () => {

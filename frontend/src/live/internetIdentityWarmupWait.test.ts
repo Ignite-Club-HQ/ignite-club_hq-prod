@@ -17,6 +17,7 @@ vi.mock("@/lib/perfStages", () => ({ markStage: vi.fn(), restartSignInStages: vi
 vi.mock("./privateProfileSession", () => ({
   observePrivateProfilePrincipal: vi.fn(),
   retirePrivateProfileSession: vi.fn(),
+  capturePrivateProfileSession: () => () => {},
 }));
 vi.mock("./targetRegistry", () => ({
   getActiveIcpTarget: () => ({ alias: "test-target", host: "https://icp0.io", canisterIds: {} }),
