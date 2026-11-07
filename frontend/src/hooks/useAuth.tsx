@@ -12,6 +12,7 @@ import { markStage, restartSignInStages } from "@/lib/perfStages";
 import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { clearUserScopedCaches } from "@/lib/clearUserScopedCaches";
+import { bindChatCacheAccount } from "@/lib/chatCachePrivacy";
 import { revokeAllForUser } from "@/lib/realtimeChannelRegistry";
 import { setAuthThemeHint } from "@/lib/authThemeHint";
 import { mark as coldMark } from "@/lib/coldStartMarks";
@@ -1352,6 +1353,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     }
   });
   const principal = session?.principal ?? null;
+  bindChatCacheAccount(queryClient, principal);
   const [signingOut, setSigningOut] = useState(false);
   const signingOutRef = useRef(false);
   // Real identity profile resolved from the identity_access canister
@@ -1385,6 +1387,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     console.warn("[Auth] Stored Internet Identity session is no longer valid; returning to sign-in.");
     localStorage.removeItem("ignite_icp_internet_identity_session");
     clearIcpIdentityProfileCache();
+    clearUserScopedCaches();
     queryClient.clear();
     void import("@/live/features/events").then((m) => m.clearListedLiveEvents()).catch(() => undefined);
     void import("@/live/features/messaging").then((m) => m.clearWarmLiveLatestPages()).catch(() => undefined);
@@ -1651,6 +1654,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       // tap opens the Internet Identity window straight away.
       setIiWarmGeneration((g) => g + 1);
       localStorage.removeItem("ignite_icp_internet_identity_session");
+      clearUserScopedCaches();
       queryClient.clear();
       void import("@/live/features/events").then((m) => m.clearListedLiveEvents()).catch(() => undefined);
     void import("@/live/features/messaging").then((m) => m.clearWarmLiveLatestPages()).catch(() => undefined);

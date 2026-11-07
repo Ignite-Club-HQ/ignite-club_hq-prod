@@ -28,6 +28,7 @@ import { buildNewsShareToken } from "@/features/news/newsShareToken";
 import { supabase } from "@/integrations/supabase/client";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { liveMessageRow } from "@/features/messaging/thread/liveMessageRow";
+import { firstPageWithEnrichment } from "@/features/messaging/thread/firstPageEnrichment";
 import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -572,14 +573,15 @@ export default function DirectMessagePage() {
   // Memoize query key to prevent ChatMessage memo breaks
   // Canister rows → the app's DM shape. Shared by the first page load and by
   // scroll-back paging so both render identically.
-  const mapLiveDmRows = async (ctx: any, rows: any[]): Promise<DirectMessage[]> => {
+  const mapLiveDmRows = async (ctx: any, rows: any[], onReady?: (messages: DirectMessage[]) => void): Promise<DirectMessage[]> => {
     const authorIds = [...new Set(rows.map((m: any) => m.sender.toText() as string))];
-    const profilesMap = privateChatNames ? new Map() : await fetchProfilesWithCache(authorIds);
+    let profilesMap = new Map();
+    const profilesRead = privateChatNames ? Promise.resolve(new Map()) : fetchProfilesWithCache(authorIds);
     // Reactions persist on the canister; restore them on every refetch.
     // Tolerate older canisters that lack list_reactions.
     const reactionsByMessage = new Map<string, any[]>();
-    try {
-      const liveReactions = await listLiveReactions(ctx, conversationId!);
+    const reactionsRead = (async () => { try {
+      const liveReactions = await listLiveReactions(ctx, conversationId ?? "");
       for (const r of liveReactions) {
         const uid = r.user.toText();
         const list = reactionsByMessage.get(r.message_id) ?? [];
@@ -590,12 +592,12 @@ export default function DirectMessagePage() {
         });
         reactionsByMessage.set(r.message_id, list);
       }
-    } catch { /* canister without list_reactions — reactions stay empty until redeploy */ }
+    } catch { /* optional reactions cannot hide the thread */ } })();
     // Replies persist on the canister as reply_to_id; resolve the quoted
     // snippet from messages in the same page (targets outside the loaded page
     // render without a quote, same as a deleted target).
     const rawById = new Map<string, any>(rows.map((m: any) => [m.id, m]));
-    return rows
+    const mapRows = () => rows
       .slice()
       .sort((a: any, b: any) => Number(b.sequence - a.sequence))
       .map((m: any) => {
@@ -624,6 +626,9 @@ export default function DirectMessagePage() {
           reactions: reactionsByMessage.get(m.id) ?? [],
         };
       }) as unknown as DirectMessage[];
+    onReady?.(mapRows());
+    [profilesMap] = await Promise.all([profilesRead, reactionsRead]);
+    return mapRows();
   };
 
   const dmQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
@@ -652,7 +657,7 @@ export default function DirectMessagePage() {
   // Fetch messages with cache support
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: dmQueryKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       markChatFetch();
       if (useIcpLab && conversationId && user?.id) {
         return withFeatureBackend("messaging", {
@@ -667,17 +672,14 @@ export default function DirectMessagePage() {
             // Newest-first page: the canister returns the newest MESSAGES_PER_PAGE
             // rows plus a backward cursor when older history remains.
             const page = await listLiveLatestMessagesPage(ctx, conversationId, null, MESSAGES_PER_PAGE);
-            const messages = await mapLiveDmRows(ctx, page.messages);
             const olderCursor =
               Array.isArray(page.next_sequence) && page.next_sequence.length > 0
                 ? Number(page.next_sequence[0])
                 : null;
             icpOlderCursorRef.current = olderCursor;
-            cacheDirectMessages(conversationId, messages);
-            return {
-              messages,
-              hasOlderMessages: olderCursor !== null,
-            };
+            return firstPageWithEnrichment(queryClient, dmQueryKey, conversationId,
+              ready => mapLiveDmRows(ctx, page.messages, ready),
+              messages => ({ messages, hasOlderMessages: olderCursor !== null }), signal);
 
           },
         }, { conversationId: conversationId });
@@ -796,7 +798,9 @@ export default function DirectMessagePage() {
     if (!conversationId || !authReady) return;
     // cancelRefetch:false joins the mount fetch already in flight instead of
     // aborting it and paying a second canister round trip on cold opens.
-    queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] }, { cancelRefetch: false });
+    const key = ["dm-messages", conversationId];
+    if (queryClient.getQueryState(key)?.fetchStatus === "fetching") return;
+    queryClient.invalidateQueries({ queryKey: key }, { cancelRefetch: false });
   }, [conversationId, authReady, queryClient]);
 
   // Belt-and-braces: if the first fetch returned zero messages while auth was
@@ -806,6 +810,7 @@ export default function DirectMessagePage() {
   const emptyRetriedRef = useRef(false);
   useEffect(() => {
     if (emptyRetriedRef.current) return;
+    if (useIcpLab) return; // An authorised empty ICP page is not an auth-restoration miss.
     if (!conversationId || !authReady) return;
     if (messagesLoading) return;
     if (!messagesData) return;

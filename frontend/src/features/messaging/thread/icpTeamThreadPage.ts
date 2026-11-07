@@ -12,6 +12,7 @@ import {
 import { withFeatureBackend } from "@/live/featureRouter";
 import { getCachedTeam } from "@/lib/clubTeamCache";
 import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
+import { firstPageWithEnrichment } from "./firstPageEnrichment";
 
 export const ICP_TEAM_MESSAGES_PER_PAGE = 30;
 
@@ -106,14 +107,9 @@ export async function fetchIcpTeamLatestPage(queryClient: QueryClient, userId: s
       const icpOlderCursor = Array.isArray(page.next_sequence) && page.next_sequence.length > 0
         ? Number(page.next_sequence[0]) : null;
       if (signal?.aborted) throw new Error("Chat read cancelled");
-      const messages = await mapLiveTeamRows(ctx, teamId, page.messages, readyMessages => {
-        if (signal?.aborted) return;
-        queryClient.setQueryData(["team-messages", teamId], (previous: any) => previous?.messages?.length ? previous : {
-          messages: readyMessages, hasOlderMessages: icpOlderCursor !== null, fromCache: false, icpOlderCursor,
-        });
-      });
-      if (signal?.aborted) throw new Error("Chat read cancelled");
-      return { messages, hasOlderMessages: icpOlderCursor !== null, fromCache: false, icpOlderCursor };
+      return firstPageWithEnrichment(queryClient, ["team-messages", teamId], teamId,
+        ready => mapLiveTeamRows(ctx, teamId, page.messages, ready),
+        messages => ({ messages, hasOlderMessages: icpOlderCursor !== null, fromCache: false, icpOlderCursor }), signal);
     },
   }, teamThreadScope(teamId, clubId));
 }

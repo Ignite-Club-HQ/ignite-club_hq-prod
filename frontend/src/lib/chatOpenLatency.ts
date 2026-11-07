@@ -11,7 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { recordLivePerfSamplesBatch } from "@/live/features/insights";
-import { classifyChatOpen, takeChatOpenBreakdown, type ChatOpenBreakdown } from "./chatOpenTrace";
+import { classifyChatOpen, takeChatOpenBreakdown, onChatStage, type ChatOpenBreakdown } from "./chatOpenTrace";
 import { Capacitor } from "@capacitor/core";
 import { mark as coldMark, snapshotStages, logStagesToConsole, stopLongTaskWindow } from "./coldStartMarks";
 
@@ -44,11 +44,15 @@ export function isTrueColdOpen(chatMountDeltaMs: number | undefined): boolean {
 export async function logChatOpenLatency(args: LogArgs): Promise<void> {
   try {
     if (!args.userId) return;
+    // Effects run after commit, not necessarily after pixels are visible.
+    if (typeof requestAnimationFrame === "function") await new Promise<void>(resolve =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     const renderTs = Date.now();
     // Record the render mark first so the stage snapshot includes it.
     coldMark("chat_render");
-    const openClass = classifyChatOpen(args.targetId, args.source === "notification", args.fromCache);
     const breakdown = takeChatOpenBreakdown(args.targetId, args.startTs, renderTs);
+    const fromCache = args.fromCache || breakdown.read_path === "cache" || breakdown.read_path === "warm";
+    const openClass = classifyChatOpen(args.targetId, args.source === "notification", fromCache);
     recordBreakdownLocally(args.kind, openClass, breakdown);
     // For cold_open, anchor startTs to the earliest signal we have (notif_tap
     // or performance.timeOrigin / boot) so tap_to_render_ms includes the
@@ -109,14 +113,14 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
           // and chat_open_stage:* carries the stage split (durations only).
           await recordLivePerfSamplesBatch(ctx, [
             { surface: "chat_open", source: args.source, duration_ms: tap_to_render_ms, cache_hit: args.fromCache, platform },
-            ...breakdownSamples(args.kind, openClass, breakdown, args.fromCache, platform),
+            ...breakdownSamples(args.kind, openClass, breakdown, fromCache, platform),
           ]);
         },
       }, { shared: "app" }).catch(() => {});
     };
     const supabaseInsert = () => {
       void supabase.from("chat_open_perf").insert({
-        user_id: args.userId!,
+        user_id: args.userId,
         chat_kind: args.kind,
         target_id: args.targetId,
         source: args.source,
@@ -136,7 +140,24 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
   }
 }
 
-const STAGE_KEYS = ["js_load_ms", "auth_wait_ms", "connect_ms", "authz_fallback_ms", "canister_ms", "render_ms", "enrichment_ms"] as const;
+const STAGE_KEYS = ["js_load_ms", "auth_wait_ms", "connect_ms", "authz_fallback_ms", "canister_ms", "render_ms", "enrichment_ms", "query_attempt_ms", "update_fallback_ms"] as const;
+
+// Independent events survive a failed open and enrichment finishing after paint.
+onChatStage(event => {
+  try {
+    const w = window as unknown as { __igniteChatStages?: unknown[] };
+    (w.__igniteChatStages ??= []).push(event);
+    if (w.__igniteChatStages.length > 500) w.__igniteChatStages.shift();
+    // Batch at the next task so telemetry never starts an actor handshake
+    // on the synchronous message decode/paint path.
+    setTimeout(() => { void withFeatureBackend("analytics", {
+      supabase: async () => {},
+      icp: ctx => recordLivePerfSamplesBatch(ctx, [{ surface: `chat_read:${event.stage}`,
+        source: event.reason ?? "completed", duration_ms: event.duration_ms, cache_hit: false,
+        platform: Capacitor.isNativePlatform() ? Capacitor.getPlatform() : /Android/i.test(navigator.userAgent) ? "android_web" : "web" }]),
+    }, { shared: "app" }).catch(() => {}); }, 0);
+  } catch { /* best-effort and contains no identities or raw errors */ }
+});
 
 export function breakdownSamples(kind: ChatPerfKind, openClass: string, b: ChatOpenBreakdown, fromCache: boolean, platform: string) {
   const source = `${kind}:${openClass}:${b.read_path ?? "unknown"}`;

@@ -37,8 +37,8 @@ describe("cold team chat opening", () => {
       sequence: 1n, created_at_ms: 1n, attachment: [], reply_to_id: [] }], next_sequence: [] } as any);
     const qc = new QueryClient();
     const pending = fetchIcpTeamLatestPage(qc, "paul", "u9", "g2-test");
-    await vi.waitFor(() => expect(qc.getQueryData(["team-messages", "u9"])).toMatchObject({ messages: [{ id: "m-u9", text: "Hello U9" }] }));
-    finishReactions([]); await pending; qc.clear();
+    expect(await pending).toMatchObject({ messages: [{ id: "m-u9", text: "Hello U9" }] });
+    finishReactions([]); qc.clear();
   });
 
   it("does not overwrite existing or optimistic messages during enrichment", async () => {

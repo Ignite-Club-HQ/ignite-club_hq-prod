@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState, Fragment, type ReactNode } from "react";
 import { restoreQueryCache, startQueryCachePersistence } from "@/lib/queryCachePersistence";
 import { installPendingSendKeeper } from "@/lib/pendingSendKeeper";
+import { installChatCachePrivacy, isChatAccessDenial } from "@/lib/chatCachePrivacy";
 
 import NativeOnlyGate from "@/components/NativeOnlyGate";
 import { Capacitor } from "@capacitor/core";
@@ -229,7 +230,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       networkMode: "offlineFirst",
-      retry: 1,
+      retry: (attempt, error) => !isChatAccessDenial(error) && attempt < 1,
       retryDelay: (attempt) => Math.min(1500 * 2 ** attempt, 8000),
       refetchOnReconnect: "always",
       // Tighter defaults to reduce redundant refetches; per-query overrides
@@ -249,6 +250,7 @@ restoreQueryCache(queryClient);
 startQueryCachePersistence(queryClient);
 // Still-sending chat messages survive leaving and re-opening the chat.
 installPendingSendKeeper(queryClient);
+installChatCachePrivacy(queryClient);
 
 // Download the main pages' code while the app is idle so the first tap on
 // any of them does not wait for a code download.

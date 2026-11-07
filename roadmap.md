@@ -1,5 +1,12 @@
 # Roadmap — launch the live (PROD) system
 
+## Cold thread opening investigation (DEV only, 7 November 2026)
+- [x] Instrument query attempts, failure categories and fallback durations including stale-sequence/write-fence paths; late enrichment reports independently and first-message logging waits for paint. Cold/cache classification uses actual read path, not prior visits.
+- [x] Four ICP thread loaders return core pages without enrichment; skip duplicate mount invalidation during active fetches, remove duplicate team manual refresh and banner wait. Account/target-bound in-flight reads and bundles; account-change/refusal retirement preserves transient-error caches. Mount freshness and permissions unchanged.
+- [x] Investigated backend scans and membership query dependency; public DEV base messaging/club dashboard metadata reports the same subnet. Group placement and per-query load remain unverified; no backend/PROD changes. Details: docs/chat-cold-opening-dev-2026-11-07.md.
+- [x] 108 targeted tests pass in ICP mode; public preview reaches sign-in with zero runtime errors and preview build OK.
+- [ ] Authenticated four-thread UI acceptance and at least 30 genuinely cold Android opens: blocked on physical Android device and delegated Internet Identity session. No cold before/after performance result or TEST canister deployment is claimed.
+
 ## Event editing routing warnings (TEST only)
 - [x] Reproduced all four edit-form reads reaching Supabase under Internet Identity; routed duties, club subscriptions, member roles and saved event locations through their existing authorized scoped ICP readers. No mutation, permission or PROD changes.
 - [x] Routing regressions fail before and pass after; added denied-roster/no-fallback and club-scoped profile-enrichment checks. Seven related test files pass in both modes; preview build OK.
