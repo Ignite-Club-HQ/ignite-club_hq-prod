@@ -1,0 +1,2 @@
+- This directory contains isolated DEV ICP server transport only; no index endpoint or schedule until queue-worker identity, durable per-device fencing and exclusive runner handover are commissioned. Why: Firebase access alone cannot authorize queue delivery.
+- Pin transport to DEV Supabase and the linked Firebase gateway; never import email handlers or forward caller-selected tokens/content from a public request. Why: hosting must not cross backend/account boundaries.

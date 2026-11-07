@@ -45,5 +45,24 @@ Use generic lock-screen text and the existing `icp-dev` recipient-bound envelope
 ## Status
 
 Firebase hosting access is ready; the sender is **not deployed or active**.
-No notification was sent. No canister, database, scheduler, email-push function,
-native configuration or production change occurred in this setup step.
+The next step prepared `supabase/functions/icp-dev-push-sender/fcm.ts`, a
+server-only transport with no public endpoint or scheduler. It pins the DEV
+Supabase host, rejects non-ICP and cross-account envelopes, emits generic text,
+uses one bounded gateway request, preserves definite provider errors privately,
+and treats missing/ambiguous acceptance as held rather than replayable.
+
+Six transport tests plus six existing per-device delivery tests pass (12 total).
+They use synthetic credentials and mock HTTP responses; no notification was
+sent and no real phone delivery was tested. The transport is not called by the
+app or existing workers. An `index.ts` is intentionally absent, so the current
+function selection/deployment inventory does not publish this draft.
+
+Existing worker handover remains blocked: GitHub does not expose stored secret
+plaintext through its API, and this project's secret list contains no TEST
+worker signing key. Do not ask Paul to recover an unreadable secret or print it
+in Actions logs. Secure server-to-server handover through an authorized existing
+job or an explicitly reviewed new-worker commissioning flow is needed.
+
+No canister, database, scheduler, email-push function, native configuration or
+production change occurred. Queue journal/ownership/mute/fencing and physical
+Android/iOS dual-mode acceptance remain unfinished.
