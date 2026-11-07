@@ -2,7 +2,8 @@
 
 ## Gallery notification refusal (DEV only, 7 November 2026)
 - [x] Screenshot confirms saved photo with a refused announcement. Traced media_metadata → club_domain → notification_queue: backend verifies uploader membership, owned team, reciprocal gallery authorities and eligible audience; no browser-selected recipients. Refusal text is collapsed to `refused`, so the screenshot cannot identify which check failed. No permission, wiring, data or production changes.
-- [ ] Confirm exact DEV relay refusal and deployed reciprocal authority/queue configuration through authorized diagnostics; blocked on delegated DEV identity or governor-authorized configuration read. Do not replay the upload/announcement or relax authorization speculatively.
+- [x] Found and repaired a concrete TEST upgrade omission: only media_metadata.set_gallery_authorities ran, while the club's new reverse galleryMediaAuthority migration defaults to null. Upgrade runner now assigns the exact owning-group reverse link too; both calls are journaled and stop on refusal/unknown replies. Forty-two policy/regression tests pass. No backend permissions, photo data or PROD changes.
+- [ ] Apply the prepared repair to DEV through authorized governor execution and verify a new upload's notification readback. Existing photos/uncertain announcements must not be replayed. Source sync/release and delegated upload acceptance remain unverified; screenshot cause is consistent with the omission but exact deployed refusal remains unconfirmed.
 
 ## Cold first-open chat repair (DEV only, 7 November 2026)
 - [x] Source-traced all four chat paths; reproduced duplicate page calls and redundant mount invalidation. Identified sequential DM profile/reaction waits and the team's additional 1.5s banner gate. Real slowest ICP operation remains unmeasured.
