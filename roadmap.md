@@ -154,3 +154,5 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Keep unsaved edit form through sign-in; no auto-retry of uncertain saves; block duplicate series
 - [x] Timings: form open, details load, save start, main save, duties/series (Speed card)
 - [ ] Real-phone check with a valid and an expired session (needs Paul on TEST after next TEST update)
+
+- 2026-11-07: Paul reverted to d667609 (home/chat perf changes made loading worse); TEST must serve reverted state.
