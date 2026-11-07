@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Next Up RSVP repair (TEST only, 7 November 2026)
+- [x] Reproduced prefixed-account save rejection in the mounted card; normalized and verified the signer for self/child saves, added one-attempt routing and private diagnostic logs. Mounted save/readback, denied-save/no-fallback and account-switch regressions pass; permission checks unchanged. Preview build OK. This reproduction does not establish that Paul's phone failure has the same cause.
+- [ ] Verify signed-in TEST save and readback on Paul's phone: blocked on his delegated Internet Identity session/device; deployment and exact phone refusal remain unverified. PROD untouched.
+
 ## Reverted TEST carousel crash — 7 November 2026
 - [x] Reproduced the exact initialization crash in three component regressions; fixed only the timing callback's skeleton/empty-return inputs, retaining Paul's reverted loading behavior. Nine carousel/recovery tests pass; preview build OK. PROD untouched.
 - [x] TEST deployment 42362790648 succeeded for repair commit fb44c0df on main at 10:13 UTC. Public TEST serves live-index-DJEskhsI and MyTeamsPremiumCarousel-CzISABkV; inspected callback uses initialized skeleton/display inputs rather than later card arrays. Reverted loading behavior retained; PROD untouched. Paul's signed-in phone acceptance remains interactive.
