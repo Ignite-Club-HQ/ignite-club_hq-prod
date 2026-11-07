@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Gallery notification refusal (DEV only, 7 November 2026)
+- [x] Screenshot confirms saved photo with a refused announcement. Traced media_metadata → club_domain → notification_queue: backend verifies uploader membership, owned team, reciprocal gallery authorities and eligible audience; no browser-selected recipients. Refusal text is collapsed to `refused`, so the screenshot cannot identify which check failed. No permission, wiring, data or production changes.
+- [ ] Confirm exact DEV relay refusal and deployed reciprocal authority/queue configuration through authorized diagnostics; blocked on delegated DEV identity or governor-authorized configuration read. Do not replay the upload/announcement or relax authorization speculatively.
+
 ## Cold first-open chat repair (DEV only, 7 November 2026)
 - [x] Source-traced all four chat paths; reproduced duplicate page calls and redundant mount invalidation. Identified sequential DM profile/reaction waits and the team's additional 1.5s banner gate. Real slowest ICP operation remains unmeasured.
 - [x] Focused repairs: account/full-target/page-bound in-flight reads, active mount-read reuse, DM progressive text/parallel enrichment, 25-message DM limit shared with warming, remove team banner message gate, keep authorized messages visible during profile settling; operation-only actor/dispatch timing ledger. Existing destination permissions/routing checks unchanged. 153 tests pass; preview build OK.
