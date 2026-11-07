@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { withFeatureBackend } from "@/live/featureRouter";
+import { writeOnce } from "@/live/clubScope";
+import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { resolveLivePiiTextBatch } from "@/live/features/vault";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { setLiveEventRsvp, adminUpsertLiveRsvp, getMyLiveChildRsvps } from "@/live/features/events";
@@ -608,14 +610,19 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
+      if (!user) throw new Error("Sign in before updating your RSVP");
       // Hybrid routing: mirrors the self-RSVP write in EventCard.tsx.
       const routedToIcp = await withFeatureBackend("events", {
         supabase: () => false,
         icp: async (ctx) => {
-          await setLiveEventRsvp(ctx, event.id, user!.id, status);
+          const accountId = user.id.replace(/^principal:/, "");
+          if (accountId !== ctx.identity.getPrincipal().toText()) {
+            throw new Error("RSVP account does not match the signed-in identity");
+          }
+          await setLiveEventRsvp(ctx, event.id, accountId, status);
           return true;
         },
-      }, { eventId: event.id });
+      }, writeOnce({ eventId: event.id }));
       if (routedToIcp) return;
 
       let rsvpId: string | null = null;
@@ -650,21 +657,30 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       queryClient.invalidateQueries({ queryKey: ["rsvp-summary", event.id] });
       queryClient.invalidateQueries({ queryKey: ["next-up-pending-count"] });
     },
-    onError: () => {
-      toast({ title: "Failed to update RSVP", variant: "destructive" });
+    onError: (error) => {
+      console.error("[NextUp RSVP] Save failed", error);
+      toast(friendlyMutationError(error, {
+        title: "Could not save RSVP",
+        description: "Your attendance hasn’t changed. If this continues, ask your team organiser to check your event access.",
+      }));
     },
   });
 
   const childRsvpMutation = useMutation({
     mutationFn: async ({ childId, status }: { childId: string; status: RsvpStatus }) => {
+      if (!user) throw new Error("Sign in before updating a child’s RSVP");
       // Hybrid routing: mirrors the child-RSVP write in EventCard.tsx.
       const routedToIcp = await withFeatureBackend("events", {
         supabase: () => false,
         icp: async (ctx) => {
-          await adminUpsertLiveRsvp(ctx, event.id, user!.id, status, { childId });
+          const accountId = user.id.replace(/^principal:/, "");
+          if (accountId !== ctx.identity.getPrincipal().toText()) {
+            throw new Error("RSVP account does not match the signed-in identity");
+          }
+          await adminUpsertLiveRsvp(ctx, event.id, accountId, status, { childId });
           return true;
         },
-      }, { eventId: event.id });
+      }, writeOnce({ eventId: event.id }));
       if (routedToIcp) return;
 
       // Server-authoritative lookup — do NOT trust the local cache to decide
@@ -745,7 +761,8 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       queryClient.invalidateQueries({ queryKey: ["rsvp-summary", event.id] });
       queryClient.invalidateQueries({ queryKey: ["next-up-pending-count"] });
     },
-    onError: (_err, _vars, context) => {
+    onError: (error, _vars, context) => {
+      console.error("[NextUp child RSVP] Save failed", error);
       // Roll back the optimistic write so the UI cannot show a "confirmed"
       // status that never persisted (root cause of the household-mismatch bug).
       if (context?.previous !== undefined) {
