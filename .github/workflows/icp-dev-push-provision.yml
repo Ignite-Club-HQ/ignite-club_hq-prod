@@ -1,0 +1,44 @@
+name: "[TEST] Provision isolated ICP push worker"
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type TRANSFER EXISTING TEST PUSH WORKER; delivery remains disabled"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: icp-dev-push-provision
+  cancel-in-progress: false
+jobs:
+  provision:
+    if: github.ref == 'refs/heads/main'
+    environment: icp-dev-push-commissioning
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Verify TEST provisioning rules offline
+        run: node --test scripts/icp-dev-push-handover.test.mjs
+      - name: Transfer existing TEST worker directly to DEV hosting
+        env:
+          ICP_PUSH_WORKER_SEED: ${{ secrets.ICP_PUSH_WORKER_SEED }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SOURCE_REF: ${{ github.ref }}
+          OWNER_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          node --input-type=module <<'JS'
+          import { provisionExistingDevWorker } from './scripts/icp-dev-push-handover.mjs';
+          try {
+            await provisionExistingDevWorker({ ref: process.env.SOURCE_REF, confirmation: process.env.OWNER_CONFIRMATION,
+              seed: process.env.ICP_PUSH_WORKER_SEED, accessToken: process.env.SUPABASE_ACCESS_TOKEN });
+            console.log('Existing TEST worker transferred. Delivery remains disabled; queue grants and runner handover are not yet verified.');
+          } catch {
+            console.error('TEST transfer stopped. Check hosting secret names before repeating; no delivery was activated.');
+            process.exitCode = 1;
+          }
+          JS
