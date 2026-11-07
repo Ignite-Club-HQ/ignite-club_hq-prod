@@ -114,4 +114,15 @@ describe('Next Up pending secondary reads', () => {
     expect(state.reads).toEqual([]);
     client.clear();
   });
+
+  it('refuses an account switch before sending an RSVP for another identity', async () => {
+    state.icp = true; state.ready = true; state.userId = 'principal:other-account';
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter><NextUpCarousel events={[event('icp-event', 'club-a')]} /></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole('button', { name: 'RSVP Maybe' }));
+    await waitFor(() => expect(state.toast).toHaveBeenCalled());
+    expect(state.save).not.toHaveBeenCalled();
+    expect(state.reads).toEqual([]);
+    client.clear();
+  });
 });
