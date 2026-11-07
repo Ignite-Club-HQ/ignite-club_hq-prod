@@ -5,6 +5,7 @@
 - [ ] Confirm on Paul's signed-in TEST account after frontend deployment; delegated Internet Identity session/device and canister deployment are unverified.
 
 ## ICP native push isolation (DEV only, 7 November 2026)
+- [ ] Continue setup requested at 22:57 UTC: recheck Firebase/worker readiness and complete one integrated isolated commissioning batch where authorized; never enable delivery before ownership, durable attempt fencing and exclusive worker handover are established.
 - [x] Prepared isolated Supabase Firebase transport without an endpoint/scheduler: DEV host/account/mode validation, generic payloads, single bounded request, provider-status preservation and ambiguous-acceptance hold. Six new transport tests plus six existing per-device tests pass; no real send/deployment or email/PROD change.
 - [ ] Secure TEST worker handover: project secret list lacks its signing key and GitHub cannot return stored plaintext; needs authorized server-to-server handover or reviewed new-worker commissioning, never a key printed in chat/logs. Queue/device fencing and runner handover remain prerequisites.
 - [x] Paul selected a separate Supabase-hosted sender for DEV ICP push on 7 November. Linked his saved Firebase connection and verified the generated app credential path (HTTP 200, verified), without sending anything or changing existing FCM secrets/email handlers. Assessment: docs/dev-icp-supabase-sender-2026-11-07.md.
