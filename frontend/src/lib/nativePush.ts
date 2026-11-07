@@ -15,6 +15,7 @@ import { prefetchChatChunkForUrl } from './chatChunkPrefetch';
 import { resolveAuthBackend } from '@/live/authBackendMode';
 import { getCurrentInternetIdentity } from '@/live/internetIdentityAuth';
 import { getActiveIcpTarget } from '@/live/targetRegistry';
+import { usesDevIcpPush } from '@/live/icpPushMode';
 import {
   registerLiveDeviceToken,
   unregisterLiveDeviceToken,
@@ -339,6 +340,10 @@ export async function getLaunchNotification(): Promise<any | null> {
 
 // Initialize native push notifications
 export async function initializeNativePush(userId: string): Promise<{ success: boolean; error?: string }> {
+  if (usesDevIcpPush()) {
+    const { initializeDevIcpNativePush } = await import('@/live/icpNativePush');
+    return initializeDevIcpNativePush(userId);
+  }
   console.log('[NativePush] initializeNativePush called with userId:', userId);
 
   if (!isNativePlatform()) {
@@ -606,6 +611,11 @@ export function setupNativePushListeners(
 
 // Unregister from push notifications
 export async function unregisterNativePush(userId: string): Promise<void> {
+  if (usesDevIcpPush()) {
+    const { revokeDevIcpNativePush } = await import('@/live/icpNativePush');
+    await revokeDevIcpNativePush();
+    return;
+  }
   if (!isNativePlatform()) return;
 
   try {
