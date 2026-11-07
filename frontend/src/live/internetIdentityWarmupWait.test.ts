@@ -81,6 +81,13 @@ describe("getCurrentInternetIdentity cold-start wait", () => {
     expect(state.constructed).toBe(1);
   });
 
+  it("shares construction between warm-up and silent resume", async () => {
+    const mod = await freshModule();
+    mod.setInternetIdentityAccountProvisionerForTests(async () => {});
+    await Promise.all([mod.warmInternetIdentityAuthClient(), mod.resumeInternetIdentitySession()]);
+    expect(state.constructed).toBe(1);
+  });
+
   it("answers null (bounded) when the warm-up fails", async () => {
     localStorage.setItem("ignite_icp_internet_identity_session", STORED_SESSION);
     state.constructFails = true;

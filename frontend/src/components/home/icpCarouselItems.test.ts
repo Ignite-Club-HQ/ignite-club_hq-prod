@@ -52,4 +52,15 @@ describe("ICP carousel parallel reads", () => {
     mocks.subscription.mockResolvedValue({ is_pro: true, trial_ends_at_ms: [1] });
     expect(await fetchIcpCarouselItems({} as never, null)).toEqual([]);
   });
+  it("publishes an authorized first team before slow optional reads finish", async () => {
+    let release: (() => void) | undefined;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    mocks.mine.mockImplementation(async () => { await waiting; return []; });
+    mocks.subscription.mockImplementation(async () => { await waiting; return null; });
+    const progress = vi.fn();
+    const pending = fetchIcpCarouselItems({} as never, null, progress);
+    try {
+      await vi.waitFor(() => expect(progress).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: "team-a", club_id: "club-a" })])), { timeout: 150 });
+    } finally { release?.(); await pending; }
+  });
 });
