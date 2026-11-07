@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { LogoImage } from "@/components/ui/logo-image";
 import { useQuery } from "@tanstack/react-query";
 import { withReadDeadline } from "@/live/readDeadline";
@@ -25,6 +25,7 @@ import type { TeamOrLeague } from "@/components/home/icpCarouselItems";
 const listLiveEvents: typeof import("@/live/features/events").listLiveEvents = (async (...args: unknown[]) => ((await import("@/live/features/events")).listLiveEvents as (...a: unknown[]) => unknown)(...args)) as never;
 import { useCarouselResumeRecovery } from '@/hooks/useCarouselResumeRecovery';
 import { markStage } from "@/lib/perfStages";
+import { capturePrivateProfileSession } from "@/live/privateProfileSession";
 
 // Render Supabase storage URLs through the image-transform endpoint at a tiny
 // width so the 28×28 avatar thumbnails don't download full-resolution originals.
@@ -450,6 +451,11 @@ interface ManagedPlayhqCompetitionRow {
 export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarouselProps = {}) {
   const { user, initialized } = useAuth();
   const isIcp = resolveAuthBackend() === "icp";
+  const [progress, setProgress] = useState<{ account: string; generation: number; items: TeamOrLeague[] } | null>(null);
+  const progressGeneration = useRef(0);
+  const progressAccount = useRef(user?.id);
+  progressAccount.current = user?.id;
+  useEffect(() => { ++progressGeneration.current; setProgress(null); }, [user?.id]);
   const navigate = useNavigate();
   const { activeClubFilter } = useClubTheme();
   useCarouselResumeRecovery(user?.id, activeClubFilter);
@@ -488,7 +494,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   }, []);
 
   // Fetch teams & leagues
-  const { data: rawItems = snapshot?.items ?? [], isLoading, isFetching, isError } = useQuery({
+  const { data: fetchedItems = snapshot?.items ?? [], isLoading, isFetching, isError } = useQuery({
     queryKey: ["my-teams-premium-v2", user?.id],
     meta: { persist: !isIcp },
     // Read-only: a stalled cold-start read is abandoned after its deadline and
@@ -502,11 +508,27 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       const activeClubFilter: string | null = null;
 
       if (isIcp) {
-        return withReadDeadline(withFeatureBackend("competitions", {
+        const generation = ++progressGeneration.current;
+        const activeSession = capturePrivateProfileSession();
+        setProgress(null);
+        try { return await withReadDeadline(withFeatureBackend("competitions", {
           // Unreachable: this branch only runs when ICP mode is active.
           supabase: async () => [] as TeamOrLeague[],
-          icp: async (ctx) => (await import("@/components/home/icpCarouselItems")).fetchIcpCarouselItems(ctx, null),
+          icp: async (ctx) => (await import("@/components/home/icpCarouselItems")).fetchIcpCarouselItems(ctx, null, items => {
+            try { activeSession(); } catch { return; }
+            if (signal.aborted || generation !== progressGeneration.current || progressAccount.current !== user.id) return;
+            setProgress(previous => ({ account: user.id, generation, items: [
+              ...(previous?.generation === generation ? previous.items.filter(old => !items.some(item => item.id === old.id)) : []),
+              ...items,
+            ] }));
+          }),
         }, { everyGroup: true, merge: mergeLists }), "My teams", 12_000, signal);
+        } finally {
+          if (progressGeneration.current === generation) {
+            ++progressGeneration.current;
+            setProgress(null);
+          }
+        }
       }
 
       const { data: roles, error: rolesError } = await supabase
@@ -659,6 +681,8 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
   // Tombstoned teams (deleted via team or club delete) must never render,
   // no matter which cache produced the row.
+  const rawItems = isIcp && isFetching && progress?.account === user?.id
+    ? progress.items : fetchedItems;
   const items = useMemo(() => filterDeletedTeams(rawItems), [rawItems]);
 
   // A failed refetch would otherwise keep a stale localStorage snapshot on
@@ -1100,8 +1124,11 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     }
   }, [isLoading, isFetching, isError]);
   useEffect(() => {
-    if (sortedItems.length > 0 || renderedCompetitionItems.length > 0) markStage("first_team_card");
-  });
+    if (!initialized || scopedItems.length === 0) return;
+    let second = 0;
+    const first = requestAnimationFrame(() => { second = requestAnimationFrame(() => markStage("first_team_card")); });
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+  }, [initialized, scopedItems.length]);
 
   // Persist snapshot for instant cold-start on next visit
   useEffect(() => {

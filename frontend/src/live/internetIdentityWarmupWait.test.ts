@@ -17,6 +17,7 @@ vi.mock("@/lib/perfStages", () => ({ markStage: vi.fn(), restartSignInStages: vi
 vi.mock("./privateProfileSession", () => ({
   observePrivateProfilePrincipal: vi.fn(),
   retirePrivateProfileSession: vi.fn(),
+  capturePrivateProfileSession: () => () => {},
 }));
 vi.mock("./targetRegistry", () => ({
   getActiveIcpTarget: () => ({ alias: "test-target", host: "https://icp0.io", canisterIds: {} }),
@@ -78,6 +79,13 @@ describe("getCurrentInternetIdentity cold-start wait", () => {
     ]);
     expect(a).toBe(fakeIdentity);
     expect(b).toBe(fakeIdentity);
+    expect(state.constructed).toBe(1);
+  });
+
+  it("shares construction between warm-up and silent resume", async () => {
+    const mod = await freshModule();
+    mod.setInternetIdentityAccountProvisionerForTests(async () => {});
+    await Promise.all([mod.warmInternetIdentityAuthClient(), mod.resumeInternetIdentitySession()]);
     expect(state.constructed).toBe(1);
   });
 

@@ -5,7 +5,8 @@ import { getActiveIcpTarget, type IcpTargetConfig } from "./targetRegistry";
 import { cacheIcpIdentityProfile, getCachedIcpIdentityProfile, type IcpIdentityProfile } from "./identityProfileCache";
 import { privateProfileSearchRehearsalEnabled } from './privateProfileSearchMode';
 import { isLoopbackRehearsalHost } from './accountReadAdapter.mjs';
-import { capturePrivateProfileSession } from './privateProfileSession';
+import { capturePrivateProfileSession, onPrivateProfileSessionRetired } from './privateProfileSession';
+import { identityTargetKey } from './identityTargetKey';
 
 /**
  * Resolves the "current user" profile for an Internet Identity session from
@@ -166,11 +167,30 @@ export async function saveIcpIdentityProfile(
   }
 }
 
-export async function fetchIcpIdentityProfile(
+const profileReads = new Map<string, Promise<IcpIdentityProfile>>();
+onPrivateProfileSessionRetired(() => profileReads.clear());
+export function fetchIcpIdentityProfile(
   identity: Identity,
   principal: string,
   target: IcpTargetConfig = getActiveIcpTarget(),
+  options: { essentialOnly?: boolean } = {},
 ): Promise<IcpIdentityProfile> {
+  if (identity.getPrincipal().toText() !== principal) return Promise.reject(Error('Profile read account does not match the signed-in identity.'));
+  const key = `${identityTargetKey(target)}|${principal}|${!!options.essentialOnly}`;
+  const existing = profileReads.get(key);
+  if (existing) return existing;
+  const pending = readIcpIdentityProfile(identity, principal, target, options);
+  profileReads.set(key, pending);
+  void pending.finally(() => { if (profileReads.get(key) === pending) profileReads.delete(key); }).catch(() => {});
+  return pending;
+}
+async function readIcpIdentityProfile(
+  identity: Identity,
+  principal: string,
+  target: IcpTargetConfig = getActiveIcpTarget(),
+  options: { essentialOnly?: boolean } = {},
+): Promise<IcpIdentityProfile> {
+  const active = capturePrivateProfileSession();
   if (identity.getPrincipal().toText() !== principal) throw new Error('Profile read account does not match the signed-in identity.');
   if (!isLiveIdentityAccessConfigured(target)) {
     throw new Error(`Identity access canister is not configured for ICP target ${target.alias}.`);
@@ -191,7 +211,9 @@ export async function fetchIcpIdentityProfile(
   try {
     const [profileResult, roles] = await Promise.allSettled([
       client.getProfile(),
-      client.myRoles(),
+      // Global role grants are not consumed by the auth context; feature
+      // readers enforce/refresh their own grants. Never gate Home on them.
+      options.essentialOnly ? Promise.resolve([]) : client.myRoles(),
     ]);
     if (roles.status === "rejected") throw roles.reason;
     let canisterProfile: CanisterProfile | null = null;
@@ -219,6 +241,7 @@ export async function fetchIcpIdentityProfile(
       roles: roles.value,
       profileMissing: !canisterProfile,
     };
+    active();
     // Cache the unlocked own name on this device (per account, wiped on
     // sign-out) so returning to the app shows the name immediately.
     cacheIcpIdentityProfile(principal, resolved);
