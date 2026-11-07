@@ -13,7 +13,8 @@
 
 ## Next Up RSVP repair (TEST only, 7 November 2026)
 - [x] Reproduced prefixed-account save rejection in the mounted card; normalized and verified the signer for self/child saves, added one-attempt routing and private diagnostic logs. Mounted save/readback, denied-save/no-fallback and account-switch regressions pass; permission checks unchanged. Preview build OK. This reproduction does not establish that Paul's phone failure has the same cause.
-- [ ] Verify signed-in TEST save and readback on Paul's phone: blocked on his delegated Internet Identity session/device; deployment and exact phone refusal remain unverified. PROD untouched.
+- [x] Deploy audited RSVP backend repair on TEST: read-only check 42397361622 passed for source a919237931c28eceb71702fca0a03a77244a9ad5; events_pitch upgrade 42397706521 completed successfully at 17:50 UTC, verified all six selected modules across both TEST groups and published/read back fingerprints. No frontend deployment or PROD changes.
+- [ ] Verify signed-in TEST save and readback on Paul's phone: blocked on his delegated Internet Identity session/device; exact phone refusal and real save timing remain unverified. PROD untouched.
 
 ## Reverted TEST carousel crash — 7 November 2026
 - [x] Reproduced the exact initialization crash in three component regressions; fixed only the timing callback's skeleton/empty-return inputs, retaining Paul's reverted loading behavior. Nine carousel/recovery tests pass; preview build OK. PROD untouched.
