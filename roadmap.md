@@ -1,9 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
 ## Login to usable home (DEV only, 7 November 2026)
-- [ ] Consolidate auth-client/session/account/profile reads; returning accounts use caller-only query before registration; retain expiry, linking and denial checks.
-- [ ] Progressive authorized carousel rendering and independent milestone/outcome telemetry; audit JavaScript and secondary requests.
-- [ ] Run focused security/performance regressions and public mobile preview checks; document measured baselines and physical-device/authenticated acceptance limits. No PROD deployment.
+- [x] Consolidated auth construction/resume/account/profile reads with full target and caller binding; whoami skips returning registration, only exact Unlinked identity permits the existing update. Restored cached-profile readiness verifies the actual principal. Denial/expiry/link contracts retained.
+- [x] Progressive authorized core team cards; optional metadata and complete inventories no longer delay first card. Existing batching/shard routing unchanged. Lazy Supabase-only helper imports; independent timing deltas/outcomes with timing-only redirect persistence.
+- [x] 102 tests in 17 files pass; email/secure public mobile preview loads without runtime errors; preview build OK. Confirmed old entry baseline 1,646,253 bytes; no new built-byte or authenticated duration claim. Report: docs/dev-login-home-performance-2026-11-07.md.
+- [ ] Real DEV II/device acceptance: first-time/returning/reopen/mobile callback/expired/slow-network/multi-club flows and median/p95/target comparison require an authenticated II account and physical mobile device. New deployed-byte verification also remains outstanding; no PROD deployment.
 
 ## Cold thread opening investigation (DEV only, 7 November 2026)
 - [x] Instrument query attempts, failure categories and fallback durations including stale-sequence/write-fence paths; late enrichment reports independently and first-message logging waits for paint. Cold/cache classification uses actual read path, not prior visits.
