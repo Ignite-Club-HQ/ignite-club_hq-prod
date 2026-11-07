@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   setQueryData: vi.fn(),
   auth: { user: { id: "user-1" } as null | { id: string } },
   native: false,
+  icp: false,
+  icpManager: vi.fn(),
   useNativePush: vi.fn(),
   useRealtimePerfSampler: vi.fn(),
   usePushSubscriptionHealth: vi.fn(),
@@ -34,6 +36,8 @@ vi.mock("@/hooks/useAuth", () => ({
   useOptionalAuth: () => mocks.auth,
 }));
 vi.mock("@/hooks/useNativePush", () => ({ useNativePush: mocks.useNativePush }));
+vi.mock("@/live/icpPushMode", () => ({ usesDevIcpPush: () => mocks.icp }));
+vi.mock("./IcpDevPushManager", () => ({ IcpDevPushManager: () => { mocks.icpManager(); return null; } }));
 vi.mock("@/hooks/useRealtimePerfSampler", () => ({ useRealtimePerfSampler: mocks.useRealtimePerfSampler }));
 vi.mock("@/hooks/usePushSubscriptionHealth", () => ({ usePushSubscriptionHealth: mocks.usePushSubscriptionHealth }));
 vi.mock("@/hooks/useMissedNotificationSync", () => ({ useMissedNotificationSync: mocks.useMissedNotificationSync }));
@@ -69,6 +73,7 @@ describe("PushNotificationManager orchestration", () => {
     localStorage.clear();
     mocks.auth.user = { id: "user-1" };
     mocks.native = false;
+    mocks.icp = false;
     mocks.consumePending.mockReturnValue(null);
     mocks.normalizeUrl.mockImplementation((_data, url) => url);
     mocks.getJumpTarget.mockReturnValue(null);
@@ -97,6 +102,16 @@ describe("PushNotificationManager orchestration", () => {
     expect(mocks.useRealtimePerfSampler).toHaveBeenCalledWith("user-1");
     expect(mocks.usePushSubscriptionHealth).toHaveBeenCalledWith("user-1");
     expect(mocks.useMissedNotificationSync).toHaveBeenCalledWith("user-1");
+  });
+
+  it('starts only the isolated ICP provider for TEST Internet Identity', () => {
+    mocks.icp = true;
+    render(<PushNotificationManager />);
+    expect(mocks.icpManager).toHaveBeenCalled();
+    expect(mocks.useNativePush).not.toHaveBeenCalled();
+    expect(mocks.usePushSubscriptionHealth).not.toHaveBeenCalled();
+    expect(mocks.useMissedNotificationSync).not.toHaveBeenCalled();
+    expect(mocks.useRealtimePerfSampler).not.toHaveBeenCalled();
   });
 
   it.each([
