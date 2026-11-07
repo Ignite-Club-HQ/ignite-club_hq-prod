@@ -1,7 +1,7 @@
 import { markStage } from "@/lib/perfStages";
 import type { Identity } from "@icp-sdk/core/agent";
 import { getActiveIcpTarget, type IcpTargetConfig } from "./targetRegistry";
-import { observePrivateProfilePrincipal, retirePrivateProfileSession } from './privateProfileSession';
+import { observePrivateProfilePrincipal, retirePrivateProfileSession, capturePrivateProfileSession } from './privateProfileSession';
 import type { IcpSessionHealth } from "./icpSessionErrors";
 import { identityTargetKey } from "./identityTargetKey";
 import { ensureIdentityAccount } from "./ensureIdentityAccount";
