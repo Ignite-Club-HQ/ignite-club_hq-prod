@@ -12,6 +12,7 @@ export function createIcpPushLifecycle() {
   let registered: { owner: IcpPushOwner; token: string; platform: 'android' | 'ios' } | undefined;
   let chain: Promise<unknown> = Promise.resolve();
   let cleanupBlocked = false;
+  let registrationUnknown = false;
   const serialize = <T>(work: () => Promise<T>): Promise<T> => {
     const result = chain.then(work, work);
     chain = result.catch(() => undefined);
@@ -24,6 +25,7 @@ export function createIcpPushLifecycle() {
     await registered.owner.unregister(registered.token);
     registered = undefined;
     cleanupBlocked = false;
+    registrationUnknown = false;
   }
 
   return {
@@ -38,7 +40,7 @@ export function createIcpPushLifecycle() {
         const owner = desired;
         if (!owner || ticket !== generation) return false;
         if (!token || token.length > 4096) throw new Error('Invalid push registration');
-        if (registered && (cleanupBlocked || registered.owner.account !== owner.account ||
+        if (registered && (cleanupBlocked || registrationUnknown || registered.owner.account !== owner.account ||
           registered.owner.target !== owner.target || registered.token !== token)) await retire();
         if (ticket !== generation) return false;
         // Identical tokens are refreshed on resume, but never registered twice concurrently.
@@ -46,7 +48,9 @@ export function createIcpPushLifecycle() {
         // Retain the intent before awaiting: a lost reply must still be removable
         // as the original signer, never silently attributed to another account.
         registered = { owner, token, platform };
+        registrationUnknown = true;
         await owner.register(token, platform);
+        registrationUnknown = false;
         if (ticket !== generation) { await retire(); return false; }
         return true;
       });

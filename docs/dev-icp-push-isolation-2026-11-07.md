@@ -1,6 +1,6 @@
 # DEV ICP native push — isolation assessment
 
-Assessment at 18:00 UTC, 7 November 2026. **Implementation held at the shared-dependency boundary required by the owner.** No runtime code, canister, Supabase, native configuration, credentials or infrastructure changed in this audit.
+Assessment at 18:00 UTC, 7 November 2026; implementation update at 18:27 UTC. Paul approved narrowly ICP-only shared entry additions after the audit. **Partial implementation, commissioning held.** No canister, Supabase, native configuration, credentials or infrastructure changed.
 
 ## 1. Existing email/Supabase path — protected
 
@@ -58,7 +58,23 @@ Internet Identity → confirmed ICP messaging/events operations → owning ICP q
 
 **Frozen:** all `supabase/**` and database migrations/settings; existing email push helpers/UI behaviors; Firebase initialization; Capacitor plugins/configuration; AppDelegate/Android manifests/entitlements; Firebase config files; `codemagic.yaml`; PROD workflows/scripts/IDs/credentials; `deploy/prod/**`, `deploy/frontend-prod/**`.
 
-**Files changed by this audit:** this assessment and root `roadmap.md`; persistent owner-isolation requirement saved separately. **Changed canisters: none.** Earlier RSVP work is separate, not a push change.
+**Complete push change list:**
+- New: `frontend/src/live/icpPushMode.ts`, `icpPushLifecycle.ts`, `icpNativePush.ts`, `icpPushTap.ts` and their four corresponding `.test.ts` files.
+- New: `frontend/src/components/IcpDevPushManager.tsx` and `.test.tsx`.
+- New: `scripts/icp-dev-push-delivery.mjs`, `frontend/src/test/icpDevPushDelivery.test.ts`.
+- Narrow guards/wrapper: `frontend/src/components/PushNotificationManager.tsx` and its test, `frontend/src/lib/nativePush.ts`, ICP sign-out branch in `frontend/src/hooks/useAuth.tsx`, `frontend/src/product-main.tsx`, ICP wake-up in `frontend/src/live/features/messaging.ts`.
+- Documentation: `frontend/AGENTS.md`, root `roadmap.md`, this assessment; owner-isolation requirement in persistent memory.
+
+**Changed canisters: none.** Existing ICP/PROD workers, Supabase functions/migrations/data/preferences/tokens, email sign-out/registration code, native/Firebase settings and Codemagic are untouched. Earlier RSVP work is separate, not a push change.
+
+### Implemented boundaries
+
+- Fixed DEV identity plus shared device-directory IDs and ICP auth select the new manager. Email/PROD still select the unmodified existing manager body.
+- Native adapter is separate; no new native configuration, Firebase initialization, shared token deletion or plugin-wide listener removal. Caller and target are captured; stale token callbacks are discarded. Old-account removal must succeed before a new account registers; uncertain registration intents retain their original signer.
+- Explicit ICP logout revokes before deleting II credentials; manager teardown invalidates only its own account. Permission is never requested by the background login manager. Cold taps require the new DEV envelope, matching signed-in recipient and allowed internal route, with bounded in-memory deduplication.
+- All native registration is **disabled by default**, behind `IGNITE_LIVE_DEV_ICP_PUSH_ENABLED`; do not enable merely to test unknown production/shared-device ownership. Existing cross-principal token rows and persistent installation ownership still need server-side reconciliation/design before commissioning.
+- DEV no longer wakes the stale Supabase ICP drain after a chat write. No replacement endpoint is called until the external gateway is commissioned. Existing non-DEV ICP kick remains unchanged.
+- New DEV delivery **core**, not a deployed gateway: generic/private-content-free payloads, distinct DEV account envelope, per-device durable adapter journal, accepted-device deduplication, five-attempt exponential retries for definite transient failures, hold on unknown FCM response, and UNREGISTERED-only deactivation. Adapters for authenticated inventory/current device+mute authorization, durable external storage, real FCM calls and fenced leases are still missing.
 
 ## 7. Firebase/APNs and gateway setup
 
@@ -67,6 +83,7 @@ Internet Identity → confirmed ICP messaging/events operations → owning ICP q
 - iOS needs existing Firebase configuration, APNs credential in Firebase, matching signing entitlements/environment and APNs-to-FCM forwarding. Store **FCM**, never APNs, tokens.
 - Shared project risk: changing APNs keys, service-account access, client files or Firebase delegate behavior can affect email users; none is authorized here. Obtain a separate server-side credential/connection with the necessary FCM send permission rather than rotating current credentials.
 - No accessible Firebase Messaging connector was found. Sandbox worker credentials were not present; this does not establish current GitHub/hosted secret state. The dated setup note reports missing DEV FCM worker configuration, not fresh readiness evidence.
+- The Firebase connection card was declined; no connection or secret was added. Do not retry it without a new request. Credential provisioning and external hosting remain blocked.
 - External gateway hosting, secret provisioning, queue grants and delivery commissioning remain outstanding. Never paste private keys in chat or store them in canisters.
 
 ## 8. Tests and acceptance
@@ -78,6 +95,8 @@ These cover contracts, lease denial, source-queue separation, between-device acc
 
 Required additions: installation/account switching; refreshed tokens during logout; ICP/Supabase negative-call assertions; no duplicate listeners; current mute/preview/category rules; partial-device retries; stale attempts/worker revocation; uncertain FCM acknowledgements; invalid payload versus invalid token; DEV inventory/project mismatches; automatic event/reminder generation.
 
+After implementation: **77 focused tests pass across 11 files in each of the Supabase and ICP test modes**. Tests cover the preserved manager calls, new negative email-hook calls in ICP manager dispatch, explicit DEV/PROD target exclusion, stale callbacks, captured-signer cleanup, blocked account transfer, token rotation, uncertain-registration retirement, recipient-bound/deduplicated taps, generic payload privacy, partial-device retries, ambiguous-send holds, invalid-token classification and bounded retries. Preview build reports OK. These are mocked/unit results, not native delivery or live permissions acceptance.
+
 **Android/iOS physical tests: not run.** No authenticated native device or DEV-native build was available. Both ICP and existing email foreground/background/closed delivery, taps, multiple devices, logout/rotation/preferences and no duplicates must pass. OS force-stop/force-quit restrictions must be recorded rather than bypassed.
 
 ## 9. Costs — planning model, not measured quote
@@ -88,4 +107,4 @@ For N recipient notifications and D mean devices, expect roughly N×D FCM reques
 
 ## Acceptance status
 
-**Not complete.** Shared lifecycle/tap integration needs a decision before implementation under the owner's stop rule; credential/hosting commissioning and real Android/iOS dual-mode acceptance remain required. PROD and existing Supabase push are untouched.
+**Not complete.** Isolated frontend/core groundwork is implemented and tested but disabled for commissioning. Server-side installation ownership, current mute/device/preview policy, attempt-fenced queue APIs/recovery and real gateway adapters remain incomplete; these should be implemented together once deployment/hosting and credential access are available, not misrepresented as active push. Firebase connection was declined. Real Android/iOS dual-mode acceptance remains required. No deployments occurred; PROD and existing Supabase push are untouched.
