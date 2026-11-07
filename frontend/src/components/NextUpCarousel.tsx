@@ -601,7 +601,19 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
   // Event details are already loaded. Only attendance depends on the
   // membership/household/RSVP reads; summaries and duties update independently.
   const dutiesReady = !user?.id || event.is_cancelled || myDutiesFetched;
-  const heroDataReady = !user || (myRsvpFetched && childrenFetched && childRsvpsFetched && membershipFetched);
+  // Bounded wait: the household roll-up and membership reads are secondary
+  // (membership defaults to member; ICP set_rsvp re-authorizes server-side).
+  // Once the caller's own answer and household children are known the
+  // adult/child scope is settled, so a slow secondary read must not leave the
+  // buttons hidden indefinitely.
+  const [attendanceWaitExpired, setAttendanceWaitExpired] = useState(false);
+  React.useEffect(() => {
+    setAttendanceWaitExpired(false);
+    const t = window.setTimeout(() => setAttendanceWaitExpired(true), 4000);
+    return () => window.clearTimeout(t);
+  }, [event.id]);
+  const heroDataReady = !user || (myRsvpFetched && childrenFetched &&
+    ((childRsvpsFetched && membershipFetched) || attendanceWaitExpired));
 
   React.useEffect(() => {
     onReadyChange?.(event.id, true);
