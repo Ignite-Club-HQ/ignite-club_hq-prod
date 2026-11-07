@@ -160,3 +160,5 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] Real-phone check with a valid and an expired session (needs Paul on TEST after next TEST update)
 
 - 2026-11-07: Paul reverted to d667609 (home/chat perf changes made loading worse); TEST must serve reverted state.
+
+- [ ] DEV asset 404 + one-time chunk reload: deploy to TEST and confirm Home/Messages/Events after II sign-in on phone (needs Paul).
