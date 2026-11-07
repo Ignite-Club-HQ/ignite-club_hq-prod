@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Cold first-open chat repair (DEV only, 7 November 2026)
+- [ ] Trace tap-to-message request sequence across team, club, group and direct chats; identify actual cold waits in the reverted state.
+- [ ] Apply focused safe fixes, retain freshness/account isolation, instrument operation timings and test cold/cached paths.
+- [ ] Measure before/after and Android acceptance; distinguish local simulated timings from authenticated device evidence. No PROD changes.
+
 ## Next Up RSVP repair (TEST only, 7 November 2026)
 - [x] Reproduced prefixed-account save rejection in the mounted card; normalized and verified the signer for self/child saves, added one-attempt routing and private diagnostic logs. Mounted save/readback, denied-save/no-fallback and account-switch regressions pass; permission checks unchanged. Preview build OK. This reproduction does not establish that Paul's phone failure has the same cause.
 - [ ] Verify signed-in TEST save and readback on Paul's phone: blocked on his delegated Internet Identity session/device; deployment and exact phone refusal remain unverified. PROD untouched.
