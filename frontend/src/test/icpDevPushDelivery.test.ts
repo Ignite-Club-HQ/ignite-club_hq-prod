@@ -5,12 +5,50 @@ const notification = { id: 'n-1', user: 'account-a', kind: 'message_chat', club:
 const devices = ['one', 'two'].map(installationId => ({ user: 'account-a', installationId, generation: 1, platform: 'android', active: true }));
 function setup() {
   const records = new Map();
+  const receipts = new Map();
   return { queueId: 'test-queue', notification, devices, authorize: vi.fn().mockResolvedValue(true),
     send: vi.fn().mockResolvedValue({ ok: true }), deactivate: vi.fn(), now: () => 1000,
-    journal: { read: vi.fn(async key => records.get(JSON.stringify(key))), write: vi.fn(async (key, value) => { records.set(JSON.stringify(key), value); }) },
+    journal: {
+      read: vi.fn(async key => records.get(JSON.stringify(key))),
+      begin: vi.fn(async (key, value, prior) => {
+        const id = JSON.stringify(key);
+        if (records.get(id) !== prior || receipts.has(id)) return null;
+        const receipt = `${id}:${value.attempt}`;
+        receipts.set(id, receipt); records.set(id, value);
+        return { receipt };
+      }),
+      settle: vi.fn(async (key, receipt, value) => {
+        const id = JSON.stringify(key);
+        if (receipts.get(id) !== receipt) return false;
+        records.set(id, value); receipts.delete(id); return true;
+      }),
+    },
   };
 }
 describe('isolated DEV per-device delivery core', () => {
+  it('allows only one send when independent invocations race for the same device', async () => {
+    const args = setup(); args.devices = [devices[0]];
+    await Promise.all([deliverDevPush(args), deliverDevPush(args)]);
+    expect(args.send).toHaveBeenCalledTimes(1);
+  });
+  it('never treats an empty or invalid directory as completed delivery', async () => {
+    const args = setup(); args.devices = [];
+    expect(await deliverDevPush(args)).toMatchObject({ held: 1, complete: false });
+    args.devices = [{ ...devices[0], generation: undefined }];
+    expect(await deliverDevPush(args)).toMatchObject({ held: 1, complete: false });
+    expect(args.send).not.toHaveBeenCalled();
+  });
+  it('refuses non-atomic journals before contacting Firebase', async () => {
+    const args = setup(); args.journal.begin = undefined;
+    expect(await deliverDevPush(args)).toMatchObject({ held: 1, complete: false });
+    expect(args.send).not.toHaveBeenCalled();
+  });
+  it('never resends after provider acceptance with a lost settlement', async () => {
+    const args = setup(); args.devices = [devices[0]]; args.journal.settle.mockResolvedValue(false);
+    await expect(deliverDevPush(args)).rejects.toThrow('unconfirmed');
+    expect(await deliverDevPush(args)).toMatchObject({ held: 1, complete: false });
+    expect(args.send).toHaveBeenCalledTimes(1);
+  });
   it('never exposes message content and emits only an ICP account-bound tap envelope', () => {
     const payload = devPushPayload(notification);
     expect(JSON.stringify(payload)).not.toContain(notification.body);

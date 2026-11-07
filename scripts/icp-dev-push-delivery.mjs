@@ -32,35 +32,46 @@ export function devPushPayload(notification) {
  * FCM acceptance is not proof of on-device display. */
 export async function deliverDevPush({ queueId, notification, devices, authorize, send, journal, deactivate, now }) {
   const counts = { accepted: 0, inactive: 0, retry: 0, held: 0, denied: 0 };
+  if (!Array.isArray(devices) || devices.length === 0 || typeof journal.begin !== 'function' || typeof journal.settle !== 'function') {
+    return { ...counts, held: 1, complete: false };
+  }
   for (const device of devices) {
-    if (device.user !== notification.user || device.active === false || !['android', 'ios'].includes(device.platform)) continue;
+    if (device.user !== notification.user || device.active === false || !device.installationId ||
+        !Number.isSafeInteger(device.generation) || device.generation < 1 || !['android', 'ios'].includes(device.platform)) { counts.held++; continue; }
     const key = [queueId, notification.id, device.installationId, device.generation];
     const prior = await journal.read(key);
     if (prior?.status === 'accepted' || prior?.status === 'inactive') continue;
     if (prior?.status === 'sending' || prior?.status === 'held' || prior?.status === 'stopped') { counts.held++; continue; }
     if (prior?.nextAt > now()) { counts.retry++; continue; }
     const attempt = (prior?.attempt ?? 0) + 1;
-    if (attempt > 5) { await journal.write(key, { status: 'stopped', attempt: attempt - 1 }); counts.held++; continue; }
+    if (attempt > 5) { counts.held++; continue; }
     // Must check device generation, notification lease, current membership/mute/preferences.
     if (!await authorize(notification, device)) { counts.denied++; continue; }
-    await journal.write(key, { status: 'sending', attempt });
+    // Authoritative atomic compare-and-set must recheck ownership, source lease,
+    // worker epoch and current authorization. Persistence alone is not a lock.
+    const reservation = await journal.begin(key, { status: 'sending', attempt }, prior);
+    if (!reservation?.receipt) { counts.held++; continue; }
+    const settle = async outcome => {
+      if (!await journal.settle(key, reservation.receipt, outcome)) throw new Error('Delivery settlement unconfirmed');
+    };
     let result;
     try { result = await send(device, devPushPayload(notification)); }
     catch {
-      await journal.write(key, { status: 'held', attempt }); counts.held++; continue;
+      await settle({ status: 'held', attempt }); counts.held++; continue;
     }
     if (result.ok) {
-      await journal.write(key, { status: 'accepted', attempt }); counts.accepted++; continue;
+      await settle({ status: 'accepted', attempt }); counts.accepted++; continue;
     }
     const policy = classifyDevFcmFailure(result.status, result.body);
     if (policy.action === 'deactivate') {
-      await deactivate(device);
-      await journal.write(key, { status: 'inactive', attempt }); counts.inactive++;
+      // Deactivation must be conditional on this exact device generation/attempt.
+      await deactivate(device, reservation.receipt);
+      await settle({ status: 'inactive', attempt }); counts.inactive++;
     } else if (policy.action === 'retry') {
-      await journal.write(key, { status: 'retry', attempt, nextAt: now() + Math.min(120000 * 2 ** (attempt - 1), 1800000), code: policy.code });
+      await settle({ status: 'retry', attempt, nextAt: now() + Math.min(120000 * 2 ** (attempt - 1), 1800000), code: policy.code });
       counts.retry++;
     } else {
-      await journal.write(key, { status: 'stopped', attempt, code: policy.code }); counts.held++;
+      await settle({ status: 'stopped', attempt, code: policy.code }); counts.held++;
     }
   }
   return { ...counts, complete: counts.retry === 0 && counts.held === 0 && counts.denied === 0 };
