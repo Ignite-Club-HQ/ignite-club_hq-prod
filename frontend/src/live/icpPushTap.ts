@@ -26,6 +26,14 @@ function accept(tap: Tap) {
   consumer.navigate(tap.path);
 }
 
+export function receiveDevIcpPushTap(data: Record<string, unknown>) {
+  if (!usesDevIcpPush()) return;
+  const tap = parseDevIcpPushTap(data);
+  if (!tap) return;
+  pending = tap;
+  accept(tap);
+}
+
 export function subscribeDevIcpPushTaps(account: string, navigate: (path: string) => void) {
   const subscription = { account, navigate };
   consumer = subscription;
@@ -43,11 +51,7 @@ export async function installDevIcpPushTaps() {
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
     await PushNotifications.addListener('pushNotificationActionPerformed', notification => {
-      if (!usesDevIcpPush()) return;
-      const tap = parseDevIcpPushTap(notification.notification.data ?? {});
-      if (!tap) return;
-      pending = tap;
-      accept(tap);
+      receiveDevIcpPushTap(notification.notification.data ?? {});
     });
   } catch { installed = false; }
 }

@@ -54,6 +54,15 @@ describe('ICP-only installation lifecycle', () => {
     expect(a.register).toHaveBeenCalledTimes(1);
     expect(a.unregister).toHaveBeenCalledWith('test-token');
   });
+  it('clears an uncertain prior intent before retrying registration', async () => {
+    const lifecycle = createIcpPushLifecycle(); const a = owner('a');
+    const ticket = lifecycle.bind(a);
+    a.register = vi.fn().mockRejectedValueOnce(new Error('lost reply')).mockResolvedValue(undefined);
+    await expect(lifecycle.register(ticket, 'test-token', 'ios')).rejects.toThrow();
+    await lifecycle.register(ticket, 'test-token', 'ios');
+    expect(a.unregister).toHaveBeenCalledTimes(1);
+    expect(a.register).toHaveBeenCalledTimes(2);
+  });
   it('rotates one installation without removing other devices', async () => {
     const lifecycle = createIcpPushLifecycle(); const a = owner('a'); const ticket = lifecycle.bind(a);
     await lifecycle.register(ticket, 'old-token', 'ios');
