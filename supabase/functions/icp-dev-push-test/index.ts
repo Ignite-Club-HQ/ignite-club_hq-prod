@@ -1,7 +1,8 @@
-import { Actor, HttpAgent } from 'npm:@icp-sdk/core@5.4.0/agent';
-import { Ed25519KeyIdentity } from 'npm:@icp-sdk/core@5.4.0/identity';
+import { Actor, HttpAgent } from 'npm:@icp-sdk/core@5/agent';
+import { Ed25519KeyIdentity } from 'npm:@icp-sdk/core@5/identity';
 import { deliverBrowserSelfTest } from './delivery.ts';
 import { browserTestSigningSeed } from './signing.ts';
+import { IDL } from 'npm:@icp-sdk/core@5/candid';
 
 const QUEUE = 'jfcdq-yiaaa-aaaal-qxloa-cai';
 const DEV_URL = 'https://ecsdwrarzfexssxtrymj.supabase.co';
@@ -28,7 +29,7 @@ Deno.serve(async request => {
     if (!body || typeof body.id !== 'string' || Object.keys(body).some(k => k !== 'id')) return reply(400, { error: 'Invalid test request' });
     const identity = Ed25519KeyIdentity.fromSecretKey(await browserTestSigningSeed(signingKey));
     const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
-    const factory = ({ IDL }: { IDL: typeof import('npm:@icp-sdk/core@5.4.0/candid').IDL }) => {
+    const factory = ({ IDL }: { IDL: typeof IDL }) => {
       const row = IDL.Record({ owner: IDL.Principal, token: IDL.Text, id: IDL.Text, expires: IDL.Nat64, status: IDL.Text, worker: IDL.Opt(IDL.Principal) });
       return IDL.Service({ claim_browser_push_test: IDL.Func([IDL.Text], [IDL.Variant({ Ok: IDL.Opt(row), Err: IDL.Text })], []),
         settle_browser_push_test: IDL.Func([IDL.Text, IDL.Text], [IDL.Variant({ Ok: IDL.Null, Err: IDL.Text })], []) });
