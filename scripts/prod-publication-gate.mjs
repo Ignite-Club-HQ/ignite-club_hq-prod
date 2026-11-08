@@ -30,11 +30,13 @@ export function assertPromotionEvidence(sha, workflow, job, runs, jobsByRun) {
   if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('Exact production commit required');
   const candidates = runs.filter(run => run.head_sha === sha && run.head_branch === 'prod'
     && run.path === `.github/workflows/${workflow}` && ['push', 'workflow_dispatch'].includes(run.event));
-  const latest = candidates.sort((a, b) => b.id - a.id)[0];
-  const jobs = latest ? jobsByRun[latest.id] : undefined;
-  const matches = jobs?.filter(entry => entry.name === job) ?? [];
-  if (!latest || matches.length !== 1 || matches[0].status !== 'completed' || matches[0].conclusion !== 'success') {
-    throw new Error(`Production publication blocked: ${job} has not succeeded for this commit`);
+  const ok = candidates.some(run => {
+    const matches = (jobsByRun[run.id] ?? []).filter(entry => entry.name === job);
+    return matches.length === 1 && matches[0].status === 'completed' && matches[0].conclusion === 'success';
+  });
+  if (!ok) {
+    const seen = candidates.map(run => `${run.id}:${run.event}:${run.status}/${run.conclusion}:[${(jobsByRun[run.id] ?? []).map(j => `${j.name}=${j.conclusion}`).join(',')}]`).join(' ');
+    throw new Error(`Production publication blocked: ${job} has not succeeded for this commit (runs seen: ${seen || 'none'})`);
   }
 }
 
@@ -67,14 +69,15 @@ export async function verifyProdPublication(env, { databaseOnly = false, fetcher
     const result = await read(`actions/workflows/${workflow}/runs?head_sha=${evidenceSha}&branch=prod&per_page=100`);
     if (!Array.isArray(result.workflow_runs) || result.total_count > 100) throw new Error('Incomplete promotion evidence');
     const runs = result.workflow_runs;
-    const candidate = runs.filter(run => run.head_sha === evidenceSha && run.head_branch === 'prod'
+    const candidates = runs.filter(run => run.head_sha === evidenceSha && run.head_branch === 'prod'
       && run.path === `.github/workflows/${workflow}` && ['push', 'workflow_dispatch'].includes(run.event))
-      .sort((a, b) => b.id - a.id)[0];
+      .sort((a, b) => b.id - a.id).slice(0, 5);
+    const candidate = candidates[0];
     const jobsByRun = {};
-    if (candidate) {
-      const result = await read(`actions/runs/${candidate.id}/jobs?per_page=100`);
+    for (const run of candidates) {
+      const result = await read(`actions/runs/${run.id}/jobs?per_page=100`);
       if (!Array.isArray(result.jobs) || result.total_count > 100) throw new Error('Incomplete promotion job evidence');
-      jobsByRun[candidate.id] = result.jobs;
+      jobsByRun[run.id] = result.jobs;
     }
     // Wait only while the promotion is still missing or running; a finished failure blocks at once.
     const pending = !candidate || candidate.status !== 'completed';
