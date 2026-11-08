@@ -25,6 +25,7 @@ import ScheduleAccess "scheduleAccess";
 import ScheduleCalendar "scheduleCalendar";
 import SchedulePatch "schedulePatch";
 import UpdateReminderAccess "updateReminderAccess";
+import BrowserPushTest "browserPushTest";
 
 persistent actor class Main(governorInit : Principal) = this {
   // Opt-in local rehearsal only; production deploy scripts must never set these.
@@ -107,6 +108,8 @@ persistent actor class Main(governorInit : Principal) = this {
   // Caller-scoped writes; the delivery worker reads/prunes via worker-gated
   // methods below.
   var device_tokens : [Types.DeviceToken];
+  // Self-test only: separate from items, leases and legacy recover(). No recurring worker.
+  var browserPushTests : [BrowserPushTest.Row];
   var deviceVersions : [{ user : Text; platform : Text; app_version : ?Text; build_number : ?Text }];
   var transferFences : [Text];
   // Local-only bounded polling experiment; resets on upgrade, never authority.
@@ -1579,6 +1582,86 @@ persistent actor class Main(governorInit : Principal) = this {
   // prunes tokens the push service reports as dead via remove_device_tokens.
   // ======================================================================
 
+  public shared ({ caller }) func browser_push_test_ready() : async Bool {
+    await admitAccount(caller);
+    authenticated(caller);
+    Principal.toText(Principal.fromActor(this)) == "jfcdq-yiaaa-aaaal-qxloa-cai" and workers.size() > 0
+  };
+
+  public shared ({ caller }) func register_browser_push_test(token : Text, id : Text) : async { #Ok; #Err : Text } {
+    if (Principal.toText(Principal.fromActor(this)) != "jfcdq-yiaaa-aaaal-qxloa-cai") return #Err("TEST only");
+    if (not removalReceiver.enter(caller)) return #Err("Account unavailable");
+    try {
+      await admitAccount(caller);
+      if (removalReceiver.denied(caller)) return #Err("Account unavailable");
+      authenticated(caller);
+      if (token.size() < 20 or token.size() > 4096 or id.size() < 16 or id.size() > 80) return #Err("Invalid test registration");
+      let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
+      switch (browserPushTests.find(func row = row.id == id)) {
+        case (?row) { if (row.owner == caller and row.token == token) return #Ok else return #Err("Test id already used") };
+        case null {};
+      };
+      if (browserPushTests.any(func row = row.token == token and row.owner != caller and row.expires > stamp)) return #Err("Device belongs to another account");
+      if (browserPushTests.any(func row = row.owner == caller and row.expires > stamp)) return #Err("Wait for the previous test to finish");
+      browserPushTests := browserPushTests.filter(func row = row.expires > stamp);
+      if (browserPushTests.size() >= 100) return #Err("Test capacity reached");
+      browserPushTests := browserPushTests.concat([{ owner = caller; token; id; expires = stamp + 300_000; status = "registered"; worker = null }]);
+      #Ok
+    } finally { removalReceiver.leave(caller) }
+  };
+
+  public shared ({ caller }) func request_browser_push_test(id : Text) : async { #Ok; #Err : Text } {
+    if (not removalReceiver.enter(caller)) return #Err("Account unavailable");
+    try {
+      await admitAccount(caller);
+      authenticated(caller);
+      if (removalReceiver.denied(caller)) return #Err("Account unavailable");
+      let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
+      let row = switch (browserPushTests.find(func row = row.id == id and row.owner == caller)) { case (?row) row; case null return #Err("Register this browser first") };
+      if (row.expires <= stamp) return #Err("Test expired");
+      if (row.status != "registered" and row.status != "pending") return #Err("Test already attempted");
+      browserPushTests := browserPushTests.map(func row = if (row.id == id) { row with status = "pending" } else row);
+      #Ok
+    } finally { removalReceiver.leave(caller) }
+  };
+
+  public shared ({ caller }) func revoke_browser_push_test(id : Text) : async { #Ok; #Err : Text } {
+    authenticated(caller);
+    browserPushTests := browserPushTests.map(func row = if (row.id == id and row.owner == caller) { row with status = "revoked"; token = "" } else row);
+    #Ok
+  };
+
+  public shared ({ caller }) func browser_push_test_status(id : Text) : async Text {
+    await admitAccount(caller);
+    authenticated(caller);
+    switch (browserPushTests.find(func row = row.id == id and row.owner == caller)) { case (?row) row.status; case null "missing" }
+  };
+
+  public shared ({ caller }) func claim_browser_push_test(id : Text) : async { #Ok : ?BrowserPushTest.Row; #Err : Text } {
+    worker(caller);
+    if (Principal.toText(Principal.fromActor(this)) != "jfcdq-yiaaa-aaaal-qxloa-cai") return #Err("TEST only");
+    let row = switch (browserPushTests.find(func row = row.id == id)) { case (?row) row; case null return #Ok(null) };
+    await admitAccount(row.owner);
+    worker(caller);
+    if (removalReceiver.denied(row.owner)) return #Err("Account unavailable");
+    let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
+    let fresh = switch (browserPushTests.find(func row = row.id == id)) { case (?row) row; case null return #Ok(null) };
+    if (not BrowserPushTest.canClaim(fresh, stamp)) return #Ok(null);
+    let claimed = { fresh with status = "sending"; worker = ?caller };
+    browserPushTests := browserPushTests.map(func row = if (row.id == id) claimed else row);
+    #Ok(?claimed)
+  };
+
+  public shared ({ caller }) func settle_browser_push_test(id : Text, outcome : Text) : async { #Ok; #Err : Text } {
+    worker(caller);
+    if (outcome != "accepted" and outcome != "failed" and outcome != "held") return #Err("Invalid outcome");
+    let row = switch (browserPushTests.find(func row = row.id == id)) { case (?row) row; case null return #Err("Unknown test") };
+    if (row.worker == ?caller and row.status == outcome) return #Ok;
+    if (not BrowserPushTest.canSettle(row, caller)) return #Err("Test claim changed");
+    browserPushTests := browserPushTests.map(func row = if (row.id == id) { row with status = outcome; token = "" } else row);
+    #Ok
+  };
+
   public shared ({ caller }) func register_device_token(platform : Text, token : Text, p256dh : ?Text, auth : ?Text) : async { #Ok; #Err : Text } {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
@@ -1850,6 +1933,11 @@ persistent actor class Main(governorInit : Principal) = this {
     };
     changed += prefsChanged;
 
+    // Test registrations are ephemeral; identity moves revoke rather than transfer device authority.
+    let newBrowserPushTests = browserPushTests.map(func row {
+      if (row.owner == old) { changed += 1; { row with owner = new; token = ""; status = "revoked" } } else row
+    });
+
     if (not dry_run) {
       items := newItems;
       scheduled := newScheduled;
@@ -1857,6 +1945,7 @@ persistent actor class Main(governorInit : Principal) = this {
       push_settings := newPushSettings;
       device_tokens := dedupedDeviceTokens;
       preferences := newPreferences;
+      browserPushTests := newBrowserPushTests;
       deviceVersions := newDeviceVersions;
       for ((key, audience) in broadcastAudienceUpdates.values()) Map.add(competitionBroadcastAudiences, Text.compare, key, audience);
     };
