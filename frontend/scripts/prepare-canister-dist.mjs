@@ -83,7 +83,7 @@ writeFileSync(
 const callbackHosts = ["icp0.io", "raw.icp0.io", "icp.net", "raw.icp.net", "ic0.app", "raw.ic0.app"];
 writeFileSync(
   `${out}/.well-known/ii-auth-callbacks`,
-  JSON.stringify({ callbacks: callbackHosts.flatMap((h) => ["/auth", "/native-sign-in.html", "/native-sign-in"].map((p) => `https://${frontendCanisterId}.${h}${p}`)) }, null, 2) + "\n",
+  JSON.stringify({ callbacks: callbackHosts.flatMap((h) => ["/auth", "/native-sign-in.html", "/native-sign-in"].map((p) => `https://${frontendCanisterId}.${h}${p}`)).concat(isProdBuild ? ["/auth", "/native-sign-in.html", "/native-sign-in"].map((p) => `${PROD_MEMBER_II_ORIGIN}${p}`) : []) }, null, 2) + "\n",
 );
 
 // ICP MCP Layer 1 (required): the canister manifest AI agents use to
