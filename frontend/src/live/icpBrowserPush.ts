@@ -19,7 +19,7 @@ export interface BrowserPushAuthority {
   unregister(token: string): Promise<void>;
 }
 
-interface BrowserPushRuntime {
+export interface BrowserPushRuntime {
   isDev: () => boolean;
   isTopLevel: () => boolean;
   supported: () => Promise<boolean>;
@@ -57,6 +57,28 @@ const runtime: BrowserPushRuntime = {
     return getToken(messaging, { vapidKey: config.vapidKey, serviceWorkerRegistration: registration });
   },
 };
+
+/** Manual receive-only probe: keep its address in memory, never register with a queue. */
+export async function enableDevBrowserPushProbe(
+  config: BrowserPushConfig,
+  isCurrent: () => boolean,
+  browser: BrowserPushRuntime = runtime,
+): Promise<BrowserPushResult | { status: 'registered'; token: string }> {
+  if (!browser.isDev()) return { status: 'unsupported' };
+  if (!config.apiKey || !config.projectId || !/^1:\d+:web:.+$/.test(config.appId) || !config.vapidKey) {
+    return { status: 'not-configured' };
+  }
+  if (!browser.isTopLevel()) return { status: 'open-in-new-tab' };
+  if (!isCurrent()) return { status: 'account-changed' };
+  if (!await browser.supported()) return { status: 'unsupported' };
+  if (!isCurrent() || !browser.isDev()) return { status: 'account-changed' };
+  const permission = browser.permission() === 'granted' ? 'granted' : await browser.requestPermission();
+  if (permission !== 'granted') return { status: 'denied' };
+  if (!isCurrent() || !browser.isDev()) return { status: 'account-changed' };
+  const token = await browser.token(config);
+  if (!isCurrent() || !browser.isDev()) return { status: 'account-changed' };
+  return token ? { status: 'registered', token } : { status: 'denied' };
+}
 
 /** Call only from a Settings click. No startup work, Supabase fallback or legacy token adoption. */
 export async function enableDevIcpBrowserPush(

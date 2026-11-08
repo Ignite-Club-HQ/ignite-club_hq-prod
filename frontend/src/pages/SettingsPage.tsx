@@ -671,7 +671,7 @@ export default function SettingsPage() {
       {!SKIP_WEB_PUSH && isIcpAccount && usesDevIcpPush() && user && <Suspense fallback={null}>
         <LazyIcpBrowserPushTestCard userId={user.id} />
       </Suspense>}
-      {pushSupported && (
+      {pushSupported && !isIcpAccount && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
