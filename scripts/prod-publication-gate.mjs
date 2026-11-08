@@ -94,7 +94,7 @@ export async function verifyProdPublication(env, { databaseOnly = false, fetcher
 
 /** CLI wait for in-flight promotion runs, in ms; invalid values mean no wait. */
 export function cliWaitMs(env) {
-  const value = Number(env.PROD_PUBLICATION_GATE_WAIT_MS ?? 0);
+  const value = Number(env.PROD_PUBLICATION_GATE_WAIT_MS ?? 600000);
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
