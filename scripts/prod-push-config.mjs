@@ -1,5 +1,10 @@
 import { assertIsolated, loadIds, REPO_ROOT } from './icp-environments.mjs';
 import { pushQueueIds } from './icp-push-batch.mjs';
+import { parseRecipientAllowlist } from './icp-push-recipient-policy.mjs';
+import { openPushSeed, resolveProdPushPrincipal } from './prod-push-key-policy.mjs';
+
+// Old alerts are settled without sending so a first run never floods phones.
+export const PROD_PUSH_MAX_AGE_MS = 30 * 60 * 1000;
 
 /** Validate before importing the delivery worker or making any network call. */
 export function validateProdPushConfig(env, prodIds, devIds, parsePrincipal) {
@@ -15,7 +20,18 @@ export function validateProdPushConfig(env, prodIds, devIds, parsePrincipal) {
   let sa;
   try { sa = JSON.parse(env.PROD_FCM_SERVICE_ACCOUNT_JSON ?? ''); } catch { throw new Error('PROD Firebase credentials are missing or invalid'); }
   if (!env.PROD_FIREBASE_PROJECT_ID || sa.project_id !== env.PROD_FIREBASE_PROJECT_ID || !sa.client_email || !sa.private_key) throw new Error('PROD Firebase credentials do not match the approved Firebase project');
-  return { directory, queues };
+  // Staged rollout: an explicit recipient list is mandatory on PROD.
+  if (!env.PROD_ICP_PUSH_RECIPIENTS_JSON) throw new Error('PROD push requires an approved recipient list');
+  const recipients = parseRecipientAllowlist(env.PROD_ICP_PUSH_RECIPIENTS_JSON, parsePrincipal);
+  return { directory, queues, recipients: [...recipients] };
+}
+
+/** Decrypts the stored encrypted PROD worker key in memory; never accepts both forms. */
+export function resolveProdWorkerSeed(env, identityType) {
+  resolveProdPushPrincipal(env, identityType);
+  return env.PROD_ICP_PUSH_WORKER_SEED_ENC
+    ? openPushSeed(env.PROD_ICP_PUSH_WORKER_SEED_ENC, env.PROD_ICP_PUSH_WORKER_PASSPHRASE)
+    : env.PROD_ICP_PUSH_WORKER_SEED;
 }
 
 export async function runProdPush(env, parsePrincipal, deliver, root = REPO_ROOT) {
@@ -25,5 +41,6 @@ export async function runProdPush(env, parsePrincipal, deliver, root = REPO_ROOT
     FCM_SERVICE_ACCOUNT_JSON: env.PROD_FCM_SERVICE_ACCOUNT_JSON,
     NOTIFICATION_QUEUE_CANISTER_ID: config.directory,
     ICP_PUSH_QUEUE_IDS_JSON: JSON.stringify(config.queues), ICP_HOST: 'https://icp-api.io',
+    ICP_PUSH_RECIPIENTS_JSON: JSON.stringify(config.recipients), ICP_PUSH_MAX_AGE_MS: String(PROD_PUSH_MAX_AGE_MS),
   });
 }
