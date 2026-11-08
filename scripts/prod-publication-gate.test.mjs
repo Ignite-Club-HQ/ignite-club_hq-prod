@@ -87,10 +87,19 @@ test('finished failure blocks without waiting', async () => {
   assert.equal(polls, 0);
 });
 
-test('CLI wait comes only from a positive PROD_PUBLICATION_GATE_WAIT_MS', async () => {
+test('CLI wait defaults to 10 minutes, overridable by PROD_PUBLICATION_GATE_WAIT_MS', async () => {
   const { cliWaitMs } = await import('./prod-publication-gate.mjs');
-  assert.equal(cliWaitMs({}), 0);
+  assert.equal(cliWaitMs({}), 600000);
   assert.equal(cliWaitMs({ PROD_PUBLICATION_GATE_WAIT_MS: '720000' }), 720000);
   assert.equal(cliWaitMs({ PROD_PUBLICATION_GATE_WAIT_MS: 'abc' }), 0);
   assert.equal(cliWaitMs({ PROD_PUBLICATION_GATE_WAIT_MS: '-5' }), 0);
+});
+
+test('an earlier successful run for the same commit still counts', async () => {
+  const { assertPromotionEvidence } = await import('./prod-publication-gate.mjs');
+  const sha = 'a'.repeat(40);
+  const base = { head_sha: sha, head_branch: 'prod', path: '.github/workflows/promote-to-prod.yml', event: 'push' };
+  const runs = [{ ...base, id: 1 }, { ...base, id: 2, event: 'workflow_dispatch' }];
+  const jobsByRun = { 1: [{ name: 'Production database deployment', status: 'completed', conclusion: 'success' }], 2: [{ name: 'Production database deployment', status: 'completed', conclusion: 'skipped' }] };
+  assert.doesNotThrow(() => assertPromotionEvidence(sha, 'promote-to-prod.yml', 'Production database deployment', runs, jobsByRun));
 });
