@@ -107,6 +107,13 @@ workflows:
                '<data android:scheme="com.igniteclubhq.app" android:host="ii-callback" /></intent-filter>')
           if "ii-callback" not in s:
               s = s.replace("</activity>", f + "</activity>", 1)
+          # Android App Links: https://igniteclubhq.app opens in the app (verified via assetlinks.json).
+          a = ('<intent-filter android:autoVerify="true"><action android:name="android.intent.action.VIEW" />'
+               '<category android:name="android.intent.category.DEFAULT" />'
+               '<category android:name="android.intent.category.BROWSABLE" />'
+               '<data android:scheme="https" android:host="igniteclubhq.app" /></intent-filter>')
+          if 'android:host="igniteclubhq.app"' not in s:
+              s = s.replace("</activity>", a + "</activity>", 1)
           open(p, "w").write(s)
           PY
           python3 ../scripts/configure-android-status-bar.py
@@ -187,6 +194,13 @@ workflows:
                '<data android:scheme="com.igniteclubhq.app" android:host="ii-callback" /></intent-filter>')
           if "ii-callback" not in s:
               s = s.replace("</activity>", f + "</activity>", 1)
+          # Android App Links: https://igniteclubhq.app opens in the app (verified via assetlinks.json).
+          a = ('<intent-filter android:autoVerify="true"><action android:name="android.intent.action.VIEW" />'
+               '<category android:name="android.intent.category.DEFAULT" />'
+               '<category android:name="android.intent.category.BROWSABLE" />'
+               '<data android:scheme="https" android:host="igniteclubhq.app" /></intent-filter>')
+          if 'android:host="igniteclubhq.app"' not in s:
+              s = s.replace("</activity>", a + "</activity>", 1)
           open(p, "w").write(s)
           PY
           python3 ../scripts/configure-android-status-bar.py
@@ -287,7 +301,12 @@ workflows:
           EOF
       - name: Build release AAB
         working_directory: frontend/android
-        script: ./gradlew bundleRelease
+        script: |
+          # Gradle download has a 10s default timeout; raise it and retry so a slow mirror doesn't fail the build.
+          sed -i 's/^networkTimeout=.*/networkTimeout=120000/' gradle/wrapper/gradle-wrapper.properties
+          grep -q '^networkTimeout=' gradle/wrapper/gradle-wrapper.properties || echo 'networkTimeout=120000' >> gradle/wrapper/gradle-wrapper.properties
+          for i in 1 2 3; do ./gradlew --version >/dev/null && break; echo "Gradle download attempt $i failed, retrying"; sleep 15; done
+          ./gradlew bundleRelease
     artifacts:
       - frontend/android/app/build/outputs/bundle/release/*.aab
       - frontend/android/upload_certificate.pem
