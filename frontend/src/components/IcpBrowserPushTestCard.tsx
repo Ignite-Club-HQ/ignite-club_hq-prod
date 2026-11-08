@@ -3,6 +3,7 @@ import { Bell, Loader2, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usesDevIcpPush } from '@/live/icpPushMode';
+import devBrowserConfig from '@/live/devBrowserPushPublicConfig.json';
 
 const messages: Record<string, string> = {
   'not-configured': 'Browser notification settings are missing. Complete Include web push in the Firebase connection.',
@@ -42,10 +43,10 @@ export function IcpBrowserPushTestCard({ userId }: { userId: string }) {
       }
       const current = () => ticket === generation.current && usesDevIcpPush();
       const result = await enableDevBrowserPushProbe({
-        apiKey: import.meta.env.IGNITE_LIVE_DEV_FIREBASE_WEB_API_KEY ?? '',
-        appId: import.meta.env.IGNITE_LIVE_DEV_FIREBASE_APP_ID ?? '',
-        projectId: import.meta.env.IGNITE_LIVE_DEV_FIREBASE_PROJECT_ID ?? '',
-        vapidKey: import.meta.env.IGNITE_LIVE_DEV_FIREBASE_VAPID_KEY ?? '',
+        apiKey: import.meta.env.IGNITE_LIVE_DEV_FIREBASE_WEB_API_KEY || devBrowserConfig.apiKey,
+        appId: import.meta.env.IGNITE_LIVE_DEV_FIREBASE_APP_ID || devBrowserConfig.appId,
+        projectId: import.meta.env.IGNITE_LIVE_DEV_FIREBASE_PROJECT_ID || devBrowserConfig.projectId,
+        vapidKey: import.meta.env.IGNITE_LIVE_DEV_FIREBASE_VAPID_KEY || devBrowserConfig.vapidKey,
       }, current);
       if (ticket !== generation.current) return;
       const freshIdentity = await getCurrentInternetIdentity();
