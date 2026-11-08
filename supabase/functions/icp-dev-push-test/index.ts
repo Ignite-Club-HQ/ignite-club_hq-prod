@@ -1,6 +1,7 @@
 import { Actor, HttpAgent } from 'npm:@icp-sdk/core@5.4.0/agent';
 import { Ed25519KeyIdentity } from 'npm:@icp-sdk/core@5.4.0/identity';
 import { deliverBrowserSelfTest } from './delivery.ts';
+import { browserTestSigningSeed } from './signing.ts';
 
 const QUEUE = 'jfcdq-yiaaa-aaaal-qxloa-cai';
 const DEV_URL = 'https://ecsdwrarzfexssxtrymj.supabase.co';
@@ -14,17 +15,18 @@ Deno.serve(async request => {
   // Caller supplies only an opaque test id. Ownership/consent is established by signed
   // ICP request_browser_push_test; worker-only claim returns its fixed envelope once.
   if (Deno.env.get('SUPABASE_URL') !== DEV_URL) return reply(403, { error: 'TEST only' });
-  const seed = Deno.env.get('IGNITE_DEV_ICP_PUSH_WORKER_SEED');
+  const signingKey = Deno.env.get('IGNITE_DEV_ICP_BROWSER_TEST_SIGNING_KEY');
   const key = Deno.env.get('LOVABLE_API_KEY');
   const connection = Deno.env.get('FIREBASE_MESSAGING_API_KEY');
-  if (!seed || !/^[a-fA-F0-9]{64}$/.test(seed) || !key || !connection) return reply(503, { error: 'TEST sending setup is not ready' });
-  if (request.method === 'GET') return reply(200, { ready: true });
+  if (!signingKey || !key || !connection) return reply(503, { error: 'TEST sending setup is not ready' });
+  // A saved key does not prove that the queue has authorised this sender.
+  if (request.method === 'GET') return reply(503, { ready: false, error: 'TEST sender authorisation is pending' });
   try {
     const text = await request.text();
     if (text.length > 256) return reply(400, { error: 'Invalid test request' });
     const body = JSON.parse(text);
     if (!body || typeof body.id !== 'string' || Object.keys(body).some(k => k !== 'id')) return reply(400, { error: 'Invalid test request' });
-    const identity = Ed25519KeyIdentity.fromSecretKey(Uint8Array.from(seed.match(/.{2}/g) ?? [], x => parseInt(x, 16)));
+    const identity = Ed25519KeyIdentity.fromSecretKey(await browserTestSigningSeed(signingKey));
     const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
     const factory = ({ IDL }: { IDL: typeof import('npm:@icp-sdk/core@5.4.0/candid').IDL }) => {
       const row = IDL.Record({ owner: IDL.Principal, token: IDL.Text, id: IDL.Text, expires: IDL.Nat64, status: IDL.Text, worker: IDL.Opt(IDL.Principal) });

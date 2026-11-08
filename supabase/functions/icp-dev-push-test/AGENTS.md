@@ -1,2 +1,3 @@
 - This function sends only an explicitly requested, caller-owned DEV browser self-test claimed atomically from notification_queue; never use general queue claims, device tables, legacy recovery, email handlers or schedules. Why: isolated single-use claims need no general delivery handover.
 - Fixed DEV canister/host and Firebase gateway only; no client-supplied tokens, recipients or message text. Why: anonymous triggers are not delivery authorization.
+- Derive the one-shot identity in memory from its dedicated opaque generated secret; never reuse legacy/PROD worker keys or expose signing material. Readiness remains false until queue authorisation is verified. Why: saving a new key does not grant delivery permission.
