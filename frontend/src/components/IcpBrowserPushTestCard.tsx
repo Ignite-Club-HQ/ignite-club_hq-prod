@@ -56,8 +56,10 @@ export function IcpBrowserPushTestCard({ userId }: { userId: string }) {
       address.current = result.status === 'registered' && 'token' in result ? result.token : '';
       setRegistered(result.status === 'registered');
       setMessage(result.status === 'registered' ? 'Browser ready. Copy the test address and send it here in chat so I can send one alert.' : messages[result.status]);
-    } catch {
-      if (ticket === generation.current) setMessage('This browser could not enable test alerts. Check notification permission and try again.');
+    } catch (error) {
+      console.error('TEST browser alerts failed:', error);
+      const detail = error instanceof Error && error.message ? ` (${error.message.slice(0, 160)})` : '';
+      if (ticket === generation.current) setMessage(`This browser could not enable test alerts. Check notification permission and try again.${detail}`);
     } finally { if (ticket === generation.current) setBusy(false); }
   }
   async function copy() {

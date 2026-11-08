@@ -28,6 +28,19 @@ export interface BrowserPushRuntime {
   token: (config: BrowserPushConfig) => Promise<string>;
 }
 
+export function waitForActiveWorker(registration: ServiceWorkerRegistration, timeoutMs = 10_000): Promise<void> {
+  if (registration.active) return Promise.resolve();
+  const worker = registration.installing ?? registration.waiting;
+  if (!worker) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Notification helper did not start in time.')), timeoutMs);
+    worker.addEventListener('statechange', () => {
+      if (worker.state === 'activated') { clearTimeout(timer); resolve(); }
+      else if (worker.state === 'redundant') { clearTimeout(timer); reject(new Error('Notification helper failed to start.')); }
+    });
+  });
+}
+
 const runtime: BrowserPushRuntime = {
   isDev: usesDevIcpPush,
   isTopLevel: () => window.top === window.self,
@@ -51,6 +64,8 @@ const runtime: BrowserPushRuntime = {
     const registration = await navigator.serviceWorker.register(`/icp-dev-firebase-messaging-sw.js?${query}`, {
       scope: '/icp-dev-push/',
     });
+    // A first-time registration is still installing; push subscribe needs an active worker.
+    await waitForActiveWorker(registration);
     const messaging = getMessaging(app);
     const { onMessage } = await import('firebase/messaging');
     onMessage(messaging, () => { window.dispatchEvent(new Event('ignite:icp-push-received')); });
