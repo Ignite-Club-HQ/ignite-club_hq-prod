@@ -5,6 +5,7 @@
 - [ ] Confirm on Paul's signed-in TEST account after frontend deployment; delegated Internet Identity session/device and canister deployment are unverified.
 
 ## ICP native push isolation (DEV only, 7 November 2026)
+- [ ] Retrieve Firebase web registration details for Paul where supported, then complete Include web push through the secure connection form; never request private credentials in chat. Current linked connection exposes sending credentials only; browser API key/app ID/VAPID are absent. TEST delivery remains held.
 - [x] Paul selected TEST phone-browser testing on 8 November, not native builds or a PROD trial. Firebase connection is linked and accessible in this session and targets ignite-club-hq; this does not verify access from Paul's other Lovable login or delivery.
 - [ ] Resolve reported Lovable project access under paul@igniteclubhq.app: Paul confirmed that login cannot open the project. Current-session Firebase link/access is valid; other-login project/workspace permissions and exact error remain unverified. Invite the account through project Share; if an explicit connection-access block appears, grant Can use in the connection's Sharing. No credential changes.
 - [x] Rechecked setup at 22:57 UTC: Firebase gateway connection is linked/access-approved; hosted secret names confirm no TEST queue signing key. Two focused audits identify atomic device attempts, exclusive installation ownership, fresh chat mute checks and legacy TEST recovery fencing as missing. No registration/endpoint/send/deployment enabled.
