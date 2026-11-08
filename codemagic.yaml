@@ -301,7 +301,12 @@ workflows:
           EOF
       - name: Build release AAB
         working_directory: frontend/android
-        script: ./gradlew bundleRelease
+        script: |
+          # Gradle download has a 10s default timeout; raise it and retry so a slow mirror doesn't fail the build.
+          sed -i 's/^networkTimeout=.*/networkTimeout=120000/' gradle/wrapper/gradle-wrapper.properties
+          grep -q '^networkTimeout=' gradle/wrapper/gradle-wrapper.properties || echo 'networkTimeout=120000' >> gradle/wrapper/gradle-wrapper.properties
+          for i in 1 2 3; do ./gradlew --version >/dev/null && break; echo "Gradle download attempt $i failed, retrying"; sleep 15; done
+          ./gradlew bundleRelease
     artifacts:
       - frontend/android/app/build/outputs/bundle/release/*.aab
       - frontend/android/upload_certificate.pem
