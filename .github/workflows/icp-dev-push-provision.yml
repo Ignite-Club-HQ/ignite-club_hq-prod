@@ -31,6 +31,14 @@ jobs:
           SOURCE_REF: ${{ github.ref }}
           OWNER_CONFIRMATION: ${{ inputs.confirmation }}
         run: |
+          if [ -z "$ICP_PUSH_WORKER_SEED" ]; then
+            echo "::error::Existing TEST worker signing key is missing. No transfer attempted."
+            exit 1
+          fi
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::DEV hosting access is missing. No transfer attempted."
+            exit 1
+          fi
           node --input-type=module <<'JS'
           import { provisionExistingDevWorker } from './scripts/icp-dev-push-handover.mjs';
           try {

@@ -51,7 +51,10 @@ const runtime: BrowserPushRuntime = {
     const registration = await navigator.serviceWorker.register(`/icp-dev-firebase-messaging-sw.js?${query}`, {
       scope: '/icp-dev-push/',
     });
-    return getToken(getMessaging(app), { vapidKey: config.vapidKey, serviceWorkerRegistration: registration });
+    const messaging = getMessaging(app);
+    const { onMessage } = await import('firebase/messaging');
+    onMessage(messaging, () => { window.dispatchEvent(new Event('ignite:icp-push-received')); });
+    return getToken(messaging, { vapidKey: config.vapidKey, serviceWorkerRegistration: registration });
   },
 };
 

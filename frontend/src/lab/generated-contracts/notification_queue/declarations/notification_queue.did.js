@@ -80,6 +80,14 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : IDL.Vec(Notification),
     'Err' : IDL.Text,
   });
+  const Row = IDL.Record({
+    'id' : IDL.Text,
+    'status' : IDL.Text,
+    'token' : IDL.Text,
+    'expires' : IDL.Nat64,
+    'owner' : IDL.Principal,
+    'worker' : IDL.Opt(IDL.Principal),
+  });
   const DeviceTokenCountResult = IDL.Variant({
     'Ok' : IDL.Nat16,
     'Err' : IDL.Text,
@@ -244,8 +252,15 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Bool, 'Err' : IDL.Text })],
         [],
       ),
+    'browser_push_test_ready' : IDL.Func([], [IDL.Bool], []),
+    'browser_push_test_status' : IDL.Func([IDL.Text], [IDL.Text], []),
     'cancel_scheduled' : IDL.Func([IDL.Text, IDL.Text], [ScheduledResult], []),
     'claim' : IDL.Func([IDL.Nat64, IDL.Nat16], [Results], []),
+    'claim_browser_push_test' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Opt(Row), 'Err' : IDL.Text })],
+        [],
+      ),
     'cleanup_stale_device_tokens' : IDL.Func(
         [IDL.Nat64, IDL.Nat64],
         [DeviceTokenCountResult],
@@ -500,6 +515,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'recover' : IDL.Func([], [ResultNat16], []),
+    'register_browser_push_test' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'register_device_token' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
@@ -520,8 +540,18 @@ export const idlFactory = ({ IDL }) => {
         [DeviceTokenCountResult],
         [],
       ),
+    'request_browser_push_test' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'retire_competition_broadcast' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Vec(IDL.Text), IDL.Nat16],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'revoke_browser_push_test' : IDL.Func(
+        [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
@@ -566,6 +596,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'set_transfer_fence' : IDL.Func(
         [IDL.Text, IDL.Bool],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'settle_browser_push_test' : IDL.Func(
+        [IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),

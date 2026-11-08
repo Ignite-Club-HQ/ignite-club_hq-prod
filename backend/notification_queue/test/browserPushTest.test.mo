@@ -1,0 +1,12 @@
+import Policy "../src/browserPushTest";
+import Principal "mo:core/Principal";
+let owner = Principal.fromText("aaaaa-aa");
+let other = Principal.fromText("2vxsx-fae");
+let pending : Policy.Row = { owner; token = "device"; id = "one-test"; expires = 100; status = "pending"; worker = null };
+assert Policy.canClaim(pending, 99);
+assert not Policy.canClaim(pending, 100);
+let sending = { pending with status = "sending"; worker = ?owner };
+assert not Policy.canClaim(sending, 1);
+assert Policy.canSettle(sending, owner);
+assert not Policy.canSettle(sending, other);
+assert not Policy.canSettle({ sending with status = "accepted" }, owner);

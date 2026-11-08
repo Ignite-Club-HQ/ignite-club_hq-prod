@@ -1,5 +1,5 @@
 import path from "node:path";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import { visualizer } from "rollup-plugin-visualizer";
 import { testAssistantDiscoveryFiles } from "../scripts/test-assistant-discovery.mjs";
 // @ts-expect-error plain-JS Netlify function handlers have no type declarations
@@ -13,13 +13,19 @@ if (process.env.IGNITE_LIVE_BUILD !== "1") {
 }
 
 const root = process.cwd();
+const publicConnectorEnv = { ...loadEnv('live', path.resolve(root, '..'), 'VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_'), ...process.env };
+const devFirebaseFields = ['WEB_API_KEY', 'PROJECT_ID', 'APP_ID', 'VAPID_KEY'];
+const devFirebaseDefines = Object.fromEntries(devFirebaseFields.map(field => [
+  `import.meta.env.IGNITE_LIVE_DEV_FIREBASE_${field}`,
+  JSON.stringify(publicConnectorEnv[`IGNITE_LIVE_DEV_FIREBASE_${field}`] || publicConnectorEnv[`VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_${field}`] || ''),
+]));
 
 export default defineConfig({
   envDir: false,
   envPrefix: "IGNITE_LIVE_",
   esbuild: { jsx: "automatic" },
   // ic-websocket-js reads process.env.LOG_LEVEL; browsers have no `process`.
-  define: { "process.env.LOG_LEVEL": "undefined" },
+  define: { "process.env.LOG_LEVEL": "undefined", ...devFirebaseDefines },
   // Scan only the real entry for dependencies up front. Without this, Vite
   // discovers deps late, re-optimizes, and force-reloads the open page
   // ("optimized dependencies changed. reloading") — a source of the preview
