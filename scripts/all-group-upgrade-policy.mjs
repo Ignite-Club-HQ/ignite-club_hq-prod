@@ -13,6 +13,7 @@ export const SCOPES = Object.freeze({
   private_club_name_display: ['pii_access_control', 'club_domain', 'identity_access'],
   team_invites: ['club_domain', 'mini_league_domain'],
   messaging: ['messaging_domain'],
+  browser_push_test: ['notification_queue'],
   competition: ['notification_queue', 'club_domain', 'events_domain', 'competition_domain'],
   history: ['events_domain', 'competition_domain'],
   subscriptions: ['club_domain', 'media_blob_store'],

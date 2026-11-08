@@ -1620,14 +1620,14 @@ persistent actor class Main(governorInit : Principal) = this {
       let row = switch (browserPushTests.find(func row = row.id == id and row.owner == caller)) { case (?row) row; case null return #Err("Register this browser first") };
       if (row.expires <= stamp) return #Err("Test expired");
       if (row.status != "registered" and row.status != "pending") return #Err("Test already attempted");
-      browserPushTests := browserPushTests.map(func row = if (row.id == id) { row with status = "pending" } else row);
+      browserPushTests := browserPushTests.map(func row = if (row.id == id) ({ row with status = "pending" }) else row);
       #Ok
     } finally { removalReceiver.leave(caller) }
   };
 
   public shared ({ caller }) func revoke_browser_push_test(id : Text) : async { #Ok; #Err : Text } {
     authenticated(caller);
-    browserPushTests := browserPushTests.map(func row = if (row.id == id and row.owner == caller) { row with status = "revoked"; token = "" } else row);
+    browserPushTests := browserPushTests.map(func row = if (row.id == id and row.owner == caller) ({ row with status = "revoked"; token = "" }) else row);
     #Ok
   };
 
@@ -1658,7 +1658,7 @@ persistent actor class Main(governorInit : Principal) = this {
     let row = switch (browserPushTests.find(func row = row.id == id)) { case (?row) row; case null return #Err("Unknown test") };
     if (row.worker == ?caller and row.status == outcome) return #Ok;
     if (not BrowserPushTest.canSettle(row, caller)) return #Err("Test claim changed");
-    browserPushTests := browserPushTests.map(func row = if (row.id == id) { row with status = outcome; token = "" } else row);
+    browserPushTests := browserPushTests.map(func row = if (row.id == id) ({ row with status = outcome; token = "" }) else row);
     #Ok
   };
 

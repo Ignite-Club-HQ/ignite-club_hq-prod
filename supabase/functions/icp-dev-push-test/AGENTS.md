@@ -1,0 +1,2 @@
+- This function sends only an explicitly requested, caller-owned DEV browser self-test claimed atomically from notification_queue; never use general queue claims, device tables, legacy recovery, email handlers or schedules. Why: isolated single-use claims need no general delivery handover.
+- Fixed DEV canister/host and Firebase gateway only; no client-supplied tokens, recipients or message text. Why: anonymous triggers are not delivery authorization.
