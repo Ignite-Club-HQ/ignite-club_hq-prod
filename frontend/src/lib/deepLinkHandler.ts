@@ -25,13 +25,17 @@ export function initDeepLinkHandler() {
   // an explicit readiness boundary (see `nativeLaunchIntent`) that stops the
   // protected "/" route from redirecting to generic /auth first. Transient
   // rejections are retried a bounded number of times.
+  // Internet Identity replies are consumed by the native II client and never
+  // navigate, so they must not hold the startup gate open waiting for a route
+  // (that parked a cold-started sign-in on the sign-in screen).
   beginLaunchIntentResolution(
-    () => App.getLaunchUrl(),
+    () => App.getLaunchUrl().then((r) => (r?.url && isIiReply(r.url) ? undefined : r)),
     (url) => handleDeepLinkUrl(url),
   );
 
   App.addListener('appUrlOpen', async (event: URLOpenListenerEvent) => {
     console.log('[DeepLink] App opened with URL:', event.url);
+    if (isIiReply(event.url)) return;
     // A URL from the OS settles the startup boundary immediately, even if the
     // launch-URL read is still pending or retrying.
     markLaunchUrlReceived();
@@ -60,6 +64,10 @@ export function withSignupIntent(path: string, destination: string): string {
   if (!params.has('mode')) params.set('mode', 'signup');
   const qs = params.toString();
   return `${pathname}${qs ? `?${qs}` : ''}${hash ? `#${hash}` : ''}`;
+}
+
+function isIiReply(url: string): boolean {
+  return url.startsWith('com.igniteclubhq.app://ii-callback');
 }
 
 async function handleDeepLinkUrl(rawUrl: string) {
