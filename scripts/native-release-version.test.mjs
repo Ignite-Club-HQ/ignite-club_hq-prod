@@ -13,8 +13,8 @@ test('android build number is time-based and never queries a store', () => {
 });
 
 test('android build number grows with the clock and stays inside the Play limit', () => {
-  const early = timeBasedBuildNumber(1_794_000_000_000);
-  const later = timeBasedBuildNumber(1_794_000_060_000);
+  const early = timeBasedBuildNumber((ANDROID_MIN_VERSION_CODE + 10) * 60_000);
+  const later = timeBasedBuildNumber((ANDROID_MIN_VERSION_CODE + 11) * 60_000);
   assert.ok(later > early, 'a later clock must produce a higher build number');
   assert.ok(early < PLAY_MAX_VERSION_CODE, 'the current clock must stay under the Play limit');
   assert.throws(() => timeBasedBuildNumber((PLAY_MAX_VERSION_CODE + 1) * 60_000));
