@@ -6,7 +6,8 @@
 
 ## Live native ICP push — Paul only (8 November 2026)
 - [x] Paul chose native-only push, live app limited to his account. Live sender now requires a recipient list (Paul only), unlocks the stored encrypted key, skips alerts older than 30 minutes. Recipient, queue and Firebase project settings saved in GitHub. 27 sender tests pass.
-- [ ] Paul adds GitHub secret PROD_FCM_SERVICE_ACCOUNT_JSON (Firebase service account file) and merges main→prod; then set PROD_ICP_PUSH_ENABLED=true and run "[PROD] Push delivery worker" once. Needs Paul's live app signed in with Internet Identity so his phone is registered.
+- [x] Firebase secret confirmed saved; merged PROD sender verified on 548149f0. Account-only manual run 42457013641 completed: claimed 1, delivered 0, failed 0, no-device/skipped 1. Recurring delivery disabled again after dispatch; Supabase push unchanged.
+- [ ] Confirm a fresh eligible notification for Paul and native phone registration, then run another approved account-only send and confirm phone receipt. The first run's combined no-device/skipped count cannot distinguish an old/non-listed alert from missing device registration; no delivery is confirmed.
 
 ## ICP native push isolation (DEV only, 7 November 2026)
 - [x] Added receive-only Enable test alerts in TEST ICP browser Settings; address stays in mounted memory and can be copied for one manual Firebase alert, without hosted sender/queue registration. Twenty-three focused tests pass; preview build OK and isolated worker HTTP 200. Supabase/mobile controls and PROD unchanged.
