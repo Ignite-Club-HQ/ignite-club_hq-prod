@@ -16,6 +16,11 @@ describe('manual TEST browser alert controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enable test alerts' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Copy test address' }));
     await waitFor(() => expect(state.copy).toHaveBeenCalledWith('manual-test-address'));
+    const config = state.enable.mock.calls[0]?.[0];
+    expect(config.apiKey.length).toBeGreaterThan(0);
+    expect(config.projectId.length).toBeGreaterThan(0);
+    expect(config.appId).toMatch(/^1:\d+:web:/);
+    expect(config.vapidKey.length).toBeGreaterThan(0);
   });
   it('never acquires an address for a different account', async () => {
     render(<IcpBrowserPushTestCard userId="principal:other-member" />);

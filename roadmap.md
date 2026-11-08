@@ -6,6 +6,7 @@
 
 ## ICP native push isolation (DEV only, 7 November 2026)
 - [x] Added receive-only Enable test alerts in TEST ICP browser Settings; address stays in mounted memory and can be copied for one manual Firebase alert, without hosted sender/queue registration. Twenty-three focused tests pass; preview build OK and isolated worker HTTP 200. Supabase/mobile controls and PROD unchanged.
+- [x] Phone screenshot confirms published TEST button but missing build-time web settings; added a TEST-card-only fallback containing the four saved public Firebase web fields, never server credentials. Published update and phone registration still need confirmation.
 - [ ] Publish the updated TEST website and verify Paul's Internet Identity phone registration and manual alert receipt; no delegated phone session available and no alert sent yet. This tests browser reception only, not automatic ICP delivery.
 - [ ] Paul approved a new securely generated TEST-only sender key on 8 November; finish single-alert authorisation/publication and phone acceptance without recurring delivery or Supabase/PROD changes.
 - [x] New dedicated TEST browser signing secret generated and confirmed saved; isolated sender accepts the opaque secret with in-memory signing derivation. Twenty-two focused tests pass and preview build OK. No legacy/PROD keys used.
