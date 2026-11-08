@@ -107,6 +107,13 @@ workflows:
                '<data android:scheme="com.igniteclubhq.app" android:host="ii-callback" /></intent-filter>')
           if "ii-callback" not in s:
               s = s.replace("</activity>", f + "</activity>", 1)
+          # Android App Links: https://igniteclubhq.app opens in the app (verified via assetlinks.json).
+          a = ('<intent-filter android:autoVerify="true"><action android:name="android.intent.action.VIEW" />'
+               '<category android:name="android.intent.category.DEFAULT" />'
+               '<category android:name="android.intent.category.BROWSABLE" />'
+               '<data android:scheme="https" android:host="igniteclubhq.app" /></intent-filter>')
+          if 'android:host="igniteclubhq.app"' not in s:
+              s = s.replace("</activity>", a + "</activity>", 1)
           open(p, "w").write(s)
           PY
           python3 ../scripts/configure-android-status-bar.py
@@ -187,6 +194,13 @@ workflows:
                '<data android:scheme="com.igniteclubhq.app" android:host="ii-callback" /></intent-filter>')
           if "ii-callback" not in s:
               s = s.replace("</activity>", f + "</activity>", 1)
+          # Android App Links: https://igniteclubhq.app opens in the app (verified via assetlinks.json).
+          a = ('<intent-filter android:autoVerify="true"><action android:name="android.intent.action.VIEW" />'
+               '<category android:name="android.intent.category.DEFAULT" />'
+               '<category android:name="android.intent.category.BROWSABLE" />'
+               '<data android:scheme="https" android:host="igniteclubhq.app" /></intent-filter>')
+          if 'android:host="igniteclubhq.app"' not in s:
+              s = s.replace("</activity>", a + "</activity>", 1)
           open(p, "w").write(s)
           PY
           python3 ../scripts/configure-android-status-bar.py
