@@ -113,7 +113,9 @@ workflows:
           a = ('<intent-filter android:autoVerify="true"><action android:name="android.intent.action.VIEW" />'
                '<category android:name="android.intent.category.DEFAULT" />'
                '<category android:name="android.intent.category.BROWSABLE" />'
-               '<data android:scheme="https" android:host="igniteclubhq.app" /></intent-filter>')
+               '<data android:scheme="https" android:host="igniteclubhq.app" />'
+               # Only shared app pages: sign-in (/auth, /native-sign-in) and /vault Drive replies must stay in the browser.
+               '<data android:pathPrefix="/join" /><data android:pathPrefix="/invite" /><data android:pathPrefix="/events" /><data android:pathPrefix="/club" /><data android:pathPrefix="/team" /><data android:pathPrefix="/chat" /><data android:pathPrefix="/messages" /></intent-filter>')
           if 'android:host="igniteclubhq.app"' not in s:
               s = s.replace("</activity>", a + "</activity>", 1)
           open(p, "w").write(s)
@@ -202,7 +204,9 @@ workflows:
           a = ('<intent-filter android:autoVerify="true"><action android:name="android.intent.action.VIEW" />'
                '<category android:name="android.intent.category.DEFAULT" />'
                '<category android:name="android.intent.category.BROWSABLE" />'
-               '<data android:scheme="https" android:host="igniteclubhq.app" /></intent-filter>')
+               '<data android:scheme="https" android:host="igniteclubhq.app" />'
+               # Only shared app pages: sign-in (/auth, /native-sign-in) and /vault Drive replies must stay in the browser.
+               '<data android:pathPrefix="/join" /><data android:pathPrefix="/invite" /><data android:pathPrefix="/events" /><data android:pathPrefix="/club" /><data android:pathPrefix="/team" /><data android:pathPrefix="/chat" /><data android:pathPrefix="/messages" /></intent-filter>')
           if 'android:host="igniteclubhq.app"' not in s:
               s = s.replace("</activity>", a + "</activity>", 1)
           open(p, "w").write(s)
