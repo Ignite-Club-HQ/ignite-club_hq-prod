@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { enableDevIcpBrowserPush } from './icpBrowserPush';
+import { enableDevIcpBrowserPush, enableDevBrowserPushProbe } from './icpBrowserPush';
 
 const config = { apiKey: 'public-test-key', projectId: 'test-project', appId: '1:123:web:abc', vapidKey: 'public-test-vapid' };
 function setup() {
@@ -11,6 +11,27 @@ function setup() {
   return { authority, browser };
 }
 describe('isolated DEV browser push', () => {
+  it('enables a manual browser probe without queue or hosted sender registration', async () => {
+    const { authority, browser } = setup();
+    expect(await enableDevBrowserPushProbe(config, () => true, browser)).toEqual({ status: 'registered', token: 'test-device-token' });
+    expect(authority.ready).not.toHaveBeenCalled();
+    expect(authority.register).not.toHaveBeenCalled();
+  });
+  it('refuses a manual probe outside DEV ICP', async () => {
+    const { browser } = setup(); browser.isDev.mockReturnValue(false);
+    expect(await enableDevBrowserPushProbe(config, () => true, browser)).toEqual({ status: 'unsupported' });
+    expect(browser.token).not.toHaveBeenCalled();
+  });
+  it('does not retain a manual address after an account change', async () => {
+    const { browser } = setup(); let current = true;
+    browser.token.mockImplementation(async () => { current = false; return 'test-device-token'; });
+    expect(await enableDevBrowserPushProbe(config, () => current, browser)).toEqual({ status: 'account-changed' });
+  });
+  it('does not prompt for a manual probe inside the preview frame', async () => {
+    const { browser } = setup(); browser.isTopLevel.mockReturnValue(false);
+    expect(await enableDevBrowserPushProbe(config, () => true, browser)).toEqual({ status: 'open-in-new-tab' });
+    expect(browser.requestPermission).not.toHaveBeenCalled();
+  });
   it('never acquires tokens or registers in Supabase/PROD mode', async () => {
     const { authority, browser } = setup(); browser.isDev.mockReturnValue(false);
     expect(await enableDevIcpBrowserPush(config, authority, browser)).toEqual({ status: 'unsupported' });
