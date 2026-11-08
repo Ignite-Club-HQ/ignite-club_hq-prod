@@ -18,6 +18,8 @@
   var II_ORIGIN = new URL(II_URL).origin;
   // Only ever hand delegations to our own app (never an arbitrary URL).
   var APP_SCHEME = "com.igniteclubhq.app";
+  // Android package of the store app (capacitor.config.ts appId) — not the URL scheme.
+  var ANDROID_PACKAGE = "app.lovable.igniteteamhub";
   var APP_HOST = "ii-callback";
   var ALLOWED_CALLBACK = APP_SCHEME + "://" + APP_HOST;
   var MAX_TTL_NS = BigInt(8 * 24 * 60 * 60) * BigInt(1000000000);
@@ -39,7 +41,7 @@
     // Android: an intent:// link names our app package, so Chrome hands it
     // straight to the installed app instead of ignoring an unknown scheme.
     if (IS_ANDROID) {
-      return "intent://" + APP_HOST + "?" + query + "#Intent;scheme=" + APP_SCHEME + ";package=" + APP_SCHEME + ";end";
+      return "intent://" + APP_HOST + "?" + query + "#Intent;scheme=" + APP_SCHEME + ";package=" + ANDROID_PACKAGE + ";end";
     }
     return ALLOWED_CALLBACK + "?" + query;
   }

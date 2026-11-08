@@ -183,11 +183,16 @@ export async function createNativeAuthClient(): Promise<InternetIdentityAuthClie
         handles.push(await Browser.addListener("browserFinished", () => {
           // Android closes the browser as it hands the reply to the app; the
           // reply can land a few seconds later on a busy phone.
-          setTimeout(() => finish(() => reject(new Error(
+          setTimeout(() => finish(() => {
+            // The reply may have been stored by the late-reply path (or a
+            // restarted app) meanwhile: that is a successful sign-in.
+            if (held && valid()) { resolve(held.identity); return; }
+            reject(new Error(
             seen
               ? `Sign-in didn't finish: the app got ${seen}. Please try again.`
               : "Sign-in didn't come back to the app. If the browser showed \"You're signed in\", tap Open Ignite there next time.",
-          ))), 20000);
+            ));
+          }), 20000);
         }));
         // Both return/cancellation listeners must exist before opening the browser.
         await Browser.open({ url, presentationStyle: "popover" });

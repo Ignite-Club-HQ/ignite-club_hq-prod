@@ -78,6 +78,8 @@ workflows:
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
+          # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
+          export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
           npm run build:live
       - name: Scaffold and sync Capacitor Android
         working_directory: frontend
@@ -111,7 +113,9 @@ workflows:
           a = ('<intent-filter android:autoVerify="true"><action android:name="android.intent.action.VIEW" />'
                '<category android:name="android.intent.category.DEFAULT" />'
                '<category android:name="android.intent.category.BROWSABLE" />'
-               '<data android:scheme="https" android:host="igniteclubhq.app" /></intent-filter>')
+               '<data android:scheme="https" android:host="igniteclubhq.app" />'
+               # Only shared app pages: sign-in (/auth, /native-sign-in) and /vault Drive replies must stay in the browser.
+               '<data android:pathPrefix="/join" /><data android:pathPrefix="/invite" /><data android:pathPrefix="/events" /><data android:pathPrefix="/club" /><data android:pathPrefix="/team" /><data android:pathPrefix="/chat" /><data android:pathPrefix="/messages" /></intent-filter>')
           if 'android:host="igniteclubhq.app"' not in s:
               s = s.replace("</activity>", a + "</activity>", 1)
           open(p, "w").write(s)
@@ -169,6 +173,8 @@ workflows:
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
+          # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
+          export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
           npm run build:live
       - name: Scaffold and sync Capacitor Android
         working_directory: frontend
@@ -198,7 +204,9 @@ workflows:
           a = ('<intent-filter android:autoVerify="true"><action android:name="android.intent.action.VIEW" />'
                '<category android:name="android.intent.category.DEFAULT" />'
                '<category android:name="android.intent.category.BROWSABLE" />'
-               '<data android:scheme="https" android:host="igniteclubhq.app" /></intent-filter>')
+               '<data android:scheme="https" android:host="igniteclubhq.app" />'
+               # Only shared app pages: sign-in (/auth, /native-sign-in) and /vault Drive replies must stay in the browser.
+               '<data android:pathPrefix="/join" /><data android:pathPrefix="/invite" /><data android:pathPrefix="/events" /><data android:pathPrefix="/club" /><data android:pathPrefix="/team" /><data android:pathPrefix="/chat" /><data android:pathPrefix="/messages" /></intent-filter>')
           if 'android:host="igniteclubhq.app"' not in s:
               s = s.replace("</activity>", a + "</activity>", 1)
           open(p, "w").write(s)
@@ -356,6 +364,8 @@ workflows:
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
+          # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
+          export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
           npm run build:live
       - name: Scaffold and sync Capacitor iOS
         working_directory: frontend
@@ -444,6 +454,8 @@ workflows:
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
+          # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
+          export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
           npm run build:live
       - name: Scaffold and sync Capacitor iOS
         working_directory: frontend
