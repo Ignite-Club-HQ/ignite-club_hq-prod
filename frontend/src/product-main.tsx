@@ -9,8 +9,11 @@ import { installSupabaseAuthRetry } from "./lib/supabaseAuthRetry";
 import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { ICP_FALLBACK_BLOCKED_EVENT, installStrictIcpTransport } from "./live/strictIcpTransport";
 import { recordTestingIssue } from "./lib/testingIssues";
+import { installChunkRecovery } from "./lib/chunkRecovery";
 import "./index.css";
 
+// First: a tab on a previous build reloads once instead of blanking screens.
+installChunkRecovery();
 installSupabaseAuthRetry();
 // Installed outside auth retry, so refused fallback requests never refresh/retry.
 installStrictIcpTransport();
@@ -26,6 +29,8 @@ initWebVitalsTelemetry();
 // boundary. Without this the gate stays "pending" forever and the app hangs
 // on "Starting up...".
 initDeepLinkHandler();
+// Separate TEST-only listener captures cold ICP taps without activating email listeners.
+void import('./live/icpPushTap').then(m => m.installDevIcpPushTaps()).catch(() => undefined);
 
 const root = document.getElementById("root");
 if (!root) {

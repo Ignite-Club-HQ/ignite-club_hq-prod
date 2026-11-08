@@ -16,7 +16,11 @@ rmSync(`${out}/bundle-analysis.html`, { force: true });
 rmSync(`${out}/bundle-analysis.json`, { force: true });
 if (!existsSync(`${out}/index.html`)) copyFileSync(`${out}/live-index.html`, `${out}/index.html`);
 
-writeFileSync(`${out}/_redirects`, "/*  /index.html  200\n");
+// Missing hashed files must 404, never get index.html: old tabs would run HTML
+// as JavaScript ("Unexpected token '<'") instead of failing cleanly and
+// reloading once (src/lib/chunkRecovery.ts).
+writeFileSync(`${out}/asset-not-found.txt`, "Not found\n");
+writeFileSync(`${out}/_redirects`, "/assets/*  /asset-not-found.txt  404\n/*  /index.html  200\n");
 
 // Every address of this canister signs in to Internet Identity as
 // https://<id>.icp0.io (see resolveDerivationOriginFor in

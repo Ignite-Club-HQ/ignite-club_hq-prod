@@ -1099,8 +1099,19 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       markStage("carousel_loaded");
     }
   }, [isLoading, isFetching, isError]);
+
+  const showSkeleton = (!initialized || isLoading || (isFetching && scopedItems.length === 0)) && !snapshot && scopedItems.length === 0;
+  const snapshotItems = filterDeletedTeams(
+    activeClubFilter
+      ? (snapshot?.items ?? []).filter(i => i.club_id === activeClubFilter)
+      : (snapshot?.items ?? []),
+  );
+  const displayItems = scopedItems.length > 0 ? scopedItems : (hasSettledFetch ? [] : snapshotItems);
+
   useEffect(() => {
-    if (sortedItems.length > 0 || renderedCompetitionItems.length > 0) markStage("first_team_card");
+    // These values are initialized on every render, including skeleton/empty
+    // returns. The sorted card arrays below are not created on those paths.
+    if (!showSkeleton && displayItems.length > 0) markStage("first_team_card");
   });
 
   // Persist snapshot for instant cold-start on next visit
@@ -1114,8 +1125,6 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       teamMembers,
     });
   }, [user?.id, activeClubFilter, scopedItems, nextEvents, teamPhotos, unreadCounts, teamMembers]);
-
-  const showSkeleton = (!initialized || isLoading || (isFetching && scopedItems.length === 0)) && !snapshot && scopedItems.length === 0;
 
   // Section is "ready" only once the primary teams query has actually settled
   // (i.e. not its first load and not a background refetch with no items yet).
@@ -1146,13 +1155,6 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   // write effect already refuses to overwrite the cache with an empty list,
   // so this only ever shows genuinely stale-but-real data during the blip.
   // Snapshot rows are scoped to the same club filter key, but re-filter anyway.
-  const snapshotItems = filterDeletedTeams(
-    activeClubFilter
-      ? (snapshot?.items ?? []).filter(i => i.club_id === activeClubFilter)
-      : (snapshot?.items ?? []),
-  );
-  const displayItems = scopedItems.length > 0 ? scopedItems : (hasSettledFetch ? [] : snapshotItems);
-
   // Empty state: onboarding with clear paths
   if (displayItems.length === 0) {
     return null;

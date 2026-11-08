@@ -806,7 +806,7 @@ export default function TeamChatPage() {
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2 || (savedThreadComplete && localMessages !== undefined);
   const showLoadingRaw =
-    (!authReady && !hasMeaningfulLocal) ||
+    (!authReady && !hasMeaningfulLocal && !messagesData?.messages?.length) ||
     (loadingMessages && !messagesData && !hasMeaningfulLocal);
   // Latched: once this thread has painted, a transient local-cache reseed or a
   // realtime-driven refetch must not re-raise the skeleton.
@@ -2121,7 +2121,7 @@ export default function TeamChatPage() {
 
       {/* Messages */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
-        {showLoading || !bannersReady ? (
+        {showLoading ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-16 w-3/4" />

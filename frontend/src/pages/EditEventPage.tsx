@@ -1,5 +1,5 @@
 import { mergeLists } from "@/live/featureRouter";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, MapPin, Bell, Calendar, FileText, DollarSign, ClipboardList, Users, UserPlus } from "lucide-react";
@@ -46,6 +46,9 @@ import {
   syncEventDuties,
   updateEventTransaction,
 } from "@/features/events/editEventWorkflow";
+import { clearEventEditDraft, loadEventEditDraft, saveEventEditDraft } from "@/features/events/eventEditDraft";
+import { classifyEventSaveFailure, uncertainSaveBlocksResubmit, type EventSaveStage } from "@/features/events/eventSaveOutcome";
+import { recordEventEditStage, type EventEditKind } from "@/lib/eventEditTrace";
 import { type SavedLocation } from "@/components/AddressAutocomplete";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
 import { EventAudienceSelector } from "@/components/event/EventAudienceSelector";
@@ -60,8 +63,10 @@ import { SeriesEndDateEditor } from "@/components/event/SeriesEndDateEditor";
 import { EventEditScheduleSection } from "@/components/event/EventEditScheduleSection";
 import { eventKeys } from "@/lab/eventQueryKeys";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { getLiveClubProfile, listLiveTeams } from "@/live/features/club";
-import { getLiveMyRoleGrants } from "@/live/features/membership";
+import { getLiveClubProfile, getLiveClubSubscription, listLiveTeams } from "@/live/features/club";
+import { getLiveMyRoleGrants, listLiveRoleGrants, listLiveTeamRoleGrants } from "@/live/features/membership";
+import { listLiveDuties, listLiveEvents } from "@/live/features/events";
+import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { getLiveMiniLeague, listLiveAdmins } from "@/live/features/miniLeagues";
 import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
@@ -241,11 +246,31 @@ function IcpEditEventPage() {
   );
 }
 
+const RESTORED_BASELINE = "\u0000restored";
+
+type EditEventDraftForm = {
+  title: string; type: EventType; eventDateTime: string; address: string; description: string;
+  selectedClubId: string; selectedTeamId: string; dutyTeamId: string | null;
+  reminderEnabled: boolean; reminderHours: number; price: string; paidEvent: boolean;
+  allowGuests: boolean; maxGuestsPerMember: number; enableRecurring: boolean;
+  recurrencePattern: EventRecurrencePattern; recurrenceInterval: number; recurrenceDays: number[];
+  recurrenceEndDate: string; duties: { id?: string; name: string; assignedTo: string | null }[];
+  dutiesToDelete: string[]; opponent: string; isBye: boolean; arrivalMinutesBefore: string;
+  rsvpAudience: RsvpAudience | null; restrictedRoles: ClubEventRole[]; adultsOnly: boolean;
+  rsvpGrouping: "" | "level" | "team"; targetTeamIds: string[] | null;
+};
+
 function SupabaseEditEventPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const editSeries = searchParams.get('series') === 'true';
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
+  const pageMountedAtRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
+  const populatedForRef = useRef<string | null>(null);
+  const formOpenReportedRef = useRef(false);
+  // Set after a recurring conversion whose outcome could not be confirmed:
+  // re-submitting could create the series twice, so it is blocked here.
+  const [conversionUncertain, setConversionUncertain] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -396,6 +421,21 @@ function SupabaseEditEventPage() {
   const { data: event, isLoading } = useQuery({
     queryKey: ["event-edit", id],
     queryFn: async () => {
+      const loadStartedAt = performance.now();
+      try {
+        return await loadEventForEdit();
+      } finally {
+        recordEventEditStage("details_load", "ordinary", performance.now() - loadStartedAt);
+      }
+    },
+    // A focus refetch (e.g. returning from the sign-in window) must never
+    // overwrite what the member is typing; the form is populated once.
+    refetchOnWindowFocus: false,
+    enabled: !!id,
+  });
+
+  async function loadEventForEdit() {
+    {
       // Internet Identity accounts: the event lives on the events canister,
       // not Supabase — load it in the same shape the detail page uses.
       if (resolveAuthBackend() === "icp") {
@@ -436,9 +476,8 @@ function SupabaseEditEventPage() {
           return { ...data, mini_leagues: league ? { id: league.id, name: league.name } : null };
         },
       }, { eventId: id ?? "" });
-    },
-    enabled: !!id,
-  });
+    }
+  }
 
   // Check if this is a recurring event
   const isRecurring = event?.is_recurring || event?.parent_event_id;
@@ -527,12 +566,20 @@ function SupabaseEditEventPage() {
   const { data: clubSubscription } = useQuery({
     queryKey: ["club-subscription-edit", event?.club_id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("club_subscriptions")
-        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-        .eq("club_id", event!.club_id)
-        .maybeSingle();
-      return data;
+      const clubId = event?.club_id;
+      if (!clubId) return null;
+      return withFeatureBackend("membership", {
+        supabase: async () => {
+          const { data, error } = await supabase
+            .from("club_subscriptions")
+            .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+            .eq("club_id", clubId)
+            .maybeSingle();
+          if (error) throw error;
+          return data;
+        },
+        icp: ctx => getLiveClubSubscription(ctx, clubId),
+      }, { clubId });
     },
     enabled: !!event?.club_id,
   });
@@ -546,11 +593,23 @@ function SupabaseEditEventPage() {
   const { data: existingDuties } = useQuery({
     queryKey: eventKeys.duties(id),
     queryFn: async () => {
-      const { data } = await supabase
-        .from("duties")
-        .select("id, name, assigned_to, status")
-        .eq("event_id", id!);
-      return data || [];
+      if (!id) return [];
+      return withFeatureBackend("events", {
+        supabase: async () => {
+          const { data, error } = await supabase
+            .from("duties")
+            .select("id, name, assigned_to, status")
+            .eq("event_id", id);
+          if (error) throw error;
+          return data || [];
+        },
+        icp: async ctx => (await listLiveDuties(ctx, id)).map(duty => ({
+          id: `${duty.event_id}:${duty.account_id}:${duty.duty}`,
+          name: duty.duty,
+          assigned_to: duty.account_id || null,
+          status: duty.completed ? "completed" : "open",
+        })),
+      }, { eventId: id });
     },
     enabled: !!id,
   });
@@ -559,15 +618,33 @@ function SupabaseEditEventPage() {
   const { data: members } = useQuery({
     queryKey: ["event-members-for-duty", event?.club_id, event?.team_id],
     queryFn: async () => {
+      const clubId = event?.club_id;
+      if (!clubId) return [];
+      return withFeatureBackend("membership", {
+        icp: async ctx => {
+          const grants = event?.team_id
+            ? await listLiveTeamRoleGrants(ctx, event.team_id)
+            : await listLiveRoleGrants(ctx, clubId);
+          const ids = [...new Set(grants.map(grant => grant.account_id.replace(/^principal:/, "")))];
+          if (!ids.length) return [];
+          const profiles = await readRelationshipProfiles(ctx, ids, { kind: "club", resource: clubId });
+          const byId = new Map(profiles.map(profile => [profile.id.replace(/^principal:/, ""), profile]));
+          return ids.map(memberId => ({
+            id: memberId,
+            display_name: byId.get(memberId)?.display_name || "Member",
+            avatar_url: byId.get(memberId)?.avatar_url ?? null,
+          }));
+        },
+        supabase: async () => {
       // Get members from team if selected, otherwise from club
       const targetId = event?.team_id || event?.club_id;
       const idColumn = event?.team_id ? "team_id" : "club_id";
 
-      const { data: roles } = await supabase
+      const { data: roles, error } = await supabase
         .from("user_roles")
         .select("user_id, profiles!inner(id, display_name, avatar_url)")
         .eq(idColumn, targetId!);
-
+      if (error) throw error;
       if (!roles) return [];
 
       // Deduplicate by user_id
@@ -581,6 +658,8 @@ function SupabaseEditEventPage() {
         display_name: (r.profiles as any)?.display_name || "Unknown",
         avatar_url: (r.profiles as any)?.avatar_url,
       }));
+        },
+      }, event?.team_id ? { teamId: event.team_id } : { clubId });
     },
     enabled: !!event?.club_id,
   });
@@ -589,14 +668,27 @@ function SupabaseEditEventPage() {
   const { data: savedLocations } = useQuery({
     queryKey: ["saved-locations", event?.club_id],
     queryFn: async () => {
-      const { data } = await supabase
+      const clubId = event?.club_id;
+      if (!clubId) return [];
+      const data = await withFeatureBackend("events", {
+        icp: async ctx => (await listLiveEvents(ctx, clubId))
+          .filter(row => !row.deleted && row.address[0])
+          .sort((a, b) => Number(b.starts_at_ms - a.starts_at_ms))
+          .slice(0, 50)
+          .map(row => ({ address: row.address[0] ?? null, suburb: null, state: null, postcode: null })),
+        supabase: async () => {
+      const { data, error } = await supabase
         .from("events")
         .select("address, suburb, state, postcode")
-        .eq("club_id", event!.club_id)
+        .eq("club_id", clubId)
         .not("address", "is", null)
         .neq("address", "")
         .order("event_date", { ascending: false })
         .limit(50);
+      if (error) throw error;
+      return data;
+        },
+      }, { clubId });
 
       if (!data) return [];
 
@@ -769,9 +861,11 @@ function SupabaseEditEventPage() {
   }, [isClubLevelAdmin, allClubTeams, userTeams, event, selectedClubId]);
 
 
-  // Populate form with existing data
+  // Populate form with existing data — once per event, then restore any
+  // unsaved draft kept through a sign-in round trip.
   useEffect(() => {
-    if (event) {
+    if (event && populatedForRef.current !== id) {
+      populatedForRef.current = id ?? null;
       setTitle(event.title);
       setType(event.type as EventType);
       setDescription(event.description || "");
@@ -811,8 +905,58 @@ function SupabaseEditEventPage() {
 
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
+
+      const draft = user?.id && id ? loadEventEditDraft<EditEventDraftForm>(user.id, id) : null;
+      if (draft) {
+        applyDraft(draft);
+        toast({ title: "Unsaved changes restored", description: "We kept the changes you made before signing in again. Check them, then tap Save." });
+      }
+      if (!formOpenReportedRef.current) {
+        formOpenReportedRef.current = true;
+        recordEventEditStage("form_open", "ordinary", performance.now() - pageMountedAtRef.current);
+      }
     }
-  }, [event]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event, id, user?.id]);
+
+  const draftForm: EditEventDraftForm = {
+    title, type, eventDateTime, address, description, selectedClubId, selectedTeamId, dutyTeamId,
+    reminderEnabled, reminderHours, price, paidEvent, allowGuests, maxGuestsPerMember,
+    enableRecurring, recurrencePattern, recurrenceInterval, recurrenceDays, recurrenceEndDate,
+    duties, dutiesToDelete, opponent, isBye, arrivalMinutesBefore, rsvpAudience, restrictedRoles,
+    adultsOnly, rsvpGrouping, targetTeamIds,
+  };
+  function applyDraft(d: EditEventDraftForm) {
+    setTitle(d.title); setType(d.type); setEventDateTime(d.eventDateTime); setAddress(d.address);
+    setDescription(d.description); setSelectedClubId(d.selectedClubId); setSelectedTeamId(d.selectedTeamId);
+    setDutyTeamId(d.dutyTeamId); setReminderEnabled(d.reminderEnabled); setReminderHours(d.reminderHours);
+    setPrice(d.price); setPaidEvent(d.paidEvent); setAllowGuests(d.allowGuests); setMaxGuestsPerMember(d.maxGuestsPerMember);
+    setEnableRecurring(d.enableRecurring); setRecurrencePattern(d.recurrencePattern); setRecurrenceInterval(d.recurrenceInterval);
+    setRecurrenceDays(d.recurrenceDays); setRecurrenceEndDate(d.recurrenceEndDate); setDuties(d.duties);
+    setDutiesToDelete(d.dutiesToDelete); setOpponent(d.opponent); setIsBye(d.isBye); setArrivalMinutesBefore(d.arrivalMinutesBefore);
+    setRsvpAudience(d.rsvpAudience); setRestrictedRoles(d.restrictedRoles); setAdultsOnly(d.adultsOnly);
+    setRsvpGrouping(d.rsvpGrouping); setTargetTeamIds(d.targetTeamIds);
+    dutiesRestoredRef.current = true;
+    draftBaselineRef.current = RESTORED_BASELINE;
+  }
+  const dutiesRestoredRef = useRef(false);
+  // Form as loaded from the event; a draft is kept only once it differs.
+  const draftBaselineRef = useRef<string | null>(null);
+  const draftJson = JSON.stringify(draftForm);
+  useEffect(() => {
+    // Only after the form holds the event (never save the empty initial form).
+    if (populatedForRef.current !== id || !user?.id || !id) return;
+    if (draftBaselineRef.current === null) {
+      draftBaselineRef.current = draftJson;
+      return;
+    }
+    if (draftJson === draftBaselineRef.current) {
+      clearEventEditDraft(user.id, id);
+      return;
+    }
+    const t = setTimeout(() => saveEventEditDraft(user.id, id, JSON.parse(draftJson)), 400);
+    return () => clearTimeout(t);
+  }, [draftJson, id, user?.id]);
 
   useEffect(() => {
     if (!selectedTeamId) {
@@ -825,7 +969,10 @@ function SupabaseEditEventPage() {
 
   // Load existing duties
   useEffect(() => {
-    if (existingDuties) {
+    // A restored draft already carries the member's duty edits.
+    if (existingDuties && !dutiesRestoredRef.current) {
+      // Loaded duties are part of the baseline, not an unsaved change.
+      if (draftBaselineRef.current !== RESTORED_BASELINE) draftBaselineRef.current = null;
       setDuties(existingDuties.map(d => ({
         id: d.id,
         name: d.name,
@@ -837,6 +984,36 @@ function SupabaseEditEventPage() {
   const handleSubmit = async (updateSeries: boolean = false) => {
     // Prevent double-submission while a save is in flight
     if (saving) return;
+    const saveTappedAt = performance.now();
+    const createsEvents = enableRecurring && !isRecurring;
+    const editKind: EventEditKind = createsEvents
+      ? "recurring_conversion"
+      : updateSeries
+        ? "recurring_series"
+        : isRecurring
+          ? "recurring_occurrence"
+          : type === "game" ? "game" : "ordinary";
+    if (createsEvents && conversionUncertain) {
+      toast({
+        title: "Check your events first",
+        description: "We couldn't confirm whether the recurring series was created last time. Open the events list to check before trying again, so it isn't created twice.",
+        variant: "destructive",
+      });
+      return;
+    }
+    let saveStage: EventSaveStage = "before_send";
+    let mainSentAt = 0;
+    let relatedStartedAt = 0;
+    const markMainSent = () => {
+      saveStage = "main_update";
+      mainSentAt = performance.now();
+      recordEventEditStage("save_start", editKind, mainSentAt - saveTappedAt);
+    };
+    const onMainCommitted = () => {
+      relatedStartedAt = performance.now();
+      recordEventEditStage("main_update", editKind, relatedStartedAt - mainSentAt);
+      saveStage = "related_updates";
+    };
     if (!title.trim() || !eventDateTime) {
       toast({
         title: "Missing information",
@@ -971,7 +1148,9 @@ function SupabaseEditEventPage() {
 
         // Series expansion stays Supabase-only inside the workflow (no
         // canister shape for recurring series expansion).
+        markMainSent();
         const occurrences = await convertEventToRecurringSeries(supabase, {
+          onMainCommitted,
           eventId: id!,
           updates: updateData,
           selectedDate: parsedDateTime,
@@ -995,7 +1174,9 @@ function SupabaseEditEventPage() {
         // Routed through the hybrid workflow: the whole-series update stays on
         // the transactional RPC (no canister shape); a single-event update goes
         // to the events_domain canister when ICP is the active backend.
+        markMainSent();
         await updateEventTransaction(supabase, {
+          onMainCommitted,
           eventId: id!,
           updates: updateData,
           selectedEventDate: parsedDateTime.toISOString(),
@@ -1006,7 +1187,9 @@ function SupabaseEditEventPage() {
       } else {
         // Just update this single event — the workflow keeps start_time/end_time
         // aligned with the new event_date on both backends.
+        markMainSent();
         await updateEventTransaction(supabase, {
+          onMainCommitted,
           eventId: id!,
           updates: updateData,
           selectedEventDate: parsedDateTime.toISOString(),
@@ -1042,6 +1225,9 @@ function SupabaseEditEventPage() {
       }
 
 
+      if (relatedStartedAt) recordEventEditStage("related_updates", editKind, performance.now() - relatedStartedAt);
+      if (user?.id && id) clearEventEditDraft(user.id, id);
+
       // Event update notifications are now handled automatically by the
       // on_event_updated DB trigger → process-event-notifications edge function
 
@@ -1057,6 +1243,39 @@ function SupabaseEditEventPage() {
 
     } catch (error: any) {
       console.error("Error updating event:", error);
+      const failure = classifyEventSaveFailure(error);
+      if (failure === "session_before_send" && saveStage === "before_send") {
+        // Nothing was sent. Keep the form (draft is already on this device)
+        // and let the sign-in check decide: a really-ended session goes to
+        // sign-in and returns here; a momentary blip just stays put.
+        if (user?.id && id) saveEventEditDraft(user.id, id, draftForm);
+        toast({
+          title: "Please sign in again",
+          description: "Your sign-in needs renewing. Nothing was saved yet, and your changes are kept on this device — tap Save again after signing in.",
+          variant: "destructive",
+        });
+        void refreshProfile();
+        return;
+      }
+      if (failure === "uncertain" && saveStage === "main_update") {
+        if (uncertainSaveBlocksResubmit(failure, saveStage, createsEvents)) setConversionUncertain(true);
+        toast({
+          title: "We couldn't confirm your save",
+          description: createsEvents
+            ? "The connection dropped before we heard back, so the series may or may not have been created. Check your events list before trying again."
+            : "The connection dropped before we heard back. Your changes are still here — open the event to check, then tap Save again if needed.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (saveStage === "related_updates" && !error?.__dutyStage) {
+        toast({
+          title: "Event saved, some details not saved",
+          description: "Your main event changes were saved, but the duty team or reminder didn't update. Tap Save again to retry them.",
+          variant: "destructive",
+        });
+        return;
+      }
       if (error?.__dutyStage) {
         toast({
           title: "Event saved, duties not saved",

@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { withFeatureBackend } from "@/live/featureRouter";
+import { writeOnce } from "@/live/clubScope";
+import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { resolveLivePiiTextBatch } from "@/live/features/vault";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { setLiveEventRsvp, adminUpsertLiveRsvp, getMyLiveChildRsvps } from "@/live/features/events";
@@ -588,8 +590,6 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
     staleTime: 60 * 1000,
   });
 
-  const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
-
   const [parentRsvpOpen, setParentRsvpOpen] = useState(false);
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps, isFetched: childRsvpsFetched } = useChildRsvps(event.id, user?.id);
@@ -599,7 +599,19 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
   // Event details are already loaded. Only attendance depends on the
   // membership/household/RSVP reads; summaries and duties update independently.
   const dutiesReady = !user?.id || event.is_cancelled || myDutiesFetched;
-  const heroDataReady = !user || (myRsvpFetched && childrenFetched && childRsvpsFetched && membershipFetched);
+  // Bounded wait: the household roll-up and membership reads are secondary
+  // (membership defaults to member; ICP set_rsvp re-authorizes server-side).
+  // Once the caller's own answer and household children are known the
+  // adult/child scope is settled, so a slow secondary read must not leave the
+  // buttons hidden indefinitely.
+  const [attendanceWaitExpired, setAttendanceWaitExpired] = useState(false);
+  React.useEffect(() => {
+    setAttendanceWaitExpired(false);
+    const t = window.setTimeout(() => setAttendanceWaitExpired(true), 4000);
+    return () => window.clearTimeout(t);
+  }, [event.id]);
+  const heroDataReady = !user || (myRsvpFetched && childrenFetched &&
+    ((childRsvpsFetched && membershipFetched) || attendanceWaitExpired));
 
   React.useEffect(() => {
     onReadyChange?.(event.id, true);
@@ -607,16 +619,22 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
   }, [event.id, onReadyChange]);
 
   const rsvpMutation = useMutation({
+    retry: false,
     mutationFn: async (status: RsvpStatus) => {
+      if (!user) throw new Error("Sign in before updating your RSVP");
       // Hybrid routing: mirrors the self-RSVP write in EventCard.tsx.
       const routedToIcp = await withFeatureBackend("events", {
         supabase: () => false,
         icp: async (ctx) => {
-          await setLiveEventRsvp(ctx, event.id, user!.id, status);
+          const accountId = user.id.replace(/^principal:/, "");
+          if (accountId !== ctx.identity.getPrincipal().toText()) {
+            throw new Error("RSVP account does not match the signed-in identity");
+          }
+          await setLiveEventRsvp(ctx, event.id, accountId, status);
           return true;
         },
-      }, { eventId: event.id });
-      if (routedToIcp) return;
+      }, writeOnce({ eventId: event.id }));
+      if (routedToIcp) return { id: `${event.id}:${user.id.replace(/^principal:/, "")}`, status };
 
       let rsvpId: string | null = null;
       if (myRsvp) {
@@ -626,7 +644,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       } else {
         const { data: newRsvp, error } = await supabase
           .from("rsvps")
-          .insert({ event_id: event.id, user_id: user!.id, status })
+          .insert({ event_id: event.id, user_id: user.id, status })
           .select("id")
           .single();
         if (error) throw error;
@@ -635,36 +653,55 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       // Fire-and-forget: don't block UI for points calculation
       if (status === "going" && rsvpId) {
         awardEarlyRsvpPoints({
-          userId: user!.id,
+          userId: user.id,
           eventDate: event.event_date,
           rsvpId,
           clubId: event.club_id,
           clubName: event.clubs.name,
         }).catch(console.error);
       }
+      return { id: rsvpId, status };
     },
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      // Publish the acknowledged answer before refreshing supplementary reads.
+      // Pending selection is display-only: never use it to choose INSERT vs UPDATE.
+      queryClient.setQueryData(["hero-rsvp", event.id, user?.id], saved);
       queryClient.invalidateQueries({ queryKey: ["hero-rsvp", event.id] });
       queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
       queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", event.id] });
       queryClient.invalidateQueries({ queryKey: ["rsvp-summary", event.id] });
       queryClient.invalidateQueries({ queryKey: ["next-up-pending-count"] });
     },
-    onError: () => {
-      toast({ title: "Failed to update RSVP", variant: "destructive" });
+    onError: (error) => {
+      console.error("[NextUp RSVP] Save failed", error);
+      toast(friendlyMutationError(error, {
+        title: "Could not save RSVP",
+        description: "Your attendance hasn’t changed. If this continues, ask your team organiser to check your event access.",
+      }));
     },
   });
 
+  // Show the tap immediately, without changing authoritative cached data until
+  // acknowledgement. Failure automatically reveals the previous saved answer.
+  const currentStatus = rsvpMutation.isPending && rsvpMutation.variables
+    ? rsvpMutation.variables
+    : (myRsvp?.status as RsvpStatus) ?? null;
+
   const childRsvpMutation = useMutation({
     mutationFn: async ({ childId, status }: { childId: string; status: RsvpStatus }) => {
+      if (!user) throw new Error("Sign in before updating a child’s RSVP");
       // Hybrid routing: mirrors the child-RSVP write in EventCard.tsx.
       const routedToIcp = await withFeatureBackend("events", {
         supabase: () => false,
         icp: async (ctx) => {
-          await adminUpsertLiveRsvp(ctx, event.id, user!.id, status, { childId });
+          const accountId = user.id.replace(/^principal:/, "");
+          if (accountId !== ctx.identity.getPrincipal().toText()) {
+            throw new Error("RSVP account does not match the signed-in identity");
+          }
+          await adminUpsertLiveRsvp(ctx, event.id, accountId, status, { childId });
           return true;
         },
-      }, { eventId: event.id });
+      }, writeOnce({ eventId: event.id }));
       if (routedToIcp) return;
 
       // Server-authoritative lookup — do NOT trust the local cache to decide
@@ -745,7 +782,8 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       queryClient.invalidateQueries({ queryKey: ["rsvp-summary", event.id] });
       queryClient.invalidateQueries({ queryKey: ["next-up-pending-count"] });
     },
-    onError: (_err, _vars, context) => {
+    onError: (error, _vars, context) => {
+      console.error("[NextUp child RSVP] Save failed", error);
       // Roll back the optimistic write so the UI cannot show a "confirmed"
       // status that never persisted (root cause of the household-mismatch bug).
       if (context?.previous !== undefined) {

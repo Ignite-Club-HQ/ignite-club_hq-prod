@@ -22,6 +22,26 @@ interface Trace {
 const TAP_WINDOW_MS = 4_000;
 let lastTapAt: number | null = null;
 let installed = false;
+export interface ChatOperationTiming { operation: string; mode: string; started_ms: number; duration_ms: number; outcome: 'ok' | 'failed' }
+const operations: ChatOperationTiming[] = [];
+
+/** Bounded tap-window request ledger: names/timing only, no arguments or results. */
+export async function timeChatOperation<T>(operation: string, mode: string, run: () => Promise<T>): Promise<T> {
+  const start = Date.now();
+  const tap = lastTapAt;
+  const active = tap !== null && start >= tap && start - tap < 30_000;
+  let outcome: 'ok' | 'failed' = 'ok';
+  try { return await run(); }
+  catch (error) { outcome = 'failed'; throw error; }
+  finally {
+    if (active && tap !== null) {
+      const entry = { operation, mode, started_ms: start - tap, duration_ms: Date.now() - start, outcome };
+      operations.push(entry);
+      if (operations.length > 300) operations.shift();
+      try { (window as unknown as { __igniteChatOperations: ChatOperationTiming[] }).__igniteChatOperations = operations; } catch { /* optional diagnostics */ }
+    }
+  }
+}
 const traces = new Map<string, Trace>();
 const openedThisSession = new Set<string>();
 
@@ -40,6 +60,7 @@ export function __resetChatOpenTrace(): void {
   lastTapAt = null;
   traces.clear();
   openedThisSession.clear();
+  operations.length = 0;
 }
 export function __setLastTap(ts: number | null): void { lastTapAt = ts; }
 

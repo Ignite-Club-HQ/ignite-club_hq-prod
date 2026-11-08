@@ -22,6 +22,7 @@ import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
 import { useQueryClient } from "@tanstack/react-query";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { resolveAuthBackend } from "@/live/authBackendMode";
+import { usesDevIcpPush } from "@/live/icpPushMode";
 import { NotificationPreferenceList, type NotificationPreferenceDescriptor } from "@/components/NotificationPreferenceList";
 import { withFeatureBackend } from "@/live/featureRouter";
 import {
@@ -51,6 +52,7 @@ const LazyNativePushCard = SKIP_WEB_PUSH
   : () => null;
 
 const PasskeyManagementDialog = lazyWithRetry(() => import("@/components/PasskeyManagementDialog").then(m => ({ default: m.PasskeyManagementDialog })));
+const LazyIcpBrowserPushTestCard = lazyWithRetry(() => import('@/components/IcpBrowserPushTestCard').then(m => ({ default: m.IcpBrowserPushTestCard })));
 
 interface NotificationPreferences {
   messages_enabled: boolean;
@@ -283,6 +285,7 @@ export default function SettingsPage() {
   // Check push notification status
   useEffect(() => {
     if (SKIP_WEB_PUSH) return;
+    if (isIcpAccount) { setPushSupported(false); setPushLoading(false); return; }
     
     const checkPushStatus = async () => {
       if (typeof window === 'undefined' || 
@@ -316,10 +319,11 @@ export default function SettingsPage() {
     };
     
     checkPushStatus();
-  }, [toast, user?.id]);
+  }, [toast, user?.id, isIcpAccount]);
 
   const handlePushToggle = async (enabled: boolean) => {
     if (SKIP_WEB_PUSH || !user) return;
+    if (resolveAuthBackend() === 'icp') return;
     
     setPushLoading(true);
     
@@ -412,7 +416,7 @@ export default function SettingsPage() {
   };
 
   const handleEmailPreferenceChange = async (key: keyof EmailPreferences, value: boolean) => {
-    if (!user) return;
+    if (!user || resolveAuthBackend() === "icp") return;
 
     const newPrefs = { ...emailPreferences, [key]: value };
     setEmailPreferences(newPrefs);
@@ -427,31 +431,9 @@ export default function SettingsPage() {
 
           if (error) throw error;
         },
-        icp: async (ctx) => {
-          const principal = ctx.identity.getPrincipal().toText();
-          const base = icpPreferencesRef.current ?? (await getLiveNotificationPreferences(ctx, principal));
-          const merged: LiveNotificationPreferencesInput = {
-            messagesEnabled: base.messagesEnabled,
-            eventsEnabled: base.eventsEnabled,
-            mediaEnabled: base.mediaEnabled,
-            membershipEnabled: base.membershipEnabled,
-            pitchBoardEnabled: base.pitchBoardEnabled,
-            rewardsEnabled: base.rewardsEnabled,
-            adminEnabled: base.adminEnabled,
-            pomEnabled: base.pomEnabled,
-            showMessagePreview: base.showMessagePreview,
-            emailMessagesEnabled: newPrefs.email_messages_enabled,
-            emailEventsEnabled: newPrefs.email_events_enabled,
-            emailMediaEnabled: newPrefs.email_media_enabled,
-            emailMembershipEnabled: newPrefs.email_membership_enabled,
-            emailAdminEnabled: newPrefs.email_admin_enabled,
-            emailPitchBoardEnabled: newPrefs.email_pitch_board_enabled,
-            emailRewardsEnabled: newPrefs.email_rewards_enabled,
-            emailPomEnabled: newPrefs.email_pom_enabled,
-          };
-          const result = await upsertLiveNotificationPreferences(ctx, principal, merged);
-          icpPreferencesRef.current = result;
-        },
+        // Email preference changes have no ICP implementation.
+        // Recheck at dispatch in case routing changed after the click.
+        icp: async () => { throw new Error("Email notifications are unavailable for secure sign-in"); },
       }, { shared: "person" });
     } catch (error) {
       setEmailPreferences(emailPreferences);
@@ -686,7 +668,10 @@ export default function SettingsPage() {
       )}
 
       {/* Push Notifications Card */}
-      {pushSupported && (
+      {!SKIP_WEB_PUSH && isIcpAccount && usesDevIcpPush() && user && <Suspense fallback={null}>
+        <LazyIcpBrowserPushTestCard userId={user.id} />
+      </Suspense>}
+      {pushSupported && !isIcpAccount && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -911,6 +896,7 @@ export default function SettingsPage() {
       )}
 
       {/* Email Notifications Card */}
+      {!isIcpAccount && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -929,6 +915,7 @@ export default function SettingsPage() {
           />
         </CardContent>
       </Card>
+      )}
 
       {/* Account Link */}
       <Card 

@@ -310,13 +310,13 @@ export const clubDispatch = createClubDispatcher({
   context: async () => {
     const [{ getCurrentInternetIdentityConfirmed }, { getActiveIcpTarget }] = await Promise.all([import('./internetIdentityAuth'), import('./targetRegistry')]);
     const identity = await getCurrentInternetIdentityConfirmed(3, 1000);
-    if (!identity) throw new Error('Sign in again to continue.');
+    if (!identity) throw new (await import('./icpSessionErrors')).IcpSessionRequiredError('Sign in again to continue.');
     return { identity, target: getActiveIcpTarget() };
   },
   ownerActive: async () => {
     const [{ getCurrentInternetIdentityConfirmed }, { getActiveIcpTarget }] = await Promise.all([import('./internetIdentityAuth'), import('./targetRegistry')]);
     const identity = await getCurrentInternetIdentityConfirmed(3, 1000);
-    if (!identity) throw new Error('Sign in again to continue.');
+    if (!identity) throw new (await import('./icpSessionErrors')).IcpSessionRequiredError('Sign in again to continue.');
     return Boolean(await readOwnerTestRouteCached({ identity, target: getActiveIcpTarget() }));
   },
   open: async ctx => (await import('./groupSessionLive')).openLiveGroupReadSession(ctx,

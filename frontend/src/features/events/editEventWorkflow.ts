@@ -17,6 +17,9 @@ export type EventUpdateTransactionInput = {
   selectedStartTime: string | null;
   selectedEndTime: string | null;
   updateSeries: boolean;
+  /** Called once the main event write is confirmed, before related writes
+   * (duty team, reminder, series duty teams). Timing/outcome only. */
+  onMainCommitted?: () => void;
 };
 
 export type EventDutyInput = {
@@ -43,6 +46,7 @@ export type RecurringConversionInput = {
    * strings post-deploy.
    */
   frequency: "daily" | "weekly" | "biweekly" | "monthly";
+  onMainCommitted?: () => void;
 };
 
 /**
@@ -64,6 +68,7 @@ export async function updateEventTransaction(
           p_selected_end_time: input.selectedEndTime,
         });
         if (error) throw error;
+        input.onMainCommitted?.();
         return;
       }
 
@@ -77,6 +82,7 @@ export async function updateEventTransaction(
         })
         .eq("id", input.eventId);
       if (error) throw error;
+      input.onMainCommitted?.();
     },
     icp: async (ctx) => {
       if (input.updateSeries) {
@@ -104,6 +110,7 @@ export async function updateEventTransaction(
           restrictedToRoles: (updates.restricted_to_roles as string[] | null | undefined) ?? null,
           targetTeamIds: (updates.target_team_ids as string[] | null | undefined) ?? null,
         });
+        input.onMainCommitted?.();
         if ("duty_team_id" in updates) {
           const fromMs = new Date(input.selectedEventDate).getTime();
           const futureOccurrences = (snapshot.events as Array<{
@@ -153,6 +160,7 @@ export async function updateEventTransaction(
         // The canister requires end > start; no/invalid end -> one hour.
         endsAtMs: endsAtMs > startsAtMs ? endsAtMs : startsAtMs + 3_600_000,
       });
+      input.onMainCommitted?.();
       if ("duty_team_id" in updates) {
         const { setLiveEventDutyTeam } = await import("@/live/features/events");
         await setLiveEventDutyTeam(ctx, input.eventId, (updates.duty_team_id as string | null | undefined) ?? null);
@@ -247,6 +255,7 @@ export async function convertEventToRecurringSeries(
         p_recurrence_end_date: input.recurrenceEndDate,
       });
       if (error) throw error;
+      input.onMainCommitted?.();
       return (data as { occurrence_count?: number } | null)?.occurrence_count
         ?? input.occurrenceDates.length;
     },
@@ -271,6 +280,7 @@ export async function convertEventToRecurringSeries(
         restrictedToRoles: (updates.restricted_to_roles as string[] | null | undefined) ?? null,
         targetTeamIds: (updates.target_team_ids as string[] | null | undefined) ?? null,
       });
+      input.onMainCommitted?.();
       return events.length;
     },
   }, writeOnce({ eventId: input.eventId }));

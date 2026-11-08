@@ -197,11 +197,13 @@ export function takeBundledPollResult(conversationId: string, pollId: string): u
 // background from the inbox so the first open of a chat skips the canister wait.
 const WARM_PAGE_TTL_MS = 20_000;
 const warmLatestPages = new Map<string, { at: number; page: Promise<unknown> }>();
+const latestPageInflight = new Map<string, Promise<Awaited<ReturnType<typeof readLatestMessagesPage>>>>();
 function warmKey(ctx: FeatureBackendContext, conversationId: string, limit: number): string {
   let who = "anon";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- identity shape varies by provider
   try { who = (ctx.identity as any)?.getPrincipal?.().toText() ?? "anon"; } catch { /* ignore */ }
-  return `${who}|${conversationId}|${limit}`;
+  return JSON.stringify([who, ctx.target?.alias, ctx.target?.host, ctx.target?.networkKind,
+    Object.entries(ctx.target?.canisterIds ?? {}).sort(([a], [b]) => a.localeCompare(b)), conversationId, limit]);
 }
 /** Background-load the newest page so a later open of this chat returns at once. */
 export function warmLiveLatestMessagesPage(ctx: FeatureBackendContext, conversationId: string, limit: number): Promise<unknown> {
@@ -214,7 +216,7 @@ export function warmLiveLatestMessagesPage(ctx: FeatureBackendContext, conversat
   page.catch(() => warmLatestPages.delete(key));
   return page;
 }
-export function clearWarmLiveLatestPages(): void { warmLatestPages.clear(); resetLiveOpenFreshness(); }
+export function clearWarmLiveLatestPages(): void { warmLatestPages.clear(); latestPageInflight.clear(); resetLiveOpenFreshness(); }
 
 export async function listLiveLatestMessagesPage(
   ctx: FeatureBackendContext,
@@ -231,7 +233,13 @@ export async function listLiveLatestMessagesPage(
       try { const warm = (await hit.page); if (limit > 1) { traceConnected(conversationId); traceReadDone(conversationId, "warm"); } return warm as Awaited<ReturnType<typeof readLatestMessagesPage>>; } catch { /* fall through to a fresh read */ }
     }
   }
-  return readLatestMessagesPage(ctx, conversationId, before, limit);
+  const key = `${warmKey(ctx, conversationId, limit)}|${before ?? 'latest'}`;
+  const existing = latestPageInflight.get(key);
+  if (existing) return existing;
+  const read = readLatestMessagesPage(ctx, conversationId, before, limit);
+  latestPageInflight.set(key, read);
+  try { return await read; }
+  finally { if (latestPageInflight.get(key) === read) latestPageInflight.delete(key); }
 }
 
 async function readLatestMessagesPage(
@@ -427,11 +435,16 @@ export async function sendLiveClubScopedMessage(
 // path itself, not a Supabase write that needs routing to a canister.
 function kickIcpPush() {
   try {
+    // TEST uses the isolated gateway once commissioned, never the legacy Supabase drain.
+    // No wake-up endpoint is called while that isolated delivery service is unavailable.
+    void import('../icpPushMode').then(({ usesDevIcpPush }) => {
+      if (usesDevIcpPush()) return;
     void import("@/integrations/supabase/client")
       .then(({ supabase }) =>
         supabase.functions.invoke("verify-iap-receipt-icp?job=push-kick", { body: {} }),
       )
       .catch(() => undefined);
+    }).catch(() => undefined);
   } catch {
     /* ignore */
   }

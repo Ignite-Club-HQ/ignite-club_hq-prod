@@ -1432,6 +1432,12 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
         }
         const identity = await authMod.getCurrentInternetIdentityConfirmed();
         if (!identity) {
+          // Only a session that has really ended goes back to sign-in; a
+          // momentary "can't act" (re-mint, client waking) keeps the member
+          // signed in and retries, so open forms are never thrown away.
+          if ((await authMod.getInternetIdentitySessionHealth()) !== "ended") {
+            throw new Error("Internet Identity session temporarily unavailable");
+          }
           if (!cancelled && icpProfileRequestRef.current === requestId) {
             await clearDeadIcpSession();
           }
@@ -1633,6 +1639,15 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       navigateApp("/auth", { replace: true });
       try {
       await queryClient.cancelQueries();
+      const { usesDevIcpPush } = await import('@/live/icpPushMode');
+      if (usesDevIcpPush()) {
+        const [{ revokeDevIcpNativePush }, { clearDevIcpPushTaps }] = await Promise.all([
+          import('@/live/icpNativePush'), import('@/live/icpPushTap'),
+        ]);
+        clearDevIcpPushTaps();
+        try { await revokeDevIcpNativePush(); }
+        catch { console.warn('[ICP push] Device removal could not be confirmed'); }
+      }
       // Clear the Internet Identity session FIRST and only then drop the
       // app session: setSession(null) re-arms the silent resume effect, so
       // the stored delegation (and its block-resume flag) must already be
@@ -1697,6 +1712,9 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
         if (!authMod.isInternetIdentitySignInReady()) return; // transient — AppLayout's retry loop fires again
         const identity = await authMod.getCurrentInternetIdentityConfirmed();
         if (!identity) {
+          if ((await authMod.getInternetIdentitySessionHealth()) !== "ended") {
+            throw new Error("Internet Identity session temporarily unavailable");
+          }
           await clearDeadIcpSession();
           return;
         }

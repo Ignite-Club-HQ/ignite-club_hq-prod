@@ -70,8 +70,15 @@ export interface Main {
     { 'Ok' : boolean } |
       { 'Err' : string }
   >,
+  'browser_push_test_ready' : ActorMethod<[], boolean>,
+  'browser_push_test_status' : ActorMethod<[string], string>,
   'cancel_scheduled' : ActorMethod<[string, string], ScheduledResult>,
   'claim' : ActorMethod<[bigint, number], Results>,
+  'claim_browser_push_test' : ActorMethod<
+    [string],
+    { 'Ok' : [] | [Row] } |
+      { 'Err' : string }
+  >,
   'cleanup_stale_device_tokens' : ActorMethod<
     [bigint, bigint],
     DeviceTokenCountResult
@@ -242,6 +249,11 @@ export interface Main {
     DigestResult
   >,
   'recover' : ActorMethod<[], ResultNat16>,
+  'register_browser_push_test' : ActorMethod<
+    [string, string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'register_device_token' : ActorMethod<
     [string, string, [] | [string], [] | [string]],
     { 'Ok' : null } |
@@ -261,8 +273,18 @@ export interface Main {
     [string, Array<string>],
     DeviceTokenCountResult
   >,
+  'request_browser_push_test' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'retire_competition_broadcast' : ActorMethod<
     [string, string, Array<string>, number],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'revoke_browser_push_test' : ActorMethod<
+    [string],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -306,6 +328,11 @@ export interface Main {
   >,
   'set_transfer_fence' : ActorMethod<
     [string, boolean],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'settle_browser_push_test' : ActorMethod<
+    [string, string],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -448,6 +475,14 @@ export type ResultNat16 = { 'Ok' : number } |
   { 'Err' : string };
 export type Results = { 'Ok' : Array<Notification> } |
   { 'Err' : string };
+export interface Row {
+  'id' : string,
+  'status' : string,
+  'token' : string,
+  'expires' : bigint,
+  'owner' : Principal,
+  'worker' : [] | [Principal],
+}
 export interface ScheduledMessage {
   'id' : string,
   'status' : ScheduledStatus,

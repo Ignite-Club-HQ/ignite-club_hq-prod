@@ -802,7 +802,7 @@ export default function ClubChatPage() {
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2 || (savedThreadComplete && localMessages !== undefined);
   const showLoadingRaw =
-    (!authReady && !hasMeaningfulLocal) ||
+    (!authReady && !hasMeaningfulLocal && !messagesData?.messages?.length) ||
     (isLoading && !messagesData && !hasMeaningfulLocal);
   // Latched: see useChatLoadingLatch — no skeleton regression after first paint.
   const showLoading = useChatLoadingLatch(showLoadingRaw, clubId);

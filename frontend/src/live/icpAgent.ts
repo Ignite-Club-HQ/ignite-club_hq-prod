@@ -3,6 +3,7 @@ import { IDL } from "@icp-sdk/core/candid";
 import { Principal } from "@icp-sdk/core/principal";
 import type { IcpTargetConfig } from "./targetRegistry";
 import { trackIcpQueryCall, trackIcpUpdateCall } from "./pendingCalls";
+import { timeChatOperation } from '@/lib/chatOpenTrace';
 
 /**
  * Update methods the app fires in the background (provisioning self-heal on
@@ -238,11 +239,12 @@ function wrapUpdateCallsForPendingIndicator<T>(actor: T, idlFactory: IDL.Interfa
       continue;
     }
     const fn = value as (...callArgs: unknown[]) => unknown;
+    const timed = (...args: unknown[]) => timeChatOperation(key, queryMethodNames.has(key) ? 'query' : 'update', async () => fn(...args));
     wrapped[key] = SILENT_BACKGROUND_UPDATES.has(key)
-      ? fn
+      ? timed
       : queryMethodNames.has(key)
-      ? (...args: unknown[]) => trackIcpQueryCall(fn(...args))
-      : (...args: unknown[]) => trackIcpUpdateCall(fn(...args));
+      ? (...args: unknown[]) => trackIcpQueryCall(timed(...args))
+      : (...args: unknown[]) => trackIcpUpdateCall(timed(...args));
   }
   return wrapped as T;
 }
