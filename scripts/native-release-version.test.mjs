@@ -2,18 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { nextBuildNumber, readNextStoreBuild, assertArchivedVersion, timeBasedBuildNumber, PLAY_MAX_VERSION_CODE } from './native-release-version.mjs';
+import { nextBuildNumber, readNextStoreBuild, assertArchivedVersion, timeBasedBuildNumber, PLAY_MAX_VERSION_CODE, ANDROID_MIN_VERSION_CODE } from './native-release-version.mjs';
 
 const SCRIPT = fileURLToPath(new URL('./native-release-version.mjs', import.meta.url));
 
 test('android build number is time-based and never queries a store', () => {
-  assert.equal(timeBasedBuildNumber(29_900_000 * 60_000), 29_900_000);
+  assert.equal(timeBasedBuildNumber(29_900_000 * 60_000), ANDROID_MIN_VERSION_CODE, 'below the highest Play upload, the number is floored');
+  assert.equal(timeBasedBuildNumber((ANDROID_MIN_VERSION_CODE + 5) * 60_000), ANDROID_MIN_VERSION_CODE + 5, 'above the floor, the clock wins');
   assert.throws(() => readNextStoreBuild('android', () => { throw new Error('store must not be queried'); }), /time-based/);
 });
 
 test('android build number grows with the clock and stays inside the Play limit', () => {
-  const early = timeBasedBuildNumber(1_794_000_000_000);
-  const later = timeBasedBuildNumber(1_794_000_060_000);
+  const early = timeBasedBuildNumber((ANDROID_MIN_VERSION_CODE + 10) * 60_000);
+  const later = timeBasedBuildNumber((ANDROID_MIN_VERSION_CODE + 11) * 60_000);
   assert.ok(later > early, 'a later clock must produce a higher build number');
   assert.ok(early < PLAY_MAX_VERSION_CODE, 'the current clock must stay under the Play limit');
   assert.throws(() => timeBasedBuildNumber((PLAY_MAX_VERSION_CODE + 1) * 60_000));
@@ -25,7 +26,7 @@ test('the android CLI path prints a number without any store tool installed', ()
   const out = execFileSync(process.execPath, [SCRIPT, 'android'], { encoding: 'utf8' }).trim();
   assert.match(out, /^\d+$/, 'the build step feeds this straight into versionCode');
   const value = Number(out);
-  assert.ok(value > 29_000_000 && value < PLAY_MAX_VERSION_CODE, `unexpected build number ${out}`);
+  assert.ok(value >= ANDROID_MIN_VERSION_CODE && value < PLAY_MAX_VERSION_CODE, `unexpected build number ${out}`);
 });
 
 test('iOS exceeds both App Store and TestFlight builds', () => {

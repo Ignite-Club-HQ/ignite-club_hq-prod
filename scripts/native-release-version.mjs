@@ -6,17 +6,25 @@ import path from 'node:path';
 export const PLAY_MAX_VERSION_CODE = 2100000000;
 
 /**
+ * Lowest versionCode Google Play will still accept: one above the highest
+ * build already uploaded (88498313). Time-based numbers below this are
+ * rejected by Play, so the number is floored here instead of failing loudly
+ * on every upload.
+ */
+export const ANDROID_MIN_VERSION_CODE = 88498314;
+
+/**
  * Android build numbers never touch Play Console. Minutes since the epoch are
  * always increasing, never reused, and far below Google Play's limit, so the
  * build needs no Google credentials yet still cannot repeat a past upload.
- * (Play rejects a too-low versionCode with a clear error, so a stale number
- * fails loudly instead of overwriting anything.)
+ * The result is floored at ANDROID_MIN_VERSION_CODE so it can never fall
+ * below a build Play has already seen.
  */
 export function timeBasedBuildNumber(nowMs = Date.now()) {
   const minutes = Math.floor(nowMs / 60000);
   if (!Number.isSafeInteger(minutes) || minutes <= 0) throw new Error('Clock time is not usable for a build number');
   if (minutes > PLAY_MAX_VERSION_CODE) throw new Error('Time-based build number exceeds the Google Play limit');
-  return minutes;
+  return Math.max(minutes, ANDROID_MIN_VERSION_CODE);
 }
 
 export function nextBuildNumber(values, max = Number.MAX_SAFE_INTEGER) {
