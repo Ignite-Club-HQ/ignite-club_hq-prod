@@ -5,6 +5,7 @@
 - [ ] Confirm on Paul's signed-in TEST account after frontend deployment; delegated Internet Identity session/device and canister deployment are unverified.
 
 ## ICP native push isolation (DEV only, 7 November 2026)
+- [ ] Add a receive-only TEST browser button with an in-memory address for one manual Firebase alert; verify tests, then Paul's phone permission/receipt. No hosted sender, canister update, Supabase-mode or PROD change.
 - [ ] Paul approved a new securely generated TEST-only sender key on 8 November; finish single-alert authorisation/publication and phone acceptance without recurring delivery or Supabase/PROD changes.
 - [x] New dedicated TEST browser signing secret generated and confirmed saved; isolated sender accepts the opaque secret with in-memory signing derivation. Twenty-two focused tests pass and preview build OK. No legacy/PROD keys used.
 - [ ] New sender still needs secure governor authorisation limited to the browser test and successful hosted publication. Publication retry on 8 November again returned an internal error with no function deployed; no alert sent. Do not grant the general worker role as a shortcut: it also permits ordinary queue/device access. Existing key-transfer workflow cannot authorise the new hosted identity.
