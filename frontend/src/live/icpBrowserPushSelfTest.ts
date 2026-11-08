@@ -15,9 +15,18 @@ export async function createBrowserSelfTest(userId: string) {
   const current = () => active && usesDevIcpPush() && getActiveIcpTarget().canisterIds.notification_queue === target.canisterIds.notification_queue;
   const unwrap = (result: { Ok?: null; Err?: string }) => { if ('Err' in result) throw new Error('TEST request refused'); };
   const authority: BrowserPushAuthority = {
-    ready: () => actor.browser_push_test_ready(),
+    ready: async () => {
+      // A deployed canister alone is not enough: require the hosted worker as well.
+      const response = await fetch('https://ecsdwrarzfexssxtrymj.supabase.co/functions/v1/icp-dev-push-test', { method: 'GET' });
+      if (!response.ok || !current()) return false;
+      return actor.browser_push_test_ready();
+    },
     isCurrent: current,
-    register: async token => { unwrap(await actor.register_browser_push_test(token, id)); },
+    register: async token => {
+      const freshIdentity = await getCurrentInternetIdentity();
+      if (!current() || freshIdentity?.getPrincipal().toText() !== account) throw new Error('Account changed');
+      unwrap(await actor.register_browser_push_test(token, id));
+    },
     unregister: async () => { unwrap(await actor.revoke_browser_push_test(id)); },
   };
   return {

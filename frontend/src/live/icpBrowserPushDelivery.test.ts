@@ -18,4 +18,18 @@ describe('one-shot browser test delivery', () => {
     expect(await deliverBrowserSelfTest(row.id, { claim: async () => row, settle }, send)).toEqual({ status: 'held' });
     expect(send).toHaveBeenCalledTimes(1); expect(settle).toHaveBeenCalledExactlyOnceWith(row.id, 'held');
   });
+  it('concurrent triggers send only the atomically claimed test', async () => {
+    let pending = true;
+    const row = { id: '12345678-1234-1234', token: 'device', owner: 'owner' };
+    const queue = { claim: async () => { if (!pending) return undefined; pending = false; return row; }, settle: vi.fn() };
+    const send = vi.fn().mockResolvedValue(true);
+    await Promise.all([deliverBrowserSelfTest(row.id, queue, send), deliverBrowserSelfTest(row.id, queue, send)]);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+  it('lost settlement never automatically repeats the provider call', async () => {
+    const row = { id: '12345678-1234-1234', token: 'device', owner: 'owner' };
+    const send = vi.fn().mockResolvedValue(true);
+    await expect(deliverBrowserSelfTest(row.id, { claim: async () => row, settle: async () => { throw new Error('lost receipt'); } }, send)).rejects.toThrow('lost receipt');
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 });

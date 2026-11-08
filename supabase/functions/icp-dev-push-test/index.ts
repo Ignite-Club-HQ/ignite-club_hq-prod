@@ -5,12 +5,12 @@ import { deliverBrowserSelfTest } from './delivery.ts';
 const QUEUE = 'jfcdq-yiaaa-aaaal-qxloa-cai';
 const DEV_URL = 'https://ecsdwrarzfexssxtrymj.supabase.co';
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Content-Type': 'application/json' };
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Content-Type': 'application/json' };
 const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: cors });
 
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
-  if (request.method !== 'POST') return reply(405, { error: 'Method not allowed' });
+  if (request.method !== 'POST' && request.method !== 'GET') return reply(405, { error: 'Method not allowed' });
   // Caller supplies only an opaque test id. Ownership/consent is established by signed
   // ICP request_browser_push_test; worker-only claim returns its fixed envelope once.
   if (Deno.env.get('SUPABASE_URL') !== DEV_URL) return reply(403, { error: 'TEST only' });
@@ -18,6 +18,7 @@ Deno.serve(async request => {
   const key = Deno.env.get('LOVABLE_API_KEY');
   const connection = Deno.env.get('FIREBASE_MESSAGING_API_KEY');
   if (!seed || !/^[a-fA-F0-9]{64}$/.test(seed) || !key || !connection) return reply(503, { error: 'TEST sending setup is not ready' });
+  if (request.method === 'GET') return reply(200, { ready: true });
   try {
     const text = await request.text();
     if (text.length > 256) return reply(400, { error: 'Invalid test request' });
