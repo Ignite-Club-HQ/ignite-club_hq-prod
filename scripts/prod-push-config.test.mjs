@@ -12,9 +12,14 @@ const env = {
   PROD_ICP_PUSH_QUEUE_IDS_JSON: '["prod-queue"]', PROD_ICP_PUSH_WORKER_SEED: 'a'.repeat(64),
   PROD_FIREBASE_PROJECT_ID: 'prod-firebase',
   PROD_FCM_SERVICE_ACCOUNT_JSON: JSON.stringify({ project_id: 'prod-firebase', client_email: 'synthetic@example.invalid', private_key: 'synthetic' }),
+  PROD_ICP_PUSH_RECIPIENTS_JSON: '["paul"]',
 };
 test('approved PROD config selects only the provisioned PROD queue', () => {
-  assert.deepEqual(validateProdPushConfig(env, prod, dev, parse), { directory: 'prod-queue', queues: ['prod-queue'] });
+  assert.deepEqual(validateProdPushConfig(env, prod, dev, parse), { directory: 'prod-queue', queues: ['prod-queue'], recipients: ['paul'] });
+});
+test('PROD refuses delivery without an approved recipient list', () => {
+  assert.throws(() => validateProdPushConfig({ ...env, PROD_ICP_PUSH_RECIPIENTS_JSON: '' }, prod, dev, parse));
+  assert.throws(() => validateProdPushConfig({ ...env, PROD_ICP_PUSH_RECIPIENTS_JSON: '[]' }, prod, dev, parse));
 });
 for (const [name, changes] of [
   ['main branch', { GITHUB_REF: 'refs/heads/main' }],
@@ -39,7 +44,7 @@ test('invalid config never starts delivery; valid config forwards only PROD bind
       mkdirSync(folder, { recursive: true }); writeFileSync(path.join(folder, 'ic.ids.json'), JSON.stringify(ids));
     }
     let calls = 0;
-    const deliver = async config => { calls++; assert.equal(config.NOTIFICATION_QUEUE_CANISTER_ID, 'prod-queue'); assert.equal(config.FCM_SERVICE_ACCOUNT_JSON, env.PROD_FCM_SERVICE_ACCOUNT_JSON); };
+    const deliver = async config => { calls++; assert.equal(config.NOTIFICATION_QUEUE_CANISTER_ID, 'prod-queue'); assert.equal(config.FCM_SERVICE_ACCOUNT_JSON, env.PROD_FCM_SERVICE_ACCOUNT_JSON); assert.equal(config.ICP_PUSH_RECIPIENTS_JSON, '["paul"]'); assert.equal(config.ICP_PUSH_MAX_AGE_MS, String(30 * 60 * 1000)); };
     await assert.rejects(runProdPush({ ...env, GITHUB_REF: 'refs/heads/main' }, parse, deliver, root));
     assert.equal(calls, 0);
     await runProdPush(env, parse, deliver, root); assert.equal(calls, 1);

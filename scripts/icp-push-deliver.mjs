@@ -27,6 +27,7 @@ import { assertLegacyDevPushAllowed } from './icp-dev-push-worker-mode.mjs';
 import { unwrapQueueResult } from "./icp-push-results.mjs";
 import { createPushQueueIdl, notificationKey } from './icp-push-contract.mjs';
 import { pushQueueIds, runPushQueues, deliverPushItem } from './icp-push-batch.mjs';
+import { parseRecipientAllowlist, parseMaxAgeMs, deliveryDecision } from './icp-push-recipient-policy.mjs';
 
 function requireIc() {
   const candidates = [];
@@ -254,6 +255,9 @@ async function main() {
   // Devices remain caller-owned in the shared queue: no per-group token copies.
   const directory = Actor.createActor(idlFactory, { agent, canisterId: CANISTER_ID });
   const queues = pushQueueIds(process.env.ICP_PUSH_QUEUE_IDS_JSON, CANISTER_ID, id => principalPkg.Principal.fromText(id));
+  const allowlist = parseRecipientAllowlist(process.env.ICP_PUSH_RECIPIENTS_JSON, id => principalPkg.Principal.fromText(id));
+  const maxAgeMs = parseMaxAgeMs(process.env.ICP_PUSH_MAX_AGE_MS);
+  if (allowlist) console.log(`Delivery limited to ${allowlist.size} approved recipient(s)`);
   await runPushQueues(queues, async canisterId => {
   const queue = Actor.createActor(idlFactory, { agent, canisterId });
 
@@ -282,6 +286,7 @@ async function main() {
   const deadTokens = new Map(); // user -> [token]
 
   const outcomes = await pool(items, SEND_CONCURRENCY, async (n) => {
+    if (deliveryDecision(n, nowMs(), allowlist, maxAgeMs) !== 'send') return { n, status: 'no_tokens', dead: [] };
     const tokens = tokensByUser.get(n.user) ?? [];
     try {
       const result = await deliverPushItem(queue, n, tokens, t => sendFcm(sa.project_id, oauth, t.token, n));
