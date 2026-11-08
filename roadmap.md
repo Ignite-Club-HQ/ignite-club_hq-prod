@@ -4,6 +4,10 @@
 - [x] Removed ICP email controls from member settings and admin report; blocked email preference handlers in ICP, including mode changes. Supabase save/report branches unchanged. Twelve tests pass in each backend test mode; preview build OK. No service/settings/PROD changes.
 - [ ] Confirm on Paul's signed-in TEST account after frontend deployment; delegated Internet Identity session/device and canister deployment are unverified.
 
+## Live native ICP push — Paul only (8 November 2026)
+- [x] Paul chose native-only push, live app limited to his account. Live sender now requires a recipient list (Paul only), unlocks the stored encrypted key, skips alerts older than 30 minutes. Recipient, queue and Firebase project settings saved in GitHub. 27 sender tests pass.
+- [ ] Paul adds GitHub secret PROD_FCM_SERVICE_ACCOUNT_JSON (Firebase service account file) and merges main→prod; then set PROD_ICP_PUSH_ENABLED=true and run "[PROD] Push delivery worker" once. Needs Paul's live app signed in with Internet Identity so his phone is registered.
+
 ## ICP native push isolation (DEV only, 7 November 2026)
 - [x] Added receive-only Enable test alerts in TEST ICP browser Settings; address stays in mounted memory and can be copied for one manual Firebase alert, without hosted sender/queue registration. Twenty-three focused tests pass; preview build OK and isolated worker HTTP 200. Supabase/mobile controls and PROD unchanged.
 - [x] Phone screenshot confirms published TEST button but missing build-time web settings; added a TEST-card-only fallback containing the four saved public Firebase web fields, never server credentials. Published update and phone registration still need confirmation.
