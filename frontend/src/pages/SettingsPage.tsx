@@ -22,6 +22,7 @@ import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
 import { useQueryClient } from "@tanstack/react-query";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { resolveAuthBackend } from "@/live/authBackendMode";
+import { usesDevIcpPush } from "@/live/icpPushMode";
 import { NotificationPreferenceList, type NotificationPreferenceDescriptor } from "@/components/NotificationPreferenceList";
 import { withFeatureBackend } from "@/live/featureRouter";
 import {
@@ -51,6 +52,7 @@ const LazyNativePushCard = SKIP_WEB_PUSH
   : () => null;
 
 const PasskeyManagementDialog = lazyWithRetry(() => import("@/components/PasskeyManagementDialog").then(m => ({ default: m.PasskeyManagementDialog })));
+const LazyIcpBrowserPushTestCard = lazyWithRetry(() => import('@/components/IcpBrowserPushTestCard').then(m => ({ default: m.IcpBrowserPushTestCard })));
 
 interface NotificationPreferences {
   messages_enabled: boolean;
@@ -283,6 +285,7 @@ export default function SettingsPage() {
   // Check push notification status
   useEffect(() => {
     if (SKIP_WEB_PUSH) return;
+    if (isIcpAccount) { setPushSupported(false); setPushLoading(false); return; }
     
     const checkPushStatus = async () => {
       if (typeof window === 'undefined' || 
@@ -316,10 +319,11 @@ export default function SettingsPage() {
     };
     
     checkPushStatus();
-  }, [toast, user?.id]);
+  }, [toast, user?.id, isIcpAccount]);
 
   const handlePushToggle = async (enabled: boolean) => {
     if (SKIP_WEB_PUSH || !user) return;
+    if (resolveAuthBackend() === 'icp') return;
     
     setPushLoading(true);
     
@@ -664,6 +668,9 @@ export default function SettingsPage() {
       )}
 
       {/* Push Notifications Card */}
+      {!SKIP_WEB_PUSH && isIcpAccount && usesDevIcpPush() && user && <Suspense fallback={null}>
+        <LazyIcpBrowserPushTestCard userId={user.id} />
+      </Suspense>}
       {pushSupported && (
         <Card>
           <CardHeader>
