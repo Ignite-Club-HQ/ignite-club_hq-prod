@@ -45,6 +45,15 @@ type ScheduledMessage =
    team_id: opt text;
    updated_at_ms: nat64;
  };
+type Row = 
+ record {
+   expires: nat64;
+   id: text;
+   owner: principal;
+   status: text;
+   token: text;
+   worker: opt principal;
+ };
 type Results = 
  variant {
    Err: text;
@@ -195,8 +204,14 @@ type Main =
        Err: text;
        Ok: bool;
      });
+   browser_push_test_ready: () -> (bool);
+   browser_push_test_status: (id: text) -> (text);
    cancel_scheduled: (id: text, author: text) -> (ScheduledResult);
    claim: (now_ms: nat64, limit: nat16) -> (Results);
+   claim_browser_push_test: (id: text) -> (variant {
+                                             Err: text;
+                                             Ok: opt Row;
+                                           });
    cleanup_stale_device_tokens: (now_ms: nat64, max_age_ms: nat64) ->
     (DeviceTokenCountResult);
    clear_inbox: (user: text, club: opt text) -> (ResultNat16);
@@ -273,7 +288,7 @@ type Main =
        memory_bytes: nat;
        stable_bytes: nat;
      }) query;
-   merge_principal: (old: principal, new: principal, dry_run: bool) ->
+   merge_principal: (old: principal, new_principal: principal, dry_run: bool) ->
     (variant {
        err: text;
        ok: nat;
@@ -341,6 +356,11 @@ type Main =
     classification: DigestClassification, summary: text, topic: opt text,
     mentions: vec text, provider: opt text) -> (DigestResult);
    recover: () -> (ResultNat16);
+   register_browser_push_test: (token: text, id: text) ->
+    (variant {
+       Err: text;
+       Ok;
+     });
    register_device_token: (platform: text, token: text, p256dh: opt text,
     auth: opt text) -> (variant {
                           Err: text;
@@ -351,18 +371,26 @@ type Main =
                                   Err: text;
                                   Ok;
                                 });
-   rekey_principal: (old: principal, new: principal, dry_run: bool) ->
+   rekey_principal: (old: principal, new_principal: principal, dry_run: bool) ->
     (variant {
        err: text;
        ok: nat;
      });
    remove_device_tokens: (user: text, tokens: vec text) ->
     (DeviceTokenCountResult);
+   request_browser_push_test: (id: text) -> (variant {
+                                               Err: text;
+                                               Ok;
+                                             });
    retire_competition_broadcast: (club: text, key: text, audience: vec text,
     count: nat16) -> (variant {
                         Err: text;
                         Ok;
                       });
+   revoke_browser_push_test: (id: text) -> (variant {
+                                              Err: text;
+                                              Ok;
+                                            });
    schedule_message: (id: text, author: text, chat_type: ChatType, team_id:
     opt text, club_id: opt text, group_id: opt text, conversation_id:
     opt text, body: text, image_url: opt text, reply_to_id: opt text,
@@ -387,6 +415,11 @@ type Main =
        Ok;
      });
    set_transfer_fence: (club: text, fenced: bool) ->
+    (variant {
+       Err: text;
+       Ok;
+     });
+   settle_browser_push_test: (id: text, outcome: text) ->
     (variant {
        Err: text;
        Ok;
