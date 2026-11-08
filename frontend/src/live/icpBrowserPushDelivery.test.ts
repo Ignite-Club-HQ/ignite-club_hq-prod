@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { deliverBrowserSelfTest } from '../../../../supabase/functions/icp-dev-push-test/delivery';
+import { deliverBrowserSelfTest } from '../../../supabase/functions/icp-dev-push-test/delivery';
 describe('one-shot browser test delivery', () => {
   it('cannot send without an authoritative pending claim', async () => {
     const send = vi.fn(); const settle = vi.fn();
