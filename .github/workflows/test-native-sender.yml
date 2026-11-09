@@ -1,0 +1,59 @@
+name: "[TEST] Native push sender (commission + backup check)"
+
+# TEST only. "commission" records the TEST sender's permission on the TEST base
+# queue with the pinned governor; the schedule is a content-free backup wake-up
+# for alerts whose instant wake-up was missed. Never touches PROD.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "commission or wake"
+        required: true
+        default: wake
+        type: choice
+        options: [wake, commission]
+  schedule:
+    - cron: "*/5 * * * *"
+
+concurrency:
+  group: test-native-sender
+  cancel-in-progress: false
+
+env:
+  SENDER_URL: https://ecsdwrarzfexssxtrymj.supabase.co/functions/v1/icp-dev-push-sender
+  QUEUE: jfcdq-yiaaa-aaaal-qxloa-cai
+
+jobs:
+  wake:
+    if: github.event_name == 'schedule' || inputs.action == 'wake'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: curl -sS -m 90 -X POST "$SENDER_URL" -w '\nHTTP %{http_code}\n'
+
+  commission:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'commission' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
+      - name: Import pinned TEST governor
+        env:
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$DEPLOYER_PEM" > "$RUNNER_TEMP/gov.pem"
+          icp identity import --from-pem "$RUNNER_TEMP/gov.pem" --storage plaintext ignite-governor >/dev/null
+          rm -f "$RUNNER_TEMP/gov.pem"
+          [ "$(icp identity principal --identity ignite-governor)" = vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae ] || { echo "::error::Not the TEST governor. Nothing changed."; exit 1; }
+      - name: Record sender permission and read back
+        run: |
+          set -euo pipefail
+          sender="$(curl -sSf -m 60 "$SENDER_URL" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);if(!/^[a-z0-9-]{20,70}$/.test(j.sender))process.exit(1);console.log(j.sender)})')"
+          echo "TEST sender: $sender"
+          icp canister call "$QUEUE" configure_native_push_worker "(principal \"$sender\")" -n ic --identity ignite-governor
+          icp canister call "$QUEUE" native_push_configuration '()' -n ic --query
+          curl -sSf -m 60 "$SENDER_URL" | grep -q '"commissioned":true' || { echo "::error::Sender does not see its permission yet."; exit 1; }
+          echo "TEST sender commissioned."
