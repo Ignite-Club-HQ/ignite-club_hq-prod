@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Chat access message — 9 November 22:35 UTC
+- [x] Group chats now say "You don't have access to this chat" instead of "No messages yet" when the server refuses the messages: Supabase answer taken from `can_access_chat_group` (the same rule that hides the rows), on-chain answer from the canister's own refusal. Six access tests pass, preview build OK. All 104 live chats use a membership mode the rule understands, so only people who genuinely cannot read the messages see it. No permission, data or PROD changes.
+- [ ] Confirm on Paul's phone after the next build/deploy: needs his signed-in session; email and Internet Identity chats both need a look.
+
 ## Competition admin leaving — 9 November 22:28 UTC
 - [x] Additive missing-action repair applied on TEST; 6 disposable SQL permission tests and 6 frontend tests pass, preview build OK. Exact-role removal, owner protection and other roles preserved; existing chat triggers untouched. Anonymous execution refused; signed-in execution allowed without elevated identity. No live role/data changes.
 - [ ] Live deployment and authenticated phone acceptance require approved PROD promotion; screenshot reports PGRST202, while TEST already has the final action.
