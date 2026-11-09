@@ -70,6 +70,7 @@ const SIX = [
   '20261105000200_competition_role_email_invites.sql',
   '20261105000300_club_invite_message_defaults.sql',
   '20261105000400_send_welcome_dm.sql',
+  '20261109232052_a578f787-ba4e-4669-8bf0-c6ce2e552389.sql',
 ].sort();
 
 function realRelease() {
@@ -153,7 +154,7 @@ test('the safe-apply runner applies exactly the six approved batches, one transa
     assert.equal(report.dataCopy, false);
     const input = readSafeInputs(process.cwd());
     const written = readFileSync(log, 'utf8').split('\n=== WRITE ===\n').slice(1);
-    assert.equal(written.length, 6, 'one transaction per approved file');
+    assert.equal(written.length, 7, 'one transaction per approved file');
     for (const file of SIX) {
       const version = file.split('_')[0];
       const name = file.slice(15, -4);
