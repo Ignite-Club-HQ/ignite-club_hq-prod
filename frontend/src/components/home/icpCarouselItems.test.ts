@@ -52,4 +52,32 @@ describe("ICP carousel parallel reads", () => {
     mocks.subscription.mockResolvedValue({ is_pro: true, trial_ends_at_ms: [1] });
     expect(await fetchIcpCarouselItems({} as never, null)).toEqual([]);
   });
+  it("starts independent player-league discovery before empty role discovery finishes", async () => {
+    let release: (() => void) | undefined;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    mocks.grants.mockImplementation(async () => { await waiting; return []; });
+    const pending = fetchIcpCarouselItems({} as never, null);
+    try {
+      await vi.waitFor(() => expect(mocks.mine).toHaveBeenCalledTimes(1), { timeout: 150 });
+    } finally { release?.(); await pending; }
+  });
+  it("settles a confirmed empty inventory without requesting card details", async () => {
+    mocks.grants.mockResolvedValue([]);
+    expect(await fetchIcpCarouselItems({} as never, null)).toEqual([]);
+    for (const read of [mocks.team, mocks.subscription, mocks.club, mocks.leagues, mocks.league]) {
+      expect(read).not.toHaveBeenCalled();
+    }
+  });
+  it("preserves a player's league even when there are no role grants or teams", async () => {
+    mocks.grants.mockResolvedValue([]);
+    mocks.mine.mockResolvedValue([{ id: "league-a" }]);
+    mocks.league.mockResolvedValue([{ id: "league-a", club_id: "club-a", name: "League A", logo_url: [], status: "active" }]);
+    expect((await fetchIcpCarouselItems({} as never, null)).map(item => item.id)).toEqual(["league-a"]);
+    expect(mocks.team).not.toHaveBeenCalled();
+  });
+  it.each(["grants", "mine"] as const)("does not certify empty when %s discovery fails", async (read) => {
+    mocks.grants.mockResolvedValue([]);
+    mocks[read].mockRejectedValue(new Error("inventory unavailable"));
+    await expect(fetchIcpCarouselItems({} as never, null)).rejects.toThrow("inventory unavailable");
+  });
 });
