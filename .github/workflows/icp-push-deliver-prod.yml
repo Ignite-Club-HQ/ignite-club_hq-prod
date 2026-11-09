@@ -3,7 +3,12 @@ name: "[PROD] Push delivery worker"
 on:
   schedule:
     - cron: "*/5 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      paul_native_self_test:
+        description: Send one native test alert to Paul only (no queue processing)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,7 +21,7 @@ jobs:
   deliver:
     # Scheduling starts on main; execution and all credentials stay PROD-bound.
     # Activation still requires separate approval of the repository variable.
-    if: vars.PROD_ICP_PUSH_ENABLED == 'true' && ((github.event_name == 'schedule' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/prod'))
+    if: (vars.PROD_ICP_PUSH_ENABLED == 'true' && ((github.event_name == 'schedule' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/prod'))) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/prod' && inputs.paul_native_self_test)
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -37,7 +42,8 @@ jobs:
       - name: Validate PROD inventory and deliver
         env:
           IGNITE_ICP_ENV: prod
-          PROD_ICP_PUSH_ENABLED: ${{ vars.PROD_ICP_PUSH_ENABLED }}
+          PROD_ICP_PUSH_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.paul_native_self_test) && 'true' || vars.PROD_ICP_PUSH_ENABLED }}
+          ICP_PUSH_NATIVE_SELF_TEST: ${{ (github.event_name == 'workflow_dispatch' && inputs.paul_native_self_test) && 'true' || 'false' }}
           PROD_ICP_PUSH_QUEUE_IDS_JSON: ${{ vars.PROD_ICP_PUSH_QUEUE_IDS_JSON }}
           PROD_FIREBASE_PROJECT_ID: ${{ vars.PROD_FIREBASE_PROJECT_ID }}
           PROD_ICP_PUSH_WORKER_SEED: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED }}

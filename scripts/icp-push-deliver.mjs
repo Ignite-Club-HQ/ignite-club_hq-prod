@@ -28,6 +28,7 @@ import { unwrapQueueResult } from "./icp-push-results.mjs";
 import { createPushQueueIdl, notificationKey } from './icp-push-contract.mjs';
 import { pushQueueIds, runPushQueues, deliverPushItem } from './icp-push-batch.mjs';
 import { parseRecipientAllowlist, parseMaxAgeMs, deliveryDecision } from './icp-push-recipient-policy.mjs';
+import { runNativeSelfTest } from './prod-push-self-test.mjs';
 
 function requireIc() {
   const candidates = [];
@@ -258,6 +259,16 @@ async function main() {
   const allowlist = parseRecipientAllowlist(process.env.ICP_PUSH_RECIPIENTS_JSON, id => principalPkg.Principal.fromText(id));
   const maxAgeMs = parseMaxAgeMs(process.env.ICP_PUSH_MAX_AGE_MS);
   if (allowlist) console.log(`Delivery limited to ${allowlist.size} approved recipient(s)`);
+  if (process.env.ICP_PUSH_NATIVE_SELF_TEST === 'true') {
+    // This manual probe never enters normal queue recovery/claim/settlement.
+    const result = await runNativeSelfTest({
+      env: process.env, recipients: allowlist, directory,
+      send: async (token, notification) => sendFcm(sa.project_id, await getFcmAccessToken(sa), token, notification),
+    });
+    console.log(`Native self-test: ${result.status}; Firebase accepted ${result.accepted}`);
+    if (result.status !== 'accepted_by_firebase') process.exitCode = 1;
+    return;
+  }
   await runPushQueues(queues, async canisterId => {
   const queue = Actor.createActor(idlFactory, { agent, canisterId });
 
