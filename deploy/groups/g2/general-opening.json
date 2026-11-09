@@ -29,7 +29,7 @@
       "name": "messaging_domain",
       "canisterId": "yluv5-wiaaa-aaaal-qxpzq-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "b875e0af322341f16e22f6022d4cd515eb5491b15054eaca93b72205f9a33a51"
+      "moduleHash": "d3f7bcc8bb12f717b54b9af2bb7bc96615afc78e3e9322978b96e86228e8a258"
     },
     {
       "name": "vault_domain",
@@ -71,7 +71,7 @@
       "name": "notification_queue",
       "canisterId": "zu4gk-vqaaa-aaaal-qxp5a-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "100b0197578278a06008394961362abcc805afad998cf6a562a647e17dd49d95"
+      "moduleHash": "a3080b54fa0b9e8ad2c01018af0e097643c18e8b07febbf145247b7edba5db39"
     },
     {
       "name": "pii_access_control",
