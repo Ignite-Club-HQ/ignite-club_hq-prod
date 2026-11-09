@@ -11,6 +11,7 @@ import { recordOwnSentConversation } from "@/features/messaging/inbox/ownSendBum
 import { chatSendFailureReason } from "@/lib/chatSendFailure";
 import { withReadDeadline } from "@/live/readDeadline";
 import { readIcpThreadPage } from "@/features/messaging/thread/icpThreadRead";
+import { dropRowsBehindGap } from "@/features/messaging/thread/chatWindowGap";
 import { fetchIcpTeamLatestPage, mapLiveTeamRows as mapLiveTeamRowsShared, teamThreadScope } from "@/features/messaging/thread/icpTeamThreadPage";
 import { resolveChatUploadUrl } from "@/lib/pendingChatUploads";
 import { isSameDay } from "date-fns";
@@ -949,7 +950,8 @@ export default function TeamChatPage() {
           .filter((m) => !m.id.startsWith("temp-") && !m.id.startsWith("queued-"))
           .map((m) => `${m.author_id}::${(m.text ?? "").trim()}::${m.image_url ? "img" : ""}`),
       );
-      const previousOnly = (prev || []).filter((message) => {
+      const incomingHasOlder = !!(messagesData && !Array.isArray(messagesData) && (messagesData as any).hasOlderMessages);
+      const previousOnly = dropRowsBehindGap(prev || [], messages, incomingHasOlder).filter((message) => {
         // SECURITY (cross-team bleed): this merge is deliberately fail-open — it
         // keeps prior rows absent from the incoming snapshot. A row left over
         // from another team's thread would otherwise be latched in permanently
@@ -1026,7 +1028,7 @@ export default function TeamChatPage() {
 
       return mergedMessages;
     });
-  }, [messages, teamId, reconcileScope]);
+  }, [messages, messagesData, teamId, reconcileScope]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {
