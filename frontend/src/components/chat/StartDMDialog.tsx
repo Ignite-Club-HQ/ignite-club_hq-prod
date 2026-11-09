@@ -766,7 +766,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
 
   // Check if club filter is locked (in club mode)
   const isClubFilterLocked = !!activeClubFilter;
-  const keyboardHeight = useNativeKeyboardHeight();
+  // Window resizes natively above the keyboard; no manual inset needed.
   const isKeyboardOpen = useKeyboardOpen();
   const isCustomGroup = mode === "custom-group";
   const showClubFilter = !isClubFilterLocked && availableClubs.length > 1;
