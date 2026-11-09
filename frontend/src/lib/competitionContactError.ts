@@ -51,10 +51,10 @@ const COPY: Array<{
   {
     // The caller is outside the competition entirely (or their access has lapsed).
     match: /not part of this competition|competition membership required|membership required/i,
-    title: "This inbox is for competition members",
-    variant: "destructive",
+    title: "Messaging organisers isn't available to you here",
+    variant: "default",
     description:
-      "Only people taking part in this competition can message its organisers. If you should have access, ask your club to add you to a team or give you a competition role.",
+      "Only teams and officials in this competition can message its organisers. If you think you should be included, ask your club admin to add you to a team in it.",
   },
   {
     // Sign-in missing or expired before the request left the app.
