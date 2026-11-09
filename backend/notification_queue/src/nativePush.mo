@@ -1,8 +1,10 @@
 import Array "mo:core/Array";
 module {
   public type Attempt = { receipt : Text; notification_id : Text; user : Text; token : Text; platform : Text; device_stamp : Nat64; worker : Principal; status : Text };
-  public func occupied(attempts : [Attempt], id : Text, token : Text, stamp : Nat64) : Bool {
-    attempts.any(func a = a.notification_id == id and a.token == token and a.device_stamp == stamp)
+  public func occupied(attempts : [Attempt], id : Text, token : Text, _stamp : Nat64) : Bool {
+    // Resume refresh updates timestamps without creating a new installation.
+    // Never repeat an accepted or uncertain send to the same notification/token.
+    attempts.any(func a = a.notification_id == id and a.token == token)
   };
   public func terminal(outcome : Text) : Bool {
     outcome == "accepted" or outcome == "held" or outcome == "inactive" or outcome == "stopped"
