@@ -76,3 +76,31 @@ The recovery documentation explicitly permits an NNS-approved Recovery-GuestOS t
 **Execution status:** blocked before credential provisioning. No sender created, private key accessed/uploaded, deployment or send performed, queue authority changed, service moved, or recurring worker enabled. No Supabase or PROD changes. The earlier GitHub-hosted phone alert does not verify this proposed ICP sender.
 
 **Unblock requirement:** a provider-supported verification and secure credential-provisioning procedure for the selected confidential subnet, explicitly covering outgoing TLS and recovery/membership changes. Once established, build the isolated TEST sender and prove authorization, one non-replicated Firebase request, actual native phone receipt/tap, no uncertain-send replay, and measured end-to-end latency. A credential-free transport probe alone would not complete the user's request; no placeholder sender or extra approval framework was added.
+
+## In-use protection verification — requested 05:10 UTC
+
+### New verified source findings
+Fresh public subnet/node reads returned HTTP 200: seven UP nodes, all reporting TEE-active GuestOS `83f29e0803496ba6aaea3d6b43f6c6bebea12dd9`. That revision resolves in `dfinity/ic` (source commit dated 30 October 2026). This links a telemetry version to inspectable source, not to independently attested deployed binaries.
+
+At that exact revision, the HTTPS adapter is installed and launched inside GuestOS, with replica-to-adapter communication on a local Unix socket. The adapter constructs HTTPS-only `hyper-rustls` clients with native roots; its SOCKS path wraps the proxy connection in destination TLS rather than terminating TLS at the proxy. Thus source-level outbound protection is favorable: plaintext headers/body reside in processes within GuestOS, and the network proxy sees encrypted application traffic. The whole GuestOS boundary, native roots and release remain trusted.
+
+**Concrete source-level blocker:** when the local adapter queue is full, `send` returns `SendError::Full(original_request)`. The error, request and context derive `Debug`; the context includes header values and body bytes. The pool manager formats that error with `warn!(..., "Failed to add canister http request to queue {:?}", err)`. Therefore that warning path can serialize authorization headers and JWT request bodies into replica logs. Independently re-fetched and checked all five linked source ranges; no real credential or running-node saturation test was used. This establishes a source-level disclosure path, not a claim that any key has leaked or that deployed logs are publicly readable. Log access/export/retention remains unverified. Encrypting stored keys does not address this sink.
+
+Non-replicated HTTP controls which replica submits the external request; it does not make credential-bearing request state exclusive to that node. Requests come from replicated state, and responses are disseminated to peers. All participating replicas remain part of the credential boundary.
+
+### Attestation: implementation exists, live proof not obtained
+The node-side gRPC `remote_attestation.RemoteAttestationService/Attest` protocol accepts an optional 32-byte challenge and returns an SNP report/certificate package; its GuestOS service and official certificate/report verifier exist. The public inventory returns no such package. The documented boundary-mediated external verification route was not established as an executable public client procedure; a direct port reachability timeout cannot distinguish firewall rules from sandbox networking and is not a valid attestation exchange. No fresh challenge-bound report or certified membership/measurement verification was obtained. The boundary implementation inspected by the investigator was revision `aa0877ca930aa163815024d1ea9b600fe818c11a`, so its absence of an explicit route is not a claim about the exact deployed boundary release.
+
+### Verdict and next dependency
+**In-use confidentiality is not accepted.** Source demonstrates TLS inside GuestOS but also a credential-bearing warning-log path. Before provisioning Firebase credentials, establish a release that removes this sink (or independently verified log containment meeting the approved trust boundary), bind it to verified deployed nodes, and obtain the supported boundary attestation procedure. This is upstream infrastructure work, not a fix that Ignite can apply by changing its own canister. No sender, key, queue, Supabase or PROD changes; no TEST alert sent. No application mock can prove this infrastructure guarantee.
+
+### Pinned public source references
+All links below use the observed GuestOS source revision, unless noted:
+- [GuestOS adapter service](https://github.com/dfinity/ic/blob/83f29e0803496ba6aaea3d6b43f6c6bebea12dd9/ic-os/components/guestos/ic-https-outcalls-adapter/ic-https-outcalls-adapter.service#L10-L19)
+- [TLS connectors](https://github.com/dfinity/ic/blob/83f29e0803496ba6aaea3d6b43f6c6bebea12dd9/rs/https_outcalls/adapter/src/rpc_server.rs#L76-L127)
+- [Queue-full original request](https://github.com/dfinity/ic/blob/83f29e0803496ba6aaea3d6b43f6c6bebea12dd9/rs/https_outcalls/client/src/client.rs#L116-L136)
+- [Error Debug/Full variant](https://github.com/dfinity/ic/blob/83f29e0803496ba6aaea3d6b43f6c6bebea12dd9/rs/interfaces/adapter_client/src/lib.rs#L44-L52)
+- [Warning sink](https://github.com/dfinity/ic/blob/83f29e0803496ba6aaea3d6b43f6c6bebea12dd9/rs/https_outcalls/consensus/src/pool_manager.rs#L263-L282)
+- [Credential-bearing context](https://github.com/dfinity/ic/blob/83f29e0803496ba6aaea3d6b43f6c6bebea12dd9/rs/types/types/src/canister_http.rs#L149-L164) and [request Debug](https://github.com/dfinity/ic/blob/83f29e0803496ba6aaea3d6b43f6c6bebea12dd9/rs/types/types/src/canister_http.rs#L986-L997)
+- [Attestation server](https://github.com/dfinity/ic/blob/83f29e0803496ba6aaea3d6b43f6c6bebea12dd9/rs/ic_os/remote_attestation/server/src/main.rs)
+- [Verifier library guidance](https://github.com/dfinity/ic/blob/83f29e0803496ba6aaea3d6b43f6c6bebea12dd9/rs/ic_os/sev/attestation/README.md)
