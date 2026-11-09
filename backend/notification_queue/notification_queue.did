@@ -337,6 +337,10 @@ type Main =
                            Err: text;
                            Ok: nat;
                          });
+   queue_my_native_test_alert: () -> (variant {
+                                        Err: text;
+                                        Ok: text;
+                                      });
    read_account_get_digest: (source: DigestSource, chat_scope_id: text,
     since_ms: nat64, limit: nat16) -> (DigestResults);
    read_account_get_preferences: (user: text) -> (Preferences);
