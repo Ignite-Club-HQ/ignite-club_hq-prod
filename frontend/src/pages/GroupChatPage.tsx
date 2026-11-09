@@ -9,6 +9,8 @@ import {
 } from "@/features/messaging/inbox/pendingInboxPreview";
 import { recordOwnSentConversation } from "@/features/messaging/inbox/ownSendBump";
 import { readIcpGroupMetadata } from "@/features/messaging/thread/icpThreadRead";
+import { resolveGroupChatAccess } from "@/features/messaging/thread/chatAccessState";
+import { ChatAccessDenied } from "@/components/chat/ChatAccessDenied";
 import { resolveChatUploadUrl } from "@/lib/pendingChatUploads";
 import { useChatLoadingLatch } from "@/hooks/useChatLoadingLatch";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
@@ -548,6 +550,25 @@ export default function GroupChatPage() {
   });
   const [showRenameDialog, setShowRenameDialog] = useState(false);
 
+  // May this person read this chat's messages at all? Asked of the same
+  // authority that hides them row-by-row (`can_access_chat_group`), because
+  // Supabase answers a forbidden read with "zero rows" and no error. A failed
+  // or absent read stays null: unknown must never claim "no access".
+  const { data: canReadGroupMessages } = useQuery({
+    queryKey: ["group-chat-message-access", groupId, user?.id],
+    enabled: !!groupId && !!user?.id && authReady,
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (resolveAuthBackend() === "icp" || isFeatureRoutedToIcp("messaging")) return null;
+      const { data, error } = await supabase.rpc("can_access_chat_group", {
+        _user_id: user!.id,
+        _group_id: groupId!,
+      });
+      if (error) return null;
+      return !!data;
+    },
+  });
+
   const { isOnline } = useOnlineStatus();
 
   // Force a fresh fetch whenever we land on this group. Push notifications and
@@ -582,6 +603,7 @@ export default function GroupChatPage() {
     status: messagesStatus,
     fetchStatus: messagesFetchStatus,
     refetch: refetchMessages,
+    error: messagesError,
   } = useGroupMessagesQuery({
     groupId,
     userId: user?.id,
@@ -1634,6 +1656,17 @@ export default function GroupChatPage() {
     status: groupStatus,
     isOnline,
   });
+
+  // The server has already refused this person the chat's messages, so say so
+  // plainly instead of rendering a thread that looks merely empty.
+  const chatAccess = resolveGroupChatAccess({
+    serverDecision: canReadGroupMessages ?? null,
+    chatVisible: !!group,
+    messageReadError: messagesError,
+  });
+  if (chatAccess === "denied") {
+    return <ChatAccessDenied chatName={group?.name ?? rememberedThreadLabel?.title ?? null} />;
+  }
 
   if (groupMetadataState === "loading") {
     return (

@@ -11,6 +11,7 @@ import { recordOwnSentConversation } from "@/features/messaging/inbox/ownSendBum
 import { chatSendFailureReason } from "@/lib/chatSendFailure";
 import { withReadDeadline } from "@/live/readDeadline";
 import { readIcpThreadPage } from "@/features/messaging/thread/icpThreadRead";
+import { dropRowsBehindGap } from "@/features/messaging/thread/chatWindowGap";
 import { fetchIcpTeamLatestPage, mapLiveTeamRows as mapLiveTeamRowsShared, teamThreadScope } from "@/features/messaging/thread/icpTeamThreadPage";
 import { resolveChatUploadUrl } from "@/lib/pendingChatUploads";
 import { isSameDay } from "date-fns";
@@ -616,24 +617,6 @@ export default function TeamChatPage() {
         }
       });
 
-      useEffect(() => {
-        if (!useIcpLab || !teamId || !messagesData?.messages.length) return;
-        const latestMessage = messagesData.messages[messagesData.messages.length - 1];
-        let cancelled = false;
-        markLocalTeamRead(localIcpPersona, teamId, latestMessage.id)
-          .then(() => {
-            if (!cancelled) {
-              queryClient.setQueryData(["local-team-unread-count", teamId], 0);
-            }
-          })
-          .catch((error) => {
-            if (!cancelled) console.warn("[TeamChat] Failed to mark local messages read", error);
-          });
-        return () => {
-          cancelled = true;
-        };
-      }, [useIcpLab, teamId, messagesData, queryClient]);
-      
       // Fetch profiles with cache - will return cached data immediately if available, or fetch from DB
       // Use allSettled so a single hung/failing RPC cannot block the entire message render.
       const [reactionsSettled, replyToSettled, profilesSettled] = await Promise.allSettled([
@@ -762,6 +745,17 @@ export default function TeamChatPage() {
       return undefined;
     },
   });
+
+  useEffect(() => {
+    const list = (messagesData as { messages?: Message[] } | undefined)?.messages;
+    if (!useIcpLab || !teamId || !list?.length) return;
+    const latestMessage = list[list.length - 1];
+    let cancelled = false;
+    markLocalTeamRead(localIcpPersona, teamId, latestMessage.id)
+      .then(() => { if (!cancelled) queryClient.setQueryData(["local-team-unread-count", teamId], 0); })
+      .catch((error) => { if (!cancelled) console.warn("[TeamChat] Failed to mark local messages read", error); });
+    return () => { cancelled = true; };
+  }, [useIcpLab, teamId, messagesData, queryClient, localIcpPersona]);
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `team:${teamId ?? "none"}`;
@@ -949,7 +943,8 @@ export default function TeamChatPage() {
           .filter((m) => !m.id.startsWith("temp-") && !m.id.startsWith("queued-"))
           .map((m) => `${m.author_id}::${(m.text ?? "").trim()}::${m.image_url ? "img" : ""}`),
       );
-      const previousOnly = (prev || []).filter((message) => {
+      const incomingHasOlder = !!(messagesData && !Array.isArray(messagesData) && (messagesData as any).hasOlderMessages);
+      const previousOnly = dropRowsBehindGap(prev || [], messages, incomingHasOlder).filter((message) => {
         // SECURITY (cross-team bleed): this merge is deliberately fail-open — it
         // keeps prior rows absent from the incoming snapshot. A row left over
         // from another team's thread would otherwise be latched in permanently
@@ -1026,7 +1021,7 @@ export default function TeamChatPage() {
 
       return mergedMessages;
     });
-  }, [messages, teamId, reconcileScope]);
+  }, [messages, messagesData, teamId, reconcileScope]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {

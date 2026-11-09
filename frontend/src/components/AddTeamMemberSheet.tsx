@@ -352,17 +352,33 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // selector becomes the active step. Dismiss the soft keyboard and scroll
   // the role buttons into view so the user can see what they're picking on
   // small iOS viewports where the keyboard previously hid them.
+  // Also reveal the role buttons as soon as they appear while the name is
+  // being typed: with the keyboard open the sheet is short, so they render
+  // half-clipped by the footer and read as truncated text. "nearest" scrolls
+  // the minimum needed to show them without disturbing the focused input.
+  const roleRevealKey = nameConfirmed || selectedUser ? "confirmed" : personReady ? "typing" : null;
+  const lastRoleRevealRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!nameConfirmed && !selectedUser) return;
-    try {
-      const active = document.activeElement as HTMLElement | null;
-      if (active && typeof active.blur === "function") active.blur();
-    } catch {}
+    if (!roleRevealKey) {
+      lastRoleRevealRef.current = null;
+      return;
+    }
+    if (lastRoleRevealRef.current === roleRevealKey) return;
+    lastRoleRevealRef.current = roleRevealKey;
+    if (roleRevealKey === "confirmed") {
+      try {
+        const active = document.activeElement as HTMLElement | null;
+        if (active && typeof active.blur === "function") active.blur();
+      } catch {}
+    }
     const t = setTimeout(() => {
-      roleSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      roleSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: roleRevealKey === "confirmed" ? "center" : "nearest",
+      });
     }, 120);
     return () => clearTimeout(t);
-  }, [nameConfirmed, selectedUser]);
+  }, [roleRevealKey]);
 
   // Auto-open first child input when Parent role is selected and name is confirmed (existing user or tick)
   useEffect(() => {

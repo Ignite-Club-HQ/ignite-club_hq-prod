@@ -456,6 +456,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'queue_my_native_test_alert' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
+        [],
+      ),
     'read_account_get_digest' : IDL.Func(
         [DigestSource, IDL.Text, IDL.Nat64, IDL.Nat16],
         [DigestResults],

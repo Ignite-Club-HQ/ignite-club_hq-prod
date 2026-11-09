@@ -203,6 +203,11 @@ export interface Main {
       { 'Err' : string }
   >,
   'purge_my_data' : ActorMethod<[], { 'Ok' : bigint } | { 'Err' : string }>,
+  'queue_my_native_test_alert' : ActorMethod<
+    [],
+    { 'Ok' : string } |
+      { 'Err' : string }
+  >,
   'read_account_get_digest' : ActorMethod<
     [DigestSource, string, bigint, number],
     DigestResults

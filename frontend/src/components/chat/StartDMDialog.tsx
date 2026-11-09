@@ -37,7 +37,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 
 
@@ -766,7 +765,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
 
   // Check if club filter is locked (in club mode)
   const isClubFilterLocked = !!activeClubFilter;
-  const keyboardHeight = useNativeKeyboardHeight();
+  // Window resizes natively above the keyboard; no manual inset needed.
   const isKeyboardOpen = useKeyboardOpen();
   const isCustomGroup = mode === "custom-group";
   const showClubFilter = !isClubFilterLocked && availableClubs.length > 1;
@@ -828,7 +827,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
         {/* Compact sticky search + filter toolbar: stays under the header while
             the member list scrolls independently beneath it. */}
         {canPickPeople && !(isCustomGroup && groupStep === 2) && (
-          <div className="shrink-0 flex items-center gap-2 pt-2 pb-2 px-1 bg-background border-b border-border">
+          <div className="shrink-0 flex items-center gap-2 pt-2 pb-2 px-3 bg-background border-b border-border">
             <div className="relative flex-1 min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -933,9 +932,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
         <div
           className="flex-1 min-h-0 overflow-y-auto space-y-3 pt-3 px-1 pb-4"
           style={
-            isKeyboardOpen && !(selectedUsers.length > 0 || isCustomGroup)
-              ? { paddingBottom: `${keyboardHeight + 16}px` }
-              : undefined
+undefined
           }
         >
 
@@ -1248,8 +1245,10 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
           <div
             className="shrink-0 border-t border-border bg-card px-4 pt-3 shadow-[0_-4px_12px_-8px_hsl(var(--foreground)/0.2)]"
             style={{
+              // The app window already shrinks above the keyboard, so adding
+              // keyboard height here left a large blank gap under the buttons.
               paddingBottom: isKeyboardOpen
-                ? `${keyboardHeight + 12}px`
+                ? "0.75rem"
                 : `calc(env(safe-area-inset-bottom, 0px) + 0.75rem)`,
             }}
           >
