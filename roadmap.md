@@ -5,7 +5,7 @@
 - [x] First GitHub experiment compiled successfully but stopped at missing subnet-state configuration before any measurement. Corrected and verified against the installed library; 15 tests pass. Idle sampling now respects 30-second recurring expirations. No fuel result or service-fix claim.
 - [ ] Reproduce suspected low-fuel self-call retry amplification in a bounded disposable local replica; never lower balances or alter settings on deployed DEV/PROD services.
 - [ ] Measure idle timer fuel against a no-timer control, record compiler/replica evidence and determine whether a DEV fix is justified. No live deployment or production changes authorized.
-- [ ] Paul requested the fix at 02:32 UTC: finish runtime evidence, implement only a demonstrated DEV repair and verify it before any live-release proposal. Waiting for corrected TEST source sync and a fresh isolated run; no deployed service changed.
+- [ ] Paul confirmed proceeding at 02:39 UTC: finish the corrected isolated runtime experiment, implement only a demonstrated DEV repair and verify it before any live-release proposal. Fifteen setup tests pass; checking GitHub source and a fresh isolated run. No deployed service change authorized.
 
 ## ICP email notification availability (DEV only)
 - [x] Removed ICP email controls from member settings and admin report; blocked email preference handlers in ICP, including mode changes. Supabase save/report branches unchanged. Twelve tests pass in each backend test mode; preview build OK. No service/settings/PROD changes.
