@@ -74,6 +74,27 @@ Reusable pieces are the existing queue, native registration, shared wire contrac
 
 Research grants none of these hosting/IAM/credential/PROD changes. Build on TEST; verify real queued Android/iOS display and taps, inbox readback, account switching/revocation/mutes, ambiguous sends and unchanged Supabase delivery. Only then consider separately approved Paul-only PROD handover.
 
+## Workarounds for credential-bearing replica warnings — 9 November, 05:14 UTC
+
+Focused read-only investigation found the warning still present in upstream revision `aa0877ca930aa163815024d1ea9b600fe818c11a`, not only the candidate nodes' reported GuestOS source `83f29e0803496ba6aaea3d6b43f6c6bebea12dd9`. Upgrading to that newer source alone is not a fix. No credentials, deployments, sends or runtime changes.
+
+| Workaround | Actual effect | Availability / tradeoff |
+|---|---|---|
+| Maintainer-supported source redaction | Replace Debug formatting of `SendError::Full(request)` with fixed error classification; removes this exact logging sink while keeping useful warnings | Best strict ICP-only route. Requires upstream release and verified deployment; Ignite cannot patch a public subnet's replica. No provider delivery date established. |
+| Provider-enforced replica logger level `error` or stricter | Source macro checks severity before `format!`, so suppresses this exact warning before serialization | Genuine technical interim option, not downstream filtering. Availability on public `re2t4` unverified. Requires enforced settings across participating/replacement nodes and lifecycle transitions; loses warning diagnostics and does not establish other sinks are safe. |
+| Independently verified protected log containment | Keeps any logged credential inside an explicitly accepted confidential boundary | Conditional, not redaction; requires log access/collector/export/retention/crash/recovery evidence. Not established. |
+| Isolated full-send relay | Google credentials never enter ICP outcalls; relay claims authorized ICP work and performs OAuth plus FCM internally | Practical fallback if external transport is approved. Reuse existing hosting or attached Google runtime identity; neither provisioning nor Supabase-mode changes approved by research. Return sanitized attempt results, never tokens. |
+
+**Not standalone solutions:** encrypting stored keys, shorter-lived tokens, lower concurrency, another SDK/canister, or non-replicated/flexible HTTP. Queue capacity is shared node-local capacity and app pacing cannot guarantee no enqueue failure. FCM expects OAuth plus its documented JSON, not a custom encrypted request; encrypting notification data leaves the bearer header exposed. A gateway secret merely replaces the sensitive credential. Threshold P-256 federation removes the RSA key but still sends usable assertions/bearer tokens through the same boundary. A custom encrypted envelope needs a full-send decrypting relay with replay controls, not FCM directly.
+
+**Recommendation:** pursue source redaction first; provider-supported pre-format warning suppression is a possible interim ICP-only route. If neither is available, an isolated full-send adapter avoids this particular infrastructure sink. Do not add application approval flags or accept throttling as secrecy proof. Fresh deployed attestation/secure provisioning remains a separate dependency even after the warning is addressed.
+
+Pinned references:
+- [Warning remains upstream](https://github.com/dfinity/ic/blob/aa0877ca930aa163815024d1ea9b600fe818c11a/rs/https_outcalls/consensus/src/pool_manager.rs#L263-L282)
+- [Pre-format severity check](https://github.com/dfinity/ic/blob/aa0877ca930aa163815024d1ea9b600fe818c11a/rs/monitoring/logger/src/context_logger/macros.rs#L244-L266)
+- [Replica logger configuration](https://github.com/dfinity/ic/blob/83f29e0803496ba6aaea3d6b43f6c6bebea12dd9/rs/config/src/logger.rs#L1-L60)
+- [FCM request/auth contract](https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages/send)
+
 ## Sources
 - ICP node protection/attestation: https://docs.internetcomputer.org/concepts/node-infrastructure/
 - ICP HTTPS modes: https://docs.internetcomputer.org/concepts/https-outcalls/
