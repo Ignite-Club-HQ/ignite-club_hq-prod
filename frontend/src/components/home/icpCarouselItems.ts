@@ -23,6 +23,13 @@ export async function fetchIcpCarouselItems(
   ctx: FeatureBackendContext,
   activeClubFilter: string | null,
 ): Promise<TeamOrLeague[]> {
+  // Player leagues are caller-authorized independently of team role grants.
+  // Start both inventories together, retaining errors until consumed so an
+  // early league rejection cannot become unhandled while roles are pending.
+  const mineRead = listMyLiveMiniLeagues(ctx).then(
+    value => ({ ok: true as const, value }),
+    error => ({ ok: false as const, error }),
+  );
   const grants = (await getLiveMyRoleGrants(ctx)) as unknown as {
     club: [] | [string];
     team: [] | [string];
@@ -94,7 +101,10 @@ export async function fetchIcpCarouselItems(
   const leagues = (async () => {
   const leagueIds = new Set<string>();
   const [mine, byClub] = await Promise.all([
-    listMyLiveMiniLeagues(ctx),
+    mineRead.then(result => {
+      if (!result.ok) throw result.error;
+      return result.value;
+    }),
     Promise.all(leagueAdminClubIds.map(id => listLiveMiniLeaguesByClub(ctx, id))),
   ]);
   for (const league of [...mine, ...byClub.flat()]) leagueIds.add(league.id);
