@@ -2,24 +2,35 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { nextBuildNumber, readNextStoreBuild, assertArchivedVersion, timeBasedBuildNumber, PLAY_MAX_VERSION_CODE, ANDROID_MIN_VERSION_CODE } from './native-release-version.mjs';
+import { nextBuildNumber, readNextStoreBuild, assertArchivedVersion, timeBasedBuildNumber, PLAY_MAX_VERSION_CODE, ANDROID_MIN_VERSION_CODE, ANDROID_VERSION_EPOCH_MS } from './native-release-version.mjs';
 
 const SCRIPT = fileURLToPath(new URL('./native-release-version.mjs', import.meta.url));
 
 test('android build number is time-based and never queries a store', () => {
-  assert.equal(timeBasedBuildNumber(29_900_000 * 60_000), ANDROID_MIN_VERSION_CODE, 'below the highest Play upload, the number is floored');
-  assert.equal(timeBasedBuildNumber((ANDROID_MIN_VERSION_CODE + 5) * 60_000), ANDROID_MIN_VERSION_CODE + 5, 'above the floor, the clock wins');
+  assert.equal(timeBasedBuildNumber(ANDROID_VERSION_EPOCH_MS), 88498315);
+  assert.equal(timeBasedBuildNumber(ANDROID_VERSION_EPOCH_MS + 5 * 60_000), 88498320);
   assert.throws(() => readNextStoreBuild('android', () => { throw new Error('store must not be queried'); }), /time-based/);
 });
 
 test('android build number grows with the clock and stays inside the Play limit', () => {
-  const early = timeBasedBuildNumber((ANDROID_MIN_VERSION_CODE + 10) * 60_000);
-  const later = timeBasedBuildNumber((ANDROID_MIN_VERSION_CODE + 11) * 60_000);
+  const early = timeBasedBuildNumber(ANDROID_VERSION_EPOCH_MS + 10 * 60_000);
+  const later = timeBasedBuildNumber(ANDROID_VERSION_EPOCH_MS + 11 * 60_000);
   assert.ok(later > early, 'a later clock must produce a higher build number');
   assert.ok(early < PLAY_MAX_VERSION_CODE, 'the current clock must stay under the Play limit');
   assert.throws(() => timeBasedBuildNumber((PLAY_MAX_VERSION_CODE + 1) * 60_000));
   assert.throws(() => timeBasedBuildNumber(-1));
   assert.throws(() => timeBasedBuildNumber(Number.NaN));
+  assert.throws(() => timeBasedBuildNumber(ANDROID_VERSION_EPOCH_MS - 60_000), /baseline/);
+  const lastMs = ANDROID_VERSION_EPOCH_MS + (PLAY_MAX_VERSION_CODE - ANDROID_MIN_VERSION_CODE) * 60_000;
+  assert.equal(timeBasedBuildNumber(lastMs), PLAY_MAX_VERSION_CODE);
+  assert.throws(() => timeBasedBuildNumber(lastMs + 60_000), /limit/);
+});
+
+test('November 9 builds exceed the used 88498314 and do not stick at a floor', () => {
+  const first = timeBasedBuildNumber(Date.parse('2026-11-09T00:00:00Z'));
+  const later = timeBasedBuildNumber(Date.parse('2026-11-09T00:01:00Z'));
+  assert.ok(first > 88498314);
+  assert.equal(later, first + 1);
 });
 
 test('the android CLI path prints a number without any store tool installed', () => {
