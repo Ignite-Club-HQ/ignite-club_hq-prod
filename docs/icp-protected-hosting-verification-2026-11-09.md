@@ -65,3 +65,14 @@ SHA-256 of the fetched response bytes:
 - Candidate node list: `5dd863f47a292064ffa8d49bdd0c2b6bba597edd49e89d6321f027e1d776e6f3`
 
 Hashes identify observations only; they neither establish provider provenance cryptographically nor authorize secrets, deployment or sending.
+
+## Requested implementation checkpoint — 05:06 UTC
+Paul requested building a separate protected-subnet sender and proving a native TEST alert end to end before changing live delivery. The current session re-read the existing implementation and official infrastructure/HTTPS-security guidance, and refreshed the public candidate subnet endpoint successfully (HTTP 200). Independent research found public subnet-targeted deployment guidance at https://forum.dfinity.org/t/question-about-sev-enabled-production-subnets/74683. Ordinary cycles costs still apply; that guidance is not security acceptance.
+
+The official infrastructure documentation establishes real memory/disk protection and an external attestation architecture, not an absence of attestation support. The unresolved dependency is a supported, reproducible verification/provisioning route for this particular sender, including current membership, state transfer, ingress confidentiality and outbound HTTP/TLS credentials. No such route was established by this session's tools or reviewed documentation. The HTTPS security guide still warns against API keys and tokens in ordinary canister state.
+
+The recovery documentation explicitly permits an NNS-approved Recovery-GuestOS to preserve the base launch measurement while replacing the root filesystem. Consequently a measurement-only check would be insufficient: the documented governance/recovery exceptions also belong to the accepted trust boundary. A local approval flag or passing mock must not stand in for this infrastructure evidence.
+
+**Execution status:** blocked before credential provisioning. No sender created, private key accessed/uploaded, deployment or send performed, queue authority changed, service moved, or recurring worker enabled. No Supabase or PROD changes. The earlier GitHub-hosted phone alert does not verify this proposed ICP sender.
+
+**Unblock requirement:** a provider-supported verification and secure credential-provisioning procedure for the selected confidential subnet, explicitly covering outgoing TLS and recovery/membership changes. Once established, build the isolated TEST sender and prove authorization, one non-replicated Firebase request, actual native phone receipt/tap, no uncertain-send replay, and measured end-to-end latency. A credential-free transport probe alone would not complete the user's request; no placeholder sender or extra approval framework was added.
