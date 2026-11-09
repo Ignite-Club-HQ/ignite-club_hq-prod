@@ -117,6 +117,7 @@ jobs:
       - name: Build selected recipe artifacts once
         if: inputs.action != 'recover'
         run: |
+          node scripts/prefetch-test-icp-tools.mjs
           node --input-type=module <<'JS'
           import { spawnSync } from 'node:child_process';
           import { mkdirSync, copyFileSync } from 'node:fs';
