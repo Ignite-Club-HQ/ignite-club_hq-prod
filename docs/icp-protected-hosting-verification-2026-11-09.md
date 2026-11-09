@@ -1,0 +1,67 @@
+# Protected ICP hosting verification
+
+Public read-only checks completed 9 November 2026, approximately 05:01 UTC. No secrets, management mutations, canister creation, deployment, placement changes or sending. Supabase push remains unchanged.
+
+## New finding: an identifiable public confidential target exists
+The public ICP inventory API returned two SEV-enabled subnets:
+
+| Subnet | Inventory access classification | Observed state |
+|---|---|---|
+| `re2t4-faa75-v3vhk-kdmdr-uyrkl-aik2l-ixd6u-p3fyr-zlfkc-6c5af-zae` | `public`, specialization `confidential` | `sev_enabled: true`; seven nodes, all UP; 240 total canisters |
+| `x4jtx-5dnbo-v3exa-vzamo-teufh-qsiit-txx4g-mi76n-ckrfl-oc5a6-nae` | `authorized_only` | `sev_enabled: true`; seven nodes, all UP |
+
+This is stronger evidence than a general roadmap statement: there is a specific public candidate to evaluate. It does **not** prove successful creation capacity or permission for this project's operator, independently attest the hardware, or authorize credential handling.
+
+## Current Ignite TEST is not on that target
+The inventory identifies TEST notification queue `jfcdq-yiaaa-aaaal-qxloa-cai` on:
+`e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe`.
+That subnet returned `sev_enabled: false`, public application classification and thirteen nodes. Do not put Firebase credentials on the current queue or infer confidentiality from its API permissions.
+
+## Complete candidate node listing checked
+The node endpoint was requested without filtering for TEE-active nodes, including UP, DOWN, DEGRADED and DISABLED statuses. Seven rows were returned, matching the separately observed subnet total:
+
+| Node | Status | `guestos_tee_active` |
+|---|---|---|
+| `65owm-iqsih-pdllo-5hh6y-oplj4-exf26-d3ep3-nuj7t-vscte-2i7hd-tqe` | UP | true |
+| `apmj3-7pb2c-n22hc-gg74y-llwbh-ydeej-gktiw-wx5ye-n32xx-ogxcw-xae` | UP | true |
+| `bcxo3-fdcxc-3oeqe-wuexk-fkyg3-jj76w-jxexv-v6nyt-fkly4-rx7m2-2ae` | UP | true |
+| `fv7pn-jvb6l-vezr4-4rk5e-4fdr5-pgmhj-bssxs-44lla-qajcc-dcycg-3qe` | UP | true |
+| `g75ol-eu444-h65jf-ddman-edmen-johle-s2bim-a3yn6-gkpat-5c32o-7ae` | UP | true |
+| `m5mj2-rta3p-n4zze-flubl-liaay-3tffk-5nl6d-k5ckv-6mdrg-acnrh-rae` | UP | true |
+| `tenun-rw6z7-bdcoj-l7lyb-jufsa-ewglz-dqvf4-infmt-krxim-5undw-gae` | UP | true |
+
+All list Gen2 hardware and GuestOS version `83f29e0803496ba6aaea3d6b43f6c6bebea12dd9`; seven distinct node providers. These are API-reported inventory/telemetry, **not** independently verified SNP measurements. Calls are separate observations, not one certified registry-version snapshot. Node records provide no signed attestation blob in this response.
+
+## What is and is not verified
+- **Verified observation:** the public inventory exposes a public confidential candidate and reports hardware protection active on all its listed nodes.
+- **Not verified:** fresh AMD-signed reports bound to every current node and approved GuestOS measurement; enforced peer attestation on state sharing/joining; credentials remaining protected through recovery and upgrades; outgoing TLS adapter remaining inside the protected boundary; canister controller/code-release trust; successful deployment admission and pricing for this workload.
+- Official node-infrastructure documentation describes memory encryption, measurements, attestation and sealed storage, but the reviewed developer material does not provide a complete external report retrieval/verifier route for this deployment.
+- The August developer-forum topic asking these exact questions currently returns one post and no answers in its public JSON response. Its questions are not evidence of either a guarantee or a vulnerability.
+- The linked Learn Hub TEE article could not be inspected: direct fetch was blocked by a challenge (HTTP 403). No conclusion is inferred from inaccessible content.
+
+## Next checkpoint
+Use **only `re2t4` as the public candidate**, not the current TEST queue subnet or authorized-only `x4jtx`, for further protected-sender feasibility. Obtain the supported external attestation/measurement verification and published boundaries for state-sharing, recovery and HTTPS authorization. No canister with live credentials should be deployed until those protections are established.
+
+A credential-free disposable creation/HTTPS probe could separately test deployment and Firebase network reachability after explicit commissioning/cost approval. It would not establish credential secrecy and must not be presented as security acceptance. No new safeguard module or local approval boolean is needed to answer the unresolved infrastructure questions.
+
+Only the sender would need this target; no existing clubs, queues, registrations, encrypted photos or canisters should be moved. All-ICP delivery still requires a safe sender identity, exact approved queue authority and exclusive handover after TEST authorization proof.
+
+## Reproducible sources
+- Inventory schema: https://ic-api.internetcomputer.org/api/v3/openapi.json
+- Candidate inventory: https://ic-api.internetcomputer.org/api/v3/subnets?sev_enabled=true
+- Public candidate: https://ic-api.internetcomputer.org/api/v3/subnets/re2t4-faa75-v3vhk-kdmdr-uyrkl-aik2l-ixd6u-p3fyr-zlfkc-6c5af-zae
+- Candidate nodes: https://ic-api.internetcomputer.org/api/v3/nodes?subnet=re2t4-faa75-v3vhk-kdmdr-uyrkl-aik2l-ixd6u-p3fyr-zlfkc-6c5af-zae&include_status=UP&include_status=DOWN&include_status=DEGRADED&include_status=DISABLED
+- TEST queue inventory: https://ic-api.internetcomputer.org/api/v3/canisters/jfcdq-yiaaa-aaaal-qxloa-cai
+- Current TEST subnet: https://ic-api.internetcomputer.org/api/v3/subnets/e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe
+- Infrastructure guarantees: https://docs.internetcomputer.org/concepts/node-infrastructure/
+- Confidential-subnet questions: https://forum.dfinity.org/t/questions-on-confidential-sev-snp-subnets/75232 (read via its `.json` representation)
+
+## Observation fingerprints (not attestation or release evidence)
+SHA-256 of the fetched response bytes:
+- TEST queue: `0aab73dd2d9f4b388fb687548ee559788018684ef10d26a88adefd68dfecca32`
+- SEV subnet list: `652cdc5d696e600b719d9b12d210b3d5c1875da07c76104418b1382c6467b867`
+- Current TEST subnet: `3b0cc097ae778b09ddad6e9e5bdb58f349a4f15acd474abb93b63e50c24544ee`
+- Public candidate: `4fd48d935f1d7f5381854dc13396788f6dc823444ba652b65a0a967fde6716c5`
+- Candidate node list: `5dd863f47a292064ffa8d49bdd0c2b6bba597edd49e89d6321f027e1d776e6f3`
+
+Hashes identify observations only; they neither establish provider provenance cryptographically nor authorize secrets, deployment or sending.
