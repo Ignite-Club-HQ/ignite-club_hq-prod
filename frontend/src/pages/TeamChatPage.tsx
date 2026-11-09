@@ -617,24 +617,6 @@ export default function TeamChatPage() {
         }
       });
 
-      useEffect(() => {
-        if (!useIcpLab || !teamId || !messagesData?.messages.length) return;
-        const latestMessage = messagesData.messages[messagesData.messages.length - 1];
-        let cancelled = false;
-        markLocalTeamRead(localIcpPersona, teamId, latestMessage.id)
-          .then(() => {
-            if (!cancelled) {
-              queryClient.setQueryData(["local-team-unread-count", teamId], 0);
-            }
-          })
-          .catch((error) => {
-            if (!cancelled) console.warn("[TeamChat] Failed to mark local messages read", error);
-          });
-        return () => {
-          cancelled = true;
-        };
-      }, [useIcpLab, teamId, messagesData, queryClient]);
-      
       // Fetch profiles with cache - will return cached data immediately if available, or fetch from DB
       // Use allSettled so a single hung/failing RPC cannot block the entire message render.
       const [reactionsSettled, replyToSettled, profilesSettled] = await Promise.allSettled([
@@ -763,6 +745,17 @@ export default function TeamChatPage() {
       return undefined;
     },
   });
+
+  useEffect(() => {
+    const list = (messagesData as { messages?: Message[] } | undefined)?.messages;
+    if (!useIcpLab || !teamId || !list?.length) return;
+    const latestMessage = list[list.length - 1];
+    let cancelled = false;
+    markLocalTeamRead(localIcpPersona, teamId, latestMessage.id)
+      .then(() => { if (!cancelled) queryClient.setQueryData(["local-team-unread-count", teamId], 0); })
+      .catch((error) => { if (!cancelled) console.warn("[TeamChat] Failed to mark local messages read", error); });
+    return () => { cancelled = true; };
+  }, [useIcpLab, teamId, messagesData, queryClient, localIcpPersona]);
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `team:${teamId ?? "none"}`;
