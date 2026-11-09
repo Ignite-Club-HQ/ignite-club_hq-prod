@@ -21,4 +21,10 @@ jobs:
           set -euo pipefail
           test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Missing SUPABASE_ACCESS_TOKEN"; exit 1; }
           if [ "$DEV_REF" = "$PROD_REF" ]; then echo "Refusing: ref matches PROD"; exit 1; fi
+          if ! supabase secrets list --project-ref "$DEV_REF" | grep -q 'IGNITE_DEV_ICP_PUSH_SENDER_SEED'; then
+            supabase secrets set --project-ref "$DEV_REF" "IGNITE_DEV_ICP_PUSH_SENDER_SEED=$(openssl rand -hex 32)" --yes >/dev/null
+            echo "Created sender seed (value never printed)"
+          else
+            echo "Sender seed already present"
+          fi
           supabase functions deploy icp-dev-push-sender --project-ref "$DEV_REF" --no-verify-jwt --use-api --yes
