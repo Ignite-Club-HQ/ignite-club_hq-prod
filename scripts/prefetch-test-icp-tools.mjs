@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile, rename, rm } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, rm, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -11,6 +11,18 @@ export function verifiedBytes(bytes, digest) {
     throw Error('Pinned build-tool checksum could not be verified');
   }
   return bytes;
+}
+
+export async function extractCompiler(archive, dir) {
+  const listing = spawnSync('tar', ['-tzf', archive], { encoding: 'utf8' });
+  if (listing.status !== 0) throw Error('Compiler archive listing failed');
+  const members = listing.stdout.split('\n').filter(name => name === 'moc' || name === './moc');
+  if (members.length !== 1) throw Error('Compiler archive must contain exactly one root moc executable');
+  const result = spawnSync('tar', ['-xOzf', archive, members[0]], { maxBuffer: 128 * 1024 * 1024 });
+  if (result.status !== 0 || !result.stdout.length) throw Error('Compiler extraction failed');
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'moc'), result.stdout);
+  await chmod(join(dir, 'moc'), 0o755);
 }
 
 async function github(path, binary = false) {
@@ -65,9 +77,8 @@ export async function prefetch() {
     const dir = join(homedir(), '.cache', 'mops', 'moc', version);
     await mkdir(dir, { recursive: true });
     await writeFile(archive, bytes);
-    const result = spawnSync('tar', ['-xzf', archive, '-C', dir, 'moc'], { stdio: 'inherit' });
-    await rm(archive);
-    if (result.status !== 0) throw Error('Compiler extraction failed');
+    try { await extractCompiler(archive, dir); }
+    finally { await rm(archive); }
     const check = spawnSync(join(dir, 'moc'), ['--version'], { encoding: 'utf8' });
     if (check.status !== 0 || !check.stdout.includes(version)) throw Error('Compiler version mismatch');
   }
