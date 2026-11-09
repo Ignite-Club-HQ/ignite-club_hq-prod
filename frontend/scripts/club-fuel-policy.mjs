@@ -4,7 +4,7 @@ export const LOW_FUEL_ROUNDS = 80;
 export const LOW_FUEL_STEP_MS = 100;
 export const HEADROOMS = [2_000_000_000n, 200_000_000n, 20_000_000n, 2_000_000n];
 export const LOCAL_REPLICA_CONFIG = {
-  application: [{ state: { type: 'New' }, costSchedule: 'Normal' }],
+  application: [{ state: { type: 'new' }, costSchedule: 'Normal' }],
 };
 
 export function timerCounts(seconds) {
