@@ -6140,6 +6140,19 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   // Trusted delegation checks the original human, never the queue's identity.
+  public shared ({ caller }) func read_native_push_access(subject : Principal, conversation_id : Text) : async Bool {
+    let configured = notificationQueueCanister;
+    if (configured != ?caller) return false;
+    if (not removalReceiver.enter(subject)) return false;
+    try {
+      await admitAccount(subject);
+      try { await* requireChatAccess(subject, conversation_id) } catch (_) { return false };
+      configured == notificationQueueCanister and not removalReceiver.denied(subject) and not convFenced(conversation_id) and
+        canReadTeamMessages(subject, conversation_id) and
+        not mutePreferences.any(func m = m.user == subject and m.conversation_id == conversation_id and m.muted)
+    } finally { removalReceiver.leave(subject) }
+  };
+
   public shared ({ caller }) func read_account_can_read_digest(subject : Principal, conversation_id : Text) : async Bool {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {

@@ -1,0 +1,12 @@
+import Native "../src/nativePush";
+let worker : Principal = "aaaaa-aa";
+let other : Principal = "2vxsx-fae";
+let attempt : Native.Attempt = { receipt = "1"; notification_id = "n"; user = "u"; token = "t"; platform = "android"; device_stamp = 1; worker; status = "sending" };
+assert Native.occupied([attempt], "n", "t", 1);
+assert not Native.occupied([attempt], "n", "t", 2);
+assert not Native.occupied([attempt], "other", "t", 1);
+assert Native.canSettle(attempt, worker, "accepted");
+assert not Native.canSettle(attempt, other, "accepted");
+assert not Native.canSettle(attempt, worker, "retry");
+assert Native.canSettle({ attempt with status = "held" }, worker, "held");
+assert not Native.canSettle({ attempt with status = "held" }, worker, "accepted");
