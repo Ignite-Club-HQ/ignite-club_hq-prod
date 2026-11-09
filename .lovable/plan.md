@@ -1,9 +1,9 @@
 # Fast native ICP push notifications
 
-## Additional option: run the sender on ICP itself
+## Preferred direction: run the sender on ICP itself
 **Plain-English proposal:** Ignite creates an alert, an ICP-hosted sender immediately sends it to Firebase, and Firebase delivers it to Android/iPhone. No Render account and no GitHub delivery schedule. **Firebase must remain**: ICP alone cannot deliver operating-system push notifications to these phones.
 
-This is an alternative to the hosting plan below, not an approved replacement. **Start with a small TEST feasibility check**, because safely authorizing Firebase from ICP is the main unresolved issue. Do not upload the existing Firebase private key into ordinary canister storage.
+Paul prefers avoiding Render. **Prioritize a small TEST feasibility check for ICP-hosted delivery**, because safely authorizing Firebase from ICP is the main unresolved issue. The hosting option below is retained for comparison only, not approved provisioning. Do not upload the existing Firebase private key into ordinary canister storage.
 
 ### What we would build
 1. Reuse the existing ICP notification records, native device registrations and audience checks. Add one dedicated ICP sender that wakes when an authorized alert is queued; enqueueing and Home/chat/event actions must not wait for Firebase delivery. Use a short recovery timer for pending work, not constant empty polling or GitHub runners.
@@ -29,11 +29,11 @@ There is **no Render hosting bill**, but this is not free: ICP execution, storag
 - A default replicated POST is not acceptable, and FCM supplies no documented exactly-once send contract. Single-request mode avoids replica fan-out but trusts one replica's response; no automatic retry after ambiguous acceptance means an alert may be missed rather than duplicated. Make that tradeoff explicit.
 - After TEST success and Paul's approval, hand over the exact reviewed PROD queue inventory with sending limited to Paul first. Do not implicitly approve extra subnets, move encrypted-media clubs, change group placement or activate sending to other users. Supabase/email behavior stays unchanged.
 
-**Decision point:** choose between the proven external worker and ICP-hosted delivery only after the credential feasibility check, measured speed and cost are available. This plan authorizes scoping, not deployment, credentials, charges or live activation.
+**Decision point:** establish whether ICP-hosted delivery can safely work before choosing an implementation. External always-on delivery is also unbuilt and unmeasured; it is not a proven replacement. If ICP authorization cannot be secured, report the blocker rather than provision Render without Paul's approval. This plan authorizes scoping, not deployment, credentials, charges or live activation.
 
 References: [ICP HTTPS modes and credential risks](https://docs.internetcomputer.org/concepts/https-outcalls/), [ICP HTTPS security](https://docs.internetcomputer.org/guides/security/https-outcalls/), [Firebase sender authorization](https://firebase.google.com/docs/cloud-messaging/auth-server), [Google service-account signing](https://developers.google.com/identity/protocols/oauth2/service-account).
 
-## Recommended approach
+## Earlier hosting option — comparison only
 Replace GitHub's five-minute delivery schedule with **one continuously running, paid background worker**. Reuse the existing ICP notification queue, registered Android/iOS devices and Firebase delivery. GitHub remains for deployments and manual diagnostics, not routine notification delivery.
 
 **Target:** normal alerts reach an online phone in roughly **3–8 seconds**, with a TEST acceptance goal of **95% within 10 seconds**. These are targets, not measurements or guarantees. Offline devices, operating-system restrictions, outages and queued load can delay delivery. The direct Firebase test proved phone reception only.
