@@ -1,5 +1,38 @@
 # Fast native ICP push notifications
 
+## Additional option: run the sender on ICP itself
+**Plain-English proposal:** Ignite creates an alert, an ICP-hosted sender immediately sends it to Firebase, and Firebase delivers it to Android/iPhone. No Render account and no GitHub delivery schedule. **Firebase must remain**: ICP alone cannot deliver operating-system push notifications to these phones.
+
+This is an alternative to the hosting plan below, not an approved replacement. **Start with a small TEST feasibility check**, because safely authorizing Firebase from ICP is the main unresolved issue. Do not upload the existing Firebase private key into ordinary canister storage.
+
+### What we would build
+1. Reuse the existing ICP notification records, native device registrations and audience checks. Add one dedicated ICP sender that wakes when an authorized alert is queued; enqueueing and Home/chat/event actions must not wait for Firebase delivery. Use a short recovery timer for pending work, not constant empty polling or GitHub runners.
+2. Have that sender contact Firebase directly, using ICP's **single-request HTTPS mode**. The default mode sends from multiple replicas and could produce multiple phone alerts; it must not be used for sending pushes.
+3. Keep existing membership, preferences, chat mute and current-device checks immediately before delivery. Use bounded batches and the existing source queues/device directory rather than copying registrations or building another notification database. Use generic lock-screen content and authorized destinations.
+4. Keep one durable attempt per notification/device. If Firebase may have accepted a send but its response was lost, hold that attempt instead of automatically resending it. Recreate wake timers after upgrade without blanket queue recovery; never run the GitHub sender and ICP sender concurrently.
+
+### First resolve Firebase authorization
+The current Firebase sender uses a private RSA service-account key. Ordinary ICP canister storage is visible to the executing replicas; making a field private does not securely hide that key. ICP's threshold ECDSA signing is not a drop-in replacement for Google's required RS256 service-account signing.
+
+- Verify a **keyless Google identity-federation route backed by ICP-verifiable identity**, or a supported **confidential/TEE ICP deployment** with suitable credential protection. Neither is established for this app today; each needs actual availability, security and authentication proof before implementation is approved.
+- Use only a separately approved, narrowly scoped TEST credential if a protected route is proven. Do not copy the existing live Firebase secret, invent a custom cryptographic signer, or use a token-refresh server while calling the result “ICP-only.”
+- If neither route works safely, stop and report that direct ICP-only sending is not ready; retain the external-worker plan rather than weaken key protection. Do not deploy an ordinary key-holding canister as a shortcut.
+
+### Speed and cost
+**Goal:** the same seconds-scale experience as the hosting option—roughly 3–8 seconds in normal conditions, with 95% within 10 seconds on TEST. These remain unmeasured targets, not a claim that ICP will meet them. Immediate wake-up removes scheduled waiting; consensus, authorization, HTTPS, OAuth refresh and phone restrictions still take time.
+
+There is **no Render hosting bill**, but this is not free: ICP execution, storage and HTTPS requests consume cycles. Protected-subnet pricing/availability may add constraints. Measure cost per delivered alert and idle cost on TEST; present a monthly estimate for expected volume before any paid provisioning. Cache short-lived Firebase authorization securely to avoid an extra token exchange for every alert.
+
+### TEST proof and release
+- First prove protected authorization and single-request transport on isolated TEST infrastructure, without changing the working app's live credentials or sender.
+- Then measure at least 30 real queued native alerts, including Android/iOS foreground, background and closed-app receipt and taps. Include denial/mute changes, account switching, multiple devices, OAuth expiry, upgrades, low cycles and lost-response cases. Report end-to-end median/P95, failures, duplicates and cycles—not merely Firebase acceptance.
+- A default replicated POST is not acceptable, and FCM supplies no documented exactly-once send contract. Single-request mode avoids replica fan-out but trusts one replica's response; no automatic retry after ambiguous acceptance means an alert may be missed rather than duplicated. Make that tradeoff explicit.
+- After TEST success and Paul's approval, hand over the exact reviewed PROD queue inventory with sending limited to Paul first. Do not implicitly approve extra subnets, move encrypted-media clubs, change group placement or activate sending to other users. Supabase/email behavior stays unchanged.
+
+**Decision point:** choose between the proven external worker and ICP-hosted delivery only after the credential feasibility check, measured speed and cost are available. This plan authorizes scoping, not deployment, credentials, charges or live activation.
+
+References: [ICP HTTPS modes and credential risks](https://docs.internetcomputer.org/concepts/https-outcalls/), [ICP HTTPS security](https://docs.internetcomputer.org/guides/security/https-outcalls/), [Firebase sender authorization](https://firebase.google.com/docs/cloud-messaging/auth-server), [Google service-account signing](https://developers.google.com/identity/protocols/oauth2/service-account).
+
 ## Recommended approach
 Replace GitHub's five-minute delivery schedule with **one continuously running, paid background worker**. Reuse the existing ICP notification queue, registered Android/iOS devices and Firebase delivery. GitHub remains for deployments and manual diagnostics, not routine notification delivery.
 
