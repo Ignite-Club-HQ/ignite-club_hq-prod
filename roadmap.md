@@ -1,5 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
+## Native push continuation — 9 November 20:43 UTC
+- [ ] Rerun TEST notification-only check 42696315737 on synced main a9e2cad6a69ae3dd6ddf07e8e6e3e6c0239837b2; corrected transient declarations confirmed. 33 deployment tests and 36 sender tests pass. Wait for GitHub's checked plan before the TEST upgrade; then continue the separately approved Paul-only PROD sender setup. No PROD changes or alerts sent in this continuation.
+
 - [ ] All-users native push (Paul "start" 10:20 UTC 9 Nov): (1) live alerts all sit in the base group since g2 is closed, so no extra group coverage is needed yet; (2) a phone token now moves to the newest account that signs in on it (compiles; needs TEST update); (3) alert settings are already re-checked right before each send. Next: TEST update, faster Supabase sender, iPhone setup, staged rollout.
 
 ## Live Android sign-in routing report — 9 November 08:42 UTC
