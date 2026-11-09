@@ -1,7 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
 ## Minimal Supabase transport, ICP-owned notifications — 9 November 05:35 UTC
-- [ ] Complete isolated DEV sender reusing linked Firebase access; ICP retains accounts/devices/audiences/preferences/inbox/queue/durable delivery authority. No browser-push work or Supabase-mode changes.
+- [x] Added initial isolated transport/ICP authority adapter, default-unconfigured TEST-base native reservation/settlement receipts, legacy handover refusal and fresh chat mute/access method. Firebase credential path verified without sending; both services compile, receipt policy assertions and 17-contract drift check pass. Dedicated app-owned TEST signing secret saved; existing TEST seed absent from repository/environment inventories. No public endpoint or activation. Details in docs/dev-icp-supabase-native-sender-2026-11-09.md.
+- [ ] Complete installation-generation lineage, receipt erasure/snapshot integration, real replica concurrency/upgrade tests and private hosted endpoint before commissioning; candidate is TEST base only and does not authorize deployment/phone-success claims.
 - [ ] Wire non-blocking ICP wake and bounded ICP-owned recovery; verify exact TEST worker authority and exclusive handover before activation.
 - [ ] Verify native TEST queued alert/inbox/tap and measured latency before any live-delivery changes; device acceptance and authorized commissioning required.
 
