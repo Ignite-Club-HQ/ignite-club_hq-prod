@@ -9,15 +9,8 @@ import { ChatBackButton } from "@/components/chat/ChatBackButton";
  * read as "nobody has posted yet" — the point of this screen is to name the
  * real reason and offer the way out.
  */
-export function ChatAccessDenied({
-  chatName,
-  onBack,
-}: {
-  chatName?: string | null;
-  onBack?: () => void;
-}) {
+export function ChatAccessDenied({ chatName }: { chatName?: string | null }) {
   const navigate = useNavigate();
-  const goBack = onBack ?? (() => navigate("/messages"));
 
   return (
     <div className="flex flex-col h-[100dvh] bg-background">
@@ -39,7 +32,7 @@ export function ChatAccessDenied({
             add you if you need to be here.
           </p>
         </div>
-        <Button variant="outline" onClick={goBack}>
+        <Button variant="outline" onClick={() => navigate("/messages")}>
           Back to Messages
         </Button>
       </div>
