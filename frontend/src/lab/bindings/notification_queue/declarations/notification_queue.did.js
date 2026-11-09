@@ -215,6 +215,17 @@ export const idlFactory = ({ IDL }) => {
     'Err' : IDL.Text,
   });
   const DigestResult = IDL.Variant({ 'Ok' : DigestItem, 'Err' : IDL.Text });
+  const NativeReservation = IDL.Record({
+    'key' : IDL.Text,
+    'token' : IDL.Text,
+    'receipt' : IDL.Text,
+    'kind' : IDL.Text,
+    'user' : IDL.Text,
+    'platform' : IDL.Text,
+    'scope' : IDL.Text,
+    'notification_id' : IDL.Text,
+    'related_id' : IDL.Opt(IDL.Text),
+  });
   const PreferencesInput = IDL.Record({
     'email_pitch_board_enabled' : IDL.Bool,
     'admin_enabled' : IDL.Bool,
@@ -252,6 +263,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Bool, 'Err' : IDL.Text })],
         [],
       ),
+    'authorize_native_push' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Principal],
+        [IDL.Variant({ 'Ok' : IDL.Bool, 'Err' : IDL.Text })],
+        [],
+      ),
     'browser_push_test_ready' : IDL.Func([], [IDL.Bool], []),
     'browser_push_test_status' : IDL.Func([IDL.Text], [IDL.Text], []),
     'cancel_scheduled' : IDL.Func([IDL.Text, IDL.Text], [ScheduledResult], []),
@@ -267,6 +283,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'clear_inbox' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [ResultNat16], []),
+    'configure_native_push_worker' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'cycles_balance' : IDL.Func([], [IDL.Nat], ['query']),
     'delete_notification' : IDL.Func(
         [IDL.Text],
@@ -403,6 +424,17 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Principal, IDL.Principal, IDL.Bool],
         [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
         [],
+      ),
+    'native_push_configuration' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'queue' : IDL.Principal,
+            'enabled' : IDL.Bool,
+            'worker' : IDL.Opt(IDL.Principal),
+          }),
+        ],
+        ['query'],
       ),
     'prepare_account_removal' : IDL.Func(
         [Request],
@@ -545,6 +577,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
+    'reserve_native_push' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Opt(NativeReservation), 'Err' : IDL.Text })],
+        [],
+      ),
     'retire_competition_broadcast' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Vec(IDL.Text), IDL.Nat16],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
@@ -600,6 +637,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'settle_browser_push_test' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'settle_native_push' : IDL.Func(
         [IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],

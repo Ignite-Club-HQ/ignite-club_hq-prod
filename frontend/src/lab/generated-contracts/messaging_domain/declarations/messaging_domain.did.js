@@ -1149,6 +1149,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
         [],
       ),
+    'read_native_push_access' : IDL.Func(
+        [IDL.Principal, IDL.Text],
+        [IDL.Bool],
+        [],
+      ),
     'read_private_name_preparation' : IDL.Func(
         [Request],
         [IDL.Variant({ 'Ok' : Receipt__1, 'Err' : IDL.Text })],

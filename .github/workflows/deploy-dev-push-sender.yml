@@ -1,0 +1,30 @@
+name: "[TEST] Deploy DEV push sender function"
+# Publishes only icp-dev-push-sender to the fixed DEV Supabase project. Never PROD.
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Deploy to DEV only
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DEV_REF: ecsdwrarzfexssxtrymj
+          PROD_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Missing SUPABASE_ACCESS_TOKEN"; exit 1; }
+          if [ "$DEV_REF" = "$PROD_REF" ]; then echo "Refusing: ref matches PROD"; exit 1; fi
+          if ! supabase secrets list --project-ref "$DEV_REF" | grep -q 'IGNITE_DEV_ICP_PUSH_SENDER_SEED'; then
+            supabase secrets set --project-ref "$DEV_REF" "IGNITE_DEV_ICP_PUSH_SENDER_SEED=$(openssl rand -hex 32)" --yes >/dev/null
+            echo "Created sender seed (value never printed)"
+          else
+            echo "Sender seed already present"
+          fi
+          supabase functions deploy icp-dev-push-sender --project-ref "$DEV_REF" --no-verify-jwt --use-api --yes

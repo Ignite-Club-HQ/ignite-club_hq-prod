@@ -196,10 +196,27 @@ type Notification =
    status: Status;
    user: text;
  };
+type NativeReservation = 
+ record {
+   key: text;
+   kind: text;
+   notification_id: text;
+   platform: text;
+   receipt: text;
+   related_id: opt text;
+   scope: text;
+   token: text;
+   user: text;
+ };
 type Main = 
  service {
    acknowledge: (id: text, key: text) -> (Result);
    authorize_delivery: (id: text, key: text) ->
+    (variant {
+       Err: text;
+       Ok: bool;
+     });
+   authorize_native_push: (id: text, key: text, sender: principal) ->
     (variant {
        Err: text;
        Ok: bool;
@@ -215,6 +232,11 @@ type Main =
    cleanup_stale_device_tokens: (now_ms: nat64, max_age_ms: nat64) ->
     (DeviceTokenCountResult);
    clear_inbox: (user: text, club: opt text) -> (ResultNat16);
+   configure_native_push_worker: (candidate: principal) ->
+    (variant {
+       Err: text;
+       Ok;
+     });
    /// Public: remaining cycles (shown in admin settings).
    cycles_balance: () -> (nat) query;
    delete_notification: (id: text) -> (variant {
@@ -293,6 +315,12 @@ type Main =
        err: text;
        ok: nat;
      });
+   native_push_configuration: () ->
+    (record {
+       enabled: bool;
+       queue: principal;
+       worker: opt principal;
+     }) query;
    prepare_account_removal: (request: Request) -> (variant {
                                                      Err: text;
                                                      Ok;
@@ -382,6 +410,11 @@ type Main =
                                                Err: text;
                                                Ok;
                                              });
+   reserve_native_push: () ->
+    (variant {
+       Err: text;
+       Ok: opt NativeReservation;
+     });
    retire_competition_broadcast: (club: text, key: text, audience: vec text,
     count: nat16) -> (variant {
                         Err: text;
@@ -420,6 +453,11 @@ type Main =
        Ok;
      });
    settle_browser_push_test: (id: text, outcome: text) ->
+    (variant {
+       Err: text;
+       Ok;
+     });
+   settle_native_push: (receipt: text, outcome: text) ->
     (variant {
        Err: text;
        Ok;
