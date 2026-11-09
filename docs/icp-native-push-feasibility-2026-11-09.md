@@ -21,6 +21,17 @@ Read-only investigation of the approved ICP-first plan. No Render provisioning, 
 ## Decision
 **Direct ICP transport is supported; safe app-specific authorization is not yet established.** The safe next checkpoint is verification of protected execution and an approved isolated TEST authorization route, not activation of a key-holding sender. No claim of 3–8-second measured delivery or complete implementation.
 
+## Authorization-protection implementation request — 9 November, 04:54 UTC
+Rechecked the official node-infrastructure and HTTPS-outcall security guidance and the existing `secret_workload_identity` source. No credentials were read or provisioned, and no runtime changes were made.
+
+- `secret_workload_identity` is a caller/scope authorization registry and audit log, not confidential storage. Adding Firebase scopes does not hide memory or HTTP authorization headers from replicas.
+- Encryption at rest cannot solve autonomous use: a sender that decrypts a key or token inside ordinary execution exposes the usable credential to that execution environment. Returning a vetKey to the same environment does not change this boundary.
+- Threshold signing/keyless federation can remove the stored RSA key, but Google still issues usable bearer credentials. Single-request HTTPS prevents replica fan-out, not credential inspection.
+- The node-infrastructure documentation describes SEV-SNP memory encryption, measured GuestOS launches, attestation and sealed disks. It also states rollout is in progress and external attestation is mediated through API boundary nodes; it supplies no verified exact target/node inventory or app-specific protection proof for this sender.
+- The HTTPS-outcall security documentation still explicitly warns against putting API keys or tokens in ordinary canisters. No supported attestation/provisioning integration available in this project establishes the stronger confidentiality boundary.
+
+**Implementation cannot safely manufacture the missing infrastructure guarantee.** Before handling any TEST credential, obtain a provider-supported, independently verifiable protected ICP target covering execution, persistence, outgoing TLS authorization, upgrades/recovery and node changes. Then rehearse the bounded Firebase authorization path against that verified target. No local boolean, owner-supplied assertion, permission registry or passing fixture may enable credential handling in its place. Supabase push and existing PROD sender remain unchanged.
+
 ## Sources checked
 - https://docs.internetcomputer.org/concepts/https-outcalls/
 - https://docs.internetcomputer.org/guides/security/https-outcalls/
