@@ -1605,8 +1605,10 @@ persistent actor class Main(governorInit : Principal) = this {
     if (Principal.fromActor(this).toText() != "jfcdq-yiaaa-aaaal-qxloa-cai") return #Err("TEST base queue only");
     if (nativePushAttempts.size() >= 10000) return #Err("Delivery journal capacity reached");
     var scanned = 0;
-    for (captured in items.values()) {
-      if (scanned >= 200) break;
+    let count = items.size();
+    while (scanned < Nat.min(count, 200)) {
+      let captured = items[rehearsalClaimCursor % count];
+      rehearsalClaimCursor := (rehearsalClaimCursor + 1) % count;
       scanned += 1;
       if (captured.status != #Pending or isFenced(captured.club) or recipientFenced(captured.user)) continue;
       let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
@@ -1614,17 +1616,23 @@ persistent actor class Main(governorInit : Principal) = this {
       // One source reservation before awaits; no legacy worker may adopt it.
       let index = findIndex(captured.id) ?? continue;
       let processing = { captured with status = #Processing; attempts = captured.attempts + 1 };
+      let devicesBefore = device_tokens.filter(func d = d.user == captured.user);
       replace(index, processing); setLease(captured.id, caller);
       let allowed = try { await this.authorize_native_push(captured.id, captured.idempotency_key, caller) } catch (_) { #Err("Authority unavailable") };
       if (nativePushWorker != ?caller or not ownsLease(captured.id, caller)) return #Err("Sender authority changed");
       switch (allowed) {
         case (#Err(_)) { return #Err("Delivery permission could not be confirmed; source held") };
-        case (#Ok(false)) { replace(index, { processing with status = #Failed }); clearLease(captured.id); continue };
+        case (#Ok(false)) {
+          let deniedIndex = findIndex(captured.id) ?? return #Err("Notification removed");
+          if (items[deniedIndex] != processing) return #Err("Notification changed");
+          replace(deniedIndex, { processing with status = #Failed }); clearLease(captured.id); continue
+        };
         case (#Ok(true)) {};
       };
       // Re-check after all awaits, then reserve atomically without another await.
       let currentIndex = findIndex(captured.id) ?? return #Err("Notification removed");
-      if (items[currentIndex] != processing or isFenced(captured.club) or recipientFenced(captured.user)) return #Err("Notification changed; source held");
+      if (items[currentIndex] != processing or isFenced(captured.club) or recipientFenced(captured.user) or
+        device_tokens.filter(func d = d.user == captured.user) != devicesBefore) return #Err("Notification or device changed; source held");
       let eligible = device_tokens.filter(func d = d.user == captured.user and (d.platform == "android" or d.platform == "ios") and
         not device_tokens.any(func other = other.token == d.token and other.user != d.user) and
         not NativePush.occupied(nativePushAttempts, captured.id, d.token, d.updated_at_ms));
