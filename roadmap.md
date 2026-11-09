@@ -2,6 +2,8 @@
 
 ## Fast native ICP push scope — 9 November 2026
 - [x] Paul prefers no Render; prioritize ICP-hosted feasibility and keep external hosting an unapproved fallback, not the recommended implementation. Firebase phone delivery remains necessary.
+- [x] Approved-plan read-only feasibility: Google federation supports ES256 and ICP's interface includes P-256, but bearer-token protection and an enabled deployment key remain unverified; findings recorded in docs/icp-native-push-feasibility-2026-11-09.md. No service or credential changes.
+- [ ] ICP-only implementation held on verified protected-subnet/credential handling and an approved isolated TEST Google authorization route; do not upload live keys or activate sending to bypass these dependencies.
 - [x] Scoped an ICP-hosted sender alternative without Render/GitHub delivery; single-request HTTPS is supported, but secure Firebase authorization remains unresolved. Plan requires protected/keyless TEST feasibility before implementation, measured latency/cycles and exclusive handover; no live activation or credential changes.
 - [x] Explain the recommendation in plain English: a small continuously running sender replaces GitHub's scheduled wait; paid hosting required, seconds-scale target unmeasured.
 - [x] Scoped one paid always-on worker with a cheap protected ready-work query, existing ICP authorization/Firebase delivery and exclusive handover. Target 3–8 seconds, not measured; TEST native evidence and hosting cost approval required. Supabase unchanged; no activation.
