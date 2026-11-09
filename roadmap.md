@@ -13,7 +13,8 @@
 
 ## Live native ICP push — Paul only (8 November 2026)
 - [x] Added manual Paul-only native self-test using the existing protected sender; 39 focused tests pass, including one-device/native-only selection, unexpected-owner refusal, no-device, and uncertain-send no-retry checks. No queue writes, pruning, canister upgrades, Supabase changes or recurring activation.
-- [ ] Merge main→prod so the new manual workflow option is available, then dispatch once and confirm Firebase acceptance and Paul's phone receipt; currently blocked on source promotion and physical receipt confirmation. No test alert sent yet.
+- [x] Verified merged PROD 9e3c458f and dispatched manual Paul-only self-test 42558548142 on 9 November at 03:50 UTC; completed successfully, log confirms `accepted_by_firebase; Firebase accepted 1`. Selected one registered native device; no ordinary queue processing or recurring activation.
+- [ ] Paul confirms phone receipt of the single native test alert; Firebase acceptance is verified but physical display/tap remains unverified.
 - [x] Manual run 42557719358 on 9 November completed with no pending notifications; recurring delivery disabled again. No notification sent.
 - [x] Paul chose native-only push, live app limited to his account. Live sender now requires a recipient list (Paul only), unlocks the stored encrypted key, skips alerts older than 30 minutes. Recipient, queue and Firebase project settings saved in GitHub. 27 sender tests pass.
 - [x] Firebase secret confirmed saved; merged PROD sender verified on 548149f0. Account-only manual run 42457013641 completed: claimed 1, delivered 0, failed 0, no-device/skipped 1. Recurring delivery disabled again after dispatch; Supabase push unchanged.
