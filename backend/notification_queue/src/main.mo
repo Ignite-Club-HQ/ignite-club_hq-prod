@@ -1639,6 +1639,31 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   };
 
+  // Caller-owned native test alert: queues one generic app-scope item for the
+  // caller only, through the normal fast-sender path. At most one per minute.
+  public shared ({ caller }) func queue_my_native_test_alert() : async { #Ok : Text; #Err : Text } {
+    if (caller == Principal.anonymous()) return #Err("Sign in required");
+    if (nativeSenderUrl() == null or nativePushWorker == null) return #Err("Fast sender not configured");
+    let user = caller.toText();
+    if (not nativeRecipientAllowed(user) or recipientFenced(user)) return #Err("Account not enabled for native alerts");
+    if (not removalReceiver.enter(caller)) return #Err("Account unavailable");
+    try {
+      await admitAccount(caller);
+      if (removalReceiver.denied(caller)) return #Err("Account unavailable");
+      let minute = Nat64.fromIntWrap(Time.now() / 60_000_000_000);
+      let id = "native-test-" # user # "-" # minute.toText();
+      if (get(id) != null) return #Err("A test alert was already queued this minute");
+      let notification : Types.Notification = {
+        id; user; club = "app"; kind = "native_test"; body = "Test alert";
+        idempotency_key = id; status = #Pending; attempts = 0; next_attempt_ms = 0;
+        read = true; related_id = null; created_at_ms = Nat64.fromIntWrap(Time.now() / 1_000_000);
+      };
+      items := items.concat([notification]);
+      wakeNativeSender<system>();
+      #Ok(id)
+    } finally { removalReceiver.leave(caller) }
+  };
+
   public query func native_push_configuration() : async { worker : ?Principal; queue : Principal; enabled : Bool } {
     { worker = nativePushWorker; queue = Principal.fromActor(this); enabled = nativePushWorker != null }
   };
