@@ -212,6 +212,7 @@ persistent actor class Main(governorInit : Principal) = this {
   public shared ({ caller }) func purge_club_snapshot(club : Text) : async { #Ok : Nat; #Err : Text } {
     if (not fenceGov(caller)) return #Err("Governor required");
     if (not isFenced(club)) return #Err("Club must be fenced before purge");
+    if (items.any(func(x) = x.club == club and x.status == #Processing)) return #Err("Club has notifications being delivered; retry after the worker finishes");
     let n = fenceSnapshot(club).items.size(); fenceDrop(club); #Ok(n)
   };
 
