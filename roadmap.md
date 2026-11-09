@@ -1,7 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Live Android sign-in routing report — 9 November 08:42 UTC
-- [ ] Investigate Paul's installed LIVE Android /auth screenshots: blocked user_roles, rpc and clubs calls repeat while Internet Identity is active. Prepare and verify repair on DEV only; no live changes. Push work remains separate; real phone reproduction/release acceptance requires Paul's device.
+- [ ] Investigated Paul's installed LIVE Android /auth screenshots: reproduced restored II session selecting email under the default placement rule (two regressions fail before repair). DEV candidate retains restored II routing without a URL choice while keeping active email sessions and explicit email choice unchanged. Run focused auth/routing tests; live phone reproduction/release acceptance still requires Paul's device. No live changes; push work remains separate.
 
 ## Minimal Supabase transport, ICP-owned notifications — 9 November 05:35 UTC
 - [ ] Proceed 08:30 UTC: workflow is synced on main a9743489, but GitHub dispatch rejected job-level runner.temp (HTTP 422) before any job ran. Moved the temporary tool path into the preparation step using RUNNER_TEMP; retry the corrected synced workflow and inspect disposable evidence. Installation lineage/receipt erasure, private endpoint/wake commissioning and native TEST phone acceptance still block activation. No send or live changes.
