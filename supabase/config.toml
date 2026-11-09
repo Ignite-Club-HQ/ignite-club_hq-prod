@@ -1,4 +1,8 @@
 project_id = "ecsdwrarzfexssxtrymj"
+[functions.icp-dev-push-sender]
+# Content-free wake-ups; sends only if ICP has commissioned this sender.
+verify_jwt = false
+
 [functions.icp-dev-push-test]
 # The worker claims only caller-authorized, single-use TEST records on ICP.
 verify_jwt = false
