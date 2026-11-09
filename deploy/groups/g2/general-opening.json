@@ -71,7 +71,7 @@
       "name": "notification_queue",
       "canisterId": "zu4gk-vqaaa-aaaal-qxp5a-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "53ba1c75e4f09671ab41218d332734b70fcaffbcbbc7b100bd5a58892f0bc029"
+      "moduleHash": "57de33daa646afac2a4319a1a3eff516dfe25610df8780c10445a324689d11e4"
     },
     {
       "name": "pii_access_control",
