@@ -2,12 +2,12 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { PocketIc, CanisterCyclesCostSchedule } from '@dfinity/pic';
+import { PocketIc } from '@dfinity/pic';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 import { removalHostPreflight } from './removal-host-preflight.mjs';
 import { startRemovalLocalServer, finishRemovalLocalTest } from './removal-local-supervisor.mjs';
-import { timerCounts, classifyRetry, IDLE_MINUTES, LOW_FUEL_ROUNDS, LOW_FUEL_STEP_MS, HEADROOMS } from './club-fuel-policy.mjs';
+import { timerCounts, classifyRetry, IDLE_MINUTES, LOW_FUEL_ROUNDS, LOW_FUEL_STEP_MS, HEADROOMS, LOCAL_REPLICA_CONFIG } from './club-fuel-policy.mjs';
 
 const report = { scope: 'disposable-local-only', deployedServicesChanged: false,
   productionCauseProven: false, compiler: '1.16.1', passed: false, idle: [], lowFuel: [] };
@@ -27,7 +27,7 @@ try {
   report.wasm = { probe: createHash('sha256').update(probeWasm).digest('hex'), club: createHash('sha256').update(clubWasm).digest('hex') };
   server = await startRemovalLocalServer({ binary: process.env.POCKET_IC_BIN, hardTtlSeconds: 300 });
   report.replica = server.version;
-  pic = await PocketIc.create(server.url, { application: [{ costSchedule: CanisterCyclesCostSchedule.Normal }] });
+  pic = await PocketIc.create(server.url, LOCAL_REPLICA_CONFIG);
   const createProbe = () => pic.setupCanister({ idlFactory: probeIdl, wasm: probeWasm, sender: governor,
     controllers: [governor], cycles: 5_000_000_000_000n, freezingThreshold: 0n });
   const control = await createProbe(), timers = await createProbe();
@@ -40,7 +40,7 @@ try {
   await pic.tick(10);
   const targets = [{ name: 'control', id: control.canisterId }, { name: 'matching-idle-timers', id: timers.canisterId }, { name: 'actual-empty-club', id: clubId }];
   const before = await Promise.all(targets.map(t => pic.getCyclesBalance(t.id)));
-  for (let minute = 0; minute < IDLE_MINUTES; minute++) { await pic.advanceTime(60_000); await pic.tick(10); }
+  for (let halfMinute = 0; halfMinute < IDLE_MINUTES * 2; halfMinute++) { await pic.advanceTime(30_000); await pic.tick(10); }
   const after = await Promise.all(targets.map(t => pic.getCyclesBalance(t.id)));
   report.idle = targets.map((t, i) => ({ name: t.name, before: before[i], after: after[i], consumed: before[i] - after[i], simulatedSeconds: IDLE_MINUTES * 60 }));
   report.idleCounts = await timers.actor.counts();
