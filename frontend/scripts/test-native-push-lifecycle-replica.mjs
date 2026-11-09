@@ -32,6 +32,7 @@ try {
   const setup = extra => pic.setupCanister({ idlFactory, wasm, sender: governor,
     controllers: [governor], arg: IDL.encode([IDL.Principal], [governor]), ...extra });
   const local = await setup({ targetCanisterId: Principal.fromText('jfcdq-yiaaa-aaaal-qxloa-cai') });
+  assert.equal(local.canisterId.toText(), 'jfcdq-yiaaa-aaaal-qxloa-cai', 'TEST address must exist only in this disposable replica');
   const q = local.actor;
   q.setPrincipal(governor);
   assert.equal((await q.native_push_configuration()).enabled, false);
