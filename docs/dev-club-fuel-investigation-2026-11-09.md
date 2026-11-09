@@ -4,7 +4,7 @@
 
 No deployed DEV or PROD canister, fuel balance, setting, membership, data or timer was changed. The new manual TEST workflow runs disposable actors on a local PocketIC instance on a native Linux GitHub worker. It cannot deploy to either application's services and uses no deployment secrets.
 
-The sandbox host compatibility check failed: Linux 4.19.0-gvisor recovered a write fault but reported `writeBit: 0`; IC memory tracking requires `writeBit: 1`. The experiment stops before installation on this host. The disposable probe compiled with moc 1.16.1; 14 focused policy/host/supervisor tests passed. GitHub run **42551549182** was dispatched on main source **4799770b56b876d8aa4af4f2ec1e5dcd0d1819c9**; its measurements are pending.
+The sandbox host compatibility check failed: Linux 4.19.0-gvisor recovered a write fault but reported `writeBit: 0`; IC memory tracking requires `writeBit: 1`. The experiment stops before installation on this host. Both the disposable probe and unchanged club source compiled with moc 1.16.1. GitHub run **42551549182** on main source **4799770b56b876d8aa4af4f2ec1e5dcd0d1819c9** passed installation/tooling/compilation but stopped before measurement because the explicit application-subnet configuration omitted required `state.type`. Corrected to the library's `new` state; an actual installed-library encoding regression and fourteen existing checks now pass (15 total). Also sample idle time every 30 seconds: the compiler skips missed recurring expirations, so minute-only sampling cannot verify 40 directory callbacks. A fresh GitHub run must use these corrected bytes; there are still no runtime fuel results.
 
 ## Verified source behavior
 
