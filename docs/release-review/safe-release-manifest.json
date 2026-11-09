@@ -295,8 +295,8 @@
     {
       "file": "20261109223211_e5d6a915-b510-4800-b35f-1489f0bbe180.sql",
       "sha256": "4c42b73bf5c9493998537c82abc39b4024d496cff525886e50ba5ea2a4416f47",
-      "disposition": "hold",
-      "reason": "Competition role self-removal function signature repair; held from automatic apply pending separate owner-approved structural batch"
+      "disposition": "candidate",
+      "reason": "Owner-approved 10 Nov 2026 (Paul): competition role self-removal function signature repair; structure only, preserves existing roles, messages and chat-sync triggers"
     }
   ]
 }
