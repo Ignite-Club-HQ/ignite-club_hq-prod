@@ -1,9 +1,9 @@
 {
   "canisters": {
-    "identity_access": "2c3f491b525570d07ab87cb7dd00e1e0059ec636",
-    "placement_registry": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
-    "migration_coordinator": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
-    "secret_workload_identity": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
+    "identity_access": "9e3c458f5122e297351cad130196702173d1b964",
+    "placement_registry": "9e3c458f5122e297351cad130196702173d1b964",
+    "migration_coordinator": "9e3c458f5122e297351cad130196702173d1b964",
+    "secret_workload_identity": "9e3c458f5122e297351cad130196702173d1b964",
     "pii_access_control": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "timer_jobs": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "club_domain": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
@@ -19,5 +19,5 @@
     "insights_domain": "58c00a79f20b8254794d102a346b2a6ee3d1f43d",
     "shard_router": "58c00a79f20b8254794d102a346b2a6ee3d1f43d"
   },
-  "updatedAt": "2026-11-08T07:02:02.807Z"
+  "updatedAt": "2026-11-09T03:52:21.959Z"
 }
