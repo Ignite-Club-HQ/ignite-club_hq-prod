@@ -703,7 +703,7 @@ export interface MainInterface {
         stable_bytes: bigint;
         heap_bytes: bigint;
     }>;
-    merge_principal(old: Principal, new: Principal, dry_run: boolean): Promise<{
+    merge_principal(old: Principal, new_principal: Principal, dry_run: boolean): Promise<{
         __kind__: "ok";
         ok: bigint;
     } | {
@@ -1065,6 +1065,7 @@ export interface MainInterface {
         Err: string;
     }>;
     read_group_opening_configuration(): Promise<Array<[string, string]>>;
+    read_native_push_access(subject: Principal, conversation_id: string): Promise<boolean>;
     read_private_name_preparation(request: Request): Promise<{
         __kind__: "Ok";
         Ok: Receipt__1;
@@ -1143,7 +1144,7 @@ export interface MainInterface {
         __kind__: "Err";
         Err: string;
     }>;
-    rekey_principal(old: Principal, new: Principal, dry_run: boolean): Promise<{
+    rekey_principal(old: Principal, new_principal: Principal, dry_run: boolean): Promise<{
         __kind__: "ok";
         ok: bigint;
     } | {
@@ -2967,6 +2968,10 @@ export class Messaging_domain implements messaging_domainInterface {
     }
     async read_group_opening_configuration(): Promise<Array<[string, string]>> {
         const result = await this.actor.read_group_opening_configuration();
+        return result;
+    }
+    async read_native_push_access(arg0: Principal, arg1: string): Promise<boolean> {
+        const result = await this.actor.read_native_push_access(arg0, arg1);
         return result;
     }
     async read_private_name_preparation(arg0: Request): Promise<{

@@ -70,6 +70,11 @@ export interface Main {
     { 'Ok' : boolean } |
       { 'Err' : string }
   >,
+  'authorize_native_push' : ActorMethod<
+    [string, string, Principal],
+    { 'Ok' : boolean } |
+      { 'Err' : string }
+  >,
   'browser_push_test_ready' : ActorMethod<[], boolean>,
   'browser_push_test_status' : ActorMethod<[string], string>,
   'cancel_scheduled' : ActorMethod<[string, string], ScheduledResult>,
@@ -84,6 +89,11 @@ export interface Main {
     DeviceTokenCountResult
   >,
   'clear_inbox' : ActorMethod<[string, [] | [string]], ResultNat16>,
+  'configure_native_push_worker' : ActorMethod<
+    [Principal],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   /**
    * / Public: remaining cycles (shown in admin settings).
    */
@@ -172,6 +182,10 @@ export interface Main {
     [Principal, Principal, boolean],
     { 'ok' : bigint } |
       { 'err' : string }
+  >,
+  'native_push_configuration' : ActorMethod<
+    [],
+    { 'queue' : Principal, 'enabled' : boolean, 'worker' : [] | [Principal] }
   >,
   'prepare_account_removal' : ActorMethod<
     [Request],
@@ -278,6 +292,11 @@ export interface Main {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  'reserve_native_push' : ActorMethod<
+    [],
+    { 'Ok' : [] | [NativeReservation] } |
+      { 'Err' : string }
+  >,
   'retire_competition_broadcast' : ActorMethod<
     [string, string, Array<string>, number],
     { 'Ok' : null } |
@@ -336,6 +355,11 @@ export interface Main {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  'settle_native_push' : ActorMethod<
+    [string, string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'transfer_governorship' : ActorMethod<
     [Principal],
     { 'Ok' : null } |
@@ -362,6 +386,17 @@ export interface Main {
     [PushAlertSettingsInput],
     PushAlertSettings
   >,
+}
+export interface NativeReservation {
+  'key' : string,
+  'token' : string,
+  'receipt' : string,
+  'kind' : string,
+  'user' : string,
+  'platform' : string,
+  'scope' : string,
+  'notification_id' : string,
+  'related_id' : [] | [string],
 }
 export interface Notification {
   'id' : string,

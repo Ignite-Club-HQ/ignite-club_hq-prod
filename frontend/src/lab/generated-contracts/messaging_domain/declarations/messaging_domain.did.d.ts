@@ -800,6 +800,7 @@ export interface Main {
       { 'Err' : string }
   >,
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
+  'read_native_push_access' : ActorMethod<[Principal, string], boolean>,
   'read_private_name_preparation' : ActorMethod<
     [Request],
     { 'Ok' : Receipt__1 } |
