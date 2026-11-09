@@ -21,7 +21,7 @@ import {
 } from "@/live/features/competitions";
 import { CompetitionAdminInboxCard } from "@/components/competitions/CompetitionAdminInboxCard";
 import { CompetitionRoleRemovalDialog } from "./CompetitionRoleRemovalDialog";
-import { removeSupabaseCompetitionRole, competitionRoleRefreshKeys } from "@/features/competitions/removeCompetitionRole";
+import { removeSupabaseCompetitionRole, competitionRoleRefreshKeys, competitionRoleRemovalError } from "@/features/competitions/removeCompetitionRole";
 
 interface CompetitionAdminsCardProps {
   competitionId: string;
@@ -233,7 +233,9 @@ export function CompetitionAdminsCard({
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Could not remove admin", description: error.message, variant: "destructive" });
+      const { technicalMessage, ...notice } = competitionRoleRemovalError(error);
+      console.error("[CompetitionAdminsCard] Role removal failed:", technicalMessage);
+      toast(notice);
     },
   });
 

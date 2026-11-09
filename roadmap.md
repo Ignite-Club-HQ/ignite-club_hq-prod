@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Competition admin leaving — 9 November 22:28 UTC
+- [ ] Prepare and rehearse additive missing-action repair; preserve exact-role deletion, owner protection, other entitlements and existing chat triggers. No live role/data changes.
+- [ ] Live deployment and authenticated phone acceptance require approved PROD promotion; screenshot reports PGRST202, while TEST already has the final action.
+
 ## Native push continuation — 9 November 20:43 UTC
 - [x] TEST notification-only check 42696315737 and update 42696751410 succeeded on synced main a9e2cad6a69ae3dd6ddf07e8e6e3e6c0239837b2. Both selected TEST modules, photo-key preservation, g2 routing snapshot and published fingerprints verified. 33 deployment tests and 36 sender tests pass. No PROD changes or manual alerts sent.
 - [ ] Continue separately approved Paul-only PROD sender setup after main→prod promotion includes the verified notification changes; deploy and commission the isolated live sender, then obtain Paul's phone receipt/latency confirmation. No app deployment or phone acceptance occurred during the TEST update.

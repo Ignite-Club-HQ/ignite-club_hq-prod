@@ -18,4 +18,10 @@ describe("exact competition role removal", () => {
     m.rpc.mockResolvedValue({ data: null, error: new Error("Owner roles cannot be removed") });
     await expect(removeSupabaseCompetitionRole("cup", row)).rejects.toThrow("Owner roles");
   });
+  it("does not bypass the server or retry when its action is missing", async () => {
+    const error = { code: "PGRST202", message: "Could not find public.remove_exact_competition_role in the schema cache" };
+    m.rpc.mockResolvedValue({ data: null, error });
+    await expect(removeSupabaseCompetitionRole("cup", row)).rejects.toEqual(error);
+    expect(m.rpc).toHaveBeenCalledTimes(1);
+  });
 });
