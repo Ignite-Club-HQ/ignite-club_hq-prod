@@ -20,7 +20,7 @@ describe("competitionContactError", () => {
       const result = competitionContactError(new Error(raw));
 
       expect(result.title).toBe("Messaging organisers isn't available to you here");
-      expect(result.description).toContain("ask your club to add you to a team");
+      expect(result.description).toContain("ask your club admin to add you to a team");
     }
   });
 
