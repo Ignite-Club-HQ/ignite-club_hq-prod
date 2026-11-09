@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Club-service fuel investigation (DEV only, 9 November 2026)
+- [ ] Reproduce suspected low-fuel self-call retry amplification in a bounded disposable local replica; never lower balances or alter settings on deployed DEV/PROD services.
+- [ ] Measure idle timer fuel against a no-timer control, record compiler/replica evidence and determine whether a DEV fix is justified. No live deployment or production changes authorized.
+
 ## ICP email notification availability (DEV only)
 - [x] Removed ICP email controls from member settings and admin report; blocked email preference handlers in ICP, including mode changes. Supabase save/report branches unchanged. Twelve tests pass in each backend test mode; preview build OK. No service/settings/PROD changes.
 - [ ] Confirm on Paul's signed-in TEST account after frontend deployment; delegated Internet Identity session/device and canister deployment are unverified.
