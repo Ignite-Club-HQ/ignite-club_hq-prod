@@ -37,7 +37,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 
 
