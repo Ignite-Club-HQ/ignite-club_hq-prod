@@ -1,7 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Fast native ICP push scope — 9 November 2026
-- [ ] Scope an ICP-hosted sender alternative without Render/GitHub delivery; verify Firebase authentication, outbound-send duplication/secrets risks, cycles and seconds-scale native acceptance requirements. Planning only; no activation.
+- [x] Scoped an ICP-hosted sender alternative without Render/GitHub delivery; single-request HTTPS is supported, but secure Firebase authorization remains unresolved. Plan requires protected/keyless TEST feasibility before implementation, measured latency/cycles and exclusive handover; no live activation or credential changes.
 - [x] Explain the recommendation in plain English: a small continuously running sender replaces GitHub's scheduled wait; paid hosting required, seconds-scale target unmeasured.
 - [x] Scoped one paid always-on worker with a cheap protected ready-work query, existing ICP authorization/Firebase delivery and exclusive handover. Target 3–8 seconds, not measured; TEST native evidence and hosting cost approval required. Supabase unchanged; no activation.
 
