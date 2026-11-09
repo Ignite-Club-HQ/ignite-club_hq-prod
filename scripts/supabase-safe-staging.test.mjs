@@ -82,7 +82,7 @@ test('workflow runner safe-plan stops before every write and records a held phas
     assert.equal(report.deploymentAuthorized, false);
     assert.deepEqual(report.functions, []);
     assert.equal(report.candidates.length, 12);
-    assert.equal(report.held.length, 37);
+    assert.equal(report.held.length, 38);
     const approved = JSON.parse(readFileSync('docs/release-review/safe-apply-approval.json', 'utf8')).migrations.map(m => m.file);
     assert.deepEqual(approved.slice().sort(), report.candidates.map(c => c.file).filter(f => approved.includes(f)).sort());
     const commands = readFileSync(log, 'utf8');

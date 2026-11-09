@@ -70,7 +70,7 @@ const SIX = [
   '20261105000200_competition_role_email_invites.sql',
   '20261105000300_club_invite_message_defaults.sql',
   '20261105000400_send_welcome_dm.sql',
-  '20261109223211_e5d6a915-b510-4800-b35f-1489f0bbe180.sql',
+  '20261109232052_a578f787-ba4e-4669-8bf0-c6ce2e552389.sql',
 ].sort();
 
 function realRelease() {
@@ -150,7 +150,7 @@ test('the safe-apply runner applies exactly the six approved batches, one transa
     assert.deepEqual(report.apply, SIX);
     assert.deepEqual(report.applied, SIX);
     assert.deepEqual(report.alreadyApplied, []);
-    assert.equal(report.held.length, 37);
+    assert.equal(report.held.length, 38);
     assert.equal(report.dataCopy, false);
     const input = readSafeInputs(process.cwd());
     const written = readFileSync(log, 'utf8').split('\n=== WRITE ===\n').slice(1);
