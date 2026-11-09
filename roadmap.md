@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Empty ICP team carousel — 9 November 2026
+- [x] Reproduced serial role→player-league discovery; started the independent caller-authorized reads together. Thirteen carousel tests pass, including confirmed-empty, league-only and failed-inventory cases; preview build OK. No PROD changes; real Android delay remains unmeasured.
+- [ ] Verify Paul's authenticated Android empty-team startup after a tested release; physical device/session required.
+
 ## Club-service fuel investigation (DEV only, 9 November 2026)
 - [x] Prepared and dispatched disposable local TEST experiment 42551549182 on main 4799770b; probe compiled and 14 focused tests pass. Sandbox IC memory-tracking compatibility fails, so replica measurements use the native Linux GitHub worker. Verified compiler helper immediately reinserts failed timer dispatch; historical PROD causation remains unproven.
 - [x] First GitHub experiment compiled successfully but stopped at missing subnet-state configuration before any measurement. Corrected and verified against the installed library; 15 tests pass. Idle sampling now respects 30-second recurring expirations. No fuel result or service-fix claim.
