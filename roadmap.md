@@ -1,7 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Fast native ICP push scope — 9 November 2026
-- [ ] Scope a minimal seconds-scale sender replacing GitHub scheduling; preserve ICP queue/device authority, Supabase isolation and Paul-only PROD limit. Scope only, no activation.
+- [x] Scoped one paid always-on worker with a cheap protected ready-work query, existing ICP authorization/Firebase delivery and exclusive handover. Target 3–8 seconds, not measured; TEST native evidence and hosting cost approval required. Supabase unchanged; no activation.
 
 ## Empty ICP team carousel — 9 November 2026
 - [x] Reproduced serial role→player-league discovery; started the independent caller-authorized reads together. Thirteen carousel tests pass, including confirmed-empty, league-only and failed-inventory cases; preview build OK. No PROD changes; real Android delay remains unmeasured.
