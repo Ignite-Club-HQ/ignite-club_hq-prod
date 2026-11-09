@@ -1,8 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
 ## Club-service fuel investigation (DEV only, 9 November 2026)
+- [x] Prepared and dispatched disposable local TEST experiment 42551549182 on main 4799770b; probe compiled and 14 focused tests pass. Sandbox IC memory-tracking compatibility fails, so replica measurements use the native Linux GitHub worker. Verified compiler helper immediately reinserts failed timer dispatch; historical PROD causation remains unproven.
 - [ ] Reproduce suspected low-fuel self-call retry amplification in a bounded disposable local replica; never lower balances or alter settings on deployed DEV/PROD services.
 - [ ] Measure idle timer fuel against a no-timer control, record compiler/replica evidence and determine whether a DEV fix is justified. No live deployment or production changes authorized.
+- [ ] Paul requested the fix at 02:32 UTC: finish runtime evidence, implement only a demonstrated DEV repair and verify it before any live-release proposal. Awaiting isolated run results; no deployed service changed.
 
 ## ICP email notification availability (DEV only)
 - [x] Removed ICP email controls from member settings and admin report; blocked email preference handlers in ICP, including mode changes. Supabase save/report branches unchanged. Twelve tests pass in each backend test mode; preview build OK. No service/settings/PROD changes.
