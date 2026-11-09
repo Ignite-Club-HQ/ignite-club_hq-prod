@@ -26,6 +26,7 @@ import ScheduleCalendar "scheduleCalendar";
 import SchedulePatch "schedulePatch";
 import UpdateReminderAccess "updateReminderAccess";
 import BrowserPushTest "browserPushTest";
+import NativePush "nativePush";
 
 persistent actor class Main(governorInit : Principal) = this {
   // Opt-in local rehearsal only; production deploy scripts must never set these.
@@ -110,6 +111,9 @@ persistent actor class Main(governorInit : Principal) = this {
   var device_tokens : [Types.DeviceToken];
   // Self-test only: separate from items, leases and legacy recover(). No recurring worker.
   var browserPushTests : [BrowserPushTest.Row];
+  var nativePushWorker : ?Principal;
+  var nativePushSequence : Nat;
+  var nativePushAttempts : [NativePush.Attempt];
   var deviceVersions : [{ user : Text; platform : Text; app_version : ?Text; build_number : ?Text }];
   var transferFences : [Text];
   // Local-only bounded polling experiment; resets on upgrade, never authority.
@@ -827,6 +831,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
   public shared ({ caller }) func claim(now_ms : Nat64, limit : Nat16) : async Types.Results {
     worker(caller);
+    if (nativePushWorker != null) return #Err("Native sender owns delivery; legacy claims are disabled");
     if (limit == 0 or limit > 100) return #Err("Invalid batch size");
     var candidates : [Types.Notification] = [];
     do {
@@ -952,6 +957,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
   public shared ({ caller }) func recover() : async Types.ResultNat16 {
     worker(caller);
+    if (nativePushWorker != null) return #Err("Native delivery attempts must never be recovered by the legacy worker");
     var recovered : Nat16 = 0;
     var index = 0;
     for (item in items.values()) {
@@ -1574,6 +1580,118 @@ persistent actor class Main(governorInit : Principal) = this {
 
   // ======================================================================
   // Device push tokens
+  // Narrow TEST transport authority; Supabase has no notification database.
+  public shared ({ caller }) func configure_native_push_worker(candidate : Principal) : async { #Ok; #Err : Text } {
+    governorOnly(caller);
+    if (Principal.fromActor(this).toText() != "jfcdq-yiaaa-aaaal-qxloa-cai") return #Err("TEST base queue only");
+    if (candidate == Principal.anonymous()) return #Err("Invalid sender");
+    if (nativePushWorker == ?candidate) return #Ok;
+    if (nativePushWorker != null or items.any(func n = n.status == #Processing)) return #Err("Existing delivery must be settled before handover");
+    nativePushWorker := ?candidate;
+    #Ok
+  };
+
+  public query func native_push_configuration() : async { worker : ?Principal; queue : Principal; enabled : Bool } {
+    { worker = nativePushWorker; queue = Principal.fromActor(this); enabled = nativePushWorker != null }
+  };
+
+  type NativeReservation = {
+    receipt : Text; user : Text; token : Text; platform : Text;
+    notification_id : Text; kind : Text; related_id : ?Text; scope : Text; key : Text;
+  };
+
+  public shared ({ caller }) func reserve_native_push() : async { #Ok : ?NativeReservation; #Err : Text } {
+    if (nativePushWorker != ?caller or caller == Principal.anonymous()) return #Err("Native sender required");
+    if (Principal.fromActor(this).toText() != "jfcdq-yiaaa-aaaal-qxloa-cai") return #Err("TEST base queue only");
+    if (nativePushAttempts.size() >= 10000) return #Err("Delivery journal capacity reached");
+    var scanned = 0;
+    let count = items.size();
+    while (scanned < Nat.min(count, 200)) {
+      let captured = items[rehearsalClaimCursor % count];
+      rehearsalClaimCursor := (rehearsalClaimCursor + 1) % count;
+      scanned += 1;
+      if (captured.status != #Pending or isFenced(captured.club) or recipientFenced(captured.user)) continue;
+      let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
+      if (captured.next_attempt_ms > stamp) continue;
+      // One source reservation before awaits; no legacy worker may adopt it.
+      let index = findIndex(captured.id) ?? continue;
+      let processing = { captured with status = #Processing; attempts = captured.attempts + 1 };
+      let devicesBefore = device_tokens.filter(func d = d.user == captured.user);
+      replace(index, processing); setLease(captured.id, caller);
+      let allowed = try { await this.authorize_native_push(captured.id, captured.idempotency_key, caller) } catch (_) { #Err("Authority unavailable") };
+      if (nativePushWorker != ?caller or not ownsLease(captured.id, caller)) return #Err("Sender authority changed");
+      switch (allowed) {
+        case (#Err(_)) { return #Err("Delivery permission could not be confirmed; source held") };
+        case (#Ok(false)) {
+          let deniedIndex = findIndex(captured.id) ?? return #Err("Notification removed");
+          if (items[deniedIndex] != processing) return #Err("Notification changed");
+          replace(deniedIndex, { processing with status = #Failed }); clearLease(captured.id); continue
+        };
+        case (#Ok(true)) {};
+      };
+      // Re-check after all awaits, then reserve atomically without another await.
+      let currentIndex = findIndex(captured.id) ?? return #Err("Notification removed");
+      if (items[currentIndex] != processing or isFenced(captured.club) or recipientFenced(captured.user) or
+        device_tokens.filter(func d = d.user == captured.user) != devicesBefore) return #Err("Notification or device changed; source held");
+      let eligible = device_tokens.filter(func d = d.user == captured.user and (d.platform == "android" or d.platform == "ios") and
+        not device_tokens.any(func other = other.token == d.token and other.user != d.user) and
+        not NativePush.occupied(nativePushAttempts, captured.id, d.token, d.updated_at_ms));
+      if (eligible.size() == 0) {
+        let recorded = nativePushAttempts.filter(func a = a.notification_id == captured.id);
+        let successful = recorded.size() > 0 and recorded.all(func a = a.status == "accepted" or a.status == "inactive");
+        replace(currentIndex, { processing with status = if (successful) #Delivered else #Failed }); clearLease(captured.id);
+        continue;
+      };
+      let device = eligible[0];
+      nativePushSequence += 1;
+      let receipt = nativePushSequence.toText();
+      nativePushAttempts := nativePushAttempts.concat([{ receipt; notification_id = captured.id; user = device.user; token = device.token; platform = device.platform; device_stamp = device.updated_at_ms; worker = caller; status = "sending" }]);
+      return #Ok(?{ receipt; user = device.user; token = device.token; platform = device.platform; notification_id = captured.id; kind = captured.kind; related_id = captured.related_id; scope = captured.club; key = captured.idempotency_key });
+    };
+    #Ok(null)
+  };
+
+  // Self-call captures the actual worker explicitly; never trusts public input.
+  public shared ({ caller }) func authorize_native_push(id : Text, key : Text, sender : Principal) : async { #Ok : Bool; #Err : Text } {
+    if (caller != Principal.fromActor(this) or nativePushWorker != ?sender) return #Err("Queue authority required");
+    let captured = get(id) ?? return #Err("Unknown notification");
+    if (captured.status != #Processing or captured.idempotency_key != key or not ownsLease(id, sender)) return #Err("Source lease required");
+    let subject = try { await async { Principal.fromText(captured.user) } } catch (_) { return #Err("Invalid recipient") };
+    if (not removalReceiver.enter(subject)) return #Ok(false);
+    try {
+      await admitAccount(subject);
+      var permitted = false;
+      if (captured.kind == "message_chat") {
+        let authority = messagingDomainCanister ?? return #Err("Messaging authority unavailable");
+        let messaging : actor { read_native_push_access : shared (Principal, Text) -> async Bool } = actor(authority.toText());
+        permitted := await (with timeout = 10) messaging.read_native_push_access(subject, captured.club);
+      } else if (captured.club == "" or captured.club == "global" or captured.club == "app" or captured.kind == "club_invite" or captured.kind == "team_invite" or captured.kind == "membership_removed" or captured.kind == "role_removed") {
+        permitted := true;
+      } else {
+        let authority = clubDomainCanister ?? return #Err("Club authority unavailable");
+        let clubs : actor { read_has_club_membership : shared (Principal, Text) -> async Bool } = actor(authority.toText());
+        permitted := await (with timeout = 10) clubs.read_has_club_membership(subject, captured.club);
+      };
+      if (nativePushWorker != ?sender or not ownsLease(id, sender) or get(id) != ?captured or isFenced(captured.club) or removalReceiver.denied(subject)) return #Err("Delivery changed");
+      #Ok(permitted and recipientAllowed(captured.user, captured.kind))
+    } finally { removalReceiver.leave(subject) }
+  };
+
+  public shared ({ caller }) func settle_native_push(receipt : Text, outcome : Text) : async { #Ok; #Err : Text } {
+    if (nativePushWorker != ?caller) return #Err("Native sender required");
+    let attempt = nativePushAttempts.find(func a = a.receipt == receipt) ?? return #Err("Unknown delivery receipt");
+    if (not NativePush.canSettle(attempt, caller, outcome)) return #Err("Delivery receipt changed");
+    if (attempt.status == outcome) return #Ok;
+    let index = findIndex(attempt.notification_id) ?? return #Err("Notification removed; receipt held");
+    if (not ownsLease(attempt.notification_id, caller)) return #Err("Source lease changed");
+    nativePushAttempts := nativePushAttempts.map(func a = if (a.receipt == receipt) ({ a with status = outcome }) else a);
+    if (outcome == "inactive") device_tokens := device_tokens.filter(func d = not (d.user == attempt.user and d.token == attempt.token and d.updated_at_ms == attempt.device_stamp));
+    let item = items[index];
+    replace(index, { item with status = if (outcome == "held" or outcome == "stopped") #Failed else #Pending });
+    clearLease(item.id);
+    #Ok
+  };
+
   // Registration is caller-scoped: a token is always owned by the IC
   // caller's principal text, so a device can only ever be registered to its
   // actual owner (matching Notification.user, which carries the principal
@@ -1937,6 +2055,9 @@ persistent actor class Main(governorInit : Principal) = this {
     let newBrowserPushTests = browserPushTests.map(func row {
       if (row.owner == old) { changed += 1; { row with owner = new; token = ""; status = "revoked" } } else row
     });
+    let newNativePushAttempts = nativePushAttempts.map(func row {
+      if (row.user == oldText) { changed += 1; { row with user = newText; status = "held" } } else row
+    });
 
     if (not dry_run) {
       items := newItems;
@@ -1946,6 +2067,7 @@ persistent actor class Main(governorInit : Principal) = this {
       device_tokens := dedupedDeviceTokens;
       preferences := newPreferences;
       browserPushTests := newBrowserPushTests;
+      nativePushAttempts := newNativePushAttempts;
       deviceVersions := newDeviceVersions;
       for ((key, audience) in broadcastAudienceUpdates.values()) Map.add(competitionBroadcastAudiences, Text.compare, key, audience);
     };
