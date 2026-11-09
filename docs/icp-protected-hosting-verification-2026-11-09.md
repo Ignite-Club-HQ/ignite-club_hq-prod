@@ -1,5 +1,9 @@
 # Protected ICP hosting verification
 
+## Source-fix checkpoint — requested 05:17 UTC
+
+Prepared a pinned upstream warning-redaction patch and credential-free extracted-block regression in `docs/icp-warning-redaction/`. The original queue-full path invokes the request's Debug formatter; after patching, both local cases pass and metrics remain intact. This is not a full replica build or protected-subnet acceptance. Fresh inventory still reports the original GuestOS revision on all seven TEE-active nodes. Public subnet replica/GuestOS upgrades belong to the NNS infrastructure release process, not Ignite's canister-controller authority. No patch submitted upstream or deployed, credentials accessed, sender created, or TEST alert sent; live delivery unchanged. Full evidence and remaining verification are in the patch README.
+
 Public read-only checks completed 9 November 2026, approximately 05:01 UTC. No secrets, management mutations, canister creation, deployment, placement changes or sending. Supabase push remains unchanged.
 
 ## New finding: an identifiable public confidential target exists
