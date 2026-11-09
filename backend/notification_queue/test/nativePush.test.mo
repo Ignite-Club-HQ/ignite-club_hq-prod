@@ -1,6 +1,7 @@
 import Native "../src/nativePush";
-let worker : Principal = "aaaaa-aa";
-let other : Principal = "2vxsx-fae";
+import Principal "mo:core/Principal";
+let worker = Principal.fromText("aaaaa-aa");
+let other = Principal.fromText("2vxsx-fae");
 let attempt : Native.Attempt = { receipt = "1"; notification_id = "n"; user = "u"; token = "t"; platform = "android"; device_stamp = 1; worker; status = "sending" };
 assert Native.occupied([attempt], "n", "t", 1);
 assert not Native.occupied([attempt], "n", "t", 2);
