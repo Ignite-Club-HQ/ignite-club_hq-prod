@@ -279,6 +279,30 @@
       "sha256": "0f3bff05c7d5d0957cf362647a1b1d75c7f301b213491ae5f298845a83609c3a",
       "disposition": "hold",
       "reason": "Small/growing plan enum values; already added on PROD by owner-run SQL on 5 Nov 2026 (readback confirmed), so held from automatic apply"
+    },
+    {
+      "file": "20261109222105_da7a6faa-0308-447d-aa9b-d99b822facc6.sql",
+      "sha256": "ae546131997b7795c2856c5bdd136091cc29e16a0629c4d4ee78368d7f18c38c",
+      "disposition": "hold",
+      "reason": "Club-admin competition chat access rule; reverted by the next migration at owner request on 9 Nov 2026, so held (net no change on PROD)"
+    },
+    {
+      "file": "20261109222553_1e76e8f7-f713-49ac-992c-ecc3b9331431.sql",
+      "sha256": "2cb6c935118319b741ea453a695262852689b783f6cae6fad0ca30d7dd6243ef",
+      "disposition": "hold",
+      "reason": "Revert of the club-admin competition chat access rule; restores the existing PROD definition, so held (net no change on PROD)"
+    },
+    {
+      "file": "20261109223211_e5d6a915-b510-4800-b35f-1489f0bbe180.sql",
+      "sha256": "4c42b73bf5c9493998537c82abc39b4024d496cff525886e50ba5ea2a4416f47",
+      "disposition": "hold",
+      "reason": "Superseded by the release-safe restatement 20261109232052_a578f787-ba4e-4669-8bf0-c6ce2e552389.sql (DO blocks are not release-applicable); held"
+    },
+    {
+      "file": "20261109232052_a578f787-ba4e-4669-8bf0-c6ce2e552389.sql",
+      "sha256": "37c73ffc5671c2a03c6f74aa8c45eb07cc2d96163df1673874bc1aad7be2cede",
+      "disposition": "candidate",
+      "reason": "Owner-approved 10 Nov 2026 (Paul): competition role self-removal repair restated structure-only; preserves existing roles, messages and chat-sync triggers"
     }
   ]
 }

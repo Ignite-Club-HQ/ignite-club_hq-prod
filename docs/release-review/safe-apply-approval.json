@@ -28,6 +28,10 @@
     {
       "file": "20261105000400_send_welcome_dm.sql",
       "sha256": "44323b96a91658f94478fb41ee25a4f221cda270debb67bb3dbc9bbc1cf2e224"
+    },
+    {
+      "file": "20261109232052_a578f787-ba4e-4669-8bf0-c6ce2e552389.sql",
+      "sha256": "37c73ffc5671c2a03c6f74aa8c45eb07cc2d96163df1673874bc1aad7be2cede"
     }
   ]
 }
