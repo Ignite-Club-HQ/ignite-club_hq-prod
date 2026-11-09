@@ -32,3 +32,21 @@ export async function cleanupAdminDeviceTokens(ageDays: number) {
   catch { throw new Error(`Removed ${count} registrations from ${completed} of ${contexts.length} queues; remaining cleanup is unconfirmed`); }
   return count;
 }
+/** Queue one generic test alert to the signed-in admin's own phone via the fast native sender. */
+export async function queueMyNativeTestAlert(): Promise<string> {
+  const [{ getCurrentInternetIdentity }, { getActiveIcpTarget }, { connectLiveNotificationQueue }] = await Promise.all([
+    import("./internetIdentityAuth"), import("./targetRegistry"), import("./domains"),
+  ]);
+  const identity = await getCurrentInternetIdentity();
+  if (!identity) throw new Error("Sign in with Internet Identity first");
+  const { actor } = await connectLiveNotificationQueue(getActiveIcpTarget(), identity);
+  const result = await (actor as unknown as { queue_my_native_test_alert: () => Promise<{ Ok: string } | { Err: string }> }).queue_my_native_test_alert();
+  if ("Err" in result) {
+    console.warn("queue_my_native_test_alert refused:", result.Err);
+    throw new Error(/minute/.test(result.Err) ? "A test alert was just sent. Wait a minute and try again."
+      : /not enabled/.test(result.Err) ? "Your account isn't switched on for phone alerts yet."
+      : /not configured/.test(result.Err) ? "The fast alert sender isn't switched on here."
+      : "The test alert couldn't be queued. Try again shortly.");
+  }
+  return result.Ok;
+}

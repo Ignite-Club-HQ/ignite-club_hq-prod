@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, RefreshCw, Trash2, Save } from "lucide-react";
+import { ArrowLeft, RefreshCw, Trash2, Save, BellRing } from "lucide-react";
 import { toast } from "sonner";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import type { LivePushAlertSettingsInput } from "@/live/features/notifications";
-import { readAdminQueueHealth, readAdminQueueSettings, saveAdminQueueSettings, cleanupAdminDeviceTokens } from "@/live/adminQueueOperations";
+import { readAdminQueueHealth, readAdminQueueSettings, saveAdminQueueSettings, cleanupAdminDeviceTokens, queueMyNativeTestAlert } from "@/live/adminQueueOperations";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,8 @@ export default function IcpPushAnalyticsPage() {
     if (!confirm(`Remove device registrations unused for ${ageDays} days from all listed queues?`)) return null;
     return cleanupAdminDeviceTokens(ageDays);
   }, onSuccess: count => { if (count !== null) { toast.success(`Removed ${count} stale device registrations`); qc.invalidateQueries({ queryKey: ["icp-admin-push-health"] }); } }, onError: (e: Error) => toast.error(e.message) });
+  const testAlert = useMutation({ mutationFn: queueMyNativeTestAlert,
+    onSuccess: () => toast.success("Test alert queued — it should reach your phone within seconds"), onError: (e: Error) => toast.error(e.message) });
   if (isLoading) return <Skeleton className="h-32 m-4" />;
   if (!isAppAdmin) return <p className="p-6 text-muted-foreground">App admins only.</p>;
   const value = draft ?? settings.data?.[0];
@@ -50,6 +52,7 @@ export default function IcpPushAnalyticsPage() {
     <h2 className="font-semibold">Last 24 hours</h2>
     {totals ? <dl className="grid grid-cols-2 sm:grid-cols-3 gap-4">{[["Notifications", totals.total24h], ["Queued", totals.pending24h], ["Processing", totals.processing24h], ["Delivery completed", totals.delivered24h], ["Failed", totals.failed24h], ["Device registrations", totals.deviceTokenCount]].map(([label, count]) => <div key={label} className="border-b pb-3"><dt className="text-sm text-muted-foreground">{label}</dt><dd className="text-2xl font-semibold">{count}</dd></div>)}</dl> : health.isPending && <Skeleton className="h-32" />}
     <section className="border-t pt-4 space-y-4"><h2 className="font-semibold">Alert settings</h2>{settings.error && <p role="alert" className="text-destructive">{settings.error.message}</p>}{value && <><div className="flex items-center gap-3"><Switch id="push-admin-alerts" checked={value.alertsEnabled} onCheckedChange={checked => setDraft({ ...value, alertsEnabled: checked })} /><Label htmlFor="push-admin-alerts">Alerts enabled</Label></div><div className="grid sm:grid-cols-2 gap-4">{fields.map(([key, label]) => <div key={key}><Label htmlFor={key}>{label}</Label><Input id={key} type="number" min={0} value={value[key]} onChange={e => setDraft({ ...value, [key]: Number(e.target.value) })} /></div>)}</div><Button disabled={save.isPending || !draft} onClick={() => draft && save.mutate(draft)}><Save className="mr-2 h-4 w-4" />Save</Button></>}</section>
+    <section className="border-t pt-4 space-y-3"><h2 className="font-semibold">Test alert</h2><p className="text-sm text-muted-foreground">Sends one test alert to your own phone through the fast sender.</p><Button variant="outline" disabled={testAlert.isPending} onClick={() => testAlert.mutate()}><BellRing className="mr-2 h-4 w-4" />Send test alert to my phone</Button></section>
     <section className="border-t pt-4 space-y-3"><h2 className="font-semibold">Stale device registrations</h2><Label htmlFor="token-age">Unused for (days)</Label><div className="flex gap-2"><Input id="token-age" type="number" min={1} max={3650} value={ageDays} onChange={e => setAgeDays(Number(e.target.value))} /><Button variant="outline" disabled={cleanup.isPending || !health.data} onClick={() => cleanup.mutate()}><Trash2 className="mr-2 h-4 w-4" />Remove stale</Button></div></section>
   </div>;
 }
