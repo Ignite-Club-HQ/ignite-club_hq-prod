@@ -523,6 +523,7 @@ persistent actor class Main(governorInit : Principal) = this {
           created_at_ms = Nat64.fromIntWrap(Time.now() / 1_000_000);
         };
         items := items.concat([notification]);
+        wakeNativeSender<system>();
         #Ok(notification)
       };
     }
@@ -620,6 +621,7 @@ persistent actor class Main(governorInit : Principal) = this {
             };
             items := items.concat([notification]);
             created += 1;
+            wakeNativeSender<system>();
           };
         };
       };
@@ -654,7 +656,8 @@ persistent actor class Main(governorInit : Principal) = this {
       if (recipientAllowed(user, "competition_broadcast") and get(id) == null) {
         let item : Types.Notification = { id; user; club; kind = "competition_broadcast"; body; idempotency_key = key; status = #Pending; attempts = 0; next_attempt_ms = 0; read = false; related_id = ?related; created_at_ms = stamp };
         items := items.concat([item]);
-        count += 1
+        count += 1;
+        wakeNativeSender<system>()
       }
     };
     Map.add(competitionBroadcastReceipts, Text.compare, receiptKey, { club; related; body; count });
@@ -1539,6 +1542,7 @@ persistent actor class Main(governorInit : Principal) = this {
             };
             items := items.concat([notification]);
             created += 1;
+            wakeNativeSender<system>();
           };
         };
       };
@@ -1582,6 +1586,35 @@ persistent actor class Main(governorInit : Principal) = this {
   // ======================================================================
   // Device push tokens
   // Narrow TEST transport authority; Supabase has no notification database.
+  // Native TEST wake-up: a content-free POST to the fixed TEST sender. It carries
+  // no keys, tokens, recipients or text; the sender then reserves work itself.
+  type WakeHeader = { name : Text; value : Text };
+  type WakeResponse = { status : Nat; headers : [WakeHeader]; body : Blob };
+  transient let wakeManagement : actor {
+    http_request : shared {
+      url : Text; max_response_bytes : ?Nat64; method : { #get; #head; #post };
+      headers : [WakeHeader]; body : ?Blob; transform : ?{
+        function : shared query ({ response : WakeResponse; context : Blob }) -> async WakeResponse; context : Blob };
+      is_replicated : ?Bool;
+    } -> async WakeResponse;
+  } = actor "aaaaa-aa";
+  transient var nativeWakePending = false;
+  func wakeNativeSender<system>() {
+    if (nativePushWorker == null or nativeWakePending) return;
+    if (Principal.fromActor(this).toText() != "jfcdq-yiaaa-aaaal-qxloa-cai") return;
+    nativeWakePending := true;
+    ignore Timer.setTimer<system>(#seconds 0, func() : async () {
+      nativeWakePending := false;
+      try {
+        ignore await (with cycles = 300_000_000) wakeManagement.http_request({
+          url = "https://ecsdwrarzfexssxtrymj.supabase.co/functions/v1/icp-dev-push-sender";
+          max_response_bytes = ?1024; method = #post; headers = []; body = null;
+          transform = null; is_replicated = ?false;
+        })
+      } catch (_) {}; // the scheduled backup check picks up missed wake-ups
+    });
+  };
+
   public shared ({ caller }) func configure_native_push_worker(candidate : Principal) : async { #Ok; #Err : Text } {
     governorOnly(caller);
     if (Principal.fromActor(this).toText() != "jfcdq-yiaaa-aaaal-qxloa-cai") return #Err("TEST base queue only");
