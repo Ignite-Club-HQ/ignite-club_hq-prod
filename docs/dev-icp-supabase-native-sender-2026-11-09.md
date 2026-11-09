@@ -32,3 +32,11 @@ ICP keeps accounts, registrations, preferences, audience/mute checks, inbox/queu
 ## Current limits
 
 This candidate is base TEST queue only, not both TEST groups. Multi-group rollout must use the existing explicit queue inventory rather than guessed fallbacks. No endpoint deployed or sender enabled; no near-immediate performance claim or end-to-end push success.
+
+## Post-upgrade verification, 07:46 UTC continuation
+
+TEST messaging and notification upgrades succeeded in runs 42579852019 and 42580696979. Sending is still unconfigured. Added a manual main-only disposable replica workflow (`test-native-push-lifecycle.yml`) using the existing compiler prefetch and PocketIC supervisor. It checks exact-base restriction, exclusive handover, concurrent reservation, lost-reply retention, memory-preserving upgrade, deletion/snapshot drain, idempotent settlement, resume occupancy and settled rekey without Firebase calls or live credentials.
+
+The sandbox host probe measured a missing write-fault bit and correctly refused replica installation. This is not a replica pass: execution requires the native Linux GitHub runner once the new workflow syncs. At the latest read, GitHub did not yet contain this workflow. Fifteen tooling tests and 36 existing isolated push tests pass; workflow syntax and main/read-only restrictions checked. No runtime module, endpoint, commission, schedule, phone registration or production change was made in this continuation.
+
+Receipt erasure and installation/token-rotation lineage remain unfinished. The replica script's limited pass, if obtained, does not authorize activation or claim complete removal/merge race coverage. A native TEST app/device remains necessary; Paul's installed PROD app must not be used to manufacture TEST acceptance.

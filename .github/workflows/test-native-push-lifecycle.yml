@@ -1,0 +1,52 @@
+name: "[TEST] Verify disposable native push lifecycle"
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-lifecycle:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ICP_HOME: ${{ runner.temp }}/native-push-test-tools
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+      - name: Prepare existing isolated test tools
+        run: |
+          node scripts/ensure-frontend-deps.mjs
+          bun add -g ic-mops@3.5.1
+          node scripts/prefetch-test-icp-tools.mjs
+          (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
+          node --test frontend/scripts/removal-host-preflight.test.mjs frontend/scripts/removal-local-supervisor.test.mjs
+      - name: Compile exact queue source and receipt policy (no deployment)
+        working-directory: backend/notification_queue
+        run: |
+          mops install
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          "$MOC" $(mops sources) -r test/nativePush.test.mo
+          "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o "$RUNNER_TEMP/native-push-queue.wasm" src/main.mo
+      - name: Check disposable queue lifecycle without Firebase or live identities
+        working-directory: frontend
+        env:
+          NOTIFICATION_QUEUE_WASM: ${{ runner.temp }}/native-push-queue.wasm
+          NATIVE_PUSH_REPLICA_REPORT: ${{ runner.temp }}/native-push-replica.json
+        run: |
+          export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
+          timeout --kill-after=5s 330s node scripts/test-native-push-lifecycle-replica.mjs
+      - name: Save evidence without granting sender activation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-push-disposable-lifecycle
+          path: ${{ runner.temp }}/native-push-replica.json
+          if-no-files-found: warn
