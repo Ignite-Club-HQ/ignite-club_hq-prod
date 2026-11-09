@@ -21,4 +21,4 @@ jobs:
           set -euo pipefail
           test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Missing SUPABASE_ACCESS_TOKEN"; exit 1; }
           if [ "$DEV_REF" = "$PROD_REF" ]; then echo "Refusing: ref matches PROD"; exit 1; fi
-          supabase functions deploy icp-dev-push-sender --project-ref "$DEV_REF" --no-verify-jwt --use-api
+          supabase functions deploy icp-dev-push-sender --project-ref "$DEV_REF" --no-verify-jwt --use-api --yes
