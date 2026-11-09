@@ -1,10 +1,20 @@
 # Roadmap — launch the live (PROD) system
 
+## Club-service fuel investigation (DEV only, 9 November 2026)
+- [x] Prepared and dispatched disposable local TEST experiment 42551549182 on main 4799770b; probe compiled and 14 focused tests pass. Sandbox IC memory-tracking compatibility fails, so replica measurements use the native Linux GitHub worker. Verified compiler helper immediately reinserts failed timer dispatch; historical PROD causation remains unproven.
+- [x] First GitHub experiment compiled successfully but stopped at missing subnet-state configuration before any measurement. Corrected and verified against the installed library; 15 tests pass. Idle sampling now respects 30-second recurring expirations. No fuel result or service-fix claim.
+- [x] Corrected isolated run 42552280176 succeeded on main 993d364a at 02:42 UTC. Low-balance probes show cost amplification with zero completed callbacks in three cases; this is a candidate, not historical PROD causation. No deployed balance/settings changed.
+- [x] Twenty-minute idle measurement: unchanged empty club consumed 1,253,040,541 cycles, matched timers 1,247,957,161, no-timer control 1,976,200. Callback counts 40/20 verified; evidence and interpretation saved in docs/dev-club-fuel-investigation-2026-11-09.md. Fifteen setup tests pass.
+- [ ] Paul confirmed proceeding at 02:39 UTC. Safe service repair remains blocked on representative deployed balance/request/timer-failure evidence or equivalent disposable state/settings reproduction; local idle results alone do not establish the historical cause. No live deployment or production changes authorized.
+
 ## ICP email notification availability (DEV only)
 - [x] Removed ICP email controls from member settings and admin report; blocked email preference handlers in ICP, including mode changes. Supabase save/report branches unchanged. Twelve tests pass in each backend test mode; preview build OK. No service/settings/PROD changes.
 - [ ] Confirm on Paul's signed-in TEST account after frontend deployment; delegated Internet Identity session/device and canister deployment are unverified.
 
 ## Live native ICP push — Paul only (8 November 2026)
+- [x] Added manual Paul-only native self-test using the existing protected sender; 39 focused tests pass, including one-device/native-only selection, unexpected-owner refusal, no-device, and uncertain-send no-retry checks. No queue writes, pruning, canister upgrades, Supabase changes or recurring activation.
+- [ ] Merge main→prod so the new manual workflow option is available, then dispatch once and confirm Firebase acceptance and Paul's phone receipt; currently blocked on source promotion and physical receipt confirmation. No test alert sent yet.
+- [x] Manual run 42557719358 on 9 November completed with no pending notifications; recurring delivery disabled again. No notification sent.
 - [x] Paul chose native-only push, live app limited to his account. Live sender now requires a recipient list (Paul only), unlocks the stored encrypted key, skips alerts older than 30 minutes. Recipient, queue and Firebase project settings saved in GitHub. 27 sender tests pass.
 - [x] Firebase secret confirmed saved; merged PROD sender verified on 548149f0. Account-only manual run 42457013641 completed: claimed 1, delivered 0, failed 0, no-device/skipped 1. Recurring delivery disabled again after dispatch; Supabase push unchanged.
 - [ ] Confirm a fresh eligible notification for Paul and native phone registration, then run another approved account-only send and confirm phone receipt. The first run's combined no-device/skipped count cannot distinguish an old/non-listed alert from missing device registration; no delivery is confirmed.

@@ -1,0 +1,51 @@
+name: "[TEST] Measure disposable club timer fuel"
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-fuel:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+      - name: Install existing dependencies and pinned compiler
+        run: |
+          node scripts/ensure-frontend-deps.mjs
+          bun add -g ic-mops@3.5.1
+          mops toolchain use moc 1.16.1
+          (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
+      - name: Check local measurement rules
+        run: node --test frontend/scripts/club-fuel-policy.test.mjs frontend/scripts/removal-host-preflight.test.mjs frontend/scripts/removal-local-supervisor.test.mjs
+      - name: Compile disposable probe and exact club source (no deployment)
+        working-directory: backend/club_domain
+        run: |
+          mops install
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          "$MOC" $(mops sources) -o "$RUNNER_TEMP/club-fuel-probe.wasm" ../shared/test/clubFuelProbe.mo
+          "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o "$RUNNER_TEMP/club-fuel-club.wasm" src/main.mo
+      - name: Measure local idle and low-fuel behavior
+        working-directory: frontend
+        env:
+          CLUB_FUEL_REPORT: ${{ runner.temp }}/club-fuel-report.json
+          CLUB_FUEL_PROBE_WASM: ${{ runner.temp }}/club-fuel-probe.wasm
+          CLUB_DOMAIN_WASM: ${{ runner.temp }}/club-fuel-club.wasm
+        run: |
+          export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
+          timeout --kill-after=5s 330s node scripts/test-club-fuel-replica.mjs
+      - name: Save bounded experiment evidence (not production acceptance)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: club-fuel-local-only
+          path: ${{ runner.temp }}/club-fuel-report.json
+          if-no-files-found: warn
