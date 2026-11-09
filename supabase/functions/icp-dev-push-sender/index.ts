@@ -4,13 +4,17 @@ import { IDL as CandidIDL } from 'npm:@icp-sdk/core@5/candid';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createNativeQueueAuthority, type NativeQueueActor } from './authority.ts';
 import { deliverReservedNativePush } from './delivery.ts';
-import { createDevFcmTransport } from './fcm.ts';
+import { createNativeFcmTransport } from './fcm.ts';
 import { nativeSenderSigningSeed } from './signing.ts';
 
-// TEST only. Wake-ups are content-free: request bodies and parameters are never
+// TEST and LIVE (each pinned to its own Supabase project and queue). Wake-ups are content-free: request bodies and parameters are never
 // used for recipients, tokens or text. ICP reservations are the sole authority.
-const DEV_URL = 'https://ecsdwrarzfexssxtrymj.supabase.co';
-const QUEUE = 'jfcdq-yiaaa-aaaal-qxloa-cai';
+const TARGETS: Record<string, string> = {
+  'https://ecsdwrarzfexssxtrymj.supabase.co': 'jfcdq-yiaaa-aaaal-qxloa-cai', // TEST
+  'https://yabcfiuntwqjwvschnji.supabase.co': 'w263o-3aaaa-aaaai-ayesq-cai', // LIVE base queue
+};
+const HOST = Deno.env.get('SUPABASE_URL') ?? '';
+const QUEUE = TARGETS[HOST];
 
 const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -30,7 +34,7 @@ let running = false;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (Deno.env.get('SUPABASE_URL') !== DEV_URL) return reply(403, { error: 'TEST only' });
+  if (!QUEUE) return reply(403, { error: 'Unknown project' });
   const secret = (Deno.env.get('IGNITE_DEV_ICP_PUSH_SENDER_SEED') || Deno.env.get('IGNITE_DEV_ICP_NATIVE_SENDER_KEY'));
   if (!secret) return reply(503, { error: 'Sender identity unavailable' });
   try {
@@ -57,13 +61,14 @@ Deno.serve(async (req) => {
         },
         settle_native_push: (r, o) => raw.settle_native_push(r, o),
       };
-      const send = createDevFcmTransport({ supabaseUrl: DEV_URL,
+      const send = createNativeFcmTransport({ supabaseUrl: HOST,
+        serviceAccountJson: Deno.env.get('IGNITE_PROD_FCM_SERVICE_ACCOUNT_JSON') ?? '',
         lovableKey: Deno.env.get('LOVABLE_API_KEY') ?? '', connectionKey: Deno.env.get('FIREBASE_MESSAGING_API_KEY') ?? '' });
       const report = await deliverReservedNativePush(createNativeQueueAuthority(actor), send, 10);
       return reply(200, report);
     } finally { running = false; }
   } catch (error) {
-    console.error('TEST native sender stopped:', error instanceof Error ? error.message.slice(0, 200) : 'unknown');
+    console.error('Native sender stopped:', error instanceof Error ? error.message.slice(0, 200) : 'unknown');
     return reply(500, { error: 'Sender stopped; alerts stay held on ICP' });
   }
 });

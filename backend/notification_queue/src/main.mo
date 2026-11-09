@@ -1599,15 +1599,29 @@ persistent actor class Main(governorInit : Principal) = this {
     } -> async WakeResponse;
   } = actor "aaaaa-aa";
   transient var nativeWakePending = false;
+  // Native push runs only on the TEST base queue and the LIVE base queue; LIVE
+  // delivers solely to the approved recipient allowlist until widened.
+  let liveNativeQueue = "w263o-3aaaa-aaaai-ayesq-cai";
+  let liveNativeRecipients = ["uuq6o-np4vy-sv6o7-ongim-26u3l-uje3n-abouz-7fi33-fwbkk-np27z-rae"];
+  func nativeSenderUrl() : ?Text {
+    let me = Principal.fromActor(this).toText();
+    if (me == "jfcdq-yiaaa-aaaal-qxloa-cai") return ?"https://ecsdwrarzfexssxtrymj.supabase.co/functions/v1/icp-dev-push-sender";
+    if (me == liveNativeQueue) return ?"https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/icp-dev-push-sender";
+    null
+  };
+  func nativeRecipientAllowed(user : Text) : Bool {
+    if (Principal.fromActor(this).toText() != liveNativeQueue) return true;
+    liveNativeRecipients.find(func r = r == user) != null
+  };
   func wakeNativeSender<system>() {
     if (nativePushWorker == null or nativeWakePending) return;
-    if (Principal.fromActor(this).toText() != "jfcdq-yiaaa-aaaal-qxloa-cai") return;
+    let url = switch (nativeSenderUrl()) { case (?u) u; case null return };
     nativeWakePending := true;
     ignore Timer.setTimer<system>(#seconds 0, func() : async () {
       nativeWakePending := false;
       try {
         ignore await (with cycles = 300_000_000) wakeManagement.http_request({
-          url = "https://ecsdwrarzfexssxtrymj.supabase.co/functions/v1/icp-dev-push-sender";
+          url;
           max_response_bytes = ?1024; method = #post; headers = []; body = null;
           transform = null; is_replicated = ?false;
         })
@@ -1617,7 +1631,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
   public shared ({ caller }) func configure_native_push_worker(candidate : Principal) : async { #Ok; #Err : Text } {
     governorOnly(caller);
-    if (Principal.fromActor(this).toText() != "jfcdq-yiaaa-aaaal-qxloa-cai") return #Err("TEST base queue only");
+    if (nativeSenderUrl() == null) return #Err("Native push queue only");
     if (candidate == Principal.anonymous()) return #Err("Invalid sender");
     if (nativePushWorker == ?candidate) return #Ok;
     if (nativePushWorker != null or items.any(func n = n.status == #Processing)) return #Err("Existing delivery must be settled before handover");
@@ -1636,7 +1650,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
   public shared ({ caller }) func reserve_native_push() : async { #Ok : ?NativeReservation; #Err : Text } {
     if (nativePushWorker != ?caller or caller == Principal.anonymous()) return #Err("Native sender required");
-    if (Principal.fromActor(this).toText() != "jfcdq-yiaaa-aaaal-qxloa-cai") return #Err("TEST base queue only");
+    if (nativeSenderUrl() == null) return #Err("Native push queue only");
     if (nativePushAttempts.size() >= 10000) return #Err("Delivery journal capacity reached");
     var scanned = 0;
     let count = items.size();
@@ -1644,7 +1658,7 @@ persistent actor class Main(governorInit : Principal) = this {
       let captured = items[rehearsalClaimCursor % count];
       rehearsalClaimCursor := (rehearsalClaimCursor + 1) % count;
       scanned += 1;
-      if (captured.status != #Pending or isFenced(captured.club) or recipientFenced(captured.user)) continue;
+      if (captured.status != #Pending or isFenced(captured.club) or recipientFenced(captured.user) or not nativeRecipientAllowed(captured.user)) continue;
       let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
       if (captured.next_attempt_ms > stamp) continue;
       // One source reservation before awaits; no legacy worker may adopt it.
