@@ -1,6 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Fast native ICP push scope — 9 November 2026
+- [x] Explain the recommendation in plain English: a small continuously running sender replaces GitHub's scheduled wait; paid hosting required, seconds-scale target unmeasured.
 - [x] Scoped one paid always-on worker with a cheap protected ready-work query, existing ICP authorization/Firebase delivery and exclusive handover. Target 3–8 seconds, not measured; TEST native evidence and hosting cost approval required. Supabase unchanged; no activation.
 
 ## Empty ICP team carousel — 9 November 2026
