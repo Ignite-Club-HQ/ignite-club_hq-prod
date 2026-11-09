@@ -1601,8 +1601,8 @@ persistent actor class Main(governorInit : Principal) = this {
   transient var nativeWakePending = false;
   // Native push runs only on the TEST base queue and the LIVE base queue; LIVE
   // delivers solely to the approved recipient allowlist until widened.
-  let liveNativeQueue = "w263o-3aaaa-aaaai-ayesq-cai";
-  let liveNativeRecipients = ["uuq6o-np4vy-sv6o7-ongim-26u3l-uje3n-abouz-7fi33-fwbkk-np27z-rae"];
+  transient let liveNativeQueue = "w263o-3aaaa-aaaai-ayesq-cai";
+  transient let liveNativeRecipients = ["uuq6o-np4vy-sv6o7-ongim-26u3l-uje3n-abouz-7fi33-fwbkk-np27z-rae"];
   func nativeSenderUrl() : ?Text {
     let me = Principal.fromActor(this).toText();
     if (me == "jfcdq-yiaaa-aaaal-qxloa-cai") return ?"https://ecsdwrarzfexssxtrymj.supabase.co/functions/v1/icp-dev-push-sender";
