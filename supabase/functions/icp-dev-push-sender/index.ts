@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
     const identity = Ed25519KeyIdentity.fromSecretKey(await nativeSenderSigningSeed(secret));
     const self = identity.getPrincipal();
     const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
-    const raw = Actor.createActor(factory, { agent, canisterId: QUEUE }) as unknown as {
+    const raw = Actor.createActor(factory as never, { agent, canisterId: QUEUE }) as unknown as {
       native_push_configuration(): Promise<{ worker: [] | [{ toText(): string }]; enabled: boolean }>;
       reserve_native_push(): Promise<{ Ok: [] | [Record<string, unknown>] } | { Err: string }>;
       settle_native_push(r: string, o: string): Promise<{ Ok: null } | { Err: string }>;
