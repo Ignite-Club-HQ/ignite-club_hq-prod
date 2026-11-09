@@ -31,7 +31,7 @@ let running = false;
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (Deno.env.get('SUPABASE_URL') !== DEV_URL) return reply(403, { error: 'TEST only' });
-  const secret = Deno.env.get('IGNITE_DEV_ICP_NATIVE_SENDER_KEY');
+  const secret = (Deno.env.get('IGNITE_DEV_ICP_PUSH_SENDER_SEED') || Deno.env.get('IGNITE_DEV_ICP_NATIVE_SENDER_KEY'));
   if (!secret) return reply(503, { error: 'Sender identity unavailable' });
   try {
     const identity = Ed25519KeyIdentity.fromSecretKey(await nativeSenderSigningSeed(secret));
