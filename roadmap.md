@@ -1,7 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Empty ICP team carousel — 9 November 2026
-- [ ] Reproduce and remove unnecessary sequential inventory waiting with focused frontend tests; preserve authorized empty results and league-only memberships. No PROD changes.
+- [x] Reproduced serial role→player-league discovery; started the independent caller-authorized reads together. Thirteen carousel tests pass, including confirmed-empty, league-only and failed-inventory cases; preview build OK. No PROD changes; real Android delay remains unmeasured.
 - [ ] Verify Paul's authenticated Android empty-team startup after a tested release; physical device/session required.
 
 ## Club-service fuel investigation (DEV only, 9 November 2026)
