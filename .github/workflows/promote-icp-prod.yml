@@ -223,7 +223,7 @@ jobs:
             (cd deploy/prod && icp deploy "$NAME" -e ic -y --mode upgrade --no-create)
             if [ "$(node scripts/prod-preserve-settings.mjs restore "$NAME")" = restored ]; then
               echo "::notice::$NAME live settings were restored after upgrade"
-              (cd deploy/prod && icp canister install "$NAME" -e ic --mode upgrade --yes)
+              (cd deploy/prod && icp deploy "$NAME" -e ic -y --mode upgrade --no-create)
             fi
             node scripts/record-prod-release.mjs "$NAME" "$GITHUB_SHA"
           done
