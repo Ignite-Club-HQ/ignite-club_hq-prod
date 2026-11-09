@@ -1791,6 +1791,12 @@ persistent actor class Main(governorInit : Principal) = this {
     let user = Principal.toText(caller);
     let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
     let entry : Types.DeviceToken = { user; platform; token; p256dh; auth; updated_at_ms = stamp };
+    // A phone token belongs to the account that most recently signed in on
+    // that phone. Drop it from any other account so a shared or handed-down
+    // phone never keeps receiving the previous person's alerts.
+    device_tokens := device_tokens.filter(func(existing : Types.DeviceToken) : Bool {
+      existing.token != token or existing.user == user
+    });
     var replaced = false;
     device_tokens := device_tokens.map(func(existing : Types.DeviceToken) : Types.DeviceToken {
       if (existing.user == user and existing.token == token) { replaced := true; entry } else { existing }

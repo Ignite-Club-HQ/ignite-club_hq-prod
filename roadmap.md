@@ -1,5 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
+- [ ] All-users native push (Paul "start" 10:20 UTC 9 Nov): (1) live alerts all sit in the base group since g2 is closed, so no extra group coverage is needed yet; (2) a phone token now moves to the newest account that signs in on it (compiles; needs TEST update); (3) alert settings are already re-checked right before each send. Next: TEST update, faster Supabase sender, iPhone setup, staged rollout.
+
 ## Live Android sign-in routing report — 9 November 08:42 UTC
 - [ ] Investigated Paul's installed LIVE Android /auth screenshots: reproduced restored II session selecting email under the default placement rule (two regressions fail before repair). DEV candidate retains restored II routing without a URL choice while keeping active email sessions and explicit email choice unchanged. All 58 focused auth/routing tests pass; preview build OK. Live phone reproduction/release acceptance still requires Paul's device and a separately approved new Android build. No live changes; push work remains separate.
 
