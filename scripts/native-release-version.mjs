@@ -6,25 +6,26 @@ import path from 'node:path';
 export const PLAY_MAX_VERSION_CODE = 2100000000;
 
 /**
- * Lowest versionCode Google Play will still accept: one above the highest
- * build already uploaded (88498313). Time-based numbers below this are
- * rejected by Play, so the number is floored here instead of failing loudly
- * on every upload.
+ * Preserve the existing Play numbering range while continuing to advance
+ * with elapsed minutes. A fixed floor would repeat until the clock caught up.
  */
-export const ANDROID_MIN_VERSION_CODE = 88498314;
+export const ANDROID_MIN_VERSION_CODE = 88498315;
+export const ANDROID_VERSION_EPOCH_MS = Date.parse('2026-11-09T00:00:00Z');
 
 /**
- * Android build numbers never touch Play Console. Minutes since the epoch are
- * always increasing, never reused, and far below Google Play's limit, so the
- * build needs no Google credentials yet still cannot repeat a past upload.
- * The result is floored at ANDROID_MIN_VERSION_CODE so it can never fall
- * below a build Play has already seen.
+ * Android build numbers never touch Play Console. Each elapsed UTC minute
+ * advances the version from the reviewed baseline above the used 88498314.
+ * Builds within the same minute have the same number; rebuilds for a new
+ * upload must start in a later minute. Invalid/backdated clocks fail closed.
  */
 export function timeBasedBuildNumber(nowMs = Date.now()) {
   const minutes = Math.floor(nowMs / 60000);
   if (!Number.isSafeInteger(minutes) || minutes <= 0) throw new Error('Clock time is not usable for a build number');
-  if (minutes > PLAY_MAX_VERSION_CODE) throw new Error('Time-based build number exceeds the Google Play limit');
-  return Math.max(minutes, ANDROID_MIN_VERSION_CODE);
+  const elapsed = minutes - Math.floor(ANDROID_VERSION_EPOCH_MS / 60000);
+  if (elapsed < 0) throw new Error('Clock precedes the Android version baseline');
+  const build = ANDROID_MIN_VERSION_CODE + elapsed;
+  if (build > PLAY_MAX_VERSION_CODE) throw new Error('Time-based build number exceeds the Google Play limit');
+  return build;
 }
 
 export function nextBuildNumber(values, max = Number.MAX_SAFE_INTEGER) {
