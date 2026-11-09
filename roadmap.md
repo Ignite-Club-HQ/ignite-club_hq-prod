@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Minimal Supabase transport, ICP-owned notifications — 9 November 05:35 UTC
+- [ ] Complete isolated DEV sender reusing linked Firebase access; ICP retains accounts/devices/audiences/preferences/inbox/queue/durable delivery authority. No browser-push work or Supabase-mode changes.
+- [ ] Wire non-blocking ICP wake and bounded ICP-owned recovery; verify exact TEST worker authority and exclusive handover before activation.
+- [ ] Verify native TEST queued alert/inbox/tap and measured latency before any live-delivery changes; device acceptance and authorized commissioning required.
+
 ## Fast native ICP push scope — 9 November 2026
 - [x] Prepared pinned upstream warning-redaction patch (Paul requested 05:17 UTC); original extracted queue-full block reproduces unsafe Debug formatting, patched block passes two credential-free Rust cases and preserves metrics. Evidence in docs/icp-warning-redaction/README.md; no full replica build/upstream submission/deployment or Firebase use.
 - [ ] Verify that patch on protected `re2t4`: blocked on upstream acceptance and NNS infrastructure rollout plus supported runtime attestation. Fresh public telemetry still reports original GuestOS revision on all seven TEE-active nodes; Ignite canister controllers cannot upgrade public subnet replica/GuestOS. No TEST alert sent; live delivery unchanged.
