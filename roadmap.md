@@ -1,7 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Competition admin leaving — 9 November 22:28 UTC
-- [ ] Prepare and rehearse additive missing-action repair; preserve exact-role deletion, owner protection, other entitlements and existing chat triggers. No live role/data changes.
+- [x] Additive missing-action repair applied on TEST; 6 disposable SQL permission tests and 6 frontend tests pass, preview build OK. Exact-role removal, owner protection and other roles preserved; existing chat triggers untouched. Anonymous execution refused; signed-in execution allowed without elevated identity. No live role/data changes.
 - [ ] Live deployment and authenticated phone acceptance require approved PROD promotion; screenshot reports PGRST202, while TEST already has the final action.
 
 ## Native push continuation — 9 November 20:43 UTC
