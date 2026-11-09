@@ -1,6 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Fast native ICP push scope — 9 November 2026
+- [ ] Paul requested ICP-only native push implementation at 04:51 UTC, explicitly preserving the Supabase-only push method. Existing implementation/feasibility audit confirms the direct ICP sender still lacks verified protected Firebase authorization. Held on the approved plan's credential-protection prerequisite; no keys uploaded, external hosting provisioned, services deployed, queue mutations or sending activated.
 - [x] Paul prefers no Render; prioritize ICP-hosted feasibility and keep external hosting an unapproved fallback, not the recommended implementation. Firebase phone delivery remains necessary.
 - [x] Approved-plan read-only feasibility: Google federation supports ES256 and ICP's interface includes P-256, but bearer-token protection and an enabled deployment key remain unverified; findings recorded in docs/icp-native-push-feasibility-2026-11-09.md. No service or credential changes.
 - [ ] ICP-only implementation held on verified protected-subnet/credential handling and an approved isolated TEST Google authorization route; do not upload live keys or activate sending to bypass these dependencies.
@@ -26,7 +27,8 @@
 ## Live native ICP push — Paul only (8 November 2026)
 - [x] Added manual Paul-only native self-test using the existing protected sender; 39 focused tests pass, including one-device/native-only selection, unexpected-owner refusal, no-device, and uncertain-send no-retry checks. No queue writes, pruning, canister upgrades, Supabase changes or recurring activation.
 - [x] Verified merged PROD 9e3c458f and dispatched manual Paul-only self-test 42558548142 on 9 November at 03:50 UTC; completed successfully, log confirms `accepted_by_firebase; Firebase accepted 1`. Selected one registered native device; no ordinary queue processing or recurring activation.
-- [ ] Paul confirms phone receipt of the single native test alert; Firebase acceptance is verified but physical display/tap remains unverified.
+- [x] Paul confirmed the single native test alert reached his Android phone. This direct transport probe intentionally created no in-app notification row; ordinary queued delivery and iOS receipt remain unverified.
+- [ ] Repair and verify the reported error when tapping the native test alert. The screenshot has no expanded error details or native stack trace; the exact failure remains unconfirmed. No device/session available for reproduction.
 - [x] Manual run 42557719358 on 9 November completed with no pending notifications; recurring delivery disabled again. No notification sent.
 - [x] Paul chose native-only push, live app limited to his account. Live sender now requires a recipient list (Paul only), unlocks the stored encrypted key, skips alerts older than 30 minutes. Recipient, queue and Firebase project settings saved in GitHub. 27 sender tests pass.
 - [x] Firebase secret confirmed saved; merged PROD sender verified on 548149f0. Account-only manual run 42457013641 completed: claimed 1, delivered 0, failed 0, no-device/skipped 1. Recurring delivery disabled again after dispatch; Supabase push unchanged.
