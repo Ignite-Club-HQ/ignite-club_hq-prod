@@ -201,6 +201,11 @@ export function resolveAuthBackend(): BackendProvider {
   if (isSignedInWithEmail()) return "supabase";
   const choice = readAuthChoice();
   if (choice === "supabase") return "supabase";
+  // Placement defaults choose a sign-in method for visitors, not a new
+  // backend for an already-restored II account. Native resume usually has
+  // no ?auth=icp URL, so forgetting this session mounted the email provider
+  // while strict transport correctly refused its membership reads.
+  if (hasInternetIdentitySessionStored() && isIcpAuthAvailable()) return "icp";
   if (choice === "icp" && isIcpAuthAvailable()) return "icp";
   const config = getBackendRoutingConfig();
   const { country } = getCurrentCountry();
