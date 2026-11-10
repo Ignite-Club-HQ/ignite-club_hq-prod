@@ -86,12 +86,15 @@ test("branded download links resolve to fixed verified store destinations", () =
   }
 });
 
-test("ChatGPT Pro guidance does not imply direct checkout or grant", () => {
-  assert.match(guide, /No current/);
-  assert.match(guide, /authoritative current plan/);
-  assert.match(guide, /public marketing site is \*\*https:\/\/igniteclubhq\.com\*\*/);
+test("ChatGPT reuses existing Stripe-to-ICP subscription synchronisation", () => {
+  assert.match(guide, /website and app are already integrated/);
+  assert.match(guide, /when a Stripe payment succeeds/);
+  assert.match(guide, /existing membership subscription/);
+  assert.match(guide, /Do not duplicate checkout, webhook or membership-sync logic/);
+  assert.match(guide, /authoritative membership subscription read/);
+  assert.match(guide, /https:\/\/igniteclubhq\.com/);
   assert.match(apiDoc, /no ChatGPT checkout/);
-  assert.match(apiDoc, /native store IAP requires/);
+  assert.match(apiDoc, /Never claim a purchase or entitlement without authoritative confirmation/);
 });
 
 test("guide requires consent and no blind duplicate writes", () => {
