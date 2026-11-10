@@ -228,6 +228,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // This eliminates flash by starting with cached profile if available
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [emailSigningOut, setEmailSigningOut] = useState(false);
+  const emailSigningOutRef = useRef(false);
   const [profile, setProfile] = useState<Profile | null>(initialAuthState.profile);
   const [loading, setLoading] = useState(initialAuthState.loading);
   const [profileLoading, setProfileLoading] = useState(initialAuthState.profileLoading);
@@ -562,6 +564,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
         if (!mounted) return;
+        // Explicit logout owns the state transition; late refresh callbacks
+        // must not remount the previous member's pages during cleanup.
+        if (emailSigningOutRef.current) return;
         
         // Check if we're in a native app context
         const isNative = typeof (window as any).Capacitor !== 'undefined' && 
@@ -1229,7 +1234,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (emailSigningOutRef.current) return;
+    emailSigningOutRef.current = true;
+    setEmailSigningOut(true);
     const currentUserId = user?.id;
+    // Retire all page observers while email credentials still exist, then
+    // cancel pending reads before removing that session. Otherwise retries
+    // run on /auth after routing has switched to Internet Identity.
+    navigateApp("/auth", { replace: true });
+    await queryClient.cancelQueries();
 
     try {
       if (currentUserId && isNativePlatform()) {
@@ -1252,9 +1265,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     currentUserIdRef.current = null; // Clear so re-login is treated as fresh (applies theme from DB)
     // Clear ALL React Query cache to prevent stale RLS data on re-login
     queryClient.clear();
+    clearUserScopedCaches();
+    if (currentUserId) revokeAllForUser(currentUserId);
     clearRolesCache(); // Clear cached user roles (security-critical)
     setUnreadCount(0);
     setUnreadMessagesCount(0);
+    emailSigningOutRef.current = false;
+    setEmailSigningOut(false);
   };
 
   const refreshProfile = useCallback(async () => {
@@ -1302,7 +1319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearUnreadCount,
       decrementUnreadCount,
     }}>
-      {children}
+      {emailSigningOut ? null : children}
     </AuthContext.Provider>
   );
 }
