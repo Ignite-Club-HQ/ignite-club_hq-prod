@@ -47,6 +47,19 @@ For now, the complete ChatGPT pilot should focus on a regular club and team, or 
 - Query `schema` and `getApiDoc` before guessing field names, Candid types or permissions.
 - Ask for explicit approval for all writes; never silently create additional clubs, users or invitations.
 
+## Disposable rehearsal evidence
+
+The CI job `rehearse-onboarding` in `.github/workflows/test-icp-mcp-onboarding.yml` uses PocketIC with two **synthetic, separate user principals** and one unrelated outsider, compiled from the feature branch. Its `frontend/scripts/test-icp-mcp-onboarding-replica.mjs` checks:
+
+- Fresh `whoami` refusal before `register_account`, account registration idempotency and separate caller accounts.
+- Missing profile and terms before explicit per-user updates; persisted display names and terms acceptance.
+- Owner-created club, duplicate-ID refusal, club ownership and `AU` home-country record.
+- Full team creation and readback, random team invitation link, public token preview, independent parent joining and idempotent acceptance.
+- Foreign caller denied club-team edits and invite minting; personal team created by owner but its normal invite path denied.
+- Disposal of the complete local PocketIC environment, with no live credentials, network deployment or live member changes.
+
+This proves a **local subset of the current canister behavior**, not a first-use ChatGPT plugin experience, group-placement end-to-end behavior, encrypted-name secure release, current policy version or native-app onboarding. It does not authorize production release.
+
 ## DEV acceptance test — use a fresh, non-admin identity
 
 These are **pending manual, permissioned** tests; the current developer account passing `whoami` and `get_profile` does **not** prove new-user onboarding:
