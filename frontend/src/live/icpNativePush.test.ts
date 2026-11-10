@@ -12,7 +12,7 @@ describe('ICP phone linking in store builds', () => {
   beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('IGNITE_LIVE_DEV_ICP_PUSH_ENABLED', undefined); });
   it('does not refuse just because the build flag is unset (store builds never set it)', async () => {
     state.getIdentity.mockResolvedValue(null);
-    await initializeDevIcpNativePush('account-a');
+    console.log('RESULT', JSON.stringify(await initializeDevIcpNativePush('account-a')));
     expect(state.getIdentity).toHaveBeenCalled();
   });
 });
