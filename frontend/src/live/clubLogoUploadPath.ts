@@ -7,5 +7,5 @@ export function clubLogoUploadPath(path: string): string {
 }
 
 export function isClubLogoUploadPath(path: string): boolean {
-  return /^clubs\/[^/]+\/logos\/.test(path);
+  return /^clubs\/[^/]+\/logos\//.test(path);
 }
