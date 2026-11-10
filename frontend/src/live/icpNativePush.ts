@@ -43,9 +43,8 @@ async function initialize(userId: string, requestPermission: boolean, attempt: n
   try {
     // Commission only after directory ownership, gateway and dual-mode phone acceptance.
     // An uncommissioned ICP adapter never drops through to legacy Supabase delivery.
-    if (import.meta.env.IGNITE_LIVE_DEV_ICP_PUSH_ENABLED !== 'true') {
-      return { success: false, error: 'TEST push setup is not complete yet' };
-    }
+    // Gated by usesDevIcpPush (exact TEST or LIVE queue + sign-in services);
+    // no separate build flag, which store builds never set.
     const { Capacitor, registerPlugin } = await import('@capacitor/core');
     if (!Capacitor.isNativePlatform()) return { success: false, error: 'Not a native app' };
     const platform = Capacitor.getPlatform();

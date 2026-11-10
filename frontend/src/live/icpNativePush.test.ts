@@ -8,10 +8,11 @@ vi.mock('@capacitor-firebase/messaging', () => ({ FirebaseMessaging: { getToken:
 vi.mock('./features/notifications', () => ({ registerLiveDeviceToken: state.register }));
 import { initializeDevIcpNativePush } from './icpNativePush';
 
-describe('ICP registration commissioning hold', () => {
+describe('ICP phone linking in store builds', () => {
   beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('IGNITE_LIVE_DEV_ICP_PUSH_ENABLED', undefined); });
-  it('does not access identity, Firebase tokens or canisters before commissioning', async () => {
-    expect(await initializeDevIcpNativePush('account-a')).toMatchObject({ success: false });
-    expect(state.getIdentity).not.toHaveBeenCalled(); expect(state.getToken).not.toHaveBeenCalled(); expect(state.register).not.toHaveBeenCalled();
+  it('does not refuse just because the build flag is unset (store builds never set it)', async () => {
+    state.getIdentity.mockResolvedValue(null);
+    const result = await initializeDevIcpNativePush('account-a');
+    expect(result.error).not.toBe('TEST push setup is not complete yet');
   });
 });
