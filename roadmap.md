@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Codemagic Android foreground adapter compilation — 10 November 09:23 UTC
+- [x] Uploaded log identifies missing Firebase RemoteMessage on the app Java compile classpath. Regression reproduced missing compile dependency; setup now exposes the existing PushNotifications Firebase version with compileOnly, preserving runtime dependencies and email push.
+- [x] Nine Android adapter/status-bar/Codemagic setup checks pass; preview build OK. Runtime Firebase dependencies and email notification code are unchanged.
+- [ ] Full release compilation requires a new Codemagic build after source sync/promotion; Android SDK unavailable locally. No PROD deployment or phone alert confirmation.
+
 ## Approved consolidated production promotion — 10 November 08:35 UTC
 - [x] Paul approved starting main→prod promotion of the prepared fixes; preserve production data and email-mode notifications, with no settings copy or wider push rollout.
 - [x] Opened GitHub release PR #1453. Reproduced the failed workflow inventory check and corrected stale source types/profile DTO mappings; 165 focused frontend checks, 49 release-control checks, lint and two Android setup checks pass. Preview build OK.
