@@ -52,6 +52,7 @@ export function setCachedCarousel<T>(userId: string | undefined, activeClubFilte
 export function getCachedCarouselWithTs<T>(
   userId: string | undefined,
   activeClubFilter: string | null,
+  options: { allowStale?: boolean } = {},
 ): { data: T; timestamp: number } | null {
   if (!userId) return null;
   try {
@@ -59,7 +60,7 @@ export function getCachedCarouselWithTs<T>(
     const raw = localStorage.getItem(key(userId, activeClubFilter));
     if (!raw) return null;
     const entry: Entry<T> = JSON.parse(raw);
-    if (Date.now() - entry.timestamp > TTL_MS) {
+    if (!options.allowStale && Date.now() - entry.timestamp > TTL_MS) {
       try { localStorage.removeItem(key(userId, activeClubFilter)); } catch { /* ignore storage cleanup errors */ }
       return null;
     }

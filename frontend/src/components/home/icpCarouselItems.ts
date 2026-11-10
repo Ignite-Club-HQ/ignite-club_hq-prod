@@ -19,15 +19,35 @@ export interface TeamOrLeague {
 }
 
 
-export async function fetchIcpCarouselItems(
+const pendingInventories = new Map<string, Promise<TeamOrLeague[]>>();
+
+export function fetchIcpCarouselItems(
   ctx: FeatureBackendContext,
   activeClubFilter: string | null,
-  options: { includeTrial?: boolean } = {},
+  options: { includeTrial?: boolean; inventory?: "teams" | "leagues" } = {},
+): Promise<TeamOrLeague[]> {
+  // Time-boxing an observer cannot cancel an already submitted canister read.
+  // Rejoining it prevents resume/retry from multiplying physical requests.
+  const principal = ctx.identity?.getPrincipal().toText();
+  if (!principal) return loadIcpCarouselItems(ctx, activeClubFilter, options);
+  const key = JSON.stringify([principal, ctx.target, activeClubFilter, options]);
+  const pending = pendingInventories.get(key);
+  if (pending) return pending;
+  const read = loadIcpCarouselItems(ctx, activeClubFilter, options);
+  pendingInventories.set(key, read);
+  void read.finally(() => { if (pendingInventories.get(key) === read) pendingInventories.delete(key); }).catch(() => undefined);
+  return read;
+}
+
+async function loadIcpCarouselItems(
+  ctx: FeatureBackendContext,
+  activeClubFilter: string | null,
+  options: { includeTrial?: boolean; inventory?: "teams" | "leagues" } = {},
 ): Promise<TeamOrLeague[]> {
   // Player leagues are caller-authorized independently of team role grants.
   // Start both inventories together, retaining errors until consumed so an
   // early league rejection cannot become unhandled while roles are pending.
-  const mineRead = listMyLiveMiniLeagues(ctx).then(
+  const mineRead = (options.inventory === "teams" ? Promise.resolve([]) : listMyLiveMiniLeagues(ctx)).then(
     value => ({ ok: true as const, value }),
     error => ({ ok: false as const, error }),
   );
@@ -56,7 +76,7 @@ export async function fetchIcpCarouselItems(
   const result: TeamOrLeague[] = [];
 
   const teams = Promise.all(
-    teamIds.map(async (teamId) => {
+    (options.inventory === "leagues" ? [] : teamIds).map(async (teamId) => {
       try {
         // The trial flag only depends on the team id, so read it alongside the
         // team row (both coalesce into one get_teams / get_team_subscriptions
@@ -102,6 +122,7 @@ export async function fetchIcpCarouselItems(
   );
 
   const leagues = (async () => {
+  if (options.inventory === "teams") return;
   const leagueRows = new Map<string, { id: string; name?: string; club_id?: string }>();
   const [mine, byClub] = await Promise.all([
     mineRead.then(result => {
