@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## ICP-only link-preview generation — 10 November
+- [x] Removed the external preview endpoint from ICP-mode requests; reused messaging_domain's existing on-chain HTTPS helper, preserved email-mode behavior, separated metadata/in-flight caches by sign-in mode and lazy-loaded messaging helpers.
+- [x] Three regressions reproduced before repair; 16 focused routing/preview checks pass in default mode and all 5 preview checks pass in ICP configuration; preview build OK. Boundaries documented in docs/icp-link-previews-on-chain-2026-11-10.md. Root AGENTS note skipped because user-owned rules already exhaust its size budget.
+- [ ] Authenticated II preview/real-website coverage, cold latency and phone acceptance require a delegated session/device unavailable in the sandbox. Source websites/images remain external; no PROD deployment made.
+
 ## Club/team logo membership visibility — 10 November 07:26 UTC
 - [x] Four regressions reproduced missing logo scope/member-key enforcement. New ICP club/team/request logos now canonicalize to clubs/<club>/logos and require the existing live-membership club key; old URLs, private files and email fallback remain unchanged. Monogram saves reuse the authorized context.
 - [x] 53 focused logo/upload/decryption tests pass (7 email/ICP-specific skips); preview build OK. Phone-sized public login renders without page errors/overflow; this is not member-logo acceptance.

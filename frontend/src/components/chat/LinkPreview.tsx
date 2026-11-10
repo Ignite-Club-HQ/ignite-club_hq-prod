@@ -3,7 +3,6 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { fetchAnonymousLinkPreview, fetchLiveLinkPreview } from "@/live/features/messaging";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 import { preventIfReactionInteractionGuarded } from "@/lib/reactionInteractionGuard";
@@ -25,7 +24,7 @@ interface LinkPreviewProps {
 }
 
 // Module-level cache so the same URL never refetches across remounts AND
-// renders synchronously on every subsequent appearance. Keyed by raw URL.
+// renders synchronously on subsequent appearances in the same sign-in mode.
 type CacheEntry = LinkPreviewData | null; // null = no preview / errored
 const previewCache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<CacheEntry>>();
@@ -45,9 +44,9 @@ const isAppDomain = (url: string): boolean => {
   }
 };
 
-async function fetchPreviewOnce(url: string): Promise<CacheEntry> {
-  if (previewCache.has(url)) return previewCache.get(url)!;
-  const existing = inflight.get(url);
+async function fetchPreviewOnce(url: string, cacheKey: string): Promise<CacheEntry> {
+  if (previewCache.has(cacheKey)) return previewCache.get(cacheKey) ?? null;
+  const existing = inflight.get(cacheKey);
   if (existing) return existing;
 
   const p = (async () => {
@@ -62,6 +61,7 @@ async function fetchPreviewOnce(url: string): Promise<CacheEntry> {
         supabase: async () => {
           // Messaging canister first (Netlify endpoint kept as a transition fallback).
           try {
+            const { fetchAnonymousLinkPreview } = await import("@/live/features/messaging");
             const p = await fetchAnonymousLinkPreview(fetchUrl);
             if (p) {
               return {
@@ -84,20 +84,9 @@ async function fetchPreviewOnce(url: string): Promise<CacheEntry> {
           return (await res.json()) as LinkPreviewData | null;
         },
         icp: async (ctx) => {
-          // Fast path first: the app's own link-preview endpoint fetches only
-          // public og metadata and answers in well under a second. The
-          // canister's replicated HTTPS outcall (several seconds per link)
-          // stays as the fallback when the endpoint is unavailable.
-          try {
-            const res = await fetch("/api/fetch-link-preview", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ url: fetchUrl }),
-            });
-            if (res.ok) return (await res.json()) as LinkPreviewData | null;
-          } catch {
-            // fall through to the canister outcall
-          }
+          // ICP owns fetching/parsing/caching; failure stays a plain link,
+          // never an external-helper request or email-mode fallback.
+          const { fetchLiveLinkPreview } = await import("@/live/features/messaging");
           const p = await fetchLiveLinkPreview(ctx, fetchUrl);
           return {
             url: fetchUrl,
@@ -115,27 +104,28 @@ async function fetchPreviewOnce(url: string): Promise<CacheEntry> {
       // scroll-idle — that removal is perceived as a downward jolt when upward
       // momentum stops.
       const value = hasContent ? (data as LinkPreviewData) : ({ url: fetchUrl } as LinkPreviewData);
-      previewCache.set(url, value);
+      previewCache.set(cacheKey, value);
       return value;
     } catch (err) {
       console.error("Failed to fetch link preview:", err);
       const fallbackUrl = url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`;
       const fallback = { url: fallbackUrl } as LinkPreviewData;
-      previewCache.set(url, fallback);
+      previewCache.set(cacheKey, fallback);
       return fallback;
     } finally {
-      inflight.delete(url);
+      inflight.delete(cacheKey);
     }
   })();
-  inflight.set(url, p);
+  inflight.set(cacheKey, p);
   return p;
 }
 
 export function LinkPreview({ url, onRemove, compact = false, reserveSpace = false }: LinkPreviewProps) {
   const skipPreview = isAppDomain(url);
+  const cacheKey = `${resolveAuthBackend()}:${url}`;
   // Synchronous cache hit → render the final card on the very first commit,
   // which is what makes repeat-mount (re-render during scroll) jolt-free.
-  const cached = !skipPreview && previewCache.has(url) ? previewCache.get(url)! : undefined;
+  const cached = !skipPreview && previewCache.has(cacheKey) ? previewCache.get(cacheKey) : undefined;
   const [preview, setPreview] = useState<CacheEntry | undefined>(cached);
   const mountedRef = useRef(true);
 
@@ -148,10 +138,10 @@ export function LinkPreview({ url, onRemove, compact = false, reserveSpace = fal
 
   useEffect(() => {
     if (skipPreview) return;
-    if (previewCache.has(url)) {
+    if (previewCache.has(cacheKey)) {
       // Already cached — make sure local state matches in case the URL
       // prop changed across renders.
-      const v = previewCache.get(url)!;
+      const v = previewCache.get(cacheKey);
       if (v !== preview) setPreview(v);
       return;
     }
@@ -162,7 +152,7 @@ export function LinkPreview({ url, onRemove, compact = false, reserveSpace = fal
 
     const startFetch = () => {
       if (cancelled || !mountedRef.current) return;
-      fetchPreviewOnce(url).then((value) => {
+      fetchPreviewOnce(url, cacheKey).then((value) => {
         if (cancelled || !mountedRef.current) return;
         // CRITICAL: do NOT setState mid-flick. Inserting/removing a
         // ~80px-tall preview card while the user is fast-scrolling shifts
@@ -187,7 +177,7 @@ export function LinkPreview({ url, onRemove, compact = false, reserveSpace = fal
       cancelDefer?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, skipPreview]);
+  }, [url, skipPreview, cacheKey]);
 
   // In chat history, reserve the final card height immediately so a fetched
   // preview does not insert ~80px above/inside the viewport during a fast
