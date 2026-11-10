@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## ICP team carousel latency audit — 10 November 18:35 UTC
+- [x] Read-only PROD comparison confirms all-team/all-league/all-group barrier, club-metadata wait, sequential league visibility checks, mismatched deadlines/retries and fragile saved-card fallback; findings in docs/icp-team-carousel-latency-audit-2026-11-10.md.
+- [x] Reproduced two withheld-card waits and 24-hour snapshot expiry; 26 focused default-mode checks pass. Audit only: no runtime, canister, push, permission or PROD changes.
+- [ ] Actual installed-phone ICP request timing awaits the affected device/delegated session; supplied preview telemetry is email-mode, not that session.
+
 ## Codemagic Android foreground adapter compilation — 10 November 09:23 UTC
 - [x] Uploaded log identifies missing Firebase RemoteMessage on the app Java compile classpath. Regression reproduced missing compile dependency; setup now exposes the existing PushNotifications Firebase version with compileOnly, preserving runtime dependencies and email push.
 - [x] Nine Android adapter/status-bar/Codemagic setup checks pass; preview build OK. Runtime Firebase dependencies and email notification code are unchanged.
