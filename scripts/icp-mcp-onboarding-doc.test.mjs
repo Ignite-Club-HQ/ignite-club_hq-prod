@@ -60,6 +60,40 @@ test("canister discovery document keeps the connector response concise", () => {
   assert.match(text, /"entity":"teams"/);
 });
 
+test("branded download links resolve to fixed verified store destinations", () => {
+  const redirectConfig = fs.readFileSync(path.join(root, "netlify.toml"), "utf8");
+  const downloadComponent = fs.readFileSync(path.join(root, "frontend/src/components/AppStoreDownloadGuide.tsx"), "utf8");
+  const expected = [
+    {from: "/get/ios", to: "https://apps.apple.com/au/app/ignite-club-hq/id6758928691"},
+    {from: "/get/android", to: "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub"},
+  ];
+  for (const {from, to} of expected) {
+    const fromAt = redirectConfig.indexOf('from = "' + from + '"');
+    const targetAt = redirectConfig.indexOf('to = "' + to + '"', fromAt);
+    assert.ok(fromAt >= 0 && targetAt > fromAt, "Missing fixed redirect " + from);
+    assert.ok(redirectConfig.slice(targetAt, targetAt + 120).includes('status = 302'), "Use a temporary redirect");
+  }
+  const wildcard = redirectConfig.indexOf('from = "/*"');
+  assert.ok(wildcard > redirectConfig.indexOf('from = "/get/ios"'));
+  assert.ok(wildcard > redirectConfig.indexOf('from = "/get/android"'));
+  assert.match(downloadComponent, /https:\/\/igniteclubhq\.app\/get\/ios/);
+  assert.match(downloadComponent, /https:\/\/igniteclubhq\.app\/get\/android/);
+  assert.doesNotMatch(downloadComponent, /reference\.invalid/);
+  assert.match(guide, /## Branded app links and paid plans/);
+  for (const link of ["https://igniteclubhq.app/get/ios","https://igniteclubhq.app/get/android","https://igniteclubhq.app"]) {
+    assert.ok(guide.includes(link), "Missing branded link " + link);
+    assert.ok(apiDoc.includes(link), "Plugin doc omits " + link);
+  }
+});
+
+test("ChatGPT Pro guidance does not imply direct checkout or grant", () => {
+  assert.match(guide, /No current/);
+  assert.match(guide, /Pro is active/);
+  assert.match(guide, /DEV IDs cannot be used on the PROD domain/);
+  assert.match(apiDoc, /no ChatGPT checkout/);
+  assert.match(apiDoc, /native store IAP requires/);
+});
+
 test("guide requires consent and no blind duplicate writes", () => {
   assert.match(guide, /explicit consent/);
   assert.match(guide, /do not blindly retry/i);
