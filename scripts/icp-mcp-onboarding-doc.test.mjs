@@ -57,7 +57,9 @@ test("canister discovery document keeps the connector response concise", () => {
   assert.ok(Buffer.byteLength(text, "utf8") <= 5120, "Connector truncates oversized API docs");
   assert.match(text, /Required ClubTeam fields:/);
   assert.match(text, /Candid updates still work/);
-  assert.match(text, /"entity":"teams"/);
+  assert.match(text, /club_subscriptions, team_subscriptions/);
+  assert.match(text, /premium_active/);
+  assert.match(text, /trial_active/);
 });
 
 test("branded download links resolve to fixed verified store destinations", () => {
