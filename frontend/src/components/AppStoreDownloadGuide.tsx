@@ -3,9 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import igniteIcon from "@/assets/ignite-icon.png";
 
-// Placeholder URLs - replace with actual store URLs once published
-export const APP_STORE_URL = "https://reference.invalid";
-export const PLAY_STORE_URL = "https://reference.invalid";
+// Customer-facing links stay on Ignite\'s branded domain. The Netlify 302\n// redirects to the verified stores live in the root netlify.toml.\nexport const APP_STORE_URL = "https://igniteclubhq.app/get/ios";\nexport const PLAY_STORE_URL = "https://igniteclubhq.app/get/android";
 
 interface AppStoreDownloadGuideProps {
   onContinueInBrowser?: () => void;
