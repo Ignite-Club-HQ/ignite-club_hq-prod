@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Email sign-out login warnings — 10 November
+- [ ] Reproduce email page reads surviving explicit sign-out; retire observers before removing the email session, preserving native push unregister.
+- [ ] Verify logout cleanup and existing sign-in/routing checks; no production changes.
+
 ## Remaining shared settings in ICP mode — 10 November
 - [x] Audited available ICP settings only; historical media and unavailable external features excluded. Most runtime/admin settings already use on-chain authorities; gaps recorded in docs/icp-shared-settings-audit-2026-11-10.md.
 - [x] Reproduced five failures and repaired mounted ICP startup isolation, source-bound runtime settings caches and explicit shared-app admin read/one-attempt write dispatch; email sign-in discovery/behaviour retained.
