@@ -1,8 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
 ## Club/team logo membership visibility — 10 November 07:26 UTC
-- [ ] Reproduce missing club scope on new legacy-shaped logo uploads; use the existing live-membership club key without changing old URLs or email storage.
-- [ ] Run focused logo/upload/decryption regressions and verify available mobile rendering.
+- [x] Four regressions reproduced missing logo scope/member-key enforcement. New ICP club/team/request logos now canonicalize to clubs/<club>/logos and require the existing live-membership club key; old URLs, private files and email fallback remain unchanged. Monogram saves reuse the authorized context.
+- [x] 53 focused logo/upload/decryption tests pass (7 email/ICP-specific skips); preview build OK. Phone-sized public login renders without page errors/overflow; this is not member-logo acceptance.
 - [ ] Physical-phone signed-in upload and second-member viewing require an updated installed app and device access unavailable in the sandbox; do not claim phone confirmation.
 
 ## Forward-only ICP upload review — 10 November 07:22 UTC
