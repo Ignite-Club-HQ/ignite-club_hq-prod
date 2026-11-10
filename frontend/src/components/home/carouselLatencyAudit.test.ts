@@ -37,13 +37,14 @@ describe('current carousel latency audit (observed barriers, not acceptance)', (
     release?.([{ name: 'Club A', logo_url: [], sport: [] }]);
     expect((await result).map(row => row.id)).toEqual(['team-a']);
   });
-  it('discards saved cards after 24 hours even though they can be placeholders', () => {
+  it('keeps saved ICP cards beyond 24 hours for same-account background revalidation', () => {
     vi.useFakeTimers();
     try {
       setCachedCarousel('audit-user', null, { items: [{ id: 'team-a' }] });
       expect(getCachedCarouselWithTs('audit-user', null)).not.toBeNull();
       vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1);
-      expect(getCachedCarouselWithTs('audit-user', null)).toBeNull();
+      expect(getCachedCarouselWithTs('audit-user', null, { allowStale: true })).not.toBeNull();
+      expect(getCachedCarouselWithTs('another-user', null, { allowStale: true })).toBeNull();
     } finally { vi.useRealTimers(); }
   });
 });
