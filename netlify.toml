@@ -43,6 +43,22 @@
   to = "/.netlify/functions/register-club-backend"
   status = 200
 
+# Public, brand-owned app-install links used by ChatGPT ICP onboarding.
+# Place before the full-site ICP canister proxy. Never expose raw store IDs or
+# Lovable project URLs in customer-facing invitation copy.
+# All targets are fixed allowlisted store destinations, not user-supplied.
+[[redirects]]
+  from = "/get/ios"
+  to = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/get/android"
+  to = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub"
+  status = 302
+  force = true
+
 # Whole site is served from the PROD frontend canister; Netlify only proxies.
 # force = true so Netlify's own built files never shadow the canister.
 # Rollback: delete this rule to fall back to the SPA rule below.
