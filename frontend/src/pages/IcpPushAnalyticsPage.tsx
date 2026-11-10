@@ -37,6 +37,16 @@ export default function IcpPushAnalyticsPage() {
     return cleanupAdminDeviceTokens(ageDays);
   }, onSuccess: count => { if (count !== null) { toast.success(`Removed ${count} stale device registrations`); qc.invalidateQueries({ queryKey: ["icp-admin-push-health"] }); } }, onError: (e: Error) => toast.error(e.message) });
   const testAlert = useMutation({ mutationFn: async () => {
+      // Link this phone's current alert address first, so the test never goes
+      // only to an older registration left from a previous install.
+      const push = await import("@/lib/nativePush");
+      if (push.isNativePlatform()) {
+        const linked = await push.initializeNativePush("icp-test-alert");
+        if (!linked.success) {
+          console.warn("Test alert phone registration failed:", linked.error);
+          throw new Error("This phone couldn't be linked for alerts. Check notifications are allowed for Ignite, then try again.");
+        }
+      }
       const id = await queueMyNativeTestAlert();
       const progress = toast.loading("Test alert queued — following it to your phone…");
       try { return await followMyNativeTestAlert(id); } finally { toast.dismiss(progress); }

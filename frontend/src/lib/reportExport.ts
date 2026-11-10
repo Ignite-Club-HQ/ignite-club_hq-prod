@@ -108,8 +108,15 @@ export async function downloadTextReport(
   a.href = url;
   a.download = fileName;
   a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+  try {
+    document.body.appendChild(a);
+    a.click();
+  } catch (error) {
+    window.URL.revokeObjectURL(url);
+    throw error;
+  } finally {
+    a.remove();
+  }
+  // Give browsers time to consume the bytes before retiring the download URL.
+  setTimeout(() => window.URL.revokeObjectURL(url), 30_000);
 }

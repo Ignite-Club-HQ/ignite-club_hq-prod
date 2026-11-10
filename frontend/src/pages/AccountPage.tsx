@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { requireAccessToken, SessionExpiredError, SESSION_EXPIRED_MESSAGE } from "@/lib/requireAccessToken";
 import { resolveAuthBackend } from "@/live/authBackendMode";
+import { Capacitor } from "@capacitor/core";
+import { downloadTextReport } from "@/lib/reportExport";
 
 export default function AccountPage() {
   const { user, signOut } = useAuth();
@@ -117,7 +119,6 @@ export default function AccountPage() {
   const handleExportDataIcp = async () => {
     if (exportingData) return;
     setExportingData(true);
-    let objectUrl: string | null = null;
     try {
       const { getCurrentInternetIdentity } = await import("@/live/internetIdentityAuth");
       const { exportMyIcpAccountData } = await import("@/live/accountData");
@@ -127,23 +128,25 @@ export default function AccountPage() {
         return;
       }
       const payload = await exportMyIcpAccountData(identity);
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-      objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = `ignite-data-export-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast({ title: "Data exported", description: "Your identity_access data has been downloaded as JSON." });
+      await downloadTextReport(
+        JSON.stringify(payload, null, 2),
+        `ignite-data-export-${new Date().toISOString().split('T')[0]}.json`,
+        "application/json",
+      );
+      toast({
+        title: "Data exported",
+        description: Capacitor.isNativePlatform()
+          ? "Your export is ready. Use your phone's sharing options to save a copy."
+          : "Your account data download has started.",
+      });
     } catch (err) {
+      console.error("[AccountPage] Personal-data export failed", err);
       toast({
         title: "Export failed",
-        description: err instanceof Error ? err.message : "Unknown error",
+        description: "We couldn't download your data. Please try again.",
         variant: "destructive",
       });
     } finally {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
       setExportingData(false);
     }
   };
