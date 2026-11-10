@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Club/team logo membership visibility — 10 November 07:26 UTC
+- [ ] Reproduce missing club scope on new legacy-shaped logo uploads; use the existing live-membership club key without changing old URLs or email storage.
+- [ ] Run focused logo/upload/decryption regressions and verify available mobile rendering.
+- [ ] Physical-phone signed-in upload and second-member viewing require an updated installed app and device access unavailable in the sandbox; do not claim phone confirmation.
+
 ## Forward-only ICP upload review — 10 November 07:22 UTC
 - [x] Inventoried available new-upload paths; excluded older files, email-only competition uploads and production data changes. Platform creatives are stored inline on-chain; other active uploads use encrypted stores.
 - [x] Reproduced three failures; repaired central ICP storage/session fallback and chat-document authority consistency. Default suites: 57 passed/11 mode skips; ICP suites: 30 passed/18 mode skips; preview build OK. Email fallback retained.
