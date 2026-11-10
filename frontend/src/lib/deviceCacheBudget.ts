@@ -11,6 +11,7 @@ const EXACT_KEYS = new Set([
 ]);
 const PREFIXES = ['ignite_message_cache_', 'ignite_events_list_', 'ignite_event_detail_',
   'ignite_event_rsvps_', 'ignite_my_teams_carousel_v2_', 'ignite_next_up_events_'];
+const FIRST_PAINT_PREFIXES = ['ignite_my_teams_carousel_v2_', 'ignite_next_up_events_'];
 export function isDisposableReadCache(key: string): boolean {
   return EXACT_KEYS.has(key) || PREFIXES.some(prefix => key.startsWith(prefix));
 }
@@ -48,7 +49,10 @@ function trim(rows: Map<string, Entry>, incomingBytes = 0): void {
       localStorage.removeItem(key); rows.delete(key);
     } else total += entry.bytes;
   }
-  for (const [key, entry] of [...rows].sort((a, b) => a[1].time - b[1].time)) {
+  // Home's saved cards are evicted last: the general query cache alone can
+  // fill the budget, which silently dropped them and forced a slow reload.
+  const keep = (key: string) => FIRST_PAINT_PREFIXES.some(prefix => key.startsWith(prefix)) ? 1 : 0;
+  for (const [key, entry] of [...rows].sort((a, b) => keep(a[0]) - keep(b[0]) || a[1].time - b[1].time)) {
     if (total <= LOCAL_READ_CACHE_BYTES) break;
     localStorage.removeItem(key); rows.delete(key); total -= entry.bytes;
   }
