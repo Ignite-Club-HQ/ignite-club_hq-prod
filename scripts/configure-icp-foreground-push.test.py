@@ -30,7 +30,9 @@ class ForegroundScaffoldTests(unittest.TestCase):
             configured = gradle.read_text()
             dependency = 'compileOnly "com.google.firebase:firebase-messaging:${project(\':capacitor-push-notifications\').ext.firebaseMessagingVersion}"'
             self.assertEqual(configured.count(dependency), 1)
-            self.assertEqual(configured.replace('    ' + dependency + '\n', ''), original)
+            evaluation = "evaluationDependsOn(':capacitor-push-notifications')\n"
+            self.assertEqual(configured.count(evaluation), 1)
+            self.assertEqual(configured.replace('    ' + dependency + '\n', '').replace(evaluation, ''), original)
 
     def test_install_is_idempotent_and_preserves_existing_registration(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -53,6 +55,7 @@ class ForegroundScaffoldTests(unittest.TestCase):
             activity = frontend / 'android/app/src/main/java/example/MainActivity.java'
             activity.parent.mkdir(parents=True)
             activity.write_text('unknown scaffold')
+            (frontend / 'android/app/build.gradle').write_text('dependencies {\n}\n')
             with self.assertRaises(RuntimeError):
                 MODULE.configure(frontend)
             self.assertEqual(activity.read_text(), 'unknown scaffold')
