@@ -79,7 +79,9 @@ export async function followMyNativeTestAlert(id: string, waitMs = 20000): Promi
 
 export function describeMyTestAlert(s: MyTestAlertState | null): string {
   if (!s) return "Test alert queued, but its progress couldn't be read.";
-  if (s.outcomes.includes("accepted")) return "Sent to your phone. If it doesn't appear, check Do Not Disturb and the notification shade.";
+  const sent = s.outcomes.filter(o => o === "accepted").length;
+  if (sent > 0 && s.devices > 1) return `Sent to ${sent} of the ${s.devices} phone registrations on this account. If nothing appears, an old registration was probably used; reopen the app and try again.`;
+  if (sent > 0) return "Sent to your phone. If it doesn't appear, check Do Not Disturb and the notification shade.";
   if (s.status === "pending" || s.status === "processing") return "Queued, but the sender hasn't collected it yet. It will be picked up on the next wake-up.";
   if (s.devices === 0) return "No phone is registered for alerts on this account. Open the app on your phone signed in with Internet Identity and allow notifications.";
   if (s.devices === s.sharedDevices) return "This phone is also registered to another account, so alerts to it are blocked for safety.";
