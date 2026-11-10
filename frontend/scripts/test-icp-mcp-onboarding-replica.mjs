@@ -12,7 +12,7 @@ import { idlFactory as clubIdl } from '../src/lab/bindings/club_domain/declarati
 const id = n => Principal.fromUint8Array(Uint8Array.of(n, 1));
 const governor = id(1), creator = id(2), invitee = id(3), outsider = id(4);
 const ok = result => {
-  assert.ok('Ok' in result, 'Expected Ok, received ' + JSON.stringify(result));
+  assert.ok('Ok' in result, 'Expected Ok, received ' + JSON.stringify(result, (_, v) => typeof v === 'bigint' ? v.toString() : v));
   return result.Ok;
 };
 const optional = ['age_group','deleted_at_ms','description','division','folder_id',
