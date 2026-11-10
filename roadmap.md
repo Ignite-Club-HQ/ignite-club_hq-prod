@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Optional off-chain media and purchase assessment — 10 November
+- [x] Investigated source and official provider guidance: GIPHY prohibits partner media caching/proxying under standard rules; permitted thumbnails/owned GIFs are technically possible with audience/size/rights constraints. Apple signed JWS verification could move partly to ICP; Google current-state API verification should retain external credential-bearing transport.
+- [x] Findings and recommended order recorded in docs/icp-remote-media-purchase-feasibility-2026-11-10.md. Source ICP verifier is Apple-only and lacks matched-product/app/account checks; no hosted purchase failure claimed. Research only; billing/push/email/live behavior unchanged. Hosting and optional chat-relay assessment postponed.
+
 ## ICP-only link-preview generation — 10 November
 - [x] Removed the external preview endpoint from ICP-mode requests; reused messaging_domain's existing on-chain HTTPS helper, preserved email-mode behavior, separated metadata/in-flight caches by sign-in mode and lazy-loaded messaging helpers.
 - [x] Three regressions reproduced before repair; 16 focused routing/preview checks pass in default mode and all 5 preview checks pass in ICP configuration; preview build OK. Boundaries documented in docs/icp-link-previews-on-chain-2026-11-10.md. Root AGENTS note skipped because user-owned rules already exhaust its size budget.
