@@ -23,7 +23,9 @@ Three regression failures were reproduced before repair: two missing-prerequisit
 - CompetitionWelcomeEmailCard explicitly belongs to the email competition settings page; it is excluded, not migrated. Legacy CompetitionMediaPanel storage calls are not proof of an active ICP path.
 - Remote GIFs, pasted URLs, external Vault links and built-in bundled images are not new uploaded bytes. Their hosting remains a separate item; this task does not mirror them.
 - Club/team creation treats logo upload as a best-effort follow-up and can complete without a logo when storage fails. This remains a user-visible outcome gap, not evidence of an off-chain upload.
-- Some legacy logo paths use `club-logos/` rather than `clubs/`; the encryption helper recognizes supported path shapes. This audit does not change existing derivation identities or migrate their files.
+- Some creation logo paths use `club-logos/` rather than `clubs/`; `clubIdFromMediaPath` recognizes only `clubs/`. Those bytes are on-chain but receive per-file encryption without an automatic club grant, so visibility to other members needs a follow-up correction for future uploads. This audit does not change existing derivation identities or migrate their files.
 - Authenticated upload, metadata readback and decryption on an actual II session/phone are not available in this sandbox. Focused tests prove routing/error contracts, not universal device acceptance.
 
 Next optional external helper to assess: link previews. Source websites remain external even if preview fetching/coordination moves to ICP; assess HTTPS outcall consensus, response size and unsafe URLs before implementation.
+
+Verification: default-mode upload suites passed 57 checks (11 mode-specific skips); ICP-mode suites passed 30 checks (18 mode-specific skips). Preview build reports OK. No production deployment. Root AGENTS.md could not accept the additional routing note within its size budget; existing scoped-upload rules remain unchanged.

@@ -1,9 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
 ## Forward-only ICP upload review — 10 November 07:22 UTC
-- [ ] Inventory available new-upload paths; exclude older files, email-only features and production data changes.
-- [ ] Reproduce and repair central ICP storage/session fallback and chat-document authority consistency; run focused media/attachment/email tests.
-- [ ] Record remaining boundaries and distinguish source verification from authenticated phone upload/readback.
+- [x] Inventoried available new-upload paths; excluded older files, email-only competition uploads and production data changes. Platform creatives are stored inline on-chain; other active uploads use encrypted stores.
+- [x] Reproduced three failures; repaired central ICP storage/session fallback and chat-document authority consistency. Default suites: 57 passed/11 mode skips; ICP suites: 30 passed/18 mode skips; preview build OK. Email fallback retained.
+- [x] Recorded boundaries in docs/icp-new-uploads-audit-2026-11-10.md. Creation logo paths using club-logos/ lack automatic club grants; best-effort creation can hide logo failure. These are on-chain visibility gaps, not an off-chain byte migration.
+- [ ] Authenticated new-upload/readback/decryption on II/native phone remains unverified: sandbox lacks the user's delegated II session and physical device. No PROD deployment or older-file transfer performed.
 
 ## Approved settings production release — 10 November 07:19 UTC
 - [x] Paul approved moving prepared code to PROD without a manual TEST settings-save step; no arbitrary settings copies or business-data writes authorized.
