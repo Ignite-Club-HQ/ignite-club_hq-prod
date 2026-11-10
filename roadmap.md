@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Personal-data download on ICP phones — 10 November
+- [ ] Reproduce the native export failure and use the existing phone file-sharing path for the JSON download; preserve caller authorization and email exports.
+- [ ] Verify focused export tests and browser download; physical Android/iOS acceptance awaits a new app build and Paul's device.
+
 ## Native push wake reliability — 10 November 02:14 UTC
 - [x] Added one content-free retry after 5 seconds and an ICP-owned 60-second backup check with rotating scans capped at 200 rows; idle/unconfigured queues do not call the sender. Paul-only LIVE allowlist, sender reservation authority and Supabase-mode delivery unchanged.
 - [x] Wake policy and receipt Motoko tests pass; complete notification_queue source check passes; 30 isolation/PROD recipient/self-test checks pass. No interface or persisted-state changes.

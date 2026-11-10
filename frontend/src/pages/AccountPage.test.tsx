@@ -9,6 +9,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 const icp = vi.hoisted(() => ({ identity: vi.fn(), erase: vi.fn(), export: vi.fn() }));
+const nativeExport = vi.hoisted(() => ({ native: false, write: vi.fn(), share: vi.fn() }));
+vi.mock("@capacitor/core", () => ({ Capacitor: { isNativePlatform: () => nativeExport.native } }));
+vi.mock("@capacitor/filesystem", () => ({
+  Filesystem: { writeFile: nativeExport.write }, Directory: { Cache: "CACHE" }, Encoding: { UTF8: "utf8" },
+}));
+vi.mock("@capacitor/share", () => ({ Share: { share: nativeExport.share } }));
 vi.mock("@/live/internetIdentityAuth", () => ({ getCurrentInternetIdentity: icp.identity }));
 vi.mock("@/live/accountData", () => ({ eraseMyIcpAccount: icp.erase, exportMyIcpAccountData: icp.export }));
 vi.mock("@/live/authBackendMode", () => ({ resolveAuthBackend: () => process.env.IGNITE_TEST_BACKEND_MODE === "icp" ? "icp" : "supabase" }));
@@ -67,6 +73,9 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  nativeExport.native = false;
+  nativeExport.write.mockReset().mockResolvedValue({ uri: "file:///cache/export.json" });
+  nativeExport.share.mockReset().mockResolvedValue({});
   icp.identity.mockReset();
   icp.erase.mockReset();
   icp.export.mockReset();
@@ -121,6 +130,27 @@ describe.runIf(!supabaseMode)("AccountPage — ICP data export", () => {
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: /download my data/i }));
   }
+
+  it("writes the caller's JSON to a phone file and offers that file for saving", async () => {
+    nativeExport.native = true;
+    const identity = { principal: "own" };
+    const payload = { backend: "icp", account: { id: "account-1" } };
+    icp.identity.mockResolvedValue(identity);
+    icp.export.mockResolvedValue(payload);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    try {
+      await clickExport();
+      await waitFor(() => expect(nativeExport.share).toHaveBeenCalledWith(expect.objectContaining({ files: ["file:///cache/export.json"] })));
+      expect(nativeExport.write).toHaveBeenCalledWith(expect.objectContaining({
+        data: JSON.stringify(payload, null, 2), directory: "CACHE", encoding: "utf8",
+        path: expect.stringMatching(/ignite-data-export-\d{4}-\d{2}-\d{2}\.json$/),
+      }));
+      expect(icp.export).toHaveBeenCalledWith(identity);
+      expect(click).not.toHaveBeenCalled();
+      expect(createUrlFn).not.toHaveBeenCalled();
+      expect(fetchFn).not.toHaveBeenCalled();
+    } finally { click.mockRestore(); }
+  });
 
   it("exports caller-scoped data as JSON and revokes the download URL", async () => {
     const identity = { principal: "own" };
