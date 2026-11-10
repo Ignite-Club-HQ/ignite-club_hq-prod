@@ -351,3 +351,6 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] DEV asset 404 + one-time chunk reload: deploy to TEST and confirm Home/Messages/Events after II sign-in on phone (needs Paul).
 
 - [ ] TEST fast native sender: code ready (ICP wake-up, sender endpoint, commission/backup workflow); blocked on Supabase function publishing internal error; then update TEST notification service, commission, TEST Android build.
+
+- [x] DEV: ICP purchase verifier now checks product, app identity, refunds and expiry; Android purchases fail clearly (Google check still external, not built).
+- [ ] Account binding for Apple purchases (needs StoreKit 2 appAccountToken — later).
