@@ -116,8 +116,11 @@ try {
     assert.deepEqual(getValue(rows[0], 'trial_active'), { bool: true });
     assert.deepEqual(getValue(rows[0], 'premium_active'), { bool: true });
   }
-  assert.equal((await subscriptionsFor(Principal.anonymous(), 'club_subscriptions')).length, 0,
-    'Anonymous principal must not see membership status');
+  await assert.rejects(
+    () => subscriptionsFor(Principal.anonymous(), 'club_subscriptions'),
+    /Authenticated user required/,
+    'Anonymous principals must not query membership status'
+  );
 
   club.actor.setPrincipal(outsider);
   assert.ok('Err' in await club.actor.create_team_invite_link(clubId, teamId, 'parent'));
