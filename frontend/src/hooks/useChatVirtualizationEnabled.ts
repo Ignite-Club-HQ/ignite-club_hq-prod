@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { resolveAuthBackend } from "@/live/authBackendMode";
+import { appSettingSourceKey } from "@/live/appSettingSource";
 
 const QUERY_KEY = ["app-setting", "chat_virtualization_enabled"] as const;
 
@@ -18,9 +19,10 @@ const QUERY_KEY = ["app-setting", "chat_virtualization_enabled"] as const;
  */
 export function useChatVirtualizationEnabled(): boolean {
   const queryClient = useQueryClient();
+  const source = appSettingSourceKey();
 
   const { data } = useQuery({
-    queryKey: QUERY_KEY,
+    queryKey: [...QUERY_KEY, source],
     queryFn: async () => {
       // ICP mode: the setting lives on club_domain's app_config store
       // (public anonymous query; lazy-imported so the ICP SDK stays out of
@@ -90,7 +92,7 @@ export function useChatVirtualizationEnabled(): boolean {
         /* ignore */
       }
     };
-  }, [queryClient]);
+  }, [queryClient, source]);
 
   // While loading or on error, assume enabled (safe default).
   return data !== false;

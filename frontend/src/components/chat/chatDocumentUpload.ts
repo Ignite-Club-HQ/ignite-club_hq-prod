@@ -13,6 +13,7 @@ export async function uploadIcpChatDocument(file: File, clubId: string, teamId?:
     supabase: () => { throw new Error("File sharing could not connect to ICP. Please try again."); },
     icp: async (ctx) => {
       const uploaded = await tryUploadMediaToBlobStore({
+        context: ctx,
         storagePath: `clubs/${clubId}/chat/files/${id}.${extension}`,
         file,
         mime,

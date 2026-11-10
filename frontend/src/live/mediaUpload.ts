@@ -10,16 +10,18 @@ import { grantLiveClubPiiRead, grantLivePiiReadClub, grantLivePiiReadCompetition
 import { MEDIA_BLOB_PII_FIELD } from "./mediaDecrypt";
 import type { LiveBlobRef } from "./mediaStorage";
 import { sha256Hex } from "./blobStoreProtocol";
+import { clubLogoUploadPath, isClubLogoUploadPath } from "./clubLogoUploadPath";
 
 /**
  * Upload-side routing for media bytes: the mirror of resolveMediaSource on
  * the read side. Callers keep their existing Supabase storage upload as the
- * fallback branch — this returns null, and nothing changes, until BOTH:
+ * fallback branch for email sessions — this returns null until BOTH:
  *   1. an admin has registered a media_blob_store canister ID in placement
  *      settings, and
  *   2. the member is signed in with Internet Identity (canister writes need
  *      an authenticated principal).
- * Once both hold, uploads go on-chain and the returned URL is stored in the
+ * ICP sessions fail closed if either prerequisite is missing; null never
+ * authorizes sending their bytes to email storage. Once both hold, uploads go on-chain and the returned URL is stored in the
  * photo/vault row instead of a Supabase storage URL. A configured-but-failed
  * upload throws rather than silently diverting bytes to Supabase (same rule
  * as featureRouter.ts).
@@ -68,12 +70,22 @@ export async function tryUploadMediaToBlobStore(args: {
   beforeUpload?: (ref: LiveBlobRef) => Promise<void>;
 }): Promise<BlobMediaUpload | null> {
   const target = args.context?.target ?? getActiveIcpTarget();
-  if (!isBlobStoreConfigured(target)) return null;
+  const requiresIcp = Boolean(args.context) || resolveAuthBackend() === "icp";
+  if (!isBlobStoreConfigured(target)) {
+    if (requiresIcp) throw new Error("Photo and file storage isn't available for this account yet. Please try again later.");
+    return null;
+  }
   const identity = args.context?.identity ?? await getCurrentInternetIdentity();
-  if (!identity) return null;
+  if (!identity) {
+    if (requiresIcp || resolveAuthBackend() === "icp") throw new Error("Your secure session isn't ready. Please sign in again before uploading.");
+    return null;
+  }
   if (args.file.size > 10 * 1024 * 1024) {
     throw new Error("This file is larger than 10 MB. Please choose a smaller file.");
   }
+  // Only new ICP bytes use the canonical audience path. Stored old URLs and
+  // email fallback paths are never rewritten.
+  args = { ...args, storagePath: clubLogoUploadPath(args.storagePath) };
   const ctx = { target, identity };
   const pathClub = clubIdFromMediaPath(args.storagePath);
   if (!args.context && pathClub) {
@@ -84,7 +96,13 @@ export async function tryUploadMediaToBlobStore(args: {
   // deployed canister supports it: no per-photo record, and readers need one
   // key per club per session. Others keep the per-photo lock.
   const clubId = clubIdFromMediaPath(args.storagePath);
-  if (clubId && !args.competitionId && args.lock !== "own" && (await isClubMediaLockSupported(ctx))) {
+  const memberLogo = isClubLogoUploadPath(args.storagePath);
+  const clubKeySupported = clubId && !args.competitionId && args.lock !== "own"
+    ? await isClubMediaLockSupported(ctx) : false;
+  if (memberLogo && !clubKeySupported) {
+    throw new Error("This logo couldn't be made visible to club members. Please try again later.");
+  }
+  if (clubId && clubKeySupported) {
     const ciphertext = await encryptClubMedia(ctx, clubId, bytes);
     return args.beforeUpload
       ? uploadBytesToBlobStore(target, identity, args.storagePath, ciphertext, args.mime, args.beforeUpload)

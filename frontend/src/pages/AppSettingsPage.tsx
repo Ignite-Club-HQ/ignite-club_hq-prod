@@ -22,6 +22,8 @@ import { getLocalLabAppSettings } from "@/lab/fixtureDataLayer";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { withFeatureBackend } from "@/live/featureRouter";
+import { writeOnce } from "@/live/clubScope";
+import { appSettingSourceKey } from "@/live/appSettingSource";
 import {
   decodeAppSettingBool,
   decodeAppSettingNumber,
@@ -648,7 +650,7 @@ function IcpAppSettingsPage() {
   const { isAppAdmin, isLoading: isLoadingAuth } = useIsAppAdmin();
 
   const { data: settings, isLoading: isLoadingSettings } = useQuery({
-    queryKey: ICP_SETTINGS_QUERY_KEY,
+    queryKey: [...ICP_SETTINGS_QUERY_KEY, appSettingSourceKey()],
     queryFn: () =>
       withFeatureBackend("admin", {
         // Unreachable: this page only renders when the auth backend is ICP.
@@ -674,7 +676,7 @@ function IcpAppSettingsPage() {
             notificationPrefetch: decodeAppSettingBool(prefetch, true),
           };
         },
-      }),
+      }, { shared: "app" }),
     enabled: isAppAdmin,
   });
 
@@ -683,7 +685,7 @@ function IcpAppSettingsPage() {
       withFeatureBackend("admin", {
         supabase: async () => {},
         icp: async (ctx) => setLiveAppSetting(ctx, key, value),
-      }),
+      }, writeOnce({ shared: "app" })),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ICP_SETTINGS_QUERY_KEY });
       // Propagate to the runtime readers (chat hooks, create-club page).

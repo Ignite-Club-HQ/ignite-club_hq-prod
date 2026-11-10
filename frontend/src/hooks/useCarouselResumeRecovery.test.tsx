@@ -6,8 +6,60 @@ const m = vi.hoisted(() => ({ active: undefined as ((state: { isActive: boolean 
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true } }));
 vi.mock('@capacitor/app', () => ({ App: { addListener: async (_: string, callback: typeof m.active) => { m.active = callback; return { remove: m.remove }; } } }));
 import { useCarouselResumeRecovery } from './useCarouselResumeRecovery';
-afterEach(() => { m.active = undefined; vi.clearAllMocks(); });
+afterEach(() => { m.active = undefined; vi.clearAllMocks(); vi.restoreAllMocks(); });
 describe('carousel foreground listeners', () => {
+  it('restarts cached suspended reads after 20 seconds away without duplicating return signals', async () => {
+    let now = 1000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    const key = ['my-teams-premium-v2', 'paul'];
+    client.setQueryData(key, [{ id: 'old' }]);
+    const read = vi.fn().mockImplementationOnce(({ signal }: { signal: AbortSignal }) => new Promise(() => {
+      signal.addEventListener('abort', () => {});
+    })).mockResolvedValue([{ id: 'fresh' }]);
+    const observer = new QueryObserver(client, { queryKey: key, queryFn: read });
+    const stop = observer.subscribe(() => {});
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const hook = renderHook(({ club }) => useCarouselResumeRecovery('paul', club), { initialProps: { club: 'club-a' }, wrapper });
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    void observer.refetch();
+    await act(async () => { m.active?.({ isActive: false }); });
+    now += 20_000;
+    hook.rerender({ club: 'club-b' });
+    await act(async () => {
+      m.active?.({ isActive: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await Promise.resolve(); await Promise.resolve();
+    });
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(observer.getCurrentResult().data).toEqual([{ id: 'fresh' }]);
+    hook.unmount(); stop(); client.clear();
+  });
+  it('does not cancel a healthy in-flight refresh after a brief app switch', async () => {
+    let now = 1000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    const key = ['my-teams-premium-v2', 'paul'];
+    client.setQueryData(key, [{ id: 'old' }]);
+    let resolve: ((rows: { id: string }[]) => void) | undefined;
+    const read = vi.fn(() => new Promise<{ id: string }[]>(done => { resolve = done; }));
+    const observer = new QueryObserver(client, { queryKey: key, queryFn: read });
+    const stop = observer.subscribe(() => {});
+    const hook = renderHook(() => useCarouselResumeRecovery('paul', null), {
+      wrapper: ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+    });
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    void observer.refetch();
+    const cancel = vi.spyOn(client, 'cancelQueries');
+    await act(async () => {
+      m.active?.({ isActive: false }); now += 1000;
+      m.active?.({ isActive: true });
+    });
+    expect(cancel).not.toHaveBeenCalled();
+    expect(read).toHaveBeenCalledTimes(1);
+    await act(async () => { resolve?.([{ id: 'fresh' }]); await Promise.resolve(); });
+    hook.unmount(); stop(); client.clear();
+  });
   it('recovers cards through native return and coalesces a simultaneous browser visibility event', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
     const key = ['my-teams-premium-v2', 'paul'];

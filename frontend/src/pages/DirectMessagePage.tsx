@@ -603,7 +603,7 @@ export default function DirectMessagePage() {
   }, [conversationId, invalidateGateDm, queryClient, eagerInvalidateDm]);
 
   // Fetch messages with cache support
-  const { data: messagesData, isLoading: messagesLoading } = useQuery({
+  const { data: messagesData, isLoading: messagesLoading } = useQuery<{ messages: DirectMessage[]; hasOlderMessages: boolean }>({
     queryKey: dmQueryKey,
     queryFn: async ({ signal }) => {
       markChatFetch();

@@ -26,7 +26,7 @@ beforeEach(() => {
   mocks.subscription.mockResolvedValue({ is_pro: true });
   mocks.duties.mockResolvedValue([{ event_id: 'evt-1', account_id: 'principal-1', duty: 'Referee', completed: false }]);
   mocks.grants.mockResolvedValue([{ account_id: 'principal:principal-1', team: ['team-1'] }]);
-  mocks.profiles.mockResolvedValue([{ id: 'principal-1', display_name: 'Member', avatar_url: null }]);
+  mocks.profiles.mockResolvedValue([{ account_id: 'principal:principal-1', display_name: 'Member', avatar_ref: ['member-photo'] }]);
   mocks.events.mockResolvedValue([{ id: 'evt-1', address: ['Oval'], location: [], starts_at_ms: 1n, deleted: false }]);
   render(<MemoryRouter initialEntries={['/events/evt-1/edit']}><Routes><Route path='/events/:id/edit' element={<EditEventPage />} /></Routes></MemoryRouter>);
 });
@@ -52,7 +52,7 @@ describe('ICP edit supporting reads never reach Supabase', () => {
   it('normalizes roster principals and scopes profile enrichment to the event club', async () => {
     const query = mocks.queries.get(JSON.stringify(['event-members-for-duty', 'club-1', 'team-1']));
     if (!query) throw new Error('Missing roster query');
-    expect(await query()).toEqual([{ id: 'principal-1', display_name: 'Member', avatar_url: null }]);
+    expect(await query()).toEqual([{ id: 'principal-1', display_name: 'Member', avatar_url: 'member-photo' }]);
     expect(mocks.profiles).toHaveBeenCalledWith(expect.anything(), ['principal-1'], { kind: 'club', resource: 'club-1' });
   });
 });

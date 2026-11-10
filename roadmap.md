@@ -1,5 +1,70 @@
 # Roadmap — launch the live (PROD) system
 
+## Approved consolidated production promotion — 10 November 08:35 UTC
+- [x] Paul approved starting main→prod promotion of the prepared fixes; preserve production data and email-mode notifications, with no settings copy or wider push rollout.
+- [x] Opened GitHub release PR #1453. Reproduced the failed workflow inventory check and corrected stale source types/profile DTO mappings; 165 focused frontend checks, 49 release-control checks, lint and two Android setup checks pass. Preview build OK.
+- [ ] Merge PR #1453 only after Lovable sync publishes these repairs and GitHub exact-source checks pass; current main a0093c87 still has failed frontend/release-policy checks. Confirm database/backend/frontend jobs for the merge commit. No production changes yet.
+- [ ] Redeploy the ICP purchase verifier after merge and prepare PROD-only native builds; device acceptance remains Paul's phone step, not a completed sandbox check.
+
+## Optional off-chain media and purchase assessment — 10 November
+- [x] Investigated source and official provider guidance: GIPHY prohibits partner media caching/proxying under standard rules; permitted thumbnails/owned GIFs are technically possible with audience/size/rights constraints. Apple signed JWS verification could move partly to ICP; Google current-state API verification should retain external credential-bearing transport.
+- [x] Findings and recommended order recorded in docs/icp-remote-media-purchase-feasibility-2026-11-10.md. Source ICP verifier is Apple-only and lacks matched-product/app/account checks; no hosted purchase failure claimed. Research only; billing/push/email/live behavior unchanged. Hosting and optional chat-relay assessment postponed.
+
+## ICP-only link-preview generation — 10 November
+- [x] Removed the external preview endpoint from ICP-mode requests; reused messaging_domain's existing on-chain HTTPS helper, preserved email-mode behavior, separated metadata/in-flight caches by sign-in mode and lazy-loaded messaging helpers.
+- [x] Three regressions reproduced before repair; 16 focused routing/preview checks pass in default mode and all 5 preview checks pass in ICP configuration; preview build OK. Boundaries documented in docs/icp-link-previews-on-chain-2026-11-10.md. Root AGENTS note skipped because user-owned rules already exhaust its size budget.
+- [ ] Authenticated II preview/real-website coverage, cold latency and phone acceptance require a delegated session/device unavailable in the sandbox. Source websites/images remain external; no PROD deployment made.
+
+## Club/team logo membership visibility — 10 November 07:26 UTC
+- [x] Four regressions reproduced missing logo scope/member-key enforcement. New ICP club/team/request logos now canonicalize to clubs/<club>/logos and require the existing live-membership club key; old URLs, private files and email fallback remain unchanged. Monogram saves reuse the authorized context.
+- [x] 53 focused logo/upload/decryption tests pass (7 email/ICP-specific skips); preview build OK. Phone-sized public login renders without page errors/overflow; this is not member-logo acceptance.
+- [ ] Physical-phone signed-in upload and second-member viewing require an updated installed app and device access unavailable in the sandbox; do not claim phone confirmation.
+
+## Forward-only ICP upload review — 10 November 07:22 UTC
+- [x] Inventoried available new-upload paths; excluded older files, email-only competition uploads and production data changes. Platform creatives are stored inline on-chain; other active uploads use encrypted stores.
+- [x] Reproduced three failures; repaired central ICP storage/session fallback and chat-document authority consistency. Default suites: 57 passed/11 mode skips; ICP suites: 30 passed/18 mode skips; preview build OK. Email fallback retained.
+- [x] Recorded boundaries in docs/icp-new-uploads-audit-2026-11-10.md. Creation logo paths using club-logos/ lack automatic club grants; best-effort creation can hide logo failure. These are on-chain visibility gaps, not an off-chain byte migration.
+- [ ] Authenticated new-upload/readback/decryption on II/native phone remains unverified: sandbox lacks the user's delegated II session and physical device. No PROD deployment or older-file transfer performed.
+
+## Approved settings production release — 10 November 07:19 UTC
+- [x] Paul approved moving prepared code to PROD without a manual TEST settings-save step; no arbitrary settings copies or business-data writes authorized.
+- [x] Reproduced GitHub's frontend failure locally; replaced the control-character regex with equivalent character-code validation. Lint, all 72 focused notification/settings/routing checks and preview build pass.
+- [ ] Consolidated into approved release PR #1453 above; merge after corrected source sync and successful exact-source checks. No merge or PROD deployment made; manual TEST acceptance was waived, not claimed completed.
+
+## Player invite field visibility — 10 November
+- [x] Stop auto-scrolling to roles while typing; focus/confirmation now scroll only the sheet, never the window. Name row/input can shrink within available width. Eight invite/search checks pass; preview build OK. Frontend only.
+- [ ] Confirm real Android keyboard visibility after an updated app build; authenticated native invite flow unavailable in sandbox.
+
+## ICP foreground phone alerts — 10 November
+- [x] Added Android ICP-only system presentation for Firebase-owned foreground receipts, reusing the existing PushNotifications presenter; validates account/backend/ID, checks foreground focus and suppresses duplicate IDs. Both Codemagic Android builds install the adapter. Sender, Firebase service ownership, email paths and shared presentation configuration unchanged.
+- [x] Three regressions reproduced missing Firebase foreground events on Android/iOS. DEV ICP now consumes both plugin receive sources, checking current account/mode/lifecycle and suppressing duplicate notification IDs; existing in-app toast receives the event. Email listeners and native/plugin configuration unchanged.
+- [x] 36 focused ICP lifecycle/receive/tap/manager and email push checks pass; preview build OK. No PROD deployment.
+- [x] 37 focused frontend checks and 5 Android scaffold/configuration checks pass; preview build OK. No PROD deployment.
+- [ ] Confirm Android native compilation and foreground/background system pushes plus email non-regression on Paul's phone after promotion and a new Codemagic build; Android SDK/device unavailable in sandbox. iOS system presentation is unchanged, not claimed fixed by this Android adapter.
+
+## Email sign-out login warnings — 10 November
+- [x] Reproduced protected email observers surviving explicit sign-out; DEV now retires pages and cancels queries before native push unregister/session removal, ignores late refresh callbacks during logout, and clears user-scoped caches/channels synchronously.
+- [x] Regression fails before/passes after; 14 focused logout/routing/diagnostic checks pass. Public ICP login has no blocked reads/runtime errors after 18 seconds; preview build OK. No production changes.
+- [ ] Paul's real email logout → ICP login phone acceptance: hosted authenticated checks unavailable (external unmanaged auth), and physical Android session unavailable. The screenshot's exact live request stacks remain unverified.
+
+## Remaining shared settings in ICP mode — 10 November
+- [x] Approved PROD routing initialization completed in GitHub run 42773454286 (source 3093fc3baaad429f5958e97a50245812c4148156): protected action succeeded; independent public readback matches the exact two-club routing value. Only the shared routing key was initialized; no deployment or other settings/data writes.
+- [x] Fresh PROD canister /auth displays both sign-in tabs with zero Supabase routing-row requests and no page errors. The canister-hosted signed-out routing boundary is resolved.
+- [x] Corrected branded-site finding: signed-out hybrid/email discovery may read Supabase; that is expected, not an authenticated ICP settings gap. No branded-host or email-policy changes needed.
+- [x] Final shared-settings audit: all active ICP settings readers/writers are on-chain; absent optional values use existing defaults. TEST/PROD public presence inventory complete without copying values. Added same-actor save confirmation after reproducing three failures; no write retry or email-path changes.
+- [ ] Final authenticated TEST admin save/refresh/readback needs an II administrator session unavailable in the sandbox; DEV save-confirmation change remains undeployed. Missing GIPHY public key requires the owner's intended value, not a settings copy. No arbitrary PROD settings writes approved or made.
+- [x] Audited available ICP settings only; historical media and unavailable external features excluded. Most runtime/admin settings already use on-chain authorities; gaps recorded in docs/icp-shared-settings-audit-2026-11-10.md.
+- [x] Reproduced five failures and repaired mounted ICP startup isolation, source-bound runtime settings caches and explicit shared-app admin read/one-attempt write dispatch; email sign-in discovery/behaviour retained.
+- [x] 54 focused isolation/routing/legal/sign-in checks pass in default configuration; preview build OK. No PROD deployment or settings writes.
+- [x] Follow-up public TEST shared-authority inventory: all 11 reads succeeded; chat recap is false, ten other requested settings are unset. Re-ran 54 focused checks successfully. No PROD reads/writes or configuration copies; details in the audit.
+- [x] Read TEST's public routing row through a fresh signed-out browser visit; confirmed both sign-in tabs and the two retained email clubs. Prepared the exact unchanged on-chain routing value and acceptance instructions in docs/test-on-chain-routing-initialization-2026-11-10.md; no invented targets or settings writes.
+- [ ] Authenticated ICP settings save/readback requires a delegated II admin session; owner-reviewed TEST routing initialization is needed before removing signed-out hybrid public Supabase discovery. Phone switching requires a physical device.
+
+## Team carousel resume audit — 10 November
+- [x] Four regressions reproduced cached suspended refresh, suspended recovery, trial-blocked inventory and redundant league lookup defects. DEV repairs retain cached cards, restart only suspended observed inventory reads after long backgrounding, defer trial badges, reuse authorized full league rows, save canonical snapshots and limit enrichment to visible clubs. Permissions/live services unchanged.
+- [x] 42 carousel/Home/Next Up checks pass in default configuration and 41 carousel/native-return checks pass in ICP configuration; mounted carousel and native event flows covered. Preview build OK; public desktop/phone sign-in has no runtime errors or overflow. Audit: docs/team-carousel-resume-audit-2026-11-10.md.
+- [ ] Measure Paul's signed-in physical Android resume: unavailable TEST Internet Identity session/device; the reported 20-second delay and actual speedup remain unverified. No PROD deployment.
+
 ## Personal-data download on ICP phones — 10 November
 - [x] Reproduced the native export using a blob anchor instead of a phone file; reused the existing native cache/share path for JSON, preserving caller authorization and email exports. Browser URLs now remain alive for 30 seconds; failed starts release them immediately.
 - [x] 51 focused account/file tests pass across both modes; actual browser helper downloads valid nonempty JSON without page errors; preview build OK.
@@ -292,3 +357,6 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] DEV asset 404 + one-time chunk reload: deploy to TEST and confirm Home/Messages/Events after II sign-in on phone (needs Paul).
 
 - [ ] TEST fast native sender: code ready (ICP wake-up, sender endpoint, commission/backup workflow); blocked on Supabase function publishing internal error; then update TEST notification service, commission, TEST Android build.
+
+- [x] DEV: ICP purchase verifier now checks product, app identity, refunds and expiry; Android purchases fail clearly (Google check still external, not built).
+- [x] DEV: Apple purchases in II mode carry an account link; verifier rejects unlinked/other-account receipts (needs PROD merge, verifier redeploy, iOS build; real purchase untested).

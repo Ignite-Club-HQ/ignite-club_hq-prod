@@ -47,11 +47,29 @@ test('only explicitly allowlisted PROD setup, checks, promotion, funding and iso
   const prod = workflows.filter(({ name }) => name.startsWith('[PROD] '));
   assert.deepEqual(prod.map(({ file }) => file).sort(),
     ['apply-prod-lifecycle-wiring.yml', 'check-prod-canister-connections.yml', 'check-prod-routing-gates.yml', 'create-prod-second-group.yml', 'execute-prod-cycles-topup.yml', 'fund-prod-canisters-by-card.yml', 'icp-push-deliver-prod.yml',
-      'link-prod-account-service.yml',
+      'link-prod-account-service.yml', 'prod-app-admin.yml', 'prod-native-push-sender.yml', 'prod-sign-in-routing.yml',
       'plan-prod-cycles-topup.yml', 'plan-prod-second-group.yml', 'prod-create-governor.yml', 'prod-create-push-key.yml', 'promote-icp-prod.yml',
       'register-prod-second-group.yml', 'reload-prod-member-services.yml', 'prod-enable-secure-name-save.yml', 'check-prod-group-opening.yml', 'open-prod-group.yml', 'publish-prod-routing-approval.yml', 'set-prod-group-settings.yml', 'setup-prod-base-group.yml',
       'check-prod-control-record.yml', 'prod-activate-protections.yml', 'prod-create-account-approval-key.yml', 'prod-enable-member-access.yml', 'prod-setup-safeguard.yml', 'prod-verify-account-approval-key.yml'].sort());
   for (const workflow of prod) {
+    // Existing explicit operator workflows validate their branch in the runner;
+    // the isolated native sender pins PROD IDs and gates deploy/commission here.
+    const operatorRunner = { 'prod-app-admin.yml': 'scripts/prod-app-admin.mjs', 'prod-sign-in-routing.yml': 'scripts/prod-sign-in-routing.mjs' }[workflow.file];
+    if (operatorRunner) {
+      assert.match(workflow.text, /IGNITE_ICP_ENV:\s*prod/);
+      assert.match(workflow.text, new RegExp(operatorRunner.replaceAll('.', '\\.')));
+      const runner = readFileSync(path.join(ROOT, operatorRunner), 'utf8');
+      assert.match(runner, /GITHUB_REF/);
+      assert.match(runner, /refs\/heads\/(main|prod)/);
+      assert.match(runner, /IGNITE_ICP_ENV[^\n]*prod/);
+      continue;
+    }
+    if (workflow.file === 'prod-native-push-sender.yml') {
+      assert.match(workflow.text, /PROD_REF:\s*yabcfiuntwqjwvschnji/);
+      assert.match(workflow.text, /inputs\.action == 'deploy' && github\.ref == 'refs\/heads\/prod'/);
+      assert.match(workflow.text, /inputs\.action == 'commission' && github\.ref == 'refs\/heads\/prod'/);
+      continue;
+    }
     assert.match(workflow.text, /IGNITE_ICP_ENV:\s*prod/);
     assert.match(workflow.text, /refs\/heads\/prod/);
   }

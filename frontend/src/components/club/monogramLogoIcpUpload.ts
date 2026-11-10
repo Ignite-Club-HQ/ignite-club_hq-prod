@@ -16,6 +16,7 @@ export async function saveIcpMonogramLogo(clubId: string, blob: Blob): Promise<s
     supabase: () => { throw new Error("Monogram logo save could not connect to ICP. Please try again."); },
     icp: async (ctx) => {
       const uploaded = await tryUploadMediaToBlobStore({
+        context: ctx,
         storagePath: `clubs/${clubId}/logos/${id}.png`,
         file: blob,
         mime: "image/png",
@@ -27,5 +28,5 @@ export async function saveIcpMonogramLogo(clubId: string, blob: Blob): Promise<s
       await saveLiveClubProfile(ctx, { ...profile, id: clubId, logo_url: uploaded.url } as any);
       return uploaded.url;
     },
-  }, writeOnce({ clubId: clubId! }));
+  }, writeOnce({ clubId }));
 }

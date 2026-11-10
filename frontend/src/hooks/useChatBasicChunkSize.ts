@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAuthBackend } from "@/live/authBackendMode";
+import { appSettingSourceKey } from "@/live/appSettingSource";
 
 const QUERY_KEY = ["app-setting", "chat_basic_chunk_size"] as const;
 const DEFAULT_CHUNK = 100;
@@ -20,9 +21,10 @@ const MAX_CHUNK = 500;
  */
 export function useChatBasicChunkSize(): number {
   const queryClient = useQueryClient();
+  const source = appSettingSourceKey();
 
   const { data } = useQuery({
-    queryKey: QUERY_KEY,
+    queryKey: [...QUERY_KEY, source],
     queryFn: async () => {
       // ICP mode: read club_domain's app_config store (public anonymous
       // query; lazy-imported so the ICP SDK stays out of the entry chunk).
@@ -76,7 +78,7 @@ export function useChatBasicChunkSize(): number {
         /* ignore */
       }
     };
-  }, [queryClient]);
+  }, [queryClient, source]);
 
   return data ?? DEFAULT_CHUNK;
 }

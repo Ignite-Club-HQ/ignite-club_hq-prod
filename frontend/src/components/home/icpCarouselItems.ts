@@ -22,6 +22,7 @@ export interface TeamOrLeague {
 export async function fetchIcpCarouselItems(
   ctx: FeatureBackendContext,
   activeClubFilter: string | null,
+  options: { includeTrial?: boolean } = {},
 ): Promise<TeamOrLeague[]> {
   // Player leagues are caller-authorized independently of team role grants.
   // Start both inventories together, retaining errors until consumed so an
@@ -46,7 +47,7 @@ export async function fetchIcpCarouselItems(
     const existing = clubMeta.get(clubId);
     if (existing) return existing;
     const pending = getLiveClubProfile(ctx, clubId).then(([p]) => ({
-      name: p?.name ?? "", logo_url: p?.logo_url[0] ?? null, sport: p?.sport ?? null,
+      name: p?.name ?? "", logo_url: p?.logo_url[0] ?? null, sport: p?.sport[0] ?? null,
     }), () => ({ name: "", logo_url: null, sport: null }));
     clubMeta.set(clubId, pending);
     return pending;
@@ -60,7 +61,9 @@ export async function fetchIcpCarouselItems(
         // The trial flag only depends on the team id, so read it alongside the
         // team row (both coalesce into one get_teams / get_team_subscriptions
         // call). The result is discarded unless the team itself is visible.
-        const subRead = getLiveTeamSubscription(ctx, teamId).catch(() => null);
+        const subRead = options.includeTrial === false
+          ? Promise.resolve(null)
+          : getLiveTeamSubscription(ctx, teamId).catch(() => null);
         // Team grants usually carry their club id: warm that club's profile in
         // the same round trip. It is only used if the team row confirms it.
         for (const g of grants) if (g.team[0] === teamId && g.club[0]) void getClubMeta(g.club[0]);
@@ -99,19 +102,23 @@ export async function fetchIcpCarouselItems(
   );
 
   const leagues = (async () => {
-  const leagueIds = new Set<string>();
+  const leagueRows = new Map<string, { id: string; name?: string; club_id?: string }>();
   const [mine, byClub] = await Promise.all([
     mineRead.then(result => {
-      if (!result.ok) throw result.error;
+      if (result.ok === false) throw result.error;
       return result.value;
     }),
     Promise.all(leagueAdminClubIds.map(id => listLiveMiniLeaguesByClub(ctx, id))),
   ]);
-  for (const league of [...mine, ...byClub.flat()]) leagueIds.add(league.id);
+  for (const league of [...mine, ...byClub.flat()]) leagueRows.set(league.id, league);
   await Promise.all(
-    [...leagueIds].map(async (leagueId) => {
+    [...leagueRows].map(async ([leagueId, discovered]) => {
       try {
-        const raw = (await getLiveMiniLeague(ctx, leagueId)) as any;
+        // Both inventory methods already return caller-authorized full rows.
+        // Keep the detail fallback only for older incomplete inventory DTOs.
+        const raw = discovered.name !== undefined && discovered.club_id !== undefined
+          ? discovered
+          : (await getLiveMiniLeague(ctx, leagueId)) as any;
         const league = Array.isArray(raw) ? raw[0] : raw;
         if (!league || league.status === "deleted" || league.status === "archived") return;
         if (activeClubFilter && league.club_id !== activeClubFilter) return;

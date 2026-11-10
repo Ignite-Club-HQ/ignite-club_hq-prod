@@ -26,6 +26,7 @@
 //                                   App Store Server API credentials, used
 //                                   instead of verifyReceipt when present
 import { corsHeaders } from "../_shared/cors.ts";
+import { checkAppleReceipt, DEFAULT_APPLE_BUNDLE_ID, iapAccountToken, type AppleReceiptResult } from "./receiptChecks.ts";
 
 const APPLE_VERIFY_RECEIPT_PROD = "https://buy.itunes.apple.com/verifyReceipt";
 const APPLE_VERIFY_RECEIPT_SANDBOX = "https://sandbox.itunes.apple.com/verifyReceipt";
@@ -87,37 +88,19 @@ async function callAppleVerifyReceipt(
   return (await response.json()) as AppleVerifyReceiptResponse;
 }
 
-/**
- * Verifies a base64 App Store receipt against Apple's legacy verifyReceipt
- * endpoint (production first, falling back to sandbox on status 21007), and
- * locates the matching transaction's expiry.
- */
 async function verifyAppleReceipt(
   receiptData: string,
   transactionId: string,
+  productId: string,
   sharedSecret: string | undefined,
+  principal: string,
 ): Promise<{ expiresAtMs: number }> {
   let result = await callAppleVerifyReceipt(receiptData, sharedSecret, APPLE_VERIFY_RECEIPT_PROD);
   if (result.status === APPLE_SANDBOX_REDIRECT_STATUS) {
     result = await callAppleVerifyReceipt(receiptData, sharedSecret, APPLE_VERIFY_RECEIPT_SANDBOX);
   }
-  if (result.status !== 0) {
-    throw new Error(`Apple receipt verification failed (status ${result.status})`);
-  }
-  const candidates = [...(result.latest_receipt_info ?? []), ...(result.receipt?.in_app ?? [])];
-  const match = candidates.find((entry) => entry.transaction_id === transactionId);
-  if (!match) {
-    throw new Error("Transaction id not found in verified Apple receipt.");
-  }
-  const expiresAtMs = match.expires_date_ms
-    ? Number(match.expires_date_ms)
-    : match.purchase_date_ms
-      ? Number(match.purchase_date_ms)
-      : NaN;
-  if (!Number.isFinite(expiresAtMs)) {
-    throw new Error("Verified Apple receipt did not include an expiry/purchase date.");
-  }
-  return { expiresAtMs };
+  const bundleId = Deno.env.get("APPLE_BUNDLE_ID") || DEFAULT_APPLE_BUNDLE_ID;
+  return checkAppleReceipt(result as AppleReceiptResult, transactionId, productId, bundleId, Date.now(), await iapAccountToken(principal));
 }
 
 Deno.serve(async (req: Request) => {
@@ -159,7 +142,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const appleSharedSecret = Deno.env.get("APPLE_SHARED_SECRET");
-    const { expiresAtMs } = await verifyAppleReceipt(receipt_data, transaction_id, appleSharedSecret);
+    const { expiresAtMs } = await verifyAppleReceipt(receipt_data, transaction_id, product_id, appleSharedSecret, principal);
     const source = "app_store";
 
     const message = `${principal}|${product_id}|${transaction_id}|${expiresAtMs}|${source}`;

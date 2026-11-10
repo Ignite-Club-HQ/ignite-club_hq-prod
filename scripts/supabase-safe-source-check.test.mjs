@@ -7,15 +7,15 @@ import { validateSafeSources } from './supabase-safe-source-check.mjs';
 import { readSafeInputs } from './supabase-safe-staging.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const SIX = ['20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql',
+const APPROVED = ['20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql',
   '20261105000000_competition_fixture_visibility.sql', '20261105000100_competition_vault_access.sql',
   '20261105000200_competition_role_email_invites.sql', '20261105000300_club_invite_message_defaults.sql',
-  '20261105000400_send_welcome_dm.sql'];
+  '20261105000400_send_welcome_dm.sql', '20261109232052_a578f787-ba4e-4669-8bf0-c6ce2e552389.sql'];
 
-test('offline validation preserves all originals and exactly six approved sources, not deployment authority', () => {
+test('offline validation preserves all originals and the seven already-approved sources, not deployment authority', () => {
   const r = validateSafeSources(root);
-  assert.deepEqual(r.approved, SIX);
-  assert.equal(r.held.length, 35);
+  assert.deepEqual(r.approved, APPROVED);
+  assert.equal(r.held.length, 38);
   assert.deepEqual(r.sourceInventory.map(({ file, sha256 }) => ({ file, sha256 })),
     readSafeInputs(root).manifest.sources.map(({ file, sha256 }) => ({ file, sha256 })));
   assert.equal(r.deploymentAuthorized, false);

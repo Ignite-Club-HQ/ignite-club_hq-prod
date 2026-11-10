@@ -16,7 +16,7 @@ describe("ICP device chat files", () => {
   it("uploads encrypted original bytes then registers a shareable vault file", async () => {
     const token = await uploadIcpChatDocument(file, "giddy-goat", "team-1");
     const [upload] = mocks.upload.mock.calls[0];
-    expect(upload).toMatchObject({ file, mime: "application/pdf", lock: "own" });
+    expect(upload).toMatchObject({ context: { identity: "session", target: "icp" }, file, mime: "application/pdf", lock: "own" });
     expect(upload.storagePath).toMatch(/^clubs\/giddy-goat\/chat\/files\/[a-f0-9-]+\.pdf$/);
     const id = token.slice("[vault:".length, -1);
     expect(mocks.register).toHaveBeenCalledWith({ identity: "session", target: "icp" }, id, "", "giddy-goat", "team-1", "Training plan.PDF", "https://files.icp0.io/plan.pdf", 1234, "application/pdf", false, ref);
