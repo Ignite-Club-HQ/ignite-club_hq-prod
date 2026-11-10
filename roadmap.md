@@ -1,6 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## ICP foreground phone alerts — 10 November
+- [ ] Add Android ICP-only system presentation for Firebase-owned foreground receipts; preserve background FCM delivery and email presentation/configuration.
 - [x] Three regressions reproduced missing Firebase foreground events on Android/iOS. DEV ICP now consumes both plugin receive sources, checking current account/mode/lifecycle and suppressing duplicate notification IDs; existing in-app toast receives the event. Email listeners and native/plugin configuration unchanged.
 - [x] 36 focused ICP lifecycle/receive/tap/manager and email push checks pass; preview build OK. No PROD deployment.
 - [ ] Confirm foreground alerts on Paul's physical phone after promotion and a new native build; native FCM receipt cannot be verified in the browser preview.
