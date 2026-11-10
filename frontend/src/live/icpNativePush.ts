@@ -46,7 +46,7 @@ async function initialize(userId: string, requestPermission: boolean, attempt: n
     if (import.meta.env.IGNITE_LIVE_DEV_ICP_PUSH_ENABLED !== 'true') {
       return { success: false, error: 'TEST push setup is not complete yet' };
     }
-    const { Capacitor } = await import('@capacitor/core');
+    const { Capacitor, registerPlugin } = await import('@capacitor/core');
     if (!Capacitor.isNativePlatform()) return { success: false, error: 'Not a native app' };
     const platform = Capacitor.getPlatform();
     if (platform !== 'android' && platform !== 'ios') return { success: false, error: 'Unsupported phone' };
@@ -101,13 +101,10 @@ async function initialize(userId: string, requestPermission: boolean, attempt: n
       // PushNotifications already presents its own receive event. Only bridge
       // Firebase-owned Android receipts, after the same account/session checks.
       if (platform === 'android' && source === 'firebase') {
-        void import('@capacitor/core').then(({ registerPlugin }) => {
-          if (disposed || !lifecycle.isCurrent(ticket) || !usesDevIcpPush()) return;
-          return registerPlugin<{ present(options: { backend: string; recipient: string; account: string; id: string; url: string }): Promise<void> }>(
+        void registerPlugin<{ present(options: { backend: string; recipient: string; account: string; id: string; url: string }): Promise<void> }>(
             'IcpForegroundPush',
           ).present({ backend: 'icp-dev', recipient: account, account, id,
-            url: typeof data.url === 'string' ? data.url : '/notifications' });
-        }).catch(() => {
+            url: typeof data.url === 'string' ? data.url : '/notifications' }).catch(() => {
           console.warn('[ICP push] System notification presentation unavailable');
         });
       }
