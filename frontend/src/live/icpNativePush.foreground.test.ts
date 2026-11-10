@@ -5,13 +5,15 @@ const state = vi.hoisted(() => ({
   platform: 'android',
   push: new Map<string, (event: any) => void>(),
   firebase: new Map<string, (event: any) => void>(),
+  present: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('./icpPushMode', () => ({ usesDevIcpPush: () => state.mode, isDevIcpPushTarget: () => true }));
 vi.mock('./internetIdentityAuth', () => ({ getCurrentInternetIdentity: async () => ({
   getPrincipal: () => ({ isAnonymous: () => false, toText: () => 'account-a' }),
 }) }));
 vi.mock('./targetRegistry', () => ({ getActiveIcpTarget: () => ({ host: 'https://icp-api.io', canisterIds: {} }) }));
-vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true, getPlatform: () => state.platform } }));
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true, getPlatform: () => state.platform },
+  registerPlugin: () => ({ present: state.present }) }));
 vi.mock('./features/notifications', () => ({ registerLiveDeviceToken: async () => undefined, unregisterLiveDeviceToken: async () => undefined }));
 vi.mock('@capacitor/push-notifications', () => ({ PushNotifications: {
   checkPermissions: async () => ({ receive: 'granted' }),
@@ -36,6 +38,7 @@ const notification = (id = 'alert-1', recipient = 'account-a', backend = 'icp-de
 
 beforeEach(() => {
   state.mode = true; state.platform = 'android';
+  state.present.mockClear();
   vi.stubEnv('IGNITE_LIVE_DEV_ICP_PUSH_ENABLED', 'true');
 });
 afterEach(async () => { await revokeDevIcpNativePush(); vi.unstubAllEnvs(); });
@@ -52,6 +55,12 @@ it.each(['android', 'ios'])('receives Firebase foreground notifications on %s on
     expect(received).toHaveBeenCalledTimes(1);
     state.firebase.get('notificationReceived')?.({ notification: notification('alert-2') });
     expect(received).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => {
+      expect(state.present).toHaveBeenCalledTimes(platform === 'android' ? 2 : 0);
+    });
+    if (platform === 'android') expect(state.present).toHaveBeenCalledWith({
+      backend: 'icp-dev', recipient: 'account-a', account: 'account-a', id: 'alert-1', url: '/notifications',
+    });
   } finally { window.removeEventListener('ignite:icp-push-received', received); }
 });
 
@@ -70,6 +79,15 @@ it('ignores other accounts, email payloads, switched modes and retired listeners
     await revokeDevIcpNativePush();
     receive?.({ notification: notification('retired') });
     expect(received).not.toHaveBeenCalled();
+    expect(state.present).not.toHaveBeenCalled();
     expect(state.firebase.has('notificationReceived')).toBe(false);
   } finally { window.removeEventListener('ignite:icp-push-received', received); }
+});
+
+it('does not re-present PushNotifications receipts already displayed by the native plugin', async () => {
+  await initializeDevIcpNativePush('account-a', false);
+  state.push.get('pushNotificationReceived')?.(notification());
+  state.firebase.get('notificationReceived')?.({ notification: notification() });
+  await Promise.resolve();
+  expect(state.present).not.toHaveBeenCalled();
 });

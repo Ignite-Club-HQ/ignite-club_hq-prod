@@ -1,9 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
 ## ICP foreground phone alerts — 10 November
+- [x] Added Android ICP-only system presentation for Firebase-owned foreground receipts, reusing the existing PushNotifications presenter; validates account/backend/ID, checks foreground focus and suppresses duplicate IDs. Both Codemagic Android builds install the adapter. Sender, Firebase service ownership, email paths and shared presentation configuration unchanged.
 - [x] Three regressions reproduced missing Firebase foreground events on Android/iOS. DEV ICP now consumes both plugin receive sources, checking current account/mode/lifecycle and suppressing duplicate notification IDs; existing in-app toast receives the event. Email listeners and native/plugin configuration unchanged.
 - [x] 36 focused ICP lifecycle/receive/tap/manager and email push checks pass; preview build OK. No PROD deployment.
-- [ ] Confirm foreground alerts on Paul's physical phone after promotion and a new native build; native FCM receipt cannot be verified in the browser preview.
+- [x] 37 focused frontend checks and 5 Android scaffold/configuration checks pass; preview build OK. No PROD deployment.
+- [ ] Confirm Android native compilation and foreground/background system pushes plus email non-regression on Paul's phone after promotion and a new Codemagic build; Android SDK/device unavailable in sandbox. iOS system presentation is unchanged, not claimed fixed by this Android adapter.
 
 ## Email sign-out login warnings — 10 November
 - [x] Reproduced protected email observers surviving explicit sign-out; DEV now retires pages and cancels queries before native push unregister/session removal, ignores late refresh callbacks during logout, and clears user-scoped caches/channels synchronously.

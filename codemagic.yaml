@@ -121,6 +121,7 @@ workflows:
           open(p, "w").write(s)
           PY
           python3 ../scripts/configure-android-status-bar.py
+          python3 ../scripts/configure-icp-foreground-push.py
       - name: Build debug APK
         working_directory: frontend/android
         script: ./gradlew assembleDebug
@@ -212,6 +213,7 @@ workflows:
           open(p, "w").write(s)
           PY
           python3 ../scripts/configure-android-status-bar.py
+          python3 ../scripts/configure-icp-foreground-push.py
       - name: Decode signing and Firebase files
         working_directory: frontend/android
         script: |
