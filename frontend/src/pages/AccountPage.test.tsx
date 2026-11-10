@@ -152,7 +152,7 @@ describe.runIf(!supabaseMode)("AccountPage — ICP data export", () => {
     } finally { click.mockRestore(); }
   });
 
-  it("exports caller-scoped data as JSON and revokes the download URL", async () => {
+  it("exports caller-scoped data as JSON and keeps the URL alive until the browser reads it", async () => {
     const identity = { principal: "own" };
     icp.identity.mockResolvedValue(identity);
     icp.export.mockResolvedValue({ backend: "icp", account: { id: "account-1" } });
@@ -163,7 +163,7 @@ describe.runIf(!supabaseMode)("AccountPage — ICP data export", () => {
     await waitFor(() => expect(icp.export).toHaveBeenCalledWith(identity));
     await waitFor(() => expect(toastFn).toHaveBeenCalledWith(expect.objectContaining({ title: "Data exported" })));
     expect(createUrlFn).toHaveBeenCalledTimes(1);
-    expect(revokeUrlFn).toHaveBeenCalledTimes(1);
+    expect(revokeUrlFn).not.toHaveBeenCalled();
     expect(click).toHaveBeenCalledTimes(1);
     expect(fetchFn).not.toHaveBeenCalled();
     expect(invokeFn).not.toHaveBeenCalled();
