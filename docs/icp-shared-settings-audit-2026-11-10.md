@@ -63,3 +63,9 @@ Next: owner-reviewed TEST routing initialization using TEST-only targets and int
 ## TEST initialization preparation
 
 A fresh public TEST `/auth` browser check confirmed the DEV routing row retains email for Bridgewater Soccer Club and Basket Range Cricket Club, with default `supabase` and empty country rules, targets, pins and overrides. Both sign-in tabs rendered. The exact proposed on-chain value and acceptance steps are in `docs/test-on-chain-routing-initialization-2026-11-10.md`; no targets were invented and no write was made. Applying and verifying it requires an existing TEST II administrator session, which is unavailable in this remote sandbox. The public Supabase fallback remains until deployed on-chain readback and fresh signed-out acceptance succeed.
+
+## Approved PROD initialization and verification
+
+Paul explicitly approved initializing PROD's on-chain routing key and running the protected action. GitHub run `42773454286`, source `3093fc3baaad429f5958e97a50245812c4148156`, completed successfully on 10 November at 07:10:56 UTC. Independent anonymous readback from PROD shared club authority `tbeh7-5qaaa-aaaai-ayenq-cai` matches the prepared routing exactly: default Supabase, two retained email clubs, no targets/rules/pins/overrides. The previous value was unset. Only this public configuration key was initialized; no canister upgrade, deployment, other settings copy or business-data mutation occurred.
+
+Fresh browser contexts verified both sign-in tabs and zero page errors at both live addresses. The frontend canister `u3mrq-uiaaa-aaaac-bgioq-cai.icp0.io/auth` made zero Supabase routing-row requests, resolving that canister-hosted discovery boundary. However, `igniteclubhq.app/auth` still made one Supabase routing-row request. Therefore the gap is not globally closed for the branded site; existing email authentication was not exercised. No further frontend, hosting or sign-in changes were made under this single-key authorization.
