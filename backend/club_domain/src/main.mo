@@ -3356,7 +3356,7 @@ persistent actor class Main(governorInit : Principal) = this {
     "- `schema()` describes read-only clubs/teams OQL; `execute(json)` requires Internet Identity and returns only non-deleted clubs/teams where the caller is a member or administrator. Filters, projection, ordering, count/groupBy and paging are documented in schema. No contacts, tokens or principal fields.\n" #
     "- `list_clubs(start_after:?text, limit:nat16)` / `get_club_profile(id)` / `list_teams(club)` / `get_team(id)`: existing directory methods, not caller-scoped.\n\n" #
     "## Permissions model\n" #
-    "Roles (club admin, team admin, coach, member, guardian) are stored on-chain and re-checked on every call — a caller can never act on a club or team they have no role in, and can never see another club's private data. Role changes take effect immediately.\n\n" #
+    "Roles are checked on every call. No cross-club private data or unauthorized team writes.\\n\\n" #
     "## ChatGPT onboarding with the existing ICP plugin\n" #
     "- Open the app by its exact URL and use the origin returned by the connector. DEV and PROD have separate canisters and Internet Identity derivation origins; never combine them.\n" #
     "- Read `identity_access.whoami()` first. For a new principal, obtain approval and call `identity_access.register_account()` as that user, not as an app admin. Check `get_profile` and `my_terms_acceptance` separately; missing profile or terms is not completed onboarding. Do not claim consent for the user.\n" #
@@ -3368,6 +3368,8 @@ persistent actor class Main(governorInit : Principal) = this {
     "- ICP MCP refuses raw Candid reads on an OQL canister. Verify clubs/teams through the caller-scoped `clubs` or `teams` OQL entity, filtering on id, NOT a raw `get_team()` query. Candid updates still work.\\n" #
     "- `create_team_invite_link(club_id,team_id,role)` creates a shareable token for an existing club-owned team. Supported roles: player, parent, coach, team_admin; authorisation is checked on-chain. The share URL is the app's `/join/<token>`. The canister does not email anyone; request approval before minting an invite.\n" #
     "- Personal/clubless team owners currently cannot mint standard team-invite links through that method. Do not promise working personal-team invitations or bypass roster permissions.\n" #
+    "- Share only branded links: website https://igniteclubhq.app ; iPhone https://igniteclubhq.app/get/ios ; Android https://igniteclubhq.app/get/android. Do not expose target app IDs or Lovable URLs.\\n" #
+    "- Pro purchases: no ChatGPT checkout. ICP web card checkout unavailable; native store IAP requires provider-ready SKUs and verified receipt. Never claim a purchase or entitlement without authoritative confirmation.\\n" #
     "- If an update reply is lost, read back by the original club/team ID or list authorised invite links before considering another mutation. Do not blindly replay create or invite calls.\n" #
     "- OQL example: `{\"entity\":\"clubs\",\"select\":[\"id\",\"name\"],\"limit\":50}`. Use `{\"entity\":\"teams\",\"select\":[\"id\",\"name\",\"club_id\"],\"limit\":50}` for teams. `start` is invalid in Ignite OQL even if a generic connector example suggests it.\\n\\n" #
     "## Gotchas\n" #
