@@ -1,0 +1,50 @@
+name: "[PROD] Initialize on-chain sign-in routing"
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Requires APPLY PROD SIGN IN ROUTING; writes only absent backend_routing_config"
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  routing:
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+      ROUTING_CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Check exact settings boundaries
+        run: node --test scripts/prod-sign-in-routing-policy.test.mjs
+      - name: Install isolated pinned SDK
+        run: npm install --prefix "$RUNNER_TEMP/routing-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Save one approved public routing setting and read it back
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          umask 077
+          KEY_DIR="$RUNNER_TEMP/routing-key"
+          trap 'rm -rf "$KEY_DIR"' EXIT
+          test -n "$PROD_GOVERNOR_PEM_ENC"
+          test -n "$PROD_GOVERNOR_PASSPHRASE"
+          mkdir -p "$KEY_DIR"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$KEY_DIR/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$KEY_DIR/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$KEY_DIR/key.enc" -out "$KEY_DIR/key.pem" -pass file:"$KEY_DIR/pass"
+          rm -f "$KEY_DIR/key.enc" "$KEY_DIR/pass"
+          export CHECK_KEY_PEM="$KEY_DIR/key.pem"
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/routing-deps"
+          node scripts/prod-sign-in-routing.mjs

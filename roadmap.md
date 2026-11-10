@@ -17,6 +17,7 @@
 - [ ] Paul's real email logout → ICP login phone acceptance: hosted authenticated checks unavailable (external unmanaged auth), and physical Android session unavailable. The screenshot's exact live request stacks remain unverified.
 
 ## Remaining shared settings in ICP mode — 10 November
+- [ ] Paul approved PROD on-chain routing initialization: live public routing matches the prepared two-club value; PROD on-chain key is absent. Apply only that key through protected existing governor credentials, then verify fresh signed-out canister discovery; no deployment or other settings writes.
 - [x] Audited available ICP settings only; historical media and unavailable external features excluded. Most runtime/admin settings already use on-chain authorities; gaps recorded in docs/icp-shared-settings-audit-2026-11-10.md.
 - [x] Reproduced five failures and repaired mounted ICP startup isolation, source-bound runtime settings caches and explicit shared-app admin read/one-attempt write dispatch; email sign-in discovery/behaviour retained.
 - [x] 54 focused isolation/routing/legal/sign-in checks pass in default configuration; preview build OK. No PROD deployment or settings writes.
