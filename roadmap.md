@@ -1,8 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
 ## Personal-data download on ICP phones — 10 November
-- [ ] Reproduce the native export failure and use the existing phone file-sharing path for the JSON download; preserve caller authorization and email exports.
-- [ ] Verify focused export tests and browser download; physical Android/iOS acceptance awaits a new app build and Paul's device.
+- [x] Reproduced the native export using a blob anchor instead of a phone file; reused the existing native cache/share path for JSON, preserving caller authorization and email exports. Browser URLs now remain alive for 30 seconds; failed starts release them immediately.
+- [x] 51 focused account/file tests pass across both modes; actual browser helper downloads valid nonempty JSON without page errors; preview build OK.
+- [ ] Signed-in real ICP export and physical Android/iOS saving remain unverified; need a promoted new app build and Paul's phone. No PROD data or service changes.
 
 ## Native push wake reliability — 10 November 02:14 UTC
 - [x] Added one content-free retry after 5 seconds and an ICP-owned 60-second backup check with rotating scans capped at 200 rows; idle/unconfigured queues do not call the sender. Paul-only LIVE allowlist, sender reservation authority and Supabase-mode delivery unchanged.
