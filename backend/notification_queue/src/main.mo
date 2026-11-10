@@ -1653,23 +1653,6 @@ persistent actor class Main(governorInit : Principal) = this {
     });
   };
 
-  // ICP owns the backup. No GitHub polling delay, extra credentials, or legacy
-  // worker activation. Idle queues make no HTTPS calls; each scan is bounded.
-  transient let _nativeBackupTimer = Timer.recurringTimer<system>(#seconds(NativeWakePolicy.backupSeconds), func() : async () {
-    if (nativePushWorker == null or nativeSenderUrl() == null or nativeWakePending) return;
-    let count = items.size();
-    var scanned = 0;
-    while (scanned < Nat.min(count, NativeWakePolicy.scanLimit)) {
-      let item = items[nativeBackupCursor % count];
-      nativeBackupCursor += 1;
-      scanned += 1;
-      if (NativeWakePolicy.waiting(item.status == #Pending, nativeRecipientAllowed(item.user), recipientFenced(item.user))) {
-        wakeNativeSender<system>();
-        return
-      }
-    }
-  });
-
   public shared ({ caller }) func configure_native_push_worker(candidate : Principal) : async { #Ok; #Err : Text } {
     governorOnly(caller);
     if (nativeSenderUrl() == null) return #Err("Native push queue only");
@@ -2331,4 +2314,20 @@ persistent actor class Main(governorInit : Principal) = this {
     let outstanding = items.filter(func(item) = item.status == #Processing and request.subjects.any(func(p) = p.toText() == item.user or "principal:" # p.toText() == item.user)).size();
     removalReceiver.seal(caller, request, Principal.fromActor(this), outstanding)
   };
+  // ICP owns the backup. No GitHub polling delay, extra credentials, or legacy
+  // worker activation. Idle queues make no HTTPS calls; each scan is bounded.
+  transient let _nativeBackupTimer = Timer.recurringTimer<system>(#seconds(NativeWakePolicy.backupSeconds), func() : async () {
+    if (nativePushWorker == null or nativeSenderUrl() == null or nativeWakePending) return;
+    let count = items.size();
+    var scanned = 0;
+    while (scanned < Nat.min(count, NativeWakePolicy.scanLimit)) {
+      let item = items[nativeBackupCursor % count];
+      nativeBackupCursor += 1;
+      scanned += 1;
+      if (NativeWakePolicy.waiting(item.status == #Pending, nativeRecipientAllowed(item.user), recipientFenced(item.user))) {
+        wakeNativeSender<system>();
+        return
+      }
+    }
+  });
 };
