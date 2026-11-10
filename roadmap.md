@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Optional off-chain media and purchase assessment — 10 November
+- [ ] Investigate saved GIF/preview-image storage permissions, scope and costs; assess Apple/Google verification and existing ICP entitlement boundaries. Research only: no billing, push, credentials or live changes.
+- [ ] Record conclusions and distinguish feasible on-chain work from required external transport; direct hosting and optional chat-relay assessment postponed for now.
+
 ## ICP-only link-preview generation — 10 November
 - [x] Removed the external preview endpoint from ICP-mode requests; reused messaging_domain's existing on-chain HTTPS helper, preserved email-mode behavior, separated metadata/in-flight caches by sign-in mode and lazy-loaded messaging helpers.
 - [x] Three regressions reproduced before repair; 16 focused routing/preview checks pass in default mode and all 5 preview checks pass in ICP configuration; preview build OK. Boundaries documented in docs/icp-link-previews-on-chain-2026-11-10.md. Root AGENTS note skipped because user-owned rules already exhaust its size budget.
