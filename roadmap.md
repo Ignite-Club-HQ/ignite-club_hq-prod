@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## ICP foreground phone alerts — 10 November
+- [ ] Reproduce Firebase foreground events missing the ICP listener; add isolated dual-source receive handling without email/plugin configuration changes.
+- [ ] Verify account/mode isolation, duplicate suppression and cleanup; physical phone acceptance requires an updated native build.
+
 ## Email sign-out login warnings — 10 November
 - [x] Reproduced protected email observers surviving explicit sign-out; DEV now retires pages and cancels queries before native push unregister/session removal, ignores late refresh callbacks during logout, and clears user-scoped caches/channels synchronously.
 - [x] Regression fails before/passes after; 14 focused logout/routing/diagnostic checks pass. Public ICP login has no blocked reads/runtime errors after 18 seconds; preview build OK. No production changes.
