@@ -1,8 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
 ## Email sign-out login warnings — 10 November
-- [ ] Reproduce email page reads surviving explicit sign-out; retire observers before removing the email session, preserving native push unregister.
-- [ ] Verify logout cleanup and existing sign-in/routing checks; no production changes.
+- [x] Reproduced protected email observers surviving explicit sign-out; DEV now retires pages and cancels queries before native push unregister/session removal, ignores late refresh callbacks during logout, and clears user-scoped caches/channels synchronously.
+- [x] Regression fails before/passes after; 14 focused logout/routing/diagnostic checks pass. Public ICP login has no blocked reads/runtime errors after 18 seconds; preview build OK. No production changes.
+- [ ] Paul's real email logout → ICP login phone acceptance: hosted authenticated checks unavailable (external unmanaged auth), and physical Android session unavailable. The screenshot's exact live request stacks remain unverified.
 
 ## Remaining shared settings in ICP mode — 10 November
 - [x] Audited available ICP settings only; historical media and unavailable external features excluded. Most runtime/admin settings already use on-chain authorities; gaps recorded in docs/icp-shared-settings-audit-2026-11-10.md.
