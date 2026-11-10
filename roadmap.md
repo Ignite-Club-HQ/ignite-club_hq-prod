@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Team carousel resume audit — 10 November
+- [x] Four regressions reproduced cached suspended refresh, suspended recovery, trial-blocked inventory and redundant league lookup defects. DEV repairs retain cached cards, restart only suspended observed inventory reads after long backgrounding, defer trial badges, reuse authorized full league rows, save canonical snapshots and limit enrichment to visible clubs. Permissions/live services unchanged.
+- [x] 42 carousel/Home/Next Up checks pass in default configuration and 41 carousel/native-return checks pass in ICP configuration; mounted carousel and native event flows covered. Preview build OK; public desktop/phone sign-in has no runtime errors or overflow. Audit: docs/team-carousel-resume-audit-2026-11-10.md.
+- [ ] Measure Paul's signed-in physical Android resume: unavailable TEST Internet Identity session/device; the reported 20-second delay and actual speedup remain unverified. No PROD deployment.
+
 ## Personal-data download on ICP phones — 10 November
 - [x] Reproduced the native export using a blob anchor instead of a phone file; reused the existing native cache/share path for JSON, preserving caller authorization and email exports. Browser URLs now remain alive for 30 seconds; failed starts release them immediately.
 - [x] 51 focused account/file tests pass across both modes; actual browser helper downloads valid nonempty JSON without page errors; preview build OK.

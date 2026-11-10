@@ -505,7 +505,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
         return withReadDeadline(withFeatureBackend("competitions", {
           // Unreachable: this branch only runs when ICP mode is active.
           supabase: async () => [] as TeamOrLeague[],
-          icp: async (ctx) => (await import("@/components/home/icpCarouselItems")).fetchIcpCarouselItems(ctx, null),
+          icp: async (ctx) => (await import("@/components/home/icpCarouselItems")).fetchIcpCarouselItems(ctx, null, { includeTrial: false }),
         }, { everyGroup: true, merge: mergeLists }), "My teams", 12_000, signal);
       }
 
@@ -661,6 +661,11 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   // no matter which cache produced the row.
   const items = useMemo(() => filterDeletedTeams(rawItems), [rawItems]);
 
+  const scopedItems = useMemo(
+    () => (activeClubFilter ? items.filter(i => i.club_id === activeClubFilter) : items),
+    [items, activeClubFilter]
+  );
+
   // A failed refetch would otherwise keep a stale localStorage snapshot on
   // screen forever — drop it so the next mount re-fetches instead.
   useEffect(() => {
@@ -668,11 +673,32 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   }, [isError, user?.id]);
 
   // Fetch next events
-  const teamIds = items.filter(i => i.type === "team").map(i => i.id);
-  const leagueItemIds = items.filter(i => i.type === "league").map(i => i.id);
+  const teamIds = scopedItems.filter(i => i.type === "team").map(i => i.id);
+  const leagueItemIds = scopedItems.filter(i => i.type === "league").map(i => i.id);
+
+  // Optional badge reads must not hold the primary inventory behind a slow
+  // subscription service. These are display-only, never entitlement gates.
+  const { data: trialFlags = {} } = useQuery({
+    queryKey: ["team-trials-premium", user?.id, teamIds],
+    meta: { persist: false },
+    queryFn: async () => withFeatureBackend("membership", {
+      supabase: async () => ({} as Record<string, boolean>),
+      icp: async ctx => {
+        const { getLiveTeamSubscription } = await import("@/live/features/club");
+        const { readMembershipInScope } = await import("@/live/membershipRouting");
+        const rows = await Promise.all(teamIds.map(async teamId => {
+          const subscription = await readMembershipInScope(ctx, { teamId }, s => getLiveTeamSubscription(s, teamId));
+          return [teamId, !!(subscription?.is_pro && subscription.trial_ends_at_ms?.length)] as const;
+        }));
+        return Object.fromEntries(rows);
+      },
+    }, { shared: "person" }),
+    enabled: isIcp && !!user && teamIds.length > 0 && deferredReady,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const { data: nextEvents = snapshot?.nextEvents ?? {} } = useQuery({
-    queryKey: ["team-next-events-premium", teamIds, leagueItemIds],
+    queryKey: ["team-next-events-premium", user?.id, teamIds, leagueItemIds],
     queryFn: async () => {
       const now = new Date().toISOString();
       const map: Record<string, NextEventInfo> = {};
@@ -806,7 +832,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
       return map;
     },
-    enabled: items.length > 0,
+    enabled: !!user && scopedItems.length > 0 && deferredReady,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -902,7 +928,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     competition_sport: string | null;
   };
   const { data: competitionRows = [] as CompetitionRow[] } = useQuery({
-    queryKey: ["team-competitions-premium-v3", teamIds, isIcp],
+    queryKey: ["team-competitions-premium-v3", teamIds, isIcp, user?.id],
     queryFn: async () => {
       if (teamIds.length === 0) return [] as CompetitionRow[];
 
@@ -953,7 +979,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       if (error) return [] as CompetitionRow[];
       return (data || []) as CompetitionRow[];
     },
-    enabled: teamIds.length > 0,
+    enabled: !!user && teamIds.length > 0 && deferredReady,
     staleTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -1079,14 +1105,6 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     placeholderData: (prev) => prev,
   });
 
-  // Guard against cross-club bleed: `placeholderData: (prev) => prev` keeps the
-  // previous club's rows visible while the new query key loads, so anything not
-  // belonging to the active club must be dropped at render time.
-  const scopedItems = useMemo(
-    () => (activeClubFilter ? items.filter(i => i.club_id === activeClubFilter) : items),
-    [items, activeClubFilter]
-  );
-
   // Trust a successfully refetched (possibly empty) list over the localStorage
   // snapshot: only fall back to the snapshot until the first fetch settles.
   // Without this, a genuinely deleted team keeps re-appearing from the
@@ -1116,7 +1134,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
   // Persist snapshot for instant cold-start on next visit
   useEffect(() => {
-    if (!user?.id || scopedItems.length === 0 || (isIcp && isFetching)) return;
+    if (!user?.id || scopedItems.length === 0 || isError || (isIcp && isFetching)) return;
     setCachedCarousel<CarouselSnapshot>(user.id, activeClubFilter, {
       items: scopedItems,
       nextEvents,
@@ -1124,7 +1142,13 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       unreadCounts,
       teamMembers,
     });
-  }, [user?.id, activeClubFilter, scopedItems, nextEvents, teamPhotos, unreadCounts, teamMembers]);
+    // The inventory query always covers every club. Save its canonical key
+    // even when a club theme is selected so a remount can hydrate the query,
+    // rather than leaving it pending with only a per-club render fallback.
+    if (activeClubFilter) setCachedCarousel<CarouselSnapshot>(user.id, null, {
+      items, nextEvents, teamPhotos, unreadCounts, teamMembers,
+    });
+  }, [user?.id, activeClubFilter, items, scopedItems, nextEvents, teamPhotos, unreadCounts, teamMembers, isFetching, isError, isIcp]);
 
   // Section is "ready" only once the primary teams query has actually settled
   // (i.e. not its first load and not a background refetch with no items yet).
@@ -1213,7 +1237,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
           {sortedItems.map((item) => (
             <TeamCard
               key={`${item.type}-${item.id}`}
-              item={item}
+              item={isIcp && item.type === "team" ? { ...item, isOnTrial: trialFlags[item.id] ?? item.isOnTrial } : item}
               nextEvent={nextEvents[item.id]}
               photos={teamPhotos[item.id] || []}
               photoCount={teamPhotoCounts[item.id]}
