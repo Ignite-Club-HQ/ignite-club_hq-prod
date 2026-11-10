@@ -340,6 +340,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const roleSectionRef = useRef<HTMLDivElement | null>(null);
+  const inviteScrollerRef = useRef<HTMLDivElement | null>(null);
   // Single-screen invite form: the share link is visible immediately on open
   // (auto-created for the default role), with the person / role / children /
   // delivery form below it on one scrolling screen — no chooser step.
@@ -356,7 +357,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // being typed: with the keyboard open the sheet is short, so they render
   // half-clipped by the footer and read as truncated text. "nearest" scrolls
   // the minimum needed to show them without disturbing the focused input.
-  const roleRevealKey = nameConfirmed || selectedUser ? "confirmed" : personReady ? "typing" : null;
+  const roleRevealKey = nameConfirmed || selectedUser ? "confirmed" : null;
   const lastRoleRevealRef = useRef<string | null>(null);
   useEffect(() => {
     if (!roleRevealKey) {
@@ -372,10 +373,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       } catch {}
     }
     const t = setTimeout(() => {
-      roleSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: roleRevealKey === "confirmed" ? "center" : "nearest",
-      });
+      const scroller = inviteScrollerRef.current;
+      const role = roleSectionRef.current;
+      if (!scroller || !role) return;
+      const offset = role.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      scroller.scrollTop = Math.max(0, scroller.scrollTop + offset - 16);
     }, 120);
     return () => clearTimeout(t);
   }, [roleRevealKey]);
@@ -841,7 +843,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           </SheetClose>
         </SheetHeader>
 
-        <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-4 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+        <div ref={inviteScrollerRef} data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-4 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
           {/* Multiple/bulk tab removed — join link + single invite cover all cases */}
 
@@ -879,13 +881,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 <Label className="text-sm font-medium">Name</Label>
 
                 <div className="relative flex gap-2">
-                  <div className="relative flex-1">
+                  <div className="relative flex-1 min-w-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search by name or email, or enter new"
                       value={nameInput}
                       onChange={(e) => setNameInput(e.target.value)}
-                      className="pl-10 h-12 text-base"
+                      className="pl-10 h-12 text-base min-w-0 w-full"
                       onPaste={(e) => {
                         const text = e.clipboardData.getData("text");
                         if (!looksLikeMultiRecipient(text)) return;
@@ -914,7 +916,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         const el = e.currentTarget;
                         setTimeout(() => {
                           try {
-                            el.scrollIntoView({ behavior: "smooth", block: "center" });
+                            const scroller = inviteScrollerRef.current;
+                            if (!scroller || document.activeElement !== el) return;
+                            const field = el.getBoundingClientRect();
+                            const bounds = scroller.getBoundingClientRect();
+                            if (field.top < bounds.top + 8) scroller.scrollTop += field.top - bounds.top - 8;
+                            else if (field.bottom > bounds.bottom - 8) scroller.scrollTop += field.bottom - bounds.bottom + 8;
                           } catch {}
                         }, 250);
                       }}
