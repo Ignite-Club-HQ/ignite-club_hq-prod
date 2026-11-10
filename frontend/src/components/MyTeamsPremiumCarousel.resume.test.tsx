@@ -58,10 +58,7 @@ describe('mounted carousel resume data path', () => {
     await waitFor(() => expect(m.trial).toHaveBeenCalledTimes(1), { timeout: 2500 });
     expect(screen.queryByRole('button', { name: 'Team A — Club A' })).not.toBeInTheDocument();
     await act(async () => { release?.(null); });
-    await waitFor(() => {
-      if (!screen.queryByRole('button', { name: 'Team A — Club A' })) console.log(client.getQueryCache().getAll().map(q => [q.queryKey[0], q.state.status, q.state.fetchStatus, q.state.error?.message]));
-      expect(screen.queryByRole('button', { name: 'Team A — Club A' })).toBeInTheDocument();
-    }, { timeout: 3000 });
+    await screen.findByRole('button', { name: 'Team A — Club A' });
     expect(screen.queryByRole('button', { name: 'Team B — Club B' })).not.toBeInTheDocument();
     expect(m.items).toHaveBeenCalledWith({}, null, { includeTrial: false, inventory: 'teams' });
     expect(m.items).toHaveBeenCalledWith({}, null, { includeTrial: false, inventory: 'leagues' });

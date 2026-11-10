@@ -25,6 +25,8 @@ import type { TeamOrLeague } from "@/components/home/icpCarouselItems";
 const listLiveEvents: typeof import("@/live/features/events").listLiveEvents = (async (...args: unknown[]) => ((await import("@/live/features/events")).listLiveEvents as (...a: unknown[]) => unknown)(...args)) as never;
 import { useCarouselResumeRecovery } from '@/hooks/useCarouselResumeRecovery';
 import { markStage } from "@/lib/perfStages";
+let carouselModule: Promise<typeof import("@/components/home/icpCarouselItems")> | undefined;
+const loadCarouselModule = () => carouselModule ??= import("@/components/home/icpCarouselItems");
 
 // Render Supabase storage URLs through the image-transform endpoint at a tiny
 // width so the 28×28 avatar thumbnails don't download full-resolution originals.
@@ -515,7 +517,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
         return withReadDeadline(withFeatureBackend("membership", {
           // Unreachable: this branch only runs when ICP mode is active.
           supabase: async () => [] as TeamOrLeague[],
-          icp: async (ctx) => (await import("@/components/home/icpCarouselItems")).fetchIcpCarouselItems(ctx, null, { includeTrial: false, inventory: "teams" }),
+          icp: async (ctx) => (await loadCarouselModule()).fetchIcpCarouselItems(ctx, null, { includeTrial: false, inventory: "teams" }),
         }, { memberGroups: true, merge: mergeLists }), "My teams", 30_000, signal);
       }
 
@@ -681,7 +683,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     retry: false,
     queryFn: ({ signal }) => withReadDeadline(withFeatureBackend("competitions", {
       supabase: async () => [] as TeamOrLeague[],
-      icp: async ctx => (await import("@/components/home/icpCarouselItems")).fetchIcpCarouselItems(ctx, null, { includeTrial: false, inventory: "leagues" }),
+      icp: async ctx => (await loadCarouselModule()).fetchIcpCarouselItems(ctx, null, { includeTrial: false, inventory: "leagues" }),
     }, { everyGroup: true, requireComplete: true, merge: mergeLists }), "My competitions", 30_000, signal),
   });
 
