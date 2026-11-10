@@ -27,6 +27,7 @@ import SchedulePatch "schedulePatch";
 import UpdateReminderAccess "updateReminderAccess";
 import BrowserPushTest "browserPushTest";
 import NativePush "nativePush";
+import NativeWakePolicy "nativeWakePolicy";
 
 persistent actor class Main(governorInit : Principal) = this {
   // Opt-in local rehearsal only; production deploy scripts must never set these.
@@ -1586,7 +1587,7 @@ persistent actor class Main(governorInit : Principal) = this {
   // ======================================================================
   // Device push tokens
   // Narrow TEST transport authority; Supabase has no notification database.
-  // Native TEST wake-up: a content-free POST to the fixed TEST sender. It carries
+  // Native wake-up: a content-free POST to the environment's fixed sender. It carries
   // no keys, tokens, recipients or text; the sender then reserves work itself.
   type WakeHeader = { name : Text; value : Text };
   type WakeResponse = { status : Nat; headers : [WakeHeader]; body : Blob };
@@ -1599,6 +1600,8 @@ persistent actor class Main(governorInit : Principal) = this {
     } -> async WakeResponse;
   } = actor "aaaaa-aa";
   transient var nativeWakePending = false;
+  transient var nativeWakeRequested = false;
+  transient var nativeBackupCursor = 0;
   // Native push runs only on the TEST base queue and the LIVE base queue; LIVE
   // delivers solely to the approved recipient allowlist until widened.
   transient let liveNativeQueue = "w263o-3aaaa-aaaai-ayesq-cai";
@@ -1614,20 +1617,58 @@ persistent actor class Main(governorInit : Principal) = this {
     liveNativeRecipients.find(func r = r == user) != null
   };
   func wakeNativeSender<system>() {
-    if (nativePushWorker == null or nativeWakePending) return;
+    if (nativePushWorker == null) return;
+    if (nativeWakePending) { nativeWakeRequested := true; return };
+    scheduleNativeWake<system>(0)
+  };
+  func scheduleNativeWake<system>(attempt : Nat) {
     let url = switch (nativeSenderUrl()) { case (?u) u; case null return };
+    let expectedWorker = nativePushWorker;
+    if (expectedWorker == null) return;
     nativeWakePending := true;
-    ignore Timer.setTimer<system>(#seconds 0, func() : async () {
-      nativeWakePending := false;
+    let delay = if (attempt == 0) 0 else NativeWakePolicy.retrySeconds;
+    ignore Timer.setTimer<system>(#seconds delay, func() : async () {
+      if (nativePushWorker != expectedWorker) {
+        nativeWakePending := false;
+        nativeWakeRequested := false;
+        return
+      };
+      var status : ?Nat = null;
       try {
-        ignore await (with cycles = 300_000_000) wakeManagement.http_request({
+        let response = await (with cycles = 300_000_000) wakeManagement.http_request({
           url;
           max_response_bytes = ?1024; method = #post; headers = []; body = null;
           transform = null; is_replicated = ?false;
-        })
-      } catch (_) {}; // the scheduled backup check picks up missed wake-ups
+        });
+        status := ?response.status
+      } catch (_) {};
+      nativeWakePending := false;
+      if (nativePushWorker != expectedWorker) { nativeWakeRequested := false; return };
+      if (NativeWakePolicy.retry(attempt, status)) {
+        scheduleNativeWake<system>(attempt + 1)
+      } else if (nativeWakeRequested) {
+        nativeWakeRequested := false;
+        wakeNativeSender<system>()
+      };
     });
   };
+
+  // ICP owns the backup. No GitHub polling delay, extra credentials, or legacy
+  // worker activation. Idle queues make no HTTPS calls; each scan is bounded.
+  transient let _nativeBackupTimer = Timer.recurringTimer<system>(#seconds NativeWakePolicy.backupSeconds, func() : async () {
+    if (nativePushWorker == null or nativeSenderUrl() == null or nativeWakePending) return;
+    let count = items.size();
+    var scanned = 0;
+    while (scanned < Nat.min(count, NativeWakePolicy.scanLimit)) {
+      let item = items[nativeBackupCursor % count];
+      nativeBackupCursor += 1;
+      scanned += 1;
+      if (NativeWakePolicy.waiting(item.status == #Pending, nativeRecipientAllowed(item.user), recipientFenced(item.user))) {
+        wakeNativeSender<system>();
+        return
+      }
+    }
+  });
 
   public shared ({ caller }) func configure_native_push_worker(candidate : Principal) : async { #Ok; #Err : Text } {
     governorOnly(caller);

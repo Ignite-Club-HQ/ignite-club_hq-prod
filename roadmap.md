@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Native push wake reliability — 10 November 02:14 UTC
+- [ ] Add one delayed wake retry and an ICP-owned one-minute backup check; preserve Paul-only LIVE allowlist and Supabase-mode delivery.
+- [ ] Run focused Motoko/transport tests and compile the queue; deployment and real-phone acceptance follow promotion of the tested changes.
+
 ## Chat access message — 9 November 22:35 UTC
 - [x] Group chats now say "You don't have access to this chat" instead of "No messages yet" when the server refuses the messages: Supabase answer taken from `can_access_chat_group` (the same rule that hides the rows), on-chain answer from the canister's own refusal. Six access tests pass, preview build OK. All 104 live chats use a membership mode the rule understands, so only people who genuinely cannot read the messages see it. No permission, data or PROD changes.
 - [ ] Confirm on Paul's phone after the next build/deploy: needs his signed-in session; email and Internet Identity chats both need a look.
