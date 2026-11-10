@@ -1664,6 +1664,23 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(caller) }
   };
 
+  // Caller-owned outcome of one of the caller's own test alerts. Reveals only
+  // the caller's own row, delivery outcomes and device-registration counts.
+  public shared query ({ caller }) func get_my_native_test_alert(id : Text) : async {
+    #Ok : { status : Text; outcomes : [Text]; devices : Nat; shared_devices : Nat };
+    #Err : Text;
+  } {
+    if (caller == Principal.anonymous()) return #Err("Sign in required");
+    let user = caller.toText();
+    if (not Text.startsWith(id, #text ("native-test-" # user # "-"))) return #Err("Not your test alert");
+    let item = get(id) ?? return #Err("Test alert not found");
+    let status = switch (item.status) { case (#Pending) "pending"; case (#Processing) "processing"; case (#Delivered) "delivered"; case (#Failed) "failed" };
+    let outcomes = nativePushAttempts.filter(func a = a.notification_id == id).map(func a = a.status);
+    let mine = device_tokens.filter(func d = d.user == user and (d.platform == "android" or d.platform == "ios"));
+    let sharedCount = mine.filter(func d = device_tokens.any(func o = o.token == d.token and o.user != user)).size();
+    #Ok({ status; outcomes; devices = mine.size(); shared_devices = sharedCount })
+  };
+
   public query func native_push_configuration() : async { worker : ?Principal; queue : Principal; enabled : Bool } {
     { worker = nativePushWorker; queue = Principal.fromActor(this); enabled = nativePushWorker != null }
   };

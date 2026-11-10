@@ -31,6 +31,7 @@ const factory = ({ IDL }: { IDL: typeof CandidIDL }) => {
 };
 
 let running = false;
+let rerun = false;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -50,9 +51,39 @@ Deno.serve(async (req) => {
     const commissioned = config.worker[0]?.toText() === self.toText();
     // Public principal only, so the governor can record permission for it.
     if (req.method === 'GET' || !commissioned) return reply(200, { sender: self.toText(), commissioned });
-    if (running) return reply(202, { busy: true });
+    // Reply to the wake-up at once so the ICP caller never times out mid-send;
+    // a wake-up during a run asks that run to scan again before it stops.
+    if (running) { rerun = true; return reply(202, { busy: true, rescan: true }); }
     running = true;
-    try {
+    const work = (async () => {
+      try {
+        do {
+          rerun = false;
+          const report = await runDelivery(raw);
+          console.log('Native sender run:', JSON.stringify(report));
+        } while (rerun);
+      } catch (error) {
+        console.error('Native sender stopped:', error instanceof Error ? error.message.slice(0, 200) : 'unknown');
+      } finally { running = false; }
+    })();
+    const runtime = (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime;
+    if (runtime) { runtime.waitUntil(work); return reply(202, { started: true }); }
+    await work;
+    return reply(200, { started: true });
+  } catch (error) {
+    console.error('Native sender stopped:', error instanceof Error ? error.message.slice(0, 200) : 'unknown');
+    return reply(500, { error: 'Sender stopped; alerts stay held on ICP' });
+  }
+});
+
+type RawQueue = {
+  reserve_native_push(): Promise<{ Ok: [] | [Record<string, unknown>] } | { Err: string }>;
+  settle_native_push(r: string, o: string): Promise<{ Ok: null } | { Err: string }>;
+};
+
+async function runDelivery(raw: RawQueue) {
+  {
+    {
       const actor: NativeQueueActor = {
         async reserve_native_push() {
           const r = await raw.reserve_native_push();
@@ -64,11 +95,7 @@ Deno.serve(async (req) => {
       const send = createNativeFcmTransport({ supabaseUrl: HOST,
         serviceAccountJson: Deno.env.get('IGNITE_PROD_FCM_SERVICE_ACCOUNT_JSON') ?? '',
         lovableKey: Deno.env.get('LOVABLE_API_KEY') ?? '', connectionKey: Deno.env.get('FIREBASE_MESSAGING_API_KEY') ?? '' });
-      const report = await deliverReservedNativePush(createNativeQueueAuthority(actor), send, 10);
-      return reply(200, report);
-    } finally { running = false; }
-  } catch (error) {
-    console.error('Native sender stopped:', error instanceof Error ? error.message.slice(0, 200) : 'unknown');
-    return reply(500, { error: 'Sender stopped; alerts stay held on ICP' });
+      return await deliverReservedNativePush(createNativeQueueAuthority(actor), send, 10);
+    }
   }
-});
+}

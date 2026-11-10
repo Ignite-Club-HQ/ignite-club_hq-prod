@@ -50,3 +50,39 @@ export async function queueMyNativeTestAlert(): Promise<string> {
   }
   return result.Ok;
 }
+
+export type MyTestAlertState = { status: string; outcomes: string[]; devices: number; sharedDevices: number };
+
+/** Follows the caller's own test alert for up to ~20s and explains the outcome in plain English. */
+export async function followMyNativeTestAlert(id: string, waitMs = 20000): Promise<string> {
+  const [{ getCurrentInternetIdentity }, { getActiveIcpTarget }, { connectLiveNotificationQueue }] = await Promise.all([
+    import("./internetIdentityAuth"), import("./targetRegistry"), import("./domains"),
+  ]);
+  const identity = await getCurrentInternetIdentity();
+  if (!identity) throw new Error("Sign in with Internet Identity first");
+  const { actor } = await connectLiveNotificationQueue(getActiveIcpTarget(), identity);
+  const read = (actor as unknown as { get_my_native_test_alert?: (id: string) => Promise<{ Ok: { status: string; outcomes: string[]; devices: bigint; shared_devices: bigint } } | { Err: string }> }).get_my_native_test_alert;
+  if (!read) return "Test alert queued. This version can't follow it to your phone yet.";
+  const deadline = Date.now() + waitMs;
+  let last: MyTestAlertState | null = null;
+  while (Date.now() < deadline) {
+    try {
+      const r = await read(id);
+      if ("Err" in r) { console.warn("get_my_native_test_alert refused:", r.Err); return "Test alert queued, but its progress couldn't be read."; }
+      last = { status: r.Ok.status, outcomes: r.Ok.outcomes, devices: Number(r.Ok.devices), sharedDevices: Number(r.Ok.shared_devices) };
+      if (last.status === "delivered" || last.status === "failed") break;
+    } catch (e) { console.warn("get_my_native_test_alert failed:", e); }
+    await new Promise(res => setTimeout(res, 2000));
+  }
+  return describeMyTestAlert(last);
+}
+
+export function describeMyTestAlert(s: MyTestAlertState | null): string {
+  if (!s) return "Test alert queued, but its progress couldn't be read.";
+  if (s.outcomes.includes("accepted")) return "Sent to your phone. If it doesn't appear, check Do Not Disturb and the notification shade.";
+  if (s.status === "pending" || s.status === "processing") return "Queued, but the sender hasn't collected it yet. It will be picked up on the next wake-up.";
+  if (s.devices === 0) return "No phone is registered for alerts on this account. Open the app on your phone signed in with Internet Identity and allow notifications.";
+  if (s.devices === s.sharedDevices) return "This phone is also registered to another account, so alerts to it are blocked for safety.";
+  if (s.outcomes.includes("inactive")) return "Your phone's alert registration had expired. Reopen the app to register again, then retry.";
+  return "The alert couldn't be sent to your phone. Try again shortly.";
+}

@@ -328,6 +328,21 @@ export const idlFactory = ({ IDL }) => {
         [DigestResults],
         ['query'],
       ),
+    'get_my_native_test_alert' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'status' : IDL.Text,
+              'shared_devices' : IDL.Nat,
+              'outcomes' : IDL.Vec(IDL.Text),
+              'devices' : IDL.Nat,
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
+        ['query'],
+      ),
     'get_notification' : IDL.Func([IDL.Text], [IDL.Opt(Notification)], []),
     'get_preferences' : IDL.Func([IDL.Text], [Preferences], ['query']),
     'get_push_alert_settings' : IDL.Func([], [PushAlertSettings], ['query']),

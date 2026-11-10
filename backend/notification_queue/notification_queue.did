@@ -261,6 +261,17 @@ type Main =
     key_prefix: text, related_id: opt text) -> (ResultNat16);
    get_digest: (source: DigestSource, chat_scope_id: text, since_ms: 
     nat64, limit: nat16) -> (DigestResults) query;
+   get_my_native_test_alert: (id: text) ->
+    (variant {
+       Err: text;
+       Ok:
+        record {
+          devices: nat;
+          outcomes: vec text;
+          shared_devices: nat;
+          status: text;
+        };
+     }) query;
    get_notification: (id: text) -> (opt Notification);
    get_preferences: (user: text) -> (Preferences) query;
    get_push_alert_settings: () -> (PushAlertSettings) query;
