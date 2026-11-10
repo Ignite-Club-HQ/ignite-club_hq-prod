@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## ICP-only link-preview generation — 10 November
+- [ ] Remove the external preview endpoint from ICP-mode requests, reuse messaging_domain's existing on-chain HTTPS helper, preserve email-mode behavior and separate frontend caches by sign-in mode.
+- [ ] Run focused routing/failure/cache regressions and document external source/image boundaries; authenticated II preview and phone acceptance require a delegated session/device unavailable in the sandbox. No PROD deployment authorized.
+
 ## Club/team logo membership visibility — 10 November 07:26 UTC
 - [x] Four regressions reproduced missing logo scope/member-key enforcement. New ICP club/team/request logos now canonicalize to clubs/<club>/logos and require the existing live-membership club key; old URLs, private files and email fallback remain unchanged. Monogram saves reuse the authorized context.
 - [x] 53 focused logo/upload/decryption tests pass (7 email/ICP-specific skips); preview build OK. Phone-sized public login renders without page errors/overflow; this is not member-logo acceptance.
