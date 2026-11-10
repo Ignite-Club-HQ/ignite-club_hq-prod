@@ -21,6 +21,7 @@
 - [x] Reproduced five failures and repaired mounted ICP startup isolation, source-bound runtime settings caches and explicit shared-app admin read/one-attempt write dispatch; email sign-in discovery/behaviour retained.
 - [x] 54 focused isolation/routing/legal/sign-in checks pass in default configuration; preview build OK. No PROD deployment or settings writes.
 - [x] Follow-up public TEST shared-authority inventory: all 11 reads succeeded; chat recap is false, ten other requested settings are unset. Re-ran 54 focused checks successfully. No PROD reads/writes or configuration copies; details in the audit.
+- [x] Read TEST's public routing row through a fresh signed-out browser visit; confirmed both sign-in tabs and the two retained email clubs. Prepared the exact unchanged on-chain routing value and acceptance instructions in docs/test-on-chain-routing-initialization-2026-11-10.md; no invented targets or settings writes.
 - [ ] Authenticated ICP settings save/readback requires a delegated II admin session; owner-reviewed TEST routing initialization is needed before removing signed-out hybrid public Supabase discovery. Phone switching requires a physical device.
 
 ## Team carousel resume audit — 10 November

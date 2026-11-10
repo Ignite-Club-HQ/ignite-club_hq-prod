@@ -59,3 +59,7 @@ Missing optional switches do not by themselves mean a feature is broken: runtime
 All 54 focused routing/settings/legal/sign-in checks passed again on this follow-up. This is not an authenticated admin save/readback: external unmanaged browser auth supplies no delegated II administrator identity. No write was attempted with anonymous or operator credentials, and no PROD read/deployment/settings mutation occurred.
 
 Next: owner-reviewed TEST routing initialization using TEST-only targets and intended sign-in eligibility; separately verify an existing ICP administrator can save and read back through the app. Do not blindly mirror email settings, overwrite the existing recap switch, or move private credentials into public app_config.
+
+## TEST initialization preparation
+
+A fresh public TEST `/auth` browser check confirmed the DEV routing row retains email for Bridgewater Soccer Club and Basket Range Cricket Club, with default `supabase` and empty country rules, targets, pins and overrides. Both sign-in tabs rendered. The exact proposed on-chain value and acceptance steps are in `docs/test-on-chain-routing-initialization-2026-11-10.md`; no targets were invented and no write was made. Applying and verifying it requires an existing TEST II administrator session, which is unavailable in this remote sandbox. The public Supabase fallback remains until deployed on-chain readback and fresh signed-out acceptance succeed.
