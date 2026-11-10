@@ -28,18 +28,18 @@ const fakeIdentity = {
 };
 
 vi.mock("@icp-sdk/auth/client", () => ({
-  AuthClient: class {
-    constructor() {
+  AuthClient: vi.fn(function () {
       state.constructed += 1;
       if (state.constructFails) return Promise.reject(new Error("chunk load failed"));
-      return new Promise((resolve) => setTimeout(() => resolve(this), state.constructDelayMs));
-    }
-    isAuthenticated() { return true; }
-    async getIdentity() { return fakeIdentity; }
-    async signIn() { return fakeIdentity; }
-    async signOut() {}
-    dispose() {}
-  },
+      const client = {
+        isAuthenticated() { return true; },
+        async getIdentity() { return fakeIdentity; },
+        async signIn() { return fakeIdentity; },
+        async signOut() {},
+        dispose() {},
+      };
+      return new Promise((resolve) => setTimeout(() => resolve(client), state.constructDelayMs));
+  }),
 }));
 
 async function freshModule() {

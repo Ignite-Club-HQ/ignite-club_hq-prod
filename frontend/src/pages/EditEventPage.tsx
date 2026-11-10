@@ -628,11 +628,11 @@ function SupabaseEditEventPage() {
           const ids = [...new Set(grants.map(grant => grant.account_id.replace(/^principal:/, "")))];
           if (!ids.length) return [];
           const profiles = await readRelationshipProfiles(ctx, ids, { kind: "club", resource: clubId });
-          const byId = new Map(profiles.map(profile => [profile.id.replace(/^principal:/, ""), profile]));
+          const byId = new Map(profiles.map(profile => [profile.account_id.replace(/^principal:/, ""), profile]));
           return ids.map(memberId => ({
             id: memberId,
             display_name: byId.get(memberId)?.display_name || "Member",
-            avatar_url: byId.get(memberId)?.avatar_url ?? null,
+            avatar_url: byId.get(memberId)?.avatar_ref[0] ?? null,
           }));
         },
         supabase: async () => {
@@ -1001,18 +1001,18 @@ function SupabaseEditEventPage() {
       });
       return;
     }
-    let saveStage: EventSaveStage = "before_send";
+    const saveProgress: { stage: EventSaveStage } = { stage: "before_send" };
     let mainSentAt = 0;
     let relatedStartedAt = 0;
     const markMainSent = () => {
-      saveStage = "main_update";
+      saveProgress.stage = "main_update";
       mainSentAt = performance.now();
       recordEventEditStage("save_start", editKind, mainSentAt - saveTappedAt);
     };
     const onMainCommitted = () => {
       relatedStartedAt = performance.now();
       recordEventEditStage("main_update", editKind, relatedStartedAt - mainSentAt);
-      saveStage = "related_updates";
+      saveProgress.stage = "related_updates";
     };
     if (!title.trim() || !eventDateTime) {
       toast({
@@ -1244,7 +1244,7 @@ function SupabaseEditEventPage() {
     } catch (error: any) {
       console.error("Error updating event:", error);
       const failure = classifyEventSaveFailure(error);
-      if (failure === "session_before_send" && saveStage === "before_send") {
+      if (failure === "session_before_send" && saveProgress.stage === "before_send") {
         // Nothing was sent. Keep the form (draft is already on this device)
         // and let the sign-in check decide: a really-ended session goes to
         // sign-in and returns here; a momentary blip just stays put.
@@ -1257,8 +1257,8 @@ function SupabaseEditEventPage() {
         void refreshProfile();
         return;
       }
-      if (failure === "uncertain" && saveStage === "main_update") {
-        if (uncertainSaveBlocksResubmit(failure, saveStage, createsEvents)) setConversionUncertain(true);
+      if (failure === "uncertain" && saveProgress.stage === "main_update") {
+        if (uncertainSaveBlocksResubmit(failure, saveProgress.stage, createsEvents)) setConversionUncertain(true);
         toast({
           title: "We couldn't confirm your save",
           description: createsEvents
@@ -1268,7 +1268,7 @@ function SupabaseEditEventPage() {
         });
         return;
       }
-      if (saveStage === "related_updates" && !error?.__dutyStage) {
+      if (saveProgress.stage === "related_updates" && !error?.__dutyStage) {
         toast({
           title: "Event saved, some details not saved",
           description: "Your main event changes were saved, but the duty team or reminder didn't update. Tap Save again to retry them.",
