@@ -18,6 +18,7 @@ import { getSignedPhotoUrls } from "@/hooks/useSignedPhotoUrl";
 import { setCachedCarousel, getCachedCarouselWithTs } from "@/lib/myTeamsCarouselCache";
 import { filterDeletedTeams } from "@/lib/deletedTeamTombstones";
 import { carouselReady } from "@/components/home/carouselLoadingPolicy";
+import { clearMyTeamsCarouselCache } from "@/lib/invalidateTeamLists";
 import { format, isToday, isTomorrow, parseISO, differenceInDays } from "date-fns";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { mergeLists, withFeatureBackend } from "@/live/featureRouter";
@@ -698,6 +699,9 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
   // A transport error is not evidence of revoked access. Successful complete
   // inventory replaces saved rows (including an empty result) below.
+  useEffect(() => {
+    if (!isIcp && isError) clearMyTeamsCarouselCache(user?.id);
+  }, [isIcp, isError, user?.id]);
 
   // Fetch next events
   const teamIds = scopedItems.filter(i => i.type === "team").map(i => i.id);
@@ -1132,11 +1136,11 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   const [hasSettledFetch, setHasSettledFetch] = useState(false);
   useEffect(() => setHasSettledFetch(false), [user?.id, activeClubFilter]);
   useEffect(() => {
-    if (!isLoading && !isFetching && !isError) {
+    if (!isLoading && !isFetching && !isError && (!isIcp || leagueInventory.isSuccess)) {
       setHasSettledFetch(true);
       markStage("carousel_loaded");
     }
-  }, [isLoading, isFetching, isError]);
+  }, [isLoading, isFetching, isError, isIcp, leagueInventory.isSuccess]);
 
   const inventoryReady = isSuccess && leagueInventory.isSuccess;
   const completeFirstLoad = carouselReady(hasSavedCards, inventoryReady, [
@@ -1151,7 +1155,13 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       ? (snapshot?.items ?? []).filter(i => i.club_id === activeClubFilter)
       : (snapshot?.items ?? []),
   );
-  const displayItems = scopedItems.length > 0 ? scopedItems : (hasSettledFetch ? [] : snapshotItems);
+  const displayItems = isIcp
+    ? (inventoryReady ? scopedItems : [
+      ...scopedItems,
+      ...snapshotItems.filter(item => !scopedItems.some(fresh => fresh.type === item.type && fresh.id === item.id)
+        && (item.type === "team" ? !isSuccess : !leagueInventory.isSuccess)),
+    ])
+    : scopedItems.length > 0 ? scopedItems : (hasSettledFetch ? [] : snapshotItems);
 
   useEffect(() => {
     // These values are initialized on every render, including skeleton/empty
@@ -1164,7 +1174,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     if (!user?.id || isError || (isIcp && (!inventoryReady || isFetching || leagueInventory.isFetching || !completeFirstLoad))) return;
     if (!isIcp && scopedItems.length === 0) return;
     setCachedCarousel<CarouselSnapshot>(user.id, activeClubFilter, {
-      items: scopedItems,
+      items: scopedItems.map(item => isIcp && item.type === "team" ? { ...item, isOnTrial: trialFlags[item.id] ?? item.isOnTrial } : item),
       nextEvents,
       teamPhotos,
       unreadCounts,
@@ -1177,7 +1187,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     if (activeClubFilter) setCachedCarousel<CarouselSnapshot>(user.id, null, {
       items, nextEvents, teamPhotos, unreadCounts, teamMembers, competitionRows,
     });
-  }, [user?.id, activeClubFilter, items, scopedItems, nextEvents, teamPhotos, unreadCounts, teamMembers, competitionRows, isFetching, isError, isIcp, inventoryReady, leagueInventory.isFetching, completeFirstLoad]);
+  }, [user?.id, activeClubFilter, items, scopedItems, nextEvents, teamPhotos, unreadCounts, teamMembers, competitionRows, trialFlags, isFetching, isError, isIcp, inventoryReady, leagueInventory.isFetching, completeFirstLoad]);
 
   // Section is "ready" only once the primary teams query has actually settled
   // (i.e. not its first load and not a background refetch with no items yet).

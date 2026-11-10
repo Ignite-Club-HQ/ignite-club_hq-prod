@@ -68,7 +68,7 @@ async function loadIcpCarouselItems(
     if (existing) return existing;
     const pending = getLiveClubProfile(ctx, clubId).then(([p]) => ({
       name: p?.name ?? "", logo_url: p?.logo_url[0] ?? null, sport: p?.sport[0] ?? null,
-    }), () => ({ name: "", logo_url: null, sport: null }));
+    }));
     clubMeta.set(clubId, pending);
     return pending;
   };
