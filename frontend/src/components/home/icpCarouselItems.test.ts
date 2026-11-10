@@ -12,7 +12,7 @@ describe("ICP carousel parallel reads", () => {
     vi.resetAllMocks();
     mocks.grants.mockResolvedValue([{ team: ["team-a"], club: ["club-a"], role: "coach" }]);
     mocks.team.mockResolvedValue([{ id: "team-a", club_id: "club-a", name: "A", deleted_at_ms: [], logo_url: [] }]);
-    mocks.club.mockResolvedValue([{ name: "Club A", logo_url: [], sport: "football" }]);
+    mocks.club.mockResolvedValue([{ name: "Club A", logo_url: [], sport: ["football"] }]);
     mocks.subscription.mockResolvedValue(null);
     mocks.mine.mockResolvedValue([]);
   });
@@ -27,7 +27,7 @@ describe("ICP carousel parallel reads", () => {
   it("starts the trial read without waiting for the club logo and name", async () => {
     let release: (() => void) | undefined;
     const waiting = new Promise<void>(resolve => { release = resolve; });
-    mocks.club.mockImplementation(async () => { await waiting; return [{ name: "Club A", logo_url: [], sport: "football" }]; });
+    mocks.club.mockImplementation(async () => { await waiting; return [{ name: "Club A", logo_url: [], sport: ["football"] }]; });
     const pending = fetchIcpCarouselItems({} as never, null);
     try { await vi.waitFor(() => expect(mocks.subscription).toHaveBeenCalledTimes(1), { timeout: 150 }); }
     finally { release?.(); await pending; }

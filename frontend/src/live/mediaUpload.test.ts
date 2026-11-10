@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { IcpTargetConfig } from "./targetRegistry";
 
 const mocks = vi.hoisted(() => ({
   getActiveIcpTarget: vi.fn(() => ({ alias: "test-target" })),
@@ -48,7 +49,7 @@ import { tryUploadMediaToBlobStore } from "./mediaUpload";
 
 describe("tryUploadMediaToBlobStore competition scope", () => {
   const identity = { getPrincipal: () => "uploader-principal" };
-  const target = { alias: "test-target" };
+  const target: IcpTargetConfig = { provider: "icp", alias: "test-target", networkKind: "public_mainnet", host: "https://icp-api.io", canisterIds: {}, deploymentClass: "public_subnet" };
   const blobRef = { canister: "aaaaa-aa", path: "/clubs/club-1/photo.jpg", content_hash: "hash" };
 
   beforeEach(() => {

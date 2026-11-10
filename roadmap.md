@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## Approved consolidated production promotion — 10 November 08:35 UTC
+- [x] Paul approved starting main→prod promotion of the prepared fixes; preserve production data and email-mode notifications, with no settings copy or wider push rollout.
+- [x] Opened GitHub release PR #1453. Reproduced the failed workflow inventory check and corrected stale source types/profile DTO mappings; 165 focused frontend checks, 49 release-control checks, lint and two Android setup checks pass. Preview build OK.
+- [ ] Merge PR #1453 only after Lovable sync publishes these repairs and GitHub exact-source checks pass; current main a0093c87 still has failed frontend/release-policy checks. Confirm database/backend/frontend jobs for the merge commit. No production changes yet.
+- [ ] Redeploy the ICP purchase verifier after merge and prepare PROD-only native builds; device acceptance remains Paul's phone step, not a completed sandbox check.
+
 ## Optional off-chain media and purchase assessment — 10 November
 - [x] Investigated source and official provider guidance: GIPHY prohibits partner media caching/proxying under standard rules; permitted thumbnails/owned GIFs are technically possible with audience/size/rights constraints. Apple signed JWS verification could move partly to ICP; Google current-state API verification should retain external credential-bearing transport.
 - [x] Findings and recommended order recorded in docs/icp-remote-media-purchase-feasibility-2026-11-10.md. Source ICP verifier is Apple-only and lacks matched-product/app/account checks; no hosted purchase failure claimed. Research only; billing/push/email/live behavior unchanged. Hosting and optional chat-relay assessment postponed.
@@ -23,7 +29,7 @@
 ## Approved settings production release — 10 November 07:19 UTC
 - [x] Paul approved moving prepared code to PROD without a manual TEST settings-save step; no arbitrary settings copies or business-data writes authorized.
 - [x] Reproduced GitHub's frontend failure locally; replaced the control-character regex with equivalent character-code validation. Lint, all 72 focused notification/settings/routing checks and preview build pass.
-- [ ] Merge main into prod through the existing pipeline and confirm exact-source production jobs. Blocked until Lovable sync publishes this correction: GitHub main still points to 3c92f3e7 with the failed frontend check. No merge or PROD deployment made; manual TEST acceptance was waived, not claimed completed.
+- [ ] Consolidated into approved release PR #1453 above; merge after corrected source sync and successful exact-source checks. No merge or PROD deployment made; manual TEST acceptance was waived, not claimed completed.
 
 ## Player invite field visibility — 10 November
 - [x] Stop auto-scrolling to roles while typing; focus/confirmation now scroll only the sheet, never the window. Name row/input can shrink within available width. Eight invite/search checks pass; preview build OK. Frontend only.

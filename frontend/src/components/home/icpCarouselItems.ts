@@ -47,7 +47,7 @@ export async function fetchIcpCarouselItems(
     const existing = clubMeta.get(clubId);
     if (existing) return existing;
     const pending = getLiveClubProfile(ctx, clubId).then(([p]) => ({
-      name: p?.name ?? "", logo_url: p?.logo_url[0] ?? null, sport: p?.sport ?? null,
+      name: p?.name ?? "", logo_url: p?.logo_url[0] ?? null, sport: p?.sport[0] ?? null,
     }), () => ({ name: "", logo_url: null, sport: null }));
     clubMeta.set(clubId, pending);
     return pending;
@@ -105,7 +105,7 @@ export async function fetchIcpCarouselItems(
   const leagueRows = new Map<string, { id: string; name?: string; club_id?: string }>();
   const [mine, byClub] = await Promise.all([
     mineRead.then(result => {
-      if (!result.ok) throw result.error;
+      if (result.ok === false) throw result.error;
       return result.value;
     }),
     Promise.all(leagueAdminClubIds.map(id => listLiveMiniLeaguesByClub(ctx, id))),
