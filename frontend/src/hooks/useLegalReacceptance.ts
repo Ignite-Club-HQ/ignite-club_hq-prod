@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { resolveAuthBackend } from "@/live/authBackendMode";
+import { appSettingSourceKey } from "@/live/appSettingSource";
 
 /**
  * Global "users must re-read and accept Terms & Privacy Policy" switch.
@@ -90,7 +91,7 @@ export function useLegalReacceptance(): UseLegalReacceptanceResult {
   const userId = user?.id;
 
   const settingQuery = useQuery({
-    queryKey: ["app-setting", LEGAL_REACCEPTANCE_KEY],
+    queryKey: ["app-setting", LEGAL_REACCEPTANCE_KEY, appSettingSourceKey()],
     queryFn: fetchLegalReacceptanceSetting,
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,

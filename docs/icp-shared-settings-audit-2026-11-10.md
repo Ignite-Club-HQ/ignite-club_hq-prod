@@ -1,0 +1,39 @@
+# ICP shared settings: forward-only review
+
+Scope: settings for features available in ICP mode. Historical files, data transfers, unavailable integrations, deployment and production configuration writes are excluded.
+
+## Already on ICP
+
+| Settings | ICP authority / reader |
+| --- | --- |
+| Club creation lock | `club_domain.app_config`; CreateClubPage and ICP App Settings |
+| Chat virtualisation, basic chunk size, recap switch, free polling switch | `club_domain.app_config`; dedicated runtime hooks |
+| Notification prefetch | `club_domain.app_config`; notificationPrefetchFlag |
+| Welcome direct-message text | `club_domain.app_config`; welcomeMessage |
+| Legal reacceptance | `club_domain.app_config`; acceptance on identity_access |
+| GIPHY public client key | `club_domain.app_config`; Placement Settings and GifGrid |
+| Canister IDs / optional WebSocket gateway address | `club_domain.app_config.icp_canister_config`; ICP loader and Placement Settings |
+| Backend / country / retained-email eligibility | `club_domain.app_config.backend_routing_config`; ICP admin saves and restored ICP startup |
+| Chat photo reminders | Messaging scheduler-owned settings, not Supabase app_settings |
+
+The Supabase references in these files are mostly separate email branches, not residual ICP dependencies. AI provider selection in useChatCatchUp/GlobalChatRecapSheet belongs to the email branch; ICP recap bypasses it.
+
+## Repairs in DEV
+
+1. Mounted ICP startup now chooses the on-chain configuration reader even when the local session hint is absent. It cannot read the Supabase routing row in that state. The canister override loader shares this startup selection.
+2. Virtualisation, chunk size, recap, free polling and legal-policy query caches now distinguish email from ICP and distinguish ICP config authorities by host + club canister ID. Switching modes no longer reuses a still-fresh email setting. Email realtime subscriptions are cleaned up on source changes.
+3. ICP App Settings reads explicitly use the shared app scope; writes use the existing one-attempt app scope. This preserves the canister's own admin checks and prevents uncertain writes being replayed by group dispatch.
+
+Before repair, five new regressions failed: four mode-switch readers never fetched their on-chain value, and mounted ICP startup read Supabase. After repair those checks pass alongside existing routing, override, legal and sign-in checks.
+
+## Gaps to assess next
+
+- **Signed-out hybrid discovery still has a public Supabase fallback.** On a canister-hosted visit with no on-chain routing copy, it reads only the public backend_routing_config row. This is intentional compatibility for existing sign-in choices; removing it requires establishing the environment's own on-chain configuration first. No copies were written in this task.
+- **Email admins and ICP admins save separate copies.** Email startup retains its existing timestamp-based dual-copy choice. This task does not mirror or reconcile saves between datasets.
+- **No deployed-value inventory was established.** Source support does not prove every TEST/PROD key is populated or equal. Non-secret configuration readback and owner-reviewed initialization are next, if needed; do not blindly copy database settings or keys into public app_config.
+- **Notification-prefetch's one-shot module cache is not a persistent settings subscription.** It already reads ICP on ICP initialization, but its initializer has no discovered call site. Treat activation/refresh lifecycle as a separate follow-up, not an established remaining Supabase requirement.
+- **ICP runtime switches are query-refreshed, not Supabase realtime.** Missing keys use their existing defaults; no new background timers were introduced.
+
+## Verification limits
+
+Focused mounted-reader tests exercise real React Query cache switching with mocked transport; they are not authenticated deployed-canister acceptance. Production was untouched. Real Internet Identity administrator save/readback and native app switching remain unverified without a delegated session/device.

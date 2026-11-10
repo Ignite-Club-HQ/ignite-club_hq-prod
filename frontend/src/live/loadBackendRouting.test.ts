@@ -41,6 +41,7 @@ import {
   type BackendRoutingConfig,
 } from "./backendRouting";
 import { loadBackendRoutingConfig } from "./loadBackendRouting";
+import { markMountedAuthProvider } from "./authBackendMode";
 
 const icpConfig: BackendRoutingConfig = {
   defaultBackend: "icp",
@@ -63,6 +64,7 @@ const supabaseConfig: BackendRoutingConfig = {
 };
 
 beforeEach(() => {
+  markMountedAuthProvider("supabase");
   queryResult = { data: null, error: null };
   maybeSingle.mockClear();
   applyBackendRoutingConfig(null);
@@ -77,6 +79,15 @@ afterEach(() => {
 });
 
 describe("loadBackendRoutingConfig precedence", () => {
+  it("a mounted ICP provider never consults Supabase when its session hint is absent", async () => {
+    markMountedAuthProvider("icp");
+    onChainRead.mockResolvedValue(null);
+    localStorage.setItem(BACKEND_ROUTING_CACHE_KEY, JSON.stringify(icpConfig));
+    queryResult = { data: { value: supabaseConfig }, error: null };
+    await loadBackendRoutingConfig();
+    expect(maybeSingle).not.toHaveBeenCalled();
+    expect(getBackendRoutingConfig().defaultBackend).toBe("icp");
+  });
   it("restored Internet Identity uses on-chain routing without a Supabase read", async () => {
     localStorage.setItem("ignite_icp_internet_identity_session", JSON.stringify({ principal: "aaaaa-aa" }));
     queryResult = { data: { value: supabaseConfig }, error: null };

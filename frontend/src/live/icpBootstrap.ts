@@ -1,6 +1,7 @@
-import { hasInternetIdentitySessionStored, isSignedInWithEmail, readAuthChoice } from "./authBackendMode";
+import { hasInternetIdentitySessionStored, isSignedInWithEmail, isIcpProviderMounted, readAuthChoice } from "./authBackendMode";
 /** Select a config source only; this never grants roles or resource access. */
 export function shouldBootstrapFromIcp(): boolean {
+  if (isIcpProviderMounted()) return true;
   if (isSignedInWithEmail() || readAuthChoice() === "supabase") return false;
   if (hasInternetIdentitySessionStored() || readAuthChoice() === "icp") return true;
   try {
