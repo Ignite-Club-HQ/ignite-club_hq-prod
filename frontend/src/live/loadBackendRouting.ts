@@ -74,7 +74,7 @@ export async function fetchStoredBackendRoutingConfig(): Promise<BackendRoutingC
     if (onChain) return parseBackendRoutingConfig(onChain);
     // A signed-out visit to the canister-hosted site with no on-chain copy
     // must still read the public Supabase row, or /auth loses its sign-in tabs.
-    if (hasInternetIdentitySessionStored() || readAuthChoice() === "icp") return null;
+    if (isIcpProviderMounted() || hasInternetIdentitySessionStored() || readAuthChoice() === "icp") return null;
   }
   let row: unknown = null;
   let rowError: unknown = null;

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAuthBackend } from "@/live/authBackendMode";
+import { appSettingSourceKey } from "@/live/appSettingSource";
 
 const QUERY_KEY = ["app-setting", "free_club_polling_enabled"] as const;
 
@@ -17,9 +18,10 @@ const QUERY_KEY = ["app-setting", "free_club_polling_enabled"] as const;
  */
 export function useFreeClubPollingEnabled(): boolean {
   const queryClient = useQueryClient();
+  const source = appSettingSourceKey();
 
   const { data } = useQuery({
-    queryKey: QUERY_KEY,
+    queryKey: [...QUERY_KEY, source],
     queryFn: async () => {
       if (resolveAuthBackend() === "icp") {
         const { readLiveAppConfig } = await import("@/live/appConfig");
@@ -65,7 +67,7 @@ export function useFreeClubPollingEnabled(): boolean {
         /* ignore */
       }
     };
-  }, [queryClient]);
+  }, [queryClient, source]);
 
   return data === true;
 }
