@@ -52,6 +52,19 @@ describe("ICP carousel parallel reads", () => {
     mocks.subscription.mockResolvedValue({ is_pro: true, trial_ends_at_ms: [1] });
     expect(await fetchIcpCarouselItems({} as never, null)).toEqual([]);
   });
+  it("returns core cards without starting optional trial reads", async () => {
+    mocks.subscription.mockImplementation(() => new Promise(() => {}));
+    const items = await fetchIcpCarouselItems({} as never, null, { includeTrial: false });
+    expect(items.map(item => item.id)).toEqual(["team-a"]);
+    expect(mocks.subscription).not.toHaveBeenCalled();
+  });
+  it("uses complete caller-authorized league rows without reading each league again", async () => {
+    mocks.grants.mockResolvedValue([]);
+    mocks.mine.mockResolvedValue([{ id: "league-a", name: "League A", club_id: "club-a", logo_url: [], status: "active" }]);
+    const items = await fetchIcpCarouselItems({} as never, null);
+    expect(items.map(item => item.id)).toEqual(["league-a"]);
+    expect(mocks.league).not.toHaveBeenCalled();
+  });
   it("starts independent player-league discovery before empty role discovery finishes", async () => {
     let release: (() => void) | undefined;
     const waiting = new Promise<void>(resolve => { release = resolve; });

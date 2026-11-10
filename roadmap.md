@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Team carousel resume audit — 10 November
+- [ ] Reproduce suspended-read recovery gaps and optional ICP reads blocking cards; streamline on DEV without changing permissions or live services.
+- [ ] Run focused carousel/native recovery regressions and record before/after evidence; authenticated physical Android resume remains dependent on Paul's device.
+
 ## Personal-data download on ICP phones — 10 November
 - [x] Reproduced the native export using a blob anchor instead of a phone file; reused the existing native cache/share path for JSON, preserving caller authorization and email exports. Browser URLs now remain alive for 30 seconds; failed starts release them immediately.
 - [x] 51 focused account/file tests pass across both modes; actual browser helper downloads valid nonempty JSON without page errors; preview build OK.

@@ -7,6 +7,33 @@ const listeners: (() => void)[] = [];
 function client() { const c = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } }); clients.push(c); return c; }
 afterEach(() => { listeners.splice(0).forEach(stop => stop()); clients.splice(0).forEach(c => c.clear()); vi.restoreAllMocks(); });
 describe('carousel resume recovery', () => {
+  it('restarts a suspended background refresh even when cached cards exist', async () => {
+    const c = client(); c.setQueryData(key, [{ id: 'old' }]);
+    const read = vi.fn().mockImplementationOnce(({ signal }: { signal: AbortSignal }) => new Promise(() => {
+      signal.addEventListener('abort', () => {});
+    })).mockResolvedValue([{ id: 'fresh' }]);
+    const observer = new QueryObserver(c, { queryKey: key, queryFn: read });
+    listeners.push(observer.subscribe(() => {}));
+    void observer.refetch();
+    await createCarouselResumeRecovery(c, key)({ restartSuspended: true });
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(observer.getCurrentResult().data).toEqual([{ id: 'fresh' }]);
+  });
+  it('releases a recovery that was itself suspended on a later return', async () => {
+    const c = client(); c.setQueryData(key, []);
+    const read = vi.fn().mockImplementationOnce(({ signal }: { signal: AbortSignal }) => new Promise(() => {
+      signal.addEventListener('abort', () => {});
+    })).mockResolvedValue([{ id: 'fresh' }]);
+    const observer = new QueryObserver(c, { queryKey: key, queryFn: read });
+    listeners.push(observer.subscribe(() => {}));
+    const recover = createCarouselResumeRecovery(c, key);
+    const first = recover();
+    await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    await recover({ restartSuspended: true });
+    await first;
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(observer.getCurrentResult().data).toEqual([{ id: 'fresh' }]);
+  });
   it('releases a suspended initial fetch and displays the recovered team without a relaunch', async () => {
     const c = client();
     let cancelled = false;
