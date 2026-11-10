@@ -238,7 +238,7 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
         <div className="flex items-start gap-3">
           {(item.logo_url || item.club_logo_url) ? (
             <LogoImage
-              src={(item.logo_url || item.club_logo_url)!}
+              src={item.logo_url || item.club_logo_url || ""}
               className="h-10 w-10 rounded-full object-cover shrink-0"
               fallback={
                 <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-muted">
@@ -1185,7 +1185,8 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     // even when a club theme is selected so a remount can hydrate the query,
     // rather than leaving it pending with only a per-club render fallback.
     if (activeClubFilter) setCachedCarousel<CarouselSnapshot>(user.id, null, {
-      items, nextEvents, teamPhotos, unreadCounts, teamMembers, competitionRows,
+      items: items.map(item => isIcp && item.type === "team" ? { ...item, isOnTrial: trialFlags[item.id] ?? item.isOnTrial } : item),
+      nextEvents, teamPhotos, unreadCounts, teamMembers, competitionRows,
     });
   }, [user?.id, activeClubFilter, items, scopedItems, nextEvents, teamPhotos, unreadCounts, teamMembers, competitionRows, trialFlags, isFetching, isError, isIcp, inventoryReady, leagueInventory.isFetching, completeFirstLoad]);
 

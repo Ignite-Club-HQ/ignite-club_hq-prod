@@ -86,7 +86,7 @@ describe('mounted carousel resume data path', () => {
     const { client } = mount();
     await screen.findByRole('button', { name: 'Team A — Club A' });
     await waitFor(() => expect(m.save).toHaveBeenCalledWith('paul', null, expect.objectContaining({ items: teams })));
-    expect(m.save).toHaveBeenCalledWith('paul', 'club-a', expect.objectContaining({ items: [teams[0]] }));
+    expect(m.save).toHaveBeenCalledWith('paul', 'club-a', expect.objectContaining({ items: [expect.objectContaining(teams[0])] }));
     m.save.mockClear();
     let finish: ((rows: typeof teams) => void) | undefined;
     m.items.mockImplementationOnce(() => new Promise<typeof teams>(done => { finish = done; }));
