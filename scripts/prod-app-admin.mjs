@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { identityFromPem } from './prod-connection-check.mjs';
 import { assertGovernor } from './icp-environments.mjs';
-import { ADMIN_TARGETS, PAUL_PROD_PRINCIPAL, alignAdmin } from './prod-app-admin-policy.mjs';
+import { ADMIN_TARGETS, APP_ADMIN_SCOPE, PAUL_PROD_PRINCIPAL, alignAdmin } from './prod-app-admin-policy.mjs';
 
 async function main() {
   const env = process.env;
@@ -28,6 +28,10 @@ async function main() {
     read_account_list_app_admins: IDL.Func([], [result(IDL.Vec(IDL.Principal))], []),
     grant_app_admin: IDL.Func([IDL.Principal], [result(IDL.Null)], []),
   }), { agent, canisterId: id });
+  const club = Actor.createActor(() => IDL.Service({
+    read_account_is_app_admin: IDL.Func([IDL.Principal], [IDL.Bool], []),
+    add_role_grant: IDL.Func([IDL.Principal, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [IDL.Variant({ Ok: IDL.Null, Err: IDL.Text })], []),
+  }), { agent, canisterId: ADMIN_TARGETS.club });
   const unwrap = r => { if ('Err' in r) throw Error('Production refused the account operation'); return r.Ok; };
   const readAccount = async p => {
     let cursor = [], rows = [];
@@ -42,6 +46,8 @@ async function main() {
     readAccount, readAdmins: async id => unwrap(await insights(id).read_account_list_app_admins()).map(p => p.toText()),
     grantIdentity: async id => unwrap(await ia.grant_role(id, 'app_admin', [], [])),
     grantInsights: async (id, p) => unwrap(await insights(id).grant_app_admin(Principal.fromText(p))),
+    readClubAdmin: async p => club.read_account_is_app_admin(Principal.fromText(p)),
+    grantClub: async p => unwrap(await club.add_role_grant(Principal.fromText(p), APP_ADMIN_SCOPE, 'app_admin', [])),
   });
   console.log(JSON.stringify(report));
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `## Paul's PROD app-admin access\n\n${JSON.stringify(report)}\n\nNo club membership, identity linking, deployment or other user changes.\n`);
