@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Native push wake reliability — 10 November 02:14 UTC
+- [x] Added one content-free retry after 5 seconds and an ICP-owned 60-second backup check with rotating scans capped at 200 rows; idle/unconfigured queues do not call the sender. Paul-only LIVE allowlist, sender reservation authority and Supabase-mode delivery unchanged.
+- [x] Wake policy and receipt Motoko tests pass; complete notification_queue source check passes; 30 isolation/PROD recipient/self-test checks pass. No interface or persisted-state changes.
+- [ ] Activate on LIVE through main→prod code promotion and deploy the previously prepared immediate-reply sender; verify failed-wake recovery and receipt on Paul's phone. This turn made no deployment or live configuration changes.
+
 ## Chat access message — 9 November 22:35 UTC
 - [x] Group chats now say "You don't have access to this chat" instead of "No messages yet" when the server refuses the messages: Supabase answer taken from `can_access_chat_group` (the same rule that hides the rows), on-chain answer from the canister's own refusal. Six access tests pass, preview build OK. All 104 live chats use a membership mode the rule understands, so only people who genuinely cannot read the messages see it. No permission, data or PROD changes.
 - [ ] Confirm on Paul's phone after the next build/deploy: needs his signed-in session; email and Internet Identity chats both need a look.
