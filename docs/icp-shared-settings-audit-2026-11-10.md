@@ -30,10 +30,32 @@ Before repair, five new regressions failed: four mode-switch readers never fetch
 
 - **Signed-out hybrid discovery still has a public Supabase fallback.** On a canister-hosted visit with no on-chain routing copy, it reads only the public backend_routing_config row. This is intentional compatibility for existing sign-in choices; removing it requires establishing the environment's own on-chain configuration first. No copies were written in this task.
 - **Email admins and ICP admins save separate copies.** Email startup retains its existing timestamp-based dual-copy choice. This task does not mirror or reconcile saves between datasets.
-- **No deployed-value inventory was established.** Source support does not prove every TEST/PROD key is populated or equal. Non-secret configuration readback and owner-reviewed initialization are next, if needed; do not blindly copy database settings or keys into public app_config.
+- **TEST deployed-value inventory completed at 06:57 UTC.** Eleven bounded anonymous `get_app_config` reads against TEST shared club authority `mzzzv-taaaa-aaaal-qxlrq-cai` succeeded. Only `chat_recap_enabled` was populated (`false`); the other ten requested keys were unset. This is the shared authority, not an inventory of independent groups or PROD. No values were copied or written; credential-like values and routing contents were not emitted.
 - **Notification-prefetch's one-shot module cache is not a persistent settings subscription.** It already reads ICP on ICP initialization, but its initializer has no discovered call site. Treat activation/refresh lifecycle as a separate follow-up, not an established remaining Supabase requirement.
 - **ICP runtime switches are query-refreshed, not Supabase realtime.** Missing keys use their existing defaults; no new background timers were introduced.
 
 ## Verification limits
 
 Focused mounted-reader tests exercise real React Query cache switching with mocked transport; they are not authenticated deployed-canister acceptance. Production was untouched. Real Internet Identity administrator save/readback and native app switching remain unverified without a delegated session/device.
+
+## TEST follow-up inventory and implications
+
+| Public setting | Readback |
+| --- | --- |
+| backend_routing_config | Unset |
+| icp_canister_config | Unset |
+| club_creation_locked | Unset |
+| chat_virtualization_enabled | Unset |
+| chat_basic_chunk_size | Unset |
+| chat_recap_enabled | Present: false |
+| free_club_polling_enabled | Unset |
+| notification_prefetch_enabled | Unset |
+| legal_reacceptance | Unset |
+| welcome_dm_message | Unset |
+| giphy_api_key | Unset |
+
+Missing optional switches do not by themselves mean a feature is broken: runtime readers retain their existing defaults. Missing canister overrides may use generated/build configuration. The missing routing copy is the important remaining signed-out hybrid boundary: without an established environment-specific on-chain copy, the public Supabase discovery fallback cannot safely be removed. The missing GIPHY key also means this authority cannot supply that key to the ICP GIF picker.
+
+All 54 focused routing/settings/legal/sign-in checks passed again on this follow-up. This is not an authenticated admin save/readback: external unmanaged browser auth supplies no delegated II administrator identity. No write was attempted with anonymous or operator credentials, and no PROD read/deployment/settings mutation occurred.
+
+Next: owner-reviewed TEST routing initialization using TEST-only targets and intended sign-in eligibility; separately verify an existing ICP administrator can save and read back through the app. Do not blindly mirror email settings, overwrite the existing recap switch, or move private credentials into public app_config.
