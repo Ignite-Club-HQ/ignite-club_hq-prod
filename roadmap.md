@@ -2,7 +2,8 @@
 
 ## Approved settings production release — 10 November 07:19 UTC
 - [x] Paul approved moving prepared code to PROD without a manual TEST settings-save step; no arbitrary settings copies or business-data writes authorized.
-- [ ] Merge main into prod through the existing pipeline and confirm exact-source production jobs. Current frontend check fails on the existing control-character regex in icpPushTap; correct it and recheck before merging.
+- [x] Reproduced GitHub's frontend failure locally; replaced the control-character regex with equivalent character-code validation. Lint, all 72 focused notification/settings/routing checks and preview build pass.
+- [ ] Merge main into prod through the existing pipeline and confirm exact-source production jobs. Blocked until Lovable sync publishes this correction: GitHub main still points to 3c92f3e7 with the failed frontend check. No merge or PROD deployment made; manual TEST acceptance was waived, not claimed completed.
 
 ## Player invite field visibility — 10 November
 - [x] Stop auto-scrolling to roles while typing; focus/confirmation now scroll only the sheet, never the window. Name row/input can shrink within available width. Eight invite/search checks pass; preview build OK. Frontend only.
