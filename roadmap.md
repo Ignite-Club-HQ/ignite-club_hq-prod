@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Approved consolidated production promotion — 10 November 08:35 UTC
+- [x] Paul approved starting main→prod promotion of the prepared fixes; preserve production data and email-mode notifications, with no settings copy or wider push rollout.
+- [ ] Verify synced source and existing release checks, merge through GitHub, and confirm database/backend/frontend jobs for the exact merge commit.
+- [ ] Redeploy the ICP purchase verifier after merge and prepare PROD-only native builds; device acceptance remains Paul's phone step, not a completed sandbox check.
+
 ## Optional off-chain media and purchase assessment — 10 November
 - [x] Investigated source and official provider guidance: GIPHY prohibits partner media caching/proxying under standard rules; permitted thumbnails/owned GIFs are technically possible with audience/size/rights constraints. Apple signed JWS verification could move partly to ICP; Google current-state API verification should retain external credential-bearing transport.
 - [x] Findings and recommended order recorded in docs/icp-remote-media-purchase-feasibility-2026-11-10.md. Source ICP verifier is Apple-only and lacks matched-product/app/account checks; no hosted purchase failure claimed. Research only; billing/push/email/live behavior unchanged. Hosting and optional chat-relay assessment postponed.
