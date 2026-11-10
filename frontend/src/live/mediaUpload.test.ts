@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   grantLivePiiReadCompetition: vi.fn(),
   registerLivePii: vi.fn(),
   sha256Hex: vi.fn(() => "hash"),
+  resolveAuthBackend: vi.fn(() => "icp"),
 }));
 
 vi.mock("./internetIdentityAuth", () => ({
@@ -26,7 +27,7 @@ vi.mock("./blobStoreUpload", () => ({
   isBlobStoreConfigured: mocks.isBlobStoreConfigured,
   uploadBytesToBlobStore: mocks.uploadBytesToBlobStore,
 }));
-vi.mock("./authBackendMode", () => ({ resolveAuthBackend: () => "icp" }));
+vi.mock("./authBackendMode", () => ({ resolveAuthBackend: mocks.resolveAuthBackend }));
 vi.mock("./piiVetKeys", () => ({
   clubIdFromMediaPath: mocks.clubIdFromMediaPath,
   encryptClubMedia: mocks.encryptClubMedia,
@@ -52,6 +53,7 @@ describe("tryUploadMediaToBlobStore competition scope", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.resolveAuthBackend.mockReturnValue("icp");
     mocks.getActiveIcpTarget.mockReturnValue(target);
     mocks.getCurrentInternetIdentity.mockResolvedValue(identity);
     mocks.isBlobStoreConfigured.mockReturnValue(true);
@@ -73,6 +75,32 @@ describe("tryUploadMediaToBlobStore competition scope", () => {
     expect(mocks.uploadBytesToBlobStore).toHaveBeenCalledWith(groupTarget, identity, "clubs/club-b/private.jpg", expect.any(Uint8Array), "image/jpeg");
     expect(mocks.registerLivePii.mock.calls[0][0]).toEqual(context);
     expect(mocks.getActiveIcpTarget).not.toHaveBeenCalled();
+  });
+
+  it("does not authorize an off-chain fallback when ICP storage is missing", async () => {
+    mocks.isBlobStoreConfigured.mockReturnValue(false);
+    await expect(tryUploadMediaToBlobStore({ storagePath: "avatars/account/photo.jpg", file: new Blob(["photo"]), mime: "image/jpeg" })).rejects.toThrow("storage");
+    expect(mocks.uploadBytesToBlobStore).not.toHaveBeenCalled();
+    expect(mocks.getCurrentInternetIdentity).not.toHaveBeenCalled();
+  });
+
+  it("does not authorize an off-chain fallback when the ICP session is unavailable", async () => {
+    mocks.getCurrentInternetIdentity.mockResolvedValue(null);
+    await expect(tryUploadMediaToBlobStore({ storagePath: "avatars/account/photo.jpg", file: new Blob(["photo"]), mime: "image/jpeg" })).rejects.toThrow("sign in");
+    expect(mocks.encryptPiiValue).not.toHaveBeenCalled();
+    expect(mocks.uploadBytesToBlobStore).not.toHaveBeenCalled();
+  });
+
+  it("preserves email storage fallback without an ICP store", async () => {
+    mocks.resolveAuthBackend.mockReturnValue("supabase");
+    mocks.isBlobStoreConfigured.mockReturnValue(false);
+    await expect(tryUploadMediaToBlobStore({ storagePath: "photo.jpg", file: new Blob(["photo"]), mime: "image/jpeg" })).resolves.toBeNull();
+  });
+
+  it("preserves email storage fallback without an II identity", async () => {
+    mocks.resolveAuthBackend.mockReturnValue("supabase");
+    mocks.getCurrentInternetIdentity.mockResolvedValue(null);
+    await expect(tryUploadMediaToBlobStore({ storagePath: "photo.jpg", file: new Blob(["photo"]), mime: "image/jpeg" })).resolves.toBeNull();
   });
 
   it("uses per-file encryption and a live competition grant for competition photos", async () => {
