@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Forward-only ICP upload review — 10 November 07:22 UTC
+- [ ] Inventory available new-upload paths; exclude older files, email-only features and production data changes.
+- [ ] Reproduce and repair central ICP storage/session fallback and chat-document authority consistency; run focused media/attachment/email tests.
+- [ ] Record remaining boundaries and distinguish source verification from authenticated phone upload/readback.
+
 ## Approved settings production release — 10 November 07:19 UTC
 - [x] Paul approved moving prepared code to PROD without a manual TEST settings-save step; no arbitrary settings copies or business-data writes authorized.
 - [x] Reproduced GitHub's frontend failure locally; replaced the control-character regex with equivalent character-code validation. Lint, all 72 focused notification/settings/routing checks and preview build pass.
