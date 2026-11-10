@@ -6,7 +6,7 @@ import { ArrowLeft, RefreshCw, Trash2, Save, BellRing } from "lucide-react";
 import { toast } from "sonner";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import type { LivePushAlertSettingsInput } from "@/live/features/notifications";
-import { readAdminQueueHealth, readAdminQueueSettings, saveAdminQueueSettings, cleanupAdminDeviceTokens, queueMyNativeTestAlert } from "@/live/adminQueueOperations";
+import { readAdminQueueHealth, readAdminQueueSettings, saveAdminQueueSettings, cleanupAdminDeviceTokens, queueMyNativeTestAlert, followMyNativeTestAlert } from "@/live/adminQueueOperations";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,8 +36,12 @@ export default function IcpPushAnalyticsPage() {
     if (!confirm(`Remove device registrations unused for ${ageDays} days from all listed queues?`)) return null;
     return cleanupAdminDeviceTokens(ageDays);
   }, onSuccess: count => { if (count !== null) { toast.success(`Removed ${count} stale device registrations`); qc.invalidateQueries({ queryKey: ["icp-admin-push-health"] }); } }, onError: (e: Error) => toast.error(e.message) });
-  const testAlert = useMutation({ mutationFn: queueMyNativeTestAlert,
-    onSuccess: () => toast.success("Test alert queued — it should reach your phone within seconds"), onError: (e: Error) => toast.error(e.message) });
+  const testAlert = useMutation({ mutationFn: async () => {
+      const id = await queueMyNativeTestAlert();
+      const progress = toast.loading("Test alert queued — following it to your phone…");
+      try { return await followMyNativeTestAlert(id); } finally { toast.dismiss(progress); }
+    },
+    onSuccess: (message: string) => (message.startsWith("Sent") ? toast.success(message) : toast.message(message)), onError: (e: Error) => toast.error(e.message) });
   if (isLoading) return <Skeleton className="h-32 m-4" />;
   if (!isAppAdmin) return <p className="p-6 text-muted-foreground">App admins only.</p>;
   const value = draft ?? settings.data?.[0];
