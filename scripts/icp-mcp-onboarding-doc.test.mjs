@@ -88,7 +88,7 @@ test("branded download links resolve to fixed verified store destinations", () =
 
 test("ChatGPT Pro guidance does not imply direct checkout or grant", () => {
   assert.match(guide, /No current/);
-  assert.match(guide, /authoritative server-to-canister reconciliation/);
+  assert.match(guide, /authoritative current plan/);
   assert.match(guide, /public marketing site is \*\*https:\/\/igniteclubhq\.com\*\*/);
   assert.match(apiDoc, /no ChatGPT checkout/);
   assert.match(apiDoc, /native store IAP requires/);
