@@ -3371,7 +3371,7 @@ persistent actor class Main(governorInit : Principal) = this {
     "- Share only branded links: website https://igniteclubhq.app ; iPhone https://igniteclubhq.app/get/ios ; Android https://igniteclubhq.app/get/android. Do not expose target app IDs or Lovable URLs.\\n" #
     "- Pro purchases: no ChatGPT checkout. ICP web card checkout unavailable; native store IAP requires provider-ready SKUs and verified receipt. Never claim a purchase or entitlement without authoritative confirmation.\\n" #
     "- If an update reply is lost, read back by the original club/team ID or list authorised invite links before considering another mutation. Do not blindly replay create or invite calls.\n" #
-    "- OQL example: `{\"entity\":\"clubs\",\"select\":[\"id\",\"name\"],\"limit\":50}`. Use `{\"entity\":\"teams\",\"select\":[\"id\",\"name\",\"club_id\"],\"limit\":50}` for teams. `start` is invalid in Ignite OQL even if a generic connector example suggests it.\\n\\n" #
+    "- OQL example: `{\"entity\":\"clubs\",\"select\":[\"id\",\"name\"],\"limit\":50}`. Other entities: teams, club_subscriptions, team_subscriptions. Subscription OQL is member-scoped and read-only; use `premium_active` and `trial_active` instead of raw flags. `start` is invalid in Ignite OQL.\n\n" #
     "## Gotchas\n" #
     "- Club and team ids are opaque text ids, not principals.\n" #
     "- Denied calls return #Err(\"...\"); anonymous calls to authenticated methods trap."
