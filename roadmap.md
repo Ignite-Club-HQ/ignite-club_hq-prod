@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Club/team logo membership visibility — 10 November 07:26 UTC
+- [x] Four regressions reproduced missing logo scope/member-key enforcement. New ICP club/team/request logos now canonicalize to clubs/<club>/logos and require the existing live-membership club key; old URLs, private files and email fallback remain unchanged. Monogram saves reuse the authorized context.
+- [x] 53 focused logo/upload/decryption tests pass (7 email/ICP-specific skips); preview build OK. Phone-sized public login renders without page errors/overflow; this is not member-logo acceptance.
+- [ ] Physical-phone signed-in upload and second-member viewing require an updated installed app and device access unavailable in the sandbox; do not claim phone confirmation.
+
 ## Forward-only ICP upload review — 10 November 07:22 UTC
 - [x] Inventoried available new-upload paths; excluded older files, email-only competition uploads and production data changes. Platform creatives are stored inline on-chain; other active uploads use encrypted stores.
 - [x] Reproduced three failures; repaired central ICP storage/session fallback and chat-document authority consistency. Default suites: 57 passed/11 mode skips; ICP suites: 30 passed/18 mode skips; preview build OK. Email fallback retained.

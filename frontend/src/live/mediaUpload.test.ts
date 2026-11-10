@@ -139,6 +139,25 @@ describe("tryUploadMediaToBlobStore competition scope", () => {
     expect(mocks.grantLivePiiReadCompetition).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["club-logos/club-1/logo.jpg", "clubs/club-1/logos/logo.jpg"],
+    ["club-logos/club-1/team-1/logo.jpg", "clubs/club-1/logos/team-1/logo.jpg"],
+    ["club-logos/team-requests/club-1/logo.jpg", "clubs/club-1/logos/team-requests/logo.jpg"],
+  ])("encrypts new logo %s for every club member", async (storagePath, expectedPath) => {
+    const context = { target, identity: identity as never };
+    await tryUploadMediaToBlobStore({ context, storagePath, file: new Blob(["logo"]), mime: "image/jpeg" });
+    expect(mocks.encryptClubMedia).toHaveBeenCalledWith(context, "club-1", expect.any(Uint8Array));
+    expect(mocks.uploadBytesToBlobStore).toHaveBeenCalledWith(target, identity, expectedPath, expect.any(Uint8Array), "image/jpeg");
+    expect(mocks.encryptPiiValue).not.toHaveBeenCalled();
+  });
+
+  it("does not claim a member-visible logo if the club key is unavailable", async () => {
+    mocks.isClubMediaLockSupported.mockResolvedValue(false);
+    await expect(tryUploadMediaToBlobStore({ context: { target, identity: identity as never }, storagePath: "clubs/club-1/logos/logo.jpg", file: new Blob(["logo"]), mime: "image/jpeg" })).rejects.toThrow("club members");
+    expect(mocks.encryptPiiValue).not.toHaveBeenCalled();
+    expect(mocks.uploadBytesToBlobStore).not.toHaveBeenCalled();
+  });
+
   it("rejects files above 10 MiB before encryption or upload", async () => {
     await expect(tryUploadMediaToBlobStore({
       storagePath: "clubs/club-1/vault/file.pdf",
