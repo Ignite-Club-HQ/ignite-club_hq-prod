@@ -30,10 +30,20 @@ export async function setLiveAppSetting(
   value: unknown,
 ): Promise<void> {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
-    actor.set_app_config(key, JSON.stringify(value)),
+  const encoded = JSON.stringify(value);
+  await unwrapCandid(
+    actor.set_app_config(key, encoded),
     "Set app setting",
   );
+  // Acknowledgement alone is not readback. Never repeat a potentially committed
+  // write when a replica is behind or confirmation is unavailable.
+  try {
+    const actual = await actor.get_app_config(key);
+    if (actual[0] === encoded) return;
+  } catch {
+    // Surface an uncertain outcome without exposing provider errors.
+  }
+  throw new Error("The setting was sent, but we could not confirm it. Refresh settings before saving again.");
 }
 
 /** Parse a stored app_config value as a boolean, falling back when unset/invalid. */
