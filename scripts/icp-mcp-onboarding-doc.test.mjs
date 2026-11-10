@@ -44,10 +44,20 @@ test("personal team invitation limitation is explicit", () => {
 });
 
 test("discovery document uses the Ignite-specific OQL grammar", () => {
-  assert.match(apiDoc, /OQL requests use/);
+  assert.match(apiDoc, /OQL example:/);
   assert.match(apiDoc, /entity/);
   assert.match(guide, /"entity":"clubs"/);
-  assert.match(apiDoc, /not an Ignite OQL request property/);
+  assert.match(apiDoc, /start.+invalid in Ignite OQL/);
+});
+
+test("canister discovery document keeps the connector response concise", () => {
+  const fragments = [...apiDoc.matchAll(/^\s*("(?:\\.|[^"\\])*")(?:\s*#)?$/gm)];
+  assert.ok(fragments.length > 10, "Expected a static Motoko text chain");
+  const text = fragments.map((match) => JSON.parse(match[1])).join("");
+  assert.ok(Buffer.byteLength(text, "utf8") <= 5120, "Connector truncates oversized API docs");
+  assert.match(text, /Required ClubTeam fields:/);
+  assert.match(text, /Candid updates still work/);
+  assert.match(text, /"entity":"teams"/);
 });
 
 test("guide requires consent and no blind duplicate writes", () => {
