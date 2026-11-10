@@ -8,6 +8,20 @@ def configure(frontend: Path):
     if len(activities) != 1:
         raise RuntimeError('Expected one Android MainActivity')
     activity = activities[0]
+    # Firebase is an implementation dependency of the existing plugin: its
+    # classes are present at runtime but hidden from app Java compilation.
+    # Expose only that same artifact/version to the adapter's compile classpath.
+    gradle = frontend / 'android/app/build.gradle'
+    gradle_source = gradle.read_text()
+    dependency = 'compileOnly "com.google.firebase:firebase-messaging:${project(\':capacitor-push-notifications\').ext.firebaseMessagingVersion}"'
+    evaluation = "evaluationDependsOn(':capacitor-push-notifications')"
+    anchor = 'dependencies {'
+    if dependency not in gradle_source:
+        if anchor not in gradle_source:
+            raise RuntimeError('Expected Android app dependencies block')
+        gradle_source = gradle_source.replace(anchor, anchor + '\n    ' + dependency, 1)
+        if evaluation not in gradle_source:
+            gradle_source = gradle_source.replace(anchor, evaluation + '\n' + anchor, 1)
     source = activity.read_text()
     registration = 'registerPlugin(IcpForegroundPushPlugin.class);'
     if registration not in source:
@@ -19,6 +33,8 @@ def configure(frontend: Path):
     plugin = (frontend / 'native/android/IcpForegroundPushPlugin.java').read_text()
     activity.with_name('IcpForegroundPushPlugin.java').write_text(
         plugin.replace('package com.igniteclubhq.app;', f'package {package};', 1))
+    if gradle_source != gradle.read_text():
+        gradle.write_text(gradle_source)
 
 
 if __name__ == '__main__':
