@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Remaining shared settings in ICP mode — 10 November
+- [ ] Audit available ICP settings only; exclude historical media and unavailable external features.
+- [ ] Isolate ICP startup/settings reads and caches from email-mode settings; retain email behaviour and existing sign-in eligibility.
+- [ ] Run focused isolation checks and record remaining gaps; no PROD deployment or settings writes.
+
 ## Team carousel resume audit — 10 November
 - [x] Four regressions reproduced cached suspended refresh, suspended recovery, trial-blocked inventory and redundant league lookup defects. DEV repairs retain cached cards, restart only suspended observed inventory reads after long backgrounding, defer trial badges, reuse authorized full league rows, save canonical snapshots and limit enrichment to visible clubs. Permissions/live services unchanged.
 - [x] 42 carousel/Home/Next Up checks pass in default configuration and 41 carousel/native-return checks pass in ICP configuration; mounted carousel and native event flows covered. Preview build OK; public desktop/phone sign-in has no runtime errors or overflow. Audit: docs/team-carousel-resume-audit-2026-11-10.md.
