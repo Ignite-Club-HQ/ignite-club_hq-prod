@@ -83,13 +83,27 @@ async function initialize(userId: string, requestPermission: boolean, attempt: n
       });
     });
     if (disposed) await tokenHandle.remove(); else handles.push(tokenHandle);
-    const receivedHandle = await PushNotifications.addListener('pushNotificationReceived', notification => {
-      const data = notification.data;
+    // Either installed plugin may own Android's FCM service. Consume both
+    // receive events, never alter their shared presentation configuration.
+    const seen = new Set<string>();
+    const receive = (notification: { id?: string; data?: unknown }) => {
+      const raw = notification.data;
+      const data = raw && typeof raw === 'object' ? raw as Record<string, unknown> : undefined;
       if (disposed || !lifecycle.isCurrent(ticket) || !usesDevIcpPush() ||
         data?.ignite_backend !== 'icp-dev' || data?.recipient !== account) return;
+      const id = typeof data.notification_id === 'string' ? data.notification_id : notification.id;
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      if (seen.size > 100) {
+        const oldest = seen.values().next().value;
+        if (oldest !== undefined) seen.delete(oldest);
+      }
       window.dispatchEvent(new CustomEvent('ignite:icp-push-received', { detail: notification }));
-    });
+    };
+    const receivedHandle = await PushNotifications.addListener('pushNotificationReceived', receive);
     if (disposed) await receivedHandle.remove(); else handles.push(receivedHandle);
+    const firebaseReceivedHandle = await FirebaseMessaging.addListener('notificationReceived', event => receive(event.notification));
+    if (disposed) await firebaseReceivedHandle.remove(); else handles.push(firebaseReceivedHandle);
     if (disposed || !lifecycle.isCurrent(ticket) || !usesDevIcpPush()) return { success: false, error: 'Account changed' };
     // Wait for APNs readiness on iOS; its registration value is never used as FCM.
     let registrationHandle: PluginListenerHandle | undefined;

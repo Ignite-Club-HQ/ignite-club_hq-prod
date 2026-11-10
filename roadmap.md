@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## ICP foreground phone alerts — 10 November
+- [x] Three regressions reproduced missing Firebase foreground events on Android/iOS. DEV ICP now consumes both plugin receive sources, checking current account/mode/lifecycle and suppressing duplicate notification IDs; existing in-app toast receives the event. Email listeners and native/plugin configuration unchanged.
+- [x] 36 focused ICP lifecycle/receive/tap/manager and email push checks pass; preview build OK. No PROD deployment.
+- [ ] Confirm foreground alerts on Paul's physical phone after promotion and a new native build; native FCM receipt cannot be verified in the browser preview.
+
 ## Email sign-out login warnings — 10 November
 - [x] Reproduced protected email observers surviving explicit sign-out; DEV now retires pages and cancels queries before native push unregister/session removal, ignores late refresh callbacks during logout, and clears user-scoped caches/channels synchronously.
 - [x] Regression fails before/passes after; 14 focused logout/routing/diagnostic checks pass. Public ICP login has no blocked reads/runtime errors after 18 seconds; preview build OK. No production changes.
