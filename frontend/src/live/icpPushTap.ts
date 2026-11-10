@@ -12,7 +12,7 @@ export function parseDevIcpPushTap(data: Record<string, unknown>): Tap | undefin
   if (data.url.length > 2048 || data.notification_id.length > 256 || !data.notification_id) return;
   // Only internal known app destinations; no external URLs, auth or invite redirects.
   if (!/^\/(messages|groups|events|notifications|news|media)(\/|\?|$)/.test(data.url) ||
-    data.url.includes('\\') || /[\x00-\x1f]/.test(data.url)) return;
+    data.url.includes('\\') || Array.from(data.url).some(character => character.charCodeAt(0) < 32)) return;
   return { recipient: data.recipient, path: data.url, id: data.notification_id };
 }
 

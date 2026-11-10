@@ -27,4 +27,7 @@ describe('ICP-only tap envelope', () => {
   it.each(['https://evil.example', '//evil.example', '/auth', '/join/secret', '/messages\\evil', '/events\n'])('rejects unsafe route %s', url => {
     expect(parseDevIcpPushTap({ ...data, url })).toBeUndefined();
   });
+  it.each(Array.from({ length: 32 }, (_, code) => code))('rejects route control character %i', code => {
+    expect(parseDevIcpPushTap({ ...data, url: `/events${String.fromCharCode(code)}` })).toBeUndefined();
+  });
 });
