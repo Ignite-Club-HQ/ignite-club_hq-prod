@@ -97,13 +97,14 @@ test("ChatGPT reuses existing Stripe-to-ICP subscription synchronisation", () =>
   assert.match(apiDoc, /Never claim a purchase or entitlement without authoritative confirmation/);
 });
 
-test("website-only plan selection and 30-day trial guidance does not initiate a plugin purchase", () => {
-  assert.match(guide, /Website-only plan selection and 30-day trials/);
+test("existing website plan selection and 30-day Stripe trials are reused", () => {
+  assert.match(guide, /Existing website plan selection and 30-day trials/);
+  assert.match(guide, /already\*\* asks customers to select or compare plans/);
+  assert.match(guide, /30-day trials for eligible paid subscriptions/);
   assert.match(guide, /Continue with Free/);
-  assert.match(guide, /30-day trial/);
-  assert.match(guide, /existing website's Stripe Checkout\/verified subscription flow/);
-  assert.match(guide, /does \*\*not\*\* change live \.com pages/);
-  assert.match(guide, /cannot start, promote or offer the digital-subscription trial in the plugin/);
+  assert.match(guide, /Do not build a second plan-selection screen/);
+  assert.match(guide, /plugin-initiated checkout or trial action/);
+  assert.match(guide, /No website feature work is required/);
 });
 
 test("guide requires consent and no blind duplicate writes", () => {
