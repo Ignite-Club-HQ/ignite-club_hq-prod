@@ -9,6 +9,7 @@ export interface AppleReceiptEntry {
   expires_date_ms?: string;
   purchase_date_ms?: string;
   cancellation_date_ms?: string;
+  app_account_token?: string;
 }
 
 export interface AppleReceiptResult {
@@ -27,6 +28,7 @@ export function checkAppleReceipt(
   productId: string,
   expectedBundleId: string,
   nowMs: number,
+  expectedAccountToken: string,
 ): { expiresAtMs: number } {
   if (NOT_AN_APPLE_RECEIPT.has(result.status)) {
     throw new Error("Only App Store purchases can be verified in Internet Identity mode.");
@@ -43,6 +45,9 @@ export function checkAppleReceipt(
   if (match.product_id !== productId) {
     throw new Error("Receipt transaction is for a different product.");
   }
+  if ((match.app_account_token ?? "").toLowerCase() !== expectedAccountToken.toLowerCase()) {
+    throw new Error("This purchase is not linked to your account.");
+  }
   if (match.cancellation_date_ms) throw new Error("This purchase was refunded or cancelled.");
   const expiresAtMs = Number(match.expires_date_ms ?? match.purchase_date_ms ?? NaN);
   if (!Number.isFinite(expiresAtMs)) {
@@ -52,4 +57,16 @@ export function checkAppleReceipt(
     throw new Error("This subscription has already expired.");
   }
   return { expiresAtMs };
+}
+
+// Deterministic StoreKit 2 appAccountToken for an Internet Identity principal.
+// MUST stay byte-identical to frontend/src/live/iapAccountToken.ts.
+export async function iapAccountToken(principal: string): Promise<string> {
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`ignite-iap-account:v1:${principal}`)),
+  ).slice(0, 16);
+  digest[6] = (digest[6] & 0x0f) | 0x50;
+  digest[8] = (digest[8] & 0x3f) | 0x80;
+  const h = Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }

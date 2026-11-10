@@ -353,4 +353,4 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] TEST fast native sender: code ready (ICP wake-up, sender endpoint, commission/backup workflow); blocked on Supabase function publishing internal error; then update TEST notification service, commission, TEST Android build.
 
 - [x] DEV: ICP purchase verifier now checks product, app identity, refunds and expiry; Android purchases fail clearly (Google check still external, not built).
-- [ ] Account binding for Apple purchases (needs StoreKit 2 appAccountToken — later).
+- [x] DEV: Apple purchases in II mode carry an account link; verifier rejects unlinked/other-account receipts (needs PROD merge, verifier redeploy, iOS build; real purchase untested).

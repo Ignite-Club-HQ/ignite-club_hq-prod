@@ -26,7 +26,7 @@
 //                                   App Store Server API credentials, used
 //                                   instead of verifyReceipt when present
 import { corsHeaders } from "../_shared/cors.ts";
-import { checkAppleReceipt, DEFAULT_APPLE_BUNDLE_ID, type AppleReceiptResult } from "./receiptChecks.ts";
+import { checkAppleReceipt, DEFAULT_APPLE_BUNDLE_ID, iapAccountToken, type AppleReceiptResult } from "./receiptChecks.ts";
 
 const APPLE_VERIFY_RECEIPT_PROD = "https://buy.itunes.apple.com/verifyReceipt";
 const APPLE_VERIFY_RECEIPT_SANDBOX = "https://sandbox.itunes.apple.com/verifyReceipt";
@@ -93,13 +93,14 @@ async function verifyAppleReceipt(
   transactionId: string,
   productId: string,
   sharedSecret: string | undefined,
+  principal: string,
 ): Promise<{ expiresAtMs: number }> {
   let result = await callAppleVerifyReceipt(receiptData, sharedSecret, APPLE_VERIFY_RECEIPT_PROD);
   if (result.status === APPLE_SANDBOX_REDIRECT_STATUS) {
     result = await callAppleVerifyReceipt(receiptData, sharedSecret, APPLE_VERIFY_RECEIPT_SANDBOX);
   }
   const bundleId = Deno.env.get("APPLE_BUNDLE_ID") || DEFAULT_APPLE_BUNDLE_ID;
-  return checkAppleReceipt(result as AppleReceiptResult, transactionId, productId, bundleId, Date.now());
+  return checkAppleReceipt(result as AppleReceiptResult, transactionId, productId, bundleId, Date.now(), await iapAccountToken(principal));
 }
 
 Deno.serve(async (req: Request) => {
@@ -141,7 +142,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const appleSharedSecret = Deno.env.get("APPLE_SHARED_SECRET");
-    const { expiresAtMs } = await verifyAppleReceipt(receipt_data, transaction_id, product_id, appleSharedSecret);
+    const { expiresAtMs } = await verifyAppleReceipt(receipt_data, transaction_id, product_id, appleSharedSecret, principal);
     const source = "app_store";
 
     const message = `${principal}|${product_id}|${transaction_id}|${expiresAtMs}|${source}`;

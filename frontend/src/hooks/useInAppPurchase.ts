@@ -107,6 +107,13 @@ export function useInAppPurchase(): UseInAppPurchaseReturn {
           purchaseOptions.planIdentifier = productId;
         }
 
+        // Link Apple purchases to this Internet Identity account; the verifier
+        // rejects receipts linked to anyone else.
+        if (isIcp && user && Capacitor.getPlatform() === "ios") {
+          const { iapAccountToken } = await import("@/live/iapAccountToken");
+          purchaseOptions.appAccountToken = await iapAccountToken(user.id);
+        }
+
         const purchaseResult = await NativePurchases.purchaseProduct(purchaseOptions);
 
         if (!purchaseResult?.transactionId) {
