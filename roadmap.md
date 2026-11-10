@@ -341,6 +341,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] Merge main→prod to send the approved email sign-up check live (approved-only release; blocked on Paul running the merge). Live check only refuses sign-ups once the live email-club settings entry exists.
 
 ## ICP home performance (2026-11-06)
+- [x] DEV carousel repair: complete first-login reveal; instant same-account saved cards; independent member-team and complete league discovery; no overlapping read retries.
+- [ ] Carousel real-phone timing and ICP authenticated readback — needs an Internet Identity session/device; no PROD release performed.
 - [x] Carousel: trial status + club profile read alongside team rows (batched calls); 6-team simulated cold median 2134→1430ms, warm 608→421ms
 - [x] Home feed events already coalesce into list_events_multi per routed target — no change
 - [x] Home/carousel load ICP feature code on demand
