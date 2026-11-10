@@ -127,6 +127,18 @@ export interface Main {
     [DigestSource, string, bigint, number],
     DigestResults
   >,
+  'get_my_native_test_alert' : ActorMethod<
+    [string],
+    {
+        'Ok' : {
+          'status' : string,
+          'shared_devices' : bigint,
+          'outcomes' : Array<string>,
+          'devices' : bigint,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'get_notification' : ActorMethod<[string], [] | [Notification]>,
   'get_preferences' : ActorMethod<[string], Preferences>,
   'get_push_alert_settings' : ActorMethod<[], PushAlertSettings>,
