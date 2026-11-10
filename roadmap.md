@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Player invite field visibility — 10 November
+- [x] Stop auto-scrolling to roles while typing; focus/confirmation now scroll only the sheet, never the window. Name row/input can shrink within available width. Eight invite/search checks pass; preview build OK. Frontend only.
+- [ ] Confirm real Android keyboard visibility after an updated app build; authenticated native invite flow unavailable in sandbox.
+
 ## ICP foreground phone alerts — 10 November
 - [x] Added Android ICP-only system presentation for Firebase-owned foreground receipts, reusing the existing PushNotifications presenter; validates account/backend/ID, checks foreground focus and suppresses duplicate IDs. Both Codemagic Android builds install the adapter. Sender, Firebase service ownership, email paths and shared presentation configuration unchanged.
 - [x] Three regressions reproduced missing Firebase foreground events on Android/iOS. DEV ICP now consumes both plugin receive sources, checking current account/mode/lifecycle and suppressing duplicate notification IDs; existing in-app toast receives the event. Email listeners and native/plugin configuration unchanged.
