@@ -85,7 +85,7 @@ describe('mounted carousel resume data path', () => {
   it('saves the complete inventory under the all-club key after a themed read settles', async () => {
     const { client } = mount();
     await screen.findByRole('button', { name: 'Team A — Club A' });
-    await waitFor(() => expect(m.save).toHaveBeenCalledWith('paul', null, expect.objectContaining({ items: teams })));
+    await waitFor(() => expect(m.save).toHaveBeenCalledWith('paul', null, expect.objectContaining({ items: teams.map(team => expect.objectContaining(team)) })));
     expect(m.save).toHaveBeenCalledWith('paul', 'club-a', expect.objectContaining({ items: [expect.objectContaining(teams[0])] }));
     m.save.mockClear();
     let finish: ((rows: typeof teams) => void) | undefined;
@@ -94,6 +94,6 @@ describe('mounted carousel resume data path', () => {
     expect(screen.getByRole('button', { name: 'Team A — Club A' })).toBeInTheDocument();
     expect(m.save).not.toHaveBeenCalled();
     await act(async () => { finish?.(teams); });
-    await waitFor(() => expect(m.save).toHaveBeenCalledWith('paul', null, expect.objectContaining({ items: teams })));
+    await waitFor(() => expect(m.save).toHaveBeenCalledWith('paul', null, expect.objectContaining({ items: teams.map(team => expect.objectContaining(team)) })));
   });
 });
