@@ -6,15 +6,15 @@ const state = vi.hoisted(() => ({ loading: true, rows: [] as object[], marks: vi
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'account-1' }, initialized: true }) }));
 vi.mock('@/hooks/useClubTheme', () => ({ useClubTheme: () => ({ activeClubFilter: null }) }));
 vi.mock('@/hooks/useCarouselResumeRecovery', () => ({ useCarouselResumeRecovery: vi.fn() }));
-vi.mock('@/hooks/useUnreadMessageCounts', () => ({ useUnreadMessageCounts: () => ({ data: {} }) }));
+vi.mock('@/hooks/useUnreadMessageCounts', () => ({ useUnreadMessageCounts: () => ({ data: {}, isFetched: true }) }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('@/live/authBackendMode', () => ({ resolveAuthBackend: () => 'icp' }));
 vi.mock('@/lib/myTeamsCarouselCache', () => ({ getCachedCarouselWithTs: () => null, setCachedCarousel: vi.fn() }));
 vi.mock('@/lib/perfStages', () => ({ markStage: state.marks }));
 vi.mock('@tanstack/react-query', () => ({ useQuery: (options: { queryKey: string[] }) =>
   options.queryKey[0] === 'my-teams-premium-v2'
-    ? { data: state.rows, isLoading: state.loading, isFetching: state.loading, isError: false }
-    : { data: options.queryKey[0] === 'team-competitions-premium-v3' ? [] : {} }
+    ? { data: state.rows, isLoading: state.loading, isFetching: state.loading, isError: false, isSuccess: !state.loading }
+    : { data: options.queryKey[0] === 'team-competitions-premium-v3' || options.queryKey[0] === 'my-leagues-premium-v2' ? [] : {}, isFetched: true, isSuccess: true }
 }));
 
 describe('carousel first-render initialization', () => {

@@ -93,4 +93,26 @@ describe("ICP carousel parallel reads", () => {
     mocks[read].mockRejectedValue(new Error("inventory unavailable"));
     await expect(fetchIcpCarouselItems({} as never, null)).rejects.toThrow("inventory unavailable");
   });
+  it('finishes complete team cards independently of stalled league discovery', async () => {
+    mocks.mine.mockImplementation(() => new Promise(() => {}));
+    const items = await fetchIcpCarouselItems({} as never, null, { includeTrial: false, inventory: 'teams' });
+    expect(items[0]).toMatchObject({ id: 'team-a', name: 'A', club_name: 'Club A', sport: 'football' });
+    expect(mocks.mine).not.toHaveBeenCalled();
+  });
+  it('does not reread team details during independent league inventory', async () => {
+    mocks.mine.mockResolvedValue([{ id: 'league-a', name: 'League A', club_id: 'club-a', logo_url: [], status: 'active' }]);
+    expect((await fetchIcpCarouselItems({} as never, null, { includeTrial: false, inventory: 'leagues' })).map(item => item.id)).toEqual(['league-a']);
+    expect(mocks.team).not.toHaveBeenCalled();
+  });
+  it('joins an outstanding read for the same account, target and inventory', async () => {
+    let release: ((rows: object[]) => void) | undefined;
+    mocks.team.mockImplementation(() => new Promise(resolve => { release = resolve; }));
+    const ctx = { identity: { getPrincipal: () => ({ toText: () => 'account-a' }) }, target: { host: 'test' } } as never;
+    const first = fetchIcpCarouselItems(ctx, null, { includeTrial: false, inventory: 'teams' });
+    const second = fetchIcpCarouselItems(ctx, null, { includeTrial: false, inventory: 'teams' });
+    expect(second).toBe(first);
+    await vi.waitFor(() => expect(mocks.team).toHaveBeenCalledTimes(1));
+    release?.([]);
+    await first;
+  });
 });

@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## ICP team carousel latency audit — 10 November 18:35 UTC
+- [x] Read-only PROD comparison confirms all-team/all-league/all-group barrier, club-metadata wait, sequential league visibility checks, mismatched deadlines/retries and fragile saved-card fallback; findings in docs/icp-team-carousel-latency-audit-2026-11-10.md.
+- [x] Reproduced two withheld-card waits and 24-hour snapshot expiry; 26 focused default-mode checks pass. Audit only: no runtime, canister, push, permission or PROD changes.
+- [ ] Actual installed-phone ICP request timing awaits the affected device/delegated session; supplied preview telemetry is email-mode, not that session.
+
 ## Codemagic Android foreground adapter compilation — 10 November 09:23 UTC
 - [x] Uploaded log identifies missing Firebase RemoteMessage on the app Java compile classpath. Regression reproduced missing compile dependency; setup now exposes the existing PushNotifications Firebase version with compileOnly, preserving runtime dependencies and email push.
 - [x] Nine Android adapter/status-bar/Codemagic setup checks pass; preview build OK. Runtime Firebase dependencies and email notification code are unchanged.
@@ -336,6 +341,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] Merge main→prod to send the approved email sign-up check live (approved-only release; blocked on Paul running the merge). Live check only refuses sign-ups once the live email-club settings entry exists.
 
 ## ICP home performance (2026-11-06)
+- [x] DEV carousel repair: complete first-login reveal; instant same-account saved cards; independent member-team and complete league discovery; no overlapping read retries.
+- [ ] Carousel real-phone timing and ICP authenticated readback — needs an Internet Identity session/device; no PROD release performed.
 - [x] Carousel: trial status + club profile read alongside team rows (batched calls); 6-team simulated cold median 2134→1430ms, warm 608→421ms
 - [x] Home feed events already coalesce into list_events_multi per routed target — no change
 - [x] Home/carousel load ICP feature code on demand
