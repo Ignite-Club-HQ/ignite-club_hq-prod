@@ -3386,8 +3386,18 @@ persistent actor class Main(governorInit : Principal) = this {
     let request = Oql.parse(input, OqlClubs.entities);
     if (request.entity == "clubs") {
       Oql.run<Types.ClubProfile>(request, profiles, func(club) = club.deleted_at_ms == null and (isMember(caller, club.id) or isAdmin(caller, club.id)), OqlClubs.clubRow)
-    } else {
+    } else if (request.entity == "teams") {
       Oql.run<Types.ClubTeam>(request, teams, func(team) = team.deleted_at_ms == null and (isMember(caller, team.club_id) or isAdmin(caller, team.club_id)), OqlClubs.teamRow)
+    } else if (request.entity == "club_subscriptions") {
+      let timestamp = nowMs();
+      Oql.run<Types.ClubSubscription>(request, clubSubscriptions,
+        func(sub) = profiles.any(func(c) = c.id == sub.club_id and c.deleted_at_ms == null) and (isMember(caller, sub.club_id) or isAdmin(caller, sub.club_id)),
+        func(sub) = OqlClubs.clubSubscriptionRow(sub, timestamp))
+    } else {
+      let timestamp = nowMs();
+      Oql.run<Types.TeamSubscription>(request, teamSubscriptions,
+        func(sub) = teams.any(func(team) = team.id == sub.team_id and team.deleted_at_ms == null and (if (team.club_id == "") isPersonalTeamOwner(caller, team.id) else isMember(caller, team.club_id) or isAdmin(caller, team.club_id))),
+        func(sub) = OqlClubs.teamSubscriptionRow(effectiveTeamSub(sub), timestamp))
     }
   };
 
@@ -9032,8 +9042,18 @@ persistent actor class Main(governorInit : Principal) = this {
     let request = Oql.parse(input, OqlClubs.entities);
     if (request.entity == "clubs") {
       Oql.run<Types.ClubProfile>(request, profiles, func(club) = club.deleted_at_ms == null and (isMember(caller, club.id) or isAdmin(caller, club.id)), OqlClubs.clubRow)
-    } else {
+    } else if (request.entity == "teams") {
       Oql.run<Types.ClubTeam>(request, teams, func(team) = team.deleted_at_ms == null and (isMember(caller, team.club_id) or isAdmin(caller, team.club_id)), OqlClubs.teamRow)
+    } else if (request.entity == "club_subscriptions") {
+      let timestamp = nowMs();
+      Oql.run<Types.ClubSubscription>(request, clubSubscriptions,
+        func(sub) = profiles.any(func(c) = c.id == sub.club_id and c.deleted_at_ms == null) and (isMember(caller, sub.club_id) or isAdmin(caller, sub.club_id)),
+        func(sub) = OqlClubs.clubSubscriptionRow(sub, timestamp))
+    } else {
+      let timestamp = nowMs();
+      Oql.run<Types.TeamSubscription>(request, teamSubscriptions,
+        func(sub) = teams.any(func(team) = team.id == sub.team_id and team.deleted_at_ms == null and (if (team.club_id == "") isPersonalTeamOwner(caller, team.id) else isMember(caller, team.club_id) or isAdmin(caller, team.club_id))),
+        func(sub) = OqlClubs.teamSubscriptionRow(effectiveTeamSub(sub), timestamp))
     }
   
     } finally { removalReceiver.leave(caller) };
