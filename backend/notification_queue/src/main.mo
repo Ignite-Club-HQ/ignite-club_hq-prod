@@ -1655,7 +1655,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
   // ICP owns the backup. No GitHub polling delay, extra credentials, or legacy
   // worker activation. Idle queues make no HTTPS calls; each scan is bounded.
-  transient let _nativeBackupTimer = Timer.recurringTimer<system>(#seconds NativeWakePolicy.backupSeconds, func() : async () {
+  transient let _nativeBackupTimer = Timer.recurringTimer<system>(#seconds(NativeWakePolicy.backupSeconds), func() : async () {
     if (nativePushWorker == null or nativeSenderUrl() == null or nativeWakePending) return;
     let count = items.size();
     var scanned = 0;
