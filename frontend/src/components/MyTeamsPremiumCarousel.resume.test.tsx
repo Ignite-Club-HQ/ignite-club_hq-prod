@@ -10,7 +10,7 @@ const m = vi.hoisted(() => ({
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'paul' }, initialized: true }) }));
 vi.mock('@/hooks/useClubTheme', () => ({ useClubTheme: () => ({ activeClubFilter: m.club }) }));
 vi.mock('@/hooks/useCarouselResumeRecovery', () => ({ useCarouselResumeRecovery: vi.fn() }));
-vi.mock('@/hooks/useUnreadMessageCounts', () => ({ useUnreadMessageCounts: () => ({ data: {} }) }));
+vi.mock('@/hooks/useUnreadMessageCounts', () => ({ useUnreadMessageCounts: () => ({ data: {}, isFetched: true }) }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('@/live/authBackendMode', () => ({ resolveAuthBackend: () => 'icp' }));
 vi.mock('@/lib/perfStages', () => ({ markStage: vi.fn() }));
@@ -45,22 +45,27 @@ function mount() {
 }
 beforeEach(() => {
   vi.clearAllMocks(); m.club = 'club-a';
-  m.items.mockResolvedValue(teams);
+  m.items.mockImplementation((_ctx, _filter, options) => Promise.resolve(options?.inventory === 'leagues' ? [] : teams));
   m.trial.mockResolvedValue(null);
 });
 afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); });
 
 describe('mounted carousel resume data path', () => {
-  it('shows authorized cards before a stalled trial read and only enriches the selected club', async () => {
-    m.trial.mockImplementation(() => new Promise(() => {}));
+  it('waits for complete first-login details and only enriches the selected club', async () => {
+    let release: ((value: null) => void) | undefined;
+    m.trial.mockImplementation(() => new Promise(resolve => { release = resolve; }));
     const { client } = mount();
+    await waitFor(() => expect(m.trial).toHaveBeenCalledTimes(1), { timeout: 2500 });
+    expect(screen.queryByRole('button', { name: 'Team A — Club A' })).not.toBeInTheDocument();
+    await act(async () => { release?.(null); });
     await screen.findByRole('button', { name: 'Team A — Club A' });
     expect(screen.queryByRole('button', { name: 'Team B — Club B' })).not.toBeInTheDocument();
-    expect(m.items).toHaveBeenCalledWith({}, null, { includeTrial: false });
+    expect(m.items).toHaveBeenCalledWith({}, null, { includeTrial: false, inventory: 'teams' });
+    expect(m.items).toHaveBeenCalledWith({}, null, { includeTrial: false, inventory: 'leagues' });
     await waitFor(() => expect(m.trial).toHaveBeenCalledTimes(1), { timeout: 2500 });
     expect(m.trial).toHaveBeenCalledWith({}, 'team-a');
     expect(client.getQueryData(['my-teams-premium-v2', 'paul'])).toEqual(teams);
-    expect(client.getQueryState(['team-trials-premium', 'paul', ['team-a']])?.fetchStatus).toBe('fetching');
+    expect(client.getQueryState(['team-trials-premium', 'paul', ['team-a']])?.fetchStatus).toBe('idle');
     expect(screen.getByRole('button', { name: 'Team A — Club A' })).toBeInTheDocument();
   });
   it('saves the complete inventory under the all-club key after a themed read settles', async () => {

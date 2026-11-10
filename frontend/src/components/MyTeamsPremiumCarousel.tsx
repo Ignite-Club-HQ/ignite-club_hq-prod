@@ -1141,7 +1141,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     scopedItems.length === 0 || eventsFetched,
     teamIds.length === 0 || competitionsFetched,
     teamIds.length === 0 || unreadFetched,
-    // Trial badges stay deferred and are not entitlement decisions.
+    teamIds.length === 0 || trialsFetched,
   ]);
   const showSkeleton = isIcp ? (!initialized || !completeFirstLoad) : ((!initialized || isLoading || (isFetching && scopedItems.length === 0)) && !snapshot && scopedItems.length === 0);
   const snapshotItems = filterDeletedTeams(
