@@ -76,6 +76,49 @@ try {
   assert.equal(typeof await club.actor.getApiDoc(), 'string');
   assert.match(await club.actor.getApiDoc(), /ChatGPT onboarding/);
 
+  // Stripe's existing fulfilment updates these subscription records: verify
+  // that ICP OQL exposes only role-scoped, read-only status, not billing data.
+  const clubSub = {
+    club_id: clubId, is_pro: true, is_pro_football: false,
+    admin_pro_override: false, admin_pro_football_override: false,
+    is_trial: true, trial_ends_at_ms: [9000000000000n],
+    expires_at_ms: [], cancelled_at_ms: [], activated_at_ms: [],
+    team_limit: [3], plan: 'usd_v2_small'
+  };
+  const teamSub = {
+    team_id: teamId, is_pro: false, is_pro_football: false,
+    admin_pro_override: false, admin_pro_football_override: false,
+    is_trial: true, trial_ends_at_ms: [9000000000000n],
+    cancelled_at_ms: [], disable_auto_subs: false, rotation_speed: 1,
+    disable_position_swaps: false, disable_batch_subs: false,
+    rotate_gk_at_halftime: false, minutes_per_half: [], max_spread_minutes: [],
+    team_size: [], formation: [], show_lineup_picker: false,
+    disable_team_pom_rewards: false
+  };
+  club.actor.setPrincipal(governor);
+  ok(await club.actor.save_club_subscription(clubSub));
+  ok(await club.actor.save_team_subscription(teamSub));
+  const planQuery = entity => JSON.stringify({
+    entity, select: entity === 'club_subscriptions'
+      ? ['club_id','plan','is_trial','trial_active','premium_active','trial_ends_at_ms']
+      : ['team_id','is_trial','trial_active','premium_active']
+  });
+  const subscriptionsFor = async (principal, entity) => {
+    club.actor.setPrincipal(principal);
+    return (await club.actor.execute(planQuery(entity))).rows;
+  };
+  const getValue = (row, field) => row.find(cell => cell.name === field)?.value;
+  for (const entity of ['club_subscriptions','team_subscriptions']) {
+    assert.equal((await subscriptionsFor(outsider, entity)).length, 0,
+      'Unrelated principal must not see ' + entity);
+    const rows = await subscriptionsFor(creator, entity);
+    assert.equal(rows.length, 1, 'Owner must see existing subscription status');
+    assert.deepEqual(getValue(rows[0], 'trial_active'), { bool: true });
+    assert.deepEqual(getValue(rows[0], 'premium_active'), { bool: true });
+  }
+  assert.equal((await subscriptionsFor(Principal.anonymous(), 'club_subscriptions')).length, 0,
+    'Anonymous principal must not see membership status');
+
   club.actor.setPrincipal(outsider);
   assert.ok('Err' in await club.actor.create_team_invite_link(clubId, teamId, 'parent'));
   assert.ok('Err' in await club.actor.save_team(team(teamId, clubId, 'Hacked')),
