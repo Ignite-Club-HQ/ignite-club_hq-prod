@@ -60,6 +60,34 @@ The CI job `rehearse-onboarding` in `.github/workflows/test-icp-mcp-onboarding.y
 
 This proves a **local subset of the current canister behavior**, not a first-use ChatGPT plugin experience, group-placement end-to-end behavior, encrypted-name secure release, current policy version or native-app onboarding. It does not authorize production release.
 
+## Branded app links and paid plans
+
+When an onboarding customer has created or joined their team, display the three **production-branded links** (regardless of whether ChatGPT is operating against DEV):
+
+| Customer intent | Visible link |
+| --- | --- |
+| Continue in browser | https://igniteclubhq.app |
+| Download for iPhone | https://igniteclubhq.app/get/ios |
+| Download for Android | https://igniteclubhq.app/get/android |
+
+The short app-store links are fixed HTTP 302 routes in the root `netlify.toml` **ahead of the fallback wildcard proxy**. The iPhone route targets the verified Apple ID `6758928691`. The Android route targets Google Play package `app.lovable.igniteteamhub`. Neither full destination is shown in customer-facing onboarding copy; the Google Play destination URL still exposes the historical package name **after redirect**, which cannot be removed without a new package/app listing. The links must be tested on the live branded domain after deployment, because the feature branch alone does not publish them.
+
+Keep signup invitations/deep links separate from store download links. Do not shorten or rewrite the authentication derivation origin or store arbitrary redirects. Never insert invite bearer tokens into store URLs or public link-shortener logs. If a customer started in ChatGPT/DEV, explain that the production app is a different environment: a DEV account or test team will not automatically appear on PROD.
+
+### Pro purchases initiated during a ChatGPT conversation
+
+**Do not charge inside ChatGPT, suggest a fabricated payment URL, or promise Pro entitlement.** The current supported pattern is a handoff to the app's verified subscription screen and a post-purchase recheck:
+
+1. Ask whether they want a **team** or **club** plan, Pro or Pro Football, and the number of teams, billing cadence and country. Use only current configured prices and approved products; never invent a promotional price or offer.
+2. Prefer **Free onboarding first**. A plan quote/choice does not confer Pro. For an existing, authorised club/team use the exact entity route `https://igniteclubhq.app/clubs/<actual-club-id>/upgrade` or `https://igniteclubhq.app/teams/<actual-team-id>/upgrade`. These are deep links, not public checkout URLs; show them only for real **PROD** IDs. DEV IDs cannot be used on the PROD domain.
+3. The current Internet Identity (ICP) **web** upgrade paths explicitly block Stripe/card checkout. **Native** Apple/Google purchase paths use store billing, receipt verification via `verify-iap-receipt-icp`, and attestation redemption on `identity_access`; they require a store-configured product, a valid receipt and account identity. No current `ignite_v2_` products pass the code's `assertPurchaseCatalogReady(productId, [])` guard, so don't market these new plans as purchase-ready.
+4. On successful external payment, billing and receipts are managed by Ignite's payment provider. Requery the authoritative plan entitlement/subscription status before saying that Pro is active. If checkout is declined or interrupted, preserve the Free account and offer a retry in the appropriate native app.
+5. For existing Supabase/email accounts, the **web Stripe** `create-subscription-checkout` flow is separate from ICP. Do not route an Internet Identity customer into the email-only checkout or substitute a Supabase entitlement. No card details, transaction IDs, or receipt bodies are requested by ChatGPT.
+
+**Store rules:** Apple and Google generally require approved in-app billing for qualifying digital features in native apps, subject to regional exceptions and enrolled programs. Do not add an unapproved link to Stripe inside native iOS/Android. An external checkout originating outside a native app still needs account/entitlement reconciliation, subscription terms, refund and tax handling.
+
+Current developer policy references: https://developers.openai.com/plugins/build/monetization , https://developer.apple.com/app-store/review/guidelines/ , https://support.google.com/googleplay/android-developer/answer/9858738 .
+
 ## DEV acceptance test — use a fresh, non-admin identity
 
 These are **pending manual, permissioned** tests; the current developer account passing `whoami` and `get_profile` does **not** prove new-user onboarding:
