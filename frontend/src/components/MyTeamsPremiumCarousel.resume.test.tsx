@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({
   club: 'club-a' as string | null,
   items: vi.fn(), trial: vi.fn(), save: vi.fn(),
   readOptions: [] as unknown[],
+  saved: null as null | { data: { items: typeof teams }; timestamp: number },
 }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'paul' }, initialized: true }) }));
 vi.mock('@/hooks/useClubTheme', () => ({ useClubTheme: () => ({ activeClubFilter: m.club }) }));
@@ -14,7 +15,7 @@ vi.mock('@/hooks/useUnreadMessageCounts', () => ({ useUnreadMessageCounts: () =>
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('@/live/authBackendMode', () => ({ resolveAuthBackend: () => 'icp' }));
 vi.mock('@/lib/perfStages', () => ({ markStage: vi.fn() }));
-vi.mock('@/lib/myTeamsCarouselCache', () => ({ getCachedCarouselWithTs: () => null, setCachedCarousel: m.save }));
+vi.mock('@/lib/myTeamsCarouselCache', () => ({ getCachedCarouselWithTs: () => m.saved, setCachedCarousel: m.save }));
 vi.mock('@/components/home/icpCarouselItems', () => ({ fetchIcpCarouselItems: m.items }));
 vi.mock('@/live/featureRouter', () => ({
   mergeLists: vi.fn(),
@@ -44,13 +45,26 @@ function mount() {
   return { client, ...render(<QueryClientProvider client={client}><MyTeamsPremiumCarousel /></QueryClientProvider>) };
 }
 beforeEach(() => {
-  vi.clearAllMocks(); m.club = 'club-a';
+  vi.clearAllMocks(); m.club = 'club-a'; m.saved = null;
   m.items.mockImplementation((_ctx, _filter, options) => Promise.resolve(options?.inventory === 'leagues' ? [] : teams));
   m.trial.mockResolvedValue(null);
 });
 afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); });
 
 describe('mounted carousel resume data path', () => {
+  it('shows complete saved cards immediately while both inventories are suspended', () => {
+    m.saved = { data: { items: teams }, timestamp: Date.now() - 2 * 86400000 };
+    m.items.mockImplementation(() => new Promise(() => {}));
+    mount();
+    expect(screen.getByRole('button', { name: 'Team A — Club A' })).toBeInTheDocument();
+  });
+  it('removes saved team cards after a successful empty authorized read', async () => {
+    m.saved = { data: { items: teams }, timestamp: Date.now() - 2 * 86400000 };
+    m.items.mockResolvedValue([]);
+    mount();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Team A — Club A' })).not.toBeInTheDocument());
+    await waitFor(() => expect(m.save).toHaveBeenCalledWith('paul', null, expect.objectContaining({ items: [] })));
+  });
   it('waits for complete first-login details and only enriches the selected club', async () => {
     let release: ((value: null) => void) | undefined;
     m.trial.mockImplementation(() => new Promise(resolve => { release = resolve; }));
