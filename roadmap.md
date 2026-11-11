@@ -3,7 +3,9 @@
 ## All-user native ICP push rollout — 11 November
 - [x] Paul requested progressing beyond his successful open/closed-app self-test; preserve email/Supabase push and native-only scope.
 - [x] Identified current PROD recipient allowlist, base-queue-only transport, ten-send invocation cap, missing old-alert cutoff and lifetime 10,000-attempt stop.
-- [ ] Approve the rollout plan; implement and rehearse ordinary-member delivery, safe backlog cutoff, receipt retention and bounded resumption before live activation.
+- [x] Rollout plan approved; added worker-bound, governor-only activation with persisted new-alert boundary, thirty-minute freshness, safe successful-receipt compaction and bounded multi-batch sender draining. Code upgrades do not lift the pilot restriction.
+- [x] Policy/receipt tests and canister compilation pass; 33 focused sender/foreground/test-button checks pass and both generated contract trees match.
+- [ ] Execute expanded real-canister rehearsal in the existing TEST GitHub workflow: sandbox host fault-metadata preflight refuses PocketIC here. Ordinary chat/event preference/revocation acceptance and iPhone delivery remain unverified.
 - [ ] Verify every active group has supported queue delivery; unknown/missing group authority must not fall back to the base queue.
 
 ## Push statistics warning — 11 November
