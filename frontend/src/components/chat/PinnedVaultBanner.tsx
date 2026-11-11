@@ -52,6 +52,7 @@ async function resolveTarget(record: PinnedVaultRecord): Promise<ResolvedTarget 
     }
     // Whole team/club vault pins resolve their name from club_domain.
     if (!record.root_scope || !record.root_id) return null;
+    if (record.root_scope === "competition") return null;
     const { icpGetTeam, icpGetClubName } = await import("@/lib/icpClubTeamLookup");
     if (record.root_scope === "team") {
       const t = await icpGetTeam(record.root_id);
