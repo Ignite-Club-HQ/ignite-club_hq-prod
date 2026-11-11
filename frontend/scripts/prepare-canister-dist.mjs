@@ -4,6 +4,7 @@
 // @dfinity/static-site recipe; see deploy/frontend/icp.yaml.
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync, copyFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { PROD_MEMBER_II_ORIGIN, DEV_FRONTEND_II_CANISTER, alternativeOriginsForBuild, derivationOriginForBuild } from "./iiOriginPolicy.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const src = `${root}dist-live`;
@@ -29,48 +30,16 @@ writeFileSync(`${out}/_redirects`, "/assets/*  /asset-not-found.txt  404\n/*  /i
 // PROD builds must name their own frontend canister: the DEV default here
 // once leaked into PROD's sign-in and AI-agent discovery files.
 const isProdBuild = process.env.IGNITE_FRONTEND_ENV === "prod";
-const PROD_MEMBER_II_ORIGIN = "https://igniteclubhq.app";
 if (isProdBuild && !process.env.FRONTEND_CANISTER_ID) {
   throw new Error("FRONTEND_CANISTER_ID is required for PROD frontend builds");
 }
-const frontendCanisterId = process.env.FRONTEND_CANISTER_ID || "proe7-kqaaa-aaaas-qg6gq-cai";
+const frontendCanisterId = process.env.FRONTEND_CANISTER_ID || DEV_FRONTEND_II_CANISTER;
 mkdirSync(`${out}/.well-known`, { recursive: true });
 writeFileSync(
   `${out}/.well-known/ii-alternative-origins`,
   JSON.stringify(
     {
-      alternativeOrigins: [
-        `https://${frontendCanisterId}.icp.net`,
-        `https://${frontendCanisterId}.raw.icp0.io`,
-        `https://${frontendCanisterId}.raw.icp.net`,
-        `https://${frontendCanisterId}.ic0.app`,
-        `https://${frontendCanisterId}.raw.ic0.app`,
-        // Club website (separate project) signs in as this canister too, so
-        // one person gets the same principal on the app and the website.
-        "https://igniteclubhq.com",
-        "https://www.igniteclubhq.com",
-        "https://ignite-club-heart.lovable.app",
-        "https://pjx2u-tiaaa-aaaac-qhj3a-cai.icp0.io",
-        "https://id-preview--4b755d42-e84b-4c9c-a8c7-5afa433410a4.lovable.app",
-        // PROD: igniteclubhq.app (proxied to this canister, so it serves this
-        // same file) is the members' established identity; listing the
-        // canister's own address lets assistants connected through it derive
-        // that identity (see ii-derivation-origin below).
-        // igniteclubhq.app is listed too: Internet Identity doesn't need an
-        // origin to list itself, but the ICP connector's check expects it.
-        ...(isProdBuild ? [`https://${frontendCanisterId}.icp0.io`, PROD_MEMBER_II_ORIGIN] : []),
-        // DEV Lovable app addresses share the DEV canister's identity
-        // (DEV_LOVABLE_ORIGINS in src/live/internetIdentityAuth.ts). Only on
-        // the DEV canister: PROD must not admit DEV sites.
-        ...(frontendCanisterId === "proe7-kqaaa-aaaas-qg6gq-cai"
-          ? [
-              "https://ignite-club-launchpad.lovable.app",
-              "https://id-preview--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app",
-              "https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app",
-              "https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6-dev.lovable.app",
-            ]
-          : []),
-      ],
+      alternativeOrigins: alternativeOriginsForBuild({ isProdBuild, frontendCanisterId }),
     },
     null,
     2,
@@ -146,7 +115,7 @@ writeFileSync(`${out}/.well-known/ic-architecture`, JSON.stringify(manifest, nul
 // empty account. Website/phone sign-in is unchanged.
 writeFileSync(
   `${out}/.well-known/ii-derivation-origin`,
-  `${isProdBuild ? PROD_MEMBER_II_ORIGIN : `https://${frontendCanisterId}.icp0.io`}\n`,
+  `${derivationOriginForBuild({ isProdBuild, frontendCanisterId })}\n`,
 );
 
 // The canister must reach the same database the bundle was built against
