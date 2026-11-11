@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, expect, it, vi } from 'vitest';
 
 const m = vi.hoisted(() => ({ client: undefined as any, callback: undefined as any }));
-vi.mock('@/lib/prefetchData', () => ({ prefetchUserData: vi.fn() }));
+vi.mock('@/lib/prefetchData', () => ({ prefetchUserData: async () => undefined }));
 vi.mock('@/lib/nativePush', () => ({ isNativePlatform: () => false, unregisterNativePush: vi.fn() }));
 vi.mock('@/integrations/supabase/client', async () => {
   const { createMockSupabaseClient } = await import('@/test/mockSupabaseClient');
@@ -31,10 +31,11 @@ function mount() {
 it('does not classify an established email account with a missing profile read as a new signup', async () => {
   m.client.auth.getSession.mockResolvedValue({ data: { session }, error: null });
   const view = mount();
-  await waitFor(() => expect(screen.getByText('retry')).toBeInTheDocument(), { timeout: 8000 });
+  await waitFor(() => expect(screen.queryByText('pending')).toBeNull(), { timeout: 6000 });
+  expect(screen.getByText('retry')).toBeInTheDocument();
   expect(screen.queryByText('setup')).toBeNull();
   view.unmount();
-});
+}, 10000);
 
 it('keeps the profile pending when initial session completion overlaps an active profile read', async () => {
   let resolveSession: ((value: unknown) => void) | undefined;
