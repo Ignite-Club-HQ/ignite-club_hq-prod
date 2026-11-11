@@ -1,5 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
+## Email sign-in opens Create Profile — 11 November 09:45 UTC
+- [ ] Investigate and repair profile-resolution races without altering live accounts or permissions; reproduce with focused email-session tests. Actual live email sign-in is unavailable through the unmanaged session.
+
 ## Missing PROD competition Vault helper — 11 November 09:34 UTC
 - [ ] Paul explicitly requested immediate PROD application and repeated preflight at 09:42 UTC. Verified the migration tool has no target-project parameter and operates only on connected DEV; cannot apply to PROD or bypass it through GitHub SQL writes. Protected inspection 42997570291 at 09:43:44 UTC still reports exactly public.competition_vault_storage_access(text,boolean) missing; other eight checks pass. No repair or live writes performed.
 - [x] Prepared absent-only helper through the migration tool in DEV, with authenticated execution, host-competition matching and existing access-helper delegation. Exact socket-only rehearsal passes signed-out/invalid-host denial, manager/read branching, unchanged definitions on rerun and preserved business rows. Historical migration unchanged; new source held out of automatic replay.
