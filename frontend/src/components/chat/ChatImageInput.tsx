@@ -432,14 +432,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           const { uploadIcpCompetitionChatDocument } = await import("./chatDocumentUpload");
           token = await uploadIcpCompetitionChatDocument(file, competitionId);
         } else {
-          const { data: competition, error } = await withAttachDeadline("competition-host", 20_000,
-            Promise.resolve(supabase.from("competitions").select("organizer_club_id").eq("id", competitionId).single()));
+          // Host club and the competition's Vault folder are looked up together.
+          const [{ data: competition, error }, { data: rootFolder }] = await Promise.all([
+            withAttachDeadline("competition-host", 20_000,
+              Promise.resolve(supabase.from("competitions").select("organizer_club_id").eq("id", competitionId).single())),
+            withAttachDeadline("competition-folder", 20_000,
+              Promise.resolve(supabase.from("vault_folders").select("id").eq("competition_id", competitionId)
+                .is("parent_id", null).is("deleted_at", null).order("created_at", { ascending: true }).limit(1).maybeSingle())),
+          ]);
           if (error || !competition?.organizer_club_id) throw new Error("Could not check this competition. Please try again.");
           const host = competition.organizer_club_id;
-          // File chat uploads into the competition's own Vault folder so they show up there.
-          const { data: rootFolder } = await withAttachDeadline("competition-folder", 20_000,
-            Promise.resolve(supabase.from("vault_folders").select("id").eq("competition_id", competitionId)
-              .is("parent_id", null).is("deleted_at", null).order("created_at", { ascending: true }).limit(1).maybeSingle()));
           const id = crypto.randomUUID();
           const extension = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
           const path = `clubs/${host}/competitions/${competitionId}/${user.id}/${id}.${extension}`;
@@ -469,7 +471,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         toast.success("File attached");
         return;
       }
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      // Signed-in account from the saved session (no extra server round-trip).
+      const authUser = user ?? (await supabase.auth.getSession()).data.session?.user ?? null;
       if (!authUser) throw new Error("Not authenticated");
 
       const timestamp = Date.now();

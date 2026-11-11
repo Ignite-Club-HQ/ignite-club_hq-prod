@@ -113,6 +113,11 @@ export async function uploadWithinClubMediaAllowance<T>(
       }
     }
     await boundedStorageCheck(async () => {
+    // Start the club storage total alongside the plan read (club-wide uploads).
+    const canRpc = typeof (client as { rpc?: unknown }).rpc === "function";
+    const clubTotal = !teamId && canRpc
+      ? Promise.resolve((client.rpc as any)("club_media_used_bytes", { _club_id: clubId })).catch((e: unknown) => ({ data: null, error: e }))
+      : null;
     const baseColumns = "plan, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, is_trial, trial_ends_at, storage_purchased_gb";
     let { data: sub, error } = await client.from("club_subscriptions")
       .select(`${baseColumns}, pricing_version`).eq("club_id", clubId).maybeSingle();
@@ -125,12 +130,15 @@ export async function uploadWithinClubMediaAllowance<T>(
     if (error) throw error;
     let teamSub: MediaSubscription = null;
     if (teamId) {
-      const { data: team, error: teamError } = await client.from("teams").select("club_id, deleted_at").eq("id", teamId).maybeSingle();
+      // Team checks run together instead of one after another.
+      const [{ data: team, error: teamError }, { data, error: subscriptionError }] = await Promise.all([
+        client.from("teams").select("club_id, deleted_at").eq("id", teamId).maybeSingle(),
+        client.from("team_subscriptions")
+          .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, is_trial, trial_ends_at")
+          .eq("team_id", teamId).maybeSingle(),
+      ]);
       if (teamError) throw teamError;
       if (team?.club_id !== clubId || team.deleted_at) throw new Error("Team does not belong to this club.");
-      const { data, error: subscriptionError } = await client.from("team_subscriptions")
-        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, is_trial, trial_ends_at")
-        .eq("team_id", teamId).maybeSingle();
       if (subscriptionError) throw subscriptionError;
       teamSub = data;
     }
@@ -138,8 +146,15 @@ export async function uploadWithinClubMediaAllowance<T>(
     // One server-side sum of the club's stored files; folder-by-folder listing is
     // kept only for team-scoped plans and databases without the sum function.
     let used: number | null = null;
-    if (!allowance.teamScoped && typeof (client as { rpc?: unknown }).rpc === "function") {
-      const { data: total, error: totalError } = await (client.rpc as any)("club_media_used_bytes", { _club_id: clubId });
+    if (allowance.teamScoped && teamId && typeof (client as { rpc?: unknown }).rpc === "function") {
+      const { data: rows, error: rowsError } = await (client.rpc as any)("club_media_storage_breakdown", { _club_id: clubId });
+      if (!rowsError && Array.isArray(rows)) {
+        used = rows.filter((row: { team_id: string | null }) => row.team_id === teamId)
+          .reduce((sum: number, row: { bytes: number | string }) => sum + (Number(row.bytes) || 0), 0);
+      } else if (rowsError && !["PGRST202", "42883"].includes((rowsError as { code?: string }).code ?? "")) throw rowsError;
+    }
+    if (used === null && !allowance.teamScoped && typeof (client as { rpc?: unknown }).rpc === "function") {
+      const { data: total, error: totalError } = await (clubTotal ?? (client.rpc as any)("club_media_used_bytes", { _club_id: clubId }));
       if (!totalError && Number.isFinite(Number(total)) && Number(total) >= 0) used = Number(total);
       else if (totalError && !["PGRST202", "42883"].includes((totalError as { code?: string }).code ?? "")) throw totalError;
     }
