@@ -2,7 +2,11 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { expect, it, vi } from 'vitest';
 
-const m = vi.hoisted(() => ({ client: undefined as any, callback: undefined as any }));
+const m = vi.hoisted(() => {
+  // App launched on a phone that already holds this member's saved profile.
+  localStorage.setItem('ignite_cached_profile', JSON.stringify({ userId: 'email-member', cachedAt: Date.now(), profile: { id: 'email-member', display_name: 'Paul' } }));
+  return ({ client: undefined as any, callback: undefined as any });
+});
 vi.mock('@/lib/prefetchData', () => ({ prefetchUserData: async () => undefined }));
 vi.mock('@/lib/nativePush', () => ({ isNativePlatform: () => false, unregisterNativePush: vi.fn() }));
 vi.mock('@/integrations/supabase/client', async () => {
@@ -22,7 +26,6 @@ function Page() {
 }
 
 it('signing back in as the same email member after sign-out finishes loading the profile', async () => {
-  localStorage.setItem('ignite_cached_profile', JSON.stringify({ userId: member.id, cachedAt: Date.now(), profile: { id: member.id, display_name: 'Paul' } }));
   m.client.auth.getSession.mockResolvedValue({ data: { session }, error: null });
   const { createMockQueryBuilder } = await import('@/test/mockSupabaseClient');
   m.client.from.mockImplementation((table: string) => {
