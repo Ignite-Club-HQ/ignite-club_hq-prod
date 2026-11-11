@@ -59,6 +59,35 @@ pub fn verify_open_g2_club(
 mod tests {
     use super::*;
     #[test]
+    fn accept_only_reviewed_dev_club_with_complete_matching_live_placement() {
+        let (mut snapshot, mut binding, _) = crate::group_inventory::tests::fixture();
+        let identity=Principal::from_text(IDENTITY_ID).unwrap();
+        let club=Principal::from_text(CLUB_ID).unwrap();
+        binding.registry=Principal::from_text(ROUTER_ID).unwrap();
+        binding.target_alias="mainnet".into();binding.deployment_id="mainnet".into();
+        binding.host="https://icp-api.io".into();
+        snapshot.groups.truncate(1);snapshot.placements.truncate(1);
+        snapshot.groups[0].id="g2".into();snapshot.groups[0].target_alias="mainnet".into();
+        snapshot.placements[0].group_id="g2".into();
+        snapshot.placements[0].deployment_id="mainnet".into();
+        snapshot.placements[0].host="https://icp-api.io".into();
+        let domain=snapshot.groups[0].domains.iter_mut().find(|d|d.domain=="club_domain").unwrap();
+        domain.canister=club;
+        let placement=snapshot.placements[0].domains.iter_mut().find(|d|d.domain=="club_domain").unwrap();
+        placement.canister=club;
+        let groups=vec![OpenGroup {id:"g2".into(),target_alias:"mainnet".into(),
+            accepting:true,domains:snapshot.groups[0].domains.clone()}];
+        assert_eq!(verify_open_g2_club(&binding,&groups,&snapshot.placements,identity).unwrap(),club);
+        let mut foreign=groups.clone();
+        foreign[0].domains.iter_mut().find(|d|d.domain=="club_domain").unwrap().canister=Principal::from_slice(&[8,1]);
+        assert!(verify_open_g2_club(&binding,&foreign,&snapshot.placements,identity).is_err());
+        let mut stale=binding.clone();stale.registry_revision+=1;
+        assert!(verify_open_g2_club(&stale,&groups,&snapshot.placements,identity).is_err());
+        let mut foreign_placement=snapshot.placements.clone();
+        foreign_placement[0].domains.iter_mut().find(|d|d.domain=="club_domain").unwrap().canister=Principal::from_slice(&[8,1]);
+        assert!(verify_open_g2_club(&binding,&groups,&foreign_placement,identity).is_err());
+    }
+    #[test]
     fn refuse_prod_base_foreign_router_and_wrong_opening() {
         let (mut s, mut b, _) = crate::group_inventory::tests::fixture();
         b.target_alias = "mainnet".into();
