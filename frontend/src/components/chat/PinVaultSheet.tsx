@@ -223,13 +223,14 @@ export function PinVaultSheet({
 
   const rootOptions = useMemo(() => {
     const out: { key: string; label: string; sublabel: string; target: PinnedVaultTarget }[] = [];
-    if (!clubId && competitionId) {
+    if (competitionId) {
       out.push({
         key: `root-competition-${competitionId}`,
         label: "Whole competition vault",
         sublabel: "All files & folders",
         target: { root_scope: "competition", root_id: competitionId },
       });
+      return out;
     }
     if (clubId) {
       out.push({
