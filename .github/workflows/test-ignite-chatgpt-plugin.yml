@@ -1,0 +1,25 @@
+name: "[TEST] Ignite ChatGPT plugin manifest"
+
+on:
+  pull_request:
+    paths:
+      - "integrations/chatgpt-plugin/**"
+      - "scripts/test-ignite-plugin-package.mjs"
+      - ".github/workflows/test-ignite-chatgpt-plugin.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Validate branded DFINITY reuse package
+        run: node scripts/test-ignite-plugin-package.mjs
