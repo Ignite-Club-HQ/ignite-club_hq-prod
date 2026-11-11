@@ -17,7 +17,7 @@ export type PinnedVaultChatType = "team" | "club" | "group";
 export interface PinnedVaultTarget {
   vault_file_id?: string | null;
   vault_folder_id?: string | null;
-  root_scope?: "team" | "club" | null;
+  root_scope?: "team" | "club" | "competition" | null;
   root_id?: string | null;
 }
 
@@ -41,7 +41,7 @@ function livePinToRecord(pin: LivePinnedVault): PinnedVaultRecord {
     chat_id: pin.chat_id,
     vault_file_id: pin.vault_file_id.length ? pin.vault_file_id[0] : null,
     vault_folder_id: pin.vault_folder_id.length ? pin.vault_folder_id[0] : null,
-    root_scope: (pin.root_scope.length ? pin.root_scope[0] : null) as "team" | "club" | null,
+    root_scope: (pin.root_scope.length ? pin.root_scope[0] : null) as "team" | "club" | "competition" | null,
     root_id: pin.root_id.length ? pin.root_id[0] : null,
     enabled: pin.enabled,
     set_by: pin.set_by.toText(),
@@ -142,7 +142,7 @@ export function useChatPinnedVault(
             clubId,
             vaultFileId: input.vault_file_id ?? null,
             vaultFolderId: input.vault_folder_id ?? null,
-            rootScope: input.root_scope ?? null,
+            rootScope: input.root_scope === "competition" ? null : input.root_scope ?? null,
             rootId: input.root_id ?? null,
             enabled: input.enabled ?? false,
           });
