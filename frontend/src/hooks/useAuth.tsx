@@ -265,7 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // CRITICAL FIX: applyTheme is now a direct parameter, not dependent on React state
   // This avoids stale closure issues during Google OAuth where isFreshLogin state
   // wasn't available in the callback at the right time
-  const fetchProfile = useCallback(async (userId: string, retries = 5, applyTheme = false, retryOnMissing = false): Promise<Profile | null> => {
+  const fetchProfile = useCallback(async (userId: string, retries = 5, applyTheme = false, retryOnMissing = false, allowMissingProfile = false): Promise<Profile | null> => {
     setProfileError(false);
     const maxMissingProfileAttempts = retryOnMissing ? retries : 1;
 
@@ -341,8 +341,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           continue;
         }
 
-        // No profile found - this is okay for new users, not an error
-        console.log('No profile found for user:', userId);
+        // An empty RLS-filtered read is not proof an established member is
+        // new. Only a freshly created Auth account may enter profile setup
+        // without a profile row; older accounts must recover the read first.
+        if (!allowMissingProfile) {
+          console.warn('[Auth] Existing account profile could not be loaded');
+          setProfileError(true);
+          setProfileResolved(true);
+          return null;
+        }
+        console.log('No profile found for newly created account');
         setProfileResolved(true);
         return null;
       } catch (err: any) {
@@ -525,7 +533,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileLoading(true);
         const __fpStop = () => {};
         try {
-          const fetchedProfile = await fetchProfile(userId, 5, applyTheme, true);
+          const createdAt = Date.parse(currentSession.user.created_at ?? '');
+          const age = Date.now() - createdAt;
+          const allowMissingProfile = Number.isFinite(createdAt) && age >= 0 && age < 10 * 60 * 1000;
+          const fetchedProfile = await fetchProfile(userId, 5, applyTheme, true, allowMissingProfile);
           if (mounted) {
             setProfileLoading(false);
             setLoading(false);
@@ -775,8 +786,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (existingSession?.user && !profileFetched) {
         // Initial page load - don't apply theme from profile (localStorage is source of truth)
         await handleSession(existingSession, true, false);
-      } else {
-        // No session - done loading
+      } else if (!existingSession?.user) {
+        // No session - done loading. An already-started handleSession owns
+        // the loading flags when INITIAL_SESSION beat getSession to the row.
         if (mounted) {
           setProfileLoading(false);
           setLoading(false);
@@ -1261,6 +1273,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setSessionRestoration("signed_out");
     setProfile(null);
+    setProfileResolved(false);
+    setProfileError(false);
+    setProfileLoading(false);
+    setLoading(false);
+    setInitialized(true);
     setCachedProfile(null);
     currentUserIdRef.current = null; // Clear so re-login is treated as fresh (applies theme from DB)
     // Clear ALL React Query cache to prevent stale RLS data on re-login

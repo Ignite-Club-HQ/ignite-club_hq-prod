@@ -56,3 +56,12 @@ it('keeps the profile pending when initial session completion overlaps an active
   expect(screen.getByText('Existing Member')).toBeInTheDocument();
   view.unmount();
 });
+
+it('still allows a newly created email account to create its first profile', async () => {
+  m.client.auth.getSession.mockResolvedValue({ data: { session: { ...session, user: { ...member, created_at: new Date().toISOString() } } }, error: null });
+  const { createMockQueryBuilder } = await import('@/test/mockSupabaseClient');
+  m.client.from.mockImplementation(() => createMockQueryBuilder());
+  const view = mount();
+  await waitFor(() => expect(screen.getByText('setup')).toBeInTheDocument(), { timeout: 6000 });
+  view.unmount();
+}, 10000);
