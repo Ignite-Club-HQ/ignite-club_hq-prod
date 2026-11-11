@@ -11,6 +11,8 @@ const EXACT_KEYS = new Set([
 ]);
 const PREFIXES = ['ignite_message_cache_', 'ignite_events_list_', 'ignite_event_detail_',
   'ignite_event_rsvps_', 'ignite_my_teams_carousel_v2_', 'ignite_next_up_events_'];
+const FIRST_PAINT_CACHE_BYTES = 1024 * 1024;
+const FIRST_PAINT_PREFIXES = ['ignite_my_teams_carousel_v2_', 'ignite_next_up_events_'];
 export function isDisposableReadCache(key: string): boolean {
   return EXACT_KEYS.has(key) || PREFIXES.some(prefix => key.startsWith(prefix));
 }
@@ -41,15 +43,26 @@ function entries(): Map<string, Entry> {
   }
   return inventory;
 }
-function trim(rows: Map<string, Entry>, incomingBytes = 0): void {
+function trim(rows: Map<string, Entry>, incomingBytes = 0, incomingKey?: string): void {
   let total = incomingBytes;
   for (const [key, entry] of rows) {
     if (localStorage.getItem(key) === null || Date.now() - entry.time > TTL_MS) {
       localStorage.removeItem(key); rows.delete(key);
     } else total += entry.bytes;
   }
-  for (const [key, entry] of [...rows].sort((a, b) => a[1].time - b[1].time)) {
-    if (total <= LOCAL_READ_CACHE_BYTES) break;
+  // Home's saved cards have their own reserve: the general query cache alone
+  // can fill the shared budget, which silently dropped them and forced every
+  // cold open to wait for a full network reload.
+  const firstPaint = (key: string) => FIRST_PAINT_PREFIXES.some(prefix => key.startsWith(prefix));
+  let reserved = incomingKey && firstPaint(incomingKey) ? incomingBytes : 0;
+  if (incomingKey && firstPaint(incomingKey)) total -= incomingBytes;
+  for (const [key, entry] of rows) if (firstPaint(key)) { total -= entry.bytes; reserved += entry.bytes; }
+  for (const [key, entry] of [...rows].sort((x, y) => x[1].time - y[1].time)) {
+    if (firstPaint(key)) {
+      if (reserved <= FIRST_PAINT_CACHE_BYTES) continue;
+      localStorage.removeItem(key); rows.delete(key); reserved -= entry.bytes; continue;
+    }
+    if (total <= LOCAL_READ_CACHE_BYTES) continue;
     localStorage.removeItem(key); rows.delete(key); total -= entry.bytes;
   }
 }
@@ -62,7 +75,7 @@ export function writeBoundedReadCache(key: string, value: string): boolean {
     const limit = key === 'ignite_query_cache_v1' ? LOCAL_READ_CACHE_BYTES : MAX_ENTRY_BYTES;
     rows.delete(key);
     if (bytes > limit) { localStorage.removeItem(key); trim(rows); return false; }
-    trim(rows, bytes);
+    trim(rows, bytes, key);
     localStorage.setItem(key, value);
     rows.set(key, { bytes, time: Date.now() });
     return true;

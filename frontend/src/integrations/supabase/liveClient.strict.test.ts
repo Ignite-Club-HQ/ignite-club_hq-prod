@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-const state = vi.hoisted(() => ({ icp: true }));
+const state = vi.hoisted(() => ({ icp: true, ii: true }));
+vi.mock("@/live/authBackendMode", () => ({ hasInternetIdentitySessionStored: () => state.ii }));
 const sdk = vi.hoisted(() => ({ channel: vi.fn(), options: undefined as unknown }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: (_url: string, _key: string, options: unknown) => {
   sdk.options = options; return { channel: sdk.channel };
@@ -15,6 +16,13 @@ describe("Supabase client strict realtime boundary", () => {
   it("refuses ICP realtime subscriptions without constructing a channel", () => {
     expect(() => supabase.channel("room")).toThrow("ICP fallback blocked");
     expect(sdk.channel).not.toHaveBeenCalled();
+  });
+  it("hands signed-out screens an inert channel without reporting", () => {
+    state.ii = false;
+    const ch = supabase.channel("room") as { on: () => unknown; subscribe: () => unknown };
+    expect(ch.on()).toBe(ch); expect(ch.subscribe()).toBe(ch);
+    expect(sdk.channel).not.toHaveBeenCalled();
+    state.ii = true;
   });
   it("preserves Supabase-mode subscriptions and installs a guarded fetch", () => {
     state.icp = false;
