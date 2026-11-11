@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           cargo test -p identity_access
-          node --test scripts/group2-admission-release-rules.test.mjs scripts/group2-admission-workflow.test.mjs scripts/group2-journal.test.mjs
+          node --test scripts/group2-admission-release-rules.test.mjs scripts/group2-admission-workflow.test.mjs scripts/group2-journal.test.mjs scripts/group2-account-link-readiness.test.mjs
       - name: Restore existing governor only
         env:
           DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
