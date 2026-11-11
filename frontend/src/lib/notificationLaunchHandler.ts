@@ -196,6 +196,8 @@ function handleNotificationTap(notification: any) {
     // notif_tap → chat_mount gap between JS blocking vs I/O.
     try { startLongTaskWindow("notif_to_chat_mount"); } catch {}
     const data = notification?.notification?.data ?? notification?.data ?? {};
+    // ICP alerts are routed by live/icpPushTap with account checks; never twice.
+    if (data?.ignite_backend === 'icp-dev') return;
     const rawUrl = data?.url || data?.link || data?.path;
     const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
     console.log('[NotificationLaunch] tap received', {
