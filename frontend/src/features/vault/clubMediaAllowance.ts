@@ -113,6 +113,11 @@ export async function uploadWithinClubMediaAllowance<T>(
       }
     }
     await boundedStorageCheck(async () => {
+    // Start the club storage total alongside the plan read (club-wide uploads).
+    const canRpc = typeof (client as { rpc?: unknown }).rpc === "function";
+    const clubTotal = !teamId && canRpc
+      ? Promise.resolve((client.rpc as any)("club_media_used_bytes", { _club_id: clubId })).catch((e: unknown) => ({ data: null, error: e }))
+      : null;
     const baseColumns = "plan, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, is_trial, trial_ends_at, storage_purchased_gb";
     let { data: sub, error } = await client.from("club_subscriptions")
       .select(`${baseColumns}, pricing_version`).eq("club_id", clubId).maybeSingle();
@@ -149,7 +154,7 @@ export async function uploadWithinClubMediaAllowance<T>(
       } else if (rowsError && !["PGRST202", "42883"].includes((rowsError as { code?: string }).code ?? "")) throw rowsError;
     }
     if (used === null && !allowance.teamScoped && typeof (client as { rpc?: unknown }).rpc === "function") {
-      const { data: total, error: totalError } = await (client.rpc as any)("club_media_used_bytes", { _club_id: clubId });
+      const { data: total, error: totalError } = await (clubTotal ?? (client.rpc as any)("club_media_used_bytes", { _club_id: clubId }));
       if (!totalError && Number.isFinite(Number(total)) && Number(total) >= 0) used = Number(total);
       else if (totalError && !["PGRST202", "42883"].includes((totalError as { code?: string }).code ?? "")) throw totalError;
     }
