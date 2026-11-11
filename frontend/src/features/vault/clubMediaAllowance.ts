@@ -19,28 +19,30 @@ function assertSupabaseMediaAllowancePath(): void {
 export async function listStoredClubMedia(clubId: string, client: Client = supabase): Promise<StoredClubMedia[]> {
   assertSupabaseMediaAllowancePath();
   const objects: StoredClubMedia[] = [];
-  for (const bucket of ["photos", "chat-attachments", "competition-vault"]) {
-    const folders = [`clubs/${clubId}`];
-    while (folders.length) {
-      const folder = folders.pop();
-      if (!folder) continue;
-      for (let offset = 0; ; offset += 1000) {
-        const { data, error } = await client.storage.from(bucket).list(folder, {
-          limit: 1000, offset, sortBy: { column: "name", order: "asc" },
-        });
-        if (error) throw error;
-        for (const entry of data ?? []) {
-          const path = `${folder}/${entry.name}`;
-          if (!entry.id && !entry.metadata) folders.push(path);
-          else {
-            const size = Number(entry.metadata?.size);
-            if (!Number.isFinite(size) || size < 0) throw new Error("Could not check club storage. Please try again.");
-            objects.push({ path, bucket, size });
-          }
-        }
-        if (!data || data.length < 1000) break;
+  // Independent folders can be counted together. Never reuse a cached total:
+  // that could admit an upload against stale capacity or another caller's access.
+  const pending = ["photos", "chat-attachments", "competition-vault"].map(bucket => ({
+    bucket, folder: `clubs/${clubId}`, offset: 0,
+  }));
+  const scanPage = async ({ bucket, folder, offset }: typeof pending[number]) => {
+    const { data, error } = await client.storage.from(bucket).list(folder, {
+      limit: 1000, offset, sortBy: { column: "name", order: "asc" },
+    });
+    if (error) throw error;
+    for (const entry of data ?? []) {
+      const path = `${folder}/${entry.name}`;
+      if (!entry.id && !entry.metadata) pending.push({ bucket, folder: path, offset: 0 });
+      else {
+        const size = Number(entry.metadata?.size);
+        if (!Number.isFinite(size) || size < 0) throw new Error("Could not check club storage. Please try again.");
+        objects.push({ path, bucket, size });
       }
     }
+    if (data && data.length === 1000) pending.push({ bucket, folder, offset: offset + 1000 });
+  };
+  // Bound network work on phones while eliminating one round trip per folder.
+  while (pending.length) {
+    await Promise.all(pending.splice(0, 6).map(scanPage));
   }
   return objects;
 }
@@ -60,6 +62,25 @@ export function assertClubMediaFits(used: number, requested: number, purchasedGb
 }
 
 const uploads = new Map<string, Promise<unknown>>();
+
+// Include SDK auth waits and body parsing, not just the network fetch. A timed
+// out preparation never advances to the write, even if a late read completes.
+async function boundedStorageCheck<T>(check: () => Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = Date.now() + 60_000;
+  let fail: (() => void) | undefined;
+  const onVisible = () => { if (document.visibilityState === "visible" && Date.now() >= deadline) fail?.(); };
+  const timeout = new Promise<never>((_resolve, reject) => {
+    fail = () => reject(new Error("Couldn't finish checking storage. Check your connection and try attaching the file again."));
+    timer = setTimeout(fail, 60_000);
+  });
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisible);
+  try { return await Promise.race([check(), timeout]); }
+  finally {
+    if (timer !== undefined) clearTimeout(timer);
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisible);
+  }
+}
 
 type MeasuredUpload = { bucket: string; path: string; file: Blob; vault?: boolean };
 
@@ -86,6 +107,7 @@ export async function uploadWithinClubMediaAllowance<T>(
         throw new Error("Upload does not belong to this club's storage.");
       }
     }
+    await boundedStorageCheck(async () => {
     const { data: sub, error } = await client.from("club_subscriptions")
       .select("plan, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, is_trial, trial_ends_at, storage_purchased_gb, pricing_version")
       .eq("club_id", clubId).maybeSingle();
@@ -108,6 +130,7 @@ export async function uploadWithinClubMediaAllowance<T>(
     if (used + bytes > allowance.limitBytes) {
       throw new Error(allowance.premium ? "Your storage allowance is full. Delete files or purchase more storage to keep uploading." : "Your club has used its 250 MB Free storage. Delete files or upgrade to Pro to keep uploading.");
     }
+    });
     assertSupabaseMediaAllowancePath();
     // Use the caller's authenticated Storage SDK client and original options.
     // Its environment selects DEV/PROD; Storage RLS still authorizes the write.

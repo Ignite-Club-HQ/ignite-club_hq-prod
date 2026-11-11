@@ -120,6 +120,63 @@ try {
   const inbox = ok(await q.list_inbox(successor.toText(), [], 10));
   assert.equal(inbox.find(n => n.id === 'held-send')?.status.Failed, null);
   report.checks.push('uncertain sends remain terminal; settled rekey preserves hold; receipt sequence retained');
+
+  // All-member rollout rehearses the exact LIVE address only in PocketIC.
+  const live = await setup({ targetCanisterId: Principal.fromText('w263o-3aaaa-aaaai-ayesq-cai') });
+  const l = live.actor;
+  l.setPrincipal(governor);
+  ok(await l.grant_worker(worker));
+  ok(await l.configure_native_push_worker(worker));
+  l.setPrincipal(member);
+  ok(await l.register_device_token('android', 'member-current-phone', [], []));
+  assert.ok('Err' in await l.queue_my_native_test_alert(), 'Unapproved ordinary member remains blocked');
+  l.setPrincipal(governor);
+  ok(await l.enqueue('before-opening', member.toText(), 'app', 'club_news', 'Old update', 'before-opening'));
+  await pic.advanceTime(1000);
+  l.setPrincipal(stranger);
+  await assert.rejects(() => l.configure_native_push_rollout(true, worker));
+  l.setPrincipal(governor);
+  assert.ok('Err' in await l.configure_native_push_rollout(true, stranger));
+  const boundary = ok(await l.configure_native_push_rollout(true, worker));
+  assert.ok(boundary > 0n);
+  assert.equal(ok(await l.configure_native_push_rollout(true, worker)), boundary);
+  l.setPrincipal(worker);
+  empty(await l.reserve_native_push());
+  l.setPrincipal(member);
+  const id = ok(await l.queue_my_native_test_alert());
+  l.setPrincipal(worker);
+  const current = ok(await l.reserve_native_push())[0];
+  assert.equal(current.notification_id, id);
+  assert.equal(current.user, member.toText());
+  ok(await l.settle_native_push(current.receipt, 'accepted'));
+  empty(await l.reserve_native_push());
+  l.setPrincipal(governor);
+  ok(await l.enqueue('expired-new-alert', member.toText(), 'app', 'club_news', 'Update', 'expired-new-alert'));
+  await pic.advanceTime(1_800_001);
+  l.setPrincipal(worker);
+  empty(await l.reserve_native_push());
+  l.setPrincipal(member);
+  const prefs = { messages_enabled: true, events_enabled: false, media_enabled: true,
+    membership_enabled: true, pitch_board_enabled: true, admin_enabled: true,
+    rewards_enabled: true, pom_enabled: true, email_messages_enabled: false,
+    email_events_enabled: false, email_media_enabled: false, email_membership_enabled: false,
+    email_admin_enabled: false, email_pitch_board_enabled: false, email_rewards_enabled: false,
+    email_pom_enabled: false, show_message_preview: false };
+  ok(await l.upsert_preferences(member.toText(), prefs));
+  l.setPrincipal(governor);
+  ok(await l.enqueue('disabled-event', member.toText(), 'app', 'event_reminder', 'Event', 'disabled-event'));
+  l.setPrincipal(worker);
+  empty(await l.reserve_native_push());
+  report.checks.push('thirty-minute stale-alert cutoff; ordinary-member disabled event preference prevents native reservation');
+  await pic.upgradeCanister({ canisterId: live.canisterId, wasm, sender: governor,
+    arg: IDL.encode([IDL.Principal], [governor]),
+    upgradeModeOptions: { skip_pre_upgrade: [], wasm_memory_persistence: [{ keep: null }] } });
+  assert.equal((await l.native_push_rollout())[0].started_at_ms, boundary);
+  l.setPrincipal(governor);
+  ok(await l.configure_native_push_rollout(false, worker));
+  l.setPrincipal(member);
+  assert.ok('Err' in await l.queue_my_native_test_alert());
+  report.checks.push('LIVE-address ordinary member pilot refusal; governor/worker activation; no old-alert flood; activation survives upgrade; disabling re-closes ordinary users');
   report.passed = true;
 } catch (error) { primaryError = error; }
 finally { await finishRemovalLocalTest({ pic, server, report, primaryError, writeReport: save }); }

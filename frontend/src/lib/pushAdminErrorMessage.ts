@@ -2,8 +2,11 @@
 export function pushAdminErrorMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? "");
   if (raw) console.warn("Push Analytics read failed:", raw);
+  if (/App admin verification unavailable/i.test(raw)) {
+    return "Your administrator access couldn't be checked, so statistics aren't available. Test alerts still work. Try refreshing shortly.";
+  }
   if (/App admin required/i.test(raw)) {
-    return "Stats need app admin access on this service. If you are an app admin, the check may not have answered in time. Tap refresh to try again.";
+    return "This alert service hasn't confirmed administrator access for this account, so statistics aren't available. Test alerts aren't affected.";
   }
   if (/admission denied|unavailable|fenced/i.test(raw)) {
     return "One alert service didn't let this account in, so its stats aren't shown. Sending test alerts isn't affected.";

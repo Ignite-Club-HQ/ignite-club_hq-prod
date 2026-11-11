@@ -152,6 +152,7 @@ export function GroupChatComposerFooter({
                 showBoardPicker={false}
                 onBoardPick={() => onBoardPickerOpenChange(true)}
                 showVaultPicker={!!clubId}
+                showFileUpload={!!competitionId}
                 onAppendToken={appendToken}
                 hasText={!!message.trim()}
               />

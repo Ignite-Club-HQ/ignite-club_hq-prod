@@ -5,6 +5,11 @@ type Status =
    Pending;
    Processing;
  };
+type State = 
+ record {
+   enabled: bool;
+   started_at_ms: nat64;
+ };
 type ScheduledStatus = 
  variant {
    Cancelled;
@@ -232,6 +237,11 @@ type Main =
    cleanup_stale_device_tokens: (now_ms: nat64, max_age_ms: nat64) ->
     (DeviceTokenCountResult);
    clear_inbox: (user: text, club: opt text) -> (ResultNat16);
+   configure_native_push_rollout: (enabled: bool, expected_worker:
+    principal) -> (variant {
+                     Err: text;
+                     Ok: nat64;
+                   });
    configure_native_push_worker: (candidate: principal) ->
     (variant {
        Err: text;
@@ -332,6 +342,7 @@ type Main =
        queue: principal;
        worker: opt principal;
      }) query;
+   native_push_rollout: () -> (opt State) query;
    prepare_account_removal: (request: Request) -> (variant {
                                                      Err: text;
                                                      Ok;

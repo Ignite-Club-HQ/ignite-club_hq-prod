@@ -35,6 +35,8 @@ jobs:
           MOC="$HOME/.cache/mops/moc/1.16.1/moc"
           "$MOC" $(mops sources) -r test/nativePush.test.mo
           "$MOC" $(mops sources) -r test/nativeWakePolicy.test.mo
+          "$MOC" $(mops sources) -r test/nativeRolloutPolicy.test.mo
+          "$MOC" $(mops sources) -r test/appAdminAccess.test.mo
           "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o "$RUNNER_TEMP/native-push-queue.wasm" src/main.mo
       - name: Check disposable queue lifecycle without Firebase or live identities
         working-directory: frontend

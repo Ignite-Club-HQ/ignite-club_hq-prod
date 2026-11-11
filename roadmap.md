@@ -1,5 +1,36 @@
 # Roadmap — launch the live (PROD) system
 
+## Referee chat stalled document upload — 11 November
+- [x] Follow-up: latest preview logs show 57 stuck requests on visibility recovery. Reproduced missing POST storage-list deadline with failing test; listings now join the read timeout/resume registry, including auth retries. Preparation has a separate 60-second bound covering SDK auth/body waits; late reads cannot advance to writes, and the upload queue is released on failure. 52 focused checks pass; preview build OK.
+- [ ] Browser reproduction reaches sign-in because email sessions are external/unmanaged; the actual signed-in referee upload remains unverified. No permission changes, automatic uncertain-write retries or PROD deployment made.
+- [x] Preview telemetry shows 17 physical-storage listing requests and no file write; reproduced serial whole-club scan in a failing regression. Count independent pages in bounded six-request batches, retaining fresh exact capacity accounting, same-device upload serialization and Storage permissions.
+- [x] 38 focused accounting/transport/competition attachment checks pass in default and ICP test configurations; preview build OK. Email attachment test confirms host-scoped transfer and registration before token creation.
+- [ ] Authenticated referee-chat upload/message/readback and phone acceptance remain unverified: external unmanaged email session/device unavailable locally. This removes the confirmed scan bottleneck, not proof of the phone's complete upload; no PROD deployment made.
+
+## Melanie — live email Women’s Masters Vault access — 11 November
+- [x] Confirmed affected account uses live email sign-in; connected database is DEV, not PROD. DEV Women’s Masters is Pro and has no Melanie role record, so it cannot reproduce her live denial. Inspected DEV Vault policies/access functions without changes.
+- [ ] Verify Melanie’s exact live competition role, access response and host entitlement before repairing: user-managed PROD diagnostics unavailable; no PROD credentials accessible. Need her exact warning and competition-role evidence, or authorized read-only PROD access. No permissions, roles, data or code changed.
+
+## Competition chat file uploads — 11 November
+- [x] Restored Upload File in competition group chats without requiring a club ID. Documents use the competition host/access lookup, competition grants and metadata; no chat membership or backend permission changes. Paul approved the phone document chooser exception; photo picker unchanged.
+- [x] Five upload/access regressions failed before repair; 42 focused checks pass in default mode and 39 in ICP mode (backend-specific skips). Preview build OK. Existing competition Vault upload permissions still apply.
+- [ ] Authenticated on-chain upload/message/readback and physical-phone acceptance require a delegated II session/device unavailable in the sandbox. No PROD deployment performed.
+
+## All-user native ICP push rollout — 11 November
+- [x] Paul requested progressing beyond his successful open/closed-app self-test; preserve email/Supabase push and native-only scope.
+- [x] Identified current PROD recipient allowlist, base-queue-only transport, ten-send invocation cap, missing old-alert cutoff and lifetime 10,000-attempt stop.
+- [x] Rollout plan approved; added worker-bound, governor-only activation with persisted new-alert boundary, thirty-minute freshness, safe successful-receipt compaction and bounded multi-batch sender draining. Code upgrades do not lift the pilot restriction.
+- [x] Policy/receipt tests and canister compilation pass; 89 focused sender/foreground/lifecycle/tap/isolation checks and four contract-syntax checks pass; both generated contract trees match. Preparation and blockers recorded in docs/icp-native-all-member-rollout-2026-11-11.md.
+- [ ] Execute expanded real-canister rehearsal in the existing TEST GitHub workflow: sandbox host fault-metadata preflight refuses PocketIC here. Ordinary chat/event preference/revocation acceptance and iPhone delivery remain unverified.
+- [ ] Verify every active group has supported queue delivery; unknown/missing group authority must not fall back to the base queue.
+- [ ] Protected runner/release execution requires GitHub/governor access unavailable in this sandbox; PROD mapping is absent, group fast-native delivery remains unimplemented pending verified inventory. No all-member activation or PROD changes made.
+
+## Push statistics warning — 11 November
+- [x] Paul confirmed phone test alerts work with the app open and closed; keep delivery and email push unchanged.
+- [x] Reproduced false statistics denial from an unavailable protected administrator reader; align lookup selection with protection mode, retaining fail-closed protected reads and distinct transport errors.
+- [x] Canister administrator/access regressions and compiler check pass; delivery code and email paths unchanged.
+- [ ] Actual installed-app statistics readback requires promotion and Paul's II phone session, unavailable locally; no PROD deployment performed.
+
 ## ICP team carousel latency audit — 10 November 18:35 UTC
 - [x] Read-only PROD comparison confirms all-team/all-league/all-group barrier, club-metadata wait, sequential league visibility checks, mismatched deadlines/retries and fragile saved-card fallback; findings in docs/icp-team-carousel-latency-audit-2026-11-10.md.
 - [x] Reproduced two withheld-card waits and 24-hour snapshot expiry; 26 focused default-mode checks pass. Audit only: no runtime, canister, push, permission or PROD changes.
@@ -331,6 +362,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] At the first main→prod merge, confirm promotion succeeds for that exact merge commit;
       upgrades remain code-only and DEV/PROD data separate.
 - [ ] Onboard the first clubs.
+
+- [x] Competition chat files: managers can now write competition storage (DEV); same Attach sheet as club chats. Phone upload unverified.
 
 ## Parked (post-launch)
 - [ ] Club deletion: build and test on DEV first, then promote.

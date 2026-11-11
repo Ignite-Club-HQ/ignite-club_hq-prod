@@ -89,6 +89,11 @@ export interface Main {
     DeviceTokenCountResult
   >,
   'clear_inbox' : ActorMethod<[string, [] | [string]], ResultNat16>,
+  'configure_native_push_rollout' : ActorMethod<
+    [boolean, Principal],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
   'configure_native_push_worker' : ActorMethod<
     [Principal],
     { 'Ok' : null } |
@@ -199,6 +204,7 @@ export interface Main {
     [],
     { 'queue' : Principal, 'enabled' : boolean, 'worker' : [] | [Principal] }
   >,
+  'native_push_rollout' : ActorMethod<[], [] | [State]>,
   'prepare_account_removal' : ActorMethod<
     [Request],
     { 'Ok' : null } |
@@ -565,6 +571,7 @@ export type ScheduledStatus = { 'Failed' : null } |
   { 'Sent' : null } |
   { 'Cancelled' : null } |
   { 'Pending' : null };
+export interface State { 'started_at_ms' : bigint, 'enabled' : boolean }
 export type Status = { 'Failed' : null } |
   { 'Delivered' : null } |
   { 'Processing' : null } |
