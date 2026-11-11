@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Competition chat file uploads — 11 November
+- [ ] Restore document attachments using competition-scoped storage and existing server authorization; preserve club chat uploads and phone photo selection.
+- [ ] Run focused upload/access regressions; authenticated phone confirmation is unavailable in this sandbox.
+
 ## All-user native ICP push rollout — 11 November
 - [x] Paul requested progressing beyond his successful open/closed-app self-test; preserve email/Supabase push and native-only scope.
 - [x] Identified current PROD recipient allowlist, base-queue-only transport, ten-send invocation cap, missing old-alert cutoff and lifetime 10,000-attempt stop.
