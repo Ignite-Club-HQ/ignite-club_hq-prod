@@ -220,7 +220,9 @@ export async function fetchVaultStorageBreakdown(
     .eq("club_id", clubId);
 
   if (photosError || filesError || teamsError || leaguesError) throw photosError || filesError || teamsError || leaguesError;
-  const { data: summary, error: summaryError } = await (client.rpc as any)("club_media_storage_breakdown", { _club_id: clubId });
+  const { data: summary, error: summaryError } = typeof (client as { rpc?: unknown }).rpc === "function"
+    ? await (client.rpc as any)("club_media_storage_breakdown", { _club_id: clubId })
+    : { data: null, error: { code: "PGRST202" } };
   if (!summaryError && Array.isArray(summary)) {
     return breakdownFromServerSummary(summary, teams ?? [], miniLeagues ?? []);
   }
