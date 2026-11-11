@@ -106,6 +106,7 @@ export interface ApprovedRow {
   'sink' : Principal,
   'source_digest' : Uint8Array,
 }
+export interface ActiveG2ClubReader { 'binding' : Binding; 'club' : Principal }
 export interface Binding {
   'registry_revision' : bigint,
   'host' : string,
@@ -766,6 +767,7 @@ export interface _SERVICE {
     Result_8
   >,
   'authorize_production_member_access' : ActorMethod<[Binding], Result_2>,
+  'authorize_active_g2_club_reader' : ActorMethod<[Binding], Result_2>,
   'begin_account_removal' : ActorMethod<[string, bigint], Result_9>,
   'begin_link' : ActorMethod<[Principal], Result_10>,
   /**
@@ -822,6 +824,7 @@ export interface _SERVICE {
    */
   'cycles_balance' : ActorMethod<[], bigint>,
   'disable_group2_admission' : ActorMethod<[], Result_2>,
+  'disable_active_g2_club_reader' : ActorMethod<[], Result_2>,
   'disable_membership_directory' : ActorMethod<[], Result_2>,
   'disable_production_account_readers' : ActorMethod<[], Result_8>,
   /**
@@ -951,6 +954,7 @@ export interface _SERVICE {
    * Governor-only narrow opening evidence, not a lifecycle release or grant.
    */
   'read_group_opening_configuration' : ActorMethod<[], Result_30>,
+  'read_active_g2_club_reader' : ActorMethod<[], { 'Ok' : [] | [ActiveG2ClubReader] } | { 'Err' : string }>,
   /**
    * Exact-child bounded directory traversal for device-side encrypted matching.
    * Rehearsal only until the PII guardian audience and release acceptance pass.
