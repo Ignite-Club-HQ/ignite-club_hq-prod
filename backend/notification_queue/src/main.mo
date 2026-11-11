@@ -25,6 +25,7 @@ import ScheduleAccess "scheduleAccess";
 import ScheduleCalendar "scheduleCalendar";
 import SchedulePatch "schedulePatch";
 import UpdateReminderAccess "updateReminderAccess";
+import AppAdminAccess "appAdminAccess";
 import BrowserPushTest "browserPushTest";
 import NativePush "nativePush";
 import NativeWakePolicy "nativeWakePolicy";
@@ -272,9 +273,14 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (clubDomainCanister) {
       case null { #Err("club_domain canister not configured") };
       case (?cd) {
-        let clubDomain = actor (Principal.toText(cd)) : actor { read_account_is_app_admin : shared (Principal) -> async Bool };
-        let isAdmin = try { await (with timeout = 20) clubDomain.read_account_is_app_admin(caller) } catch (_) { false };
-        if (isAdmin) { #Ok } else { #Err("App admin required") };
+        let clubDomain = actor (Principal.toText(cd)) : actor {
+          is_app_admin : shared query (Principal) -> async Bool;
+          read_account_is_app_admin : shared (Principal) -> async Bool;
+        };
+        await AppAdminAccess.authorize(caller,
+          accountAdmissionEnabled or removalReceiver.protectedReadsRequired(),
+          func(p : Principal) : async Bool { await (with timeout = 20) clubDomain.is_app_admin(p) },
+          func(p : Principal) : async Bool { await (with timeout = 20) clubDomain.read_account_is_app_admin(p) });
       };
     };
   };

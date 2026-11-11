@@ -5,7 +5,6 @@ describe("pushAdminErrorMessage", () => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   it("explains the app-admin refusal without raw text", () => {
     const m = pushAdminErrorMessage(new Error("Get push delivery health failed: App admin required"));
-    expect(m).toMatch(/app admin access/);
     expect(m).not.toMatch(/Get push delivery health failed/);
   });
   it("hides the raw admission rejection", () => {

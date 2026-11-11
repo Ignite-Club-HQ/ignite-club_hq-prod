@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## Push statistics warning — 11 November
+- [x] Paul confirmed phone test alerts work with the app open and closed; keep delivery and email push unchanged.
+- [x] Reproduced false statistics denial from an unavailable protected administrator reader; align lookup selection with protection mode, retaining fail-closed protected reads and distinct transport errors.
+- [x] Canister administrator/access regressions and compiler check pass; delivery code and email paths unchanged.
+- [ ] Actual installed-app statistics readback requires promotion and Paul's II phone session, unavailable locally; no PROD deployment performed.
+
 ## ICP team carousel latency audit — 10 November 18:35 UTC
 - [x] Read-only PROD comparison confirms all-team/all-league/all-group barrier, club-metadata wait, sequential league visibility checks, mismatched deadlines/retries and fragile saved-card fallback; findings in docs/icp-team-carousel-latency-audit-2026-11-10.md.
 - [x] Reproduced two withheld-card waits and 24-hour snapshot expiry; 26 focused default-mode checks pass. Audit only: no runtime, canister, push, permission or PROD changes.
