@@ -4,6 +4,7 @@ import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Pap
 import { useClubFreeUsage, notifyClubFreeUsageChanged, type ClubFreeUsage } from "@/hooks/useClubFreeUsage";
 import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
 import { VaultPickerSheet } from "./VaultPickerSheet";
+import { CompetitionVaultPickerSheet } from "./CompetitionVaultPickerSheet";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { makeVaultFileToken, makeVaultFolderToken, makeVaultRootToken } from "@/lib/chatVaultLinks";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -905,6 +906,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             onPick={handleVaultPick}
             onPickMany={handleVaultPickMany}
           />}
+          {!(showVaultPicker && clubId) && competitionId && showFileUpload && <CompetitionVaultPickerSheet
+            open={vaultPickerOpen}
+            onOpenChange={setVaultPickerOpen}
+            competitionId={competitionId}
+            onPick={handleVaultPick}
+          />}
           <Sheet open={attachChooserOpen} onOpenChange={setAttachChooserOpen}>
             <SheetContent side="bottom" className="p-0 rounded-t-3xl border-t border-border">
               <div className="flex justify-center pt-2 pb-1">
@@ -935,8 +942,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   </div>
                 </button>
                 {(() => {
-                  const vaultUnavailable = !(showVaultPicker && clubId);
-                  const vaultLocked = !vaultUnavailable && !!usage && !usage.isPro;
+                  const vaultUnavailable = !(showVaultPicker && clubId) && !(showFileUpload && competitionId);
+                  const vaultLocked = !vaultUnavailable && !competitionId && !!usage && !usage.isPro;
                   return (
                     <button
                       type="button"
