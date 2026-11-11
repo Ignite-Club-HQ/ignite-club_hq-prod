@@ -71,7 +71,7 @@ describe("competition chat document selection", () => {
     await waitFor(() => expect(mocks.append).toHaveBeenCalledOnce());
     expect(mocks.storage).toHaveBeenCalledWith("competition-vault");
     expect(transfer).toHaveBeenCalledWith(expect.stringMatching(/^clubs\/host-club\/competitions\/competition-1\/member-1\//), file, expect.objectContaining({ upsert: false }));
-    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ competition_id: "competition-1", club_id: "host-club", uploaded_by: "member-1", folder_id: "root-folder" }));
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ competition_id: "competition-1", club_id: "host-club", uploaded_by: "member-1", folder_id: "root-folder", file_url: expect.stringContaining("/storage/v1/object/public/competition-vault/clubs/host-club/competitions/competition-1/") }));
     expect(mocks.append).toHaveBeenCalledWith(expect.stringMatching(/^\[vault:/));
     expect(mocks.upload).not.toHaveBeenCalled();
   });
