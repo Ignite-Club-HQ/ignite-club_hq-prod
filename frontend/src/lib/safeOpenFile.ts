@@ -37,8 +37,10 @@ export async function safeOpenFile(
   // Older competition uploads saved "storage://<bucket>/<path>"; map it to the
   // standard storage link so it is signed like every other stored file.
   if (url.startsWith("storage://")) {
-    const base = String(import.meta.env.VITE_SUPABASE_URL ?? "").replace(/\/$/, "");
-    url = `${base}/storage/v1/object/public/${url.slice("storage://".length)}`;
+    const rest = url.slice("storage://".length);
+    const slash = rest.indexOf("/");
+    const { supabase } = await import("@/integrations/supabase/client");
+    url = supabase.storage.from(rest.slice(0, slash)).getPublicUrl(rest.slice(slash + 1)).data.publicUrl;
   }
   let resolvedUrl = url;
   {
