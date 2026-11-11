@@ -51,12 +51,14 @@ interface ChatImageInputProps {
   onAppendToken?: (token: string) => void;
   /** Show the "From Vault" / "Upload File" actions. Requires clubId. */
   showVaultPicker?: boolean;
+  /** Device documents without exposing an unrelated club's Vault. */
+  showFileUpload?: boolean;
 }
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
-export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, competitionId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, onNewsSelect, showNewsPicker = false, hasText = false, onAppendToken, showVaultPicker = false }: ChatImageInputProps) {
+export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, competitionId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, onNewsSelect, showNewsPicker = false, hasText = false, onAppendToken, showVaultPicker = false, showFileUpload = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -404,6 +406,36 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     }
     setUploading(true);
     try {
+      if (competitionId) {
+        if (!onAppendToken || !user) throw new Error("Sign in before attaching a file");
+        let token: string;
+        if (isIcp) {
+          const { uploadIcpCompetitionChatDocument } = await import("./chatDocumentUpload");
+          token = await uploadIcpCompetitionChatDocument(file, competitionId);
+        } else {
+          const { data: competition, error } = await supabase.from("competitions").select("organizer_club_id").eq("id", competitionId).single();
+          if (error || !competition?.organizer_club_id) throw new Error("Could not check this competition. Please try again.");
+          const host = competition.organizer_club_id;
+          const id = crypto.randomUUID();
+          const extension = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+          const path = `clubs/${host}/competitions/${competitionId}/${user.id}/${id}.${extension}`;
+          const { error: uploadError } = await uploadWithinClubMediaAllowance(host, file.size,
+            () => supabase.storage.from("competition-vault").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false }),
+            supabase, undefined, { bucket: "competition-vault", path, file, vault: true });
+          if (uploadError) throw uploadError;
+          const { error: insertError } = await supabase.from("vault_files").insert({
+            id, club_id: host, competition_id: competitionId, team_id: null, uploaded_by: user.id,
+            name: file.name, file_url: `storage://competition-vault/${path}`, storage_bucket: "competition-vault", storage_path: path,
+            file_type: file.type || "application/octet-stream", file_size: file.size, is_external_link: false,
+          });
+          if (insertError) throw insertError;
+          token = makeVaultFileToken(id);
+        }
+        onAppendToken(token);
+        void queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+        toast.success("File attached");
+        return;
+      }
       if (!clubId || !onAppendToken) throw new Error("Cannot attach file in this chat");
       if (isIcp) {
         const { uploadIcpChatDocument } = await import("./chatDocumentUpload");
@@ -1063,15 +1095,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 },
               });
 
-              if (showVaultPicker && clubId) {
+              if ((showVaultPicker && clubId) || (showFileUpload && competitionId && onAppendToken)) {
                 actions.push({
                   key: "file",
-                  label: "File or Folder",
-                  hint: usage && !usage.isPro ? "From device" : "Device or vault",
+                  label: competitionId ? "Upload File" : "File or Folder",
+                  hint: competitionId ? "PDF, doc, sheet" : usage && !usage.isPro ? "From device" : "Device or vault",
                   icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled: disabled || uploading,
                   onClick: (e) => {
+                    if (competitionId) {
+                      docInputRef.current?.click();
+                      setMenuOpen(false);
+                      return;
+                    }
                     setMenuOpen(false);
                     setAttachChooserOpen(true);
                   },
