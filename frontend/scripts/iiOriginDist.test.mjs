@@ -82,9 +82,9 @@ test("generated PROD files preserve production website login continuity", () => 
 });
 
 
-test("opt-in DEV discovery includes the complete checked Group 2 and media store", () => {
+test("opt-in DEV discovery declares only the Group 2 club/team canister", () => {
   const dev = generatedManifest("dev", { enableGroup2: true });
-  const expected = [...Object.values(provision.canisters), provision.dedicatedBlobStore.canisterId];
+  const expected = [provision.canisters.club_domain];
   const declared = dev.manifest.canisters.filter(c => c.name.startsWith("g2/"));
   assert.equal(declared.length, expected.length);
   assert.deepEqual(new Set(declared.map(c => c.id)), new Set(expected));
@@ -105,7 +105,7 @@ test("Group 2 disclosure remains disabled by default and on PROD even with an op
 
 test("invalid Group 2 provisioning never silently exposes a partial manifest", () => {
   const bad = structuredClone(provision);
-  bad.canisters.club_domain = bad.canisters.events_domain;
+  bad.canisters.club_domain = "not-a-valid-canister";
   assert.throws(() => generatedManifest("dev", { enableGroup2: true, badProvision: bad }));
 });
 
