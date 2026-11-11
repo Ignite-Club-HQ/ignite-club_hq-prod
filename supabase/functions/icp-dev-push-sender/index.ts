@@ -10,12 +10,14 @@ import { drainNativePush } from './drain.ts';
 
 // TEST and LIVE (each pinned to its own Supabase project and queue). Wake-ups are content-free: request bodies and parameters are never
 // used for recipients, tokens or text. ICP reservations are the sole authority.
-const TARGETS: Record<string, string> = {
-  'https://ecsdwrarzfexssxtrymj.supabase.co': 'jfcdq-yiaaa-aaaal-qxloa-cai', // TEST
-  'https://yabcfiuntwqjwvschnji.supabase.co': 'w263o-3aaaa-aaaai-ayesq-cai', // LIVE base queue
+// LIVE covers the base group and the second member group; each queue only
+// hands out work once it has commissioned this sender's principal.
+const TARGETS: Record<string, string[]> = {
+  'https://ecsdwrarzfexssxtrymj.supabase.co': ['jfcdq-yiaaa-aaaal-qxloa-cai'], // TEST
+  'https://yabcfiuntwqjwvschnji.supabase.co': ['w263o-3aaaa-aaaai-ayesq-cai', 'zu4gk-vqaaa-aaaal-qxp5a-cai'], // LIVE base + g2
 };
 const HOST = Deno.env.get('SUPABASE_URL') ?? '';
-const QUEUE = TARGETS[HOST];
+const QUEUES = TARGETS[HOST];
 
 const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -36,22 +38,29 @@ let rerun = false;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (!QUEUE) return reply(403, { error: 'Unknown project' });
+  if (!QUEUES) return reply(403, { error: 'Unknown project' });
   const secret = (Deno.env.get('IGNITE_DEV_ICP_PUSH_SENDER_SEED') || Deno.env.get('IGNITE_DEV_ICP_NATIVE_SENDER_KEY'));
   if (!secret) return reply(503, { error: 'Sender identity unavailable' });
   try {
     const identity = Ed25519KeyIdentity.fromSecretKey(await nativeSenderSigningSeed(secret));
     const self = identity.getPrincipal();
     const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
-    const raw = Actor.createActor(factory as never, { agent, canisterId: QUEUE }) as unknown as {
+    type Raw = {
       native_push_configuration(): Promise<{ worker: [] | [{ toText(): string }]; enabled: boolean }>;
       reserve_native_push(): Promise<{ Ok: [] | [Record<string, unknown>] } | { Err: string }>;
       settle_native_push(r: string, o: string): Promise<{ Ok: null } | { Err: string }>;
     };
-    const config = await raw.native_push_configuration();
-    const commissioned = config.worker[0]?.toText() === self.toText();
+    const queues = QUEUES.map((canisterId) => ({ canisterId,
+      raw: Actor.createActor(factory as never, { agent, canisterId }) as unknown as Raw }));
+    const configs = await Promise.all(queues.map(async (q) => {
+      try { return (await q.raw.native_push_configuration()).worker[0]?.toText() === self.toText(); }
+      catch { return false; }
+    }));
+    const active = queues.filter((_, i) => configs[i]);
+    const commissioned = active.length > 0;
     // Public principal only, so the governor can record permission for it.
-    if (req.method === 'GET' || !commissioned) return reply(200, { sender: self.toText(), commissioned });
+    if (req.method === 'GET' || !commissioned) return reply(200, { sender: self.toText(), commissioned,
+      queues: queues.map((q, i) => ({ queue: q.canisterId, commissioned: configs[i] })) });
     // Reply to the wake-up at once so the ICP caller never times out mid-send;
     // a wake-up during a run asks that run to scan again before it stops.
     if (running) { rerun = true; return reply(202, { busy: true, rescan: true }); }
@@ -59,12 +68,19 @@ Deno.serve(async (req) => {
     const work = (async () => {
       try {
         rerun = false;
-        const report = await drainNativePush(() => runDelivery(raw), () => {
+        // Each queue drains separately; one queue's stop never blocks another.
+        for (const q of active) {
+        try {
+        const report = await drainNativePush(() => runDelivery(q.raw), () => {
           const requested = rerun;
           rerun = false;
           return requested;
         });
-        console.log('Native sender run:', JSON.stringify(report));
+        console.log('Native sender run:', q.canisterId, JSON.stringify(report));
+        } catch (error) {
+          console.error('Native sender queue stopped:', q.canisterId, error instanceof Error ? error.message.slice(0, 200) : 'unknown');
+        }
+        }
       } catch (error) {
         console.error('Native sender stopped:', error instanceof Error ? error.message.slice(0, 200) : 'unknown');
       } finally { running = false; }
