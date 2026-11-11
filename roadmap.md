@@ -428,3 +428,5 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] DEV: ICP purchase verifier now checks product, app identity, refunds and expiry; Android purchases fail clearly (Google check still external, not built).
 - [x] DEV: Apple purchases in II mode carry an account link; verifier rejects unlinked/other-account receipts (needs PROD merge, verifier redeploy, iOS build; real purchase untested).
 - [ ] All-member ICP push switch: workflow "[PROD] Native push for all members (switch)" added; live queue reads OFF (11 Nov 10:30 UTC). Blocked on: merge to prod, then Paul runs it with action=enable. iPhone untested.
+
+- [ ] Correction 11 Nov 11:05 UTC: roadmap records both PROD groups (base and g2) OPENED with Paul's approval; earlier 'g2 closed' note was wrong. Fast native push sender covers only base queue, so g2 clubs' ICP alerts are not delivered natively. Needs g2 native sender coverage before claiming all-user push.
