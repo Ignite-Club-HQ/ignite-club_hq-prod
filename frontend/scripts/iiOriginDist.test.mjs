@@ -11,9 +11,12 @@ const DEV_FRONTEND = "proe7-kqaaa-aaaas-qg6gq-cai";
 const PROD_FRONTEND = "pjx2u-tiaaa-aaaac-qhj3a-cai";
 const DEV_CLUB = "mzzzv-taaaa-aaaal-qxlrq-cai";
 const PROD_CLUB = "tbeh7-5qaaa-aaaai-ayenq-cai";
+const GROUP2_CLUB = "yfwyv-nyaaa-aaaal-qxpyq-cai";
+const provisionFile = path.join(scriptDirectory, "../../deploy/groups/g2/provision.json");
+const provision = JSON.parse(readFileSync(provisionFile, "utf8"));
 const marketing = ["https://igniteclubhq.com", "https://www.igniteclubhq.com"];
 
-function generatedManifest(environment) {
+function generatedManifest(environment, opts = {}) {
   // No canister call or deployment. Build the production generator in an
   // isolated temporary directory, then discard every generated file.
   const dir = mkdtempSync(path.join(os.tmpdir(), "ignite-ii-manifest-"));
@@ -22,6 +25,9 @@ function generatedManifest(environment) {
   const dist = path.join(frontend, "dist-live");
   mkdirSync(scripts, { recursive: true });
   mkdirSync(dist);
+  const g2Dir = path.join(dir, "deploy", "groups", "g2");
+  mkdirSync(g2Dir, { recursive: true });
+  writeFileSync(path.join(g2Dir, "provision.json"), JSON.stringify(opts.badProvision ?? provision));
   for (const filename of ["prepare-canister-dist.mjs", "iiOriginPolicy.mjs"]) {
     cpSync(path.join(scriptDirectory, filename), path.join(scripts, filename));
   }
@@ -38,6 +44,7 @@ function generatedManifest(environment) {
       env: {
         ...process.env,
         IGNITE_FRONTEND_ENV: environment,
+        IGNITE_MCP_DEV_GROUP2_DISCOVERY: opts.enableGroup2 === undefined ? "" : (opts.enableGroup2 ? "1" : "0"),
         FRONTEND_CANISTER_ID: frontId,
         IGNITE_LIVE_ICP_CANISTER_IDS_JSON: JSON.stringify({ club_domain: clubId }),
       },
@@ -72,6 +79,39 @@ test("generated PROD files preserve production website login continuity", () => 
   assert.equal(prod.derivation, "https://igniteclubhq.app");
   assert.ok(prod.manifest.canisters.some(c => c.id === PROD_CLUB));
   assert.ok(prod.manifest.canisters.every(c => c.id !== DEV_CLUB && c.id !== DEV_FRONTEND));
+});
+
+
+test("opt-in DEV discovery declares only the Group 2 club/team canister", () => {
+  const dev = generatedManifest("dev", { enableGroup2: true });
+  const expected = [provision.canisters.club_domain];
+  const declared = dev.manifest.canisters.filter(c => c.name.startsWith("g2/"));
+  assert.equal(declared.length, expected.length);
+  assert.deepEqual(new Set(declared.map(c => c.id)), new Set(expected));
+  assert.equal(new Set(dev.manifest.canisters.map(c => c.id)).size, dev.manifest.canisters.length);
+  assert.ok(declared.every(c => c.role === "backend"));
+  assert.deepEqual(
+    generatedManifest("dev").manifest.canisters.filter(c => c.name.startsWith("g2/")),
+    declared,
+    "pinned DEV frontend enables least-privilege club discovery by default",
+  );
+  assert.equal(dev.derivation, `https://${DEV_FRONTEND}.icp0.io`);
+  assert.ok(!dev.manifest.canisters.some(c => c.id === PROD_CLUB || c.id === PROD_FRONTEND));
+});
+
+test("Group 2 discovery can be disabled on DEV and is always disabled on PROD", () => {
+  const disabled = generatedManifest("dev", { enableGroup2: false });
+  const prod = generatedManifest("prod", { enableGroup2: true });
+  for (const manifest of [disabled.manifest, prod.manifest]) {
+    assert.ok(manifest.canisters.every(c => !c.name.startsWith("g2/")));
+    assert.ok(manifest.canisters.every(c => c.id !== GROUP2_CLUB));
+  }
+});
+
+test("invalid Group 2 provisioning never silently exposes a partial manifest", () => {
+  const bad = structuredClone(provision);
+  bad.canisters.club_domain = "not-a-valid-canister";
+  assert.throws(() => generatedManifest("dev", { enableGroup2: true, badProvision: bad }));
 });
 
 test("generated manifest refuses PROD builds without an explicit frontend canister", () => {

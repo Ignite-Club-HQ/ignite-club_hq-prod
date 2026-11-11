@@ -13,7 +13,7 @@ function headers() {
   mkdirSync(join(root, "scripts")); mkdirSync(join(root, "dist-live"));
   writeFileSync(join(root, "dist-live", "index.html"), "<html></html>");
   cpSync(script, join(root, "scripts", "prepare-canister-dist.mjs"));
-  execFileSync(process.execPath, [join(root, "scripts", "prepare-canister-dist.mjs")], { cwd: root, env: { PATH: process.env.PATH }, stdio: "pipe" });
+  execFileSync(process.execPath, [join(root, "scripts", "prepare-canister-dist.mjs")], { cwd: root, env: { PATH: process.env.PATH, IGNITE_MCP_DEV_GROUP2_DISCOVERY: "0" }, stdio: "pipe" });
   const blocks = {};
   for (const block of readFileSync(join(root, "dist-canister", "_headers"), "utf8").split(/\n\s*\n/)) {
     const [path, ...rest] = block.trim().split("\n");
