@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Email sign-in opens Create Profile — 11 November 09:45 UTC
+- [x] Reproduced established email account empty-profile reads being treated as new signup. Missing reads now show recovery instead of Create Profile; newly created accounts retain setup. Initial-session completion no longer clears an active profile read's loading flags; explicit sign-out resets resolution state. All 38 focused email/cache/routing/ICP save checks pass; preview build OK. No live accounts, permissions or database changes.
+- [ ] Confirm the affected live email account after promotion: external unmanaged session unavailable; exact live reason for the empty profile read remains unverified. No PROD deployment performed.
+
 ## Missing PROD competition Vault helper — 11 November 09:34 UTC
 - [ ] Paul explicitly requested immediate PROD application and repeated preflight at 09:42 UTC. Verified the migration tool has no target-project parameter and operates only on connected DEV; cannot apply to PROD or bypass it through GitHub SQL writes. Protected inspection 42997570291 at 09:43:44 UTC still reports exactly public.competition_vault_storage_access(text,boolean) missing; other eight checks pass. No repair or live writes performed.
 - [x] Prepared absent-only helper through the migration tool in DEV, with authenticated execution, host-competition matching and existing access-helper delegation. Exact socket-only rehearsal passes signed-out/invalid-host denial, manager/read branching, unchanged definitions on rerun and preserved business rows. Historical migration unchanged; new source held out of automatic replay.
