@@ -1,5 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
+## Run PROD upload preflight before merge — 11 November 09:28 UTC
+- [ ] Execute only the reviewed catalog check using protected GitHub credentials and report actual missing objects; no migrations, merge or repair.
+
 ## Competition upload dependency preflight — 11 November 09:24 UTC
 - [x] Added an exact-source-bound nine-object catalog preflight before ALL release writes in safe-apply and full modes. Logs/report name only allowlisted missing schemas, relation/columns, exact function signatures and roles; missing/unreadable evidence holds without repair or helper invocation.
 - [x] All 58 focused checks pass, including real credential-free socket-only PostgreSQL, missing function/column, malformed/partial/injected evidence, source drift and complete release orchestration. CI now runs these checks before promotion. Root AGENTS note skipped because existing user-owned rules exceed its size budget; no PROD operations performed.
