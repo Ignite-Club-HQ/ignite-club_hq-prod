@@ -327,6 +327,12 @@
       "sha256": "e0b07ec91e07ef2c2dd61fcc6aeb00dc0e91a807244e6ff108d8f24ff617c648",
       "disposition": "candidate",
       "reason": "Owner-approved 11 Nov 2026 (Paul): club storage total functions; structure-only, read-only functions, no data writes"
+    },
+    {
+      "file": "20261111223212_c53a8549-4fa2-413a-b6fe-876d561d1d1e.sql",
+      "sha256": "84c18a5ef114c16816e4380487a4403292961a1e5919cb4fe51976f903b4ea21",
+      "disposition": "candidate",
+      "reason": "Owner-approved 12 Nov 2026 (Paul): competition chat vault pins; structure-only constraint and policies, no data writes"
     }
   ]
 }

@@ -46,6 +46,30 @@
       "sha256": "7f622900b4c53cb3f4dd94edd9b0fdd193ed834946bf977827bc723978496418",
       "finding": "Function expression public.competition_vault_storage_access: requires separate review",
       "occurrences": 2
+    },
+    {
+      "file": "20261111223212_c53a8549-4fa2-413a-b6fe-876d561d1d1e.sql",
+      "sha256": "84c18a5ef114c16816e4380487a4403292961a1e5919cb4fe51976f903b4ea21",
+      "finding": "AT_DropConstraint: table alteration requires separate review",
+      "occurrences": 1
+    },
+    {
+      "file": "20261111223212_c53a8549-4fa2-413a-b6fe-876d561d1d1e.sql",
+      "sha256": "84c18a5ef114c16816e4380487a4403292961a1e5919cb4fe51976f903b4ea21",
+      "finding": "SubLink: release-time query requires separate review",
+      "occurrences": 7
+    },
+    {
+      "file": "20261111223212_c53a8549-4fa2-413a-b6fe-876d561d1d1e.sql",
+      "sha256": "84c18a5ef114c16816e4380487a4403292961a1e5919cb4fe51976f903b4ea21",
+      "finding": "SelectStmt: release-time query requires separate review",
+      "occurrences": 7
+    },
+    {
+      "file": "20261111223212_c53a8549-4fa2-413a-b6fe-876d561d1d1e.sql",
+      "sha256": "84c18a5ef114c16816e4380487a4403292961a1e5919cb4fe51976f903b4ea21",
+      "finding": "Function expression public.is_competition_admin: requires separate review",
+      "occurrences": 3
     }
   ]
 }
