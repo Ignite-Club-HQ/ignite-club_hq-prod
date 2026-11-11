@@ -130,7 +130,11 @@ export function PinVaultSheet({
       let query = supabase
         .from("vault_folders")
         .select("id, name, team_id, parent_id");
-      query = competitionId ? query.eq("competition_id", competitionId) : query.eq("club_id", clubId!);
+      // Scope only the top level: subfolders don't always repeat the
+      // club/competition link, and access rules still guard every row.
+      if (currentFolderId === null) {
+        query = competitionId ? query.eq("competition_id", competitionId) : query.eq("club_id", clubId!);
+      }
       query = query
         .is("deleted_at", null)
         .order("name", { ascending: true });
