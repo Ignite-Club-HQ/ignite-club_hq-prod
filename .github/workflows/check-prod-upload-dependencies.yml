@@ -1,0 +1,44 @@
+name: "[DB] Inspect PROD competition upload dependencies"
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: supabase-prod-release
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install database client
+        run: |
+          command -v psql >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y --no-install-recommends postgresql-client; }
+      - name: Read exact dependency presence only (no release)
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          import { spawnSync } from 'node:child_process';
+          import { PROD_REF, COMPETITION_UPLOAD_FILE, competitionUploadPreflightSql, readCompetitionUploadPreflight, databaseFailureCategory } from './scripts/supabase-structural-release.mjs';
+          if (process.env.PROJECT_REF !== PROD_REF || !process.env.PGPASSWORD) throw new Error('Exact PROD connection required');
+          const files = { [COMPETITION_UPLOAD_FILE]: readFileSync(`supabase/migrations/${COMPETITION_UPLOAD_FILE}`, 'utf8') };
+          const sql = competitionUploadPreflightSql(files, [{ file: COMPETITION_UPLOAD_FILE }]);
+          const connection = `postgresql://postgres@db.${PROD_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10`;
+          const result = spawnSync('psql', [connection, '-XAt', '-v', 'ON_ERROR_STOP=1', '-c', sql], {
+            encoding: 'utf8', timeout: 30000, maxBuffer: 65536,
+            env: { ...process.env, PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=10000 -c lock_timeout=2000' },
+          });
+          if (result.error || result.status !== 0) throw new Error(`Read-only inspection failed: ${databaseFailureCategory(result)}`);
+          const missing = readCompetitionUploadPreflight(result.stdout);
+          console.log(`PROD dependency inspection: ${missing.length} missing objects`);
+          for (const object of missing) console.log(`MISSING: ${object}`);
+          console.log('No migrations, business reads, repairs or release operations performed.');
+          JS
