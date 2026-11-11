@@ -10,6 +10,7 @@ import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { ICP_FALLBACK_BLOCKED_EVENT, installStrictIcpTransport } from "./live/strictIcpTransport";
 import { recordTestingIssue } from "./lib/testingIssues";
 import { installChunkRecovery } from "./lib/chunkRecovery";
+import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
 import "./index.css";
 
 // First: a tab on a previous build reloads once instead of blanking screens.
@@ -29,6 +30,9 @@ initWebVitalsTelemetry();
 // boundary. Without this the gate stays "pending" forever and the app hangs
 // on "Starting up...".
 initDeepLinkHandler();
+// Email-mode alert taps: the single tap listener must exist before a cold-start
+// tap is delivered, or the app opens on the home page instead of the alert.
+initNotificationLaunchHandler();
 // Separate TEST-only listener captures cold ICP taps without activating email listeners.
 void import('./live/icpPushTap').then(m => m.installDevIcpPushTaps()).catch(() => undefined);
 

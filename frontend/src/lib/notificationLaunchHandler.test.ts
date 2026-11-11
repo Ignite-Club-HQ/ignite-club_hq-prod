@@ -256,3 +256,16 @@ describe("native notification launch routing", () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 });
+
+describe("tap handler boot and ICP separation", () => {
+  it("app start registers the email tap handler", async () => {
+    const src = await import("node:fs").then(f => f.readFileSync(`${process.cwd()}/src/product-main.tsx`, "utf8"));
+    expect(src).toMatch(/^initNotificationLaunchHandler\(\);/m);
+  });
+  it("ICP alert taps are left to the ICP handler", async () => {
+    sessionStorage.clear();
+    await loadHandler();
+    tap({ ignite_backend: "icp-dev", url: "/messages/abc", recipient: "p", notification_id: "1" });
+    expect(sessionStorage.getItem("pendingPushNavigationUrl")).toBeNull();
+  });
+});
