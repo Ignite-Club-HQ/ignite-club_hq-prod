@@ -52,9 +52,32 @@ export function selectFunctions(changedPaths, available) {
   return names.sort();
 }
 
+export function databaseFailureCategory(result) {
+  // Inspect locally, but never publish stderr: it may contain credentials or row values.
+  const diagnostic = String(result.stderr || '');
+  if (result.error?.code === 'ENOENT') return 'database client unavailable';
+  if (/password authentication failed|28P01/i.test(diagnostic)) return 'database authentication refused';
+  if (/could not translate host name|name or service not known/i.test(diagnostic)) return 'database address could not be resolved';
+  if (/network is unreachable|no route to host/i.test(diagnostic)) return 'database network unreachable';
+  if (/connection refused/i.test(diagnostic)) return 'database connection refused';
+  if (/connection timed out|timeout expired/i.test(diagnostic)) return 'database connection timed out';
+  if (/SSL|certificate verify failed/i.test(diagnostic)) return 'database secure connection failed';
+  if (/permission denied|42501/i.test(diagnostic)) return 'database permission refused';
+  if (/lock timeout|55P03/i.test(diagnostic)) return 'database lock timeout';
+  if (/statement timeout|57014/i.test(diagnostic)) return 'database statement timeout';
+  if (/does not exist|42P01|42703|42883/i.test(diagnostic)) return 'required database object missing';
+  if (/already exists|42710|42P07/i.test(diagnostic)) return 'database object already exists';
+  if (/syntax error|42601/i.test(diagnostic)) return 'database SQL syntax rejected';
+  return 'unclassified database command failure (raw details withheld)';
+}
+
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, ...options });
-  if (result.error || result.status !== 0) throw new Error(`${command} failed; release stopped (no retry or repair)`);
+  const { releaseStage, ...spawnOptions } = options;
+  const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, ...spawnOptions });
+  if (result.error || result.status !== 0) {
+    const detail = command === 'psql' ? ` during ${releaseStage || 'database command'}: ${databaseFailureCategory(result)}` : '';
+    throw new Error(`${command} failed${detail}; release stopped (no retry or repair)`);
+  }
   return result.stdout;
 }
 
@@ -70,6 +93,7 @@ function main() {
   // This connection is read-only for evidence. No DEV connection exists here.
   const connection = `postgresql://postgres@db.${PROD_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10`;
   const ledger = JSON.parse(run('psql', [connection, '-XAt', '-v', 'ON_ERROR_STOP=1', '-c', "SELECT coalesce(json_agg(x ORDER BY version), '[]'::json) FROM (SELECT version FROM supabase_migrations.schema_migrations ORDER BY version LIMIT 10001) x"], {
+    releaseStage: 'migration ledger read (before any writes)',
     env: { ...process.env, PGPASSWORD: process.env.SUPABASE_DB_PASSWORD, PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=30000' },
   }));
   // Safe-only mode is an exact diagnostic staging path, not a filtered db push.
@@ -94,6 +118,7 @@ function main() {
       // One transaction per approved file: its exact SQL plus its own truthful ledger row.
       const sql = `${input.files[item.file]}\n;\nINSERT INTO supabase_migrations.schema_migrations (version, name) VALUES ('${item.version}', '${item.name}');\n`;
       run('psql', [connection, '-X', '-v', 'ON_ERROR_STOP=1', '--single-transaction', '-q'], {
+        releaseStage: `approved migration ${item.file}`,
         input: sql, env: { ...process.env, PGPASSWORD: process.env.SUPABASE_DB_PASSWORD, PGOPTIONS: '-c statement_timeout=60000 -c lock_timeout=5000' },
       });
       report.applied = [...(report.applied || []), item.file]; save();
