@@ -1,3 +1,4 @@
+import { supabaseOrigin, supabasePublishableKey } from "@/lib/supabaseEndpoint";
 // Client wrapper for the server-anchored pitch timer.
 // The server is the source of truth for elapsed time — clients only render.
 // Drift is impossible because elapsed is derived as
@@ -226,12 +227,12 @@ export async function readServerTimer(teamId: string | null): Promise<TimerReadR
     // Use raw fetch with an explicit Authorization header so we never fall
     // back to the anon key (which is what triggers the 401 -> blank-screen
     // runtime-error report in the Lovable preview).
-    const base = (import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+    const base = supabaseOrigin();
     const res = await fetch(`${base}/functions/v1/pitch-timer-read${qs}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "",
+        apikey: supabasePublishableKey(),
       },
     });
     if (!res.ok) return empty;

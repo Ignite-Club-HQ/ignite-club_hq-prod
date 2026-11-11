@@ -1,3 +1,4 @@
+import { supabaseOrigin } from "@/lib/supabaseEndpoint";
 /**
  * Environment detection for the dev/prod split.
  *
@@ -18,7 +19,7 @@ const DEV_PROJECT_REFS: readonly string[] = [
   "ecsdwrarzfexssxtrymj", // Ignite Club HQ DEV
 ];
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseUrl = supabaseOrigin() || undefined;
 const supabaseHost = (() => {
   try {
     return supabaseUrl ? new URL(supabaseUrl).host : "unknown";

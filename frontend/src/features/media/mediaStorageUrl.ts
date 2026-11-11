@@ -1,7 +1,8 @@
+import { supabaseOrigin } from "@/lib/supabaseEndpoint";
 export const MEDIA_BUCKET = "photos";
 
 export function mediaStorageOrigin(): string {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const url = supabaseOrigin();
   if (!url) throw new Error("Media storage is not configured");
   return url.replace(/\/+$/, "");
 }
