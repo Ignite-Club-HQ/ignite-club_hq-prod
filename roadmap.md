@@ -363,6 +363,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
       upgrades remain code-only and DEV/PROD data separate.
 - [ ] Onboard the first clubs.
 
+- [x] Competition chat files: managers can now write competition storage (DEV); same Attach sheet as club chats. Phone upload unverified.
+
 ## Parked (post-launch)
 - [ ] Club deletion: build and test on DEV first, then promote.
 - [ ] Safe live database release: scope approved; read-only staging implemented for all 39 originals, with six initial candidates and 33 holds. Blocked on fresh PROD target definitions/dependency evidence, exact SQL acceptance and an approved application mechanism; staging is not a selective deployment executor. Scores, country backfills, reminder activation and AI remain excluded; private storage creation has no separate approval yet. See docs/release-review/safe-release-staging.md.
