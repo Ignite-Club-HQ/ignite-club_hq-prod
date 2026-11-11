@@ -304,6 +304,12 @@ export function PinVaultSheet({
 
         <ScrollArea className="flex-1 min-h-0">
           <div className="px-6 py-4 space-y-5">
+            {!clubId && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Pinning a vault isn't available in competition chats yet. Only club and team chats can pin a club or team vault.
+              </p>
+            )}
+
             {atRoot && rootOptions.length > 0 && (
               <section>
                 <h3 className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">
