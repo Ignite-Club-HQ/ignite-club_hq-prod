@@ -1,8 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
 ## Referee chat stalled document upload — 11 November
-- [ ] Reproduce and repair the serial whole-club storage scan blocking email competition attachments; preserve exact capacity accounting and Storage permissions.
-- [ ] Run focused upload regressions; authenticated device readback remains unavailable locally.
+- [x] Preview telemetry shows 17 physical-storage listing requests and no file write; reproduced serial whole-club scan in a failing regression. Count independent pages in bounded six-request batches, retaining fresh exact capacity accounting, same-device upload serialization and Storage permissions.
+- [x] 38 focused accounting/transport/competition attachment checks pass in default and ICP test configurations; preview build OK. Email attachment test confirms host-scoped transfer and registration before token creation.
+- [ ] Authenticated referee-chat upload/message/readback and phone acceptance remain unverified: external unmanaged email session/device unavailable locally. This removes the confirmed scan bottleneck, not proof of the phone's complete upload; no PROD deployment made.
 
 ## Melanie — live email Women’s Masters Vault access — 11 November
 - [x] Confirmed affected account uses live email sign-in; connected database is DEV, not PROD. DEV Women’s Masters is Pro and has no Melanie role record, so it cannot reproduce her live denial. Inspected DEV Vault policies/access functions without changes.
