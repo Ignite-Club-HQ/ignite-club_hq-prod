@@ -3349,17 +3349,32 @@ persistent actor class Main(governorInit : Principal) = this {
   public query func getApiDoc() : async Text {
     "# club_domain — clubs, teams, memberships, roles\n\n" #
     "## Authentication\n" #
-    "Directory reads (`list_clubs`, `get_club_profile`, `list_teams`, `get_team`) are anonymously callable and return only public directory data. Everything account- or role-related requires a signed principal; the caller's principal is resolved to an app account (`whoami` returns `#Err(\"Unlinked identity\")` until the account is registered via identity_access).\n\n" #
+    "Directory reads (`list_clubs`, `get_club_profile`, `list_teams`, `get_team`) are anonymously callable and return only public directory data. Everything account- or role-related requires a signed principal; the caller's principal is resolved to an app account (`whoami` returns #Err(\"Unlinked identity\") until the account is registered via identity_access).\n\n" #
     "## Key reads (queries)\n" #
-    "- `whoami()`: the caller's account record.\n" #
+    "- `whoami()`: the caller's club-domain account link (distinct from `identity_access.whoami()`).\n" #
     "- `list_role_grants(club)`: role roster for a club — requires club admin.\n" #
     "- `schema()` describes read-only clubs/teams OQL; `execute(json)` requires Internet Identity and returns only non-deleted clubs/teams where the caller is a member or administrator. Filters, projection, ordering, count/groupBy and paging are documented in schema. No contacts, tokens or principal fields.\n" #
     "- `list_clubs(start_after:?text, limit:nat16)` / `get_club_profile(id)` / `list_teams(club)` / `get_team(id)`: existing directory methods, not caller-scoped.\n\n" #
     "## Permissions model\n" #
-    "Roles (club admin, team admin, coach, member, guardian) are stored on-chain and re-checked on every call — a caller can never act on a club or team they have no role in, and can never see another club's private data. Role changes take effect immediately.\n\n" #
+    "Roles are checked on every call. No cross-club private data or unauthorized team writes.\\n\\n" #
+    "## ChatGPT onboarding with the existing ICP plugin\n" #
+    "- Open the app by its exact URL and use the origin returned by the connector. DEV and PROD have separate canisters and Internet Identity derivation origins; never combine them.\n" #
+    "- Read `identity_access.whoami()` first. For a new principal, obtain approval and call `identity_access.register_account()` as that user, not as an app admin. Check `get_profile` and `my_terms_acceptance` separately; missing profile or terms is not completed onboarding. Do not claim consent for the user.\n" #
+    "- On devices with privacy-preserving profile names, the Ignite app is the canonical way to finish protected display-name setup; raw `set_profile` alone may be denied. Recheck account/profile after completion.\n" #
+    "- Before creating a new club, check for an existing organisation and get confirmation. `create_club(id,name,slug,description,sport)` requires a new opaque ID; the creator receives `club_admin` on success. If group placement is active, reserve through the shard router and write only to the verified assigned group. Never fall back to an unverified shared canister on placement or transport failure.\n" #
+    "- The app's club setup also records home country, settings, optional logo and default conversations; a bare `create_club` call does not finish these. Refer the user to Ignite to complete setup if the agent cannot verify each step.\n" #
+    "- `save_team(ClubTeam)` takes the full Candid record, and the caller must be permitted to create a team. Confirm the club and team before writing, respect team limits, then verify by `get_team(id)`. `club_id = \"\"` creates a creator-owned personal team, which `list_my_personal_teams()` can read.\n" #
+    "- Required ClubTeam fields: id, club_id, name (text); archived, is_active, is_shell, playhq_auto_create_events (bool). Optional text fields (supply null if unused): age_group, description, division, folder_id, gender, logo_url, playhq_competition_id, playhq_team_id, shell_claim_token, shell_contact_email, shell_contact_name, team_type. Optional nat64: deleted_at_ms, shell_claimed_at_ms. Optional principal: shell_claimed_by, shell_invited_by.\n" #
+    "- ICP MCP refuses raw Candid reads on an OQL canister. Verify clubs/teams through the caller-scoped `clubs` or `teams` OQL entity, filtering on id, NOT a raw `get_team()` query. Candid updates still work.\\n" #
+    "- `create_team_invite_link(club_id,team_id,role)` creates a shareable token for an existing club-owned team. Supported roles: player, parent, coach, team_admin; authorisation is checked on-chain. The share URL is the app's `/join/<token>`. The canister does not email anyone; request approval before minting an invite.\n" #
+    "- Personal/clubless team owners currently cannot mint standard team-invite links through that method. Do not promise working personal-team invitations or bypass roster permissions.\n" #
+    "- Share only branded links: website https://igniteclubhq.app ; iPhone https://igniteclubhq.app/get/ios ; Android https://igniteclubhq.app/get/android. Do not expose target app IDs or Lovable URLs.\\n" #
+    "- Pro purchases: no ChatGPT checkout. ICP web card checkout unavailable; native store IAP requires provider-ready SKUs and verified receipt. Never claim a purchase or entitlement without authoritative confirmation.\\n" #
+    "- If an update reply is lost, read back by the original club/team ID or list authorised invite links before considering another mutation. Do not blindly replay create or invite calls.\n" #
+    "- OQL example: `{\"entity\":\"clubs\",\"select\":[\"id\",\"name\"],\"limit\":50}`. Other entities: teams, club_subscriptions, team_subscriptions. Subscription OQL is member-scoped and read-only; use `premium_active` and `trial_active` instead of raw flags. `start` is invalid in Ignite OQL.\n\n" #
     "## Gotchas\n" #
     "- Club and team ids are opaque text ids, not principals.\n" #
-    "- Denied calls return `#Err(\"...\")`; anonymous calls to authenticated methods trap."
+    "- Denied calls return #Err(\"...\"); anonymous calls to authenticated methods trap."
   };
 
   public query func schema() : async Text {
@@ -3371,8 +3386,18 @@ persistent actor class Main(governorInit : Principal) = this {
     let request = Oql.parse(input, OqlClubs.entities);
     if (request.entity == "clubs") {
       Oql.run<Types.ClubProfile>(request, profiles, func(club) = club.deleted_at_ms == null and (isMember(caller, club.id) or isAdmin(caller, club.id)), OqlClubs.clubRow)
-    } else {
+    } else if (request.entity == "teams") {
       Oql.run<Types.ClubTeam>(request, teams, func(team) = team.deleted_at_ms == null and (isMember(caller, team.club_id) or isAdmin(caller, team.club_id)), OqlClubs.teamRow)
+    } else if (request.entity == "club_subscriptions") {
+      let timestamp = nowMs();
+      Oql.run<Types.ClubSubscription>(request, clubSubscriptions,
+        func(sub) = profiles.any(func(c) = c.id == sub.club_id and c.deleted_at_ms == null) and (isMember(caller, sub.club_id) or isAdmin(caller, sub.club_id)),
+        func(sub) = OqlClubs.clubSubscriptionRow(sub, timestamp))
+    } else {
+      let timestamp = nowMs();
+      Oql.run<Types.TeamSubscription>(request, teamSubscriptions,
+        func(sub) = teams.any(func(team) = team.id == sub.team_id and team.deleted_at_ms == null and (if (team.club_id == "") isPersonalTeamOwner(caller, team.id) else isMember(caller, team.club_id) or isAdmin(caller, team.club_id))),
+        func(sub) = OqlClubs.teamSubscriptionRow(effectiveTeamSub(sub), timestamp))
     }
   };
 
@@ -9017,8 +9042,18 @@ persistent actor class Main(governorInit : Principal) = this {
     let request = Oql.parse(input, OqlClubs.entities);
     if (request.entity == "clubs") {
       Oql.run<Types.ClubProfile>(request, profiles, func(club) = club.deleted_at_ms == null and (isMember(caller, club.id) or isAdmin(caller, club.id)), OqlClubs.clubRow)
-    } else {
+    } else if (request.entity == "teams") {
       Oql.run<Types.ClubTeam>(request, teams, func(team) = team.deleted_at_ms == null and (isMember(caller, team.club_id) or isAdmin(caller, team.club_id)), OqlClubs.teamRow)
+    } else if (request.entity == "club_subscriptions") {
+      let timestamp = nowMs();
+      Oql.run<Types.ClubSubscription>(request, clubSubscriptions,
+        func(sub) = profiles.any(func(c) = c.id == sub.club_id and c.deleted_at_ms == null) and (isMember(caller, sub.club_id) or isAdmin(caller, sub.club_id)),
+        func(sub) = OqlClubs.clubSubscriptionRow(sub, timestamp))
+    } else {
+      let timestamp = nowMs();
+      Oql.run<Types.TeamSubscription>(request, teamSubscriptions,
+        func(sub) = teams.any(func(team) = team.id == sub.team_id and team.deleted_at_ms == null and (if (team.club_id == "") isPersonalTeamOwner(caller, team.id) else isMember(caller, team.club_id) or isAdmin(caller, team.club_id))),
+        func(sub) = OqlClubs.teamSubscriptionRow(effectiveTeamSub(sub), timestamp))
     }
   
     } finally { removalReceiver.leave(caller) };

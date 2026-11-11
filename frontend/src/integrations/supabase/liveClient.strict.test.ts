@@ -19,7 +19,7 @@ describe("Supabase client strict realtime boundary", () => {
   });
   it("hands signed-out screens an inert channel without reporting", () => {
     state.ii = false;
-    const ch = supabase.channel("room") as { on: () => unknown; subscribe: () => unknown };
+    const ch = supabase.channel("room") as unknown as { on: () => unknown; subscribe: () => unknown };
     expect(ch.on()).toBe(ch); expect(ch.subscribe()).toBe(ch);
     expect(sdk.channel).not.toHaveBeenCalled();
     state.ii = true;
