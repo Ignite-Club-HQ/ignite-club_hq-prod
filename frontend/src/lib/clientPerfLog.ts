@@ -1,3 +1,4 @@
+import { supabaseOrigin, supabasePublishableKey } from "@/lib/supabaseEndpoint";
 /**
  * Client-side performance logging for slow Supabase reads.
  *
@@ -87,8 +88,8 @@ export function maybeLogSlowFetch(opts: {
     lastLogAt = now;
 
     const { name, path } = deriveQueryName(opts.url);
-    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
-    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+    const supabaseUrl = supabaseOrigin();
+    const anonKey = supabasePublishableKey();
     if (!supabaseUrl || !anonKey) return;
 
     const entry: PerfEntry = {

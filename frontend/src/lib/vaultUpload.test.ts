@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const target = vi.hoisted(() => ({ url: "" }));
+vi.mock("@/live/targetRegistry", () => ({ getActiveSupabaseTarget: () => ({ url: target.url, anonKey: "" }) }));
 
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
@@ -14,6 +16,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import {
+
   buildVaultStorageUrl,
   compensateVaultUpload,
   reserveVaultStorage,
@@ -24,7 +27,7 @@ import {
 describe("vault upload safety boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv("VITE_SUPABASE_URL", "http://127.0.0.1:54321/");
+    target.url = "http://127.0.0.1:54321/";
     mocks.from.mockReturnValue({ remove: mocks.remove });
     mocks.remove.mockResolvedValue({ error: null });
   });
@@ -36,7 +39,7 @@ describe("vault upload safety boundary", () => {
   });
 
   it("refuses to manufacture a storage URL when the environment is not configured", () => {
-    vi.stubEnv("VITE_SUPABASE_URL", "");
+    target.url = "";
     expect(() => buildVaultStorageUrl("file.pdf")).toThrow("Storage is not configured");
   });
 

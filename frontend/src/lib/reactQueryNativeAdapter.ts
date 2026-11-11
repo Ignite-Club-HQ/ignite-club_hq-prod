@@ -1,3 +1,4 @@
+import { supabaseOrigin } from "@/lib/supabaseEndpoint";
 import { onlineManager, focusManager, type QueryClient } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
 import { abortAllInFlightRestGets } from '@/lib/supabaseAuthRetry';
@@ -65,7 +66,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     };
   } catch { /* noop */ }
 
-  const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
+  const supabaseUrl = supabaseOrigin() || undefined;
 
   let probeTimer: ReturnType<typeof setTimeout> | null = null;
   let probeDelay = 1000; // start at ~1s, cap at 15s
