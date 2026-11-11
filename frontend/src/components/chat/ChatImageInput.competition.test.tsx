@@ -58,9 +58,10 @@ describe("competition chat document selection", () => {
     mocks.mode = "supabase";
     const insert = vi.fn().mockResolvedValue({ error: null });
     const query = { select: vi.fn(() => query), eq: vi.fn(() => query), single: vi.fn().mockResolvedValue({ data: { organizer_club_id: "host-club" }, error: null }) };
-    mocks.from.mockImplementation(table => table === "competitions" ? query : { insert });
+    const folders: any = { select: vi.fn(() => folders), eq: vi.fn(() => folders), is: vi.fn(() => folders), order: vi.fn(() => folders), limit: vi.fn(() => folders), maybeSingle: vi.fn().mockResolvedValue({ data: { id: "root-folder" }, error: null }) };
+    mocks.from.mockImplementation(table => table === "competitions" ? query : table === "vault_folders" ? folders : { insert });
     const transfer = vi.fn().mockResolvedValue({ error: null });
-    mocks.storage.mockReturnValue({ upload: transfer });
+    mocks.storage.mockReturnValue({ upload: transfer, getPublicUrl: (p: string) => ({ data: { publicUrl: `https://db.example/storage/v1/object/public/competition-vault/${p}` } }) });
     mocks.allowance.mockImplementation((_club, _bytes, upload) => upload());
     const { container } = mount();
     const input = container.querySelector<HTMLInputElement>('input[type="file"][accept^=".pdf"]');
@@ -70,7 +71,7 @@ describe("competition chat document selection", () => {
     await waitFor(() => expect(mocks.append).toHaveBeenCalledOnce());
     expect(mocks.storage).toHaveBeenCalledWith("competition-vault");
     expect(transfer).toHaveBeenCalledWith(expect.stringMatching(/^clubs\/host-club\/competitions\/competition-1\/member-1\//), file, expect.objectContaining({ upsert: false }));
-    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ competition_id: "competition-1", club_id: "host-club", uploaded_by: "member-1" }));
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ competition_id: "competition-1", club_id: "host-club", uploaded_by: "member-1", folder_id: "root-folder", file_url: expect.stringContaining("/storage/v1/object/public/competition-vault/clubs/host-club/competitions/competition-1/") }));
     expect(mocks.append).toHaveBeenCalledWith(expect.stringMatching(/^\[vault:/));
     expect(mocks.upload).not.toHaveBeenCalled();
   });

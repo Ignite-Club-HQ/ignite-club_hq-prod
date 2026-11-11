@@ -1,3 +1,4 @@
+import { supabaseOrigin } from "@/lib/supabaseEndpoint";
 /**
  * Global fetch interceptor for Supabase requests.
  *
@@ -120,7 +121,7 @@ function getSupabaseUrl(): string {
     // The isolated product build uses a fail-closed Supabase proxy.
   }
 
-  return (import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+  return supabaseOrigin();
 }
 
 export function installSupabaseAuthRetry() {

@@ -20,6 +20,11 @@ import {
   registerLiveDeviceToken,
   unregisterLiveDeviceToken,
 } from '@/live/features/notifications';
+import { strictIcpActive } from '@/live/strictIcpTransport';
+// Same rule as the ICP safety guard: once Internet Identity is chosen or
+// stored, phone alert registration must never take the email path.
+const pushUsesIcp = () => resolveAuthBackend() === 'icp' || strictIcpActive();
+
 
 // Lazy load Capacitor core to prevent crashes if not available
 let Capacitor: any = null;
@@ -199,7 +204,7 @@ async function saveFCMToken(userId: string, token: string): Promise<boolean> {
   try {
     const platform = getPlatform();
 
-    if (resolveAuthBackend() === 'icp') {
+    if (pushUsesIcp()) {
       const identity = await getCurrentInternetIdentity();
       if (!identity) {
         console.warn('[NativePush] No Internet Identity session — cannot register device token');
@@ -254,7 +259,7 @@ async function saveFCMToken(userId: string, token: string): Promise<boolean> {
 // Remove FCM token from the active backend
 async function removeFCMToken(userId: string, token: string): Promise<void> {
   try {
-    if (resolveAuthBackend() === 'icp') {
+    if (pushUsesIcp()) {
       const identity = await getCurrentInternetIdentity();
       if (!identity) return;
       await unregisterLiveDeviceToken({ identity, target: getActiveIcpTarget() }, token);

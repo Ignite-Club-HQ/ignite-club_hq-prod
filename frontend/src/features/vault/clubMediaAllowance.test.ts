@@ -164,3 +164,51 @@ it("checks only the paid team's 1 GiB, never another team's files", async () => 
   queries.teams = { club_id: "different-club", deleted_at: null };
   await expect(uploadWithinClubMediaAllowance("club-a", 0, upload, client, "team-a")).rejects.toThrow("does not belong");
 });
+
+import { describe as d2, it as i2, expect as e2, vi as v2 } from "vitest";
+d2("pricing column compatibility", () => {
+  i2("retries without pricing_version when the database lacks that column", async () => {
+    const selects: string[] = [];
+    const chain = (cols: string) => ({ eq: () => ({ maybeSingle: async () => {
+      selects.push(cols);
+      return cols.includes("pricing_version")
+        ? { data: null, error: { code: "42703", message: "column club_subscriptions.pricing_version does not exist" } }
+        : { data: { plan: "free" }, error: null };
+    } }) });
+    const client: any = {
+      from: () => ({ select: chain }),
+      storage: { from: () => ({ list: async () => ({ data: [], error: null }) }) },
+    };
+    const upload = v2.fn(async () => "ok");
+    const { uploadWithinClubMediaAllowance } = await import("./clubMediaAllowance");
+    await e2(uploadWithinClubMediaAllowance("club-x", 10, upload, client)).resolves.toBe("ok");
+    e2(selects.length).toBe(2);
+    e2(upload).toHaveBeenCalledOnce();
+  });
+});
+
+d2("server storage total", () => {
+  i2("uses the one-call club total instead of listing folders", async () => {
+    const list = v2.fn();
+    const client: any = {
+      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { plan: "free" }, error: null }) }) }) }),
+      rpc: v2.fn(async () => ({ data: 1000, error: null })),
+      storage: { from: () => ({ list }) },
+    };
+    const { uploadWithinClubMediaAllowance } = await import("./clubMediaAllowance");
+    await e2(uploadWithinClubMediaAllowance("club-y", 10, async () => "ok", client)).resolves.toBe("ok");
+    e2(client.rpc).toHaveBeenCalledWith("club_media_used_bytes", { _club_id: "club-y" });
+    e2(list).not.toHaveBeenCalled();
+  });
+  i2("falls back to listing when the database has no total function", async () => {
+    const list = v2.fn(async () => ({ data: [], error: null }));
+    const client: any = {
+      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { plan: "free" }, error: null }) }) }) }),
+      rpc: v2.fn(async () => ({ data: null, error: { code: "PGRST202", message: "not found" } })),
+      storage: { from: () => ({ list }) },
+    };
+    const { uploadWithinClubMediaAllowance } = await import("./clubMediaAllowance");
+    await e2(uploadWithinClubMediaAllowance("club-z", 10, async () => "ok", client)).resolves.toBe("ok");
+    e2(list).toHaveBeenCalled();
+  });
+});

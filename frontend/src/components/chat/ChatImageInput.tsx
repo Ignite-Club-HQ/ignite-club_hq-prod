@@ -59,6 +59,23 @@ interface ChatImageInputProps {
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
+
+/** Never leave the composer on "Uploading…": each attach step gets a deadline.
+ * A timed-out write is not retried (it may still land); the member is told to check. */
+export function withAttachDeadline<T>(stage: string, ms: number, work: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const started = Date.now();
+  const timeout = new Promise<never>((_r, reject) => {
+    timer = setTimeout(() => {
+      console.warn(`[ChatImageInput] attach step stalled: ${stage} after ${Date.now() - started}ms`);
+      reject(new Error(stage === "storage-upload" || stage === "vault-register"
+        ? "The file is taking too long to upload. Check the Vault before trying again."
+        : "Couldn't prepare the upload. Check your connection and try attaching the file again."));
+    }, ms);
+  });
+  return Promise.race([work, timeout]).finally(() => { if (timer !== undefined) clearTimeout(timer); });
+}
+
 export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, competitionId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, onNewsSelect, showNewsPicker = false, hasText = false, onAppendToken, showVaultPicker = false, showFileUpload = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
@@ -385,7 +402,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     // Free-tier chat-file cap check (skipped automatically for Pro clubs).
     if (clubId && !isIcp) {
       try {
-        const { data: usageRow } = await supabase.rpc("get_club_free_usage", { _club_id: clubId });
+        const { data: usageRow } = await withAttachDeadline("free-usage", 15_000,
+          Promise.resolve(supabase.rpc("get_club_free_usage", { _club_id: clubId })));
         const usage: any = Array.isArray(usageRow) ? usageRow[0] : usageRow;
         if (usage && !usage.is_pro) {
           const FREE_FILES = 10;
@@ -414,21 +432,28 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           const { uploadIcpCompetitionChatDocument } = await import("./chatDocumentUpload");
           token = await uploadIcpCompetitionChatDocument(file, competitionId);
         } else {
-          const { data: competition, error } = await supabase.from("competitions").select("organizer_club_id").eq("id", competitionId).single();
+          // Host club and the competition's Vault folder are looked up together.
+          const [{ data: competition, error }, { data: rootFolder }] = await Promise.all([
+            withAttachDeadline("competition-host", 20_000,
+              Promise.resolve(supabase.from("competitions").select("organizer_club_id").eq("id", competitionId).single())),
+            withAttachDeadline("competition-folder", 20_000,
+              Promise.resolve(supabase.from("vault_folders").select("id").eq("competition_id", competitionId)
+                .is("parent_id", null).is("deleted_at", null).order("created_at", { ascending: true }).limit(1).maybeSingle())),
+          ]);
           if (error || !competition?.organizer_club_id) throw new Error("Could not check this competition. Please try again.");
           const host = competition.organizer_club_id;
           const id = crypto.randomUUID();
           const extension = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
           const path = `clubs/${host}/competitions/${competitionId}/${user.id}/${id}.${extension}`;
-          const { error: uploadError } = await uploadWithinClubMediaAllowance(host, file.size,
+          const { error: uploadError } = await withAttachDeadline("storage-upload", 180_000, uploadWithinClubMediaAllowance(host, file.size,
             () => supabase.storage.from("competition-vault").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false }),
-            supabase, undefined, { bucket: "competition-vault", path, file, vault: true });
+            supabase, undefined, { bucket: "competition-vault", path, file, vault: true }));
           if (uploadError) throw uploadError;
-          const { error: insertError } = await supabase.from("vault_files").insert({
-            id, club_id: host, competition_id: competitionId, team_id: null, uploaded_by: user.id,
-            name: file.name, file_url: `storage://competition-vault/${path}`, storage_bucket: "competition-vault", storage_path: path,
+          const { error: insertError } = await withAttachDeadline("vault-register", 30_000, Promise.resolve(supabase.from("vault_files").insert({
+            id, club_id: host, competition_id: competitionId, team_id: null, folder_id: rootFolder?.id ?? null, uploaded_by: user.id,
+            name: file.name, file_url: supabase.storage.from("competition-vault").getPublicUrl(path).data.publicUrl, storage_bucket: "competition-vault", storage_path: path,
             file_type: file.type || "application/octet-stream", file_size: file.size, is_external_link: false,
-          });
+          })));
           if (insertError) throw insertError;
           token = makeVaultFileToken(id);
         }
@@ -446,7 +471,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         toast.success("File attached");
         return;
       }
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      // Signed-in account from the saved session (no extra server round-trip).
+      const authUser = user ?? (await supabase.auth.getSession()).data.session?.user ?? null;
       if (!authUser) throw new Error("Not authenticated");
 
       const timestamp = Date.now();

@@ -230,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [emailSigningOut, setEmailSigningOut] = useState(false);
   const emailSigningOutRef = useRef(false);
+  const emailSignedOutRef = useRef(false);
   const [profile, setProfile] = useState<Profile | null>(initialAuthState.profile);
   const [loading, setLoading] = useState(initialAuthState.loading);
   const [profileLoading, setProfileLoading] = useState(initialAuthState.profileLoading);
@@ -619,7 +620,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             navigateApp('/reset-password');
           }
         } else if (event === 'SIGNED_IN') {
-          const isSameUserResuming = !!previousUserId && previousUserId === incomingUserId;
+          // After an explicit sign-out the mount-time cached id still matches, but
+          // nothing is loaded: treat that re-login as fresh or the profile load
+          // is skipped and "Finishing sign in..." never ends.
+          const afterExplicitSignOut = emailSignedOutRef.current;
+          emailSignedOutRef.current = false;
+          const isSameUserResuming = !afterExplicitSignOut && !!previousUserId && previousUserId === incomingUserId;
           
           if (isSameUserResuming) {
             // Same user resuming (e.g., phone lock/unlock, app background/foreground)
@@ -1279,6 +1285,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
     setInitialized(true);
     setCachedProfile(null);
+    emailSignedOutRef.current = true;
     currentUserIdRef.current = null; // Clear so re-login is treated as fresh (applies theme from DB)
     // Clear ALL React Query cache to prevent stale RLS data on re-login
     queryClient.clear();
@@ -1452,6 +1459,12 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     const requestId = ++icpProfileRequestRef.current;
     let cancelled = false;
     void (async () => {
+      // Right after sign-in the first read often hits a waking connection.
+      // Retry quietly behind the normal loading screen before ever showing
+      // the "Reconnecting"/"Unable to load your profile" screen.
+      const ICP_PROFILE_ATTEMPTS = 4;
+      for (let attempt = 0; attempt < ICP_PROFILE_ATTEMPTS; attempt++) {
+      if (cancelled || icpProfileRequestRef.current !== requestId) return;
       try {
         const [authMod, { fetchIcpIdentityProfile }] = await Promise.all([
           import("@/live/internetIdentityAuth"),
@@ -1484,14 +1497,20 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
           setIcpProfileResolved(true);
           setIcpProfileError(false);
         }
+        return;
       } catch (error) {
         console.warn("[Auth] ICP identity profile fetch failed:", error);
+        if (attempt < ICP_PROFILE_ATTEMPTS - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+          continue;
+        }
         // Keep rendering from cache when there is one; with no cache, surface
         // the retry screen (AppLayout auto-retries via refreshProfile()).
         if (!cancelled && icpProfileRequestRef.current === requestId && !knownCachedIcpProfile(getCachedIcpIdentityProfile(principal))) {
           setIcpProfileResolved(true);
           setIcpProfileError(true);
         }
+      }
       }
     })();
     return () => {

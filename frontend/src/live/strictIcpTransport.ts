@@ -73,7 +73,8 @@ export async function assertStrictIcpRequest(input: RequestInfo | URL, init?: Re
   const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
   if (await externalException(url, method, input, init)) return;
   const parts = url.pathname.split("/");
-  const name = /^[a-zA-Z0-9_-]+$/.test(parts[3] ?? "") ? parts[3] : "request";
+  const rawName = parts[3] === "rpc" ? `rpc ${parts[4] ?? ""}`.trim() : parts[3];
+  const name = /^[a-zA-Z0-9_ -]+$/.test(rawName ?? "") ? rawName : "request";
   const label = url.pathname.startsWith("/rest/v1/") ? `data ${name}`
     : url.pathname.startsWith("/functions/v1/") ? `action ${name}`
     : url.pathname.startsWith("/auth/v1/") ? "email authentication"

@@ -1,3 +1,4 @@
+import { supabaseOrigin, supabasePublishableKey } from "@/lib/supabaseEndpoint";
 import { useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -271,12 +272,12 @@ export function useActivityTracking() {
 
       try {
         fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/update_user_activity_duration`,
+          `${supabaseOrigin()}/rest/v1/rpc/update_user_activity_duration`,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              'apikey': supabasePublishableKey(),
               'Authorization': `Bearer ${token}`,
               'Prefer': 'return=minimal',
             },

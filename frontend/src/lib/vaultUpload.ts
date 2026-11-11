@@ -1,10 +1,11 @@
+import { supabaseOrigin } from "@/lib/supabaseEndpoint";
 import { supabase } from "@/integrations/supabase/client";
 
 export const VAULT_BUCKET = "photos";
 
 /** Project storage origin, derived from env — never hard-coded per environment. */
 export function vaultStorageOrigin(): string {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const url = supabaseOrigin();
   if (!url) throw new Error("Storage is not configured");
   return url.replace(/\/$/, "");
 }

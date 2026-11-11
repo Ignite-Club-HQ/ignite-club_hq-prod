@@ -478,7 +478,9 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     [user?.id, isIcp]
   );
   const snapshot = snapshotWithTs?.data ?? allClubsSnapshotWithTs?.data ?? null;
-  const hasSavedCards = !!snapshot?.items.length;
+  // A saved empty list is real knowledge too (members with no teams yet):
+  // without it they waited on the network every open.
+  const hasSavedCards = isIcp ? Array.isArray(snapshot?.items) : !!snapshot?.items.length;
 
 
   // Defer non-critical queries (photos) until after first paint to free up the main thread
@@ -1149,7 +1151,11 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     teamIds.length === 0 || unreadFetched,
     teamIds.length === 0 || trialsFetched,
   ]);
-  const showSkeleton = isIcp ? (!initialized || !completeFirstLoad) : ((!initialized || isLoading || (isFetching && scopedItems.length === 0)) && !snapshot && scopedItems.length === 0);
+  // A failed read must end the wait: before, any refused or timed-out ICP
+  // read left members (especially those with no teams) on skeletons forever.
+  const icpReadsFailed = isIcp && !isFetching && !leagueInventory.isFetching
+    && (isError || leagueInventory.isError) && (isSuccess || isError) && (leagueInventory.isSuccess || leagueInventory.isError);
+  const showSkeleton = isIcp ? (!initialized || (!completeFirstLoad && !icpReadsFailed)) : ((!initialized || isLoading || (isFetching && scopedItems.length === 0)) && !snapshot && scopedItems.length === 0);
   const snapshotItems = filterDeletedTeams(
     activeClubFilter
       ? (snapshot?.items ?? []).filter(i => i.club_id === activeClubFilter)
@@ -1197,7 +1203,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   // immediately while Next Up is still waiting on its first hero, and they
   // visibly desync on native cold opens.
   const dataSettled = initialized && (scopedItems.length > 0 || (!isLoading && !isFetching) || isError);
-  const sectionReady = isIcp ? initialized && completeFirstLoad : dataSettled || (!!snapshot && !isLoading);
+  const sectionReady = isIcp ? initialized && (completeFirstLoad || icpReadsFailed) : dataSettled || (!!snapshot && !isLoading);
 
   useEffect(() => {
     onReadyChange?.(sectionReady);

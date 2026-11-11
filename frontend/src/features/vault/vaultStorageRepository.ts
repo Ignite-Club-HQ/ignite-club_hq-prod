@@ -220,6 +220,13 @@ export async function fetchVaultStorageBreakdown(
     .eq("club_id", clubId);
 
   if (photosError || filesError || teamsError || leaguesError) throw photosError || filesError || teamsError || leaguesError;
+  const { data: summary, error: summaryError } = typeof (client as { rpc?: unknown }).rpc === "function"
+    ? await (client.rpc as any)("club_media_storage_breakdown", { _club_id: clubId })
+    : { data: null, error: { code: "PGRST202" } };
+  if (!summaryError && Array.isArray(summary)) {
+    return breakdownFromServerSummary(summary, teams ?? [], miniLeagues ?? []);
+  }
+  if (summaryError && !["PGRST202", "42883"].includes((summaryError as { code?: string }).code ?? "")) throw summaryError;
   const objects = await listStoredClubMedia(clubId, client);
   const physicalPhotos = objects.filter((object) => isVaultStorageImageFilename(object.path));
   const physicalFiles = objects.filter((object) => !isVaultStorageImageFilename(object.path));
@@ -243,4 +250,26 @@ export async function fetchVaultStorageBreakdown(
     documents: physicalFiles.reduce((sum, object) => sum + object.size, 0),
     total: objects.reduce((sum, object) => sum + object.size, 0),
   };
+}
+
+type ServerStorageRow = { team_id: string | null; mini_league_id: string | null; is_image: boolean; bytes: number | string };
+
+/** Build the Vault breakdown from the one-step server storage summary. */
+export function breakdownFromServerSummary(
+  rows: readonly ServerStorageRow[],
+  teams: readonly NamedScope[],
+  miniLeagues: readonly NamedScope[],
+): VaultStorageBreakdown {
+  const breakdown = calculateVaultStorageBreakdown({
+    photos: [],
+    files: rows.map((row) => ({
+      file_size: Number(row.bytes) || 0,
+      name: row.is_image ? "x.jpg" : "x.bin",
+      team_id: row.mini_league_id ? null : row.team_id,
+      mini_league_id: row.mini_league_id,
+    })),
+    teams,
+    miniLeagues,
+  });
+  return breakdown;
 }

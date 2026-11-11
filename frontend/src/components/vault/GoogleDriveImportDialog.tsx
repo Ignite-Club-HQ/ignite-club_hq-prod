@@ -1,3 +1,4 @@
+import { supabaseOrigin, supabasePublishableKey } from "@/lib/supabaseEndpoint";
 import { useState, useCallback, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { googleDriveRedirectUri } from "@/lib/googleDriveRedirect";
@@ -358,13 +359,13 @@ export function GoogleDriveImportDialog({
 
       const importDriveBatch = async (batch: typeof preparedFiles) => {
         const importResponse = await fetch(
-          `${String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '')}/functions/v1/google-drive-import?action=import-file`,
+          `${supabaseOrigin()}/functions/v1/google-drive-import?action=import-file`,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${session.access_token}`,
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '',
+              apikey: supabasePublishableKey(),
             },
             body: JSON.stringify({
               accessToken,

@@ -1,3 +1,4 @@
+import { supabaseOrigin } from "@/lib/supabaseEndpoint";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, FileText, Shield, DatabaseBackup, Download, Trash2 } from "lucide-react";
@@ -175,7 +176,7 @@ export default function AccountPage() {
     let objectUrl: string | null = null;
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-user-data`,
+        `${supabaseOrigin()}/functions/v1/export-user-data`,
         {
           method: 'POST',
           headers: {

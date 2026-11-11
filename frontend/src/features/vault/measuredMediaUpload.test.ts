@@ -17,6 +17,7 @@ describe("Environment-scoped photo and file transport", () => {
         vi.spyOn(client.auth, "getSession").mockResolvedValue({ data: { session: { access_token: "synthetic-test-session" } }, error: null } as never);
         const query = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: { is_pro: true, pricing_version: "usd_v2", storage_purchased_gb: 0 }, error: null }) };
         vi.spyOn(client, "from").mockReturnValue(query as never);
+        vi.spyOn(client, "rpc").mockResolvedValue({ data: 0, error: null } as never);
         const storageFrom = client.storage.from.bind(client.storage);
         vi.spyOn(client.storage, "from").mockImplementation(bucketName => {
           const storage = storageFrom(bucketName);
