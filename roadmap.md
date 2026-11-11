@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Missing PROD competition Vault helper — 11 November 09:34 UTC
+- [x] Prepared absent-only helper through the migration tool in DEV, with authenticated execution, host-competition matching and existing access-helper delegation. Exact socket-only rehearsal passes signed-out/invalid-host denial, manager/read branching, unchanged definitions on rerun and preserved business rows. Historical migration unchanged; new source held out of automatic replay.
+- [ ] Apply the reviewed repair on PROD and verify readback: the migration tool targets DEV only; no supported PROD migration connection is available here. Protected GitHub reads do not authorize bypassing the required migration tool for live SQL writes. No PROD repair performed.
+
 ## Run PROD upload preflight before merge — 11 November 09:28 UTC
 - [x] Located Paul's accessible GitHub connection and added a standalone protected production catalog-only inspection dispatchable from main; five offline preflight tests and script syntax/read-only checks pass. No release or direct database access attempted.
 - [x] Executed protected read-only inspection 42996103653 on synced main f89451f201b46d3173dda1dc652ae69c36084902. PROD log confirms exactly one missing dependency: public.competition_vault_storage_access(text,boolean); all eight other checks present. No migrations, merge, business reads or repair performed.
