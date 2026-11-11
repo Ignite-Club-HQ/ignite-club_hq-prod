@@ -16,6 +16,9 @@ describe("strict ICP fallback boundary", () => {
     await expect(assertStrictIcpRequest(`${host}/rest/v1/clubs?id=eq.private-value`)).rejects.toThrow("data clubs");
     await expect(assertStrictIcpRequest(`${host}/rest/v1/clubs`, post({ name: "private" }))).rejects.not.toThrow("private");
   });
+  it("names the blocked database function so reports show what tried to run", async () => {
+    await expect(assertStrictIcpRequest(`${host}/rest/v1/rpc/cleanup_fcm_token_for_user`, { method: "POST" })).rejects.toThrow("data rpc cleanup_fcm_token_for_user");
+  });
   it("blocks configured custom Supabase targets", async () => {
     await expect(assertStrictIcpRequest("https://custom.example.org/rest/v1/teams")).rejects.toThrow("data teams");
   });
