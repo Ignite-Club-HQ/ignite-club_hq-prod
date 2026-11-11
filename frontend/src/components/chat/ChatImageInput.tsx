@@ -894,9 +894,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         className="sr-only"
         disabled={disabled || uploading}
       />
-      {showVaultPicker && clubId && (
+      {((showVaultPicker && clubId) || (showFileUpload && competitionId && onAppendToken)) && (
         <>
-          <VaultPickerSheet
+          {showVaultPicker && clubId && <VaultPickerSheet
             warm={menuOpen || attachChooserOpen}
             open={vaultPickerOpen}
             onOpenChange={setVaultPickerOpen}
@@ -904,7 +904,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             teamId={teamId || null}
             onPick={handleVaultPick}
             onPickMany={handleVaultPickMany}
-          />
+          />}
           <Sheet open={attachChooserOpen} onOpenChange={setAttachChooserOpen}>
             <SheetContent side="bottom" className="p-0 rounded-t-3xl border-t border-border">
               <div className="flex justify-center pt-2 pb-1">
@@ -935,11 +935,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   </div>
                 </button>
                 {(() => {
-                  const vaultLocked = !!usage && !usage.isPro;
+                  const vaultUnavailable = !(showVaultPicker && clubId);
+                  const vaultLocked = !vaultUnavailable && !!usage && !usage.isPro;
                   return (
                     <button
                       type="button"
-                      disabled={disabled || vaultLocked}
+                      disabled={disabled || vaultLocked || vaultUnavailable}
                       onClick={() => {
                         setAttachChooserOpen(false);
                         setVaultPickerOpen(true);
@@ -957,7 +958,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                       </div>
                       <div className="flex flex-col items-center leading-tight gap-0.5">
                         <span className={`text-[15px] font-medium ${vaultLocked ? "text-muted-foreground" : "text-foreground"}`}>From Vault</span>
-                        <span className="text-[12px] text-muted-foreground">{vaultLocked ? "Upgrade to unlock" : "Existing file or folder"}</span>
+                        <span className="text-[12px] text-muted-foreground">{vaultUnavailable ? "Club chats only" : vaultLocked ? "Upgrade to unlock" : "Existing file or folder"}</span>
                       </div>
                     </button>
                   );
@@ -1098,17 +1099,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               if ((showVaultPicker && clubId) || (showFileUpload && competitionId && onAppendToken)) {
                 actions.push({
                   key: "file",
-                  label: competitionId ? "Upload File" : "File or Folder",
-                  hint: competitionId ? "PDF, doc, sheet" : usage && !usage.isPro ? "From device" : "Device or vault",
+                  label: "File or Folder",
+                  hint: competitionId || (usage && !usage.isPro) ? "From device" : "Device or vault",
                   icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled: disabled || uploading,
                   onClick: (e) => {
-                    if (competitionId) {
-                      docInputRef.current?.click();
-                      setMenuOpen(false);
-                      return;
-                    }
                     setMenuOpen(false);
                     setAttachChooserOpen(true);
                   },
