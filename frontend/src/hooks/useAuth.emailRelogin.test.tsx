@@ -22,7 +22,7 @@ function Page() {
 }
 
 it('signing back in as the same email member after sign-out finishes loading the profile', async () => {
-  localStorage.setItem('ignite_cached_profile', JSON.stringify({ userId: member.id, timestamp: Date.now(), profile: { id: member.id, display_name: 'Paul' } }));
+  localStorage.setItem('ignite_cached_profile', JSON.stringify({ userId: member.id, cachedAt: Date.now(), profile: { id: member.id, display_name: 'Paul' } }));
   m.client.auth.getSession.mockResolvedValue({ data: { session }, error: null });
   const { createMockQueryBuilder } = await import('@/test/mockSupabaseClient');
   m.client.from.mockImplementation((table: string) => {
