@@ -11199,6 +11199,7 @@ export type Database = {
     }
     Functions: {
       _can_add_player_to_team: { Args: { p_team_id: string }; Returns: string }
+      _club_media_authorize: { Args: { _club_id: string }; Returns: undefined }
       _internal_service_role_key: { Args: never; Returns: string }
       _leaderboard_window_start: { Args: { _window: string }; Returns: string }
       _provision_invite_children_internal: {
@@ -11808,6 +11809,15 @@ export type Database = {
           rsvps_responded: number
           rsvps_total: number
           team_msgs: number
+        }[]
+      }
+      club_media_storage_breakdown: {
+        Args: { _club_id: string }
+        Returns: {
+          bytes: number
+          is_image: boolean
+          mini_league_id: string
+          team_id: string
         }[]
       }
       club_media_used_bytes: { Args: { _club_id: string }; Returns: number }
