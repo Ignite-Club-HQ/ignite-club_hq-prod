@@ -1,0 +1,55 @@
+name: "[PROD] Native push for all members (switch)"
+# Governor-only on/off switch for all-member native push on the live alert queue.
+# inspect reads only. enable/disable need the exact confirmation phrase.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "inspect reads only; enable turns alerts on for all members; disable returns to pilot only"
+        type: choice
+        default: inspect
+        options: [inspect, enable, disable]
+      confirmation:
+        description: "enable: ENABLE PUSH FOR ALL MEMBERS; disable: DISABLE PUSH FOR ALL MEMBERS"
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      ROLLOUT_ACTION: ${{ inputs.action }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the live repository prod branch
+        run: |
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - run: node --test scripts/prod-native-push-rollout.test.mjs
+      - run: npm install --prefix "$RUNNER_TEMP/rollout-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Run selected switch action
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          K="$RUNNER_TEMP/rollout-key"; trap 'rm -rf "$K"' EXIT; mkdir -p "$K"
+          test -n "${PROD_GOVERNOR_PEM_ENC:-}"; test -n "${PROD_GOVERNOR_PASSPHRASE:-}"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$K/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$K/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$K/key.enc" -out "$K/key.pem" -pass file:"$K/pass"
+          rm -f "$K/key.enc" "$K/pass"
+          CHECK_DEPS_DIR="$RUNNER_TEMP/rollout-deps" CHECK_KEY_PEM="$K/key.pem" node scripts/prod-native-push-rollout.mjs

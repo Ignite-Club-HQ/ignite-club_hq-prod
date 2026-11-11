@@ -42,8 +42,9 @@
 - [x] Identified current PROD recipient allowlist, base-queue-only transport, ten-send invocation cap, missing old-alert cutoff and lifetime 10,000-attempt stop.
 - [x] Rollout plan approved; added worker-bound, governor-only activation with persisted new-alert boundary, thirty-minute freshness, safe successful-receipt compaction and bounded multi-batch sender draining. Code upgrades do not lift the pilot restriction.
 - [x] Policy/receipt tests and canister compilation pass; 89 focused sender/foreground/lifecycle/tap/isolation checks and four contract-syntax checks pass; both generated contract trees match. Preparation and blockers recorded in docs/icp-native-all-member-rollout-2026-11-11.md.
-- [ ] Execute expanded real-canister rehearsal in the existing TEST GitHub workflow: sandbox host fault-metadata preflight refuses PocketIC here. Ordinary chat/event preference/revocation acceptance and iPhone delivery remain unverified.
-- [ ] Verify every active group has supported queue delivery; unknown/missing group authority must not fall back to the base queue.
+- [x] 11 Nov 10:19 UTC: TEST real-canister rehearsal run 43002430960 passed on GitHub (stale-alert cutoff, muted-event refusal, pilot refusal for ordinary members, activation without old-alert flood, survives upgrade, disable re-closes). No alert sent, no release authority. iPhone delivery still unverified.
+- [x] 11 Nov 10:30 UTC group check: live app's approved routing list (revision 6) has two groups, base and g2; release records show g2 registered CLOSED with no club admission, so all live members sit in base, which the alert sender covers. Live router refuses anonymous group listing, so g2's closed state is from release records, not a fresh live read. Before g2 ever opens, it needs its own fast alert handover (never redirect to base).
+- [ ] iPhone delivery: Paul has no iPhone to test; unverified.
 - [ ] Protected runner/release execution requires GitHub/governor access unavailable in this sandbox; PROD mapping is absent, group fast-native delivery remains unimplemented pending verified inventory. No all-member activation or PROD changes made.
 
 ## Push statistics warning — 11 November
@@ -426,3 +427,4 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 
 - [x] DEV: ICP purchase verifier now checks product, app identity, refunds and expiry; Android purchases fail clearly (Google check still external, not built).
 - [x] DEV: Apple purchases in II mode carry an account link; verifier rejects unlinked/other-account receipts (needs PROD merge, verifier redeploy, iOS build; real purchase untested).
+- [ ] All-member ICP push switch: workflow "[PROD] Native push for all members (switch)" added; live queue reads OFF (11 Nov 10:30 UTC). Blocked on: merge to prod, then Paul runs it with action=enable. iPhone untested.
