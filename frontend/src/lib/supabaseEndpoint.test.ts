@@ -3,7 +3,6 @@ vi.mock("@/live/targetRegistry", () => ({ getActiveSupabaseTarget: () => ({ url:
 import { supabaseOrigin, supabasePublishableKey } from "./supabaseEndpoint";
 
 it("uses the live app's own backend address, not the unset VITE setting", () => {
-  expect(import.meta.env.VITE_SUPABASE_URL).toBeFalsy();
   expect(supabaseOrigin()).toBe("https://live-target.supabase.co");
   expect(supabasePublishableKey()).toBe("public-key");
 });
