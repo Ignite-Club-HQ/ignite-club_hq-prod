@@ -10,7 +10,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const APPROVED = ['20261104031935_1dee9461-4e42-4edf-a3cb-20110c767259.sql',
   '20261105000000_competition_fixture_visibility.sql', '20261105000100_competition_vault_access.sql',
   '20261105000200_competition_role_email_invites.sql', '20261105000300_club_invite_message_defaults.sql',
-  '20261105000400_send_welcome_dm.sql', '20261109232052_a578f787-ba4e-4669-8bf0-c6ce2e552389.sql', '20261111075407_ba34e1c2-bd8e-48f2-8993-461b53e500a9.sql', '20261111185226_616130d3-ba85-4aa1-8dfb-4d4c752869bf.sql', '20261111190554_1ec9242a-4756-47e6-b5fd-257ad86a61a5.sql'];
+  '20261105000400_send_welcome_dm.sql', '20261109232052_a578f787-ba4e-4669-8bf0-c6ce2e552389.sql', '20261111075407_ba34e1c2-bd8e-48f2-8993-461b53e500a9.sql', '20261111185226_616130d3-ba85-4aa1-8dfb-4d4c752869bf.sql', '20261111190554_1ec9242a-4756-47e6-b5fd-257ad86a61a5.sql', '20261111223212_c53a8549-4fa2-413a-b6fe-876d561d1d1e.sql'];
 
 test('offline validation preserves all originals and the seven already-approved sources, not deployment authority', () => {
   const r = validateSafeSources(root);
