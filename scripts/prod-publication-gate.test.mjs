@@ -103,3 +103,33 @@ test('an earlier successful run for the same commit still counts', async () => {
   const jobsByRun = { 1: [{ name: 'Production database deployment', status: 'completed', conclusion: 'success' }], 2: [{ name: 'Production database deployment', status: 'completed', conclusion: 'skipped' }] };
   assert.doesNotThrow(() => assertPromotionEvidence(sha, 'promote-to-prod.yml', 'Production database deployment', runs, jobsByRun));
 });
+
+test('GitHub read limit waits for reset inside the wait budget, then publishes', async () => {
+  let limited = 1, slept = 0;
+  const base = reader();
+  const headers = new Map([['x-ratelimit-remaining', '0'], ['x-ratelimit-reset', String(Math.floor(Date.now() / 1000) + 5)]]);
+  const fetcher = async url => limited-- > 0 ? { ok: false, status: 403, headers, json: async () => ({}) } : base(url);
+  await verifyProdPublication(env, { fetcher, waitMs: 600000, pollMs: 1, sleep: async () => { slept++; } });
+  assert.equal(slept, 1);
+});
+test('GitHub read limit beyond the wait budget still blocks', async () => {
+  const headers = new Map([['x-ratelimit-remaining', '0'], ['x-ratelimit-reset', String(Math.floor(Date.now() / 1000) + 3600)]]);
+  await assert.rejects(verifyProdPublication(env, { fetcher: async () => ({ ok: false, status: 403, headers }), waitMs: 60000, sleep: async () => {} }), /read limit/);
+});
+test('a plain 403 refusal is not treated as a read limit', async () => {
+  await assert.rejects(verifyProdPublication(env, { fetcher: async () => ({ ok: false, status: 403, headers: new Map() }), waitMs: 600000, sleep: async () => {} }), /evidence unavailable; publication blocked/);
+});
+test('polling a running promotion reads only the run list', async () => {
+  let polls = 0, jobReadsWhilePending = 0;
+  const base = reader();
+  const fetcher = async url => {
+    if (url.includes('promote-to-prod') && polls < 3) {
+      return { ok: true, json: async () => ({ total_count: 1, workflow_runs: [{ id: 1, path: '.github/workflows/promote-to-prod.yml', head_sha: sha, head_branch: 'prod', event: 'push', status: 'in_progress' }] }) };
+    }
+    if (url.includes('/jobs?') && polls < 3) jobReadsWhilePending++;
+    return base(url);
+  };
+  await verifyProdPublication(env, { fetcher, waitMs: 600000, pollMs: 1, sleep: async () => { polls++; } });
+  assert.equal(polls, 3);
+  assert.equal(jobReadsWhilePending, 0);
+});

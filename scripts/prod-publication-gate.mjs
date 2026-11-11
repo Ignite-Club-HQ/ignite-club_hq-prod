@@ -40,19 +40,40 @@ export function assertPromotionEvidence(sha, workflow, job, runs, jobsByRun) {
   }
 }
 
+/** Reset time (ms) of a GitHub rate-limit reply, or null for any other refusal. */
+export function rateLimitResetMs(response) {
+  if (![403, 429].includes(response?.status)) return null;
+  const header = name => response.headers?.get?.(name);
+  const retryAfter = Number(header('retry-after'));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) return Date.now() + retryAfter * 1000;
+  if (header('x-ratelimit-remaining') !== '0') return null;
+  const reset = Number(header('x-ratelimit-reset'));
+  return Number.isFinite(reset) && reset > 0 ? reset * 1000 : null;
+}
+
 /** Read-only GitHub evidence; neither a preflight nor a skipped job authorizes publication. */
-export async function verifyProdPublication(env, { databaseOnly = false, fetcher = fetch, waitMs = 0, pollMs = 30000, sleep = ms => new Promise(r => setTimeout(r, ms)) } = {}) {
+export async function verifyProdPublication(env, { databaseOnly = false, fetcher = fetch, waitMs = 0, pollMs = 60000, sleep = ms => new Promise(r => setTimeout(r, ms)) } = {}) {
   const sha = env.COMMIT_REF || env.CM_COMMIT || env.GITHUB_SHA;
   const branch = env.BRANCH || env.CM_BRANCH || env.GITHUB_REF_NAME;
   if (branch !== 'prod' || !/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('Publication requires the exact prod source commit');
   const headers = { Accept: 'application/vnd.github+json' };
   if (env.PROD_RELEASE_READ_TOKEN) headers.Authorization = `Bearer ${env.PROD_RELEASE_READ_TOKEN}`;
+  const deadline = Date.now() + waitMs;
+  // Unauthenticated GitHub reads share a 60-per-hour limit per build machine; a
+  // limit reply waits for its reset (inside the wait budget) instead of blocking.
   const read = async endpoint => {
-    const response = await fetcher(`https://api.github.com/repos/${RELEASE_REPOSITORY}/${endpoint}`, {
-      headers, signal: AbortSignal.timeout(15000), redirect: 'error',
-    });
-    if (!response.ok) throw new Error('Production promotion evidence unavailable; publication blocked');
-    return response.json();
+    for (;;) {
+      const response = await fetcher(`https://api.github.com/repos/${RELEASE_REPOSITORY}/${endpoint}`, {
+        headers, signal: AbortSignal.timeout(15000), redirect: 'error',
+      });
+      if (response.ok) return response.json();
+      const resetAt = rateLimitResetMs(response);
+      if (resetAt === null) throw new Error('Production promotion evidence unavailable; publication blocked');
+      const waitFor = Math.max(resetAt - Date.now(), 1000) + 2000;
+      if (Date.now() + waitFor > deadline) throw new Error('Production promotion evidence unavailable: GitHub read limit reached; retry the deploy after it resets or set PROD_RELEASE_READ_TOKEN');
+      console.log(`GitHub read limit reached; waiting ${Math.ceil(waitFor / 1000)}s for it to reset...`);
+      await sleep(waitFor);
+    }
   };
   let evidenceSha = sha;
   for (let hop = 0; hop < MAX_RECORD_HOPS; hop++) {
@@ -63,7 +84,6 @@ export async function verifyProdPublication(env, { databaseOnly = false, fetcher
     if (!next) break;
     evidenceSha = next;
   }
-  const deadline = Date.now() + waitMs;
   for (const [workflow, job] of databaseOnly ? requirements.slice(0, 1) : requirements) {
    for (;;) {
     const result = await read(`actions/workflows/${workflow}/runs?head_sha=${evidenceSha}&branch=prod&per_page=100`);
@@ -73,18 +93,19 @@ export async function verifyProdPublication(env, { databaseOnly = false, fetcher
       && run.path === `.github/workflows/${workflow}` && ['push', 'workflow_dispatch'].includes(run.event))
       .sort((a, b) => b.id - a.id).slice(0, 5);
     const candidate = candidates[0];
-    const jobsByRun = {};
-    for (const run of candidates) {
-      const result = await read(`actions/runs/${run.id}/jobs?per_page=100`);
-      if (!Array.isArray(result.jobs) || result.total_count > 100) throw new Error('Incomplete promotion job evidence');
-      jobsByRun[run.id] = result.jobs;
-    }
     // Wait only while the promotion is still missing or running; a finished failure blocks at once.
+    // Job details are read only once the newest run has finished, keeping polls to one request.
     const pending = !candidate || candidate.status !== 'completed';
     if (pending && Date.now() + pollMs <= deadline) {
       console.log(`Waiting for ${job} to finish for ${evidenceSha.slice(0, 7)}...`);
       await sleep(pollMs);
       continue;
+    }
+    const jobsByRun = {};
+    for (const run of candidates) {
+      const result = await read(`actions/runs/${run.id}/jobs?per_page=100`);
+      if (!Array.isArray(result.jobs) || result.total_count > 100) throw new Error('Incomplete promotion job evidence');
+      jobsByRun[run.id] = result.jobs;
     }
     assertPromotionEvidence(evidenceSha, workflow, job, runs, jobsByRun);
     break;
