@@ -10,6 +10,7 @@ on:
       - "frontend/scripts/test-icp-mcp-onboarding-replica.mjs"
       - "frontend/scripts/iiOriginPolicy.mjs"
       - "frontend/scripts/iiOriginPolicy.test.mjs"
+      - "frontend/scripts/iiOriginDist.test.mjs"
       - "frontend/scripts/prepare-canister-dist.mjs"
 
 permissions:
@@ -33,6 +34,8 @@ jobs:
         run: node --test scripts/icp-mcp-onboarding-doc.test.mjs
       - name: Confirm DEV/PROD Internet Identity origin isolation
         run: node --test frontend/scripts/iiOriginPolicy.test.mjs
+      - name: Verify generated discovery files from isolated DEV and PROD builds
+        run: node --test frontend/scripts/iiOriginDist.test.mjs
       - name: Install pinned Mops and Motoko compiler
         run: |
           bun add -g ic-mops@3.5.1
