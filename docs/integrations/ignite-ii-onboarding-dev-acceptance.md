@@ -17,6 +17,12 @@ Status: **pre-deployment runbook**. The feature branch is not a deployed environ
 4. DEV deployment must go through the repository's established **[TEST]** controlled deployment process and owner review. Do not merge to `prod`, change canister controllers/keys or activate group placement as a side effect of onboarding.
 5. After deployment, query DEV's published `getApiDoc()` and caller-scoped `schema()` through the official ICP plugin, and confirm `club_subscriptions` / `team_subscriptions` are actually present. A passing compile is not proof of a published API.
 
+## Existing protected DEV release route
+
+Use the repository's existing `.github/workflows/upgrade-all-groups.yml` workflow, **[TEST] Upgrade backend (all test groups)**, from GitHub Actions after the PR is reviewed and its code is merged to `main`. It runs under the protected `group-2-admin-controls` environment. The workflow's `action=check` and `scope=club_migration` combination limits the plan to `club_domain` without requesting a canister upgrade. Only after the checked plan and rollback/recovery steps are reviewed may an authorised operator decide whether to run the upgrade with its required plan hash and confirmation, using the existing workflow. Its `scope=subscriptions` also builds `media_blob_store`; that is unnecessary for this plugin-only change.
+
+**Do not use** `[TEST] Deploy canisters (legacy base/Group 1)` or run the site publisher to substitute for the reviewed multi-group backend upgrade. A GitHub CI pass does not authorise upgrading existing club data or activating routing. Keep the frontend/shortlink deployment separately scoped to the existing DEV frontend workflow and validate the generated identity manifests first.
+
 ## First-time customer DEV rehearsal
 
 Use two freshly created, **non-admin** Internet Identities and disposable test club/team identifiers. Authenticate through the actual ChatGPT ICP connector; never use the founder or governor's delegated identity.
