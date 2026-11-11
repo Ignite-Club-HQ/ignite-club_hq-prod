@@ -63,6 +63,25 @@ export function assertClubMediaFits(used: number, requested: number, purchasedGb
 
 const uploads = new Map<string, Promise<unknown>>();
 
+// Include SDK auth waits and body parsing, not just the network fetch. A timed
+// out preparation never advances to the write, even if a late read completes.
+async function boundedStorageCheck<T>(check: () => Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = Date.now() + 60_000;
+  let fail: (() => void) | undefined;
+  const onVisible = () => { if (document.visibilityState === "visible" && Date.now() >= deadline) fail?.(); };
+  const timeout = new Promise<never>((_resolve, reject) => {
+    fail = () => reject(new Error("Couldn't finish checking storage. Check your connection and try attaching the file again."));
+    timer = setTimeout(fail, 60_000);
+  });
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisible);
+  try { return await Promise.race([check(), timeout]); }
+  finally {
+    if (timer !== undefined) clearTimeout(timer);
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisible);
+  }
+}
+
 type MeasuredUpload = { bucket: string; path: string; file: Blob; vault?: boolean };
 
 /** App-side only: serialize same-device uploads through the check and write. */
@@ -88,6 +107,7 @@ export async function uploadWithinClubMediaAllowance<T>(
         throw new Error("Upload does not belong to this club's storage.");
       }
     }
+    await boundedStorageCheck(async () => {
     const { data: sub, error } = await client.from("club_subscriptions")
       .select("plan, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, is_trial, trial_ends_at, storage_purchased_gb, pricing_version")
       .eq("club_id", clubId).maybeSingle();
@@ -110,6 +130,7 @@ export async function uploadWithinClubMediaAllowance<T>(
     if (used + bytes > allowance.limitBytes) {
       throw new Error(allowance.premium ? "Your storage allowance is full. Delete files or purchase more storage to keep uploading." : "Your club has used its 250 MB Free storage. Delete files or upgrade to Pro to keep uploading.");
     }
+    });
     assertSupabaseMediaAllowancePath();
     // Use the caller's authenticated Storage SDK client and original options.
     // Its environment selects DEV/PROD; Storage RLS still authorizes the write.

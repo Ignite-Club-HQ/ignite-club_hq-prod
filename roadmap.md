@@ -1,6 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
 ## Referee chat stalled document upload — 11 November
+- [x] Follow-up: latest preview logs show 57 stuck requests on visibility recovery. Reproduced missing POST storage-list deadline with failing test; listings now join the read timeout/resume registry, including auth retries. Preparation has a separate 60-second bound covering SDK auth/body waits; late reads cannot advance to writes, and the upload queue is released on failure. 52 focused checks pass; preview build OK.
+- [ ] Browser reproduction reaches sign-in because email sessions are external/unmanaged; the actual signed-in referee upload remains unverified. No permission changes, automatic uncertain-write retries or PROD deployment made.
 - [x] Preview telemetry shows 17 physical-storage listing requests and no file write; reproduced serial whole-club scan in a failing regression. Count independent pages in bounded six-request batches, retaining fresh exact capacity accounting, same-device upload serialization and Storage permissions.
 - [x] 38 focused accounting/transport/competition attachment checks pass in default and ICP test configurations; preview build OK. Email attachment test confirms host-scoped transfer and registration before token creation.
 - [ ] Authenticated referee-chat upload/message/readback and phone acceptance remain unverified: external unmanaged email session/device unavailable locally. This removes the confirmed scan bottleneck, not proof of the phone's complete upload; no PROD deployment made.
