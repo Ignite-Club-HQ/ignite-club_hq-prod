@@ -1,5 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
+## Missing PROD competition Vault helper — 11 November 09:34 UTC
+- [ ] Rehearse exact absent-only helper repair, preserving existing manager/read helpers and host scope; execute isolated owner-approved PROD structure repair and verify catalog readback. No policies, business rows or migration-history repair.
+
 ## Run PROD upload preflight before merge — 11 November 09:28 UTC
 - [x] Located Paul's accessible GitHub connection and added a standalone protected production catalog-only inspection dispatchable from main; five offline preflight tests and script syntax/read-only checks pass. No release or direct database access attempted.
 - [x] Executed protected read-only inspection 42996103653 on synced main f89451f201b46d3173dda1dc652ae69c36084902. PROD log confirms exactly one missing dependency: public.competition_vault_storage_access(text,boolean); all eight other checks present. No migrations, merge, business reads or repair performed.
