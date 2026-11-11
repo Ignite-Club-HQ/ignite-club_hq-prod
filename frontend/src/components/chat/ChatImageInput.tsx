@@ -451,7 +451,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           if (uploadError) throw uploadError;
           const { error: insertError } = await withAttachDeadline("vault-register", 30_000, Promise.resolve(supabase.from("vault_files").insert({
             id, club_id: host, competition_id: competitionId, team_id: null, folder_id: rootFolder?.id ?? null, uploaded_by: user.id,
-            name: file.name, file_url: `storage://competition-vault/${path}`, storage_bucket: "competition-vault", storage_path: path,
+            name: file.name, file_url: supabase.storage.from("competition-vault").getPublicUrl(path).data.publicUrl, storage_bucket: "competition-vault", storage_path: path,
             file_type: file.type || "application/octet-stream", file_size: file.size, is_external_link: false,
           })));
           if (insertError) throw insertError;
