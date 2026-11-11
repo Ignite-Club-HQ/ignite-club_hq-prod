@@ -91,7 +91,7 @@ export function PinVaultSheet({
     queryKey: ["pin-vault-sheet-folders", clubId, teamId ?? "club", competitionId ?? "", currentFolderId ?? "root"],
     enabled: open && (!!clubId || !!competitionId),
     queryFn: async (): Promise<{ club: FolderRow[]; team: FolderRow[] }> => {
-      if (!clubId && competitionId) return listSupabaseFolders();
+      if (competitionId) return listSupabaseFolders();
       if (!clubId) return { club: [], team: [] };
       return withFeatureBackend("vault", {
         supabase: () => listSupabaseFolders(),
@@ -130,7 +130,7 @@ export function PinVaultSheet({
       let query = supabase
         .from("vault_folders")
         .select("id, name, team_id, parent_id");
-      query = clubId ? query.eq("club_id", clubId) : query.eq("competition_id", competitionId!);
+      query = competitionId ? query.eq("competition_id", competitionId) : query.eq("club_id", clubId!);
       query = query
         .is("deleted_at", null)
         .order("name", { ascending: true });
