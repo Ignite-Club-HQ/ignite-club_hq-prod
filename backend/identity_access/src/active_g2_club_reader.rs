@@ -17,7 +17,7 @@ pub struct OpenGroup {
     pub domains: Vec<Domain>,
 }
 
-#[derive(Clone, Debug, CandidType, Deserialize)]
+#[derive(Clone, Debug, CandidType, Deserialize, PartialEq)]
 pub struct OpenPage {
     pub revision: u64,
     pub groups: Vec<OpenGroup>,
