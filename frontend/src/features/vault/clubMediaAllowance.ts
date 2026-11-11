@@ -138,7 +138,7 @@ export async function uploadWithinClubMediaAllowance<T>(
     // One server-side sum of the club's stored files; folder-by-folder listing is
     // kept only for team-scoped plans and databases without the sum function.
     let used: number | null = null;
-    if (!allowance.teamScoped) {
+    if (!allowance.teamScoped && typeof (client as { rpc?: unknown }).rpc === "function") {
       const { data: total, error: totalError } = await (client.rpc as any)("club_media_used_bytes", { _club_id: clubId });
       if (!totalError && Number.isFinite(Number(total)) && Number(total) >= 0) used = Number(total);
       else if (totalError && !["PGRST202", "42883"].includes((totalError as { code?: string }).code ?? "")) throw totalError;
