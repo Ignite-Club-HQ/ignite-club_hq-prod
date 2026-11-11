@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Competition chat file uploads — 11 November
+- [x] Restored Upload File in competition group chats without requiring a club ID. Documents use the competition host/access lookup, competition grants and metadata; no chat membership or backend permission changes. Paul approved the phone document chooser exception; photo picker unchanged.
+- [x] Five upload/access regressions failed before repair; 42 focused checks pass in default mode and 39 in ICP mode (backend-specific skips). Preview build OK. Existing competition Vault upload permissions still apply.
+- [ ] Authenticated on-chain upload/message/readback and physical-phone acceptance require a delegated II session/device unavailable in the sandbox. No PROD deployment performed.
+
 ## All-user native ICP push rollout — 11 November
 - [x] Paul requested progressing beyond his successful open/closed-app self-test; preserve email/Supabase push and native-only scope.
 - [x] Identified current PROD recipient allowlist, base-queue-only transport, ten-send invocation cap, missing old-alert cutoff and lifetime 10,000-attempt stop.
