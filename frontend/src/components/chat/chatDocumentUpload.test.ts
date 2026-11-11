@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ upload: vi.fn(), register: vi.fn(), access: vi.fn(), icp: true }));
 vi.mock("@/live/domains", () => ({ connectLiveCompetitionDomain: async () => ({ actor: { get_vault_access: mocks.access } }) }));
-vi.mock("@/live/featureRouter", () => ({ withFeatureBackend: (_feature: string, providers: any) => mocks.icp ? providers.icp({ identity: "session", target: "icp" }) : providers.supabase() }));
+vi.mock("@/live/featureRouter", () => ({ withFeatureBackend: (_feature: string, providers: any, scope: any) => mocks.icp ? providers.icp({ identity: scope?.competitionId ? { getPrincipal: () => "caller" } : "session", target: "icp" }) : providers.supabase() }));
 vi.mock("@/live/mediaUpload", () => ({ tryUploadMediaToBlobStore: mocks.upload }));
 vi.mock("@/live/features/vault", () => ({ registerLiveVaultFile: mocks.register }));
 import { uploadIcpChatDocument, uploadIcpCompetitionChatDocument } from "./chatDocumentUpload";
