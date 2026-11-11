@@ -61,7 +61,7 @@ describe("competition chat document selection", () => {
     const folders: any = { select: vi.fn(() => folders), eq: vi.fn(() => folders), is: vi.fn(() => folders), order: vi.fn(() => folders), limit: vi.fn(() => folders), maybeSingle: vi.fn().mockResolvedValue({ data: { id: "root-folder" }, error: null }) };
     mocks.from.mockImplementation(table => table === "competitions" ? query : table === "vault_folders" ? folders : { insert });
     const transfer = vi.fn().mockResolvedValue({ error: null });
-    mocks.storage.mockReturnValue({ upload: transfer });
+    mocks.storage.mockReturnValue({ upload: transfer, getPublicUrl: (p: string) => ({ data: { publicUrl: `https://db.example/storage/v1/object/public/competition-vault/${p}` } }) });
     mocks.allowance.mockImplementation((_club, _bytes, upload) => upload());
     const { container } = mount();
     const input = container.querySelector<HTMLInputElement>('input[type="file"][accept^=".pdf"]');
