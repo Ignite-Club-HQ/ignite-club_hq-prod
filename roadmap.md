@@ -1,12 +1,12 @@
 # Roadmap — launch the live (PROD) system
 
 ## Competition upload dependency preflight — 11 November 09:24 UTC
-- [ ] Add an exact-source-bound, bounded read-only catalog check before release writes; report only allowlisted missing object names and hold without repair.
-- [ ] Verify missing-object, malformed-response, source-drift and successful-release cases offline; no PROD operations.
+- [x] Added an exact-source-bound nine-object catalog preflight before ALL release writes in safe-apply and full modes. Logs/report name only allowlisted missing schemas, relation/columns, exact function signatures and roles; missing/unreadable evidence holds without repair or helper invocation.
+- [x] All 58 focused checks pass, including real credential-free socket-only PostgreSQL, missing function/column, malformed/partial/injected evidence, source drift and complete release orchestration. CI now runs these checks before promotion. Root AGENTS note skipped because existing user-owned rules exceed its size budget; no PROD operations performed.
 
 ## Database release failure diagnostics — 11 November 09:13 UTC
 - [x] Full owner screenshot confirms the release wrapper hides psql stderr. Reproduced with a credential-free fake psql; added safe allowlisted error categories and stage/file labels without exposing raw SQL, credentials or rows. No connection changes, write retries, approval bypass or PROD operations.
-- [ ] Actual cause of run 42991574271 remains unknown because existing logs discard it; needs a release run with the corrected reporter after source promotion. Website remains held until the database job succeeds.
+- [ ] Latest run 42993712410 names the competition upload migration and missing-object category; exact object remains unverified until the new read-only preflight runs through approved promotion. Website remains held until the database job succeeds; no missing-object repair is authorized here.
 
 ## Referee chat stalled document upload — 11 November
 - [x] Follow-up: latest preview logs show 57 stuck requests on visibility recovery. Reproduced missing POST storage-list deadline with failing test; listings now join the read timeout/resume registry, including auth retries. Preparation has a separate 60-second bound covering SDK auth/body waits; late reads cannot advance to writes, and the upload queue is released on failure. 52 focused checks pass; preview build OK.
