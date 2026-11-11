@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Database release failure diagnostics — 11 November 09:13 UTC
+- [x] Full owner screenshot confirms the release wrapper hides psql stderr. Reproduced with a credential-free fake psql; added safe allowlisted error categories and stage/file labels without exposing raw SQL, credentials or rows. No connection changes, write retries, approval bypass or PROD operations.
+- [ ] Actual cause of run 42991574271 remains unknown because existing logs discard it; needs a release run with the corrected reporter after source promotion. Website remains held until the database job succeeds.
+
 ## Referee chat stalled document upload — 11 November
 - [x] Follow-up: latest preview logs show 57 stuck requests on visibility recovery. Reproduced missing POST storage-list deadline with failing test; listings now join the read timeout/resume registry, including auth retries. Preparation has a separate 60-second bound covering SDK auth/body waits; late reads cannot advance to writes, and the upload queue is released on failure. 52 focused checks pass; preview build OK.
 - [ ] Browser reproduction reaches sign-in because email sessions are external/unmanaged; the actual signed-in referee upload remains unverified. No permission changes, automatic uncertain-write retries or PROD deployment made.
