@@ -11,6 +11,7 @@ vi.mock("@/live/authBackendMode", () => ({ resolveAuthBackend: () => mocks.mode 
 vi.mock("@/live/mediaUpload", () => ({ tryUploadMediaToBlobStore: vi.fn() }));
 vi.mock("@/components/chat/chatDocumentUpload", () => ({ uploadIcpCompetitionChatDocument: mocks.upload }));
 vi.mock("@/components/chat/VaultPickerSheet", () => ({ VaultPickerSheet: () => null }));
+vi.mock("@/components/chat/CompetitionVaultPickerSheet", () => ({ CompetitionVaultPickerSheet: () => null }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from, storage: { from: mocks.storage } } }));
 vi.mock("@/features/vault/clubMediaAllowance", () => ({ uploadWithinClubMediaAllowance: mocks.allowance }));
 vi.mock("@/components/ui/popover", () => ({
@@ -36,7 +37,7 @@ describe("competition chat document selection", () => {
     const choose = vi.spyOn(input, "click");
     fireEvent.click(screen.getByRole("button", { name: /File or Folder/ }));
     const device = await screen.findByRole("button", { name: "Upload from device" });
-    expect(screen.getByRole("button", { name: "Choose from vault" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Choose from vault" })).toBeEnabled();
     fireEvent.click(device);
     expect(choose).toHaveBeenCalledOnce();
     const file = new File(["competition rules"], "rules.pdf", { type: "application/pdf" });
