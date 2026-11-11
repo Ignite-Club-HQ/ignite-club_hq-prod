@@ -906,7 +906,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             onPick={handleVaultPick}
             onPickMany={handleVaultPickMany}
           />}
-          {!clubId && competitionId && showFileUpload && <CompetitionVaultPickerSheet
+          {!(showVaultPicker && clubId) && competitionId && showFileUpload && <CompetitionVaultPickerSheet
             open={vaultPickerOpen}
             onOpenChange={setVaultPickerOpen}
             competitionId={competitionId}
