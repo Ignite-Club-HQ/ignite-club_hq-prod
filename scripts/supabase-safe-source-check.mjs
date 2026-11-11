@@ -15,6 +15,7 @@ const APPROVED_FILES = [
   '20261105000300_club_invite_message_defaults.sql',
   '20261105000400_send_welcome_dm.sql',
   '20261109232052_a578f787-ba4e-4669-8bf0-c6ce2e552389.sql',
+  '20261111075407_ba34e1c2-bd8e-48f2-8993-461b53e500a9.sql',
 ];
 
 /** Offline consistency only. An empty ledger makes no claim about target history. */

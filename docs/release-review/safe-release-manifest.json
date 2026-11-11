@@ -303,6 +303,12 @@
       "sha256": "37c73ffc5671c2a03c6f74aa8c45eb07cc2d96163df1673874bc1aad7be2cede",
       "disposition": "candidate",
       "reason": "Owner-approved 10 Nov 2026 (Paul): competition role self-removal repair restated structure-only; preserves existing roles, messages and chat-sync triggers"
+    },
+    {
+      "file": "20261111075407_ba34e1c2-bd8e-48f2-8993-461b53e500a9.sql",
+      "sha256": "7f622900b4c53cb3f4dd94edd9b0fdd193ed834946bf977827bc723978496418",
+      "disposition": "candidate",
+      "reason": "Owner-approved 11 Nov 2026 (Paul): competition Vault uploads for competition managers; storage policy structure-only, no data writes"
     }
   ]
 }
