@@ -40,6 +40,7 @@ export async function safeOpenFile(
     const rest = url.slice("storage://".length);
     const slash = rest.indexOf("/");
     const { supabase } = await import("@/integrations/supabase/client");
+    // icp-guard: allow getPublicUrl only builds a URL string locally for legacy storage:// links; no network call
     url = supabase.storage.from(rest.slice(0, slash)).getPublicUrl(rest.slice(slash + 1)).data.publicUrl;
   }
   let resolvedUrl = url;
