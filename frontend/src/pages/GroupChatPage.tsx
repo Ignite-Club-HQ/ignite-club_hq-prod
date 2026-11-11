@@ -1907,6 +1907,7 @@ export default function GroupChatPage() {
           chatId={groupId}
           clubId={group.club_id ?? null}
           teamId={group.team_id ?? null}
+          competitionId={(group as any).competition_id ?? null}
         />
         </Suspense>
       )}

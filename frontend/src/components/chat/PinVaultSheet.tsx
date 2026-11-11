@@ -29,6 +29,8 @@ interface PinVaultSheetProps {
   clubId: string | null | undefined;
   /** Team id if the chat is a team chat or a team-scoped group. */
   teamId?: string | null;
+  /** Competition id when the chat is a competition chat (no club/team). */
+  competitionId?: string | null;
 }
 
 interface FolderRow {
@@ -50,6 +52,7 @@ export function PinVaultSheet({
   chatId,
   clubId,
   teamId,
+  competitionId,
 }: PinVaultSheetProps) {
   const { record, save, isSaving, toggleEnabled, remove } = useChatPinnedVault(
     chatType,
@@ -85,9 +88,10 @@ export function PinVaultSheet({
 
   // Folders for the current level (root or inside a specific parent).
   const foldersQuery = useQuery({
-    queryKey: ["pin-vault-sheet-folders", clubId, teamId ?? "club", currentFolderId ?? "root"],
-    enabled: open && !!clubId,
+    queryKey: ["pin-vault-sheet-folders", clubId, teamId ?? "club", competitionId ?? "", currentFolderId ?? "root"],
+    enabled: open && (!!clubId || !!competitionId),
     queryFn: async (): Promise<{ club: FolderRow[]; team: FolderRow[] }> => {
+      if (!clubId && competitionId) return listSupabaseFolders();
       if (!clubId) return { club: [], team: [] };
       return withFeatureBackend("vault", {
         supabase: () => listSupabaseFolders(),
@@ -122,11 +126,12 @@ export function PinVaultSheet({
   });
 
   async function listSupabaseFolders(): Promise<{ club: FolderRow[]; team: FolderRow[] }> {
-      if (!clubId) return { club: [], team: [] };
+      if (!clubId && !competitionId) return { club: [], team: [] };
       let query = supabase
         .from("vault_folders")
-        .select("id, name, team_id, parent_id")
-        .eq("club_id", clubId)
+        .select("id, name, team_id, parent_id");
+      query = clubId ? query.eq("club_id", clubId) : query.eq("competition_id", competitionId!);
+      query = query
         .is("deleted_at", null)
         .order("name", { ascending: true });
       query = currentFolderId === null
@@ -218,6 +223,14 @@ export function PinVaultSheet({
 
   const rootOptions = useMemo(() => {
     const out: { key: string; label: string; sublabel: string; target: PinnedVaultTarget }[] = [];
+    if (!clubId && competitionId) {
+      out.push({
+        key: `root-competition-${competitionId}`,
+        label: "Whole competition vault",
+        sublabel: "All files & folders",
+        target: { root_scope: "competition", root_id: competitionId },
+      });
+    }
     if (clubId) {
       out.push({
         key: `root-club-${clubId}`,
@@ -235,7 +248,7 @@ export function PinVaultSheet({
       });
     }
     return out;
-  }, [clubId, teamId]);
+  }, [clubId, teamId, competitionId]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -304,6 +317,12 @@ export function PinVaultSheet({
 
         <ScrollArea className="flex-1 min-h-0">
           <div className="px-6 py-4 space-y-5">
+            {!clubId && !competitionId && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                This chat isn't linked to a club, team or competition, so there's no vault to pin.
+              </p>
+            )}
+
             {atRoot && rootOptions.length > 0 && (
               <section>
                 <h3 className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">
