@@ -13,6 +13,12 @@ const PREFIXES = ['ignite_message_cache_', 'ignite_events_list_', 'ignite_event_
   'ignite_event_rsvps_', 'ignite_my_teams_carousel_v2_', 'ignite_next_up_events_'];
 const FIRST_PAINT_CACHE_BYTES = 1024 * 1024;
 const FIRST_PAINT_PREFIXES = ['ignite_my_teams_carousel_v2_', 'ignite_next_up_events_'];
+// Saved home cards may use their whole reserve: members of many teams exceed
+// the general per-entry cap, which silently discarded them on every save.
+function entryLimit(key: string): number {
+  if (key === 'ignite_query_cache_v1') return LOCAL_READ_CACHE_BYTES;
+  return FIRST_PAINT_PREFIXES.some(prefix => key.startsWith(prefix)) ? FIRST_PAINT_CACHE_BYTES : MAX_ENTRY_BYTES;
+}
 export function isDisposableReadCache(key: string): boolean {
   return EXACT_KEYS.has(key) || PREFIXES.some(prefix => key.startsWith(prefix));
 }
@@ -34,7 +40,7 @@ function entries(): Map<string, Entry> {
       const parsed = JSON.parse(value);
       const time = parsed.timestamp ?? parsed.savedAt ?? Date.now();
       const bytes = storedTextBytes(key, value);
-      const limit = key === 'ignite_query_cache_v1' ? LOCAL_READ_CACHE_BYTES : MAX_ENTRY_BYTES;
+      const limit = entryLimit(key);
       if (!Number.isFinite(time) || Date.now() - time > TTL_MS || bytes > limit) {
         localStorage.removeItem(key); continue;
       }
@@ -72,7 +78,7 @@ export function writeBoundedReadCache(key: string, value: string): boolean {
     if (!isDisposableReadCache(key) || typeof localStorage === 'undefined') return false;
     const rows = entries();
     const bytes = storedTextBytes(key, value);
-    const limit = key === 'ignite_query_cache_v1' ? LOCAL_READ_CACHE_BYTES : MAX_ENTRY_BYTES;
+    const limit = entryLimit(key);
     rows.delete(key);
     if (bytes > limit) { localStorage.removeItem(key); trim(rows); return false; }
     trim(rows, bytes, key);
