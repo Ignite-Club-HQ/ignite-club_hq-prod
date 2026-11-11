@@ -28,6 +28,7 @@ import UpdateReminderAccess "updateReminderAccess";
 import AppAdminAccess "appAdminAccess";
 import BrowserPushTest "browserPushTest";
 import NativePush "nativePush";
+import NativeRolloutPolicy "nativeRolloutPolicy";
 import NativeWakePolicy "nativeWakePolicy";
 
 persistent actor class Main(governorInit : Principal) = this {
@@ -116,6 +117,7 @@ persistent actor class Main(governorInit : Principal) = this {
   var nativePushWorker : ?Principal;
   var nativePushSequence : Nat;
   var nativePushAttempts : [NativePush.Attempt];
+  var nativePushRollout : ?NativeRolloutPolicy.State;
   var deviceVersions : [{ user : Text; platform : Text; app_version : ?Text; build_number : ?Text }];
   var transferFences : [Text];
   // Local-only bounded polling experiment; resets on upgrade, never authority.
@@ -1619,9 +1621,25 @@ persistent actor class Main(governorInit : Principal) = this {
     null
   };
   func nativeRecipientAllowed(user : Text) : Bool {
-    if (Principal.fromActor(this).toText() != liveNativeQueue) return true;
-    liveNativeRecipients.find(func r = r == user) != null
+    NativeRolloutPolicy.allowed(Principal.fromActor(this).toText() == liveNativeQueue,
+      liveNativeRecipients.find(func r = r == user) != null, nativePushRollout)
   };
+  // Separate governor action; code upgrades leave the pilot restriction intact.
+  public shared ({ caller }) func configure_native_push_rollout(enabled : Bool, expected_worker : Principal) : async { #Ok : Nat64; #Err : Text } {
+    governorOnly(caller);
+    if (nativeSenderUrl() == null or nativePushWorker != ?expected_worker or Principal.isAnonymous(expected_worker)) return #Err("Native sender binding changed");
+    if (items.any(func n = n.status == #Processing)) return #Err("Settle active delivery before changing rollout");
+    switch (nativePushRollout) {
+      case (?s) { if (s.enabled == enabled) return #Ok(s.started_at_ms) };
+      case null { if (not enabled) return #Ok(0) };
+    };
+    let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
+    let boundary = if (enabled) stamp else switch (nativePushRollout) { case (?s) s.started_at_ms; case null stamp };
+    nativePushRollout := ?{ enabled; started_at_ms = boundary };
+    if (enabled) wakeNativeSender<system>();
+    #Ok(boundary)
+  };
+  public query func native_push_rollout() : async ?NativeRolloutPolicy.State { nativePushRollout };
   func wakeNativeSender<system>() {
     if (nativePushWorker == null) return;
     if (nativeWakePending) { nativeWakeRequested := true; return };
@@ -1723,7 +1741,14 @@ persistent actor class Main(governorInit : Principal) = this {
   public shared ({ caller }) func reserve_native_push() : async { #Ok : ?NativeReservation; #Err : Text } {
     if (nativePushWorker != ?caller or caller == Principal.anonymous()) return #Err("Native sender required");
     if (nativeSenderUrl() == null) return #Err("Native push queue only");
-    if (nativePushAttempts.size() >= 10000) return #Err("Delivery journal capacity reached");
+    let now = Nat64.fromIntWrap(Time.now() / 1_000_000);
+    nativePushAttempts := nativePushAttempts.filter(func a = NativePush.retain(a, func(id : Text) : Bool {
+      switch (get(id)) {
+        case (?n) (n.status == #Delivered or n.status == #Failed) and not NativeRolloutPolicy.fresh(n.created_at_ms, now);
+        case null false;
+      }
+    }));
+    if (nativePushAttempts.filter(NativePush.unresolved).size() >= 10000) return #Err("Unresolved delivery capacity reached");
     var scanned = 0;
     let count = items.size();
     while (scanned < Nat.min(count, 200)) {
@@ -1732,6 +1757,11 @@ persistent actor class Main(governorInit : Principal) = this {
       scanned += 1;
       if (captured.status != #Pending or isFenced(captured.club) or recipientFenced(captured.user) or not nativeRecipientAllowed(captured.user)) continue;
       let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
+      if (not NativeRolloutPolicy.eligible(nativePushRollout, captured.created_at_ms, stamp)) {
+        let oldIndex = findIndex(captured.id) ?? continue;
+        replace(oldIndex, { captured with status = #Failed });
+        continue;
+      };
       if (captured.next_attempt_ms > stamp) continue;
       // One source reservation before awaits; no legacy worker may adopt it.
       let index = findIndex(captured.id) ?? continue;
@@ -1807,8 +1837,13 @@ persistent actor class Main(governorInit : Principal) = this {
     nativePushAttempts := nativePushAttempts.map(func a = if (a.receipt == receipt) ({ a with status = outcome }) else a);
     if (outcome == "inactive") device_tokens := device_tokens.filter(func d = not (d.user == attempt.user and d.token == attempt.token and d.updated_at_ms == attempt.device_stamp));
     let item = items[index];
-    replace(index, { item with status = if (outcome == "held" or outcome == "stopped") #Failed else #Pending });
+    let finished = outcome == "held" or outcome == "stopped" or device_tokens.filter(func d =
+      d.user == item.user and (d.platform == "android" or d.platform == "ios") and
+      not device_tokens.any(func other = other.token == d.token and other.user != d.user) and
+      not NativePush.occupied(nativePushAttempts, item.id, d.token, d.updated_at_ms)).size() == 0;
+    replace(index, { item with status = if (outcome == "held" or outcome == "stopped") #Failed else if (finished) #Delivered else #Pending });
     clearLease(item.id);
+    if (not finished) wakeNativeSender<system>();
     #Ok
   };
 

@@ -1,0 +1,13 @@
+import Policy "../src/nativeRolloutPolicy";
+let start : Nat64 = 2_000_000;
+let state = ?{ enabled = true; started_at_ms = start };
+assert not Policy.allowed(true, false, null);
+assert Policy.allowed(true, true, null);
+assert Policy.allowed(true, false, state);
+assert not Policy.allowed(true, false, ?{ enabled = false; started_at_ms = start });
+assert Policy.allowed(false, false, null);
+assert not Policy.eligible(state, start - 1, start);
+assert Policy.eligible(state, start, start);
+assert Policy.eligible(state, start, start + 1_800_000);
+assert not Policy.eligible(state, start, start + 1_800_001);
+assert not Policy.eligible(state, start + 1, start);
