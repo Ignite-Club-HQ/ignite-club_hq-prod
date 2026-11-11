@@ -22,7 +22,6 @@ import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
 import { useQueryClient } from "@tanstack/react-query";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { resolveAuthBackend } from "@/live/authBackendMode";
-import { usesDevIcpPush } from "@/live/icpPushMode";
 import { NotificationPreferenceList, type NotificationPreferenceDescriptor } from "@/components/NotificationPreferenceList";
 import { withFeatureBackend } from "@/live/featureRouter";
 import {
