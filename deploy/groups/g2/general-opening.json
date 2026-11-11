@@ -17,7 +17,7 @@
       "name": "club_domain",
       "canisterId": "yfwyv-nyaaa-aaaal-qxpyq-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "3c55bec919ea4d839d6f292a2e86272e32f21328cbf16213dc9b851059ff42fa"
+      "moduleHash": "28ff0b022ab89e8cc44ed51040c76f880bdc1d26af865409ab71a4b0420b5610"
     },
     {
       "name": "events_domain",
@@ -71,7 +71,7 @@
       "name": "notification_queue",
       "canisterId": "zu4gk-vqaaa-aaaal-qxp5a-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "ad76ef5c6992aace269c61c8633722dd3fbc63241923ebf01f2c0f16d73adef7"
+      "moduleHash": "100b0197578278a06008394961362abcc805afad998cf6a562a647e17dd49d95"
     },
     {
       "name": "pii_access_control",
