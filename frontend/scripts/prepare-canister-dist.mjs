@@ -106,36 +106,24 @@ function devGroup2Discovery() {
   const location = fileURLToPath(new URL("../../deploy/groups/g2/provision.json", import.meta.url));
   if (!existsSync(location)) throw new Error("DEV MCP Group 2 discovery requires its checked provision.json");
   const provision = JSON.parse(readFileSync(location, "utf8"));
-  if (provision.groupId !== "g2" || provision.deploymentId !== "mainnet" || provision.phase !== "checked") {
-    throw new Error("DEV MCP Group 2 discovery requires reviewed DEV Group 2 provisioning");
+  if (provision.groupId !== "g2" || provision.deploymentId !== "mainnet" ||
+      provision.phase !== "checked" || !provision.installedDomains?.includes("club_domain")) {
+    throw new Error("DEV MCP Group 2 discovery requires reviewed, installed club_domain");
   }
-  const domains = [
-    "club_domain", "events_domain", "messaging_domain", "vault_domain",
-    "competition_domain", "club_points_domain", "mini_league_domain",
-    "media_metadata", "insights_domain", "notification_queue",
-    "pii_access_control", "timer_jobs",
-  ];
-  const ids = new Set([frontendCanisterId, ...Object.values(canisterIds)]);
-  const validId = (id) => typeof id === "string" &&
-    /^[a-z0-9]{5}(?:-[a-z0-9]{5}){3}-cai$/.test(id) && !ids.has(id);
-  const entries = domains.map((domain) => {
-    const id = provision.canisters?.[domain];
-    if (!validId(id)) throw new Error("Invalid or duplicate DEV Group 2 canister: " + domain);
-    ids.add(id);
-    return {
-      id, name: "g2/" + domain, role: "backend",
-      description: "DEV Group 2 — " + (CANISTER_ROLES[domain]?.[1] || domain),
-    };
-  });
-  const store = provision.dedicatedBlobStore;
-  if (!store?.installed || !validId(store.canisterId)) {
-    throw new Error("Invalid or uninstalled DEV Group 2 media store");
+  // Least privilege: club/team onboarding only. Do not advertise Group 2's
+  // messaging, vault, PII, or other sensitive canisters to the general MCP
+  // connector until a specific workflow needs them and is separately reviewed.
+  const id = provision.canisters?.club_domain;
+  if (typeof id !== "string" || !/^[a-z0-9]{5}(?:-[a-z0-9]{5}){3}-cai$/.test(id) ||
+      id === frontendCanisterId || Object.values(canisterIds).includes(id)) {
+    throw new Error("Invalid or duplicate DEV Group 2 club_domain");
   }
-  entries.push({
-    id: store.canisterId, name: "g2/media_blob_store", role: "backend",
-    description: "DEV Group 2 — Encrypted club media blob storage; access is checked on-chain.",
-  });
-  return entries;
+  return [{
+    id,
+    name: "g2/club_domain",
+    role: "backend",
+    description: "DEV Group 2 — clubs, teams and creator permissions; caller-scoped access.",
+  }];
 }
 
 const manifest = {
