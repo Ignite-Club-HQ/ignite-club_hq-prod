@@ -1452,6 +1452,12 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     const requestId = ++icpProfileRequestRef.current;
     let cancelled = false;
     void (async () => {
+      // Right after sign-in the first read often hits a waking connection.
+      // Retry quietly behind the normal loading screen before ever showing
+      // the "Reconnecting"/"Unable to load your profile" screen.
+      const ICP_PROFILE_ATTEMPTS = 4;
+      for (let attempt = 0; attempt < ICP_PROFILE_ATTEMPTS; attempt++) {
+      if (cancelled || icpProfileRequestRef.current !== requestId) return;
       try {
         const [authMod, { fetchIcpIdentityProfile }] = await Promise.all([
           import("@/live/internetIdentityAuth"),
@@ -1484,14 +1490,20 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
           setIcpProfileResolved(true);
           setIcpProfileError(false);
         }
+        return;
       } catch (error) {
         console.warn("[Auth] ICP identity profile fetch failed:", error);
+        if (attempt < ICP_PROFILE_ATTEMPTS - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+          continue;
+        }
         // Keep rendering from cache when there is one; with no cache, surface
         // the retry screen (AppLayout auto-retries via refreshProfile()).
         if (!cancelled && icpProfileRequestRef.current === requestId && !knownCachedIcpProfile(getCachedIcpIdentityProfile(principal))) {
           setIcpProfileResolved(true);
           setIcpProfileError(true);
         }
+      }
       }
     })();
     return () => {
