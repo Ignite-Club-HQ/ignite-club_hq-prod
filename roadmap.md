@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Referee chat stalled document upload — 11 November
+- [ ] Reproduce and repair the serial whole-club storage scan blocking email competition attachments; preserve exact capacity accounting and Storage permissions.
+- [ ] Run focused upload regressions; authenticated device readback remains unavailable locally.
+
 ## Melanie — live email Women’s Masters Vault access — 11 November
 - [x] Confirmed affected account uses live email sign-in; connected database is DEV, not PROD. DEV Women’s Masters is Pro and has no Melanie role record, so it cannot reproduce her live denial. Inspected DEV Vault policies/access functions without changes.
 - [ ] Verify Melanie’s exact live competition role, access response and host entitlement before repairing: user-managed PROD diagnostics unavailable; no PROD credentials accessible. Need her exact warning and competition-role evidence, or authorized read-only PROD access. No permissions, roles, data or code changed.
