@@ -52,10 +52,11 @@ it('an existing member whose profile read comes back empty is offered retry, nev
   seen.length = 0;
   const { createMockQueryBuilder } = await import('@/test/mockSupabaseClient');
   m.client.from.mockImplementation(() => createMockQueryBuilder());
-  m.client.auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
+  const other = { user: { ...member, id: 'other-member' }, access_token: 'fixture-only' };
+  m.client.auth.getSession.mockResolvedValue({ data: { session: other }, error: null });
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={qc}><AuthProvider><Page /></AuthProvider></QueryClientProvider>);
-  await act(async () => { m.callback('SIGNED_IN', { user: { ...member, id: 'other-member' }, access_token: 'fixture-only' }); });
+  await act(async () => { m.callback('SIGNED_IN', other); });
   await waitFor(() => expect(screen.getByText('retry')).toBeInTheDocument(), { timeout: 12000 }).catch((e) => { console.log('SEEN', [...new Set(seen)]); throw e; });
   expect(seen).not.toContain('setup');
 }, 20000);
