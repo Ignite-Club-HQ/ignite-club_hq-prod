@@ -436,6 +436,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             Promise.resolve(supabase.from("competitions").select("organizer_club_id").eq("id", competitionId).single()));
           if (error || !competition?.organizer_club_id) throw new Error("Could not check this competition. Please try again.");
           const host = competition.organizer_club_id;
+          // File chat uploads into the competition's own Vault folder so they show up there.
+          const { data: rootFolder } = await withAttachDeadline("competition-folder", 20_000,
+            Promise.resolve(supabase.from("vault_folders").select("id").eq("competition_id", competitionId)
+              .is("parent_id", null).is("deleted_at", null).order("created_at", { ascending: true }).limit(1).maybeSingle()));
           const id = crypto.randomUUID();
           const extension = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
           const path = `clubs/${host}/competitions/${competitionId}/${user.id}/${id}.${extension}`;
@@ -444,7 +448,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             supabase, undefined, { bucket: "competition-vault", path, file, vault: true }));
           if (uploadError) throw uploadError;
           const { error: insertError } = await withAttachDeadline("vault-register", 30_000, Promise.resolve(supabase.from("vault_files").insert({
-            id, club_id: host, competition_id: competitionId, team_id: null, uploaded_by: user.id,
+            id, club_id: host, competition_id: competitionId, team_id: null, folder_id: rootFolder?.id ?? null, uploaded_by: user.id,
             name: file.name, file_url: `storage://competition-vault/${path}`, storage_bucket: "competition-vault", storage_path: path,
             file_type: file.type || "application/octet-stream", file_size: file.size, is_external_link: false,
           })));
