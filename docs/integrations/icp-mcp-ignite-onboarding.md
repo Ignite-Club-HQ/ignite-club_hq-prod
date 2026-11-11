@@ -22,6 +22,16 @@ Status: implementation guidance / DEV validation, **not** proof of a successful 
 
 An II account is **not** a fully onboarded Ignite account until its required profile and legal acceptance are complete.
 
+## Group 2 account-linking release diagnosis (12 November 2026)
+
+**Observed in DEV:** a Test principal with an active `identity_access.whoami()` account and a verified Group 2 `club_admin` role can create a club and team. However, Group 2 `read_account_whoami()` returned `Err("Unlinked identity")`, and the caller's `sync_my_linked_account()` failed with `Err("Service admission not released")`. That error is returned by the shared identity's account-reader release path, not by Internet Identity or account registration.
+
+**Two different service permissions must not be conflated.** The `[TEST] Repair Group 2 account access` workflow authorises admission/eligibility readers for the exact Group 2 inventory; it does not inherently commission ordinary-member account reads, and its prior success wording was insufficient evidence of linked-account success. `identity_access.read_linked_account()` instead requires (a) reviewed ordinary-member commissioning including exact service bindings or (b) an independently signed production account-reader approval, plus caller-scoped account readback. Check `read_group_opening_configuration()` for `ordinary_member_access` through the governor-controlled workflow; ordinary user calls to that endpoint are forbidden. `scripts/group2-account-link-readiness.mjs` distinguishes the two release states and never authorises writes.
+
+**Safety:** do not set `IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL=1`, replace identity controllers, substitute a browser-selected reader principal, or upgrade identity merely to turn on an unrelated flag. The commissioning implementation requires a reviewed closed-group inventory, while the latest DEV registry showed Group 2 `accepting=true`. That means the commissioning workflow may need a separately reviewed live-opening/closure strategy; don't run `repair` as a workaround. No arbitrary fallback account ID, manual grant, or duplicate registration is permitted.
+
+**Validation after separately approved commissioning:** as the same linked Test principal, call `sync_my_linked_account()` exactly once, verify `read_account_whoami()` returns the same account ID and principal as `identity_access.whoami()`, and verify existing club-admin grants and team membership survived. Confirm unrelated and removed identities are still denied, then verify persisted linkage across a normal canister upgrade in a disposable replica before accepting production readiness. Legal terms still require the customer's affirmative consent.
+
 ## Club administrator creates a club and team
 
 1. Ask whether the organisation already exists and whether the user is its administrator. Use public directory reads to avoid duplicate clubs; a name match alone never grants ownership.
