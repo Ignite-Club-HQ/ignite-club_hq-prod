@@ -96,7 +96,12 @@ export async function uploadWithinClubMediaAllowance<T>(
   assertSupabaseMediaAllowancePath();
   if (!clubId) return upload(); // Personal/competition-only chats have no club pot.
   const previous = uploads.get(clubId) ?? Promise.resolve();
-  const current = previous.catch(() => undefined).then(async () => {
+  // A stalled earlier upload must not block every later attach on this device.
+  const previousSettled = Promise.race([
+    previous.catch(() => undefined),
+    new Promise(resolve => setTimeout(resolve, 90_000)),
+  ]);
+  const current = previousSettled.then(async () => {
     assertSupabaseMediaAllowancePath();
     if (!Number.isSafeInteger(bytes) || bytes < 0) throw new Error("Could not check file size.");
     if (measuredUpload) {
