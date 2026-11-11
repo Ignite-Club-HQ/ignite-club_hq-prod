@@ -94,6 +94,50 @@ function loadCanisterIds() {
 }
 
 const canisterIds = loadCanisterIds();
+
+// The ICP MCP connector permits calls only to canisters listed in this
+// discoverability manifest. The shared canister table does not include Group 2.
+// Opt-in is DEV-only, only for the reviewed, fixed DEV frontend identity. This
+// publishes addresses, not authorisation: the canisters must still enforce
+// caller-scoped access, and club creation must first pass shard_router placement.
+function devGroup2Discovery() {
+  if (isProdBuild || frontendCanisterId !== DEV_FRONTEND_II_CANISTER ||
+      process.env.IGNITE_MCP_DEV_GROUP2_DISCOVERY !== "1") return [];
+  const location = fileURLToPath(new URL("../../deploy/groups/g2/provision.json", import.meta.url));
+  if (!existsSync(location)) throw new Error("DEV MCP Group 2 discovery requires its checked provision.json");
+  const provision = JSON.parse(readFileSync(location, "utf8"));
+  if (provision.groupId !== "g2" || provision.deploymentId !== "mainnet" || provision.phase !== "checked") {
+    throw new Error("DEV MCP Group 2 discovery requires reviewed DEV Group 2 provisioning");
+  }
+  const domains = [
+    "club_domain", "events_domain", "messaging_domain", "vault_domain",
+    "competition_domain", "club_points_domain", "mini_league_domain",
+    "media_metadata", "insights_domain", "notification_queue",
+    "pii_access_control", "timer_jobs",
+  ];
+  const ids = new Set([frontendCanisterId, ...Object.values(canisterIds)]);
+  const validId = (id) => typeof id === "string" &&
+    /^[a-z0-9]{5}(?:-[a-z0-9]{5}){3}-cai$/.test(id) && !ids.has(id);
+  const entries = domains.map((domain) => {
+    const id = provision.canisters?.[domain];
+    if (!validId(id)) throw new Error("Invalid or duplicate DEV Group 2 canister: " + domain);
+    ids.add(id);
+    return {
+      id, name: "g2/" + domain, role: "backend",
+      description: "DEV Group 2 — " + (CANISTER_ROLES[domain]?.[1] || domain),
+    };
+  });
+  const store = provision.dedicatedBlobStore;
+  if (!store?.installed || !validId(store.canisterId)) {
+    throw new Error("Invalid or uninstalled DEV Group 2 media store");
+  }
+  entries.push({
+    id: store.canisterId, name: "g2/media_blob_store", role: "backend",
+    description: "DEV Group 2 — Encrypted club media blob storage; access is checked on-chain.",
+  });
+  return entries;
+}
+
 const manifest = {
   version: "1.0.0",
   canisters: [
@@ -102,6 +146,7 @@ const manifest = {
       const [name, description] = CANISTER_ROLES[key] ?? [key, undefined];
       return description ? { id, name, role: "backend", description } : { id, name, role: "backend" };
     }),
+    ...devGroup2Discovery(),
   ],
 };
 writeFileSync(`${out}/.well-known/ic-architecture`, JSON.stringify(manifest, null, 2) + "\n");
