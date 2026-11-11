@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({
   present: vi.fn().mockResolvedValue(undefined),
   registerToken: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('./icpPushMode', () => ({ usesDevIcpPush: () => state.mode, isDevIcpPushTarget: () => true }));
+vi.mock('./icpPushMode', () => ({ usesDevIcpPush: () => state.mode, isDevIcpPushTarget: () => true, groupPushQueues: () => [] }));
 vi.mock('./internetIdentityAuth', () => ({ getCurrentInternetIdentity: async () => ({
   getPrincipal: () => ({ isAnonymous: () => false, toText: () => 'account-a' }),
 }) }));
