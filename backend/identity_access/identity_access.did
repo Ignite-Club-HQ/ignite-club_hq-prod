@@ -84,6 +84,7 @@ type ApprovedRow = record {
   sink : principal;
   source_digest : blob;
 };
+type ActiveG2ClubReader = record { binding : Binding; club : principal };
 type Binding = record {
   registry_revision : nat64;
   host : text;
@@ -614,6 +615,8 @@ service : (Init) -> {
   // This installs only an account-read capability, not removal, erasure or routing.
   authorize_production_account_readers : (SignedApproval_1) -> (Result_8);
   authorize_production_member_access : (Binding) -> (Result_2);
+  // Governor-only DEV G2 club-account reader capability; requires live receiver and registry checks.
+  authorize_active_g2_club_reader : (Binding) -> (Result_2);
   begin_account_removal : (text, nat64) -> (Result_9);
   begin_link : (principal) -> (Result_10);
   // The candidate topology is not account/club data evidence. Close local
@@ -650,6 +653,7 @@ service : (Init) -> {
   // Public: remaining cycles (shown in admin settings).
   cycles_balance : () -> (nat) query;
   disable_group2_admission : () -> (Result_2);
+  disable_active_g2_club_reader : () -> (Result_2);
   disable_membership_directory : () -> (Result_2);
   disable_production_account_readers : () -> (Result_8);
   // Release permission is identity-owned, not a browser flag or saved report.
@@ -715,6 +719,7 @@ service : (Init) -> {
   read_group_inventory_evidence : (nat64) -> (Result_29);
   // Governor-only narrow opening evidence, not a lifecycle release or grant.
   read_group_opening_configuration : () -> (Result_30);
+  read_active_g2_club_reader : () -> (variant { Ok : opt ActiveG2ClubReader; Err : text });
   // Exact-child bounded directory traversal for device-side encrypted matching.
   // Rehearsal only until the PII guardian audience and release acceptance pass.
   read_guardian_profile_candidates : (principal, text, opt Cursor) -> (
