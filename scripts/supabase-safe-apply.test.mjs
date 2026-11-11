@@ -72,7 +72,7 @@ const SIX = [
   '20261105000300_club_invite_message_defaults.sql',
   '20261105000400_send_welcome_dm.sql',
   '20261109232052_a578f787-ba4e-4669-8bf0-c6ce2e552389.sql',
-  '20261111075407_ba34e1c2-bd8e-48f2-8993-461b53e500a9.sql',
+  '20261111075407_ba34e1c2-bd8e-48f2-8993-461b53e500a9.sql', '20261111185226_616130d3-ba85-4aa1-8dfb-4d4c752869bf.sql', '20261111190554_1ec9242a-4756-47e6-b5fd-257ad86a61a5.sql',
 ].sort();
 
 function realRelease() {
@@ -157,7 +157,7 @@ test('the safe-apply runner applies exactly the six approved batches, one transa
     assert.equal(report.dataCopy, false);
     const input = readSafeInputs(process.cwd());
     const written = readFileSync(log, 'utf8').split('\n=== WRITE ===\n').slice(1);
-    assert.equal(written.length, 8, 'one transaction per approved file');
+    assert.equal(written.length, SIX.length, 'one transaction per approved file');
     for (const file of SIX) {
       const version = file.split('_')[0];
       const name = file.slice(15, -4);

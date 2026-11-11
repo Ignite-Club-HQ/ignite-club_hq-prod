@@ -315,6 +315,18 @@
       "sha256": "c2e4e960825585f6b072d72d5bf81d08e4903d7af9e2f11cc48b98287cf63332",
       "disposition": "hold",
       "reason": "Paul approved absent-only PROD helper repair 11 Nov 09:34 UTC; standalone exact-source repair only, never automatic migration replay or ledger repair"
+    },
+    {
+      "file": "20261111185226_616130d3-ba85-4aa1-8dfb-4d4c752869bf.sql",
+      "sha256": "fa6e638d38d96c390068c8580f64231c5158088525e117ff10b79bfc959af9d7",
+      "disposition": "candidate",
+      "reason": "Owner-approved 11 Nov 2026 (Paul): club storage total functions; structure-only, read-only functions, no data writes"
+    },
+    {
+      "file": "20261111190554_1ec9242a-4756-47e6-b5fd-257ad86a61a5.sql",
+      "sha256": "e0b07ec91e07ef2c2dd61fcc6aeb00dc0e91a807244e6ff108d8f24ff617c648",
+      "disposition": "candidate",
+      "reason": "Owner-approved 11 Nov 2026 (Paul): club storage total functions; structure-only, read-only functions, no data writes"
     }
   ]
 }
