@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   push: new Map<string, (event: any) => void>(),
   firebase: new Map<string, (event: any) => void>(),
   present: vi.fn().mockResolvedValue(undefined),
+  registerToken: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('./icpPushMode', () => ({ usesDevIcpPush: () => state.mode, isDevIcpPushTarget: () => true }));
 vi.mock('./internetIdentityAuth', () => ({ getCurrentInternetIdentity: async () => ({
@@ -14,7 +15,7 @@ vi.mock('./internetIdentityAuth', () => ({ getCurrentInternetIdentity: async () 
 vi.mock('./targetRegistry', () => ({ getActiveIcpTarget: () => ({ host: 'https://icp-api.io', canisterIds: {} }) }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true, getPlatform: () => state.platform },
   registerPlugin: () => ({ present: state.present }) }));
-vi.mock('./features/notifications', () => ({ registerLiveDeviceToken: async () => undefined, unregisterLiveDeviceToken: async () => undefined }));
+vi.mock('./features/notifications', () => ({ registerLiveDeviceToken: state.registerToken, unregisterLiveDeviceToken: async () => undefined }));
 vi.mock('@capacitor/push-notifications', () => ({ PushNotifications: {
   checkPermissions: async () => ({ receive: 'granted' }),
   addListener: async (name: string, callback: (event: any) => void) => {
@@ -39,9 +40,22 @@ const notification = (id = 'alert-1', recipient = 'account-a', backend = 'icp-de
 beforeEach(() => {
   state.mode = true; state.platform = 'android';
   state.present.mockClear();
-  vi.stubEnv('IGNITE_LIVE_DEV_ICP_PUSH_ENABLED', 'true');
+  state.registerToken.mockClear();
+  vi.stubEnv('IGNITE_LIVE_DEV_ICP_PUSH_ENABLED', undefined);
 });
 afterEach(async () => { await revokeDevIcpNativePush(); vi.unstubAllEnvs(); });
+
+it.each(['account-a', 'principal:account-a'])('links the signed-in account %s without the obsolete build flag', async account => {
+  expect(await initializeDevIcpNativePush(account, false)).toEqual({ success: true });
+  expect(state.registerToken).toHaveBeenCalledTimes(1);
+  expect(state.registerToken.mock.calls[0]?.[1]).toEqual({ token: 'phone-token', platform: 'android' });
+  expect(state.registerToken.mock.calls[0]?.[0].identity.getPrincipal().toText()).toBe('account-a');
+});
+
+it.each(['icp-test-alert', 'account-b'])('refuses an account mismatch %s before token registration', async account => {
+  expect((await initializeDevIcpNativePush(account, false)).success).toBe(false);
+  expect(state.registerToken).not.toHaveBeenCalled();
+});
 
 it.each(['android', 'ios'])('receives Firebase foreground notifications on %s once across both plugins', async platform => {
   state.platform = platform;
