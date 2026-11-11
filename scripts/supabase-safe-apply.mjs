@@ -16,7 +16,7 @@ const digest = text => createHash('sha256').update(text).digest('hex');
 export function planSafeApply(approval, staged, files, findings, reviewed = null) {
   if (approval?.schemaVersion !== 1 || approval?.projectRef !== SAFE_TARGET
       || typeof approval?.approvedBy !== 'string' || !approval.approvedBy.trim()
-      || !Array.isArray(approval?.migrations) || approval.migrations.length < 1 || approval.migrations.length > 10) {
+      || !Array.isArray(approval?.migrations) || approval.migrations.length < 1 || approval.migrations.length > 20) {
     throw new Error('Exact owner approval for the PROD target required');
   }
   const approvedFiles = new Set(approval.migrations.map(item => item?.file));
