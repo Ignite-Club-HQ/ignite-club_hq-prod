@@ -42,6 +42,9 @@ mod removal_barrier;
 mod deletion_timing;
 mod admission;
 mod active_g2_club_reader;
+// Pure signed proposal only: no runtime activation until the independently
+// fenced recovery witness implementation has been security-reviewed.
+mod active_g2_recovery_acceptance;
 #[cfg(test)] mod member_access_tests;
 mod membership_directory;
 mod membership_directory_store;
