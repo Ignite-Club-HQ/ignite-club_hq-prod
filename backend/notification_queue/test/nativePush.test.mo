@@ -1,6 +1,7 @@
 import Native "../src/nativePush";
 import Principal "mo:core/Principal";
 import Array "mo:core/Array";
+import Nat "mo:core/Nat";
 let worker = Principal.fromText("aaaaa-aa");
 let other = Principal.fromText("2vxsx-fae");
 let attempt : Native.Attempt = { receipt = "1"; notification_id = "n"; user = "u"; token = "t"; platform = "android"; device_stamp = 1; worker; status = "sending" };
