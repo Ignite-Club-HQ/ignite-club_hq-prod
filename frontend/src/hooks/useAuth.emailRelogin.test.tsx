@@ -20,9 +20,12 @@ import { AuthProvider, useAuth } from './useAuth';
 const member = { id: 'email-member', created_at: '2025-01-01T00:00:00Z', app_metadata: { provider: 'email' } };
 const session = { user: member, access_token: 'fixture-only' };
 let auth: ReturnType<typeof useAuth>;
+const seen: string[] = [];
 function Page() {
   auth = useAuth();
-  return <output>{!auth.user ? 'signed-out' : auth.profileLoading || !auth.profileResolved ? 'pending' : auth.profile?.display_name ?? 'setup'}</output>;
+  const state = !auth.user ? 'signed-out' : auth.profileLoading || !auth.profileResolved ? 'pending' : auth.profileError ? 'retry' : auth.profile?.display_name ?? 'setup';
+  seen.push(state);
+  return <output>{state}</output>;
 }
 
 it('signing back in as the same email member after sign-out finishes loading the profile', async () => {
@@ -41,4 +44,18 @@ it('signing back in as the same email member after sign-out finishes loading the
   await waitFor(() => expect(screen.getByText('signed-out')).toBeInTheDocument());
   await act(async () => { m.callback('SIGNED_IN', session); });
   await waitFor(() => expect(screen.getByText('Paul')).toBeInTheDocument(), { timeout: 6000 });
+  // Create Profile must never be offered to a member who already has one.
+  expect(seen).not.toContain('setup');
 }, 15000);
+
+it('an existing member whose profile read comes back empty is offered retry, never Create Profile', async () => {
+  seen.length = 0;
+  const { createMockQueryBuilder } = await import('@/test/mockSupabaseClient');
+  m.client.from.mockImplementation(() => createMockQueryBuilder());
+  m.client.auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={qc}><AuthProvider><Page /></AuthProvider></QueryClientProvider>);
+  await act(async () => { m.callback('SIGNED_IN', { user: { ...member, id: 'other-member' }, access_token: 'fixture-only' }); });
+  await waitFor(() => expect(screen.getByText('retry')).toBeInTheDocument(), { timeout: 12000 });
+  expect(seen).not.toContain('setup');
+}, 20000);
