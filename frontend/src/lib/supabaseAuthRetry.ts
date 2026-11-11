@@ -11,10 +11,10 @@
  *    scoped pages (Schedule, Media, Pro checks) to either silently render
  *    empty or display a generic "couldn't verify" error.
  *
- * 2. READ TIMEOUT — aborts PostgREST GETs that hang past REST_GET_TIMEOUT_MS
+ * 2. READ TIMEOUT — aborts PostgREST GETs and Storage POST listings past REST_GET_TIMEOUT_MS
  *    so a dead socket on flaky mobile networks fails fast (and React Query
  *    can retry via cache fallback) instead of stalling for ~60s until the
- *    browser's own timeout kicks in. ONLY applied to PostgREST GETs:
+ *    browser's own timeout kicks in. Storage listings use POST but are read-only:
  *    - storage uploads, edge functions, mutations, and auth endpoints are
  *      left untouched so we never abort a slow upload or long-running call.
  *
@@ -99,6 +99,13 @@ function ensureSweeper() {
   sweepTimer = setInterval(() => {
     if (inFlightRestGets.size > 0) abortStaleRestGets("sweep");
   }, SWEEP_INTERVAL_MS);
+  // Web previews and phone browsers have no native resume adapter. Timers
+  // suspended by the document chooser must not leave a storage scan pending.
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") abortStaleRestGets("visible");
+    });
+  }
 }
 
 let installed = false;
@@ -145,12 +152,14 @@ export function installSupabaseAuthRetry() {
     }
 
     // --- READ TIMEOUT ---
-    // Apply an abort timeout to PostgREST GETs only. We never want to abort
+    // Apply an abort timeout to reads, including POST Storage listings. Never abort
     // storage uploads, edge function calls (some are intentionally long-
     // running), or write/RPC requests where retrying mid-flight could
     // duplicate side effects.
     const method = (init?.method || (input instanceof Request ? input.method : "GET") || "GET").toUpperCase();
-    const isRestGet = method === "GET" && url.includes("/rest/v1/");
+    const requestUrl = new URL(url);
+    const isStorageList = method === "POST" && /^\/storage\/v1\/object\/list\/[^/]+\/?$/.test(requestUrl.pathname);
+    const isRestGet = (method === "GET" && url.includes("/rest/v1/")) || isStorageList;
 
     let timeoutInit = init;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -258,7 +267,24 @@ export function installSupabaseAuthRetry() {
       }
 
       const retryInit: RequestInit = { ...(init || {}), headers: newHeaders };
-      return await origFetch(typeof input === "string" || input instanceof URL ? input : input.url, retryInit);
+      // Retried reads need the same deadline and registry as the first attempt.
+      // Do not recurse through auth retry (a second 401 is returned unchanged).
+      if (!isRestGet) return await origFetch(typeof input === "string" || input instanceof URL ? input : input.url, retryInit);
+      const controller = new AbortController();
+      const entry = { controller, deadlineAt: Date.now() + REST_GET_TIMEOUT_MS, url };
+      const callerSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+      const abort = () => controller.abort();
+      if (callerSignal?.aborted) abort();
+      else callerSignal?.addEventListener("abort", abort, { once: true });
+      inFlightRestGets.add(entry);
+      const timer = setTimeout(abort, REST_GET_TIMEOUT_MS);
+      try {
+        return await origFetch(typeof input === "string" || input instanceof URL ? input : input.url, { ...retryInit, signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+        inFlightRestGets.delete(entry);
+        callerSignal?.removeEventListener("abort", abort);
+      }
     } catch {
       return response;
     }
