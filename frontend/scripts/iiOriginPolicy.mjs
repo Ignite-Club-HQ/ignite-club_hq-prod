@@ -37,5 +37,5 @@ export function alternativeOriginsForBuild({ isProdBuild, frontendCanisterId }) 
   if (!isProdBuild && frontendCanisterId === DEV_FRONTEND_II_CANISTER) {
     aliases.push(...DEV_APP_ORIGINS);
   }
-  return aliases;
+  return [...new Set(aliases)];
 }
