@@ -17,7 +17,7 @@ function run(env) {
   writeFileSync(join(root, "dist-live", "index.html"), "<html></html>");
   cpSync(script, join(root, "scripts", "prepare-canister-dist.mjs"));
   execFileSync(process.execPath, [join(root, "scripts", "prepare-canister-dist.mjs")], {
-    cwd: root, env: { PATH: process.env.PATH, ...env }, stdio: "pipe",
+    cwd: root, env: { PATH: process.env.PATH, IGNITE_MCP_DEV_GROUP2_DISCOVERY: "0", ...env }, stdio: "pipe",
   });
   const wk = join(root, "dist-canister", ".well-known");
   return {
