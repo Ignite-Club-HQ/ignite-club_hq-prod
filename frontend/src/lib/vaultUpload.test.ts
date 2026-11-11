@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const target = vi.hoisted(() => ({ url: "" }));
+vi.mock("@/live/targetRegistry", () => ({ getActiveSupabaseTarget: () => ({ url: target.url, anonKey: "" }) }));
 
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
@@ -14,8 +16,6 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import {
-const target = vi.hoisted(() => ({ url: "" }));
-vi.mock("@/live/targetRegistry", () => ({ getActiveSupabaseTarget: () => ({ url: target.url, anonKey: "" }) }));
 
   buildVaultStorageUrl,
   compensateVaultUpload,
