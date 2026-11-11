@@ -113,9 +113,15 @@ export async function uploadWithinClubMediaAllowance<T>(
       }
     }
     await boundedStorageCheck(async () => {
-    const { data: sub, error } = await client.from("club_subscriptions")
-      .select("plan, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, is_trial, trial_ends_at, storage_purchased_gb, pricing_version")
-      .eq("club_id", clubId).maybeSingle();
+    const baseColumns = "plan, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, is_trial, trial_ends_at, storage_purchased_gb";
+    let { data: sub, error } = await client.from("club_subscriptions")
+      .select(`${baseColumns}, pricing_version`).eq("club_id", clubId).maybeSingle();
+    // Older databases lack the optional pricing column; retry once without it
+    // (missing pricing_version means legacy pricing). Other errors still stop the upload.
+    if (error && (error as { code?: string }).code === "42703" && /pricing_version/.test(error.message ?? "")) {
+      ({ data: sub, error } = await client.from("club_subscriptions")
+        .select(baseColumns).eq("club_id", clubId).maybeSingle() as any);
+    }
     if (error) throw error;
     let teamSub: MediaSubscription = null;
     if (teamId) {
