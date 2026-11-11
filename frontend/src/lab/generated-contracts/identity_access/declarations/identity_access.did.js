@@ -122,6 +122,7 @@ export const idlFactory = ({ IDL }) => {
     'registry' : IDL.Principal,
     'deployment_id' : IDL.Text,
   });
+  const ActiveG2ClubReader = IDL.Record({ 'binding' : Binding, 'club' : IDL.Principal });
   const Evidence = IDL.Record({
     'snapshot' : Snapshot,
     'binding' : Binding,
@@ -717,6 +718,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'authorize_production_member_access' : IDL.Func([Binding], [Result_2], []),
+    'authorize_active_g2_club_reader' : IDL.Func([Binding], [Result_2], []),
     'begin_account_removal' : IDL.Func([IDL.Text, IDL.Nat64], [Result_9], []),
     'begin_link' : IDL.Func([IDL.Principal], [Result_10], []),
     'begin_private_name_preparation' : IDL.Func(
@@ -763,6 +765,7 @@ export const idlFactory = ({ IDL }) => {
     'convert_profile_name' : IDL.Func([IDL.Text, IDL.Text], [Result_17], []),
     'cycles_balance' : IDL.Func([], [IDL.Nat], ['query']),
     'disable_group2_admission' : IDL.Func([], [Result_2], []),
+    'disable_active_g2_club_reader' : IDL.Func([], [Result_2], []),
     'disable_membership_directory' : IDL.Func([], [Result_2], []),
     'disable_production_account_readers' : IDL.Func([], [Result_8], []),
     'enable_membership_directory' : IDL.Func([IDL.Text], [Result_14], []),
@@ -861,6 +864,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'read_group_inventory_evidence' : IDL.Func([IDL.Nat64], [Result_29], []),
     'read_group_opening_configuration' : IDL.Func([], [Result_30], []),
+    'read_active_g2_club_reader' : IDL.Func([], [IDL.Variant({ 'Ok' : IDL.Opt(ActiveG2ClubReader), 'Err' : IDL.Text })], []),
     'read_guardian_profile_candidates' : IDL.Func(
         [IDL.Principal, IDL.Text, IDL.Opt(Cursor)],
         [Result_31],
