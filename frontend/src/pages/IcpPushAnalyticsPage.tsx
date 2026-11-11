@@ -41,7 +41,9 @@ export default function IcpPushAnalyticsPage() {
       // only to an older registration left from a previous install.
       const push = await import("@/lib/nativePush");
       if (push.isNativePlatform()) {
-        const linked = await push.initializeNativePush("icp-test-alert");
+        // Must be the signed-in account: secure sign-in linking refuses any other id.
+        if (!user?.id) throw new Error("Sign in again, then send the test alert.");
+        const linked = await push.initializeNativePush(user.id);
         if (!linked.success) {
           console.warn("Test alert phone registration failed:", linked.error);
           throw new Error("This phone couldn't be linked for alerts. Check notifications are allowed for Ignite, then try again.");
