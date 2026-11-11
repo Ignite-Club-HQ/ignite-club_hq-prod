@@ -37,7 +37,13 @@ export function setCachedCarousel<T>(userId: string | undefined, activeClubFilte
   try {
     if (typeof localStorage === "undefined") return;
     const entry: Entry<T> = { data, timestamp: Date.now() };
-    writeBoundedReadCache(key(userId, activeClubFilter), JSON.stringify(entry));
+    if (writeBoundedReadCache(key(userId, activeClubFilter), JSON.stringify(entry))) return;
+    // Too large: keep the cards, drop embedded image bytes and session-only
+    // links (they reload on screen). A slim save beats no save, which made
+    // every open wait for a full reload.
+    const slim = JSON.stringify(entry, (_k, value) =>
+      typeof value === "string" && (value.startsWith("blob:") || (value.startsWith("data:") && value.length > 2048)) ? undefined : value);
+    writeBoundedReadCache(key(userId, activeClubFilter), slim);
   } catch {
     // quota or unavailable — ignore
   }
