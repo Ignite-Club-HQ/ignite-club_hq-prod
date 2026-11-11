@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## All-user native ICP push rollout — 11 November
+- [x] Paul requested progressing beyond his successful open/closed-app self-test; preserve email/Supabase push and native-only scope.
+- [x] Identified current PROD recipient allowlist, base-queue-only transport, ten-send invocation cap, missing old-alert cutoff and lifetime 10,000-attempt stop.
+- [ ] Approve the rollout plan; implement and rehearse ordinary-member delivery, safe backlog cutoff, receipt retention and bounded resumption before live activation.
+- [ ] Verify every active group has supported queue delivery; unknown/missing group authority must not fall back to the base queue.
+
 ## Push statistics warning — 11 November
 - [x] Paul confirmed phone test alerts work with the app open and closed; keep delivery and email push unchanged.
 - [x] Reproduced false statistics denial from an unavailable protected administrator reader; align lookup selection with protection mode, retaining fail-closed protected reads and distinct transport errors.
