@@ -1,5 +1,6 @@
 import Native "../src/nativePush";
 import Principal "mo:core/Principal";
+import Array "mo:core/Array";
 let worker = Principal.fromText("aaaaa-aa");
 let other = Principal.fromText("2vxsx-fae");
 let attempt : Native.Attempt = { receipt = "1"; notification_id = "n"; user = "u"; token = "t"; platform = "android"; device_stamp = 1; worker; status = "sending" };
@@ -22,3 +23,7 @@ assert not Native.retain({ attempt with status = "inactive" }, expired);
 assert Native.unresolved(attempt);
 assert Native.unresolved({ attempt with status = "held" });
 assert not Native.unresolved({ attempt with status = "accepted" });
+let historical = Array.tabulate<Native.Attempt>(10_001, func(i) = { attempt with receipt = i.toText(); status = "accepted" });
+assert historical.filter(Native.unresolved).size() == 0;
+assert historical.filter(func a = Native.retain(a, expired)).size() == 0;
+assert historical.concat([{ attempt with status = "held" }]).filter(func a = Native.retain(a, expired)).size() == 1;
