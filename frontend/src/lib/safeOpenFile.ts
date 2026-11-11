@@ -34,6 +34,12 @@ export async function safeOpenFile(
 ): Promise<void> {
   const isNative = Capacitor.isNativePlatform();
   // Resolve authorization AND ICP decryption before any viewer/download.
+  // Older competition uploads saved "storage://<bucket>/<path>"; map it to the
+  // standard storage link so it is signed like every other stored file.
+  if (url.startsWith("storage://")) {
+    const base = String(import.meta.env.VITE_SUPABASE_URL ?? "").replace(/\/$/, "");
+    url = `${base}/storage/v1/object/public/${url.slice("storage://".length)}`;
+  }
   let resolvedUrl = url;
   {
     try {
