@@ -19,3 +19,10 @@ describe('DEV ICP push boundary', () => {
     expect(isDevIcpPushTarget({ ...state.target, host: 'https://engine.example' })).toBe(false);
   });
 });
+import { groupPushQueues as __groupPushQueues } from './icpPushMode';
+describe('second member group alert registration', () => {
+  it('LIVE phones also register on the second group queue; TEST does not', () => {
+    expect(__groupPushQueues({ canisterIds: { notification_queue: 'w263o-3aaaa-aaaai-ayesq-cai' } })).toEqual(['zu4gk-vqaaa-aaaal-qxp5a-cai']);
+    expect(__groupPushQueues({ canisterIds: { notification_queue: 'jfcdq-yiaaa-aaaal-qxloa-cai' } })).toEqual([]);
+  });
+});
