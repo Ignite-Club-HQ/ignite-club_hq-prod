@@ -103,6 +103,24 @@ describe("Combined club media allowance", () => {
     expect((await listStoredClubMedia("club-a", client)).reduce((sum, object) => sum + object.size, 0)).toBe(6009);
     expect(list).toHaveBeenCalledWith("clubs/club-a/teams", expect.objectContaining({ offset: 1000 }));
   });
+  it("starts independent storage folder reads together instead of blocking uploads behind a serial club scan", async () => {
+    const releases: Array<() => void> = [];
+    const list = vi.fn(() => new Promise<{ data: never[]; error: null }>(resolve => {
+      releases.push(() => resolve({ data: [], error: null }));
+    }));
+    const client = { storage: { from: () => ({ list }) } } as unknown as Client;
+    const scan = listStoredClubMedia("club-a", client);
+    await Promise.resolve();
+    const started = list.mock.calls.length;
+    // Always finish the scan, including with the old sequential implementation.
+    for (let i = 0; i < 10; i++) {
+      releases.splice(0).forEach(release => release());
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+    await scan;
+    expect(started).toBe(3);
+  });
 });
 it("preserves legacy paid 5 GiB through its existing term", async () => {
   const upload = vi.fn().mockResolvedValue("stored");

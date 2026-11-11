@@ -19,28 +19,30 @@ function assertSupabaseMediaAllowancePath(): void {
 export async function listStoredClubMedia(clubId: string, client: Client = supabase): Promise<StoredClubMedia[]> {
   assertSupabaseMediaAllowancePath();
   const objects: StoredClubMedia[] = [];
-  for (const bucket of ["photos", "chat-attachments", "competition-vault"]) {
-    const folders = [`clubs/${clubId}`];
-    while (folders.length) {
-      const folder = folders.pop();
-      if (!folder) continue;
-      for (let offset = 0; ; offset += 1000) {
-        const { data, error } = await client.storage.from(bucket).list(folder, {
-          limit: 1000, offset, sortBy: { column: "name", order: "asc" },
-        });
-        if (error) throw error;
-        for (const entry of data ?? []) {
-          const path = `${folder}/${entry.name}`;
-          if (!entry.id && !entry.metadata) folders.push(path);
-          else {
-            const size = Number(entry.metadata?.size);
-            if (!Number.isFinite(size) || size < 0) throw new Error("Could not check club storage. Please try again.");
-            objects.push({ path, bucket, size });
-          }
-        }
-        if (!data || data.length < 1000) break;
+  // Independent folders can be counted together. Never reuse a cached total:
+  // that could admit an upload against stale capacity or another caller's access.
+  const pending = ["photos", "chat-attachments", "competition-vault"].map(bucket => ({
+    bucket, folder: `clubs/${clubId}`, offset: 0,
+  }));
+  const scanPage = async ({ bucket, folder, offset }: typeof pending[number]) => {
+    const { data, error } = await client.storage.from(bucket).list(folder, {
+      limit: 1000, offset, sortBy: { column: "name", order: "asc" },
+    });
+    if (error) throw error;
+    for (const entry of data ?? []) {
+      const path = `${folder}/${entry.name}`;
+      if (!entry.id && !entry.metadata) pending.push({ bucket, folder: path, offset: 0 });
+      else {
+        const size = Number(entry.metadata?.size);
+        if (!Number.isFinite(size) || size < 0) throw new Error("Could not check club storage. Please try again.");
+        objects.push({ path, bucket, size });
       }
     }
+    if (data && data.length === 1000) pending.push({ bucket, folder, offset: offset + 1000 });
+  };
+  // Bound network work on phones while eliminating one round trip per folder.
+  while (pending.length) {
+    await Promise.all(pending.splice(0, 6).map(scanPage));
   }
   return objects;
 }
