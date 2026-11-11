@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { planSafeApply } from './supabase-safe-apply.mjs';
 import { planSafeStaging, readSafeInputs, SAFE_TARGET } from './supabase-safe-staging.mjs';
+import { competitionUploadDependencies } from './supabase-structural-release.mjs';
 
 const digest = t => createHash('sha256').update(t).digest('hex');
 const a = '20261104000000_safe.sql', b = '20261104000001_held.sql';
@@ -129,6 +130,7 @@ test('the safe-apply runner applies exactly the six approved batches, one transa
     writeFileSync(path.join(temp, 'psql'), [
       '#!/bin/sh',
       'for a in "$@"; do',
+      `  case "$a" in *competition-upload-dependency-preflight*) printf '%s' '${JSON.stringify(competitionUploadDependencies.map((_, id) => ({ id, exists: true })))}'; exit 0;; esac`,
       '  if [ "$a" = "--single-transaction" ]; then',
       '    printf "\\n=== WRITE ===\\n" >> "$SAFE_TEST_LOG"',
       '    cat >> "$SAFE_TEST_LOG"',

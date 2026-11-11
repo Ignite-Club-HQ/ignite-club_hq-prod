@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Competition upload dependency preflight — 11 November 09:24 UTC
+- [ ] Add an exact-source-bound, bounded read-only catalog check before release writes; report only allowlisted missing object names and hold without repair.
+- [ ] Verify missing-object, malformed-response, source-drift and successful-release cases offline; no PROD operations.
+
 ## Database release failure diagnostics — 11 November 09:13 UTC
 - [x] Full owner screenshot confirms the release wrapper hides psql stderr. Reproduced with a credential-free fake psql; added safe allowlisted error categories and stage/file labels without exposing raw SQL, credentials or rows. No connection changes, write retries, approval bypass or PROD operations.
 - [ ] Actual cause of run 42991574271 remains unknown because existing logs discard it; needs a release run with the corrected reporter after source promotion. Website remains held until the database job succeeds.
