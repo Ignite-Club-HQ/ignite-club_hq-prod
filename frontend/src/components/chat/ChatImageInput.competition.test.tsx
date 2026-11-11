@@ -34,7 +34,10 @@ describe("competition chat document selection", () => {
     const input = container.querySelector<HTMLInputElement>('input[type="file"][accept^=".pdf"]');
     if (!input) throw new Error("Document input missing");
     const choose = vi.spyOn(input, "click");
-    fireEvent.click(screen.getByRole("button", { name: "Upload File" }));
+    fireEvent.click(screen.getByRole("button", { name: /File or Folder/ }));
+    const device = await screen.findByRole("button", { name: "Upload from device" });
+    expect(screen.getByRole("button", { name: "Choose from vault" })).toBeDisabled();
+    fireEvent.click(device);
     expect(choose).toHaveBeenCalledOnce();
     const file = new File(["competition rules"], "rules.pdf", { type: "application/pdf" });
     fireEvent.change(input, { target: { files: [file] } });
