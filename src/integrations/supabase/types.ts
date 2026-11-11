@@ -11810,6 +11810,7 @@ export type Database = {
           team_msgs: number
         }[]
       }
+      club_media_used_bytes: { Args: { _club_id: string }; Returns: number }
       club_news_competition_ids: {
         Args: { _club_id: string }
         Returns: string[]

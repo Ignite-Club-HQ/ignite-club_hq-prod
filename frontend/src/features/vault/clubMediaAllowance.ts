@@ -135,9 +135,19 @@ export async function uploadWithinClubMediaAllowance<T>(
       teamSub = data;
     }
     const allowance = mediaAllowance(sub, teamSub);
-    const objects = await listStoredClubMedia(clubId, client);
-    const scoped = allowance.teamScoped ? objects.filter(object => object.path.startsWith(`clubs/${clubId}/teams/${teamId}/`) || object.path.startsWith(`clubs/${clubId}/vault/teams/${teamId}/`)) : objects;
-    const used = scoped.reduce((sum, object) => sum + object.size, 0);
+    // One server-side sum of the club's stored files; folder-by-folder listing is
+    // kept only for team-scoped plans and databases without the sum function.
+    let used: number | null = null;
+    if (!allowance.teamScoped && typeof (client as { rpc?: unknown }).rpc === "function") {
+      const { data: total, error: totalError } = await (client.rpc as any)("club_media_used_bytes", { _club_id: clubId });
+      if (!totalError && Number.isFinite(Number(total)) && Number(total) >= 0) used = Number(total);
+      else if (totalError && !["PGRST202", "42883"].includes((totalError as { code?: string }).code ?? "")) throw totalError;
+    }
+    if (used === null) {
+      const objects = await listStoredClubMedia(clubId, client);
+      const scoped = allowance.teamScoped ? objects.filter(object => object.path.startsWith(`clubs/${clubId}/teams/${teamId}/`) || object.path.startsWith(`clubs/${clubId}/vault/teams/${teamId}/`)) : objects;
+      used = scoped.reduce((sum, object) => sum + object.size, 0);
+    }
     if (used + bytes > allowance.limitBytes) {
       throw new Error(allowance.premium ? "Your storage allowance is full. Delete files or purchase more storage to keep uploading." : "Your club has used its 250 MB Free storage. Delete files or upgrade to Pro to keep uploading.");
     }
