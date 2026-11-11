@@ -33,6 +33,11 @@ import {
   setNotificationNavigator,
   clearNotificationNavigator,
 } from '@/lib/notificationLaunchHandler';
+import { strictIcpActive } from '@/live/strictIcpTransport';
+// Same rule as the ICP safety guard: once Internet Identity is chosen or
+// stored, phone alert registration must never take the email path.
+const pushUsesIcp = () => resolveAuthBackend() === 'icp' || strictIcpActive();
+
 
 let capacitorAppModule: typeof import('@capacitor/app') | null = null;
 
@@ -198,7 +203,7 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
 
       const platform = mod.getPlatform();
 
-      if (resolveAuthBackend() === 'icp') {
+      if (pushUsesIcp()) {
         const identity = await getCurrentInternetIdentity();
         if (!identity) return;
         await registerLiveDeviceToken(
