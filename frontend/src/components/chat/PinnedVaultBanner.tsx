@@ -87,6 +87,20 @@ async function resolveTarget(record: PinnedVaultRecord): Promise<ResolvedTarget 
     };
   }
   if (record.root_scope && record.root_id) {
+    if (record.root_scope === "competition") {
+      const { data } = await supabase
+        .from("competitions")
+        .select("id, name, organizer_club_id")
+        .eq("id", record.root_id)
+        .maybeSingle();
+      if (!data?.organizer_club_id) return null;
+      const qs = new URLSearchParams({
+        competition: data.id,
+        club: data.organizer_club_id,
+        competitionName: data.name ?? "Competition",
+      });
+      return { label: `${data.name ?? "Competition"} vault`, href: `/vault?${qs}`, count: 0 };
+    }
     if (record.root_scope === "team") {
       const { data } = await supabase
         .from("teams")
