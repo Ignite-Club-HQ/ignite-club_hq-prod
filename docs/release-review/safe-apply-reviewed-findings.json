@@ -38,13 +38,13 @@
     {
       "file": "20261111075407_ba34e1c2-bd8e-48f2-8993-461b53e500a9.sql",
       "sha256": "7f622900b4c53cb3f4dd94edd9b0fdd193ed834946bf977827bc723978496418",
-      "finding": "migration: Function expression split_part: requires separate review",
+      "finding": "Function expression split_part: requires separate review",
       "occurrences": 6
     },
     {
       "file": "20261111075407_ba34e1c2-bd8e-48f2-8993-461b53e500a9.sql",
       "sha256": "7f622900b4c53cb3f4dd94edd9b0fdd193ed834946bf977827bc723978496418",
-      "finding": "migration: Function expression public.competition_vault_storage_access: requires separate review",
+      "finding": "Function expression public.competition_vault_storage_access: requires separate review",
       "occurrences": 2
     }
   ]
