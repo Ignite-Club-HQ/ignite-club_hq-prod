@@ -142,7 +142,7 @@ export function useChatPinnedVault(
             clubId,
             vaultFileId: input.vault_file_id ?? null,
             vaultFolderId: input.vault_folder_id ?? null,
-            rootScope: input.root_scope ?? null,
+            rootScope: input.root_scope === "competition" ? null : input.root_scope ?? null,
             rootId: input.root_id ?? null,
             enabled: input.enabled ?? false,
           });
@@ -177,7 +177,7 @@ export function useChatPinnedVault(
             clubId: existing.club,
             vaultFileId: existing.vault_file_id.length ? existing.vault_file_id[0] : null,
             vaultFolderId: existing.vault_folder_id.length ? existing.vault_folder_id[0] : null,
-            rootScope: (existing.root_scope.length ? existing.root_scope[0] : null) as "team" | "club" | "competition" | null,
+            rootScope: (existing.root_scope.length ? existing.root_scope[0] : null) as "team" | "club" | null,
             rootId: existing.root_id.length ? existing.root_id[0] : null,
             enabled,
           });
