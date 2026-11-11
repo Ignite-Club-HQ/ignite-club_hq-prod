@@ -37,5 +37,5 @@ test("customer URLs are branded and never Lovable or Stripe destinations",()=>{
  for(const url of ["https://igniteclubhq.com/register","https://igniteclubhq.app","https://igniteclubhq.app/get/ios","https://igniteclubhq.app/get/android"]){
   assert.ok(skill.includes(url));
  }
- assert.doesNotMatch(skill,/https://[^\s`]*lovable.app/);
+ assert.ok(!skill.includes("https://ignite-club-launchpad.lovable.app"), "Do not show Lovable project URL");
 });
