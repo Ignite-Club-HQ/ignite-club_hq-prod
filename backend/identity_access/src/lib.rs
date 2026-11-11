@@ -1498,6 +1498,11 @@ fn production_account_approval_encoding(body:production_account_authorization::A
 fn production_account_approval_signing_bytes(body:production_account_authorization::ApprovalBody)->Outcome<Vec<u8>> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;production_account_authorization::signing_bytes(&body)
 }
+/// Independent recovery-witness equivalence for this new reader mode has not
+/// yet been implemented or reviewed. Keep the feature unconditionally OFF
+/// regardless of governor calls, stable-state values or environment settings.
+/// This constant must not change without audited evidence and new tests.
+const ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED: bool = false;
 /// Exact one-canister capability, separate from eligibility and from global
 /// account removal. Remains absent unless the existing governor approves it.
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
@@ -1528,6 +1533,7 @@ async fn read_live_active_g2(
     Ok(page)
 }
 async fn verify_active_g2_club_reader(caller:Principal, state:&ActiveG2ClubReader) -> Outcome<()> {
+    if !ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED {return Err("Independent recovery attestation not released".into());}
     if caller!=state.club || caller==Principal::anonymous() {
         return Err("Configured active G2 club reader required".into());
     }
@@ -1561,6 +1567,7 @@ async fn verify_active_g2_club_reader(caller:Principal, state:&ActiveG2ClubReade
 /// No client principal list, no local rehearsal flag, no removal controls.
 #[ic_cdk::update]
 async fn authorize_active_g2_club_reader(binding:group_inventory::Binding)->Outcome<()> {
+    if !ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED {return Err("Independent recovery attestation not released".into());}
     let _lease=private_name_writer_window::enter()?;
     let operator=ic_cdk::api::msg_caller();
     require_governor(&state(),operator)?;
