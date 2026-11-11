@@ -11,6 +11,40 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const PROD_REF = 'yabcfiuntwqjwvschnji';
 export const hash = value => createHash('sha256').update(value).digest('hex');
 
+export const COMPETITION_UPLOAD_FILE = '20261111075407_ba34e1c2-bd8e-48f2-8993-461b53e500a9.sql';
+const competitionUploadHash = '7f622900b4c53cb3f4dd94edd9b0fdd193ed834946bf977827bc723978496418';
+// Fixed source dependencies only: never execute the permission functions or read business rows.
+export const competitionUploadDependencies = Object.freeze([
+  ['storage schema', "EXISTS (SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname = 'storage')"],
+  ['storage.objects', "pg_catalog.to_regclass('storage.objects') IS NOT NULL"],
+  ...['bucket_id', 'name'].map(column => [`storage.objects.${column}`, `EXISTS (SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid = pg_catalog.to_regclass('storage.objects') AND attname = '${column}' AND attnum > 0 AND NOT attisdropped)`]),
+  ['auth.uid()', "pg_catalog.to_regprocedure('auth.uid()') IS NOT NULL"],
+  ['pg_catalog.split_part(text,text,integer)', "pg_catalog.to_regprocedure('pg_catalog.split_part(text,text,integer)') IS NOT NULL"],
+  ['public.competition_vault_storage_access(text,boolean)', "pg_catalog.to_regprocedure('public.competition_vault_storage_access(text,boolean)') IS NOT NULL"],
+  ...['anon', 'authenticated'].map(role => [`${role} role`, `EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '${role}')`]),
+].map(([object, expression]) => Object.freeze({ object, expression })));
+
+export function competitionUploadPreflightSql(files, pending) {
+  if (!pending.some(item => item.file === COMPETITION_UPLOAD_FILE)) return null;
+  if (hash(files[COMPETITION_UPLOAD_FILE] || '') !== competitionUploadHash) {
+    throw new Error('Competition upload preflight source changed; dependency review required before writes');
+  }
+  const rows = competitionUploadDependencies.map(({ expression }, index) => `(${index}, (${expression}))`).join(',\n');
+  return `/* competition-upload-dependency-preflight */\nSELECT json_agg(json_build_object('id', id, 'exists', present) ORDER BY id) FROM (VALUES ${rows}) AS dependencies(id, present);`;
+}
+
+export function readCompetitionUploadPreflight(stdout) {
+  let rows;
+  try { rows = JSON.parse(stdout); } catch { throw new Error('Competition upload dependency preflight unreadable; release held before writes'); }
+  if (!Array.isArray(rows) || rows.length !== competitionUploadDependencies.length
+      || rows.some((row, index) => row?.id !== index || typeof row.exists !== 'boolean'
+        || Object.keys(row).sort().join(',') !== 'exists,id')) {
+    throw new Error('Competition upload dependency preflight incomplete; release held before writes');
+  }
+  // Output names come exclusively from the fixed inventory, never database diagnostics.
+  return rows.flatMap((row, index) => row.exists ? [] : [competitionUploadDependencies[index].object]);
+}
+
 export function planRelease(policy, files, ledger, heldSources = {}) {
   if (!Array.isArray(ledger) || ledger.length > 10000) throw new Error('Bounded live migration ledger required');
   if (!heldSources || typeof heldSources !== 'object' || Array.isArray(heldSources) || Object.keys(heldSources).length > 6) throw new Error('Bounded protected-source archive required');
@@ -81,6 +115,24 @@ function run(command, args, options = {}) {
   return result.stdout;
 }
 
+function checkCompetitionUpload(connection, files, pending, report, save) {
+  const sql = competitionUploadPreflightSql(files, pending);
+  if (!sql) return;
+  report.competitionUploadPreflight = { status: 'checking', file: COMPETITION_UPLOAD_FILE }; save();
+  try {
+    const missing = readCompetitionUploadPreflight(run('psql', [connection, '-XAt', '-v', 'ON_ERROR_STOP=1', '-c', sql], {
+      releaseStage: 'competition upload dependency preflight (before all writes)',
+      env: { ...process.env, PGPASSWORD: process.env.SUPABASE_DB_PASSWORD,
+        PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=10000 -c lock_timeout=2000' },
+    }));
+    report.competitionUploadPreflight = { status: missing.length ? 'missing' : 'present', file: COMPETITION_UPLOAD_FILE, missing }; save();
+    if (missing.length) throw new Error(`Competition upload preflight missing database objects: ${missing.join('; ')}; release held before ALL writes (no repair)`);
+  } catch (error) {
+    report.phase = 'dependency-preflight-held'; save();
+    throw error;
+  }
+}
+
 function main() {
   if (process.env.GITHUB_REF !== 'refs/heads/prod' || process.env.PROJECT_REF !== PROD_REF) throw new Error('Exact PROD branch and database required');
   for (const key of ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_DB_PASSWORD', 'GITHUB_SHA']) {
@@ -114,6 +166,7 @@ function main() {
       apply: apply.map(x => x.file), alreadyApplied: skipped, held: staged.held.map(x => x.file), dataCopy: false, functions: [] };
     const save = () => writeFileSync(path.join(output, 'release-report.json'), JSON.stringify(report, null, 2));
     save();
+    checkCompetitionUpload(connection, input.files, apply, report, save);
     for (const item of apply) {
       // One transaction per approved file: its exact SQL plus its own truthful ledger row.
       const sql = `${input.files[item.file]}\n;\nINSERT INTO supabase_migrations.schema_migrations (version, name) VALUES ('${item.version}', '${item.name}');\n`;
@@ -169,6 +222,7 @@ function main() {
     console.error(issues.join('\n'));
     throw new Error('Structural-only release held before ALL writes; see release report');
   }
+  checkCompetitionUpload(connection, files, plan, report, save);
   run('supabase', ['link', '--project-ref', PROD_REF], { stdio: 'inherit' });
   // Full checked source inventory only: no filtered tree, repair or include-all.
   if (plan.length) run('supabase', ['db', 'push', '--linked', '--yes'], { stdio: 'inherit' });

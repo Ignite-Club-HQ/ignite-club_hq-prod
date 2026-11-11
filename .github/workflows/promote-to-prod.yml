@@ -44,13 +44,13 @@ jobs:
           python-version: "3.12"
       - run: python3 -m pip install pglast==7.22
       - name: Check structural release safety
-        run: node --test scripts/supabase-structural-release.test.mjs scripts/supabase-safe-staging.test.mjs scripts/supabase-safe-apply.test.mjs
+        run: node --test scripts/supabase-structural-release.test.mjs scripts/supabase-safe-staging.test.mjs scripts/supabase-safe-apply.test.mjs scripts/supabase-release-diagnostics.test.mjs scripts/supabase-release-error-categories.test.mjs
       - name: Rehearse exact approved signup change without hosted database access
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends postgresql
           export PATH="$(pg_config --bindir):$PATH"
-          node --test scripts/signup-approved-rehearsal.test.mjs
+          node --test scripts/signup-approved-rehearsal.test.mjs scripts/competition-upload-preflight.test.mjs
       - name: Check complete safe-stage inventory offline
         run: |
           node --input-type=module <<'JS'

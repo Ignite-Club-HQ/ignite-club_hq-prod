@@ -1,8 +1,21 @@
 # Roadmap — launch the live (PROD) system
 
+## Missing PROD competition Vault helper — 11 November 09:34 UTC
+- [ ] Paul explicitly requested immediate PROD application and repeated preflight at 09:42 UTC. Verified the migration tool has no target-project parameter and operates only on connected DEV; cannot apply to PROD or bypass it through GitHub SQL writes. Protected inspection 42997570291 at 09:43:44 UTC still reports exactly public.competition_vault_storage_access(text,boolean) missing; other eight checks pass. No repair or live writes performed.
+- [x] Prepared absent-only helper through the migration tool in DEV, with authenticated execution, host-competition matching and existing access-helper delegation. Exact socket-only rehearsal passes signed-out/invalid-host denial, manager/read branching, unchanged definitions on rerun and preserved business rows. Historical migration unchanged; new source held out of automatic replay.
+- [ ] Apply the reviewed repair on PROD and verify readback: the migration tool targets DEV only; no supported PROD migration connection is available here. Protected GitHub reads do not authorize bypassing the required migration tool for live SQL writes. No PROD repair performed.
+
+## Run PROD upload preflight before merge — 11 November 09:28 UTC
+- [x] Located Paul's accessible GitHub connection and added a standalone protected production catalog-only inspection dispatchable from main; five offline preflight tests and script syntax/read-only checks pass. No release or direct database access attempted.
+- [x] Executed protected read-only inspection 42996103653 on synced main f89451f201b46d3173dda1dc652ae69c36084902. PROD log confirms exactly one missing dependency: public.competition_vault_storage_access(text,boolean); all eight other checks present. No migrations, merge, business reads or repair performed.
+
+## Competition upload dependency preflight — 11 November 09:24 UTC
+- [x] Added an exact-source-bound nine-object catalog preflight before ALL release writes in safe-apply and full modes. Logs/report name only allowlisted missing schemas, relation/columns, exact function signatures and roles; missing/unreadable evidence holds without repair or helper invocation.
+- [x] All 58 focused checks pass, including real credential-free socket-only PostgreSQL, missing function/column, malformed/partial/injected evidence, source drift and complete release orchestration. CI now runs these checks before promotion. Root AGENTS note skipped because existing user-owned rules exceed its size budget; no PROD operations performed.
+
 ## Database release failure diagnostics — 11 November 09:13 UTC
 - [x] Full owner screenshot confirms the release wrapper hides psql stderr. Reproduced with a credential-free fake psql; added safe allowlisted error categories and stage/file labels without exposing raw SQL, credentials or rows. No connection changes, write retries, approval bypass or PROD operations.
-- [ ] Actual cause of run 42991574271 remains unknown because existing logs discard it; needs a release run with the corrected reporter after source promotion. Website remains held until the database job succeeds.
+- [x] Protected catalog inspection confirms public.competition_vault_storage_access(text,boolean) is absent on PROD, explaining the competition upload migration failure. Website remains held until a separately reviewed repair and successful database deployment; no repair performed.
 
 ## Referee chat stalled document upload — 11 November
 - [x] Follow-up: latest preview logs show 57 stuck requests on visibility recovery. Reproduced missing POST storage-list deadline with failing test; listings now join the read timeout/resume registry, including auth retries. Preparation has a separate 60-second bound covering SDK auth/body waits; late reads cannot advance to writes, and the upload queue is released on failure. 52 focused checks pass; preview build OK.
