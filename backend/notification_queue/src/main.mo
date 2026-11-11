@@ -1613,15 +1613,18 @@ persistent actor class Main(governorInit : Principal) = this {
   // Native push runs only on the TEST base queue and the LIVE base queue; LIVE
   // delivers solely to the approved recipient allowlist until widened.
   transient let liveNativeQueue = "w263o-3aaaa-aaaai-ayesq-cai";
+  // LIVE second member group's queue: same LIVE sender, same pilot/rollout rules.
+  transient let liveGroupNativeQueues = ["zu4gk-vqaaa-aaaal-qxp5a-cai"];
+  func isLiveNativeQueue(me : Text) : Bool { me == liveNativeQueue or liveGroupNativeQueues.find(func q = q == me) != null };
   transient let liveNativeRecipients = ["uuq6o-np4vy-sv6o7-ongim-26u3l-uje3n-abouz-7fi33-fwbkk-np27z-rae"];
   func nativeSenderUrl() : ?Text {
     let me = Principal.fromActor(this).toText();
     if (me == "jfcdq-yiaaa-aaaal-qxloa-cai") return ?"https://ecsdwrarzfexssxtrymj.supabase.co/functions/v1/icp-dev-push-sender";
-    if (me == liveNativeQueue) return ?"https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/icp-dev-push-sender";
+    if (isLiveNativeQueue(me)) return ?"https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/icp-dev-push-sender";
     null
   };
   func nativeRecipientAllowed(user : Text) : Bool {
-    NativeRolloutPolicy.allowed(Principal.fromActor(this).toText() == liveNativeQueue,
+    NativeRolloutPolicy.allowed(isLiveNativeQueue(Principal.fromActor(this).toText()),
       liveNativeRecipients.find(func r = r == user) != null, nativePushRollout)
   };
   // Separate governor action; code upgrades leave the pilot restriction intact.

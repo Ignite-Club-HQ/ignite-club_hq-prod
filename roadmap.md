@@ -430,3 +430,4 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] All-member ICP push switch: workflow "[PROD] Native push for all members (switch)" added; live queue reads OFF (11 Nov 10:30 UTC). Blocked on: merge to prod, then Paul runs it with action=enable. iPhone untested.
 
 - [ ] Correction 11 Nov 11:05 UTC: roadmap records both PROD groups (base and g2) OPENED with Paul's approval; earlier 'g2 closed' note was wrong. Fast native push sender covers only base queue, so g2 clubs' ICP alerts are not delivered natively. Needs g2 native sender coverage before claiming all-user push.
+- [x] 11 Nov: g2 alert coverage built on TEST (g2 queue accepts LIVE sender, sender drains base+g2, phones also register on g2, switch links and enables g2). Needs merge to prod, g2 queue upgrade, new Android build, then switch enable.

@@ -2,7 +2,7 @@ import type { PluginListenerHandle } from '@capacitor/core';
 import type { Identity } from '@icp-sdk/core/agent';
 import type { IcpTargetConfig } from './targetRegistry';
 import { createIcpPushLifecycle } from './icpPushLifecycle';
-import { isDevIcpPushTarget, usesDevIcpPush } from './icpPushMode';
+import { groupPushQueues, isDevIcpPushTarget, usesDevIcpPush } from './icpPushMode';
 
 const lifecycle = createIcpPushLifecycle();
 let currentTicket: number | undefined;
@@ -54,9 +54,20 @@ async function initialize(userId: string, requestPermission: boolean, attempt: n
     const account = ctx.identity.getPrincipal().toText();
     const { registerLiveDeviceToken, unregisterLiveDeviceToken } = await import('./features/notifications');
     if (attempt !== epoch || !usesDevIcpPush()) return { success: false, error: 'Account changed' };
+    const groupCtxs = groupPushQueues(ctx.target).map(queue => ({ ...ctx,
+      target: { ...ctx.target, canisterIds: { ...ctx.target.canisterIds, notification_queue: queue } } }));
     const ticket = lifecycle.bind({ account, target: JSON.stringify([ctx.target.host, ctx.target.canisterIds]),
-      register: (token, p) => registerLiveDeviceToken(ctx, { token, platform: p }),
-      unregister: async token => { await unregisterLiveDeviceToken(ctx, token); },
+      register: async (token, p) => {
+        await registerLiveDeviceToken(ctx, { token, platform: p });
+        // Other member groups: best-effort, so a group outage never blocks main-group alerts.
+        await Promise.all(groupCtxs.map(g => registerLiveDeviceToken(g, { token, platform: p })
+          .catch(() => console.warn('[ICP push] Group alert link not confirmed'))));
+      },
+      unregister: async token => {
+        await Promise.all(groupCtxs.map(g => unregisterLiveDeviceToken(g, token)
+          .catch(() => console.warn('[ICP push] Group alert removal not confirmed'))));
+        await unregisterLiveDeviceToken(ctx, token);
+      },
     });
     currentTicket = ticket;
     activeAccount = account;
