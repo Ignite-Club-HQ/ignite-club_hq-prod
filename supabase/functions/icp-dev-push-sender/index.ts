@@ -6,6 +6,7 @@ import { createNativeQueueAuthority, type NativeQueueActor } from './authority.t
 import { deliverReservedNativePush } from './delivery.ts';
 import { createNativeFcmTransport } from './fcm.ts';
 import { nativeSenderSigningSeed } from './signing.ts';
+import { drainNativePush } from './drain.ts';
 
 // TEST and LIVE (each pinned to its own Supabase project and queue). Wake-ups are content-free: request bodies and parameters are never
 // used for recipients, tokens or text. ICP reservations are the sole authority.
@@ -57,11 +58,13 @@ Deno.serve(async (req) => {
     running = true;
     const work = (async () => {
       try {
-        do {
+        rerun = false;
+        const report = await drainNativePush(() => runDelivery(raw), () => {
+          const requested = rerun;
           rerun = false;
-          const report = await runDelivery(raw);
-          console.log('Native sender run:', JSON.stringify(report));
-        } while (rerun);
+          return requested;
+        });
+        console.log('Native sender run:', JSON.stringify(report));
       } catch (error) {
         console.error('Native sender stopped:', error instanceof Error ? error.message.slice(0, 200) : 'unknown');
       } finally { running = false; }

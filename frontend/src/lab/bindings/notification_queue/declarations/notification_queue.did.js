@@ -191,6 +191,10 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : IDL.Vec(DeviceToken),
     'Err' : IDL.Text,
   });
+  const State = IDL.Record({
+    'started_at_ms' : IDL.Nat64,
+    'enabled' : IDL.Bool,
+  });
   const Request = IDL.Record({
     'account_id' : IDL.Text,
     'inventory_digest' : IDL.Vec(IDL.Nat8),
@@ -283,6 +287,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'clear_inbox' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [ResultNat16], []),
+    'configure_native_push_rollout' : IDL.Func(
+        [IDL.Bool, IDL.Principal],
+        [IDL.Variant({ 'Ok' : IDL.Nat64, 'Err' : IDL.Text })],
+        [],
+      ),
     'configure_native_push_worker' : IDL.Func(
         [IDL.Principal],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
@@ -451,6 +460,7 @@ export const idlFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
+    'native_push_rollout' : IDL.Func([], [IDL.Opt(State)], ['query']),
     'prepare_account_removal' : IDL.Func(
         [Request],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],

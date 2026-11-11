@@ -12,4 +12,11 @@ module {
   public func canSettle(a : Attempt, caller : Principal, outcome : Text) : Bool {
     a.worker == caller and terminal(outcome) and (a.status == "sending" or a.status == outcome)
   };
+  // Only known-completed, non-replayable sources may lose successful receipts.
+  // Missing sources and uncertain sends retain their original evidence.
+  public func retain(a : Attempt, completedAndExpired : Text -> Bool) : Bool {
+    if (a.status != "accepted" and a.status != "inactive") return true;
+    not completedAndExpired(a.notification_id)
+  };
+  public func unresolved(a : Attempt) : Bool { a.status == "sending" or a.status == "held" };
 }
