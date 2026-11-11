@@ -44,7 +44,7 @@ function generatedManifest(environment, opts = {}) {
       env: {
         ...process.env,
         IGNITE_FRONTEND_ENV: environment,
-        IGNITE_MCP_DEV_GROUP2_DISCOVERY: opts.enableGroup2 ? "1" : "0",
+        IGNITE_MCP_DEV_GROUP2_DISCOVERY: opts.enableGroup2 === undefined ? "" : (opts.enableGroup2 ? "1" : "0"),
         FRONTEND_CANISTER_ID: frontId,
         IGNITE_LIVE_ICP_CANISTER_IDS_JSON: JSON.stringify({ club_domain: clubId }),
       },
@@ -90,12 +90,17 @@ test("opt-in DEV discovery declares only the Group 2 club/team canister", () => 
   assert.deepEqual(new Set(declared.map(c => c.id)), new Set(expected));
   assert.equal(new Set(dev.manifest.canisters.map(c => c.id)).size, dev.manifest.canisters.length);
   assert.ok(declared.every(c => c.role === "backend"));
+  assert.deepEqual(
+    generatedManifest("dev").manifest.canisters.filter(c => c.name.startsWith("g2/")),
+    declared,
+    "pinned DEV frontend enables least-privilege club discovery by default",
+  );
   assert.equal(dev.derivation, `https://${DEV_FRONTEND}.icp0.io`);
   assert.ok(!dev.manifest.canisters.some(c => c.id === PROD_CLUB || c.id === PROD_FRONTEND));
 });
 
-test("Group 2 disclosure remains disabled by default and on PROD even with an opt-in", () => {
-  const disabled = generatedManifest("dev");
+test("Group 2 discovery can be disabled on DEV and is always disabled on PROD", () => {
+  const disabled = generatedManifest("dev", { enableGroup2: false });
   const prod = generatedManifest("prod", { enableGroup2: true });
   for (const manifest of [disabled.manifest, prod.manifest]) {
     assert.ok(manifest.canisters.every(c => !c.name.startsWith("g2/")));
