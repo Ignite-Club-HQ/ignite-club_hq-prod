@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Melanie — live email Women’s Masters Vault access — 11 November
+- [x] Confirmed affected account uses live email sign-in; connected database is DEV, not PROD. DEV Women’s Masters is Pro and has no Melanie role record, so it cannot reproduce her live denial. Inspected DEV Vault policies/access functions without changes.
+- [ ] Verify Melanie’s exact live competition role, access response and host entitlement before repairing: user-managed PROD diagnostics unavailable; no PROD credentials accessible. Need her exact warning and competition-role evidence, or authorized read-only PROD access. No permissions, roles, data or code changed.
+
 ## Competition chat file uploads — 11 November
 - [x] Restored Upload File in competition group chats without requiring a club ID. Documents use the competition host/access lookup, competition grants and metadata; no chat membership or backend permission changes. Paul approved the phone document chooser exception; photo picker unchanged.
 - [x] Five upload/access regressions failed before repair; 42 focused checks pass in default mode and 39 in ICP mode (backend-specific skips). Preview build OK. Existing competition Vault upload permissions still apply.
