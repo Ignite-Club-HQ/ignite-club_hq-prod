@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+
+## Stuck GitHub release runs — 11 November 20:45 UTC
+- [x] Merge 24091ac's runs were created during GitHub's webhook incident (resolved 20:22 UTC) and never received jobs; cancel and delete both refuse them. Removed the August phantom test run. Netlify gate accepts a fresh push run.
+- [ ] Paul merges main into prod again to create fresh release runs, then confirms database, ICP and Netlify complete.
+
 ## Email sign-in opens Create Profile — 11 November 09:45 UTC
 - [x] Reproduced established email account empty-profile reads being treated as new signup. Missing reads now show recovery instead of Create Profile; newly created accounts retain setup. Initial-session completion no longer clears an active profile read's loading flags; explicit sign-out resets resolution state. All 38 focused email/cache/routing/ICP save checks pass; preview build OK. No live accounts, permissions or database changes.
 - [ ] Confirm the affected live email account after promotion: external unmanaged session unavailable; exact live reason for the empty profile read remains unverified. No PROD deployment performed.
