@@ -309,6 +309,12 @@
       "sha256": "7f622900b4c53cb3f4dd94edd9b0fdd193ed834946bf977827bc723978496418",
       "disposition": "candidate",
       "reason": "Owner-approved 11 Nov 2026 (Paul): competition Vault uploads for competition managers; storage policy structure-only, no data writes"
+    },
+    {
+      "file": "20261111093535_7883a092-68d3-41a9-8f69-dd5119c108c6.sql",
+      "sha256": "c2e4e960825585f6b072d72d5bf81d08e4903d7af9e2f11cc48b98287cf63332",
+      "disposition": "hold",
+      "reason": "Paul approved absent-only PROD helper repair 11 Nov 09:34 UTC; standalone exact-source repair only, never automatic migration replay or ledger repair"
     }
   ]
 }
