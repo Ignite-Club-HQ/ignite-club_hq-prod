@@ -52,7 +52,6 @@ const LazyNativePushCard = SKIP_WEB_PUSH
   : () => null;
 
 const PasskeyManagementDialog = lazyWithRetry(() => import("@/components/PasskeyManagementDialog").then(m => ({ default: m.PasskeyManagementDialog })));
-const LazyIcpBrowserPushTestCard = lazyWithRetry(() => import('@/components/IcpBrowserPushTestCard').then(m => ({ default: m.IcpBrowserPushTestCard })));
 
 interface NotificationPreferences {
   messages_enabled: boolean;
@@ -668,9 +667,6 @@ export default function SettingsPage() {
       )}
 
       {/* Push Notifications Card */}
-      {!SKIP_WEB_PUSH && isIcpAccount && usesDevIcpPush() && user && <Suspense fallback={null}>
-        <LazyIcpBrowserPushTestCard userId={user.id} />
-      </Suspense>}
       {pushSupported && !isIcpAccount && (
         <Card>
           <CardHeader>
