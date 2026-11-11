@@ -121,6 +121,25 @@ describe("Combined club media allowance", () => {
     await scan;
     expect(started).toBe(3);
   });
+  it("releases a stalled preparation and never uploads after its late completion", async () => {
+    vi.useFakeTimers();
+    try {
+      let complete: ((value: { data: null; error: null }) => void) | undefined;
+      const query = { select: () => query, eq: () => query, maybeSingle: () => new Promise(resolve => { complete = resolve; }) };
+      const fake = fakeClient();
+      const stuck = { ...fake.client, from: () => query } as unknown as Client;
+      const upload = vi.fn();
+      const result = uploadWithinClubMediaAllowance("stalled-club", 1, upload, stuck).catch(error => error.message);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(await result).toContain("Couldn't finish checking storage");
+      complete?.({ data: null, error: null });
+      await vi.advanceTimersByTimeAsync(1);
+      expect(upload).not.toHaveBeenCalled();
+      const next = vi.fn().mockResolvedValue("stored");
+      await expect(uploadWithinClubMediaAllowance("stalled-club", 1, next, fake.client)).resolves.toBe("stored");
+      expect(next).toHaveBeenCalledTimes(1);
+    } finally { vi.useRealTimers(); }
+  });
 });
 it("preserves legacy paid 5 GiB through its existing term", async () => {
   const upload = vi.fn().mockResolvedValue("stored");
