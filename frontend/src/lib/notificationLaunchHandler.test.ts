@@ -259,7 +259,7 @@ describe("native notification launch routing", () => {
 
 describe("tap handler boot and ICP separation", () => {
   it("app start registers the email tap handler", async () => {
-    const src = await import("node:fs").then(f => f.readFileSync(new URL("../product-main.tsx", import.meta.url), "utf8"));
+    const src = await import("node:fs").then(f => f.readFileSync(`${process.cwd()}/src/product-main.tsx`, "utf8"));
     expect(src).toMatch(/^initNotificationLaunchHandler\(\);/m);
   });
   it("ICP alert taps are left to the ICP handler", async () => {
