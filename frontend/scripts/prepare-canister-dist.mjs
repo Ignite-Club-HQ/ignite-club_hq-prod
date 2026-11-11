@@ -97,12 +97,12 @@ const canisterIds = loadCanisterIds();
 
 // The ICP MCP connector permits calls only to canisters listed in this
 // discoverability manifest. The shared canister table does not include Group 2.
-// Opt-in is DEV-only, only for the reviewed, fixed DEV frontend identity. This
+// Enabled by default only for the reviewed, fixed DEV frontend identity. This
 // publishes addresses, not authorisation: the canisters must still enforce
 // caller-scoped access, and club creation must first pass shard_router placement.
 function devGroup2Discovery() {
   if (isProdBuild || frontendCanisterId !== DEV_FRONTEND_II_CANISTER ||
-      process.env.IGNITE_MCP_DEV_GROUP2_DISCOVERY !== "1") return [];
+      process.env.IGNITE_MCP_DEV_GROUP2_DISCOVERY === "0") return [];
   const location = fileURLToPath(new URL("../../deploy/groups/g2/provision.json", import.meta.url));
   if (!existsSync(location)) throw new Error("DEV MCP Group 2 discovery requires its checked provision.json");
   const provision = JSON.parse(readFileSync(location, "utf8"));
