@@ -1577,7 +1577,7 @@ async fn authorize_active_g2_club_reader(binding:group_inventory::Binding)->Outc
         require_governor(&state(),operator)?;
         admission_configuration_clear()?;
         if group_inventory_binding().as_ref()!=Some(&pinned) ||
-            group2_admission()!=prior || active_g2_club_reader().is_some() ||
+            encode(&group2_admission())!=encode(&prior) || active_g2_club_reader().is_some() ||
             removal_history_revision()!=history {
             return Err("Active G2 approval prerequisites changed".into());
         }
