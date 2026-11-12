@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { Principal } from '@icp-sdk/core/principal';
-import { ENGINE_INSTALL_SERVICES, engineInstallBinding, runEngineClosedInstall, type EngineInstallManifest, type EngineInstallJournal, type EngineClosedTransport, type EngineServiceStatus } from './engineClosedInstall';
+import { ENGINE_INSTALL_SERVICES, engineInstallBinding, runEngineClosedInstall, runDestinationUpgrade, destinationUpgradeBinding, type DestinationUpgradeJournal, type EngineInstallManifest, type EngineInstallJournal, type EngineClosedTransport, type EngineServiceStatus } from './engineClosedInstall';
 import { collectEngineAcceptance, ENGINE_ACCEPTANCE_CHECKS, MAX_ENGINE_EVIDENCE_BYTES, type EngineAcceptanceScope } from './engineAcceptance';
 import { assessEngineOperationalSafety, type EngineSafetyPolicy } from './engineOperationalSafety';
-import { planClubPlacement } from './engineClubPlacement';
+import { planClubPlacement, rehearseEngineNewClubSwitch } from './engineClubPlacement';
 import { GROUP_DOMAINS } from './groupRouting';
 import { SHIPPED_GATES, activationStatus } from './groupActivation';
 import { CLOUD_ENGINE_RELEASED } from './enginePreparation';
@@ -14,27 +14,74 @@ const id = (n: number) => Principal.fromUint8Array(new Uint8Array([n, 1])).toTex
 const m: EngineInstallManifest = { deploymentId: 'engine-au', groupId: 'g2', host: 'https://engine.example',
   subnetId: id(80), operator: id(81), proxyCanisterId: id(82), identityAccess: id(83), pushWorker: id(84),
   liveCanisters: [id(85)], moduleHashes: Object.fromEntries(ENGINE_INSTALL_SERVICES.map(d => [d, 'a'.repeat(64)])) as EngineInstallManifest['moduleHashes'] };
-function installer() {
+function installer(manifest = m) {
   const status = new Map<string, EngineServiceStatus>();
   const mutations: string[] = []; const journals: EngineInstallJournal[] = [];
   let n = 1;
   const t: EngineClosedTransport = {
     async create(a) { mutations.push('create'); const canisterId = id(n++); status.set(canisterId, { subnetId: a.subnetId, controllers: a.controllers,
-      running: true, moduleHash: null, cycles: 0n, interfaceVerified: true, memoryBytes: 0, capacityBytes: 100, engineServing: true }); return { canisterId, subnetId: a.subnetId }; },
+      running: true, moduleHash: null, cycles: a.initialCycles ?? 0n, interfaceVerified: true, memoryBytes: 0, capacityBytes: 100, engineServing: true }); return { canisterId, subnetId: a.subnetId }; },
     async status(canisterId) { const s = status.get(canisterId); if (!s) throw new Error('Unknown canister'); return s; },
-    async install(canisterId, _service, env) { mutations.push('install'); expect(env.find(v => v.name === 'PROXY_CANISTER_ID')?.value).toBe(m.proxyCanisterId);
+    async install(canisterId, _service, env) { mutations.push('install'); expect(env.find(v => v.name === 'PROXY_CANISTER_ID')?.value).toBe(manifest.networkKind === 'public_mainnet' ? undefined : manifest.proxyCanisterId);
       const s = status.get(canisterId); if (!s) throw new Error('Missing service'); s.moduleHash = 'a'.repeat(64); },
     async verifyGovernor(canisterId, governor) { expect((await t.status(canisterId)).controllers).toEqual([governor]); },
     async call(_id, method) { mutations.push(method); return { Ok: null }; },
   };
-  const start: EngineInstallJournal = { binding: engineInstallBinding(m), provision: { id: 'engine-install-1', groupId: m.groupId,
-    deploymentId: m.deploymentId, subnetId: m.subnetId, phase: 'approved', canisters: {}, expectedRevision: 1n } };
+  const start: EngineInstallJournal = { binding: engineInstallBinding(manifest), provision: { id: 'engine-install-1', groupId: manifest.groupId,
+    deploymentId: manifest.deploymentId, subnetId: manifest.subnetId, phase: 'approved', canisters: {}, expectedRevision: 1n } };
   const save = async (j: EngineInstallJournal) => { journals.push(structuredClone(j)); };
-  const run = (j = start) => runEngineClosedInstall(m, j, t, save, () => `op-${n}`);
+  const run = (j = start) => runEngineClosedInstall(manifest, j, t, save, () => `op-${n}`);
   return { status, mutations, journals, t, start, save, run };
 }
 
 describe('zero-cycle engine closed installation — offline transport', () => {
+  it.each(['public_mainnet', 'cloud_engine'] as const)('upgrades pinned %s groups without creating, reinstalling or replaying completed work', async networkKind => {
+    const manifest: EngineInstallManifest = { ...m, networkKind,
+      ...(networkKind === 'public_mainnet' ? { initialCycles: 200n, minimumCycles: 100n } : {}) };
+    const w = installer(manifest); await w.run(); w.mutations.length = 0;
+    const inventory = Object.fromEntries(ENGINE_INSTALL_SERVICES.map((d, i) => [d, { canisterId: id(i + 1), beforeHash: 'a'.repeat(64) }])) as Record<typeof ENGINE_INSTALL_SERVICES[number], { canisterId: string; beforeHash: string }>;
+    const next = { ...manifest, moduleHashes: Object.fromEntries(ENGINE_INSTALL_SERVICES.map(d => [d, 'b'.repeat(64)])) as EngineInstallManifest['moduleHashes'] };
+    const start: DestinationUpgradeJournal = { binding: destinationUpgradeBinding(next, inventory), completed: [] };
+    const saves: DestinationUpgradeJournal[] = []; let calls = 0;
+    const t = { status: w.t.status, upgrade: async (canisterId: string) => {
+      expect(saves.at(-1)?.pending?.canisterId).toBe(canisterId);
+      const s = w.status.get(canisterId); if (!s) throw new Error('missing'); s.moduleHash = 'b'.repeat(64); calls++;
+    } };
+    const save = async (j: DestinationUpgradeJournal) => { saves.push(structuredClone(j)); };
+    const done = await runDestinationUpgrade(next, inventory, start, t, save, () => `upgrade-${calls}`);
+    expect(done.completed).toHaveLength(13); expect(calls).toBe(13); expect(w.mutations).toEqual([]);
+    await runDestinationUpgrade(next, inventory, done, t, save, () => 'again'); expect(calls).toBe(13);
+  });
+  it('retains ambiguous upgrade intent and refuses replay', async () => {
+    const w = installer(); await w.run();
+    const inventory = Object.fromEntries(ENGINE_INSTALL_SERVICES.map((d, i) => [d, { canisterId: id(i + 1), beforeHash: 'a'.repeat(64) }])) as Record<typeof ENGINE_INSTALL_SERVICES[number], { canisterId: string; beforeHash: string }>;
+    const next = { ...m, moduleHashes: Object.fromEntries(ENGINE_INSTALL_SERVICES.map(d => [d, 'b'.repeat(64)])) as EngineInstallManifest['moduleHashes'] };
+    const start: DestinationUpgradeJournal = { binding: destinationUpgradeBinding(next, inventory), completed: [] };
+    let durable = start, calls = 0;
+    const t = { status: w.t.status, upgrade: async () => { calls++; throw new Error('SYS_UNKNOWN'); } };
+    const save = async (j: DestinationUpgradeJournal) => { durable = structuredClone(j); };
+    await expect(runDestinationUpgrade(next, inventory, start, t, save, () => 'op')).rejects.toThrow('SYS_UNKNOWN');
+    expect(durable.pending?.service).toBe(ENGINE_INSTALL_SERVICES[0]);
+    await expect(runDestinationUpgrade(next, inventory, durable, t, save, () => 'op')).rejects.toThrow('unresolved'); expect(calls).toBe(1);
+    await expect(runDestinationUpgrade(next, inventory, start, t, async () => { throw new Error('disk'); }, () => 'op')).rejects.toThrow('disk'); expect(calls).toBe(1);
+  });
+  it('uses the same complete closed installer for explicitly funded mainnet groups', async () => {
+    const manifest: EngineInstallManifest = { ...m, networkKind: 'public_mainnet', proxyCanisterId: '', initialCycles: 200n, minimumCycles: 100n };
+    const w = installer(manifest); const done = await w.run();
+    expect(done.provision.phase).toBe('checked'); expect(w.status.size).toBe(13);
+    expect([...w.status.values()].every(s => s.cycles === 200n)).toBe(true);
+    expect(done.provision.registration).toBeUndefined();
+    const before = [...w.mutations]; await w.run(done); expect(w.mutations).toEqual(before);
+    const status = [...w.status.values()][0]; status.cycles = 99n;
+    await expect(w.run(done)).rejects.toThrow('funding');
+  });
+  it('rejects engine funding, missing mainnet funding and destination changes before mutation', async () => {
+    expect(() => engineInstallBinding({ ...m, initialCycles: 100n })).toThrow('funding');
+    expect(() => engineInstallBinding({ ...m, networkKind: 'public_mainnet' })).toThrow('funding');
+    const w = installer();
+    await expect(runEngineClosedInstall({ ...m, networkKind: 'public_mainnet', initialCycles: 200n, minimumCycles: 100n }, w.start, w.t, w.save, () => 'op')).rejects.toThrow('binding changed');
+    expect(w.mutations).toEqual([]);
+  });
   it('installs 12 domains and its dedicated photo store, wires them and stays unregistered', async () => {
     const w = installer(); const done = await w.run();
     expect(done.provision.phase).toBe('checked'); expect(w.status.size).toBe(13);
@@ -173,6 +220,25 @@ function placement() {
     policy: { deploymentId: 'ic', primarySubnet: 's1', approvedSubnets: ['s1'], additionalSubnetsEnabled: false, currentGroupId: 'a', nowMs: 1000 } };
 }
 describe('country/group preparation preserves immutable placement', () => {
+  it('rehearses the engine switch only for new clubs and keeps the live planner held', () => {
+    const p = placement(); const original = p.approvedDeployments.get('ic');
+    if (!original) throw new Error('fixture missing');
+    const engine: GroupDeployment = { ...original, id: 'engine', networkKind: 'cloud_engine' };
+    p.table = { ...p.table, deployments: new Map([...p.table.deployments, ['engine', engine]]),
+      bindings: new Map([...p.table.bindings].map(([id, b]) => [id, { ...b, deploymentId: id === 'b' ? 'engine' : 'ic' }])) };
+    p.approvedDeployments.set('engine', engine); p.countries.countryDeployments.set('AU', 'engine');
+    p.groups = p.groups.filter(g => g.groupId === 'b').map(g => ({ ...g, deploymentId: 'engine',
+      capacity: g.capacity ? { ...g.capacity, deploymentId: 'engine' } : undefined }));
+    p.policy = { ...p.policy, deploymentId: 'engine', currentGroupId: 'b' };
+    const toggle = { enabled: false, deploymentId: 'engine', deploymentRevision: 1n };
+    expect(rehearseEngineNewClubSwitch(p, toggle).plan.kind).toBe('blocked');
+    expect(rehearseEngineNewClubSwitch(p, { ...toggle, enabled: true })).toMatchObject({
+      activationAuthorized: false, preparationOnly: true, plan: { kind: 'new', groupId: 'b', authorityRequired: true } });
+    expect(rehearseEngineNewClubSwitch(p, { ...toggle, enabled: true, deploymentRevision: 2n }).plan.kind).toBe('blocked');
+    expect(rehearseEngineNewClubSwitch({ ...p, clubId: 'existing' }, { ...toggle, enabled: true }).plan).toMatchObject({ kind: 'existing', groupId: 'a', deploymentId: 'ic' });
+    expect(planClubPlacement(p).kind).toBe('blocked'); expect(CLOUD_ENGINE_RELEASED).toBe(false);
+    expect(p.table.routing.assignments.has('new')).toBe(false);
+  });
   it('keeps existing clubs on their group despite a changed or missing country link', () => {
     const p = placement(); p.countries.countryDeployments.clear();
     expect(planClubPlacement({ ...p, clubId: 'existing' })).toMatchObject({ kind: 'existing', groupId: 'a', revision: 2n });

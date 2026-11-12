@@ -13,11 +13,31 @@ export type CountryDeploymentPlan = {
   countryDeployments: ReadonlyMap<string, string>;
 };
 
-export function planClubPlacement(input: {
+type PlacementInput = {
   clubId: string; homeCountry: string; countries: CountryDeploymentPlan;
   table: DeploymentBoundTable; groups: GroupCapacity[];
   policy: PlacementPolicy; approvedDeployments: ReadonlyMap<string, GroupDeployment>;
-}): ClubPlacementPlan {
+};
+
+export function planClubPlacement(input: PlacementInput): ClubPlacementPlan {
+  return calculatePlacement(input, false);
+}
+
+/** Simulates the future admission switch only; never returned as a live route. */
+export function rehearseEngineNewClubSwitch(input: PlacementInput, toggle: {
+  enabled: boolean; deploymentId: string; deploymentRevision: bigint;
+}) {
+  const deployment = input.approvedDeployments.get(toggle.deploymentId);
+  const existing = input.table.routing.assignments.has(input.clubId);
+  const permitted = toggle.enabled === true && deployment?.networkKind === 'cloud_engine' &&
+    deployment.revision === toggle.deploymentRevision &&
+    input.countries.countryDeployments.get(input.homeCountry.trim().toUpperCase()) === toggle.deploymentId;
+  const plan = existing ? calculatePlacement(input, false) : permitted ? calculatePlacement(input, true) :
+    { kind: 'blocked' as const, reason: 'Engine new-club switch disabled or binding changed' };
+  return { preparationOnly: true as const, activationAuthorized: false as const, plan };
+}
+
+function calculatePlacement(input: PlacementInput, engineRehearsal: boolean): ClubPlacementPlan {
   const { table } = input;
   if (!input.clubId.trim() || input.countries.revision < 1n) throw new Error('Club ID and authoritative country revision required');
   const assignment = table.routing.assignments.get(input.clubId);
@@ -39,7 +59,7 @@ export function planClubPlacement(input: {
   if (!approved || !registered || fingerprint(approved) !== fingerprint(registered) || !approved.enabled) {
     return { kind: 'blocked', deploymentId, reason: 'Missing, changed or disabled deployment approval' };
   }
-  if (approved.networkKind === 'cloud_engine') return { kind: 'blocked', deploymentId, reason: 'Real Cloud Engine acceptance and release required; no mainnet fallback' };
+  if (approved.networkKind === 'cloud_engine' && !engineRehearsal) return { kind: 'blocked', deploymentId, reason: 'Real Cloud Engine acceptance and release required; no mainnet fallback' };
   if (input.policy.deploymentId !== deploymentId || input.policy.primarySubnet !== approved.primarySubnet ||
       input.policy.additionalSubnetsEnabled !== approved.additionalSubnetsEnabled ||
       input.policy.approvedSubnets.length !== approved.approvedSubnets.length ||

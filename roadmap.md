@@ -1,5 +1,12 @@
 # Roadmap — launch the live (PROD) system
 
+## Engine-independent preparation — items 1, 3 and 4 only — 12 November
+- [x] Shared closed group installation and pinned upgrade protocols now accept explicit mainnet/engine destinations; initial/minimum fuel is required only for mainnet, and cycles are forbidden on engines. No network deployment or engine encryption changes.
+- [x] Added off/on new-club engine-switch rehearsal preserving existing assignments, exact revision binding and the live release hold. No settings, admission or country pins changed.
+- [x] Added bounded encrypted local backups, full decoded-content restore drills and one-pass content-free funding warnings; no scheduler, payment, delivery channel or live restore actions.
+- [x] 90 focused frontend regressions pass in each sign-in mode, plus 33 operational/journal/recovery checks; changed-file lint and preview build OK. Documented limits in docs/cloud-engine-future-switch.md. Root architecture note skipped because existing user-owned rules exhaust its size budget; scoped architecture notes recorded.
+- [ ] Actual TEST-group installation/upgrade and live backup/restore remain unverified: no governor deployment connection or accepted live recovery transport was used. Rental-provider readings/alert delivery, actual engine admission and real-engine acceptance require later engine access and separate opening approval; item 2 remains deferred.
+
 ## Deferred Cloud Engine switch preparation — 12 November
 - [x] Added a disabled future-engine draft and offline handover download without connecting an engine, changing country pins or moving existing clubs.
 - [x] Verified configuration preservation and engine hold: 79 focused checks pass in each sign-in mode; preview build OK. Documented remaining real-engine deployment, encryption/routing and acceptance work in docs/cloud-engine-future-switch.md.
