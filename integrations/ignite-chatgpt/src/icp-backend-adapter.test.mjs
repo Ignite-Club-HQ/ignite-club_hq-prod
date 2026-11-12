@@ -37,7 +37,7 @@ const backend=(params={})=>createCallerIcpBackend({
   listDevGroups:params.groups??(async()=>[group]),
   resolveClubPlacement:params.placement??(async()=>group)
 });
-const refuse=(p)=>assert.rejects(p,/access|membership|not a member|group|unverified|invalid|denied|restricted|placement|unauthorized/i);
+const refuse=(p)=>assert.rejects(p,/access|membership|not a member|group|unverified|invalid|denied|restricted|placement|unauthorized|delegation/i);
 test("adapter requires a trusted group resolver and verified caller",async()=>{
   assert.throws(()=>createCallerIcpBackend(),/resolver required/);
   const b=backend();
