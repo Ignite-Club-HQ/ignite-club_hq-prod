@@ -73,12 +73,16 @@ test("forged other-club chat fails, no send",async()=>{
  assert.equal(sends,before);
 });
 test("HTTP endpoint rejects no bearer and malformed content",async()=>{
- const server=createIgniteMcpHttpServer({verifyBearerToken:async()=>session,backend});
+ const server=createIgniteMcpHttpServer({verifyBearerToken:async()=>session,backend,authorizationServerUrl:"https://auth-dev.example.invalid",resourceUrl:"https://mcp-dev.example.invalid/mcp"});
  await new Promise(ok=>server.listen(0,"127.0.0.1",ok));
  const url="http://127.0.0.1:"+server.address().port+"/mcp";
  try{
  const a=await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(params("tools/list",{}))});
  assert.equal(a.status,401);
+ assert.match(a.headers.get("www-authenticate"),/resource_metadata="https:\/\/mcp-dev\.example\.invalid\/\.well-known\/oauth-protected-resource"/);
+ const metadata=await fetch(url.replace("/mcp","/.well-known/oauth-protected-resource"));
+ assert.equal(metadata.status,200);
+ assert.deepEqual((await metadata.json()).authorization_servers,["https://auth-dev.example.invalid"]);
  const b=await fetch(url,{method:"POST",headers:{"authorization":"Bearer testtoken","content-type":"text/plain"},body:"x"});
  assert.equal(b.status,415);
  const c=await fetch(url,{method:"POST",headers:{"authorization":"Bearer testtoken","content-type":"application/json"},body:JSON.stringify(params("initialize",{}))});
@@ -89,4 +93,11 @@ test("HTTP endpoint rejects no bearer and malformed content",async()=>{
 test("startup refuses missing OAuth modules in production environment",async()=>{
  const {startFromEnvironment}=await import("./server.mjs");
  await assert.rejects(startFromEnvironment({}),/Missing verified Ignite OAuth and ICP adapter/);
+});
+
+test("invalid discovery URLs fail closed",()=>{
+ assert.throws(()=>createIgniteMcpHttpServer({verifyBearerToken:async()=>session,backend,
+   authorizationServerUrl:"http://example.invalid",resourceUrl:"https://mcp-dev.example.invalid/mcp"}),/Pinned HTTPS/);
+ assert.throws(()=>createIgniteMcpHttpServer({verifyBearerToken:async()=>session,backend,
+   authorizationServerUrl:"https://auth-dev.example.invalid",resourceUrl:"https://mcp-dev.example.invalid/private"}),/Pinned HTTPS/);
 });
