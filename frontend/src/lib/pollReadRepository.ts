@@ -35,7 +35,6 @@ export function pollResultsToData(pollId: string, results: any): PollData {
     })));
   }
   return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- candid Poll
     poll: { id: results.poll.id, question: results.poll.question, allow_multiple: false,
       closes_at: null, closed_at: results.poll.closed ? createdAt : null,
       created_by: results.poll.creator.toText(), created_at: createdAt },

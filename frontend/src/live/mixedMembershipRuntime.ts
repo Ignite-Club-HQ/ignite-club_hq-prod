@@ -16,6 +16,7 @@ export function installMixedMembershipRuntime(value: Runtime): void {
   const local = typeof location !== 'undefined' && ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
   if (!CLOUD_ENGINE_RELEASED && !local) throw new Error('Cloud Engine acceptance is still pending');
   value.session.assertCurrent();
+  if (runtime?.session === value.session) { runtime = value; return; }
   clearMixedMembershipRuntime(); runtime = value;
 }
 export function clearMixedMembershipRuntime(): void { runtime?.session.dispose(); runtime = null; }
@@ -38,8 +39,9 @@ export async function dispatchMixedMembership<T>(
 ): Promise<{ value: T } | null> {
   const session = currentMixedMembershipSession(ctx);
   if (!session || scope?.legacy) return null;
-  if (scope && 'shared' in scope) return { value: await read(session.shared) };
-  if (!domain) return { value: await read(session.shared) };
+  if (scope && 'shared' in scope || !domain) {
+    const value = await read(session.shared); session.assertCurrent(); return { value };
+  }
   if (!scope) throw new Error('Mixed membership requires a club scope');
   if ('newClubId' in scope || 'inviteToken' in scope) throw new Error('Engine admission and invite handover are not released');
   if ('everyGroup' in scope || 'memberGroups' in scope) {

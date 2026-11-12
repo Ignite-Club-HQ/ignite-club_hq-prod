@@ -6,13 +6,14 @@ import { installMixedMembershipRuntime } from './mixedMembershipRuntime';
 
 /** Explicit commissioning entry point, not country-based routing or admission. */
 export async function openLiveMixedMembership(
-  shared: FeatureBackendContext, approvedDestinations: readonly IcpTargetConfig[],
+  shared: FeatureBackendContext, approvedDestinations: readonly { target: IcpTargetConfig; deploymentAlias: string }[],
 ): Promise<void> {
   if (!CLOUD_ENGINE_RELEASED) throw new Error('Real-engine membership acceptance is still pending');
   const { createLiveGroupSessionTransport, lookupEntityClub } = await import('./groupSessionLive');
-  const destinations = await Promise.all(approvedDestinations.map(async target => {
+  const destinations = await Promise.all(approvedDestinations.map(async ({ target, deploymentAlias }) => {
+    if (!deploymentAlias) throw new Error('Exact destination deployment alias required');
     const context = { identity: shared.identity, target };
-    return { context, transport: await createLiveGroupSessionTransport(context) };
+    return { context, transport: await createLiveGroupSessionTransport(context, undefined, deploymentAlias) };
   }));
   const session = await openMixedMembershipSession(shared, destinations);
   try {

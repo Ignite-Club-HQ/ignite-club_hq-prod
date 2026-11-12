@@ -14,12 +14,12 @@ export async function openLiveGroupReadSession(ctx: FeatureBackendContext, owner
   return openGroupSession(ctx, await createLiveGroupSessionTransport(ctx, ownerGroupId));
 }
 
-export async function createLiveGroupSessionTransport(ctx: FeatureBackendContext, ownerGroupId?: 'g2') {
+export async function createLiveGroupSessionTransport(ctx: FeatureBackendContext, ownerGroupId?: 'g2', destinationAlias?: string) {
   const { connectLiveShardRouter, connectLiveClubDomain } = await import('./domains');
   const { actor: router } = await connectLiveShardRouter(ctx.target, ctx.identity);
   // The router filters by its on-chain deployment name; the frontend's own
   // target alias is a different, local name for the same deployment.
-  const routerAlias = ownerGroupId ? ctx.target.alias : (generalRoutingDeploymentAlias() ?? ctx.target.alias);
+  const routerAlias = destinationAlias ?? (ownerGroupId ? ctx.target.alias : (generalRoutingDeploymentAlias() ?? ctx.target.alias));
   // Groups carry the router's on-chain deployment name; the frontend's own
   // target alias is a different, local name for the same deployment. Routing
   // must bind to the on-chain name or every resolve rejects as foreign.
