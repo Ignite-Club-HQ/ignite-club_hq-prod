@@ -122,7 +122,15 @@ export const idlFactory = ({ IDL }) => {
     'registry' : IDL.Principal,
     'deployment_id' : IDL.Text,
   });
-  const ActiveG2ClubReader = IDL.Record({ 'binding' : Binding, 'club' : IDL.Principal });
+  const ActiveG2Scope = IDL.Record({
+    'identity': IDL.Principal, 'router': IDL.Principal,
+    'club_reader': IDL.Principal, 'witness': IDL.Principal,
+    'registry_revision': IDL.Nat64, 'generation': IDL.Nat64,
+    'recovery_epoch': IDL.Nat64, 'expires_at_ns': IDL.Nat64,
+    'accepted_recovery_digest': IDL.Vec(IDL.Nat8),
+  });
+  const ActiveG2SignedScope = IDL.Record({ 'scope': ActiveG2Scope, 'signature': IDL.Vec(IDL.Nat8) });
+  const ActiveG2ClubReader = IDL.Record({ 'binding': Binding, 'club': IDL.Principal, 'approval': ActiveG2SignedScope });
   const Evidence = IDL.Record({
     'snapshot' : Snapshot,
     'binding' : Binding,
@@ -718,7 +726,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'authorize_production_member_access' : IDL.Func([Binding], [Result_2], []),
-    'authorize_active_g2_club_reader' : IDL.Func([Binding], [Result_2], []),
+    'authorize_active_g2_club_reader' : IDL.Func([Binding, ActiveG2SignedScope], [Result_2], []),
     'begin_account_removal' : IDL.Func([IDL.Text, IDL.Nat64], [Result_9], []),
     'begin_link' : IDL.Func([IDL.Principal], [Result_10], []),
     'begin_private_name_preparation' : IDL.Func(
