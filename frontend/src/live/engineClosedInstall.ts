@@ -9,6 +9,8 @@ export const ENGINE_INSTALL_SERVICES = [...PER_GROUP_DOMAINS, 'media_blob_store'
 export type EngineInstallService = typeof ENGINE_INSTALL_SERVICES[number];
 export type EngineInstallManifest = {
   deploymentId: string; groupId: string; host: string; subnetId: string; operator: string;
+  /** Omitted for legacy engine manifests. Mainnet funding is explicit, never inferred. */
+  networkKind?: 'cloud_engine' | 'public_mainnet'; initialCycles?: bigint; minimumCycles?: bigint;
   proxyCanisterId: string; identityAccess: string; pushWorker: string;
   liveCanisters: readonly string[];
   moduleHashes: Record<EngineInstallService, string>;
@@ -20,7 +22,7 @@ export type EngineServiceStatus = {
 };
 export type EngineClosedTransport = ConfigurationTransport & {
   /** No funding amount/ledger. Operation is journaled, but not assumed deduped. */
-  create(a: { operation: string; subnetId: string; controllers: string[] }): Promise<{ canisterId: string; subnetId: string }>;
+  create(a: { operation: string; subnetId: string; controllers: string[]; initialCycles?: bigint }): Promise<{ canisterId: string; subnetId: string }>;
   status(id: string): Promise<EngineServiceStatus>;
   install(id: string, service: EngineInstallService, environment: { name: string; value: string }[]): Promise<void>;
 };
@@ -35,18 +37,24 @@ export function engineInstallBinding(m: EngineInstallManifest): string {
   const url = new URL(m.host);
   if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('Engine HTTPS origin required');
   if (!m.deploymentId.trim() || !m.groupId.trim()) throw new Error('Deployment and group required');
-  [m.subnetId, m.operator, m.proxyCanisterId, m.identityAccess, m.pushWorker, ...m.liveCanisters].forEach(principal);
+  const engine = (m.networkKind ?? 'cloud_engine') === 'cloud_engine';
+  if (m.networkKind !== undefined && !['cloud_engine', 'public_mainnet'].includes(m.networkKind)) throw new Error('Unknown installation destination');
+  if (engine ? m.initialCycles !== undefined || m.minimumCycles !== undefined :
+    typeof m.initialCycles !== 'bigint' || typeof m.minimumCycles !== 'bigint' || m.minimumCycles <= 0n || m.initialCycles < m.minimumCycles) throw new Error('Destination-specific funding required');
+  [m.subnetId, m.operator, ...(engine || m.proxyCanisterId ? [m.proxyCanisterId] : []), m.identityAccess, m.pushWorker, ...m.liveCanisters].forEach(principal);
   if (new Set(m.liveCanisters).size !== m.liveCanisters.length) throw new Error('Duplicate live engine inventory');
   if (new Set([m.proxyCanisterId, m.identityAccess, m.pushWorker]).size !== 3) throw new Error('Distinct shared services required');
   for (const d of ENGINE_INSTALL_SERVICES) if (!/^[a-f0-9]{64}$/.test(m.moduleHashes[d] ?? '')) throw new Error(`Exact module hash required: ${d}`);
   return JSON.stringify([m.deploymentId, m.groupId, url.origin, m.subnetId, m.operator, m.proxyCanisterId,
-    m.identityAccess, m.pushWorker, [...m.liveCanisters].sort(), ENGINE_INSTALL_SERVICES.map(d => [d, m.moduleHashes[d]])]);
+    m.identityAccess, m.pushWorker, [...m.liveCanisters].sort(), ENGINE_INSTALL_SERVICES.map(d => [d, m.moduleHashes[d]]),
+    m.networkKind ?? 'cloud_engine', m.initialCycles?.toString() ?? null, m.minimumCycles?.toString() ?? null]);
 }
 
 export async function runEngineClosedInstall(m: EngineInstallManifest, start: EngineInstallJournal,
   t: EngineClosedTransport, save: (j: EngineInstallJournal) => Promise<void>, operation: () => string): Promise<EngineInstallJournal> {
   m = structuredClone(m); start = structuredClone(start);
   const binding = engineInstallBinding(m);
+  const engine = (m.networkKind ?? 'cloud_engine') === 'cloud_engine';
   if (start.binding !== binding || start.provision.deploymentId !== m.deploymentId || start.provision.groupId !== m.groupId || start.provision.subnetId !== m.subnetId) throw new Error('Engine install binding changed');
   if (start.provision.registration || ['registered', 'enabled'].includes(start.provision.phase)) throw new Error('Engine installer cannot register or open a group');
   if (start.provision.pending) throw new Error(`Unresolved ${start.provision.pending.kind} intent; exact operator reconciliation required`);
@@ -54,7 +62,8 @@ export async function runEngineClosedInstall(m: EngineInstallManifest, start: En
   const own = (id: string) => { principal(id); if (reserved.has(id)) throw new Error('Refusing live/shared canister'); };
   const verify = async (id: string) => {
     own(id); const s = await t.status(id);
-    if (s.subnetId !== m.subnetId || s.controllers.length !== 1 || s.controllers[0] !== m.operator || !s.engineServing || s.cycles !== 0n) throw new Error('Engine controller/subnet/service/zero-cycle evidence invalid');
+    const funded = typeof s.cycles === 'bigint' && (engine ? s.cycles === 0n : m.minimumCycles !== undefined && s.cycles >= m.minimumCycles);
+    if (s.subnetId !== m.subnetId || s.controllers.length !== 1 || s.controllers[0] !== m.operator || !s.engineServing || !funded) throw new Error('Destination controller/subnet/service/funding evidence invalid');
     if (s.moduleHash !== null && !/^[a-f0-9]{64}$/.test(s.moduleHash)) throw new Error('Malformed engine module hash');
     if (typeof s.running !== 'boolean' || typeof s.interfaceVerified !== 'boolean' || s.engineServing !== true ||
         !Number.isSafeInteger(s.memoryBytes) || s.memoryBytes < 0 || !Number.isSafeInteger(s.capacityBytes) || s.capacityBytes <= s.memoryBytes) throw new Error('Invalid engine capacity/status evidence');
@@ -69,7 +78,8 @@ export async function runEngineClosedInstall(m: EngineInstallManifest, start: En
     const s = await verify(id);
     if (s.moduleHash === m.moduleHashes[d]) return;
     if (s.moduleHash) throw new Error('Refusing foreign module overwrite');
-    await t.install(id, d, [{ name: '__META_PROJECT', value: m.deploymentId }, { name: '__META_NAME', value: d }, { name: 'PROXY_CANISTER_ID', value: m.proxyCanisterId }]);
+    await t.install(id, d, [{ name: '__META_PROJECT', value: m.deploymentId }, { name: '__META_NAME', value: d },
+      ...(engine ? [{ name: 'PROXY_CANISTER_ID', value: m.proxyCanisterId }] : [])]);
     if ((await verify(id)).moduleHash !== m.moduleHashes[d]) throw new Error('Installed module readback mismatch');
   };
   const checkpoint: ProvisionCheckpoint = p => save(structuredClone({ binding, provision: p }));
@@ -80,7 +90,8 @@ export async function runEngineClosedInstall(m: EngineInstallManifest, start: En
   const create = async (p: Provision) => {
     const token = p.pending?.operation;
     if (!token?.trim()) throw new Error('Durable create operation required');
-    const c = await t.create({ operation: token, subnetId: m.subnetId, controllers: [m.operator] });
+    const c = await t.create({ operation: token, subnetId: m.subnetId, controllers: [m.operator],
+      ...(engine ? {} : { initialCycles: m.initialCycles }) });
     own(c.canisterId);
     if (Object.values(p.canisters).includes(c.canisterId)) throw new Error('Duplicate created engine service');
     return c;
