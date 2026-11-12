@@ -118,20 +118,21 @@ try {
   assert.ok(valid.witness_revision>0n);
   rejects(await w.verify_active_g2_subject_read_fence(request),/Replayed/i);
   mark('Real witness accepts fresh active subject request only from pinned identity sender and rejects replay');
+  let nextNonce=10n;
   for(const [name,mutate] of [
-    ['wrong account',x=>({...x,account_id:'different-account'})],
     ['wrong subject',x=>({...x,subject:outsider})],
     ['invalid alias set',x=>({...x,principals:[member,member]})],
     ['invalid scope digest',x=>({...x,scope_digest:dig(4)})],
     ['zero nonce',x=>({...x,nonce:0n})],
   ]) {
-    const altered={...q,nonce:BigInt(report.checks.length+2),...mutate(q)};
-    // Incorrect account_id is not independently knowable by witness without an
-    // account registry. It MUST be checked by identity's current_service_account
-    // before and after await; do not claim witness alone rejects that case.
-    if(name==='wrong account')continue;
-    rejects(await w.verify_active_g2_subject_read_fence({...request,challenge:altered}));
+    const altered=mutate({...q,nonce:nextNonce++});
+    const result=await w.verify_active_g2_subject_read_fence({...request,challenge:altered});
+    rejects(result);
+    assert.doesNotMatch(result.Err,/Replayed/,name+' must fail its own security check, not the replay guard');
   }
+  // The independent witness cannot know the account ID is current without
+  // identity_access. Only that service checks current_service_account on both
+  // sides of the awaited witness call; no unsupported wrong-account claim here.
   mark('Invalid subject membership, aliases, scope digest and nonce rejected');
   stage='independently recorded removal closes witness and protects subject';
   w.setPrincipal(owner);
