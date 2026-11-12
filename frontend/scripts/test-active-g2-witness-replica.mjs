@@ -181,6 +181,17 @@ try {
     account_id:account.id,generation:1n,inventory_digest:dig(5),
     subjects:[member],targets:[identityPin,participant]}}};
   ok(await w.record_removal_recovery(removal));
+  // The same genuine G2 club caller must now fail the whole chain, even
+  // though the local account has not yet been deleted in the identity fixture.
+  club.actor.setPrincipal(member);
+  const revokedChain=await club.actor.linked_account();
+  rejects(revokedChain);
+  mark('True three-canister G2 account linking fails closed after independent removal');
+  // The browser cannot impersonate the G2 service, even for its own account.
+  id.setPrincipal(member);
+  rejects(await id.read_linked_account(member),/Exact Group 2 club canister caller required/i);
+  id.setPrincipal(owner);
+  mark('Direct browser-to-identity linked account read cannot bypass exact club sender');
   w.setPrincipal(identityPin);
   rejects(await w.verify_active_g2_subject_read_fence({...request,challenge:{...q,nonce:50n}}));
   mark('Actual independent removal journal prevents later G2 account reads');
