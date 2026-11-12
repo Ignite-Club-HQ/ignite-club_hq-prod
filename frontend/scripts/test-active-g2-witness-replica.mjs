@@ -151,6 +151,11 @@ try {
   assert.deepEqual(linked.principals.map(p=>p.toText()),account.principals.map(p=>p.toText()));
   const membership=ok(await club.actor.read_my_club_memberships_indexed([],100));
   assert.ok(membership.clubs.includes(localClub),'Actual club membership must survive sync');
+  // Link the separate erasure fixture while the independent witness is armed.
+  // Terminal erase runs only after all recovery/replay/upgrade cases.
+  club.actor.setPrincipal(alias);
+  ok(await club.actor.sync_my_linked_account());
+  assert.equal(ok(await club.actor.read_account_whoami()).id,erasedAccount.id);
   club.actor.setPrincipal(outsider);
   rejects(await club.actor.sync_my_linked_account(),/Account|Unlinked|identity|registered|unavailable|not found/i);
   mark('Real Club Domain sync_my_linked_account -> identity -> independent witness links version-zero new user, preserves membership and denies outsider');
@@ -246,9 +251,6 @@ try {
   rejects(await w.verify_active_g2_subject_read_fence({...request,challenge:{...q,nonce:51n}}));
   mark('Witness upgrade cannot restore prior signed reader authorisation');
   stage='erased account must lose identity-backed re-sync without a witness removal record';
-  club.actor.setPrincipal(alias);
-  ok(await club.actor.sync_my_linked_account());
-  assert.equal(ok(await club.actor.read_account_whoami()).id,erasedAccount.id);
   id.setPrincipal(alias);
   ok(await id.erase_account(erasedAccount.id));
   rejects(await id.register_account(),/Erased|denied|not allowed|blocked|revoked|removed/i);
