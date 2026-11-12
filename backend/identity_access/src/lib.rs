@@ -1561,7 +1561,7 @@ async fn verify_active_g2_club_reader(caller:Principal, state:&ActiveG2ClubReade
     let second=read_live_active_g2(&state.binding,&recheck).await?;
     if first!=second {return Err("Active G2 registry changed during read".into());}
     let mut live=state.binding.clone(); live.registry_revision=first.revision;
-    if active_g2_club_reader::verify_open_g2_club(&live,&first.groups,&first.placements,ic_cdk::api::canister_self())? !=caller {
+    if active_g2_club_reader::verify_open_g2_club(&live,first.revision,&first.groups,&first.placements,ic_cdk::api::canister_self())? !=caller {
         return Err("Active G2 canister not authorised".into());
     }
     recheck()
@@ -1598,7 +1598,7 @@ async fn authorize_active_g2_club_reader(binding:group_inventory::Binding)->Outc
     if first!=second || first.revision!=binding.registry_revision {
         return Err("Active G2 registry must match reviewed revision".into());
     }
-    let club=active_g2_club_reader::verify_open_g2_club(&binding,&first.groups,&first.placements,ic_cdk::api::canister_self())?;
+    let club=active_g2_club_reader::verify_open_g2_club(&binding,first.revision,&first.groups,&first.placements,ic_cdk::api::canister_self())?;
     // The club canister must itself attest active admission-only protection.
     // A stale inventory or wrong identity binding cannot be commissioned.
     let reply=ic_cdk::call::Call::bounded_wait(club,"read_account_protection_configuration")
