@@ -14,7 +14,12 @@ test("TEST discovery declares the exact DEV services and no PROD frontend", () =
   const table = JSON.parse(readFileSync(new URL("../deploy/mainnet/.icp/data/mappings/ic.ids.json", import.meta.url), "utf8"));
   const manifest = JSON.parse(testAssistantDiscoveryFiles()["/.well-known/ic-architecture"].body);
   assert.equal(manifest.canisters[0].id, "proe7-kqaaa-aaaas-qg6gq-cai");
-  assert.deepEqual(Object.fromEntries(manifest.canisters.slice(1).map(({ name, id }) => [name, id])), table);
+  assert.deepEqual(Object.fromEntries(manifest.canisters.filter(({ name }) => name !== "frontend" && name !== "Ignite TEST frontend" && !name.startsWith("g2/")).map(({ name, id }) => [name, id])), table);
+  const g2Provision = JSON.parse(readFileSync(new URL("../deploy/groups/g2/provision.json", import.meta.url), "utf8"));
+  const g2 = manifest.canisters.filter(c => c.name.startsWith("g2/"));
+  assert.deepEqual(g2.map(c => c.id), [g2Provision.canisters.club_domain], "declare only Group 2 club canister");
+  assert.equal(new Set(manifest.canisters.map(c => c.id)).size, manifest.canisters.length);
+  assert.equal(manifest.canisters.some(c => Object.values(g2Provision.canisters).includes(c.id) && c.id !== g2Provision.canisters.club_domain), false, "do not expose other g2 service canisters");
   assert.equal(manifest.canisters.some(({ id }) => id === "u3mrq-uiaaa-aaaac-bgioq-cai"), false);
 });
 
