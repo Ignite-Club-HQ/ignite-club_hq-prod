@@ -13,13 +13,18 @@ const body = (source, name) => {
 };
 
 test("ordinary parent event list consults live club authority and retains team scope", () => {
-  const fresh = body(events, "freshMemberCanViewEvent");
-  for (const phrase of ["read_has_club_membership", "read_account_list_user_club_roles", 'role == "parent"', 'role == "player"', "teamInEventScope(current, team)", "current.revision != event.revision", "removalReceiver.denied(subject)", "isFenced(event.club_id)"]) {
+  const fresh = body(events, "freshMemberRolesForList");
+  const audience = body(events, "canViewListedEvent");
+  for (const phrase of ["read_has_club_membership", "read_account_list_user_club_roles", "removalReceiver.denied(subject)", "isFenced(club)"]) {
     assert.ok(fresh.includes(phrase), `missing event guard: ${phrase}`);
+  }
+  for (const phrase of ['role == "parent"', 'role == "player"', "teamInEventScope(current, team)", "current.revision == event.revision"]) {
+    assert.ok(audience.includes(phrase), `missing audience restriction: ${phrase}`);
   }
   for (const method of ["read_account_list_events", "read_account_list_events_multi"]) {
     const b = body(events, method);
-    assert.ok(b.includes("canViewListedEvent(caller, event)"), `${method} must use verified event audience`);
+    assert.ok(b.includes("canViewListedEvent(caller, event, freshRoles)"), `${method} must use verified event audience`);
+    assert.ok(b.includes("memberRoleCache"), `${method} must cache role lookups by club`);
   }
 });
 
