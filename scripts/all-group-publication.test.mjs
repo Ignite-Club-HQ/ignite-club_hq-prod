@@ -80,7 +80,7 @@ test('delayed branch visibility settles with bounded reads and no second PATCH',
   };
   publishVerifiedFiles(eventually,options);
   assert.equal(patches,1,'never repeat a branch write');
-  assert.equal(reads,4,'first head lookup plus three verified reads');
+  assert.equal(reads,3,'first head lookup plus two readback attempts');
   const stale=(path)=>{
     if(path==='git/ref/heads/all-group-upgrade-evidence') return {object:{sha:release}};
     throw Error('unexpected call');
