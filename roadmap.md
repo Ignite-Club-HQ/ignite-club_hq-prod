@@ -1,8 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
 ## Deferred Cloud Engine switch preparation — 12 November
-- [ ] Add a disabled future-engine draft and offline handover package without connecting an engine, changing country pins or moving existing clubs.
-- [ ] Verify configuration preservation and engine hold; document the remaining real-engine deployment, encryption and acceptance requirements.
+- [x] Added a disabled future-engine draft and offline handover download without connecting an engine, changing country pins or moving existing clubs.
+- [x] Verified configuration preservation and engine hold: 79 focused checks pass in each sign-in mode; preview build OK. Documented remaining real-engine deployment, encryption/routing and acceptance work in docs/cloud-engine-future-switch.md.
+- [ ] Signed-in administrator add/download flow remains unverified because the session is external/unmanaged; real-engine compatibility awaits a future engine connection by design. No PROD changes or settings saves performed.
 
 ## ICP carousel repeated startup waits — 12 November
 - [x] Reproduced league-blocked complete-team reveal and empty-team resume reloads; team snapshots now save independently and mark unfinished league discovery. First-login team details still required; email path unchanged.
