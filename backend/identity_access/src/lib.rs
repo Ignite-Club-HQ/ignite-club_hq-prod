@@ -1507,6 +1507,15 @@ fn production_account_approval_signing_bytes(body:production_account_authorizati
 /// regardless of governor calls, stable-state values or environment settings.
 /// This constant must not change without audited evidence and new tests.
 const ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED: bool = false;
+/// Only compiled into a separately built, isolated PocketIC test WASM. The
+/// standard mainnet build cannot activate this by environment or governor call.
+#[cfg(feature="isolated-g2-chain-fixture")]
+fn isolated_g2_chain_fixture() -> bool {
+    option_env!("IGNITE_ISOLATED_G2_FIXTURE_BUILD") == Some("POCKETIC_ONLY_NOT_DEPLOYABLE")
+}
+#[cfg(not(feature="isolated-g2-chain-fixture"))]
+fn isolated_g2_chain_fixture() -> bool { false }
+
 /// Exact one-canister capability, separate from eligibility and from global
 /// account removal. Remains absent unless the existing governor approves it.
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
@@ -1655,7 +1664,7 @@ async fn read_active_g2_linked_account(
     caller:Principal,subject:Principal,reader:&ActiveG2ClubReader,
 )->Outcome<Account> {
     use active_g2_recovery_acceptance as g2;
-    if !ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED {
+    if !ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED && !isolated_g2_chain_fixture() {
         return Err("Independent recovery attestation not released".into());
     }
     if caller!=reader.club || active_g2_club_reader().as_ref()!=Some(reader) {
@@ -2378,10 +2387,43 @@ fn set_club_authorities(authorities: Vec<Principal>) -> Outcome<()> {
     lifecycle.authorities = authorities; store_link_lifecycle(&lifecycle); Ok(())
 }
 
-/// Only configured canisters may ask for another caller's links. No browser
-/// supplies an account id or a principal list; the index is authoritative.
+// The fixture endpoints are compiled ONLY with the isolated test feature and
+// an exact build-time marker. No generic production release path references them.
+#[cfg(feature="isolated-g2-chain-fixture")]
+#[ic_cdk::update]
+fn fixture_g2_authorize_reader(approval:active_g2_recovery_acceptance::SignedScope)->Outcome<()> {
+    if !isolated_g2_chain_fixture() { return Err("Isolated G2 fixture build required".into()); }
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    if active_g2_club_reader().is_some() {return Err("Fixture reader already installed".into());}
+    let club=Principal::from_text(active_g2_club_reader::CLUB_ID).map_err(|_|"Invalid fixture club")?;
+    if approval.scope.club_reader!=club || approval.scope.identity!=ic_cdk::api::canister_self() ||
+       approval.scope.witness!=production_account_authorization::witness()? {
+       return Err("Exact G2 fixture scope required".into());
+    }
+    active_g2_recovery_acceptance::verify_independent_scope(
+      &approval,&active_g2_recovery_acceptance::pinned_g2_signer()?,
+      ic_cdk::api::time(),approval.scope.registry_revision,0)?;
+    let binding=group_inventory::Binding {
+      registry:Principal::from_text(active_g2_club_reader::ROUTER_ID).map_err(|_|"Invalid fixture router")?,
+      registry_revision:approval.scope.registry_revision,target_alias:"mainnet".into(),
+      deployment_id:"mainnet".into(),deployment_revision:1,
+      host:"https://icp-api.io".into(),network_kind:"public_mainnet".into(),
+    };
+    ACTIVE_G2_CLUB_READER.with(|m|m.borrow_mut().set(encode(&ActiveG2ClubReader {binding,club,approval})));
+    Ok(())
+}
+// Only configured canisters may ask for another caller's links. No browser
+// supplies an account id or a principal list; the index is authoritative.
 #[ic_cdk::update]
 async fn read_linked_account(viewer: Principal) -> Outcome<Account> {
+    if isolated_g2_chain_fixture() {
+        let caller=ic_cdk::api::msg_caller();
+        let state=active_g2_club_reader().ok_or("Isolated signed G2 fixture not commissioned")?;
+        if caller!=state.club || state.club!=Principal::from_text(active_g2_club_reader::CLUB_ID).map_err(|_|"Invalid club fixture pin")? {
+            return Err("Exact Group 2 club canister caller required".into());
+        }
+        return read_active_g2_linked_account(caller,viewer,&state).await;
+    }
     if !account_group_rehearsal_enabled(){return production_service_account(ic_cdk::api::msg_caller(),viewer,true).await;}
     let lifecycle = link_lifecycle();
     if !lifecycle.authorities.contains(&ic_cdk::api::msg_caller()) { return Err("Club authority required".into()); }
