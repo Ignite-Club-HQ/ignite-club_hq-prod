@@ -38,3 +38,7 @@ The new `SubjectChallenge` binds an independently witnessed result to the exact 
 ## Current release decision
 
 **No live deployment, no authority grant and no Test account sync.** Work on the independent witness and admission receiver verification must be completed and reviewed first. Existing test club/team data should remain unchanged.
+
+## 12 November follow-on: shared protocol foundation
+
+The exact G2 `SignedScope`, `WitnessRequest`, `SubjectChallenge` and receipt-shape definitions now live in `backend/shared/active_g2_account_read_protocol.rs`, compiled into **both** `identity_access` and `recovery_witness`. This eliminates divergent Candid request types and runs the same negative tests in both Rust crates. The independent witness **does not yet expose a live G2 account-read method**; the new identity reader remains hard-disabled. Next work must implement and independently review an actual witness acceptance state machine, signed recovery-baseline arming, caller restrictions, current subject-removal fencing and revalidation after awaits. Never treat shared structs or receipt shape as proof of witness authority.
