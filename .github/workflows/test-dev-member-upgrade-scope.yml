@@ -1,0 +1,37 @@
+name: "[TEST] Validate DEV member-access upgrade scope"
+
+on:
+  pull_request:
+    paths:
+      - "scripts/all-group-upgrade-policy.mjs"
+      - "scripts/all-group-upgrade-policy.test.mjs"
+      - ".github/workflows/upgrade-all-groups.yml"
+      - ".github/workflows/test-dev-member-upgrade-scope.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Validate pinned DEV upgrade scope and existing journal safeguards
+        run: node --test scripts/all-group-upgrade-policy.test.mjs
+      - name: Verify manual workflow remains narrow and gated
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const workflow=readFileSync('.github/workflows/upgrade-all-groups.yml','utf8');
+          assert.match(workflow,/plugin_member_access/);
+          assert.match(workflow,/UPGRADE DEV MEMBER ACCESS/);
+          assert.match(workflow,/GITHUB_REF.*refs\/heads\/main/);
+          assert.match(workflow,/Automatically check the complete release/);
+          assert.match(workflow,/group-2-admin-controls/);
+          JS
