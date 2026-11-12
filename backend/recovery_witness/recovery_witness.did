@@ -119,6 +119,8 @@ service : (Init) -> {
   verify_production_account_read_fence : (WitnessRequest) -> (Result_6);
   verify_production_subject_read_fence : (AccountReadRequest) -> (Result_7);
   authorize_active_g2_subject_reader : (G2SignedScope) -> (Result_1);
+  read_active_g2_baseline_digest : () -> (Result_5);
+  active_g2_scope_signing_bytes : (G2Scope) -> (Result_5);
   disable_active_g2_subject_reader : () -> (Result_1);
   verify_active_g2_subject_read_fence : (G2WitnessRequest) -> (G2WitnessResult);
 }
