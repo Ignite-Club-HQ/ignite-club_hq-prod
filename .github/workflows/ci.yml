@@ -120,6 +120,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Reject test-only G2 fixture in mainnet release artifacts
+        run: node --test scripts/identity-g2-fixture-release-guard.test.mjs
       - run: cargo check --workspace --locked
       - name: Verify isolated DEV G2 identity reader security tests
         run: |
