@@ -116,6 +116,8 @@ export function createIgniteHandlers({resolveVerifiedSession, backend}) {
         error("INVALID_INPUT", "Invalid message request ID");
       }
       const session = await sessionFor(extra);
+      if (!Array.isArray(session.scopes) || !session.scopes.includes("ignite:chat:send"))
+        error("ACCESS_DENIED", "Permission to send team messages is missing");
       await clubAccess(session, club);
       await teamAccess(session, club, team);
       if (typeof backend.hasConversationAccess !== "function" ||
