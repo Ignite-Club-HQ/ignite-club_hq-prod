@@ -28,6 +28,10 @@ const toolDefinitions=[
   {name:"list_team_events",description:"List caller-authorized Ignite DEV events.",inputSchema:schema({club_id:id,team_id:id},["club_id","team_id"])},
   {name:"send_team_message",description:"App-only direct Send. The customer must tap Send in the verified chat widget.",inputSchema:schema({...common,body:{type:"string",minLength:1,maxLength:2000},client_request_id:{type:"string",format:"uuid"}},["club_id","team_id","conversation_id","body","client_request_id"]),_meta:{ui:{visibility:["app"]}}},
 ];
+for (const tool of toolDefinitions) {
+  tool.securitySchemes=[{type:"oauth2",scopes:tool.name==="send_team_message"
+    ?["ignite:read","ignite:chat:send"]:["ignite:read"]}];
+}
 if(!APP_ONLY_TOOL_NAMES.includes("send_team_message"))throw Error("App-only send capability missing");
 const onlyPublic=new Set([...TOOL_NAMES,"open_my_ignite_chat"]);
 function fail(code,message){const e=new Error(message);e.mcpCode=code;throw e;}
@@ -110,17 +114,34 @@ export async function handleRpc(request,{authenticate,backend,loadUi=()=>readFil
       e.mcpCode?e.message:"Ignite tool unavailable");
   }
 }
-export function createIgniteMcpHttpServer({verifyBearerToken,backend,loadUi}={}){
+export function createIgniteMcpHttpServer({
+  verifyBearerToken,backend,loadUi,authorizationServerUrl,resourceUrl,
+}={}){
   if(typeof verifyBearerToken!=="function"||!backend)
     throw new Error("Verified OAuth/II bridge and ICP backend adapter are required; refusing to start");
+  // Never advertise invented/guessable issuer and MCP resource identifiers.
+  const issuer=new URL(authorizationServerUrl);
+  const resource=new URL(resourceUrl);
+  if(issuer.protocol!=="https:"||resource.protocol!=="https:" ||
+     issuer.username||issuer.password||issuer.hash||issuer.search ||
+     resource.username||resource.password||resource.hash||resource.search ||
+     resource.pathname!=="/mcp" || !issuer.hostname || !resource.hostname)
+    throw Error("Pinned HTTPS OAuth issuer and MCP resource URL are required");
+  const resourceMetadata=resource.origin+"/.well-known/oauth-protected-resource";
+  const unauthorized='Bearer resource_metadata="'+resourceMetadata+'", scope="ignite:read"';
   return createServer(async(req,res)=>{
     const write=(status,body,headers={})=>{
       res.writeHead(status,{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff",...headers});
       res.end(JSON.stringify(body));
     };
+    if(req.url==="/.well-known/oauth-protected-resource" && req.method==="GET"){
+      write(200,{resource:resource.href,authorization_servers:[issuer.origin],
+        scopes_supported:["ignite:read","ignite:chat:send"],
+        bearer_methods_supported:["header"]});return;
+    }
     if(req.url!=="/mcp"||req.method!=="POST"){write(404,{error:"Not found"});return;}
     const auth=/^Bearer ([A-Za-z0-9\-._~+/]+=*)$/.exec(req.headers.authorization??"");
-    if(!auth){write(401,{error:"Authorization required"},{"www-authenticate":'Bearer error="invalid_token"'});return;}
+    if(!auth){write(401,{error:"Authorization required"},{"www-authenticate":unauthorized});return;}
     if(!String(req.headers["content-type"]??"").toLowerCase().startsWith("application/json")){
       write(415,{error:"Content-Type must be application/json"});return;
     }
@@ -134,7 +155,8 @@ export function createIgniteMcpHttpServer({verifyBearerToken,backend,loadUi}={})
       if(!input||Array.isArray(input)||typeof input!=="object"){write(400,{error:"Invalid request"});return;}
       const result=await handleRpc(input,{authenticate:()=>verifyBearerToken(auth[1],{method:input.method}),backend,loadUi});
       if(result===null){res.writeHead(202,{"cache-control":"no-store"});res.end();return;}
-      write(result.error?.code===-32001?401:200,result);
+      write(result.error?.code===-32001?401:200,result,
+        result.error?.code===-32001?{"www-authenticate":unauthorized}:{});
     }catch(e){write(400,{error:"Invalid request"});}
   });
 }
@@ -142,11 +164,14 @@ export function createIgniteMcpHttpServer({verifyBearerToken,backend,loadUi}={})
  * modules which enforce issuer/audience/signature/expiry/scopes and REAL
  * caller-owned Internet Identity actors. Never enable a demo fallback. */
 export async function startFromEnvironment(env=process.env){
-  if(!env.IGNITE_OAUTH_ADAPTER_MODULE||!env.IGNITE_ICP_ADAPTER_MODULE)
+  if(!env.IGNITE_OAUTH_ADAPTER_MODULE||!env.IGNITE_ICP_ADAPTER_MODULE||
+     !env.IGNITE_DEV_OAUTH_ISSUER||!env.IGNITE_DEV_MCP_AUDIENCE)
     throw Error("Missing verified Ignite OAuth and ICP adapter modules. Startup blocked.");
   const oauth=await import(env.IGNITE_OAUTH_ADAPTER_MODULE);
   const icp=await import(env.IGNITE_ICP_ADAPTER_MODULE);
-  const server=createIgniteMcpHttpServer({verifyBearerToken:oauth.verifyBearerToken,backend:icp.backend});
+  const server=createIgniteMcpHttpServer({verifyBearerToken:oauth.verifyBearerToken,
+    backend:icp.backend,authorizationServerUrl:env.IGNITE_DEV_OAUTH_ISSUER,
+    resourceUrl:env.IGNITE_DEV_MCP_AUDIENCE});
   return new Promise((resolveStart,reject)=>{
     server.once("error",reject);
     server.listen(Number(env.PORT||8000),"127.0.0.1",()=>resolveStart(server));
