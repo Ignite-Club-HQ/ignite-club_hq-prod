@@ -74,10 +74,10 @@ describe('one account, independently authorized mainnet and engine clubs', () =>
     session.dispose();
   });
   it('a lost engine send is attempted once and never redirected to mainnet', async () => {
-    const { session } = await fixture(); const send = vi.fn(async () => { throw new Error('network reply lost'); });
+    const { session } = await fixture(); const send = vi.fn(async (_ctx: FeatureBackendContext) => { throw new Error('network reply lost'); });
     await expect(session.writeClub('club-engine', 'messaging_domain', 'message-1', send)).rejects.toThrow('uncertain');
     expect(send).toHaveBeenCalledTimes(1);
-    expect(send.mock.calls[0]?.[0]).toBeUndefined(); // Callback receives no mock-declared argument.
+    expect(send.mock.calls[0]?.[0].target.networkKind).toBe('cloud_engine');
     expect(await session.readClub('club-mainnet', 'club_domain', async ctx => ctx.target.alias)).toBe('mainnet');
     session.dispose();
   });

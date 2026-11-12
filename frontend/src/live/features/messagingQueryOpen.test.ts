@@ -5,6 +5,7 @@ const actor = {
   open_conversation: vi.fn(),
   list_latest_messages_page: vi.fn(),
   send_message: vi.fn(),
+  list_reactions: vi.fn(),
 };
 vi.mock("../domains", () => ({
   connectLiveMessagingDomain: vi.fn(async () => ({ actor })),
@@ -12,7 +13,7 @@ vi.mock("../domains", () => ({
 }));
 
 import {
-  clearWarmLiveLatestPages, listLiveLatestMessagesPage, noteLiveConversationWrite, QUERY_OPEN_WRITE_FENCE_MS,
+  clearWarmLiveLatestPages, listLiveLatestMessagesPage, listLiveReactions, takeBundledPollResult, noteLiveConversationWrite, QUERY_OPEN_WRITE_FENCE_MS,
 } from "./messaging";
 import { __resetChatOpenTrace, takeChatOpenBreakdown } from "@/lib/chatOpenTrace";
 
@@ -28,6 +29,42 @@ beforeEach(() => {
 });
 
 describe("first-page quick read", () => {
+  it('isolates reactions and poll bundles even when mainnet and engine use the same conversation ID', async () => {
+    const mainnet = { ...ctx, target: { host: 'https://mainnet.example.com', networkKind: 'public_mainnet', canisterIds: { messaging_domain: 'mainnet-chat' } } } as never;
+    const engine = { ...ctx, target: { host: 'https://engine.example.com', networkKind: 'cloud_engine', canisterIds: { messaging_domain: 'engine-chat' } } } as never;
+    actor.open_conversation_query.mockResolvedValueOnce({ Ok: { ...bundle(1).Ok,
+      reactions: [{ message_id: 'm1', emoji: 'mainnet-private' }], polls: [{ poll: { id: 'same-poll' }, private: 'mainnet' }] } });
+    await listLiveLatestMessagesPage(mainnet, 'same-chat', null, 30);
+    actor.list_reactions.mockResolvedValue({ Ok: [{ message_id: 'm1', emoji: 'engine-own' }] });
+    expect(await listLiveReactions(engine, 'same-chat')).toEqual([{ message_id: 'm1', emoji: 'engine-own' }]);
+    expect(takeBundledPollResult('same-chat', 'same-poll', engine)).toBeNull();
+    expect(takeBundledPollResult('same-chat', 'same-poll')).toBeNull();
+    expect(takeBundledPollResult('same-chat', 'same-poll', mainnet)).toMatchObject({ private: 'mainnet' });
+    expect(await listLiveReactions(mainnet, 'same-chat')).toEqual([{ message_id: 'm1', emoji: 'mainnet-private' }]);
+  });
+
+  it('does not apply mainnet sequence history or unavailable-method flags to engine chats', async () => {
+    const mainnet = { ...ctx, target: { canisterIds: { messaging_domain: 'mainnet-chat' } } } as never;
+    const engine = { ...ctx, target: { canisterIds: { messaging_domain: 'engine-chat' } } } as never;
+    actor.open_conversation_query.mockResolvedValueOnce(bundle(100, 'mainnet'));
+    await listLiveLatestMessagesPage(mainnet, 'same-chat', null, 30);
+    actor.open_conversation_query.mockResolvedValueOnce(bundle(1, 'engine'));
+    expect((await listLiveLatestMessagesPage(engine, 'same-chat', null, 30)).messages[0].id).toBe('engine');
+    actor.open_conversation_query.mockRejectedValueOnce(new Error('Canister has no query method'));
+    actor.open_conversation.mockResolvedValue(bundle(1));
+    await listLiveLatestMessagesPage(mainnet, 'older-chat', null, 30);
+    actor.open_conversation_query.mockResolvedValueOnce(bundle(2, 'engine-again'));
+    expect((await listLiveLatestMessagesPage(engine, 'another-chat', null, 30)).messages[0].id).toBe('engine-again');
+  });
+
+  it('a mainnet write fence does not delay a different engine chat', async () => {
+    const mainnet = { ...ctx, target: { canisterIds: { messaging_domain: 'mainnet-chat' } } } as never;
+    const engine = { ...ctx, target: { canisterIds: { messaging_domain: 'engine-chat' } } } as never;
+    noteLiveConversationWrite('same-chat', Date.now(), mainnet);
+    actor.open_conversation_query.mockResolvedValue(bundle(1, 'engine'));
+    expect((await listLiveLatestMessagesPage(engine, 'same-chat', null, 30)).messages[0].id).toBe('engine');
+    expect(actor.open_conversation).not.toHaveBeenCalled();
+  });
   it("coalesces concurrent cold reads of the same caller, target and page", async () => {
     actor.open_conversation_query.mockResolvedValue(bundle(5));
     await Promise.all([listLiveLatestMessagesPage(ctx, 'new-thread', null, 30), listLiveLatestMessagesPage(ctx, 'new-thread', null, 30)]);
