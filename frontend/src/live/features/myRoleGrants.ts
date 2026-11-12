@@ -5,6 +5,7 @@ import { readOwnerTestRouteCached } from '../ownerTestRouting';
 import { isScopedContext } from '../scopedContext';
 import { memoizedGrants } from '../roleGrantsMemo';
 import { readMembershipDiscovery } from '../membershipDiscoveryCache';
+import { currentMixedMembershipSession } from '../mixedMembershipRuntime';
 
 type Grant = Awaited<ReturnType<Awaited<ReturnType<typeof connectLiveClubDomain>>["actor"]["my_role_grants"]>>[number];
 
@@ -36,6 +37,12 @@ export function mergeRoleGrants(parts: Grant[][]): Grant[] {
 export async function fetchMyRoleGrantsEverywhere(ctx: FeatureBackendContext): Promise<Grant[]> {
   // Inside one leg of a fan-out: this canister only (no nested fan-out).
   if (isScopedContext(ctx)) return rawGrants(ctx);
+  const mixed = currentMixedMembershipSession(ctx);
+  if (mixed) return mergeRoleGrants(await mixed.readMembers('club_domain', async context => {
+    const grants = await rawGrants(context);
+    // App-wide roles are not transferable from an engine authority.
+    return grants.filter(g => Boolean(g.club?.[0]) && mixed.memberClubIds.includes(g.club[0]));
+  }));
   if (!await routingActive(ctx) && !await readOwnerTestRouteCached(ctx)) return rawGrants(ctx);
   const { clubDispatch } = await import("../groupDispatch");
   const target = ctx.target;

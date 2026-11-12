@@ -43,8 +43,9 @@ export async function openMixedMembershipSession(
     keys.add(key); authorities.add(target.canisterIds.club_domain);
   }
   let disposed = false;
+  const sharedKey = membershipDestinationKey(shared);
   const live = () => {
-    if (disposed || shared.identity.getPrincipal().toText() !== principal || destinations.some(d => d.context.identity.getPrincipal().toText() !== principal)) {
+    if (disposed || membershipDestinationKey(shared) !== sharedKey || destinations.some(d => !keys.has(membershipDestinationKey(d.context)))) {
       throw new Error('Mixed membership account changed or session disposed');
     }
   };
@@ -76,10 +77,7 @@ export async function openMixedMembershipSession(
     const run = (ctx: FeatureBackendContext) => read(markScopedContext(ctx));
     const result = leg.session.isAssigned(club)
       ? await leg.session.readClub(club, domain, run)
-      : await leg.session.readMemberGroups(domain, async ctx => [await run(ctx)]).then(parts => {
-        if (parts.length !== 1) throw new Error('Legacy membership has ambiguous destinations');
-        return parts[0];
-      });
+      : await leg.session.readLegacyClub(club, domain, run);
     live(); return result;
   };
   return {
