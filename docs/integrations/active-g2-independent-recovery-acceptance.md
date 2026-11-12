@@ -42,3 +42,22 @@ The new `SubjectChallenge` binds an independently witnessed result to the exact 
 ## 12 November follow-on: shared protocol foundation
 
 The exact G2 `SignedScope`, `WitnessRequest`, `SubjectChallenge` and receipt-shape definitions now live in `backend/shared/active_g2_account_read_protocol.rs`, compiled into **both** `identity_access` and `recovery_witness`. This eliminates divergent Candid request types and runs the same negative tests in both Rust crates. The independent witness **does not yet expose a live G2 account-read method**; the new identity reader remains hard-disabled. Next work must implement and independently review an actual witness acceptance state machine, signed recovery-baseline arming, caller restrictions, current subject-removal fencing and revalidation after awaits. Never treat shared structs or receipt shape as proof of witness authority.
+
+## Endpoint implementation (12 November 2026)
+
+The draft now contains `recovery_witness.authorize_active_g2_subject_reader`, `disable_active_g2_subject_reader`, and `verify_active_g2_subject_read_fence`, together with a guarded identity-side `read_active_g2_linked_account` call. It uses the shared Candid protocol in both Rust canisters.
+
+The witness reuses **independent signed subject-removal acceptance**, validates its current accepted baseline and digest, checks signer, G2-only identity/witness pins, expiry and generation, requires arming against current management lifecycle, and rechecks immutable account-removal/denied-subject maps and participant module/version evidence after awaits. It writes a stable replay journal only after successful verification. Subject checks return the exact challenge, never a browser-supplied account object.
+
+The identity service constructs its request from `current_service_account`, checks the pinned witness program/controller before and after the call, and rejects history, account version, aliases, deletion or authorisation drift before returning. The signed scope is required in the governor-only authorisation method rather than deriving rights from admission alone.
+
+### Deployment blockers deliberately retained
+
+- `ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED=false` remains the unconditional hard stop. Neither authorisation nor a read can use the new path.
+- The independently controlled witness has not been provisioned with a reviewed current DEV baseline and signed G2 reader acceptance; `IGNITE_RECOVERY_APPROVER_PUBLIC_KEY` and existing witness canister/controller/module pins must be configured and independently reviewed.
+- Two-canister test against DEV-shaped replicas with genuine authentication, revoked principal, suspended/erased account, account changes during awaits, changed router, upgrade/re-arm, nonce replay and altered witness program/controller is required.
+- The nonce journal currently has a bounded fail-closed capacity. Before opening beyond the pilot, review capacity and replay retention policy; never auto-evict old nonces without a secure epoch transition.
+- The DEV Group 2 receiver must attest admission-only mode through the governor-authorised configuration read; any unknown or mismatched setting is a stop.
+- The existing repository-policy CI allowlist mismatch (PROD push rollout workflow) is separate and still must be resolved through its normal review.
+
+No release is authorised from this draft. No canisters or customer records have been changed.
