@@ -172,15 +172,15 @@ try {
   // fixture. A stopped witness keeps the identity's update unresolved; a
   // concurrent status change MUST never yield an authorised stale link.
   await pic.stopCanister({canisterId:witnessId,sender:owner});
-  const signature=clubFactory({IDL})._fields.find(([name])=>name==='sync_my_linked_account')?.[1];
-  assert.ok(signature,'Real Club Domain sync_my_linked_account signature required');
+  const syncSignature=clubFactory({IDL})._fields.find(([name])=>name==='sync_my_linked_account')?.[1];
+  assert.ok(syncSignature,'Real Club Domain sync_my_linked_account signature required');
   const pending=await pic.client.submitCall({canisterId:clubPin,sender:member,
-    method:'sync_my_linked_account',payload:new Uint8Array(IDL.encode(signature.argTypes,[]))});
+    method:'sync_my_linked_account',payload:new Uint8Array(IDL.encode(syncSignature.argTypes,[]))});
   await pic.tick(1);
   id.setPrincipal(owner);
   ok(await id.set_account_status(account.id,{Suspended:null}));
   await pic.startCanister({canisterId:witnessId,sender:owner});
-  const race=IDL.decode(signature.retTypes,(await pic.client.awaitCall(pending)).body)[0];
+  const race=IDL.decode(syncSignature.retTypes,(await pic.client.awaitCall(pending)).body)[0];
   rejects(race);
   id.setPrincipal(owner);
   ok(await id.set_account_status(account.id,{Active:null}));
