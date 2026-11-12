@@ -4,7 +4,7 @@
 //! program/controller pins, and state-after-await verification remain required.
 //! No call site is allowed to activate this draft without that implementation.
 use candid::{CandidType, Principal};
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use crate::active_g2_club_reader::{CLUB_ID, IDENTITY_ID, ROUTER_ID};
@@ -74,7 +74,7 @@ pub fn verify_independent_scope(
         return Err("Exact live independently approved Group 2 scope required".into());
     }
     let signature = Signature::from_slice(&signed.signature).map_err(|_| "Independent G2 signature required")?;
-    key.verify_strict(&scope_signing_bytes(s)?, &signature).map_err(|_| "Independent G2 signature required".into())?;
+    key.verify_strict(&scope_signing_bytes(s)?, &signature).map_err(|_| String::from("Independent G2 signature required"))?;
     let digest = Sha256::digest(scope_signing_bytes(s)?);
     Ok(digest.into())
 }
