@@ -3,7 +3,7 @@
 ## ICP carousel repeated startup waits — 12 November
 - [x] Reproduced league-blocked complete-team reveal and empty-team resume reloads; team snapshots now save independently and mark unfinished league discovery. First-login team details still required; email path unchanged.
 - [x] Initial role discovery joins the existing membership session instead of refreshing a just-opened session; reconciliation retains refreshes. Existing sixty-second approval reuse retained, now full-target-bound; no authorization bypass or stale approval extension.
-- [x] Added forty-sample device-only approval/membership/team/league timing; 103 focused regressions passed in default configuration, including failed-before checks. No PROD operations.
+- [x] Added forty-sample device-only approval/membership/team/league timing; 105 focused regressions passed in each sign-in mode, including failed-before checks; preview build OK. No PROD operations.
 - [ ] Measure installed-phone authenticated ICP startup/resume: delegated II session and physical device unavailable here; actual seconds saved remain unverified.
 
 
