@@ -13,6 +13,7 @@ export const SCOPES = Object.freeze({
   private_club_name_display: ['pii_access_control', 'club_domain', 'identity_access'],
   team_invites: ['club_domain', 'mini_league_domain'],
   messaging: ['messaging_domain'],
+  plugin_member_access: ['events_domain', 'messaging_domain'],
   browser_push_test: ['notification_queue'],
   competition: ['notification_queue', 'club_domain', 'events_domain', 'competition_domain'],
   history: ['events_domain', 'competition_domain'],
@@ -26,7 +27,7 @@ export const normalizeConfirmation = v => String(v ?? '').replace(/[\u200b-\u200
 export function validateRequest(action, scope, confirmation, checkedPlan) {
   action = String(action ?? '').trim(); scope = String(scope ?? '').trim();
   if (!['check', 'upgrade', 'recover'].includes(action) || !Object.hasOwn(SCOPES, scope)) throw Error('Choose a reviewed scope and check, upgrade or recover');
-  const words = { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
+  const words = action === 'upgrade' && scope === 'plugin_member_access' ? 'UPGRADE DEV MEMBER ACCESS' : { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
   if (words) {
     const c = normalizeConfirmation(confirmation), plan = normalizePlan(checkedPlan);
     if (c !== words) throw Error(`Confirmation box must say ${words} (received ${c.length} characters${c ? ` starting "${c.slice(0, 12)}"` : ''})`);
@@ -69,6 +70,20 @@ export function planInventory(shared, provisions, registry, scope, hashes) {
   }
   const targets = names.flatMap(name => SHARED_SERVICES.includes(name) ? [{groupId:'shared',name,canisterId:shared[name],subnetId:PRIMARY_SUBNET,newHash:hashes[name]}] : all.map(g => ({ groupId:g.id, ...g.services.find(s=>s.name===name), newHash:hashes[name] })));
   if (targets.some(t=>!t.name || !validId(t.canisterId) || !/^[a-f0-9]{64}$/.test(t.newHash ?? '')) || new Set(targets.map(t=>t.canisterId)).size!==targets.length) throw Error('Incomplete upgrade artifacts/targets');
+  // Only the four pinned DEV instances are authorised for this narrow plugin
+  // release. Never silently include a third group or an unknown replacement.
+  if (scope === 'plugin_member_access') {
+    const expected = [
+      ['g1', 'events_domain', 'm6y7b-6yaaa-aaaal-qxlra-cai'],
+      ['g2', 'events_domain', 'ymvtj-3qaaa-aaaal-qxpza-cai'],
+      ['g1', 'messaging_domain', 'mx3u5-iqaaa-aaaal-qxlqq-cai'],
+      ['g2', 'messaging_domain', 'yluv5-wiaaa-aaaal-qxpzq-cai'],
+    ];
+    if (targets.length !== 4 || expected.some(([groupId, name, canisterId], i) => {
+      const t = targets[i];
+      return !t || t.groupId !== groupId || t.name !== name || t.canisterId !== canisterId;
+    })) throw Error('DEV member-access upgrade requires exactly four pinned Group 1 and Group 2 canisters');
+  }
   return { groups: all, targets, pii: Object.fromEntries(all.map(g=>[g.id,g.services.find(s=>s.name==='pii_access_control').canisterId])) };
 }
 export function installArgs(target, path) {
