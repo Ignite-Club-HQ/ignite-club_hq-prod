@@ -46,6 +46,30 @@ test('includes Group 1 and Group 2 and upgrades shared identity exactly once',()
   assert.equal(plan.targets.length,3);assert.equal(plan.targets.filter(t=>t.name==='identity_access').length,1);
   assert.equal(plan.targets.find(t=>t.groupId==='g2').canisterId,original.canisters.notification_queue);
 });
+test('DEV plugin member access can upgrade only the four pinned events and chat instances',()=>{
+  const fixture2=fixture();
+  const plan=planInventory(shared,fixture2.provisions,fixture2.registry,'plugin_member_access',fixture2.hashes);
+  assert.deepEqual(SCOPES.plugin_member_access,['events_domain','messaging_domain']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g1','events_domain','m6y7b-6yaaa-aaaal-qxlra-cai'],
+    ['g2','events_domain','ymvtj-3qaaa-aaaal-qxpza-cai'],
+    ['g1','messaging_domain','mx3u5-iqaaa-aaaal-qxlqq-cai'],
+    ['g2','messaging_domain','yluv5-wiaaa-aaaal-qxpzq-cai'],
+  ]);
+  for (const name of ['notification_queue','club_domain','identity_access','pii_access_control']) {
+    assert.ok(!plan.targets.some(t=>t.name===name),'unrelated service must not be upgraded');
+  }
+  validateRequest('check','plugin_member_access');
+  validateRequest('upgrade','plugin_member_access','UPGRADE DEV MEMBER ACCESS',hash(1));
+  assert.throws(()=>validateRequest('upgrade','plugin_member_access','UPGRADE ALL MAINNET GROUPS',hash(1)),/UPGRADE DEV MEMBER ACCESS/);
+  assert.throws(()=>validateRequest('upgrade','plugin_member_access','UPGRADE DEV MEMBER ACCESS',''),/Checked plan/);
+  assert.throws(()=>planInventory(shared,fixture(3).provisions,fixture(3).registry,'plugin_member_access',fixture(3).hashes),/exactly four pinned/);
+  const changed=fixture();
+  changed.provisions[0].canisters.events_domain='other-canister-cai';
+  changed.registry.groups[0].domains.find(d=>d.domain==='events_domain').canister=p('other-canister-cai');
+  changed.registry.placements[0].domains.find(d=>d.domain==='events_domain').canister=p('other-canister-cai');
+  assert.throws(()=>planInventory(shared,changed.provisions,changed.registry,'plugin_member_access',changed.hashes),/exactly four pinned/);
+});
 test('future Group 3 and Group 4 cannot be silently skipped',()=>{
   const f=fixture(4),plan=planInventory(shared,f.provisions,f.registry,'messaging',f.hashes);
   assert.deepEqual(plan.targets.map(t=>t.groupId),['g1','g2','g3','g4']);
@@ -107,7 +131,7 @@ test('collisions, wrong placement, incomplete domain inventory and registry over
   }
 });
 test('every scope uses the same artifact hash across all group instances',()=>{
-  const f=fixture(3);for(const scope of Object.keys(SCOPES)){const plan=planInventory(shared,f.provisions,f.registry,scope,f.hashes);for(const t of plan.targets)assert.equal(t.newHash,hash(2));}
+  const f=fixture(3);for(const scope of Object.keys(SCOPES)){const selected=scope==='plugin_member_access'?fixture(2):f;const plan=planInventory(shared,selected.provisions,selected.registry,scope,selected.hashes);for(const t of plan.targets)assert.equal(t.newHash,hash(2));}
   delete f.hashes.notification_queue;assert.throws(()=>planInventory(shared,f.provisions,f.registry,'app_admin',f.hashes));
 });
 test('unexpected or duplicated saved domain names fail before target creation',()=>{
