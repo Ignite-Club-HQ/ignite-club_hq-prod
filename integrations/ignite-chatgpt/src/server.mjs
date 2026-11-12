@@ -135,7 +135,7 @@ export function createIgniteMcpHttpServer({
       res.end(JSON.stringify(body));
     };
     if(req.url==="/.well-known/oauth-protected-resource" && req.method==="GET"){
-      write(200,{resource:resource.href,authorization_servers:[issuer.href.replace(/\\/$/,"")],
+      write(200,{resource:resource.href,authorization_servers:[issuer.href.replace(/\/$/,"")],
         scopes_supported:["ignite:read","ignite:chat:send"],
         bearer_methods_supported:["header"]});return;
     }
