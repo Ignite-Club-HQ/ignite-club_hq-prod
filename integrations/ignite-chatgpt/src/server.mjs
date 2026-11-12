@@ -11,7 +11,7 @@ import {readFile} from "node:fs/promises";
 import {fileURLToPath} from "node:url";
 import {dirname, resolve} from "node:path";
 import {createIgniteHandlers, invokeIgniteTool, invokeIgniteAppTool,
-  TOOL_NAMES, APP_ONLY_TOOL_NAMES, PluginAccessError} from "./core.mjs";
+  TOOL_NAMES, APP_ONLY_TOOL_NAMES, PluginAccessError, DEV_ORIGIN} from "./core.mjs";
 
 export const UI_URI = "ui://ignite/my-team-chat-v1.html";
 const UI_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "../ui/my-ignite-live.html");
@@ -80,7 +80,9 @@ export async function handleRpc(request,{authenticate,backend,loadUi=()=>readFil
     if(typeof authenticate!=="function"||!backend)fail(-32001,"Ignite authentication not configured");
     const session=await authenticate();
     if(!session?.oauthVerified||!session?.internetIdentityDelegationVerified ||
-       session.environment!=="dev")fail(-32001,"Ignite DEV sign-in required");
+       session.environment!=="dev"||session.derivationOrigin!==DEV_ORIGIN ||
+       typeof session.principal!=="string"||typeof session.actorFactory!=="function")
+       fail(-32001,"Ignite DEV sign-in required");
     switch(request.method){
       case "initialize":
         return rpcOk(id,{protocolVersion:"2025-06-18",capabilities:{tools:{listChanged:false},resources:{listChanged:false}},
