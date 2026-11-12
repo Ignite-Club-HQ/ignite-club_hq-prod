@@ -1,0 +1,36 @@
+name: Ignite ChatGPT MCP DEV prototype
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/ignite-chatgpt/**'
+      - '.github/workflows/ignite-chatgpt-dev.yml'
+  push:
+    branches:
+      - feature/ignite-interactive-mcp-ui-20261113
+    paths:
+      - 'integrations/ignite-chatgpt/**'
+      - '.github/workflows/ignite-chatgpt-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-tests:
+    name: Verify DEV chat MCP source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check integrations/ignite-chatgpt/src/core.mjs
+      - run: node --check integrations/ignite-chatgpt/src/server.mjs
+      - run: node --test integrations/ignite-chatgpt/src/*.test.mjs
+      - name: Assert PROD remains out of scope
+        shell: bash
+        run: |
+          test ! -f integrations/ignite-chatgpt/.env
+          ! grep -R 'get_app_principal.*prod' integrations/ignite-chatgpt/src
