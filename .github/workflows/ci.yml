@@ -67,3 +67,4 @@ jobs:
         run: |
           cargo test -p identity_access active_g2_club_reader --locked
           cargo test -p identity_access active_g2_recovery_acceptance --locked
+          cargo test -p recovery_witness active_g2_account_read_protocol --locked
