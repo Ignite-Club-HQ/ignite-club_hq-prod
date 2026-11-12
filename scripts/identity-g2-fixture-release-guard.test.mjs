@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { assertReleaseEnvironment, assertReleaseArtifact, wasmExports, FIXTURE_METHOD } from './identity-g2-fixture-release-guard.mjs';
 
 const leb=n=>{const out=[];do{let b=n&127;n=Math.floor(n/128);if(n)b|=128;out.push(b)}while(n);return out};
@@ -43,4 +46,29 @@ test('exact fixture build marker or cargo feature environment always rejected',(
   for(const key of ['CARGO_FEATURES','CARGO_BUILD_FEATURES','RUSTFLAGS','CARGO_ENCODED_RUSTFLAGS']){
     assert.throws(()=>assertReleaseEnvironment({[key]:'isolated-g2-chain-fixture'}),/fixture/i);
   }
+});
+
+test('mainnet deploy entrypoints explicitly run fail-closed identity fixture guard',()=>{
+  const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
+  for(const rel of [
+    'scripts/deploy-mainnet.sh',
+    '.github/workflows/upgrade-all-groups.yml',
+    '.github/workflows/promote-icp-prod.yml',
+  ]){
+    const s=readFileSync(resolve(root,rel),'utf8');
+    assert.match(s,/identity-g2-fixture-release-guard\.mjs/,rel+' must guard release');
+  }
+  const dev=readFileSync(resolve(root,'.github/workflows/upgrade-all-groups.yml'),'utf8');
+  assert.match(dev,/assertReleaseArtifact\(readFileSync\(artifact\)\)/,
+    'DEV must inspect identity Wasm after build, before any staging/upgrade');
+  const prod=readFileSync(resolve(root,'.github/workflows/promote-icp-prod.yml'),'utf8');
+  assert.match(prod,/identity-g2-fixture-release-guard\.mjs deploy\/prod\/\.icp\/cache\/artifacts\/identity_access/,
+    'PROD must inspect exact recipe artifact');
+  const cargo=readFileSync(resolve(root,'backend/identity_access/Cargo.toml'),'utf8');
+  assert.match(cargo,/default\s*=\s*\[\s*\]/,'fixture never defaults on');
+  const build=readFileSync(resolve(root,'backend/identity_access/build.rs'),'utf8');
+  assert.match(build,/CARGO_FEATURE_ISOLATED_G2_CHAIN_FIXTURE/);
+  assert.match(build,/POCKETIC_ONLY_NOT_DEPLOYABLE/);
+  const identity=readFileSync(resolve(root,'backend/identity_access/src/lib.rs'),'utf8');
+  assert.match(identity,/ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED:\s*bool\s*=\s*false/);
 });
