@@ -43,3 +43,18 @@ A separate ChatGPT integration should first reuse the same principal and existin
 3. **Connector packaging**. DFINITY MCP can access declared canisters now. A branded Ignite plugin still requires an app-specific customer experience, authentication/consent policy, action design and discovery/connection publishing; connecting the generic ICP plugin alone is not proof Ignite has a standalone plugin in the ChatGPT directory.
 
 **Do not merge/deploy PR #1480** for this path without a separate, demonstrated dependency and security review.
+
+## Protected-role-query adapter verification (12 November 2026)
+
+Source-level finding in `backend/club_domain/src/main.mo`:
+- `my_role_grants()` calls `denyLegacyAccountQuery()`; when Group 2 account protection is required, this query **traps** `Use protected consensus account read`.
+- `read_account_my_role_grants()` is the exact protected update counterpart, but first calls `await admitAccount(caller)` against the configured identity admission authority. On live Group 2 with the distinct Test principal, it returned `Account admission denied or unavailable`.
+- The native app already ships `frontend/src/live/accountReadAdapter.mjs` and wraps club actors through `adaptRemoteAccountReads` in `frontend/src/live/domains.ts`. It attempts `my_role_grants()`, recognises that specific protected-read trap and retries the **exact Candid signature** `read_account_my_role_grants()`. It does not switch to a privileged principal or invent a second account.
+- Therefore, **merely adding a plugin adapter to invoke the protected counterpart cannot bypass the live Test-account admission denial.** The same Test principal may well also fail in the native app until configured admission is repaired or an alternative reviewed production flow is shown. The owner's statement that one Internet Identity can access both groups is compatible with this: another group's live configuration or a different account/grant may be involved. Do not assume native access for this exact Test user without a same-principal observation.
+- Generic ICP MCP currently offers Group 2 OQL, and it can call the protected update method directly. Its OQL and protected update both refuse at Group 2 account admission. These are not simply discovery failures.
+
+New pure, read-only helper `scripts/ignite-plugin-native-preflight.mjs` reuses the **existing production `adaptRemoteAccountReads`** on actors supplied by one trusted delegated identity, verifies exact `identity_access.whoami()` principal membership, and returns distinct `available`, `not_declared`, `admission_unavailable`, and `read_failed` statuses. Permission-bearing role output is deliberately `null` if even one requested group fails. No new endpoint, account-linking service, SDK or live canister mutation is introduced.
+
+Its isolated Node tests verify protected twin fallback, query/unavailable refusal, missing manifest, unexpected network failures, foreign/suspended identities and duplicate group assignments. These mocks test classification and principal preservation **only**, not a real native Android/iOS session; integration remains blocked on the live group admission review.
+
+**Next technical action:** use the same consenting non-admin II principal to compare the *actual native app's* `read_account_my_role_grants()` against the ChatGPT connector and obtain an authorised governor's read-only Group 2 admission settings (no grant/reconfiguration). Do not weaken `admitAccount`, use a governor token for a customer, or deploy PR #1480 merely to force a positive result.
