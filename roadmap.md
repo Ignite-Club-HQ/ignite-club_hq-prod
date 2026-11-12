@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Deferred Cloud Engine switch preparation — 12 November
+- [ ] Add a disabled future-engine draft and offline handover package without connecting an engine, changing country pins or moving existing clubs.
+- [ ] Verify configuration preservation and engine hold; document the remaining real-engine deployment, encryption and acceptance requirements.
+
 ## ICP carousel repeated startup waits — 12 November
 - [x] Reproduced league-blocked complete-team reveal and empty-team resume reloads; team snapshots now save independently and mark unfinished league discovery. First-login team details still required; email path unchanged.
 - [x] Initial role discovery joins the existing membership session instead of refreshing a just-opened session; reconciliation retains refreshes. Existing sixty-second approval reuse retained, now full-target-bound; no authorization bypass or stale approval extension.
