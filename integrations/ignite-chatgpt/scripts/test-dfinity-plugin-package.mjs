@@ -1,0 +1,51 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../dfinity-dependency-pilot");
+const read=(p)=>readFileSync(path.join(root,p),"utf8");
+const manifest=JSON.parse(read("plugin.json")),mcp=JSON.parse(read("mcp.json"));
+const skill=read("skills/ignite-dev-connect/SKILL.md"),dep=read("agents/openai.yaml");
+test("portable plugin has branded DEV-only identity, documented schema and no invented assets",()=>{
+  assert.equal(manifest.$schema,"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json");
+  assert.equal(manifest.name,"ignite-club-hq-icp-dev");
+  assert.match(manifest.extensions["com.openai"].interface.displayName,/Ignite Club HQ/);
+  assert.match(manifest.extensions["com.openai"].onboardingSkill,/^\.\/skills\/ignite-dev-connect\/SKILL\.md$/);
+  assert.equal(manifest.extensions["com.openai"].interface.capabilities.join(","),"Read");
+  assert.equal(manifest.extensions["com.openai"].apps,undefined);
+  assert.equal(manifest.extensions["com.openai"].interface.logo,undefined);
+});
+test("remote server is exactly DFINITY ICP MCP; OAuth via host, no impersonation",()=>{
+  assert.equal(mcp.$schema,"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json");
+  assert.deepEqual(Object.keys(mcp.mcpServers),["dfinity-icp"]);
+  const config=mcp.mcpServers["dfinity-icp"];
+  assert.equal(config.type,"streamable-http");
+  assert.equal(config.url,"https://mcp.internetcomputer.org/mcp");
+  assert.equal(config.extensions["com.openai"].auth.type,"oauth");
+  assert.deepEqual(Object.keys(config.extensions["com.openai"].auth),["type"]);
+  assert.doesNotMatch(JSON.stringify(mcp),/clientSecret|access_token|refresh_token|api_key|bearer/i);
+  assert.match(dep,/value: "dfinity-icp"/);
+  assert.match(dep,/url: "https:\/\/mcp\.internetcomputer\.org\/mcp"/);
+});
+test("skill pins DEV and forbids PROD, privileged/writing/billing paths",()=>{
+  assert.match(skill,/https:\/\/ignite-club-launchpad\.lovable\.app/);
+  assert.match(skill,/https:\/\/proe7-kqaaa-aaaas-qg6gq-cai\.ic0\.app/);
+  assert.match(skill,/NEVER switch/);
+  assert.match(skill,/read_account_list_events/);
+  assert.match(skill,/read_account_list_groups_by_club/);
+  assert.match(skill,/read_account_list_groups_by_team/);
+  assert.match(skill,/Internet Identity/);
+  assert.match(skill,/no message sending|no message sending/i);
+  assert.match(skill,/read-only guidance, not an enforceable server-side restriction/);
+  assert.match(skill,/not.*inherited/i);
+  assert.doesNotMatch(skill,/PRIVATE KEY-----|BEGIN RSA|sk-[A-Za-z0-9]{20}/);
+});
+test("documentation distinguishes prior ICP connector proof from new branded plugin installation",()=>{
+  const doc=read("README.md");
+  assert.match(doc,/NOT installed in ChatGPT/);
+  assert.match(doc,/underlying service works/);
+  assert.match(doc,/local marketplace entry/);
+  assert.match(doc,/issues\/1491/);
+  assert.match(doc,/cannot be submitted publicly/);
+});
