@@ -105,3 +105,20 @@ The DFINITY DEV connector resolves `https://proe7-kqaaa-aaaas-qg6gq-cai.ic0.app`
 - [ ] Real member/coach end-to-end security and performance tests.
 
 **Do not deploy the source-only HTTP scaffold as a public endpoint yet.**
+
+
+## OAuth discovery and explicit linking handshake — 13 Nov 2026
+
+The source-only DEV MCP server now advertises:
+- `GET /.well-known/oauth-protected-resource` with pinned HTTPS resource and authorization issuer
+- `WWW-Authenticate` discovery challenge for unauthorized MCP HTTP requests
+- tool-specific `securitySchemes`: `ignite:read` and, for direct Send, `ignite:chat:send`
+- a tool-level `_meta["mcp/www_authenticate"]` error for missing authorization, allowing the host to show native Connect UI rather than a long generated ChatGPT request
+
+Added `src/account-linker.mjs`: a one-time five-minute handshake between an already-authenticated OAuth subject and a separately verified Internet Identity delegation. Start generates a random link ID, CSRF state and nonce; completion atomically consumes the challenge, requires a cryptographically verified II delegation with correct DEV derivation origin, and asks an encrypted server-side registry to store the member's link with the existing OAuth consent scopes. Mismatch, replay, invalid proof and expiry fail closed. Unit tests use synthetic identities only.
+
+**Important:** the linker is a core service module, not a publicly exposed URL or a complete OAuth login provider. It requires a trusted transactional one-time store, a real Internet Identity authorization UI, a verified delegation-chain/nonce adapter, revocation-aware encrypted registry and a deployed OAuth issuer supporting Authorization Code + PKCE. The server will not generate any II principal from the customer's email or ChatGPT account. The existing native phone sign-in bridge keeps its delegated session key on the device; this cannot simply be copied to the MCP server. Verify principal equality with the live DEV app before enabling the first send.
+
+OAuth hosting requirements are based on https://developers.openai.com/plugins/build/auth: `/.well-known/oauth-authorization-server` or OIDC discovery at the issuer, `code_challenge_methods_supported:["S256"]`, a stable client registration mode (CIMD or DCR), correct `resource` parameter passed into the access token audience, and callback issuer identification. The server has protected resource discovery and token verification but **does not yet host an OAuth issuer or satisfy client registration and callbacks**.
+
+New source-only checks: `src/account-linker.test.mjs`, updated `src/server.test.mjs`. No hosting destination or authorization issuer has been selected, and the existing DFINITY plugin remains the only live message-send path.
