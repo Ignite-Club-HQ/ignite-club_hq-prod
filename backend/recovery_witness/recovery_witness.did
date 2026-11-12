@@ -21,6 +21,32 @@ type AccountReadRequest = record {
   subjects : vec principal;
   request : WitnessRequest;
 };
+type G2Scope = record {
+  identity : principal;
+  router : principal;
+  club_reader : principal;
+  witness : principal;
+  registry_revision : nat64;
+  generation : nat64;
+  recovery_epoch : nat64;
+  expires_at_ns : nat64;
+  accepted_recovery_digest : blob;
+};
+type G2SignedScope = record { scope : G2Scope; signature : blob };
+type G2SubjectChallenge = record {
+  scope_digest : blob;
+  nonce : nat64;
+  account_id : text;
+  account_version : nat64;
+  principals : vec principal;
+  subject : principal;
+  history_revision : nat64;
+  removal_generation : nat64;
+  recovery_epoch : nat64;
+};
+type G2WitnessRequest = record { approval : G2SignedScope; challenge : G2SubjectChallenge };
+type G2WitnessReceipt = record { challenge : G2SubjectChallenge; witness_revision : nat64 };
+type G2WitnessResult = variant { Ok : G2WitnessReceipt; Err : text };
 type Event = variant {
   Progress : record {
     account_id : text;
@@ -92,4 +118,7 @@ service : (Init) -> {
   verify_production_account_protection_fence : (WitnessRequest) -> (Result_6);
   verify_production_account_read_fence : (WitnessRequest) -> (Result_6);
   verify_production_subject_read_fence : (AccountReadRequest) -> (Result_7);
+  authorize_active_g2_subject_reader : (G2SignedScope) -> (Result_1);
+  disable_active_g2_subject_reader : () -> (Result_1);
+  verify_active_g2_subject_read_fence : (G2WitnessRequest) -> (G2WitnessResult);
 }
