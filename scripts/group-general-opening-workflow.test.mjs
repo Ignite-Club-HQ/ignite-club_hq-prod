@@ -51,7 +51,7 @@ test('settings, snapshot and stop read the real root mappings regardless of work
     assert.ok(declaration, name);
     for (const cwd of [new URL('../', import.meta.url).pathname, new URL('../frontend/', import.meta.url).pathname]) {
       const actual = runInNewContext(`${declaration.replaceAll('import.meta.url', 'scriptUrl')}\nids`, {
-        URL, scriptUrl: scriptUrl.href, readFileSync, resolve: (...parts) => resolve(cwd, ...parts),
+        URL, scriptUrl: scriptUrl.href, readFileSync, PROD: false, resolve: (...parts) => resolve(cwd, ...parts),
       });
       assert.equal(actual.shard_router, expected.shard_router, `${name}: ${cwd}`);
       assert.equal(actual.identity_access, expected.identity_access, `${name}: ${cwd}`);
@@ -109,7 +109,7 @@ test('snapshot hashes and emits lossless Nat64 removal revisions in both output 
     snapshotGroups: [{ id: 'g2', domains: [], photoStore: 'store', moduleHashes: {} }],
     wiring: { evidence: { revision, groupIds: ['g2'], checkedAtMs: 1792612440000 } },
     report: 'report.json', saveJson: (path, value) => files.set(path, JSON.stringify(value)),
-    saveFile: (path, value) => files.set(path, value), console: { log() {} },
+    saveFile: (path, value) => files.set(path, value), process: { env: {} }, console: { log() {} },
   });
   const report = JSON.parse(files.get('report.json'));
   assert.equal(report.routerCanisterId, 'jcdfe-vqaaa-aaaal-qxloq-cai');
