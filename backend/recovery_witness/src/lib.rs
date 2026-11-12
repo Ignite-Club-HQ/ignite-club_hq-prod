@@ -3,6 +3,9 @@ mod protocol;
 #[path = "../../shared/recovery_lifecycle.rs"]
 mod recovery_lifecycle;
 use protocol::*;
+// Shared, domain-separated DEV G2 signed reader protocol. No activation path.
+#[path = "../../shared/active_g2_account_read_protocol.rs"]
+mod active_g2_account_read_protocol;
 use candid::Principal;
 use ic_stable_structures::{memory_manager::{MemoryId,MemoryManager,VirtualMemory},DefaultMemoryImpl,StableCell,StableBTreeMap};
 use std::cell::RefCell;
