@@ -16,8 +16,8 @@ Status: DESIGN + INTERACTIVE STATIC PROTOTYPE. Not a live MCP Apps UI. Current p
 - Fetch existing RSVP, validate event/subject/expiry, then require explicit confirmation and read back the authoritative state. Handle duplicate taps and timeouts without fake "Saved" messages.
 
 ## Team chat interaction
-- The chat tab should display accessible message bubbles and a free-text composer.
-- The current pilot only returns chat NAMES, not message bodies. A new authenticated read_team_messages tool must use the existing protected read_account_list_messages_page and enforce team-conversation membership.
+- The chat tab should display accessible message bubbles, a conversation selector, local timestamps, a search field, a **Load earlier messages** button, and a free-text composer. The source-only HTML prototype demonstrates all these interactions using labelled fictional messages.
+- The current private DFINITY-dependent pilot **v0.1.7** can read an explicitly opened, caller-authorized chat's real message history through protected `read_account_list_latest_messages_page`. It returns an ordinary ChatGPT response, not an embedded app widget. The standalone Ignite-owned MCP integration still needs an authenticated adapter and live UI resource to display that history inline.
 - Draft text remains local until the user explicitly confirms destination and content.
 - New send_team_message tool should call the signed caller's messaging-domain send_message(conversation_id, body, idempotency_key, attachment, reply_to_id) method using a server-generated idempotency key, enforce posting permissions and prevent cross-club traffic.
 - Only say "Sent" after authoritative success and readback. Use client-side disabled/loading states to prevent double submission.
@@ -69,3 +69,10 @@ The UI prototype includes these links; internal links deliberately target the pi
 **Production deployment:** The published mobile app links intentionally differ from DEV destinations. Distinguish "Open in Ignite DEV" from "Get the mobile app". These are verified locations, not a promise that the host will directly deep-link into installed native apps. Club-specific routes on iOS/Android need separately tested universal/app link support.
 
 **MCP App goal:** Present this as a compact Explore section below the main team actions, with two obvious store links. Add role/plan-aware hiding or a locked state once the authenticated MCP App is wired; the static preview merely links to route entry points.
+
+
+## Verified history pagination behavior
+
+DEV messaging API `read_account_list_latest_messages_page(conversation_id, before: opt nat64, limit:nat16)` returns `Ok {messages, latest_sequence, next_sequence}`. First request uses `before = null`; the next older page uses `before = opt (N : nat64)` with the exact returned `next_sequence`. Limit to 20 per call and merge by message ID in sequence order. A `next_sequence = null` result is the start of history, not necessarily an empty conversation. Never treat `read_account_list_messages_page` as scrollback: that method pages in the opposite direction. Verified on 13 Nov 2026 against the authenticated Riverdogs U8 Rockets conversation: 3 messages returned, and a size-1 page successfully fetched a preceding message using the returned sequence cursor. The non-admin test account could read its own Giddy Goat team chat (8 messages), while its Group 2 test team returned a valid empty message vector. No writes.
+
+In the standalone MCP Apps view, `Load earlier` must call the caller-scoped `list_conversation_messages` tool using the server-authenticated account. Preserve current scroll position, show edits and reply context when available, and never expose a Principal ID as the displayed sender. Group/team-specific route and membership checks are repeated on every page. Current HTML preview uses fictional pages: do not describe it as live.
