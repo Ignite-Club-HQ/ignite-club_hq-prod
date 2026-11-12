@@ -47,3 +47,25 @@ Documentation:
 - https://developers.openai.com/plugins/build/app-quickstart
 - https://developers.openai.com/plugins/build/chatgpt-ui
 - https://developers.openai.com/plugins/concepts/ui-guidelines
+
+
+## Explore Ignite: verified navigation targets (13 November 2026)
+
+The UI prototype includes these links; internal links deliberately target the pinned DEV website and mobile store links target published apps:
+
+| Label | Destination | Notes |
+| --- | --- | --- |
+| Gallery | https://ignite-club-launchpad.lovable.app/media | Verified React route /media |
+| Club news | https://ignite-club-launchpad.lovable.app/news | Verified React route /news |
+| File vault | https://ignite-club-launchpad.lovable.app/vault | Verified React route /vault; subscription and club permissions can restrict access |
+| All events | https://ignite-club-launchpad.lovable.app/events | Verified React route /events |
+| Team page | https://ignite-club-launchpad.lovable.app/teams/5ece6fc0-f2a8-4295-86e7-e71775d243f8 | DEV demonstration team only; replace with selected authorized team at runtime |
+| Rewards | https://ignite-club-launchpad.lovable.app/clubs/f9f7d89c-a51f-454d-af8e-b976c10d2fc4/rewards | DEV demo club only; replace with selected authorized club and check entitlement |
+| iPhone app | https://apps.apple.com/au/app/ignite-club-hq/id6758928691 | Verified official Apple App Store listing |
+| Android app | https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub | Verified official Google Play listing |
+
+**Runtime guardrails:** All club- and team-scoped links must be constructed from the selected caller-authorized club or team in the future MCP UI, not from arbitrary model arguments. There are no direct contents or access claims for Gallery, News, Vault or Rewards: a route can exist while a user lacks permissions or plan entitlements. These links may open a separate browser/session or prompt to sign in. Do not imply ChatGPT Internet Identity credentials automatically transfer to the mobile apps. No claims of automatic installation or app-store purchases.
+
+**Production deployment:** The published mobile app links intentionally differ from DEV destinations. Distinguish "Open in Ignite DEV" from "Get the mobile app". These are verified locations, not a promise that the host will directly deep-link into installed native apps. Club-specific routes on iOS/Android need separately tested universal/app link support.
+
+**MCP App goal:** Present this as a compact Explore section below the main team actions, with two obvious store links. Add role/plan-aware hiding or a locked state once the authenticated MCP App is wired; the static preview merely links to route entry points.
