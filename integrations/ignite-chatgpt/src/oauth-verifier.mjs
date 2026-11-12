@@ -111,8 +111,7 @@ export function createOauthDelegationVerifier({
   if(typeof fetchJwks!=="function"||typeof clock!=="function")throw Error("Invalid trust dependencies");
   let jwksCache=null;
   let cachedUntil=0;
-  const headerAlgorithmForKid=new Map();
-  async function trustedKey(kid){
+  async function trustedKey(kid,alg){
     if(!jwksCache||clock()>=cachedUntil){
       const response=await fetchJwks(keysUri,{headers:{accept:"application/json"},redirect:"error"});
       if(!response?.ok)fail("Authorization keys unavailable");
@@ -128,27 +127,25 @@ export function createOauthDelegationVerifier({
     if(matches.length!==1)fail("Unknown access-token signing key");
     const jwk=matches[0];
     const matchingKey = (
-      headerAlgorithmForKid.get(kid)==="RS256" &&
+      alg==="RS256" &&
       jwk.kty==="RSA" && typeof jwk.n==="string" &&
       typeof jwk.e==="string" && !jwk.d
     ) || (
-      headerAlgorithmForKid.get(kid)==="ES256" &&
+      alg==="ES256" &&
       jwk.kty==="EC" && jwk.crv==="P-256" &&
       typeof jwk.x==="string" && typeof jwk.y==="string" && !jwk.d
     );
     if(!matchingKey||(jwk.use&&jwk.use!=="sig")||
-       (jwk.alg&&jwk.alg!==headerAlgorithmForKid.get(kid)))
+       (jwk.alg&&jwk.alg!==alg))
        fail("Untrusted access-token signing key");
     return createPublicKey({key:jwk,format:"jwk"});
   }
   return async function verifyBearerToken(bearer,context={}){
     const {header,claims,signature,signingInput}=parseBearerJwt(bearer);
-    headerAlgorithmForKid.set(header.kid,header.alg);
-    const key=await trustedKey(header.kid);
+    const key=await trustedKey(header.kid,header.alg);
     const valid=header.alg==="ES256"
       ?verifySignature("sha256",signingInput,{key,dsaEncoding:"ieee-p1363"},signature)
       :verifySignature("RSA-SHA256",signingInput,key,signature);
-    headerAlgorithmForKid.delete(header.kid);
     if(!valid)fail("Invalid access-token signature");
     const {scopes,expiresAtMs}=requireClaims(claims,{
       issuer:trustedIssuer,audience,nowMs:clock(),leewayMs});
