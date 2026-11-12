@@ -63,3 +63,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace --locked
+      - name: Verify isolated DEV G2 identity reader security tests
+        run: |
+          cargo test -p identity_access active_g2_club_reader --locked
+          cargo test -p identity_access active_g2_recovery_acceptance --locked
