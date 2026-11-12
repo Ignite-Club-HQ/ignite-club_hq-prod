@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Mixed mainnet / Cloud Engine membership — 12 November
+- [ ] Compose independently verified destination sessions for one Internet Identity; keep club roles and chat operations on their owning destination with no cross-destination write replay.
+- [ ] Integrate scoped feature dispatch, membership discovery and chat reads with regression coverage for removal, destination loss, conflicting ownership and account changes.
+- [ ] Real-engine and signed-in phone acceptance remain blocked on a future engine connection; keep engine release/admission holds and PROD unchanged.
+
 ## Real service-call and canister-restore preparation — 12 November
 - [x] Six actual notification/Vault authority reads now use bounded cycle-free calls; permission/fence checks retained, digest authority failures remain unavailable. No mutation timeout/retry, encryption or PROD changes.
 - [x] Prepared real club/events/queue management snapshot/load and full ACL/inbox/receipt/preference/cooldown readback on disposable canisters; manual main-only native-worker workflow added without deployment credentials.
