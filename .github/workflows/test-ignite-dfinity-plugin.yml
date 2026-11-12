@@ -1,0 +1,24 @@
+name: "[TEST] Ignite branded DFINITY MCP dependency pilot"
+
+on:
+  pull_request:
+    paths:
+      - "integrations/ignite-chatgpt/dfinity-dependency-pilot/**"
+      - "integrations/ignite-chatgpt/scripts/test-dfinity-plugin-package.mjs"
+      - ".github/workflows/test-ignite-dfinity-plugin.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  plugin-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Validate branded plugin dependency, environment and safety scope
+        run: node --test integrations/ignite-chatgpt/scripts/test-dfinity-plugin-package.mjs
