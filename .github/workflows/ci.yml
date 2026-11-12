@@ -119,10 +119,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: Reject test-only G2 fixture in mainnet release artifacts
         run: node --test scripts/identity-g2-fixture-release-guard.test.mjs
       - run: cargo check --workspace --locked
+      - name: Build standard identity release WASM without fixture feature
+        run: |
+          node scripts/identity-g2-fixture-release-guard.mjs
+          cargo build --locked --release --target wasm32-unknown-unknown -p identity_access
+          node scripts/identity-g2-fixture-release-guard.mjs target/wasm32-unknown-unknown/release/identity_access.wasm
       - name: Verify isolated DEV G2 identity reader security tests
         run: |
           cargo test -p identity_access active_g2_club_reader --locked
