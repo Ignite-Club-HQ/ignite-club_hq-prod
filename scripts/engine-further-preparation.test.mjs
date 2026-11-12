@@ -9,10 +9,13 @@ import { writePreparationBackup } from './engine-operational-preparation.mjs';
 import { rehearseLocalGroupRestore } from './engine-group-restore-drill.mjs';
 
 const destination = { deploymentId: 'isolated-test', host: 'https://isolated.invalid', networkKind: 'cloud_engine',
-  registryRevision: '9007199254740993', services: ['identity', 'club', 'events', 'messages', 'queue', 'vault', 'blob'].map(service => ({
+  registryRevision: '9007199254740993', services: ['identity_access', 'placement_registry', 'shard_router',
+    'club_domain', 'events_domain', 'messaging_domain', 'vault_domain', 'competition_domain', 'club_points_domain',
+    'mini_league_domain', 'media_metadata', 'insights_domain', 'notification_queue', 'pii_access_control',
+    'timer_jobs', 'secret_workload_identity', 'media_blob_store'].map(service => ({
     service, canisterId: `${service}-fixture`, subnetId: 'destination-fixture', moduleHash: 'a'.repeat(64) })) };
 const call = { kind: 'write', operation: 'op-1', caller: 'fixture-user', sourceSubnet: 'source-fixture',
-  service: 'events', method: 'save', argumentHash: 'b'.repeat(64), timeoutSeconds: 1, destination };
+  service: 'events_domain', method: 'save', argumentHash: 'b'.repeat(64), timeoutSeconds: 1, destination };
 function journal() {
   let state;
   return { assertExclusiveWriter: async () => {}, save: async s => { state = structuredClone(s); }, read: async () => structuredClone(state) };
@@ -81,7 +84,7 @@ async function backup(run) {
 }
 test('rebuilds full supplied group with permissions, pending work, zero and null preserved', () => backup(async (path, key) => {
   const report = await rehearseLocalGroupRestore(path, destination, key, expected, async (_s, bytes) => JSON.parse(bytes));
-  assert.equal(report.services, 7); assert.equal(report.localGroupRebuilt, true); assert.ok(report.elapsedMs >= 0);
+  assert.equal(report.services, 17); assert.equal(report.localGroupRebuilt, true); assert.ok(report.elapsedMs >= 0);
   assert.equal(report.liveGroupRestored, false); assert.equal(report.activationAuthorized, false); assert.equal(report.encryptedMediaRecoverable, false);
 }));
 for (const field of ['roles', 'denied', 'pending', 'history', 'quota']) test(`restore refuses lost ${field}`, () => backup(async (path, key) => {

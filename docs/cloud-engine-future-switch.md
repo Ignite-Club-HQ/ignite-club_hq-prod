@@ -28,6 +28,8 @@ The local backup reader only accepts supplied local exports (16 MiB total, at mo
 
 ## Later handover checklist
 
+The existing **Download preparation** now includes nine ordered, pending stages with prerequisites and explicit real-engine requirements. It is a checklist, not an activation control; completing it does not grant release authority.
+
 1. Compare measured mainnet costs with quoted engine rental, capacity, proxy charges and backup costs. No invented price or automatic switching threshold is configured.
 2. Obtain console/API details, subnet, deployment access and official encryption proxy; fill in the existing draft.
 3. Complete the engine-specific deployment connection and engine-compatible modules. Mainnet paid-create/top-up workflows are not engine installers.
@@ -40,3 +42,15 @@ The local backup reader only accepts supplied local exports (16 MiB total, at mo
 ## Preparation limits
 
 Activation stays disabled. Existing offline installer/acceptance protocols and these drafts reduce later setup work but do not prove real-engine compatibility. A future switch still requires deployment, encryption/routing code changes and real-engine checks—not just flipping a setting. No engine is connected or rented by this work.
+
+## Further offline preparation — calls, full local rebuild and checklist
+
+- `scripts/engine-call-preparation.mjs` rehearses destination-, revision-, caller-, operation- and argument-bound calls. It rejects cycle attachments and waits outside 1–300 seconds; journals/readbacks intent under an exclusive writer before dispatch; holds lost, timed-out or foreign replies; and settles only exact outcome readback, never resending uncertain writes. Local deadlines do **not** implement IC bounded-wait. Actual Motoko/Rust call sites remain unchanged and need separate bounded-wait implementation and real cross-subnet acceptance.
+- `scripts/engine-group-restore-drill.mjs` decrypts the complete supplied local inventory, decodes and compares every service against a before-image, then reconstructs fresh disposable state and checks full readback. Regressions cover all 17 currently required engine services, retained permissions/denials/pending operations/history/zero/null, missing inventory and wrong keys. Timing measures local decrypt/decode/rebuild only—not recovery time for real canisters. This uses synthetic local exports, not a live TEST backup or production data; it does not recover encryption keys or certify deployed ledger formats.
+- The exported checklist orders economic review, destination, closed install, calls, encryption, isolated club, operations, owner review and new-club admission. All stages start pending. Encryption remains deferred; no admission, settings or existing assignments change.
+
+```sh
+node --test scripts/engine-further-preparation.test.mjs scripts/engine-operational-preparation.test.mjs scripts/group-removal-recovery.test.mjs
+```
+
+**Still unverified:** actual TEST-group round trips or full canister restore (no accepted live recovery transport used), real-engine call semantics/encryption/rental readings, phone acceptance and live alert delivery. Offline receipts and local test success never authorize connection, opening or resume.

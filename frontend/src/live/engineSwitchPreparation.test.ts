@@ -40,4 +40,20 @@ describe('deferred Cloud Engine switch', () => {
     const mainnet = normalizeApprovedTarget({ backend: 'icp', kind: 'icp-mainnet', alias: 'mainnet', version: 'v1', enabled: true });
     expect(() => prepareEngineHandover(mainnet)).toThrow('Select a Cloud Engine draft.');
   });
+  it('keeps opening behind calls, encryption, isolated acceptance, operations and owner review', () => {
+    const bundle = prepareEngineHandover(createFutureEngineDraft([]));
+    const stages = bundle.checklist;
+    expect(stages.find(s => s.id === 'isolated-club')?.requires).toEqual(['calls', 'encryption']);
+    expect(stages.find(s => s.id === 'owner-review')?.requires).toEqual(['operations']);
+    expect(stages.find(s => s.id === 'new-clubs')?.requires).toEqual(['owner-review']);
+    expect(stages.filter(s => !s.requiresEngine).map(s => s.id)).toEqual(['economics']);
+    expect(stages.every(s => s.status === 'pending')).toBe(true);
+    expect(bundle.checklistAuthorizesActivation).toBe(false);
+    expect(bundle.activationAuthorized).toBe(false);
+    const visited = new Set<string>();
+    for (const stage of stages) {
+      expect(stage.requires.every(id => visited.has(id))).toBe(true);
+      visited.add(stage.id);
+    }
+  });
 });
