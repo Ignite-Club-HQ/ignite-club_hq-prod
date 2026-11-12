@@ -13,9 +13,9 @@ export function assertReleaseEnvironment(env = process.env) {
   for (const name of [FIXTURE_MARKER, 'CARGO_FEATURE_ISOLATED_G2_CHAIN_FIXTURE']) {
     if (Object.hasOwn(env, name)) throw new Error('Isolated G2 test fixture environment must not reach release: '+name);
   }
-  for (const name of ['CARGO_FEATURES','CARGO_BUILD_FEATURES','RUSTFLAGS','CARGO_ENCODED_RUSTFLAGS','CARGO_PROFILE_RELEASE_RUSTFLAGS']) {
+  for (const name of ['CARGO_FEATURES','CARGO_BUILD_FEATURES','CARGO_BUILD_ALL_FEATURES','CARGOFLAGS','RUSTFLAGS','CARGO_BUILD_RUSTFLAGS','CARGO_ENCODED_RUSTFLAGS','CARGO_PROFILE_RELEASE_RUSTFLAGS']) {
     const value = String(env[name] ?? '');
-    if (/isolated[-_]g2[-_]chain[-_]fixture|POCKETIC_ONLY_NOT_DEPLOYABLE/i.test(value)) {
+    if (/isolated[-_]g2[-_]chain[-_]fixture|POCKETIC_ONLY_NOT_DEPLOYABLE|--all-features/i.test(value) || name==='CARGO_BUILD_ALL_FEATURES' && /^(true|1|yes)$/i.test(value)) {
       throw new Error('Isolated G2 fixture in release build flags: '+name);
     }
   }
@@ -34,7 +34,9 @@ function readUleb(b, offset) {
 }
 export function wasmExports(raw) {
   const bytes=Buffer.from(raw);
-  const b=bytes[0]===0x1f&&bytes[1]===0x8b?gunzipSync(bytes):bytes;
+  if(bytes.length>256*1024*1024)throw new Error('Oversized WASM artifact');
+  const b=bytes[0]===0x1f&&bytes[1]===0x8b?gunzipSync(bytes,{maxOutputLength:512*1024*1024}):bytes;
+  if(b.length>512*1024*1024)throw new Error('Oversized decoded WASM artifact');
   if(b.length<8 || !b.subarray(0,8).equals(Buffer.from([0,97,115,109,1,0,0,0])))throw new Error('Invalid WASM artifact');
   let cursor=8;
   const exports=[];
