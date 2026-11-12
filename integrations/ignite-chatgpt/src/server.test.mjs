@@ -101,3 +101,50 @@ test("invalid discovery URLs fail closed",()=>{
  assert.throws(()=>createIgniteMcpHttpServer({verifyBearerToken:async()=>session,backend,
    authorizationServerUrl:"https://auth-dev.example.invalid",resourceUrl:"https://mcp-dev.example.invalid/private"}),/Pinned HTTPS/);
 });
+
+test("tool-level missing scope triggers host-native OAuth linking metadata, not raw prompt text",async()=>{
+ const server=createIgniteMcpHttpServer({
+   verifyBearerToken:async()=>({...session,scopes:["ignite:read"]}),
+   backend,authorizationServerUrl:"https://auth-dev.example.invalid/tenant/dev",
+   resourceUrl:"https://mcp-dev.example.invalid/mcp",
+ });
+ await new Promise(ok=>server.listen(0,"127.0.0.1",ok));
+ const host="http://127.0.0.1:"+server.address().port;
+ try{
+   const d=await fetch(host+"/.well-known/oauth-protected-resource");
+   assert.deepEqual((await d.json()).authorization_servers,["https://auth-dev.example.invalid/tenant/dev"]);
+   const call=await fetch(host+"/mcp",{
+     method:"POST",
+     headers:{"authorization":"Bearer dummy","content-type":"application/json"},
+     body:JSON.stringify(params("tools/call",{name:"open_my_ignite_chat",arguments:root})),
+   });
+   assert.equal(call.status,200);
+   // An authenticated caller with the right read scope should open normally.
+   assert.equal((await call.json()).result.structuredContent.environment,"dev");
+ }finally{await new Promise(ok=>server.close(ok));}
+});
+test("tool descriptors specify separate read and send OAuth scopes",async()=>{
+ const result=await handler(params("tools/list",{}));
+ const send=result.result.tools.find(t=>t.name==="send_team_message");
+ const read=result.result.tools.find(t=>t.name==="open_my_ignite_chat");
+ assert.deepEqual(send.securitySchemes[0].scopes,["ignite:read","ignite:chat:send"]);
+ assert.deepEqual(read.securitySchemes[0].scopes,["ignite:read"]);
+});
+test("missing OAuth read scope on a tool call returns an OAuth re-link hint",async()=>{
+ const server=createIgniteMcpHttpServer({
+  verifyBearerToken:async()=>({...session,scopes:["ignite:chat:send"]}),
+  backend,authorizationServerUrl:"https://auth-dev.example.invalid",
+  resourceUrl:"https://mcp-dev.example.invalid/mcp",
+ });
+ await new Promise(ok=>server.listen(0,"127.0.0.1",ok));
+ try{
+ const resp=await fetch("http://127.0.0.1:"+server.address().port+"/mcp",{
+  method:"POST",headers:{"authorization":"Bearer dummy","content-type":"application/json"},
+  body:JSON.stringify(params("tools/call",{name:"open_my_ignite_chat",arguments:root}))
+ });
+ assert.equal(resp.status,200);
+ const payload=await resp.json();
+ assert.equal(payload.result.isError,true);
+ assert.match(payload.result._meta["mcp/www_authenticate"][0],/insufficient_scope/);
+ }finally{await new Promise(ok=>server.close(ok));}
+});
