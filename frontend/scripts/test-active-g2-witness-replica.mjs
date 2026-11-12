@@ -69,6 +69,7 @@ try {
   const w=pic.createActor(witnessFactory,witnessId),id=identity.actor;
   w.setPrincipal(owner);id.setPrincipal(member);
   const account=ok(await id.register_account());
+  assert.equal(account.version,0n,'Fresh Ignite account must be accepted at version zero');
   id.setPrincipal(owner);
   const participant=await pic.createCanister({sender:owner,controllers:[owner]});
   await pic.installCode({canisterId:participant,sender:owner,wasm:identityWasm,arg:initIdentity});
