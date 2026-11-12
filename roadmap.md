@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## Engine-independent preparation — items 1, 3 and 4 only — 12 November
+- [ ] Reuse closed group installation for explicit mainnet/engine destinations; no network deployment or engine encryption changes.
+- [ ] Add a disabled new-club engine-switch rehearsal preserving existing assignments and the live release hold.
+- [ ] Add encrypted local backup/restore drills and read-only funding-alert assessment; no scheduler, funding or live restore actions.
+- [ ] Run focused preparation regressions and document real-engine/physical-device limitations.
+
 ## Deferred Cloud Engine switch preparation — 12 November
 - [x] Added a disabled future-engine draft and offline handover download without connecting an engine, changing country pins or moving existing clubs.
 - [x] Verified configuration preservation and engine hold: 79 focused checks pass in each sign-in mode; preview build OK. Documented remaining real-engine deployment, encryption/routing and acceptance work in docs/cloud-engine-future-switch.md.
