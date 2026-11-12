@@ -50,7 +50,7 @@ function parseBearerJwt(jwt){
   const header=jsonSegment(h,"token header");
   const claims=jsonSegment(p,"token payload");
   const signature=decodeSegment(s,"token signature");
-  if(header.alg!=="RS256"||typeof header.kid!=="string"||!header.kid||
+  if(!["RS256","ES256"].includes(header.alg)||typeof header.kid!=="string"||!header.kid||
      header.kid.length>128||header.crit||header.jku||header.jwk||
      header.x5u||header.b64===false||header.typ&&
      !["JWT","at+jwt","application/at+jwt"].includes(header.typ))fail("Unsupported token header");
@@ -67,10 +67,24 @@ function requireClaims(claims,{issuer,audience,nowMs,leewayMs}){
     fail("Access token issuer, audience or validity invalid");
   }
   if(claims.exp-now>3600*24)fail("Token lifetime exceeds server policy");
-  const scopes=textList(claims.scope);
-  if(scopes.length===0||scopes.some(x=>!/^ignite:(read|chat:send)$/.test(x))){
+  // Ory may use either a scope string or an scp array. Offline Access
+  // grants refresh-token renewal only; it is never an Ignite data permission.
+  const known=new Set(["ignite:read","ignite:chat:send","offline_access","openid"]);
+  if(claims.scope!==undefined && typeof claims.scope!=="string")
+    fail("OAuth scope claim has invalid type");
+  if(claims.scp!==undefined &&
+     (!Array.isArray(claims.scp)||claims.scp.some(x=>typeof x!=="string")))
+    fail("OAuth scp claim has invalid type");
+  const fromText=textList(claims.scope), fromList=claims.scp??[];
+  if(fromText.length && fromList.length &&
+     (fromText.length!==fromList.length || fromText.some(x=>!fromList.includes(x))))
+    fail("OAuth scope claims disagree");
+  const granted=fromText.length?fromText:fromList;
+  if(granted.length===0||granted.length>12||
+     granted.some(x=>!known.has(x)) || new Set(granted).size!==granted.length ||
+     !granted.includes("ignite:read"))
     fail("OAuth token has invalid or missing Ignite scopes");
-  }
+  const scopes=granted.filter(x=>x.startsWith("ignite:"));
   return {scopes,expiresAtMs:claims.exp*1000};
 }
 /**
@@ -97,6 +111,7 @@ export function createOauthDelegationVerifier({
   if(typeof fetchJwks!=="function"||typeof clock!=="function")throw Error("Invalid trust dependencies");
   let jwksCache=null;
   let cachedUntil=0;
+  const headerAlgorithmForKid=new Map();
   async function trustedKey(kid){
     if(!jwksCache||clock()>=cachedUntil){
       const response=await fetchJwks(keysUri,{headers:{accept:"application/json"},redirect:"error"});
@@ -112,15 +127,29 @@ export function createOauthDelegationVerifier({
     const matches=jwksCache.filter(x=>x.kid===kid);
     if(matches.length!==1)fail("Unknown access-token signing key");
     const jwk=matches[0];
-    if(jwk.kty!=="RSA"||(jwk.use&&jwk.use!=="sig")||
-       (jwk.alg&&jwk.alg!=="RS256")||typeof jwk.n!=="string"||
-       typeof jwk.e!=="string"||jwk.d)fail("Untrusted access-token signing key");
+    const matchingKey = (
+      headerAlgorithmForKid.get(kid)==="RS256" &&
+      jwk.kty==="RSA" && typeof jwk.n==="string" &&
+      typeof jwk.e==="string" && !jwk.d
+    ) || (
+      headerAlgorithmForKid.get(kid)==="ES256" &&
+      jwk.kty==="EC" && jwk.crv==="P-256" &&
+      typeof jwk.x==="string" && typeof jwk.y==="string" && !jwk.d
+    );
+    if(!matchingKey||(jwk.use&&jwk.use!=="sig")||
+       (jwk.alg&&jwk.alg!==headerAlgorithmForKid.get(kid)))
+       fail("Untrusted access-token signing key");
     return createPublicKey({key:jwk,format:"jwk"});
   }
   return async function verifyBearerToken(bearer,context={}){
     const {header,claims,signature,signingInput}=parseBearerJwt(bearer);
+    headerAlgorithmForKid.set(header.kid,header.alg);
     const key=await trustedKey(header.kid);
-    if(!verifySignature("RSA-SHA256",signingInput,key,signature))fail("Invalid access-token signature");
+    const valid=header.alg==="ES256"
+      ?verifySignature("sha256",signingInput,{key,dsaEncoding:"ieee-p1363"},signature)
+      :verifySignature("RSA-SHA256",signingInput,key,signature);
+    headerAlgorithmForKid.delete(header.kid);
+    if(!valid)fail("Invalid access-token signature");
     const {scopes,expiresAtMs}=requireClaims(claims,{
       issuer:trustedIssuer,audience,nowMs:clock(),leewayMs});
     // No actor is accepted from a token/header or browser. The lookup happens
