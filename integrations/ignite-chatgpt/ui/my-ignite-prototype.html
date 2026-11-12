@@ -27,6 +27,17 @@ small{color:#617386}textarea{width:100%;border:1px solid #cfdce6;border-radius:1
 .actions{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
 .notice{border-left:3px solid #dc9030;background:#fff9ef;color:#65491d;padding:10px 12px;border-radius:7px;margin-top:11px;font-size:.85rem}
 #review{padding:13px;border:1px solid #becddb;border-radius:12px;margin-top:12px;white-space:pre-wrap;word-break:break-word}
+
+.shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}
+.shortcut{display:flex;gap:10px;align-items:center;min-width:0;padding:13px;border:1px solid #d1dbe4;border-radius:13px;background:#fff;color:#173c5c;text-decoration:none;min-height:69px}
+.shortcut:hover{border-color:#668aa6;background:#f5faff}.shortcut:focus-visible,.storelink:focus-visible{outline:3px solid #82c8ed;outline-offset:2px}
+.shortcut .emoji{font-size:1.35rem;flex-shrink:0}.shortcut strong,.shortcut small{display:block}.shortcut strong{font-size:.9rem}.shortcut small{font-size:.74rem;line-height:1.35;margin-top:3px}
+.storelinks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}
+.storelink{min-height:52px;border:1px solid #d1dbe4;border-radius:12px;text-decoration:none;color:#173c5c;background:#fff;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;font-weight:700;text-align:center}
+.storelink:hover{border-color:#668aa6;background:#f5faff}.hint{margin-top:10px;font-size:.79rem;color:#647589}
+@media(max-width:400px){.storelinks{grid-template-columns:1fr}.shortcuts{gap:7px}.shortcut{padding:10px}}
+@media(prefers-color-scheme:dark){.shortcut,.storelink{background:#203447;border-color:#456078;color:#e6edf6}.shortcut:hover,.storelink:hover{background:#2b4763}.hint{color:#a0b4c5}}
+
 [hidden]{display:none!important}
 @media(prefers-color-scheme:dark){:root{color:#e6edf6;background:#131d28}.brand{color:#e6edf6}.card{background:#1a2938;border-color:#344659}button,textarea{background:#203447;border-color:#456078;color:#eaf1f8}button[aria-pressed=true],.primary{background:#386a9b}.sub,.muted,small{color:#a0b4c5}.event{border-color:#344659}.pill{background:#1c4360;color:#d9ebff}.bubble{background:#263d51}.bubble.mine{background:#245878}.tag{background:#473a24;color:#ffdb9d;border-color:#735e35}.notice{background:#49381f;color:#ffdea9}}
 </style>
@@ -46,6 +57,28 @@ small{color:#617386}textarea{width:100%;border:1px solid #cfdce6;border-radius:1
       <button type="button" data-view="chat">💬 Team chat</button>
       <button type="button" data-view="rsvp">✅ Quick RSVP</button>
     </div>
+  </section>
+  <section class="card" aria-label="Explore more Ignite features">
+    <div class="topline"><h2>Explore Ignite</h2><span class="pill">Open in DEV</span></div>
+    <p class="muted">Go straight to other parts of your club's app.</p>
+    <div class="shortcuts" aria-label="Club feature links">
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/media" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">📸</span><span><strong>Gallery ↗</strong><small>Photos &amp; videos</small></span></a>
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/news" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">📰</span><span><strong>Club news ↗</strong><small>Updates &amp; announcements</small></span></a>
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/vault" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">📁</span><span><strong>File vault ↗</strong><small>Team files &amp; documents</small></span></a>
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/events" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">🗓️</span><span><strong>All events ↗</strong><small>Fixtures &amp; training</small></span></a>
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/teams/5ece6fc0-f2a8-4295-86e7-e71775d243f8" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">⚽</span><span><strong>Team page ↗</strong><small>Riverdogs U8 Rockets</small></span></a>
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/clubs/f9f7d89c-a51f-454d-af8e-b976c10d2fc4/rewards" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">🏅</span><span><strong>Rewards ↗</strong><small>May require Pro access</small></span></a>
+    </div>
+    <p class="hint">These links open Ignite DEV and may ask you to sign in. Available content and premium features depend on your club permissions and subscription.</p>
+  </section>
+  <section class="card" aria-label="Get the mobile Ignite app">
+    <h2>Take Ignite with you</h2>
+    <p class="muted">Use Ignite on your iPhone or Android phone.</p>
+    <div class="storelinks">
+      <a class="storelink" href="https://apps.apple.com/au/app/ignite-club-hq/id6758928691" target="_blank" rel="noopener noreferrer" aria-label="Ignite Club HQ on Apple App Store"><span aria-hidden="true">🍎</span> App Store ↗</a>
+      <a class="storelink" href="https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub" target="_blank" rel="noopener noreferrer" aria-label="Ignite Club HQ on Google Play"><span aria-hidden="true">▶️</span> Google Play ↗</a>
+    </div>
+    <p class="hint">The store links open the published mobile apps, not the Ignite DEV test environment.</p>
   </section>
   <nav class="tabs" aria-label="Sections">
     <button type="button" id="tab-schedule" data-view="schedule" aria-pressed="true">Schedule</button>
