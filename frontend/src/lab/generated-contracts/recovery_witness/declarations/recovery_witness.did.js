@@ -118,6 +118,8 @@ export const idlFactory = ({ IDL }) => {
   return IDL.Service({
     'accept_recovery_fence' : IDL.Func([SignedAcceptance], [Result], []),
     'authorize_active_g2_subject_reader' : IDL.Func([G2SignedScope], [Result_1], []),
+    'read_active_g2_baseline_digest' : IDL.Func([], [Result_5], []),
+    'active_g2_scope_signing_bytes' : IDL.Func([G2Scope], [Result_5], []),
     'disable_active_g2_subject_reader' : IDL.Func([], [Result_1], []),
     'verify_active_g2_subject_read_fence' : IDL.Func([G2WitnessRequest], [G2WitnessResult], []),
     'authorize_subject_removal_progress' : IDL.Func(
