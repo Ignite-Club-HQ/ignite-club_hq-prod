@@ -305,7 +305,7 @@ async fn verify_active_g2_subject_read_fence(
         return Err("G2 witness replay journal at capacity".into());
     }
     G2_READER_NONCES.with(|s|s.borrow_mut().insert(r.challenge.nonce,1));
-    Ok(g2::IndependentlyVerifiedSubject{challenge:r.challenge,witness_revision:head_before.revision.saturating_add(1)})
+    Ok(g2::IndependentlyVerifiedSubject{challenge:r.challenge,witness_revision:version})
 }
 
 #[ic_cdk::update]
