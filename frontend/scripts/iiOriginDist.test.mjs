@@ -14,6 +14,7 @@ const PROD_CLUB = "tbeh7-5qaaa-aaaai-ayenq-cai";
 const GROUP2_CLUB = "yfwyv-nyaaa-aaaal-qxpyq-cai";
 const provisionFile = path.join(scriptDirectory, "../../deploy/groups/g2/provision.json");
 const provision = JSON.parse(readFileSync(provisionFile, "utf8"));
+const sharedDevCanisters = JSON.parse(readFileSync(path.join(scriptDirectory, "../../deploy/mainnet/.icp/data/mappings/ic.ids.json"), "utf8"));
 const approval = JSON.parse(readFileSync(path.join(scriptDirectory, "../../deploy/groups/g2/general-opening.json"), "utf8"));
 const CUSTOMER_DOMAINS = ["club_domain", "events_domain", "messaging_domain", "vault_domain", "competition_domain", "club_points_domain", "mini_league_domain", "media_metadata", "media_blob_store", "insights_domain"];
 const marketing = ["https://igniteclubhq.com", "https://www.igniteclubhq.com"];
@@ -51,7 +52,7 @@ function generatedManifest(environment, opts = {}) {
         IGNITE_FRONTEND_ENV: environment,
         IGNITE_MCP_DEV_GROUP2_DISCOVERY: opts.enableGroup2 === undefined ? "" : (opts.enableGroup2 ? "1" : "0"),
         FRONTEND_CANISTER_ID: frontId,
-        IGNITE_LIVE_ICP_CANISTER_IDS_JSON: JSON.stringify({ club_domain: clubId }),
+        IGNITE_LIVE_ICP_CANISTER_IDS_JSON: JSON.stringify(isProd ? { club_domain: clubId } : sharedDevCanisters),
       },
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
