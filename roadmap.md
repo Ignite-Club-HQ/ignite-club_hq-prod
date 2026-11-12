@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## Further engine-independent preparation — 12 November
+- [ ] Prepare and test bounded cross-destination call rehearsals with durable unknown-write holds; no live call-site changes.
+- [ ] Rebuild an isolated full supplied group inventory from encrypted local backups and compare decoded permissions/history; record timing without claiming live recovery.
+- [ ] Add a staged handover checklist to the existing downloadable preparation, retaining all release holds.
+- [ ] Run focused checks and document real TEST/engine acceptance limitations.
+
 ## Engine-independent preparation — items 1, 3 and 4 only — 12 November
 - [x] Shared closed group installation and pinned upgrade protocols now accept explicit mainnet/engine destinations; initial/minimum fuel is required only for mainnet, and cycles are forbidden on engines. No network deployment or engine encryption changes.
 - [x] Added off/on new-club engine-switch rehearsal preserving existing assignments, exact revision binding and the live release hold. No settings, admission or country pins changed.
