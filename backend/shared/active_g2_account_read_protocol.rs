@@ -57,6 +57,30 @@ pub struct IndependentlyVerifiedSubject {
 fn principal(id: &str) -> Result<Principal, String> {
     Principal::from_text(id).map_err(|_| "Invalid immutable Group 2 principal".into())
 }
+/// Immutable public key must be provisioned into the separately built identity
+/// and witness canisters. No caller-controlled key or fallback is accepted.
+pub fn pinned_g2_signer() -> Result<VerifyingKey, String> {
+    let text=option_env!("IGNITE_RECOVERY_APPROVER_PUBLIC_KEY")
+        .ok_or("Independent G2 approval signer not pinned")?;
+    if text.len()!=64 || !text.bytes().all(|b|b.is_ascii_hexdigit()) {
+        return Err("Invalid independent G2 signer".into());
+    }
+    let mut bytes=[0u8;32];
+    for (i,b) in bytes.iter_mut().enumerate() {
+        *b=u8::from_str_radix(&text[2*i..2*i+2],16)
+            .map_err(|_|"Invalid independent G2 signer")?;
+    }
+    VerifyingKey::from_bytes(&bytes).map_err(|_|"Invalid independent G2 signer".into())
+}
+/// Bind an independent signed G2 scope to the *actual* separately accepted
+/// recovery baseline, including its signature. No client-supplied digest.
+pub fn recovery_baseline_digest(
+    signed:&crate::recovery_protocol::SignedAcceptance,
+) -> Result<[u8;32],String> {
+    let bytes=candid::encode_one(signed).map_err(|_|"Invalid independent baseline encoding")?;
+    if bytes.len()>131_072 {return Err("Oversized recovery baseline".into());}
+    Ok(Sha256::digest(bytes).into())
+}
 pub fn scope_signing_bytes(scope: &Scope) -> Result<Vec<u8>, String> {
     let encoded = candid::encode_one(scope).map_err(|_| "Invalid G2 scope encoding")?;
     if encoded.len() > 2048 { return Err("Oversized G2 scope".into()); }
