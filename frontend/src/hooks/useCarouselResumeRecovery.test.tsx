@@ -63,7 +63,6 @@ describe('carousel foreground listeners', () => {
   it('recovers cards through native return and coalesces a simultaneous browser visibility event', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
     const key = ['my-teams-premium-v2', 'paul'];
-    client.setQueryData(key, []);
     let resolve: ((value: { id: string }[]) => void) | undefined;
     const read = vi.fn(() => new Promise<{ id: string }[]>(done => { resolve = done; }));
     const observer = new QueryObserver(client, { queryKey: key, queryFn: read });
@@ -77,7 +76,7 @@ describe('carousel foreground listeners', () => {
       document.dispatchEvent(new Event('visibilitychange'));
       await Promise.resolve(); await Promise.resolve();
     });
-    expect(read).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledTimes(2);
     await act(async () => { resolve?.([{ id: 'u12' }]); await Promise.resolve(); });
     expect(observer.getCurrentResult().data).toEqual([{ id: 'u12' }]);
     hook.unmount(); expect(m.remove).toHaveBeenCalledTimes(1);

@@ -6,7 +6,7 @@ const m = vi.hoisted(() => ({
   club: 'club-a' as string | null,
   items: vi.fn(), trial: vi.fn(), save: vi.fn(),
   readOptions: [] as unknown[],
-  saved: null as null | { data: { items: typeof teams }; timestamp: number },
+  saved: null as null | { data: { items: typeof teams; leaguesPending?: boolean }; timestamp: number },
 }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'paul' }, initialized: true }) }));
 vi.mock('@/hooks/useClubTheme', () => ({ useClubTheme: () => ({ activeClubFilter: m.club }) }));
@@ -52,6 +52,20 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); });
 
 describe('mounted carousel resume data path', () => {
+  it('does not certify pending leagues as empty when reloading a saved team-only snapshot', async () => {
+    m.saved = { data: { items: [], leaguesPending: true }, timestamp: Date.now() };
+    m.items.mockImplementation((_ctx, _filter, options) => options?.inventory === 'leagues' ? new Promise(() => {}) : Promise.resolve([]));
+    const { client } = mount();
+    await waitFor(() => expect(m.items).toHaveBeenCalledTimes(2));
+    expect(client.getQueryState(['my-leagues-premium-v2', 'paul'])?.status).toBe('pending');
+    expect(client.getQueryData(['my-teams-premium-v2', 'paul'])).toEqual([]);
+  });
+  it('reveals and saves fully detailed teams without waiting for unrelated leagues', async () => {
+    m.items.mockImplementation((_ctx, _filter, options) => options?.inventory === 'leagues' ? new Promise(() => {}) : Promise.resolve(teams));
+    mount();
+    await screen.findByRole('button', { name: 'Team A — Club A' }, { timeout: 2500 });
+    await waitFor(() => expect(m.save).toHaveBeenCalledWith('paul', null, expect.objectContaining({ leaguesPending: true, items: teams.map(team => expect.objectContaining(team)) })));
+  });
   it('shows complete saved cards immediately while both inventories are suspended', () => {
     m.saved = { data: { items: teams }, timestamp: Date.now() - 2 * 86400000 };
     m.items.mockImplementation(() => new Promise(() => {}));

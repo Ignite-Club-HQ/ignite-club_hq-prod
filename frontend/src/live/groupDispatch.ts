@@ -13,6 +13,7 @@ import { clearOwnerTestRouting, readOwnerTestRouteCached } from './ownerTestRout
 import { markScopedContext } from './scopedContext';
 const READ_ACROSS_LEG_MS = 15_000;
 import { clearRoleGrantsMemo } from './roleGrantsMemo';
+import { timeCarouselRead } from '@/lib/carouselReadTiming';
 
 type Session = { readClub<T>(c: string, d: GroupDomain, r: (ctx: FeatureBackendContext) => Promise<T>): Promise<T>;
   writeClub<T>(c: string, d: GroupDomain, k: string, w: (ctx: FeatureBackendContext, k: string) => Promise<T>, attempts?: number): Promise<T>;
@@ -91,7 +92,7 @@ async function sessionFor(deps: DispatchDeps): Promise<{ ctx: FeatureBackendCont
     Object.entries(ctx.target.canisterIds ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
   if (!cached || cached.principal !== principal || cached.targetKey !== targetKey) {
     clearGroupDispatchCache();
-    const entry = { principal, targetKey, session: deps.open(ctx), ready: false };
+    const entry = { principal, targetKey, session: timeCarouselRead('membership', () => deps.open(ctx)), ready: false };
     cached = entry;
     entry.session.then(() => { entry.ready = true; }, () => {});
   }
