@@ -56,6 +56,41 @@ jobs:
           IGNITE_LIVE_ICP_CANISTER_IDS_JSON: "{}"
       - run: npm run check:prod-secrets
 
+  # Disposable PocketIC only: installs local WASM, no credentials/deployment.
+  g2-witness-isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install pinned disposable PocketIC runtime
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts --no-fund --no-audit
+          node node_modules/@dfinity/pic/postinstall.mjs
+      - name: Exercise real isolated G2 identity and independent witness WASM
+        working-directory: frontend
+        env:
+          G2_WITNESS_ISOLATED_REPORT: ${{ runner.temp }}/g2-witness-isolated.json
+        run: |
+          export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
+          timeout --kill-after=5s 840s node scripts/test-active-g2-witness-replica.mjs
+      - name: Save isolated witness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g2-witness-isolated
+          path: ${{ runner.temp }}/g2-witness-isolated.json
+          if-no-files-found: warn
+
   rust-canisters:
     runs-on: ubuntu-latest
     steps:
