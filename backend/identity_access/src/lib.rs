@@ -44,6 +44,7 @@ mod admission;
 mod active_g2_club_reader;
 // Pure signed proposal only: no runtime activation until the independently
 // fenced recovery witness implementation has been security-reviewed.
+#[path = "../../../shared/active_g2_account_read_protocol.rs"]
 mod active_g2_recovery_acceptance;
 #[cfg(test)] mod member_access_tests;
 mod membership_directory;
