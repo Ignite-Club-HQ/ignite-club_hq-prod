@@ -122,7 +122,7 @@ pub fn validate_challenge(
 ) -> Result<(), String> {
     if q.scope_digest.as_slice() != expected_digest ||
         q.nonce == 0 || q.account_id.is_empty() || q.account_id.len() > 128 ||
-        q.account_version == 0 || q.recovery_epoch == 0 ||
+        q.recovery_epoch == 0 ||
         q.principals.is_empty() || q.principals.len() > 8 ||
         q.principals.iter().any(|p| *p == Principal::anonymous() || *p == Principal::management_canister()) ||
         !q.principals.contains(&q.subject) ||
@@ -137,7 +137,7 @@ pub fn validate_subject_receipt(
     if reply.witness_revision == 0 || reply.challenge != *expected ||
         expected.nonce == 0 ||
         expected.account_id.is_empty() || expected.account_id.len() > 128 ||
-        expected.account_version == 0 ||
+
         expected.recovery_epoch == 0 ||
         expected.scope_digest.len() != 32 ||
         expected.principals.is_empty() || expected.principals.len() > 8 ||
@@ -188,8 +188,9 @@ mod tests {
         let q=challenge();let digest=[1u8;32];
         assert!(validate_challenge(&digest,&q).is_ok());
         assert!(validate_challenge(&[2u8;32],&q).is_err());
-        let mut changed=q.clone();changed.account_version=0;
-        assert!(validate_challenge(&digest,&changed).is_err());
+        let mut initial=q.clone();initial.account_version=0;
+        assert!(validate_challenge(&digest,&initial).is_ok(),
+            "Fresh Ignite account version zero is valid and must be independently fenced");
         changed=q.clone();changed.principals=vec![p(7)];
         assert!(validate_challenge(&digest,&changed).is_err());
         changed=q.clone();changed.nonce=0;
