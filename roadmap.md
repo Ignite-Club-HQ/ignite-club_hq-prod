@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## Real service-call and canister-restore preparation — 12 November
+- [x] Six actual notification/Vault authority reads now use bounded cycle-free calls; permission/fence checks retained, digest authority failures remain unavailable. No mutation timeout/retry, encryption or PROD changes.
+- [x] Prepared real club/events/queue management snapshot/load and full ACL/inbox/receipt/preference/cooldown readback on disposable canisters; manual main-only native-worker workflow added without deployment credentials.
+- [x] Both changed canisters compile; five Motoko permission/native policy files, 58 operational/host checks and 87 frontend tests pass (6 mode skips). Workflow YAML/syntax validated; preview build OK.
+- [ ] Real-canister runner execution blocked by sandbox gVisor writeBit=0; native-worker workflow must run after source sync. No canisters installed here, no workflow dispatched, no real restore pass claimed. Full-group actual-format restore and remaining messaging/event/competition reads/mutation outcome contracts are outstanding; this slice is not complete engine compatibility.
+
 ## Further engine-independent preparation — 12 November
 - [x] Prepared bounded cross-destination local call rehearsals with exact-bound durable unknown-write holds and readback-only reconciliation; no live call-site changes or automatic resends.
 - [x] Rebuilt all 17 required services from synthetic encrypted local exports; full decoded permissions, denials, pending work, history, zero/null and destination readback checked. Timing is local only, not live canister recovery.
