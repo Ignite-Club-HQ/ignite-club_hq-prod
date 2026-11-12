@@ -84,7 +84,13 @@ type ApprovedRow = record {
   sink : principal;
   source_digest : blob;
 };
-type ActiveG2ClubReader = record { binding : Binding; club : principal };
+type ActiveG2Scope = record {
+  identity : principal; router : principal; club_reader : principal;
+  witness : principal; registry_revision : nat64; generation : nat64;
+  recovery_epoch : nat64; expires_at_ns : nat64; accepted_recovery_digest : blob;
+};
+type ActiveG2SignedScope = record { scope : ActiveG2Scope; signature : blob };
+type ActiveG2ClubReader = record { binding : Binding; club : principal; approval : ActiveG2SignedScope };
 type Binding = record {
   registry_revision : nat64;
   host : text;
@@ -616,7 +622,7 @@ service : (Init) -> {
   authorize_production_account_readers : (SignedApproval_1) -> (Result_8);
   authorize_production_member_access : (Binding) -> (Result_2);
   // Governor-only DEV G2 club-account reader capability; requires live receiver and registry checks.
-  authorize_active_g2_club_reader : (Binding) -> (Result_2);
+  authorize_active_g2_club_reader : (Binding, ActiveG2SignedScope) -> (Result_2);
   begin_account_removal : (text, nat64) -> (Result_9);
   begin_link : (principal) -> (Result_10);
   // The candidate topology is not account/club data evidence. Close local
