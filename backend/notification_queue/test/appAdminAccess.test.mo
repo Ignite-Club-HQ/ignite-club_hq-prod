@@ -19,4 +19,8 @@ let run = async {
   assert legacyCalls == 2;
   assert (await Access.authorize(Principal.anonymous(), false, legacy, protectedRead)) == #Err("App admin required");
   assert legacyCalls == 2 and protectedCalls == 2;
+  // Bounded-wait unknown replies must refuse, never try the legacy reader.
+  func unknown(_ : Principal) : async Bool { throw Error.reject("SYS_UNKNOWN") };
+  assert (await Access.authorize(admin, true, legacy, unknown)) == #Err("App admin verification unavailable");
+  assert legacyCalls == 2;
 };
