@@ -26,6 +26,9 @@ button:disabled{opacity:.45;cursor:not-allowed}.quick button{flex:1;min-width:13
 small{color:#617386}textarea{width:100%;border:1px solid #cfdce6;border-radius:12px;background:#fff;color:#1b3448;resize:vertical;min-height:80px;padding:12px;font:inherit}
 .actions{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
 .notice{border-left:3px solid #dc9030;background:#fff9ef;color:#65491d;padding:10px 12px;border-radius:7px;margin-top:11px;font-size:.85rem}
+
+.chattools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}.chattools button{min-height:38px;font-size:.83rem}.chatsearch{flex:1;min-width:130px;padding:10px;border-radius:10px;border:1px solid #d1dbe4;background:transparent;color:inherit;font:inherit}.message-window{height:320px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:10px;border:1px solid #e4eaf0;border-radius:13px;padding:12px;background:#f9fafb}.bubble{overflow-wrap:anywhere;white-space:pre-wrap}.chat-date{text-align:center;color:#647589;font-size:.78rem;margin:6px 0}.message-meta{font-size:.73rem;color:#647589;margin-top:6px}.msg-attachment{font-size:.78rem;border:1px dashed #a8baca;border-radius:8px;padding:6px;margin-top:6px}.history-loading{min-height:41px;width:100%}.chat-empty{color:#647589;text-align:center;padding:20px}.chatinfo{font-size:.82rem;color:#647589;margin:8px 0}.conversation-switch{margin-top:5px} .conversation-switch select{width:100%;padding:11px;border:1px solid #d1dbe4;border-radius:10px;background:transparent;color:inherit;font:inherit}
+@media(prefers-color-scheme:dark){.message-window{background:#162433;border-color:#344659}.chatsearch,.conversation-switch select{border-color:#456078;color:#e6edf6}.chat-date,.message-meta,.chatinfo,.chat-empty{color:#a0b4c5}}
 #review{padding:13px;border:1px solid #becddb;border-radius:12px;margin-top:12px;white-space:pre-wrap;word-break:break-word}
 
 .shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}
@@ -105,16 +108,31 @@ small{color:#617386}textarea{width:100%;border:1px solid #cfdce6;border-radius:1
     </article>
   </section>
   <section id="chat" class="card" aria-label="Team chat" hidden>
-    <div class="topline"><h2>U8 Rockets · Team chat</h2><span class="pill">Sample conversation</span></div>
-    <div class="messages" aria-label="Sample chat messages">
-      <div class="bubble"><strong>Coach</strong><div>Training is on as usual this week.</div><small>Yesterday · sample</small></div>
-      <div class="bubble mine"><strong>You</strong><div>Thanks, see you there!</div><small>Yesterday · sample</small></div>
+    <div class="topline"><h2>Team chat</h2><span class="pill">Demo history</span></div>
+    <div class="conversation-switch">
+      <label for="conversation"><strong>Conversation</strong></label>
+      <select id="conversation" aria-label="Choose a conversation">
+        <option value="rockets">U8 Rockets · Team chat</option>
+        <option value="practice">U8 Rockets · Training group (sample)</option>
+      </select>
+    </div>
+    <div class="chattools">
+      <button type="button" class="history-loading" id="loadOlder">↑ Load earlier messages</button>
+      <input class="chatsearch" id="chatSearch" placeholder="Search loaded messages" aria-label="Search loaded messages">
+      <button type="button" id="refreshChat">↻ Refresh</button>
+    </div>
+    <div class="chatinfo" id="historyStatus" role="status">Showing locally stored sample messages. Use Load earlier messages to browse the demo history.</div>
+    <div class="message-window" id="messageWindow" role="log" aria-live="polite" aria-label="Team chat message history">
+      <div class="chat-empty">Loading sample conversation…</div>
+    </div>
+    <div class="actions">
+      <button type="button" id="jumpNewest">↓ Latest messages</button>
     </div>
     <label for="message"><strong>Message the team</strong></label>
     <textarea id="message" maxlength="2000" placeholder="Type a message to your team…"></textarea>
     <div class="actions">
       <button type="button" class="primary" id="reviewBtn">Review message</button>
-      <button type="button" id="sendBtn" disabled aria-label="Send message, unavailable until the server is connected">Send (not connected)</button>
+      <button type="button" id="sendBtn" disabled aria-label="Sending is unavailable until the server is connected">Send (not connected)</button>
     </div>
     <div id="review" role="status" hidden></div>
   </section>
@@ -138,6 +156,67 @@ small{color:#617386}textarea{width:100%;border:1px solid #cfdce6;border-radius:1
     $("rsvp-preview").hidden=false;
     $("rsvp-preview").textContent="RSVP preview: "+b.dataset.rsvp+". Not saved — live RSVP controls are not yet connected.";
   }));
+  // Source-only history demo. In a deployed MCP App, replace this fixture
+  // adapter with a caller-scoped list_conversation_messages tool response.
+  const history={
+    rockets:[
+      {id:"r1",sender:"Coach",mine:false,day:"Mon 2 Nov",time:"5:15 pm",body:"Next week we have the team photo. Please bring your club shirt."},
+      {id:"r2",sender:"Parent",mine:false,day:"Tue 3 Nov",time:"9:12 am",body:"Thanks for the reminder."},
+      {id:"r3",sender:"You",mine:true,day:"Tue 3 Nov",time:"9:20 am",body:"Will do!"},
+      {id:"r4",sender:"Coach",mine:false,day:"Wed 4 Nov",time:"4:30 pm",body:"Training is on despite the light drizzle."},
+      {id:"r5",sender:"Coach",mine:false,day:"Fri 6 Nov",time:"6:00 pm",body:"Remember shin pads for tomorrow."},
+      {id:"r6",sender:"Parent",mine:false,day:"Sat 7 Nov",time:"8:13 am",body:"We are running about 5 minutes late."},
+      {id:"r7",sender:"You",mine:true,day:"Sat 7 Nov",time:"8:21 am",body:"Thanks, see you at the ground!"},
+      {id:"r8",sender:"Coach",mine:false,day:"Mon 9 Nov",time:"5:00 pm",body:"Thanks everyone for a great match on the weekend."}
+    ],
+    practice:[
+      {id:"p1",sender:"Coach",mine:false,day:"Wed 4 Nov",time:"3:30 pm",body:"Dribbling and passing drills at training today."},
+      {id:"p2",sender:"You",mine:true,day:"Wed 4 Nov",time:"3:35 pm",body:"See you there."}
+    ]
+  };
+  const viewState={conversation:"rockets",displayed:[],olderIndex:0,pageSize:3};
+  function escapeContent(value){return String(value).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  function bubbleMarkup(m){return '<div class="bubble'+(m.mine?' mine':'')+'"><strong>'+
+    escapeContent(m.sender)+'</strong><div>'+escapeContent(m.body)+'</div><div class="message-meta">'+
+    escapeContent(m.day+' · '+m.time)+'</div></div>';}
+  function renderHistory({keepScroll=false}={}){
+    const el=$("messageWindow"), beforeHeight=el.scrollHeight, beforeTop=el.scrollTop;
+    const query=$("chatSearch").value.trim().toLocaleLowerCase();
+    const messages=viewState.displayed.filter(m=>!query||[m.sender,m.body].some(v=>v.toLocaleLowerCase().includes(query)));
+    let prevDay="";
+    el.innerHTML=messages.map(m=>{
+      const heading=m.day!==prevDay?'<div class="chat-date">'+escapeContent(m.day)+'</div>':"";
+      prevDay=m.day;
+      return heading+bubbleMarkup(m);
+    }).join("")||'<div class="chat-empty">No messages found in the loaded history.</div>';
+    if(keepScroll&&!query)el.scrollTop=beforeTop+el.scrollHeight-beforeHeight;
+    else if(!query)el.scrollTop=el.scrollHeight;
+    const full=history[viewState.conversation];
+    $("loadOlder").disabled=viewState.olderIndex===0;
+    $("loadOlder").textContent=viewState.olderIndex===0?"All sample history loaded":"↑ Load earlier messages";
+    $("historyStatus").textContent="Showing "+viewState.displayed.length+" of "+full.length+
+      " sample messages"+(viewState.olderIndex===0?". You've reached the beginning of this demo chat.":". Older messages are available.");
+  }
+  function openHistory(conversation){
+    viewState.conversation=conversation;
+    const full=history[conversation];
+    viewState.olderIndex=Math.max(0,full.length-viewState.pageSize);
+    viewState.displayed=full.slice(viewState.olderIndex);
+    $("chatSearch").value="";
+    renderHistory();
+  }
+  $("loadOlder").addEventListener("click",()=>{
+    if(viewState.olderIndex===0)return;
+    const all=history[viewState.conversation];
+    viewState.olderIndex=Math.max(0,viewState.olderIndex-viewState.pageSize);
+    viewState.displayed=all.slice(viewState.olderIndex);
+    renderHistory({keepScroll:true});
+  });
+  $("chatSearch").addEventListener("input",()=>renderHistory({keepScroll:true}));
+  $("refreshChat").addEventListener("click",()=>openHistory(viewState.conversation));
+  $("jumpNewest").addEventListener("click",()=>{$("messageWindow").scrollTop=$("messageWindow").scrollHeight;});
+  $("conversation").addEventListener("change",e=>openHistory(e.target.value));
+  openHistory("rockets");
   $("reviewBtn").addEventListener("click",()=>{
     const body=$("message").value.trim();
     $("review").hidden=false;
