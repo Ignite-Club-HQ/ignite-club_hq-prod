@@ -4,7 +4,7 @@ Status: **source-only, not deployed or connected as a branded ChatGPT plugin**. 
 
 ## Implemented source contract
 
-The module `src/core.mjs` exports five read-only handlers:
+The module `src/core.mjs` exports six read-only handlers:
 
 | Tool | Caller-visible result | Required scope |
 |---|---|---|
@@ -13,6 +13,7 @@ The module `src/core.mjs` exports five read-only handlers:
 | `list_my_teams` | Teams in one authorised club | Verified club access |
 | `list_team_events` | Accessible event dates/titles for a club/team | Verified club + team access |
 | `list_conversations` | Accessible chat titles and IDs (no message bodies) | Verified club + team access |
+| `list_conversation_messages` | Caller-accessible chat messages, read-only with backward cursor and limited page size | Verified club + team + conversation access |
 
 Every tool rejects unexpected input fields, including a supplied principal, role, group, target canister or environment. The backend is assumed to enforce its own canister permissions; returned rows are additionally constrained to requested club/team scope and projected to minimal fields. No write tools or new subscription/trial/payment operations.
 
@@ -20,15 +21,15 @@ Every tool rejects unexpected input fields, including a supplied principal, role
 
 No independent branded MCP transport, OAuth server, Internet Identity session broker or user delegation exchange has yet been deployed. A branded plugin **cannot automatically inherit the DFINITY connector's credentials**. The `resolveVerifiedSession(extra)` integration must come from a separately reviewed bridge that verifies (1) the plugin OAuth token issuer, signature, expiry, intended audience and scopes; (2) an explicit Internet Identity delegation from the member; (3) the exact DEV derivation origin `https://proe7-kqaaa-aaaas-qg6gq-cai.ic0.app` and principal; and (4) caller-owned ICP agent identity. The bridge must never accept `principal`, `oauthVerified`, `actorFactory` or canister selection from an MCP tool input or unverified HTTP headers. The `session` structure in `core.mjs` is **an internal trusted interface, not an authentication mechanism**.
 
-Required backend adapter methods: `getProfile(session)`, `listMyClubs(session)`, `hasClubAccess(session,clubId)`, `hasTeamAccess(session,clubId,teamId)`, `listMyTeams(session,clubId)`, `listEvents(session,clubId,teamId)`, `listConversations(session,clubId,teamId)`. These must use **real caller-signed ICP actors** and the shard router/placement registry, not an app-admin/service identity. An unrelated club must always be denied and unknown routing must fail closed.
+Required backend adapter methods: `getProfile(session)`, `listMyClubs(session)`, `hasClubAccess(session,clubId)`, `hasTeamAccess(session,clubId,teamId)`, `listMyTeams(session,clubId)`, `listEvents(session,clubId,teamId)`, `listConversations(session,clubId,teamId)`, `hasConversationAccess(session,clubId,teamId,conversationId)`, `listConversationMessages(session,clubId,teamId,conversationId,beforeSequence,limit)`. These must use **real caller-signed ICP actors** and the shard router/placement registry, not an app-admin/service identity. An unrelated club must always be denied and unknown routing must fail closed.
 
-Read the existing Candid before implementing: `club_domain.read_my_club_memberships_indexed`, `club_domain.read_account_execute`, `events_domain.read_account_list_events`, `messaging_domain.read_account_list_groups_by_club` and `read_account_list_groups_by_team`. The latter return Candid variants; unwrap only `#Ok`, and treat `#Err` and transport failures as refusal, not an empty list. If role membership in the club includes parents linked to a child, verify the correct team membership through current club authority—not a displayed role string alone.
+Read the existing Candid before implementing: `club_domain.read_my_club_memberships_indexed`, `club_domain.read_account_execute`, `events_domain.read_account_list_events`, `messaging_domain.read_account_list_groups_by_club`, `read_account_list_groups_by_team`, and `read_account_list_latest_messages_page(conversation_id,before_sequence,limit)`. The latter return Candid variants; unwrap only `#Ok`, and treat `#Err` and transport failures as refusal, not an empty list. If role membership in the club includes parents linked to a child, verify the correct team membership through current club authority—not a displayed role string alone.
 
 ## Next engineering gates
 
 1. Implement and review an MCP HTTP transport plus OAuth 2.1 integration compatible with ChatGPT; pin the real origin/audience and consent scopes. Never expose an anonymous fallback for member endpoints.
 2. Wire actual caller-delegated ICP actor adapters and explicit Group 1 / Group 2 club routing. Verify the DEV Internet Identity principal matches the Ignite app, with an **ordinary parent** and unrelated outsider.
-3. Exercise all five tools end-to-end against DEV, including permission revocation and failures. Confirm no team or private chat metadata crosses club boundaries.
+3. Exercise all six tools end-to-end against DEV, including permission revocation and failures. Confirm no team or private chat metadata crosses club boundaries.
 4. Add explicit write tools individually, with user confirmation, idempotency and verified readback. Start with own RSVP, then chat send, then club/team onboarding.
 5. Preserve the existing production website `https://igniteclubhq.com/register` Free registration, `https://igniteclubhq.com/pricing` plan catalogue, II sign-in and Stripe handling. Do not recreate subscription writes or digital checkout flows.
 
@@ -39,3 +40,14 @@ node --test integrations/ignite-chatgpt/src/core.test.mjs
 ```
 
 This tests the tool contract and security gating with synthetic adapters. It does **not** prove real login, canister calls, plugin registration or store publication.
+
+
+## Paginated chat history (DEV prototype, source only)
+
+A sixth caller-scoped read handler, `list_conversation_messages`, is included on the interactive-UI development branch. It requires verified active caller authentication, club access, team access, and **conversation-specific** access before reading messages. The tool accepts `club_id`, `team_id`, `conversation_id`, an optional decimal-string `before_sequence` (not an account/principal), and an optional page size from 1–50 (default 25). Backend membership checks must occur **server-side**; the module is not itself an authorization broker.
+
+Live DEV read confirmed on 13 Nov 2026: the existing `messaging_domain.read_account_list_latest_messages_page(conversation_id, before: opt nat64, limit: nat16)` returns `variant { Err:text; Ok:MessagePage }` using a pinned principal and authenticated update call. `MessagePage` includes `latest_sequence`, a vector of messages, and `next_sequence: opt nat64` for loading *older* pages. The returned cursor is `opt (N : nat64)` in textual Candid, not simply `opt N`.
+
+The adapter should convert Candid principals to signed-in-session principal comparison and optional VERIFIED display names, normalize nat64 values to decimal strings, and never invent identities from unverified principal-to-name mappings. The handler projects necessary message fields only, and does not expose member principal strings, raw attachment URLs, or idempotency keys. The UI may show text, timestamps, edits and reply references, but image/file preview must follow separately verified attachment permissions and signed resource handling. Chat history is private account data; no entire-club history crawl, cache sharing, or caller identity substitution.
+
+Current server state: still no deployed Ignite-owned OAuth/II bridge or MCP Apps UI resource; the separate installed DFINITY-dependent private plugin can read authorized history through its Candid tools, but cannot make a live embedded MCP App widget. These are two distinct experiences and must not be conflated.
