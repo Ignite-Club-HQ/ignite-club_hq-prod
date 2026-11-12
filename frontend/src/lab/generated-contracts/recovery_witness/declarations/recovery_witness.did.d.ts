@@ -113,6 +113,8 @@ export type G2WitnessResult = { Ok: G2WitnessReceipt } | { Err: string };
 export interface _SERVICE {
   'accept_recovery_fence' : ActorMethod<[SignedAcceptance], Result>,
   'authorize_active_g2_subject_reader' : ActorMethod<[G2SignedScope], Result_1>,
+  'read_active_g2_baseline_digest' : ActorMethod<[], Result_5>,
+  'active_g2_scope_signing_bytes' : ActorMethod<[G2Scope], Result_5>,
   'disable_active_g2_subject_reader' : ActorMethod<[], Result_1>,
   'verify_active_g2_subject_read_fence' : ActorMethod<[G2WitnessRequest], G2WitnessResult>,
   'authorize_subject_removal_progress' : ActorMethod<
