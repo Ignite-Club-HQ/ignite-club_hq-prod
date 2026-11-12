@@ -132,8 +132,9 @@ small{color:#617386}textarea{width:100%;border:1px solid #cfdce6;border-radius:1
     <textarea id="message" maxlength="2000" placeholder="Type a message to your team…"></textarea>
     <div class="actions">
       <button type="button" class="primary" id="reviewBtn">Review message</button>
-      <button type="button" id="sendBtn" disabled aria-label="Sending is unavailable until the server is connected">Send (not connected)</button>
+      <button type="button" id="sendBtn" disabled aria-label="Send to verified team chat">Send</button>
     </div>
+    <div class="chatinfo" id="sendStatus" role="status" aria-live="polite">Send is unavailable in this static prototype. The live MCP App will send directly without a new ChatGPT message.</div>
     <div id="review" role="status" hidden></div>
   </section>
   <p class="notice"><strong>Prototype only:</strong> The event and messages above are fictional examples. RSVP choices and drafted messages remain in this browser view; nothing is saved or sent to Ignite DEV. Live actions require an authenticated Ignite MCP tool with server-side role checks and confirmed readback.</p>
@@ -217,6 +218,72 @@ small{color:#617386}textarea{width:100%;border:1px solid #cfdce6;border-radius:1
   $("jumpNewest").addEventListener("click",()=>{$("messageWindow").scrollTop=$("messageWindow").scrollHeight;});
   $("conversation").addEventListener("change",e=>openHistory(e.target.value));
   openHistory("rockets");
+
+  // The installed skills-only pilot cannot provide a direct Send action.
+  // The eventual MCP App registers send_team_message with visibility ["app"]
+  // and returns a caller-scoped server result through this host bridge.
+  const callTool=window.openai?.callTool?.bind(window.openai);
+  const send=$("sendBtn"), sendStatus=$("sendStatus");
+  let pendingSend=null;
+  if (callTool) {
+    send.disabled=false;
+    sendStatus.textContent="Messages are sent only when you tap Send. An authorized MCP connection is required.";
+  }
+  $("message").addEventListener("input",()=>{
+    if (!pendingSend) return;
+    // A failed/unknown send must not be resubmitted with a new key.
+    // Editing the text is a *new* draft, not a retry of the old request.
+    pendingSend=null;
+  });
+  send.addEventListener("click",async()=>{
+    if (!callTool || send.disabled) return;
+    const body=$("message").value;
+    if (!body.trim() || body.length>2000) {
+      sendStatus.textContent="Enter a message (up to 2,000 characters).";return;
+    }
+    if (pendingSend?.status==="unknown" && pendingSend.body===body) {
+      sendStatus.textContent="Delivery is unconfirmed. Refresh the chat before trying again to avoid duplicates.";
+      return;
+    }
+    // These are fixture values in this static prototype, NEVER real user
+    // metadata. The deployed widget must use verified structuredContent from
+    // the current authenticated My Ignite tool, not a hard-coded demo room.
+    const verified=window.__igniteVerifiedContext;
+    if (!verified?.club_id || !verified?.team_id || !verified?.conversation_id ||
+        verified?.environment!=="dev" || verified?.can_send!==true) {
+      sendStatus.textContent="Direct sending requires a verified Ignite DEV chat connection.";
+      return;
+    }
+    const key=crypto.randomUUID();
+    pendingSend={body,key,status:"sending",room:verified.conversation_id};
+    send.disabled=true;
+    sendStatus.textContent="Sending…";
+    try {
+      const result=await callTool("send_team_message",{
+        club_id:verified.club_id,team_id:verified.team_id,
+        conversation_id:verified.conversation_id,
+        body,client_request_id:key,
+      });
+      if (result?.isError) throw Error("Send was not confirmed");
+      const payload=result?.structuredContent ??
+        (result?.content?.find?.(x=>x.type==="text")?.text &&
+         JSON.parse(result.content.find(x=>x.type==="text").text));
+      if (payload?.status!=="sent" || payload?.conversation_id!==verified.conversation_id ||
+          payload?.message?.body!==body || payload?.client_request_id!==key) {
+        throw Error("Send was not confirmed");
+      }
+      pendingSend={body,key,status:"sent",room:verified.conversation_id};
+      $("message").value="";
+      sendStatus.textContent="Sent ✓";
+      // Reopen a fresh authorized chat page asynchronously, preserving
+      // normal host error handling; the server is authoritative on history.
+    } catch(err) {
+      pendingSend={body,key,status:"unknown",room:verified.conversation_id};
+      sendStatus.textContent="Delivery not confirmed. Refresh the chat before sending again.";
+    } finally {
+      send.disabled=false;
+    }
+  });
   $("reviewBtn").addEventListener("click",()=>{
     const body=$("message").value.trim();
     $("review").hidden=false;
