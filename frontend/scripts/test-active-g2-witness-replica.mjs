@@ -43,7 +43,7 @@ try {
   const witnessId=await pic.createCanister({sender:owner,controllers:[owner]});
   const target=path.join(root,'target/isolated-g2-witness');
   stage='build actual identity and witness WASM using ephemeral public-key pins';
-  const build=(name,vars)=>execFileSync('cargo',['build','--locked','--release','--target','wasm32-unknown-unknown','-p',name],{
+  const build=(name,vars,fixture=false)=>execFileSync('cargo',['build','--locked','--release','--target','wasm32-unknown-unknown','-p',name,...(fixture?['--features','isolated-g2-chain-fixture']:[])],{
     cwd:root,timeout:360000,stdio:['ignore','ignore','pipe'],
     env:{...process.env,CARGO_TARGET_DIR:target,...vars}});
   build('recovery_witness',{IGNITE_RECOVERY_APPROVER_PUBLIC_KEY:pub(recoveryKey)});
@@ -55,7 +55,8 @@ try {
     IGNITE_PRODUCTION_ACCOUNT_WITNESS_MODULE_HASH:witnessHash,
     IGNITE_PRODUCTION_ACCOUNT_WITNESS_CONTROLLER:owner.toText(),
     IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY:pub(accountKey),
-  });
+    IGNITE_ISOLATED_G2_FIXTURE_BUILD:'POCKETIC_ONLY_NOT_DEPLOYABLE',
+  },true);
   const identityWasm=path.join(target,'wasm32-unknown-unknown/release/identity_access.wasm');
   report.identityWasmSha256=createHash('sha256').update(readFileSync(identityWasm)).digest('hex');
   report.witnessWasmSha256=witnessHash;
@@ -105,8 +106,47 @@ try {
   ok(await w.authorize_active_g2_subject_reader(signed));
   rejects(await w.authorize_active_g2_subject_reader(signed),/generation/i);
   mark('Independent G2 authorisation requires signed scope, governor and monotonic generation');
+  stage='real Club G2 sender -> signed-in identity -> independent witness';
+  // Only this isolated, feature-gated identity WASM exposes the fixture setter.
+  // Its actual read_linked_account method calls the same independent-witness
+  // validation logic as the proposed production reader, but skips active
+  // router/receiver commissioning. This is NOT a production acceptance.
+  const fixtureActorMethod=IDL.Func([IDL.Record({
+    scope:IDL.Record({
+      identity:IDL.Principal,router:IDL.Principal,club_reader:IDL.Principal,
+      witness:IDL.Principal,registry_revision:IDL.Nat64,generation:IDL.Nat64,
+      recovery_epoch:IDL.Nat64,expires_at_ns:IDL.Nat64,accepted_recovery_digest:IDL.Vec(IDL.Nat8),
+    }),signature:IDL.Vec(IDL.Nat8),
+  })],[IDL.Variant({Ok:IDL.Null,Err:IDL.Text})],[]);
+  const [fixtureApproval]=IDL.decode(fixtureActorMethod.retTypes,
+    await pic.updateCall({canisterId:identityPin,sender:owner,
+      method:'fixture_g2_authorize_reader',arg:IDL.encode(fixtureActorMethod.argTypes,[signed])}));
+  ok(fixtureApproval);
+  const clubProbeFactory=({IDL:T})=>T.Service({
+    linked_account:T.Func([],[T.Variant({Ok:T.Record({
+      id:T.Text,version:T.Nat64,principals:T.Vec(T.Principal),
+      status:T.Variant({Active:T.Null,Suspended:T.Null}),
+    }),Err:T.Text})],[]),
+  });
+  const probeWasm=process.env.G2_CHAIN_PROBE_WASM;
+  assert.ok(probeWasm,'Disposable, separately compiled club probe WASM required');
+  const club=await pic.setupCanister({
+    targetCanisterId:clubPin,idlFactory:clubProbeFactory,wasm:probeWasm,
+    sender:owner,controllers:[owner],arg:IDL.encode([IDL.Principal],[identityPin]),
+  });
+  club.actor.setPrincipal(member);
+  const chain=ok(await club.actor.linked_account());
+  assert.equal(chain.id,account.id);
+  assert.equal(chain.version,0n);
+  assert.deepEqual(chain.principals.map(p=>p.toText()),account.principals.map(p=>p.toText()));
+  club.actor.setPrincipal(outsider);
+  rejects(await club.actor.linked_account(),/Account unavailable|Account not found|not registered|account|identity/i);
+  mark('Genuine signed-in G2 probe -> identity read_linked_account -> witness confirms new account, rejects outsider');
+
   const scopeDigest=new Uint8Array(createHash('sha256').update(ok(await w.active_g2_scope_signing_bytes(scope))).digest());
-  const q={scope_digest:scopeDigest,nonce:1n,account_id:account.id,
+  // The true three-canister call will use identity's fresh request sequence 1.
+  // Reserve the simulated sender-only witness tests for distinct nonce 100.
+  const q={scope_digest:scopeDigest,nonce:100n,account_id:account.id,
     account_version:account.version,principals:account.principals,subject:member,
     history_revision:0n,removal_generation:0n,recovery_epoch:scope.recovery_epoch};
   const request={approval:signed,challenge:q};
