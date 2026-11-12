@@ -5574,9 +5574,9 @@ persistent actor class Main(governorInit : Principal) = this {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
 
-    await admitAccount(caller);
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
+    await admitAccount(caller);
     await* requireChatClubMember(caller, club_id);
     if (not valid(club_id)) return #Err("Invalid club id");
     let privileged = isGovernor(caller) or hasRole(caller, "app_admin", null, null) or hasRole(caller, "club_admin", ?club_id, null);
@@ -5612,9 +5612,9 @@ persistent actor class Main(governorInit : Principal) = this {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
 
-    await admitAccount(caller);
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
+    await admitAccount(caller);
     if (not valid(team_id)) return #Err("Invalid team id");
     var club_of_team = "";
     // Canonical team chats need not have a GroupMetadata row. Locate their
@@ -5661,12 +5661,6 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
-  // Read receipts for a conversation page: `receipts` already stores each
-  // member's read frontier (conversation_id, user, message_id, read) —
-  // updated by mark_read — so no new stable state is needed, only a
-  // conversation-scoped read path. Privacy-scoped to conversation members
-  // (participants or group members) so a caller only sees who has read
-  // messages in conversations they belong to.
   public shared ({ caller }) func read_account_list_read_receipts(conversation_id : Text) : async { #Ok : [Types.Receipt]; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
