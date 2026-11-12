@@ -49,3 +49,7 @@ Review evidence independently; if even one check is unknown or mismatched, stop.
 ## Release decision
 
 **No merge, mainnet deployment, signature commission, governor grant, account reader activation or PROD modification** under PR #1480. Keep test account, existing test club and U10 team intact. The next phase is governor-authorised evidence gathering, independent security review of the exact installed canisters and signed DEV-only upgrade manifest.
+
+## CI evidence: latest default-build release guard
+
+[Actions run #43145507329](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/43145507329): **rust-canisters PASS** (including scripted fixture guard regression, standard `identity_access` release-WASM build and final export-table inspection), **g2-witness-isolated PASS** (actual Club Domain → feature-gated identity → independent witness with suspended/erased/racing tests). Two unrelated checks remain red: `auth-release-policy` on the existing production workflow allowlist; `frontend` on six TypeScript TS2698 spread-type diagnostics in `src/live/features/messagingQueryOpen.test.ts`. Neither file was edited by this release-safety change. Do not label the PR all-green or ready to merge.
