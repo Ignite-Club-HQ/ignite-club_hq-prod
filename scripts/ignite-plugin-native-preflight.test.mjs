@@ -69,7 +69,10 @@ test('missing G2 manifest declaration is explicit not_declared, not empty member
 
 test('unexpected replica failure is a group read failure and cannot grant access',async()=>{
   const result=await run({createClubActor:makeActors({
-    [DEV_G2_CLUB]:{legacy:()=>{throw Error('unexpected replica failure')}},
+    [DEV_G2_CLUB]:{
+      legacy:()=>{throw Error('unexpected replica failure')},
+      protected:()=>{throw Error('unexpected replica failure')},
+    },
   })});
   assert.equal(result.complete,false);
   assert.equal(result.roles,null);
