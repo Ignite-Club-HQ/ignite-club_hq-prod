@@ -26,10 +26,12 @@ pub struct OpenPage {
 }
 
 pub fn verify_open_g2_club(
-    binding: &Binding, groups: &[OpenGroup], placements: &[Placement],
+    binding: &Binding, observed_revision: u64,
+    groups: &[OpenGroup], placements: &[Placement],
     self_id: Principal,
 ) -> Result<Principal, String> {
-    if self_id != Principal::from_text(IDENTITY_ID).map_err(|_| "Invalid DEV identity pin")? ||
+    if observed_revision != binding.registry_revision ||
+       self_id != Principal::from_text(IDENTITY_ID).map_err(|_| "Invalid DEV identity pin")? ||
        binding.registry != Principal::from_text(ROUTER_ID).map_err(|_| "Invalid DEV router pin")? ||
        binding.target_alias != "mainnet" || binding.deployment_id != "mainnet" ||
        binding.host != "https://icp-api.io" || binding.network_kind != "public_mainnet" ||
@@ -77,15 +79,15 @@ mod tests {
         placement.canister=club;
         let groups=vec![OpenGroup {id:"g2".into(),target_alias:"mainnet".into(),
             accepting:true,domains:snapshot.groups[0].domains.clone()}];
-        assert_eq!(verify_open_g2_club(&binding,&groups,&snapshot.placements,identity).unwrap(),club);
+        assert_eq!(verify_open_g2_club(&binding,snapshot.revision,&groups,&snapshot.placements,identity).unwrap(),club);
         let mut foreign=groups.clone();
         foreign[0].domains.iter_mut().find(|d|d.domain=="club_domain").unwrap().canister=Principal::from_slice(&[8,1]);
-        assert!(verify_open_g2_club(&binding,&foreign,&snapshot.placements,identity).is_err());
+        assert!(verify_open_g2_club(&binding,snapshot.revision,&foreign,&snapshot.placements,identity).is_err());
         let mut stale=binding.clone();stale.registry_revision+=1;
-        assert!(verify_open_g2_club(&stale,&groups,&snapshot.placements,identity).is_err());
+        assert!(verify_open_g2_club(&stale,snapshot.revision,&groups,&snapshot.placements,identity).is_err());
         let mut foreign_placement=snapshot.placements.clone();
         foreign_placement[0].domains.iter_mut().find(|d|d.domain=="club_domain").unwrap().canister=Principal::from_slice(&[8,1]);
-        assert!(verify_open_g2_club(&binding,&groups,&foreign_placement,identity).is_err());
+        assert!(verify_open_g2_club(&binding,snapshot.revision,&groups,&foreign_placement,identity).is_err());
     }
     #[test]
     fn refuse_prod_base_foreign_router_and_wrong_opening() {
@@ -99,19 +101,19 @@ mod tests {
             id: g.id.clone(), target_alias: b.target_alias.clone(),
             accepting: true, domains: g.domains.clone(),
         }).collect();
-        assert!(verify_open_g2_club(&b,&bad,&s.placements,service).is_err());
+        assert!(verify_open_g2_club(&b,s.revision,&bad,&s.placements,service).is_err());
         let only = vec![OpenGroup {id:"g2".into(), accepting:true, ..bad[0].clone()}];
         s.placements.truncate(1);
         s.placements[0].group_id = "g2".into();
         s.placements[0].deployment_id = "mainnet".into();
         s.placements[0].host = b.host.clone();
-        assert!(verify_open_g2_club(&b,&only,&s.placements,service).is_err()); // non-pinned fake club
+        assert!(verify_open_g2_club(&b,s.revision,&only,&s.placements,service).is_err()); // non-pinned fake club
         let mut prod = b.clone();prod.deployment_id = "prod".into();
-        assert!(verify_open_g2_club(&prod,&only,&s.placements,service).is_err());
+        assert!(verify_open_g2_club(&prod,s.revision,&only,&s.placements,service).is_err());
         let mut wrong = b.clone();wrong.registry = Principal::anonymous();
-        assert!(verify_open_g2_club(&wrong,&only,&s.placements,service).is_err());
-        assert!(verify_open_g2_club(&b,&only,&s.placements,Principal::anonymous()).is_err());
+        assert!(verify_open_g2_club(&wrong,s.revision,&only,&s.placements,service).is_err());
+        assert!(verify_open_g2_club(&b,s.revision,&only,&s.placements,Principal::anonymous()).is_err());
         let mut closed=only.clone();closed[0].accepting=false;
-        assert!(verify_open_g2_club(&b,&closed,&s.placements,service).is_err());
+        assert!(verify_open_g2_club(&b,s.revision,&closed,&s.placements,service).is_err());
     }
 }
