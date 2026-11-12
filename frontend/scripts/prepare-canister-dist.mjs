@@ -4,6 +4,7 @@
 // @dfinity/static-site recipe; see deploy/frontend/icp.yaml.
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync, copyFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { reviewedDevGroup2Canisters } from "../../scripts/group2-mcp-discovery.mjs";
 import { PROD_MEMBER_II_ORIGIN, DEV_FRONTEND_II_CANISTER, alternativeOriginsForBuild, derivationOriginForBuild } from "./iiOriginPolicy.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -103,27 +104,7 @@ const canisterIds = loadCanisterIds();
 function devGroup2Discovery() {
   if (isProdBuild || frontendCanisterId !== DEV_FRONTEND_II_CANISTER ||
       process.env.IGNITE_MCP_DEV_GROUP2_DISCOVERY === "0") return [];
-  const location = fileURLToPath(new URL("../../deploy/groups/g2/provision.json", import.meta.url));
-  if (!existsSync(location)) throw new Error("DEV MCP Group 2 discovery requires its checked provision.json");
-  const provision = JSON.parse(readFileSync(location, "utf8"));
-  if (provision.groupId !== "g2" || provision.deploymentId !== "mainnet" ||
-      provision.phase !== "checked" || !provision.installedDomains?.includes("club_domain")) {
-    throw new Error("DEV MCP Group 2 discovery requires reviewed, installed club_domain");
-  }
-  // Least privilege: club/team onboarding only. Do not advertise Group 2's
-  // messaging, vault, PII, or other sensitive canisters to the general MCP
-  // connector until a specific workflow needs them and is separately reviewed.
-  const id = provision.canisters?.club_domain;
-  if (typeof id !== "string" || !/^[a-z0-9]{5}(?:-[a-z0-9]{5}){3}-cai$/.test(id) ||
-      id === frontendCanisterId || Object.values(canisterIds).includes(id)) {
-    throw new Error("Invalid or duplicate DEV Group 2 club_domain");
-  }
-  return [{
-    id,
-    name: "g2/club_domain",
-    role: "backend",
-    description: "DEV Group 2 — clubs, teams and creator permissions; caller-scoped access.",
-  }];
+  return reviewedDevGroup2Canisters({ sharedIds: canisterIds, frontendId: frontendCanisterId });
 }
 
 const manifest = {
