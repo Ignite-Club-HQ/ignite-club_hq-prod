@@ -14,6 +14,7 @@ import { markScopedContext } from './scopedContext';
 const READ_ACROSS_LEG_MS = 15_000;
 import { clearRoleGrantsMemo } from './roleGrantsMemo';
 import { timeCarouselRead } from '@/lib/carouselReadTiming';
+import { clearMixedMembershipRuntime } from './mixedMembershipRuntime';
 
 type Session = { readClub<T>(c: string, d: GroupDomain, r: (ctx: FeatureBackendContext) => Promise<T>): Promise<T>;
   writeClub<T>(c: string, d: GroupDomain, k: string, w: (ctx: FeatureBackendContext, k: string) => Promise<T>, attempts?: number): Promise<T>;
@@ -339,6 +340,7 @@ export const clubDispatch = createClubDispatcher({
 
 /** Sign-out: forget every entity→club answer kept on this device. */
 export function wipeGroupOwnerCache() {
+  clearMixedMembershipRuntime();
   clearRoleGrantsMemo();
   clearOwnerTestRouting();
   clearGroupDispatchCache();

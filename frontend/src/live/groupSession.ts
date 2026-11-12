@@ -254,6 +254,11 @@ export async function openGroupSession(context: FeatureBackendContext, transport
     clubIds: [...clubs].sort(),
     memberClubIds: [...clubs, ...legacyClubs].sort(),
     isLegacyMember(clubId: string) { return legacyClubs.has(clubId); },
+    async readLegacyClub<T>(clubId: string, domain: GroupDomain, read: (ctx: FeatureBackendContext) => Promise<T>): Promise<T> {
+      if (!GROUP_DOMAINS.includes(domain) || !legacyClubs.has(clubId)) throw new Error('Club outside legacy membership');
+      await assertRegistryUnchanged(false, true);
+      const result = await read(context); live(); return result;
+    },
     /** Ordinary member-content reads never query groups with no member clubs. */
     async readMemberGroups<T>(domain: GroupDomain, read: (ctx: FeatureBackendContext) => Promise<readonly T[]>, maxRows = 1000): Promise<T[]> {
       if (!GROUP_DOMAINS.includes(domain)) throw new Error('Unknown group domain');

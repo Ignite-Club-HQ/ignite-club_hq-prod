@@ -35,7 +35,6 @@ export function pollResultsToData(pollId: string, results: any): PollData {
     })));
   }
   return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- candid Poll
     poll: { id: results.poll.id, question: results.poll.question, allow_multiple: false,
       closes_at: null, closed_at: results.poll.closed ? createdAt : null,
       created_by: results.poll.creator.toText(), created_at: createdAt },
@@ -49,7 +48,7 @@ export async function readIcpPoll(ctx: FeatureBackendContext, pollId: string, sc
   // Poll results bundled with the thread's open_conversation read render
   // instantly; only polls outside the first page need their own round trip.
   const convKey = conversationKeyOf(scope);
-  const bundled = convKey ? takeBundledPollResult(convKey, pollId) : null;
+  const bundled = convKey ? takeBundledPollResult(convKey, pollId, ctx) : null;
   if (bundled) return pollResultsToData(pollId, bundled);
   const results = await getLivePollResults(ctx, pollId);
   return pollResultsToData(pollId, results);
@@ -96,7 +95,7 @@ export function prefetchMessagePolls(client: QueryClient, rows: Array<{ text?: s
   for (const id of ids) {
     // Polls that rode along with open_conversation seed the cache directly —
     // no second round trip for something the thread open already fetched.
-    const bundled = icpMode && convKey ? takeBundledPollResult(convKey, id) : null;
+    const bundled = icpMode && convKey ? takeBundledPollResult(convKey, id, ctx) : null;
     if (bundled) {
       const options = pollQueryOptions(id, userId, scope, icpMode, ctx);
       client.setQueryData(options.queryKey, pollResultsToData(id, bundled));

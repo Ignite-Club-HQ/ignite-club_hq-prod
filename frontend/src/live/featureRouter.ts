@@ -11,6 +11,7 @@ import { hasInternetIdentitySessionStored, readAuthChoice } from "./authBackendM
 import { reportBlockedFallback } from "./strictIcpTransport";
 import { IcpSessionRequiredError } from "./icpSessionErrors";
 import { timeChatOperation } from '@/lib/chatOpenTrace';
+import { dispatchMixedMembership } from './mixedMembershipRuntime';
 
 /**
  * Runtime dispatcher that connects feature repositories to the hybrid
@@ -126,6 +127,8 @@ async function dispatchFeatureBackend<T>(
 
 /** Both ICP sign-in paths obey the same scope/activation boundary. */
 async function dispatchIcp<T>(feature: FeatureArea, providers: FeatureBackendProviders<T>, context: FeatureBackendContext, scope?: ClubScope): Promise<T> {
+  const mixed = await dispatchMixedMembership(context, FEATURE_GROUP_DOMAIN[feature], scope, async ctx => providers.icp(ctx));
+  if (mixed) return mixed.value;
   if (scope && 'newClubId' in scope && !scope.legacy) {
     scope.newClubId = await nextOwnerTestClubId(context, scope.newClubId);
   }
