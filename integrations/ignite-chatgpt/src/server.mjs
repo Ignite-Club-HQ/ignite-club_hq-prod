@@ -128,14 +128,14 @@ export function createIgniteMcpHttpServer({
      resource.pathname!=="/mcp" || !issuer.hostname || !resource.hostname)
     throw Error("Pinned HTTPS OAuth issuer and MCP resource URL are required");
   const resourceMetadata=resource.origin+"/.well-known/oauth-protected-resource";
-  const unauthorized='Bearer resource_metadata="'+resourceMetadata+'", scope="ignite:read"';
+  const unauthorized='Bearer resource_metadata="'+resourceMetadata+'", error="invalid_token", error_description="Connect your Ignite DEV account", scope="ignite:read"';
   return createServer(async(req,res)=>{
     const write=(status,body,headers={})=>{
       res.writeHead(status,{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff",...headers});
       res.end(JSON.stringify(body));
     };
     if(req.url==="/.well-known/oauth-protected-resource" && req.method==="GET"){
-      write(200,{resource:resource.href,authorization_servers:[issuer.origin],
+      write(200,{resource:resource.href,authorization_servers:[issuer.href.replace(/\\/$/,"")],
         scopes_supported:["ignite:read","ignite:chat:send"],
         bearer_methods_supported:["header"]});return;
     }
@@ -155,6 +155,16 @@ export function createIgniteMcpHttpServer({
       if(!input||Array.isArray(input)||typeof input!=="object"){write(400,{error:"Invalid request"});return;}
       const result=await handleRpc(input,{authenticate:()=>verifyBearerToken(auth[1],{method:input.method}),backend,loadUi});
       if(result===null){res.writeHead(202,{"cache-control":"no-store"});res.end();return;}
+      if(result.error?.code===-32001&&input.method==="tools/call"){
+        const requestedScope=input.params?.name==="send_team_message"
+          ?"ignite:read ignite:chat:send":"ignite:read";
+        const challenge='Bearer resource_metadata="'+resourceMetadata+
+          '", error="insufficient_scope", error_description="Connect your Ignite DEV account", scope="'+requestedScope+'"';
+        write(200,{jsonrpc:"2.0",id:result.id,result:{
+          content:[{type:"text",text:"Connect your Ignite DEV account to continue."}],
+          isError:true,_meta:{"mcp/www_authenticate":[challenge]}
+        }});return;
+      }
       write(result.error?.code===-32001?401:200,result,
         result.error?.code===-32001?{"www-authenticate":unauthorized}:{});
     }catch(e){write(400,{error:"Invalid request"});}
