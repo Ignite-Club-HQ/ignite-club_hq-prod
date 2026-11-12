@@ -5043,6 +5043,57 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(caller) };
   };
 
+
+  // Event list reads must consult the club's authoritative ordinary-member
+  // grants: only staff grants are mirrored in the events canister. Never use
+  // a local mirror or an RSVP as proof of current membership for this path.
+  // A missing/stale authority fails closed, including during club transfers.
+  func freshMemberCanViewEvent(subject : Principal, event : Types.Event) : async Bool {
+    if (Principal.isAnonymous(subject) or event.deleted or isFenced(event.club_id)) return false;
+    let authority = clubDomainCanister ?? return false;
+    let cd : actor {
+      read_has_club_membership : shared (Principal, Text) -> async Bool;
+      read_account_list_user_club_roles : shared (Principal, Text) -> async [(Text, ?Text)];
+    } = actor (authority.toText());
+    let member = try { await (with timeout = 10) cd.read_has_club_membership(subject, event.club_id) } catch (_) { return false };
+    if (not member or clubDomainCanister != ?authority or removalReceiver.denied(subject) or isFenced(event.club_id)) return false;
+    let grants = try { await (with timeout = 10) cd.read_account_list_user_club_roles(subject, event.club_id) } catch (_) { return false };
+    if (clubDomainCanister != ?authority or removalReceiver.denied(subject) or isFenced(event.club_id)) return false;
+    // The read may interleave an update, deletion or transfer. Revalidate the
+    // specific event snapshot and its team scope after every remote callback.
+    let current = events.find(func(e) = e.id == event.id) ?? return false;
+    if (current.deleted or current.revision != event.revision or
+        current.club_id != event.club_id or current.team_id != event.team_id) return false;
+    grants.any(func((role, team)) =
+      (role == "club_admin" or role == "team_admin" or role == "coach" or
+       role == "player" or role == "parent") and
+      teamInEventScope(current, team)
+    )
+  };
+
+  // Preserve existing staff/creator and league audience reads; add only
+  // authenticated, currently verified club member access to their own scope.
+  func canViewListedEvent(subject : Principal, event : Types.Event) : async Bool {
+    if (Principal.isAnonymous(subject) or event.deleted) return false;
+    if (canView(subject, event)) return true;
+    if (await freshMemberCanViewEvent(subject, event)) return true;
+    switch (event.mini_league_id, miniLeagueDomainCanister) {
+      case (?leagueId, ?authority) {
+        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
+        try {
+          let allowed = await (with timeout = 10) ml.can_read_league_matches(subject, leagueId, event.club_id);
+          not removalReceiver.denied(subject) and
+          not isFenced(event.club_id) and miniLeagueDomainCanister == ?authority and
+          (switch (events.find(func(e) = e.id == event.id)) {
+            case (?current) not current.deleted and current.revision == event.revision and current.club_id == event.club_id;
+            case null false;
+          }) and allowed
+        } catch (_) { false }
+      };
+      case _ false;
+    }
+  };
+
   public shared ({ caller }) func read_account_list_events(club_id : ?Text, team_id : ?Text) : async [Types.Event] {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
@@ -5051,13 +5102,7 @@ persistent actor class Main(governorInit : Principal) = this {
     var visible : [Types.Event] = [];
     for (event in events.values()) {
       if (not event.deleted and (club_id == null or club_id == ?event.club_id) and (team_id == null or team_id == event.team_id)) {
-        if (if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
-      case (?leagueId, ?authority) {
-        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
-        try { do { let removalReply = await ml.can_read_league_matches(caller, leagueId, event.club_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { false }
-      };
-      case _ false;
-    }) visible := visible.concat([event]);
+        if (await canViewListedEvent(caller, event)) visible := visible.concat([event]);
       };
     };
     visible
@@ -5074,13 +5119,7 @@ persistent actor class Main(governorInit : Principal) = this {
     var visible : [Types.Event] = [];
     for (event in events.values()) {
       if (not event.deleted and (club_ids.any(func(c) = c == event.club_id) or (switch (event.team_id) { case (?t) team_ids.any(func(id) = id == t); case null false }))) {
-        if (if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
-      case (?leagueId, ?authority) {
-        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
-        try { do { let removalReply = await ml.can_read_league_matches(caller, leagueId, event.club_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { false }
-      };
-      case _ false;
-    }) visible := visible.concat([event]);
+        if (await canViewListedEvent(caller, event)) visible := visible.concat([event]);
       };
     };
     #Ok(visible)
