@@ -1184,10 +1184,14 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   // Persist snapshot for instant cold-start on next visit
   useEffect(() => {
     if (!user?.id || isError || (isIcp && (!isSuccess || isFetching || !completeFirstLoad))) return;
+    // Do not turn newly arrived, still-enriching leagues into saved complete
+    // cards. Preserve only their previous complete snapshot until settled.
+    const persistItems = (rows: TeamOrLeague[]) => rows.filter(item => !isIcp || item.type !== 'league' || eventsFetched
+      || snapshotItems.some(saved => saved.type === 'league' && saved.id === item.id));
     if (!isIcp && scopedItems.length === 0) return;
     setCachedCarousel<CarouselSnapshot>(user.id, activeClubFilter, {
-      items: scopedItems.map(item => isIcp && item.type === "team" ? { ...item, isOnTrial: trialFlags[item.id] ?? item.isOnTrial } : item),
-      leaguesPending: isIcp && !leagueInventory.isSuccess,
+      items: persistItems(scopedItems).map(item => isIcp && item.type === "team" ? { ...item, isOnTrial: trialFlags[item.id] ?? item.isOnTrial } : item),
+      leaguesPending: isIcp && (!leagueInventory.isSuccess || (leagueItemIds.length > 0 && !eventsFetched)),
       nextEvents,
       teamPhotos,
       unreadCounts,
@@ -1198,11 +1202,11 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     // even when a club theme is selected so a remount can hydrate the query,
     // rather than leaving it pending with only a per-club render fallback.
     if (activeClubFilter) setCachedCarousel<CarouselSnapshot>(user.id, null, {
-      items: items.map(item => isIcp && item.type === "team" ? { ...item, isOnTrial: trialFlags[item.id] ?? item.isOnTrial } : item),
-      leaguesPending: isIcp && !leagueInventory.isSuccess,
+      items: persistItems(items).map(item => isIcp && item.type === "team" ? { ...item, isOnTrial: trialFlags[item.id] ?? item.isOnTrial } : item),
+      leaguesPending: isIcp && (!leagueInventory.isSuccess || (leagueItemIds.length > 0 && !eventsFetched)),
       nextEvents, teamPhotos, unreadCounts, teamMembers, competitionRows,
     });
-  }, [user?.id, activeClubFilter, items, scopedItems, nextEvents, teamPhotos, unreadCounts, teamMembers, competitionRows, trialFlags, isFetching, isError, isIcp, isSuccess, leagueInventory.isSuccess, completeFirstLoad]);
+  }, [user?.id, activeClubFilter, items, scopedItems, nextEvents, teamPhotos, unreadCounts, teamMembers, competitionRows, trialFlags, isFetching, isError, isIcp, isSuccess, leagueInventory.isSuccess, completeFirstLoad, eventsFetched]);
 
   // Section is "ready" only once the primary teams query has actually settled
   // (i.e. not its first load and not a background refetch with no items yet).

@@ -1,9 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
 ## ICP carousel repeated startup waits — 12 November
-- [ ] Remove league-wide waits from complete team-card reveal; save confirmed empty teams independently, preserve first-login card details and email behavior.
-- [ ] Reuse same-account/full-target approval and initial membership discovery without extra cold refreshes; retain fresh authorization checks.
-- [ ] Add bounded stage timing and regression coverage; physical-phone timing requires Paul's device. No PROD deployment authorized.
+- [x] Reproduced league-blocked complete-team reveal and empty-team resume reloads; team snapshots now save independently and mark unfinished league discovery. First-login team details still required; email path unchanged.
+- [x] Initial role discovery joins the existing membership session instead of refreshing a just-opened session; reconciliation retains refreshes. Existing sixty-second approval reuse retained, now full-target-bound; no authorization bypass or stale approval extension.
+- [x] Added forty-sample device-only approval/membership/team/league timing; 103 focused regressions passed in default configuration, including failed-before checks. No PROD operations.
+- [ ] Measure installed-phone authenticated ICP startup/resume: delegated II session and physical device unavailable here; actual seconds saved remain unverified.
 
 
 ## Stuck GitHub release runs — 11 November 20:45 UTC
