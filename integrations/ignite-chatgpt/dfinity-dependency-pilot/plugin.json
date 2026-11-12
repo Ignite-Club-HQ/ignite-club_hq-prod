@@ -1,0 +1,38 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ignite-club-hq-icp-dev",
+  "version": "0.1.0",
+  "description": "Private DEV pilot: use DFINITY's official ICP MCP to help Ignite members see authorised clubs, teams, events and chats.",
+  "author": {
+    "name": "Ignite Club HQ",
+    "url": "https://igniteclubhq.com"
+  },
+  "homepage": "https://igniteclubhq.com",
+  "repository": "https://github.com/Ignite-Club-HQ/ignite-club_hq-prod",
+  "keywords": [
+    "community-sport",
+    "team-management",
+    "internet-computer"
+  ],
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/ignite-dev-connect/SKILL.md",
+      "interface": {
+        "displayName": "Ignite Club HQ (DEV pilot)",
+        "shortDescription": "View your clubs, teams, events and chats through ICP.",
+        "longDescription": "Private DEV-only proof of concept. Uses DFINITY's hosted ICP MCP; sign in with Internet Identity and view only your authorised Ignite test data. No purchases or backend administration.",
+        "developerName": "Ignite Club HQ",
+        "category": "Productivity",
+        "capabilities": [
+          "Read"
+        ],
+        "websiteURL": "https://igniteclubhq.com",
+        "defaultPrompt": [
+          "Show my Ignite DEV clubs and teams",
+          "Show upcoming events for my Ignite DEV team",
+          "Which Ignite DEV team chats can I access?"
+        ]
+      }
+    }
+  }
+}

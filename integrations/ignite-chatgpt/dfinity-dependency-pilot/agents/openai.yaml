@@ -1,0 +1,9 @@
+# Skill dependency metadata for the OpenAI plugin skill workflow.
+# The same endpoint is declared in the portable mcp.json.
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "dfinity-icp"
+      description: "DFINITY's official ICP MCP; user-authorised Internet Identity and app-declared canisters"
+      transport: "streamable_http"
+      url: "https://mcp.internetcomputer.org/mcp"
