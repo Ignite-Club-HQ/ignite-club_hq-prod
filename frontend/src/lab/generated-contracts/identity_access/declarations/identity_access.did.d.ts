@@ -106,7 +106,13 @@ export interface ApprovedRow {
   'sink' : Principal,
   'source_digest' : Uint8Array,
 }
-export interface ActiveG2ClubReader { 'binding' : Binding; 'club' : Principal }
+export interface ActiveG2Scope {
+  identity: Principal; router: Principal; club_reader: Principal;
+  witness: Principal; registry_revision: bigint; generation: bigint;
+  recovery_epoch: bigint; expires_at_ns: bigint; accepted_recovery_digest: Uint8Array;
+}
+export interface ActiveG2SignedScope { scope: ActiveG2Scope; signature: Uint8Array }
+export interface ActiveG2ClubReader { 'binding' : Binding; 'club' : Principal; 'approval' : ActiveG2SignedScope }
 export interface Binding {
   'registry_revision' : bigint,
   'host' : string,
@@ -767,7 +773,7 @@ export interface _SERVICE {
     Result_8
   >,
   'authorize_production_member_access' : ActorMethod<[Binding], Result_2>,
-  'authorize_active_g2_club_reader' : ActorMethod<[Binding], Result_2>,
+  'authorize_active_g2_club_reader' : ActorMethod<[Binding, ActiveG2SignedScope], Result_2>,
   'begin_account_removal' : ActorMethod<[string, bigint], Result_9>,
   'begin_link' : ActorMethod<[Principal], Result_10>,
   /**
