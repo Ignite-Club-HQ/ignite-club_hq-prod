@@ -1187,20 +1187,29 @@ persistent actor class Main(governorInit : Principal) = this {
   // the event and child assignment AFTER the authority awaits. Fail closed.
   // This is deliberately NOT used by admin_upsert_rsvp; staff permissions
   // and parent-only writes remain separate.
+  // Member-only child RSVP. A valid parent/guardian link plus the child's
+  // current event team assignment is the permission, NOT coach/admin access.
+  // Re-check club membership through the authoritative club_domain on each
+  // write and re-read mutable child/event state after the await.
   func freshGuardianRsvpForChild(caller : Principal, event : Types.Event, account_id : Text, child_id : Text) : async Bool {
     if (Principal.isAnonymous(caller) or account_id != caller.toText() or event.deleted or event.cancelled or event.adults_only) return false;
+    // A parents-only event is for the adult; player attendance is a
+    // different subject. A player-only event is valid for a child.
     if (event.rsvp_audience == ?"parents_only") return false;
-    if (switch (event.restricted_to_roles) { case (?restricted) restricted.size() > 0; case null false }) return false;
+    let allowed = switch (event.restricted_to_roles) {
+      case (?restricted) {
+        if (restricted.size() == 0) true
+        else restricted.any(func(role) = role == "player")
+      };
+      case null true;
+    };
+    if (not allowed) return false;
     let authority = clubDomainCanister ?? return false;
     let cd : actor {
       read_has_club_membership : shared (Principal, Text) -> async Bool;
-      read_account_list_user_club_roles : shared (Principal, Text) -> async [(Text, ?Text)];
     } = actor(authority.toText());
     let member = try { await (with timeout = 10) cd.read_has_club_membership(caller, event.club_id) } catch (_) { return false };
-    if (not member) return false;
-    let grants = try { await (with timeout = 10) cd.read_account_list_user_club_roles(caller, event.club_id) } catch (_) { return false };
-    if (clubDomainCanister != ?authority) return false;
-    if (not grants.any(func((role, team)) = role == "parent" and teamInEventScope(event, team))) return false;
+    if (not member or clubDomainCanister != ?authority) return false;
     let current = switch (events.find(func(item) = item.id == event.id)) { case (?item) item; case null return false };
     if (current.revision != event.revision or current.club_id != event.club_id or current.deleted or current.cancelled or current.adults_only) return false;
     let callerId = caller.toText();
@@ -1811,9 +1820,11 @@ persistent actor class Main(governorInit : Principal) = this {
     denyLegacyAccountQuery();
     auth(caller);
     let callerId = Principal.toText(caller);
-    let myChildIds = childGuardians.filter(func(g) = g.guardian_id == callerId).map(func(g) = g.child_id);
+    let myChildIds = children.filter(func(child) = child.parent_id == ?callerId).map(func(child) = child.id);
+    let guardianIds = childGuardians.filter(func(g) = g.guardian_id == callerId).map(func(g) = g.child_id);
+    let accessibleChildIds = myChildIds.concat(guardianIds);
     rsvps.filter(func(item) =
-      (switch (item.child_id) { case (?cid) myChildIds.any(func(id) = id == cid); case null false })
+      (switch (item.child_id) { case (?cid) accessibleChildIds.any(func(id) = id == cid); case null false })
         and (event_id == null or event_id == ?item.event_id)
         and (club_id == null or (switch (events.find(func(e) = e.id == item.event_id)) { case (?e) ?e.club_id == club_id; case null false }))
     ).map(func(item) : Types.RsvpWithChild {
@@ -5304,9 +5315,11 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
     let callerId = Principal.toText(caller);
-    let myChildIds = childGuardians.filter(func(g) = g.guardian_id == callerId).map(func(g) = g.child_id);
+    let myChildIds = children.filter(func(child) = child.parent_id == ?callerId).map(func(child) = child.id);
+    let guardianIds = childGuardians.filter(func(g) = g.guardian_id == callerId).map(func(g) = g.child_id);
+    let accessibleChildIds = myChildIds.concat(guardianIds);
     rsvps.filter(func(item) =
-      (switch (item.child_id) { case (?cid) myChildIds.any(func(id) = id == cid); case null false })
+      (switch (item.child_id) { case (?cid) accessibleChildIds.any(func(id) = id == cid); case null false })
         and (event_id == null or event_id == ?item.event_id)
         and (club_id == null or (switch (events.find(func(e) = e.id == item.event_id)) { case (?e) ?e.club_id == club_id; case null false }))
     ).map(func(item) : Types.RsvpWithChild {
