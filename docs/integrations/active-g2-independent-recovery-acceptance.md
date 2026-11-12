@@ -61,3 +61,16 @@ The identity service constructs its request from `current_service_account`, chec
 - The existing repository-policy CI allowlist mismatch (PROD push rollout workflow) is separate and still must be resolved through its normal review.
 
 No release is authorised from this draft. No canisters or customer records have been changed.
+
+## Isolated integration result — 12 November 2026
+
+- GitHub Actions run [43134626547](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/43134626547) passed the `g2-witness-isolated` job and the `rust-canisters` job.
+- Disposable native Linux PocketIC installed the exact DEV identity pin and independent witness WASM, ephemeral test signer, signed/armed subject baseline, and a signed G2 scope. The report is in the `g2-witness-isolated` Actions artifact.
+- The witness accepted one properly signed, fresh account challenge from the simulated pinned identity principal and rejected replay, wrong caller, malformed subject/alias, invalid scope and zero nonce. Independent removal journaling and upgrade-fencing checks also completed.
+- During test iteration, a real first-time account compatibility bug was found: `identity_access.register_account()` creates version **0**, which the initial G2 validator refused. Both the challenge and receipt validators now accept that valid initial version while preserving exact identity-owned account-version comparisons. Rust and PocketIC regression tests cover it.
+- The earlier PocketIC failure was an omitted disposable management-lifecycle probe; the CI job now compiles that pinned Motoko probe.
+- **Not yet tested:** the real, positive `club_domain -> identity_access.read_linked_account -> recovery_witness` inter-canister path. The present witness positive test uses a PocketIC sender set to the pinned identity principal. It must not be represented as a true canister-originated identity call. `ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED=false` still prevents the identity-side reader from running.
+- **Not yet established:** suspended/erased account handling over the entire chain, in-flight account modification, live DEV receiver configuration/governor pins, and safe independent commissioning/upgrade. No deployment was attempted.
+- The repository's separate `auth-release-policy` CI job fails because the production workflow allowlist in `scripts/workflow-env-names.test.mjs` does not include an existing production rollout workflow. Do not broaden production workflow permission checks without a separate review.
+
+This is successful **isolated witness integration**, not a completed end-to-end onboarding, production authorisation, or permission to merge/deploy.
