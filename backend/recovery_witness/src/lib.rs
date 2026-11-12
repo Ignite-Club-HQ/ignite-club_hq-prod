@@ -218,6 +218,34 @@ fn active_g2_scope_evidence(
     }
     g2::verify_independent_scope(signed,&signer()?,now,signed.scope.registry_revision,0)
 }
+/// Governor-only evidence for independent signing; computes its digest from
+/// the witness's *stored* signed/armed baseline, not from caller input.
+/// This does not grant reader rights or approve the recovered inventory.
+#[ic_cdk::update]
+async fn read_active_g2_baseline_digest()->Outcome<Vec<u8>> {
+    require_governor()?;
+    let version=recovery_lifecycle::current_changes().await?;
+    require_governor()?;
+    let buf=ACCOUNT_BASELINE.with(|s|s.borrow().get().clone());
+    if version==0 || ARMED_VERSION.with(|s|*s.borrow().get())!=version ||
+        ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get())!=version ||
+        buf.is_empty() {return Err("Independent subject baseline not armed".into());}
+    let baseline:SignedAcceptance=decode(&buf);
+    validate_subject_progress(&baseline,&signer()?)?;
+    if head().accepted.as_ref().is_none_or(|a|a.body!=baseline.body) {
+        return Err("Current signed independent baseline mismatch".into());
+    }
+    Ok(active_g2_account_read_protocol::recovery_baseline_digest(&buf)?.to_vec())
+}
+/// Exact Rust domain-separated signing bytes, for externally reviewed signature.
+/// Returning these bytes is not a signer approval or an active reader grant.
+#[ic_cdk::update]
+fn active_g2_scope_signing_bytes(
+    scope:active_g2_account_read_protocol::Scope,
+)->Outcome<Vec<u8>> {
+    require_governor()?;
+    active_g2_account_read_protocol::scope_signing_bytes(&scope)
+}
 #[ic_cdk::update]
 async fn authorize_active_g2_subject_reader(
     signed:active_g2_account_read_protocol::SignedScope,
