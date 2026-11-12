@@ -89,12 +89,20 @@ jobs:
           MOC="$HOME/.cache/mops/moc/1.16.1/moc"
           "$MOC" $(mops sources) -o .mops/.build/recoveryLifecycleProbe.wasm ../shared/test/recoveryLifecycleProbe.mo
           "$MOC" $(mops sources) -o .mops/.build/g2ChainProbe.wasm ../shared/test/g2ChainProbe.mo
+      - name: Compile actual disposable Club Domain with checked migrations
+        working-directory: backend/club_domain
+        run: |
+          mops install
+          mkdir -p .mops/.build
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/club_domain.wasm src/main.mo
       - name: Exercise real isolated G2 identity and independent witness WASM
         working-directory: frontend
         env:
           G2_WITNESS_ISOLATED_REPORT: ${{ runner.temp }}/g2-witness-isolated.json
           REMOVAL_LIFECYCLE_PROBE_WASM: ${{ github.workspace }}/backend/events_domain/.mops/.build/recoveryLifecycleProbe.wasm
           G2_CHAIN_PROBE_WASM: ${{ github.workspace }}/backend/events_domain/.mops/.build/g2ChainProbe.wasm
+          G2_ACTUAL_CLUB_DOMAIN_WASM: ${{ github.workspace }}/backend/club_domain/.mops/.build/club_domain.wasm
         run: |
           export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
           timeout --kill-after=5s 840s node scripts/test-active-g2-witness-replica.mjs
