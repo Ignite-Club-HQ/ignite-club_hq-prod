@@ -10,6 +10,11 @@ const demo = {
   listMyClubs: async () => [{id:"club-1",name:"Example club",private:"secret"}],
   hasClubAccess: async (_s,club) => club === "club-1",
   hasTeamAccess: async (_s,c,t) => c === "club-1" && t === "team-1",
+  hasConversationAccess: async (_s,c,t,chat) => c === "club-1" && t === "team-1" && chat === "chat-1",
+  listConversationMessages: async () => ({latest_sequence:3n,next_sequence:1n,messages:[
+    {id:"msg-2",conversation_id:"chat-1",body:"Thanks",sender:principal,created_at_ms:200n,sequence:2n},
+    {id:"msg-3",conversation_id:"chat-1",body:"Training tomorrow",sender:"other-principal",created_at_ms:300n,sequence:3n,attachment:{kind:"image",url:"private"}}
+  ]}),
   listMyTeams: async () => [{id:"team-1",name:"Juniors",club_id:"club-1",private:"secret"}, {id:"team-2",name:"Other",club_id:"club-2"}],
   listEvents: async () => [
     {id:"event-1",title:"Training",club_id:"club-1",team_id:"team-1",starts_at_ms:100,ends_at_ms:200,event_type:"training"},
@@ -27,8 +32,8 @@ const setup=(config={})=>createIgniteHandlers({
 });
 const denied=async(p,code)=>assert.rejects(p,(e)=>e instanceof PluginAccessError && e.code===code);
 
-test("only the five reviewed read operations are exposed",()=>{
-  assert.deepEqual(TOOL_NAMES,["get_ignite_profile","list_my_clubs","list_my_teams","list_team_events","list_conversations"]);
+test("only the six reviewed read operations are exposed",()=>{
+  assert.deepEqual(TOOL_NAMES,["get_ignite_profile","list_my_clubs","list_my_teams","list_team_events","list_conversations","list_conversation_messages"]);
   assert.equal(TOOL_NAMES.some(n=>/send|write|create|delete|register|upgrade|subscribe/.test(n)),false);
 });
 test("reject unverified OAuth, II delegation, PROD and wrong derivation origin",async()=>{
@@ -85,4 +90,47 @@ test("backends and auth adapter errors are not silently interpreted as empty per
   await assert.rejects(h.list_my_teams({club_id:"club-1"}),/ICP authority unavailable/);
   const h2=setup({resolveVerifiedSession:async()=>null});
   await denied(h2.list_my_clubs({}),"NOT_CONNECTED");
+});
+
+test("history returns caller-scoped pages with ascending messages and no sender principal",async()=>{
+  const h=setup();
+  const page=await h.list_conversation_messages({club_id:"club-1",team_id:"team-1",conversation_id:"chat-1",limit:25});
+  assert.equal(page.next_sequence,"1");
+  assert.equal(page.latest_sequence,"3");
+  assert.equal(page.messages.length,2);
+  assert.equal(page.messages[0].id,"msg-2");
+  assert.equal(page.messages[0].is_mine,true);
+  assert.equal(page.messages[1].sender_name,"Team member");
+  assert.deepEqual(page.messages[1].attachment,{kind:"image"});
+  assert.equal("sender" in page.messages[1],false);
+  assert.equal("idempotency_key" in page.messages[1],false);
+});
+
+test("history forbids unrelated conversation, input identity and malformed cursor",async()=>{
+  const h=setup();
+  await denied(h.list_conversation_messages({club_id:"club-2",team_id:"team-1",conversation_id:"chat-1"}),"ACCESS_DENIED");
+  await denied(h.list_conversation_messages({club_id:"club-1",team_id:"team-2",conversation_id:"chat-1"}),"ACCESS_DENIED");
+  await denied(h.list_conversation_messages({club_id:"club-1",team_id:"team-1",conversation_id:"chat-2"}),"ACCESS_DENIED");
+  await denied(h.list_conversation_messages({club_id:"club-1",team_id:"team-1",conversation_id:"chat-1",principal}),"INVALID_INPUT");
+  await denied(h.list_conversation_messages({club_id:"club-1",team_id:"team-1",conversation_id:"chat-1",limit:51}),"INVALID_INPUT");
+  for(const cursor of ["-1","not-a-number","18446744073709551616",0]){
+    await denied(h.list_conversation_messages({club_id:"club-1",team_id:"team-1",conversation_id:"chat-1",before_sequence:cursor}),"INVALID_INPUT");
+  }
+});
+
+test("history rejects cross-conversation rows, oversized pages and duplicates",async()=>{
+  const args={club_id:"club-1",team_id:"team-1",conversation_id:"chat-1"};
+  const h1=setup({backend:{listConversationMessages:async()=>({messages:[{id:"msg-other",conversation_id:"chat-2",body:"hidden",sender:principal,created_at_ms:1,sequence:1}]})}});
+  await denied(h1.list_conversation_messages(args),"ACCESS_DENIED");
+  const h2=setup({backend:{listConversationMessages:async()=>({messages:new Array(51).fill({id:"dup",conversation_id:"chat-1",body:"hi",sender:principal,created_at_ms:1,sequence:1})})}});
+  await denied(h2.list_conversation_messages(args),"INVALID_BACKEND_RESULT");
+  const h3=setup({backend:{listConversationMessages:async()=>({messages:[{id:"dup",conversation_id:"chat-1",body:"a",sender:principal,created_at_ms:1,sequence:1},{id:"dup",conversation_id:"chat-1",body:"b",sender:principal,created_at_ms:2,sequence:2}]})}});
+  await denied(h3.list_conversation_messages(args),"ACCESS_DENIED");
+});
+
+test("history does not accept absence of validated backend authority",async()=>{
+  const h=setup({backend:{hasConversationAccess:async()=>false}});
+  await denied(h.list_conversation_messages({club_id:"club-1",team_id:"team-1",conversation_id:"chat-1"}),"ACCESS_DENIED");
+  const h2=setup({backend:{hasConversationAccess:undefined}});
+  await denied(h2.list_conversation_messages({club_id:"club-1",team_id:"team-1",conversation_id:"chat-1"}),"NOT_AVAILABLE");
 });
