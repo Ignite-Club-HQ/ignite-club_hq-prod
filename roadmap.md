@@ -1,5 +1,12 @@
 # Roadmap — launch the live (PROD) system
 
+## Further engine-independent preparation — 12 November
+- [x] Prepared bounded cross-destination local call rehearsals with exact-bound durable unknown-write holds and readback-only reconciliation; no live call-site changes or automatic resends.
+- [x] Rebuilt all 17 required services from synthetic encrypted local exports; full decoded permissions, denials, pending work, history, zero/null and destination readback checked. Timing is local only, not live canister recovery.
+- [x] Added nine ordered pending stages to the existing downloadable preparation, retaining all release holds and explicit real-engine requirements.
+- [x] 48 operational/recovery and 84 frontend checks pass; preview build OK. Scoped architecture and limits documented; no PROD actions, engine connection, encryption implementation or settings saves.
+- [ ] Real TEST-group calls/full canister restore require an accepted authenticated live transport not used here; actual engine and signed-in phone acceptance remain unavailable. JS deadlines do not implement IC bounded-wait, and synthetic exports do not certify deployed ledger formats.
+
 ## Engine-independent preparation — items 1, 3 and 4 only — 12 November
 - [x] Shared closed group installation and pinned upgrade protocols now accept explicit mainnet/engine destinations; initial/minimum fuel is required only for mainnet, and cycles are forbidden on engines. No network deployment or engine encryption changes.
 - [x] Added off/on new-club engine-switch rehearsal preserving existing assignments, exact revision binding and the live release hold. No settings, admission or country pins changed.
