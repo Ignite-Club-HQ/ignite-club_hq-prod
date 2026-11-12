@@ -39,3 +39,20 @@ Deferred, not sent: https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/issues
 - https://developers.openai.com/plugins/deploy/connect-chatgpt
 - https://developers.openai.com/plugins/deploy/submission
 - https://internetcomputer.org/icp-mcp/
+
+## Install the private marketplace from the desktop app
+
+This repository provides a marketplace at `.agents/plugins/marketplace.json`, named `ignite-dev-private`. The entry points to `./integrations/ignite-chatgpt/dfinity-dependency-pilot` relative to the repository root.
+
+To install using a GitHub marketplace in Codex (where CLI marketplace sources are available):
+
+```sh
+codex plugin marketplace add Ignite-Club-HQ/ignite-club_hq-prod --ref main
+codex plugin marketplace list
+```
+
+Then restart the **ChatGPT desktop app**, open **Plugins Directory**, select the **Ignite Club HQ — DEV testing** marketplace, install **ignite-club-hq-icp-dev**, and complete any separate OAuth / Internet Identity consent. ChatGPT on Android may not offer local marketplace authoring or installation. A GitHub commit alone never installs the plugin into a user's account.
+
+If the marketplace is not visible in a local desktop session, open the repository in ChatGPT Work / Codex desktop and ask the built-in `@plugin-creator` to register the existing plugin folder and marketplace. This instruction does not grant permission to change DEV data or production.
+
+After install, select the plugin in a fresh conversation and ask it to connect to `https://ignite-club-launchpad.lovable.app`; verify its returned derivation origin matches the pinned DEV origin. Verify parent chat, events and unrelated-club refusal. Do not infer that a login through the **original** ICP plugin proves authentication through this newly installed one.
