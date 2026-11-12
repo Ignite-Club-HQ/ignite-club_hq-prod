@@ -63,3 +63,45 @@ The scaffold listens only on 127.0.0.1 and expects a secure HTTPS reverse proxy 
 `node --test integrations/ignite-chatgpt/src/*.test.mjs`
 
 Source CI success does not establish end-to-end app connectivity, OAuth readiness, or production safety.
+
+
+## Authentication and ICP integration source added — 13 Nov 2026
+
+Implemented (source only):
+- `src/oauth-verifier.mjs`: pinned HTTPS issuer/JWKS, RS256 signature checks, audience, expiry, issue time, scope checks, and separate trusted Internet Identity delegation lookup. It never trusts principal, roles, actor keys or scope claims sent from the chat UI.
+- `src/oauth-entrypoint.mjs`: refuses import unless the issuer, JWT resource audience, JWKS URL and trusted delegation registry module are configured.
+- `src/icp-backend-adapter.mjs`: caller-signed per-member methods for clubs, teams, chat listing/history, posting-policy checks, and the exact one-write send operation; refuses unknown / non-DEV club placements.
+- `src/icp-entrypoint.mjs`: refuses import unless a trusted group-discovery and club-placement module is configured.
+- Independent synthetic tests cover forged JWTs, wrong audiences, expired delegations, unauthorized chat rooms, missing membership data, admin-only posting and one-write behavior.
+
+**These additions are not an OAuth provider or an Internet Identity delegation service.** They require an external trusted authorization server, member consent, a secure delegation registry, a continuously available deployment environment, and independently verified routing/actor acquisition. Never create a synthetic user or admin identity to circumvent those requirements. The existing DFINITY ICP plugin grant cannot be exported or silently reused.
+
+### Server environment configuration
+
+```text
+IGNITE_OAUTH_ADAPTER_MODULE=./oauth-entrypoint.mjs
+IGNITE_ICP_ADAPTER_MODULE=./icp-entrypoint.mjs
+IGNITE_DEV_OAUTH_ISSUER=https://<trusted-dev-authorization-issuer>
+IGNITE_DEV_MCP_AUDIENCE=https://<trusted-dev-mcp-endpoint>/mcp
+IGNITE_DEV_OAUTH_JWKS_URL=https://<trusted-dev-authorization-issuer>/.well-known/jwks.json
+IGNITE_DELEGATION_REGISTRY_MODULE=<absolute-module-url-of-verified-registry>
+IGNITE_DEV_ROUTING_ADAPTER_MODULE=<absolute-module-url-of-verified-router>
+```
+
+The angle-bracket entries are **placeholders**, not usable URLs or claim of an installed authorization service. The two adapters must be fully audited. No secrets or delegated private keys should appear in GitHub or ChatGPT chat logs.
+
+### Critical derivation-origin acceptance gate
+
+The DFINITY DEV connector resolves `https://proe7-kqaaa-aaaas-qg6gq-cai.ic0.app` and has been confirmed under the Paul test principal. The existing native application source, however, defines `DEV_FRONTEND_II_ORIGIN = "https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io"`. They are different origin STRINGS. Although ICP frontend aliases can support alternate origins, **do not assume** the authorization server will derive the same principal: test the exact effective principal from both flows, with a consenting non-admin user, before authorizing any sends. Fail closed on mismatch. The current prototype pins the connector's observed `ic0.app` origin and must not automatically change it.
+
+### Remaining implementation gates
+
+- [ ] Customer-account Internet Identity login flow and explicit delegation to Ignite-owned connector (cannot borrow DFINITY's grant).
+- [ ] OAuth Authorization Code + PKCE provider with persistent refresh/revoke behavior and client registration; the verifier only validates existing access tokens.
+- [ ] Trusted encrypted member-delegation storage or a safe user-device signing alternative; never centrally store unrestricted private keys.
+- [ ] Production-quality signed per-club placement lookup, service allowlist, and consistent effective principal on both DEV groups.
+- [ ] HTTPS MCP endpoint deployment + public OAuth resource/authorization metadata, developer-mode plugin connection.
+- [ ] Host-verified MCP Apps SDK bridge on Android and web, direct send observed without any generated ChatGPT turn.
+- [ ] Real member/coach end-to-end security and performance tests.
+
+**Do not deploy the source-only HTTP scaffold as a public endpoint yet.**
