@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>My Ignite — interactive MCP Apps UX prototype</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#243343;background:#f5f7fa;font-size:15px}
+*{box-sizing:border-box}body{margin:0}.shell{max-width:720px;margin:auto;padding:16px}
+header,.row{display:flex;align-items:center;gap:12px}header{justify-content:space-between;margin-bottom:16px}
+.brand{font-weight:800;font-size:1.2rem;color:#122e49}.muted{color:#647589;font-size:.86rem}.tag{border:1px solid #ffcb93;background:#fff6ec;color:#86520f;border-radius:50px;padding:5px 10px;font-size:.76rem}
+.card{background:white;border:1px solid #dbe3eb;border-radius:16px;padding:17px;margin:10px 0;box-shadow:0 1px 4px #13283b0a}
+h1,h2,h3,p{margin:0 0 8px}h1{font-size:1.5rem}h2{font-size:1.03rem}h3{font-size:.95rem}
+.topline{display:flex;justify-content:space-between;gap:8px;align-items:center}.success{color:#236842;font-weight:650}
+.tabs,.quick,.rsvp{display:flex;gap:8px;flex-wrap:wrap}button{font:inherit;border:1px solid #d1dbe4;border-radius:12px;background:#fff;color:#203648;padding:10px 13px;cursor:pointer;font-weight:600;min-height:42px}
+button:hover{border-color:#668aa6}button:focus-visible,textarea:focus-visible{outline:3px solid #82c8ed;outline-offset:2px}
+button[aria-pressed="true"],.primary{background:#173f66;color:white;border-color:#173f66}
+button:disabled{opacity:.45;cursor:not-allowed}.quick button{flex:1;min-width:130px;text-align:left}
+.rsvp button{font-size:.87rem;flex:1;min-width:100px}.event{padding:13px 0;border-top:1px solid #e7ecf0}
+.event:first-of-type{border:0}.time{font-weight:700}.sub{font-size:.85rem;color:#637488;margin-top:4px}
+.pill{display:inline-block;font-size:.78rem;padding:4px 9px;border-radius:100px;background:#edf4fc;color:#184a72}
+.messages{display:grid;gap:10px;max-height:220px;overflow:auto;padding:8px 0 18px}
+.bubble{max-width:84%;background:#eef2f6;padding:10px 13px;border-radius:14px 14px 14px 4px;line-height:1.4}
+.bubble.mine{margin-left:auto;background:#e0edf8;border-radius:14px 14px 4px 14px}
+small{color:#617386}textarea{width:100%;border:1px solid #cfdce6;border-radius:12px;background:#fff;color:#1b3448;resize:vertical;min-height:80px;padding:12px;font:inherit}
+.actions{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.notice{border-left:3px solid #dc9030;background:#fff9ef;color:#65491d;padding:10px 12px;border-radius:7px;margin-top:11px;font-size:.85rem}
+#review{padding:13px;border:1px solid #becddb;border-radius:12px;margin-top:12px;white-space:pre-wrap;word-break:break-word}
+[hidden]{display:none!important}
+@media(prefers-color-scheme:dark){:root{color:#e6edf6;background:#131d28}.brand{color:#e6edf6}.card{background:#1a2938;border-color:#344659}button,textarea{background:#203447;border-color:#456078;color:#eaf1f8}button[aria-pressed=true],.primary{background:#386a9b}.sub,.muted,small{color:#a0b4c5}.event{border-color:#344659}.pill{background:#1c4360;color:#d9ebff}.bubble{background:#263d51}.bubble.mine{background:#245878}.tag{background:#473a24;color:#ffdb9d;border-color:#735e35}.notice{background:#49381f;color:#ffdea9}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <span class="brand">🔥 Ignite Club HQ</span>
+    <span class="tag">UX PROTOTYPE · sample data</span>
+  </header>
+  <section class="card" aria-label="Team overview">
+    <div class="topline"><p class="muted">MY TEAM</p><span class="success">● Connected (demo)</span></div>
+    <h1>Riverdogs · U8 Rockets</h1>
+    <p class="muted">Pick an action below. No live changes are possible in this prototype.</p>
+    <div class="quick" aria-label="Quick actions">
+      <button type="button" data-view="schedule">📅 View schedule</button>
+      <button type="button" data-view="chat">💬 Team chat</button>
+      <button type="button" data-view="rsvp">✅ Quick RSVP</button>
+    </div>
+  </section>
+  <nav class="tabs" aria-label="Sections">
+    <button type="button" id="tab-schedule" data-view="schedule" aria-pressed="true">Schedule</button>
+    <button type="button" id="tab-chat" data-view="chat" aria-pressed="false">Chat</button>
+  </nav>
+  <section id="schedule" class="card" aria-label="Team schedule">
+    <div class="topline"><h2>Upcoming events</h2><span class="pill">Sample events</span></div>
+    <article class="event">
+      <div class="time">Saturday · 9:00 am</div>
+      <h3>Match vs Hills United</h3>
+      <p class="sub">Bridgewater Oval · Arrive at 8:30 am</p>
+      <p class="muted" style="margin-top:13px">Your RSVP</p>
+      <div class="rsvp" role="group" aria-label="RSVP to sample match">
+        <button type="button" data-rsvp="Going" aria-pressed="false">✓ Going</button>
+        <button type="button" data-rsvp="Maybe" aria-pressed="false">? Maybe</button>
+        <button type="button" data-rsvp="Can't attend" aria-pressed="false">✕ Can't attend</button>
+      </div>
+      <div id="rsvp-preview" class="notice" role="status" hidden></div>
+    </article>
+    <article class="event">
+      <div class="time">Wednesday · 4:30 pm</div>
+      <h3>Training</h3>
+      <p class="sub">Main training pitch</p>
+    </article>
+  </section>
+  <section id="chat" class="card" aria-label="Team chat" hidden>
+    <div class="topline"><h2>U8 Rockets · Team chat</h2><span class="pill">Sample conversation</span></div>
+    <div class="messages" aria-label="Sample chat messages">
+      <div class="bubble"><strong>Coach</strong><div>Training is on as usual this week.</div><small>Yesterday · sample</small></div>
+      <div class="bubble mine"><strong>You</strong><div>Thanks, see you there!</div><small>Yesterday · sample</small></div>
+    </div>
+    <label for="message"><strong>Message the team</strong></label>
+    <textarea id="message" maxlength="2000" placeholder="Type a message to your team…"></textarea>
+    <div class="actions">
+      <button type="button" class="primary" id="reviewBtn">Review message</button>
+      <button type="button" id="sendBtn" disabled aria-label="Send message, unavailable until the server is connected">Send (not connected)</button>
+    </div>
+    <div id="review" role="status" hidden></div>
+  </section>
+  <p class="notice"><strong>Prototype only:</strong> The event and messages above are fictional examples. RSVP choices and drafted messages remain in this browser view; nothing is saved or sent to Ignite DEV. Live actions require an authenticated Ignite MCP tool with server-side role checks and confirmed readback.</p>
+</div>
+<script>
+(() => {
+  const $=id=>document.getElementById(id);
+  const show=view=>{
+    const target=view==="rsvp"?"schedule":view;
+    ["schedule","chat"].forEach(x=>{
+      $(x).hidden=x!==target;
+      $("tab-"+x).setAttribute("aria-pressed",String(x===target));
+    });
+    if(view==="rsvp") document.querySelector("[data-rsvp]").focus();
+    if(view==="chat") $("message").focus();
+  };
+  document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>show(b.dataset.view)));
+  document.querySelectorAll("[data-rsvp]").forEach(b=>b.addEventListener("click",()=>{
+    document.querySelectorAll("[data-rsvp]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+    $("rsvp-preview").hidden=false;
+    $("rsvp-preview").textContent="RSVP preview: "+b.dataset.rsvp+". Not saved — live RSVP controls are not yet connected.";
+  }));
+  $("reviewBtn").addEventListener("click",()=>{
+    const body=$("message").value.trim();
+    $("review").hidden=false;
+    $("review").textContent=body?("Message draft (not sent):\n"+body):"Type a message before reviewing.";
+  });
+})();
+</script>
+</body>
+</html>
