@@ -1561,8 +1561,10 @@ async fn verify_active_g2_club_reader(caller:Principal, state:&ActiveG2ClubReade
     };
     let first=read_live_active_g2(&state.binding,&recheck).await?;
     let second=read_live_active_g2(&state.binding,&recheck).await?;
-    if first!=second {return Err("Active G2 registry changed during read".into());}
-    let mut live=state.binding.clone(); live.registry_revision=first.revision;
+    if first!=second || first.revision!=state.binding.registry_revision {
+        return Err("Signed active G2 registry revision changed; review and reauthorise".into());
+    }
+    let live=state.binding.clone();
     if active_g2_club_reader::verify_open_g2_club(&live,first.revision,&first.groups,&first.placements,ic_cdk::api::canister_self())? !=caller {
         return Err("Active G2 canister not authorised".into());
     }
