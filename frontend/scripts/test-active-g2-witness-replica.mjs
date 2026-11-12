@@ -72,6 +72,9 @@ try {
   w.setPrincipal(owner);id.setPrincipal(member);
   const account=ok(await id.register_account());
   assert.equal(account.version,0n,'Fresh Ignite account must be accepted at version zero');
+  id.setPrincipal(alias);
+  const erasedAccount=ok(await id.register_account());
+  assert.equal(erasedAccount.version,0n,'Erasure scenario starts as a legitimate new account');
   id.setPrincipal(owner);
   const participant=await pic.createCanister({sender:owner,controllers:[owner]});
   await pic.installCode({canisterId:participant,sender:owner,wasm:identityWasm,arg:initIdentity});
@@ -151,6 +154,50 @@ try {
   club.actor.setPrincipal(outsider);
   rejects(await club.actor.sync_my_linked_account(),/Account|Unlinked|identity|registered|unavailable|not found/i);
   mark('Real Club Domain sync_my_linked_account -> identity -> independent witness links version-zero new user, preserves membership and denies outsider');
+
+  stage='suspended account must not sync even while original local membership remains';
+  id.setPrincipal(owner);
+  ok(await id.set_account_status(account.id,{Suspended:null}));
+  club.actor.setPrincipal(member);
+  rejects(await club.actor.sync_my_linked_account(),/Account suspended|Account|identity/i);
+  id.setPrincipal(owner);
+  ok(await id.set_account_status(account.id,{Active:null}));
+  club.actor.setPrincipal(member);
+  ok(await club.actor.sync_my_linked_account());
+  assert.equal(ok(await club.actor.read_account_whoami()).id,account.id);
+  mark('Real Club Domain denies a suspended account and correctly relinks on reviewed reactivation');
+
+  stage='suspended account must reject held in-flight Club Domain sync';
+  // Use the same submit/await pattern as the existing account-group race
+  // fixture. A stopped witness keeps the identity's update unresolved; a
+  // concurrent status change MUST never yield an authorised stale link.
+  await pic.stopCanister({canisterId:witnessId,sender:owner});
+  const signature=clubFactory({IDL})._fields.find(([name])=>name==='sync_my_linked_account')?.[1];
+  assert.ok(signature,'Real Club Domain sync_my_linked_account signature required');
+  const pending=await pic.client.submitCall({canisterId:clubPin,sender:member,
+    method:'sync_my_linked_account',payload:new Uint8Array(IDL.encode(signature.argTypes,[]))});
+  await pic.tick(1);
+  id.setPrincipal(owner);
+  ok(await id.set_account_status(account.id,{Suspended:null}));
+  await pic.startCanister({canisterId:witnessId,sender:owner});
+  const race=IDL.decode(signature.retTypes,(await pic.client.awaitCall(pending)).body)[0];
+  rejects(race);
+  id.setPrincipal(owner);
+  ok(await id.set_account_status(account.id,{Active:null}));
+  club.actor.setPrincipal(member);
+  ok(await club.actor.sync_my_linked_account());
+  mark('Held Club Domain update cannot complete a stale account link after concurrent suspension');
+
+  stage='erased account must lose identity-backed re-sync without a witness removal record';
+  club.actor.setPrincipal(alias);
+  ok(await club.actor.sync_my_linked_account());
+  assert.equal(ok(await club.actor.read_account_whoami()).id,erasedAccount.id);
+  id.setPrincipal(alias);
+  ok(await id.erase_account(erasedAccount.id));
+  rejects(await id.register_account(),/Erased|denied|not allowed|blocked|revoked|removed/i);
+  club.actor.setPrincipal(alias);
+  rejects(await club.actor.sync_my_linked_account(),/Account|Unknown|Erased|unavailable|revoked/i);
+  mark('Real Club Domain rejects erased account independently of witness-side removal');
 
   const scopeDigest=new Uint8Array(createHash('sha256').update(ok(await w.active_g2_scope_signing_bytes(scope))).digest());
   // The true three-canister call will use identity's fresh request sequence 1.
