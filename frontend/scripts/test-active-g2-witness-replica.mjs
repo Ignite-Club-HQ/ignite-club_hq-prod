@@ -12,6 +12,7 @@ import { PocketIc } from '@dfinity/pic';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 import { idlFactory as identityFactory } from '../src/lab/bindings/identity_access/declarations/identity_access.did.js';
+import { idlFactory as clubFactory } from '../src/lab/bindings/club_domain/declarations/club_domain.did.js';
 import { idlFactory as witnessFactory } from '../src/lab/bindings/recovery_witness/declarations/recovery_witness.did.js';
 import { startRemovalLocalServer, finishRemovalLocalTest } from './removal-local-supervisor.mjs';
 import { removalHostPreflight } from './removal-host-preflight.mjs';
@@ -122,26 +123,34 @@ try {
     await pic.updateCall({canisterId:identityPin,sender:owner,
       method:'fixture_g2_authorize_reader',arg:IDL.encode(fixtureActorMethod.argTypes,[signed])}));
   ok(fixtureApproval);
-  const clubProbeFactory=({IDL:T})=>T.Service({
-    linked_account:T.Func([],[T.Variant({Ok:T.Record({
-      id:T.Text,version:T.Nat64,principals:T.Vec(T.Principal),
-      status:T.Variant({Active:T.Null,Suspended:T.Null}),
-    }),Err:T.Text})],[]),
-  });
-  const probeWasm=process.env.G2_CHAIN_PROBE_WASM;
-  assert.ok(probeWasm,'Disposable, separately compiled club probe WASM required');
+  const clubWasm=process.env.G2_ACTUAL_CLUB_DOMAIN_WASM;
+  assert.ok(clubWasm,'Compiled real club_domain WASM required; no surrogate club probe');
   const club=await pic.setupCanister({
-    targetCanisterId:clubPin,idlFactory:clubProbeFactory,wasm:probeWasm,
-    sender:owner,controllers:[owner],arg:IDL.encode([IDL.Principal],[identityPin]),
+    targetCanisterId:clubPin,idlFactory:clubFactory,wasm:clubWasm,
+    sender:owner,controllers:[owner],arg:IDL.encode([IDL.Principal],[owner]),
+    environmentVariables:[{name:'IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE',value:'1'}],
   });
+  assert.equal(club.canisterId.toText(),clubPin.toText());
+  club.actor.setPrincipal(owner);
+  // Genuine club code: use its narrowly guarded, set-once existing identity
+  // authority binding. No local account rehearsal or removal flags are set.
+  ok(await club.actor.link_display_identity_authority(identityPin));
+  const localClub='g2-isolated-club';
+  ok(await club.actor.create_club(localClub,'G2 Isolated Test Club','g2-isolated-test-club',[],[]));
+  ok(await club.actor.add_role_grant(member,localClub,'player',[]));
   club.actor.setPrincipal(member);
-  const chain=ok(await club.actor.linked_account());
-  assert.equal(chain.id,account.id);
-  assert.equal(chain.version,0n);
-  assert.deepEqual(chain.principals.map(p=>p.toText()),account.principals.map(p=>p.toText()));
+  const before=await club.actor.read_account_whoami();
+  rejects(before,/Unlinked identity/i);
+  ok(await club.actor.sync_my_linked_account());
+  const linked=ok(await club.actor.read_account_whoami());
+  assert.equal(linked.id,account.id);
+  assert.equal(linked.version,0n);
+  assert.deepEqual(linked.principals.map(p=>p.toText()),account.principals.map(p=>p.toText()));
+  const membership=ok(await club.actor.read_my_club_memberships_indexed([],100));
+  assert.ok(membership.clubs.includes(localClub),'Actual club membership must survive sync');
   club.actor.setPrincipal(outsider);
-  rejects(await club.actor.linked_account(),/Account unavailable|Account not found|not registered|account|identity/i);
-  mark('Genuine signed-in G2 probe -> identity read_linked_account -> witness confirms new account, rejects outsider');
+  rejects(await club.actor.sync_my_linked_account(),/Account|Unlinked|identity|registered|unavailable|not found/i);
+  mark('Real Club Domain sync_my_linked_account -> identity -> independent witness links version-zero new user, preserves membership and denies outsider');
 
   const scopeDigest=new Uint8Array(createHash('sha256').update(ok(await w.active_g2_scope_signing_bytes(scope))).digest());
   // The true three-canister call will use identity's fresh request sequence 1.
@@ -184,9 +193,9 @@ try {
   // The same genuine G2 club caller must now fail the whole chain, even
   // though the local account has not yet been deleted in the identity fixture.
   club.actor.setPrincipal(member);
-  const revokedChain=await club.actor.linked_account();
+  const revokedChain=await club.actor.sync_my_linked_account();
   rejects(revokedChain);
-  mark('True three-canister G2 account linking fails closed after independent removal');
+  mark('Actual Club Domain re-sync fails closed after independently recorded removal');
   // The browser cannot impersonate the G2 service, even for its own account.
   id.setPrincipal(member);
   rejects(await id.read_linked_account(member),/Exact Group 2 club canister caller required/i);
