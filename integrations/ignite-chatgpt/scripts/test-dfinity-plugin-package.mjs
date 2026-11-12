@@ -38,7 +38,7 @@ test("skill pins DEV and forbids PROD, privileged/writing/billing paths",()=>{
   assert.match(skill,/Internet Identity/);
   assert.match(skill,/no message sending|no message sending/i);
   assert.match(skill,/read-only guidance, not an enforceable server-side restriction/);
-  assert.match(skill,/not.*inherited/i);
+  assert.match(skill,/Never claim the connection or its permissions were inherited/);
   assert.doesNotMatch(skill,/PRIVATE KEY-----|BEGIN RSA|sk-[A-Za-z0-9]{20}/);
 });
 test("documentation distinguishes prior ICP connector proof from new branded plugin installation",()=>{
