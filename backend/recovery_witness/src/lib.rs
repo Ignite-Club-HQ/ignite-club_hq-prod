@@ -31,6 +31,12 @@ thread_local! {
     // V2 starts closed; never reinterpret old runtime-version arming as lifecycle evidence.
     static ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(12))),0));
     static ACCOUNT_ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(13))),0));
+    // Separately commissioned, upgrade-fenced DEV G2 reader.
+    static G2_READER_SCOPE:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(14))),vec![]));
+    static G2_READER_ARMED_VERSION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(15))),0));
+    static G2_READER_GENERATION:RefCell<StableCell<u64,Memory>>=RefCell::new(StableCell::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(16))),0));
+    static G2_READER_NONCES:RefCell<StableBTreeMap<u64,u8,Memory>>=RefCell::new(StableBTreeMap::init(MEMORY.with(|m|m.borrow().get(MemoryId::new(17)))));
+
 }
 fn event_key(event:&Event)->Vec<u8> {use sha2::{Digest,Sha256};Sha256::digest(candid::encode_one(event).expect("bounded recovery event")).to_vec()}
 fn encode<T:serde::Serialize>(v:&T)->Vec<u8> {let mut b=vec![];ciborium::ser::into_writer(v,&mut b).expect("encode witness state");b}
@@ -55,7 +61,7 @@ fn init(arg:Init) {
     IDENTITY.with(|g|g.borrow_mut().set(arg.identity.as_slice().to_vec()));save(&Head::default());
 }
 #[ic_cdk::post_upgrade]
-fn post_upgrade(){ARMED_VERSION.with(|v|v.borrow_mut().set(0));ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(0));}
+fn post_upgrade(){ARMED_VERSION.with(|v|v.borrow_mut().set(0));ACCOUNT_ARMED_VERSION.with(|v|v.borrow_mut().set(0));G2_READER_ARMED_VERSION.with(|v|v.borrow_mut().set(0));}
 #[ic_cdk::update]
 fn read_recovery_head()->Outcome<Head> {require_governor()?;Ok(head())}
 #[ic_cdk::update]
@@ -181,6 +187,127 @@ fn account_not_removed(r:&AccountReadRequest)->Outcome<()> {
         return Err("Account independently removal fenced".into());
     }Ok(())
 }
+/// DEV G2 only. An independent signer and pre-armed recovery subject baseline
+/// are mandatory. This does not enable the identity reader on its own.
+fn g2_reader_scope()->Option<active_g2_account_read_protocol::SignedScope>{
+    G2_READER_SCOPE.with(|s|if s.borrow().get().is_empty(){None}else{Some(decode(s.borrow().get()))})
+}
+fn active_g2_scope_evidence(
+    signed:&active_g2_account_read_protocol::SignedScope, version:u64, now:u64,
+)->Outcome<[u8;32]> {
+    use active_g2_account_read_protocol as g2;
+    if identity()!=Principal::from_text(g2::IDENTITY_ID).map_err(|_|"Invalid DEV identity pin")? ||
+        signed.scope.witness!=ic_cdk::api::canister_self() {
+        return Err("Exact independently controlled DEV G2 witness required".into());
+    }
+    let signed_baseline=ACCOUNT_BASELINE.with(|s|s.borrow().get().clone());
+    if version==0 || ACCOUNT_ARMED_VERSION.with(|s|*s.borrow().get())!=version ||
+        ARMED_VERSION.with(|s|*s.borrow().get())!=version ||
+        signed_baseline.is_empty() {return Err("Armed independent subject baseline required".into());}
+    let baseline:SignedAcceptance=decode(&signed_baseline);
+    let accepted=head();
+    let accepted_scope=accepted.accepted.as_ref().ok_or("Independent recovery not accepted")?;
+    if accepted_scope.body!=baseline.body || baseline.body.epoch!=signed.scope.recovery_epoch ||
+        baseline.body.expires_at_ns<=now || baseline.body.identity!=identity() {
+        return Err("Exact current independent subject baseline required".into());
+    }
+    validate_subject_progress(&baseline,&signer()?)?;
+    let digest=g2::recovery_baseline_digest(&signed_baseline)?;
+    if signed.scope.accepted_recovery_digest!=digest || signed.scope.recovery_epoch!=accepted.epoch {
+        return Err("Independent G2 baseline digest or epoch changed".into());
+    }
+    g2::verify_independent_scope(signed,&signer()?,now,signed.scope.registry_revision,0)
+}
+#[ic_cdk::update]
+async fn authorize_active_g2_subject_reader(
+    signed:active_g2_account_read_protocol::SignedScope,
+)->Outcome<()> {
+    require_governor()?;
+    let version=recovery_lifecycle::current_changes().await?;
+    require_governor()?;
+    let previous=G2_READER_GENERATION.with(|s|*s.borrow().get());
+    if signed.scope.generation!=previous.checked_add(1).ok_or("G2 generation exhausted")? {
+        return Err("Next independently signed G2 generation required".into());
+    }
+    let now=ic_cdk::api::time();
+    let digest=active_g2_scope_evidence(&signed,version,now)?;
+    if digest==[0u8;32] {return Err("Invalid independent G2 scope".into());}
+    let baseline=ACCOUNT_BASELINE.with(|s|s.borrow().get().clone());
+    let captured=head();
+    check_participants(&captured.accepted.as_ref().ok_or("No recovery acceptance")?.body).await?;
+    require_governor()?;
+    if recovery_lifecycle::current_changes().await?!=version ||
+        ACCOUNT_BASELINE.with(|s|s.borrow().get()!=&baseline) || head()!=captured ||
+        G2_READER_GENERATION.with(|s|*s.borrow().get())!=previous ||
+        active_g2_scope_evidence(&signed,version,ic_cdk::api::time())?!=digest {
+        return Err("Independent DEV G2 acceptance drift".into());
+    }
+    G2_READER_SCOPE.with(|s|s.borrow_mut().set(encode(&signed)));
+    G2_READER_GENERATION.with(|s|s.borrow_mut().set(signed.scope.generation));
+    G2_READER_ARMED_VERSION.with(|s|s.borrow_mut().set(version));
+    Ok(())
+}
+#[ic_cdk::update]
+fn disable_active_g2_subject_reader()->Outcome<()> {
+    require_governor()?;
+    G2_READER_ARMED_VERSION.with(|s|s.borrow_mut().set(0));
+    G2_READER_SCOPE.with(|s|s.borrow_mut().set(Vec::new()));
+    Ok(())
+}
+#[ic_cdk::update]
+async fn verify_active_g2_subject_read_fence(
+    r:active_g2_account_read_protocol::WitnessRequest,
+)->Outcome<active_g2_account_read_protocol::IndependentlyVerifiedSubject> {
+    use active_g2_account_read_protocol as g2;
+    if ic_cdk::api::msg_caller()!=identity() ||
+        identity()!=Principal::from_text(g2::IDENTITY_ID).map_err(|_|"Invalid DEV identity pin")? {
+        return Err("Pinned identity caller required".into());
+    }
+    let version=recovery_lifecycle::current_changes().await?;
+    let captured=g2_reader_scope().ok_or("Independent G2 reader not armed")?;
+    let armed=G2_READER_ARMED_VERSION.with(|s|*s.borrow().get());
+    if version==0 || armed!=version || captured!=r.approval {
+        return Err("Current exact G2 witness approval required".into());
+    }
+    let digest=active_g2_scope_evidence(&captured,version,ic_cdk::api::time())?;
+    g2::validate_challenge(&digest,&r.challenge)?;
+    if r.challenge.recovery_epoch!=captured.scope.recovery_epoch ||
+        r.challenge.history_revision==0 || r.challenge.removal_generation==0 {
+        return Err("Current fenced G2 history required".into());
+    }
+    if G2_READER_NONCES.with(|s|s.borrow().contains_key(&r.challenge.nonce)) {
+        return Err("Replayed G2 account read challenge".into());
+    }
+    let baseline=ACCOUNT_BASELINE.with(|s|s.borrow().get().clone());
+    let head_before=head();
+    let witness_record=AccountReadRequest {
+        request:protocol::WitnessRequest {identity:identity(),generation:head_before.accepted.as_ref().ok_or("Recovery not accepted")?.body.generation,
+            recovery_epoch:head_before.epoch,signed_digest:head_before.accepted.as_ref().ok_or("Recovery not accepted")?.body.signed_digest.clone(),
+            request_id:r.challenge.nonce,history_revision:r.challenge.history_revision,
+            removal_generation:r.challenge.removal_generation,identity_version:version},
+        account_id:r.challenge.account_id.clone(),subjects:r.challenge.principals.clone(),
+    };
+    let signed_baseline:SignedAcceptance=decode(&baseline);
+    verify_account_baseline(&signed_baseline,&witness_record,identity(),ic_cdk::api::time())?;
+    account_not_removed(&witness_record)?;
+    check_participants(&signed_baseline.body).await?;
+    if recovery_lifecycle::current_changes().await?!=version ||
+        g2_reader_scope()!=Some(captured.clone()) ||
+        G2_READER_ARMED_VERSION.with(|s|*s.borrow().get())!=version ||
+        ACCOUNT_BASELINE.with(|s|s.borrow().get()!=&baseline) ||
+        head()!=head_before || G2_READER_NONCES.with(|s|s.borrow().contains_key(&r.challenge.nonce)) ||
+        active_g2_scope_evidence(&captured,version,ic_cdk::api::time())?!=digest {
+        return Err("G2 witness changed during subject verification".into());
+    }
+    verify_account_baseline(&signed_baseline,&witness_record,identity(),ic_cdk::api::time())?;
+    account_not_removed(&witness_record)?;
+    if G2_READER_NONCES.with(|s|s.borrow().len())>=1_000_000 {
+        return Err("G2 witness replay journal at capacity".into());
+    }
+    G2_READER_NONCES.with(|s|s.borrow_mut().insert(r.challenge.nonce,1));
+    Ok(g2::IndependentlyVerifiedSubject{challenge:r.challenge,witness_revision:head_before.revision.saturating_add(1)})
+}
+
 #[ic_cdk::update]
 async fn verify_production_subject_read_fence(r:AccountReadRequest)->Outcome<AccountReadReceipt> {
     let caller=ic_cdk::api::msg_caller();let version=recovery_lifecycle::current_changes().await?;
