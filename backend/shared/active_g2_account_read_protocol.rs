@@ -191,7 +191,7 @@ mod tests {
         let mut initial=q.clone();initial.account_version=0;
         assert!(validate_challenge(&digest,&initial).is_ok(),
             "Fresh Ignite account version zero is valid and must be independently fenced");
-        changed=q.clone();changed.principals=vec![p(7)];
+        let mut changed=q.clone();changed.principals=vec![p(7)];
         assert!(validate_challenge(&digest,&changed).is_err());
         changed=q.clone();changed.nonce=0;
         assert!(validate_challenge(&digest,&changed).is_err());
