@@ -96,8 +96,25 @@ export interface WitnessRequest {
   'recovery_epoch' : bigint,
   'history_revision' : bigint,
 }
+export interface G2Scope {
+  identity: Principal; router: Principal; club_reader: Principal; witness: Principal;
+  registry_revision: bigint; generation: bigint; recovery_epoch: bigint;
+  expires_at_ns: bigint; accepted_recovery_digest: Uint8Array;
+}
+export interface G2SignedScope { scope: G2Scope; signature: Uint8Array }
+export interface G2SubjectChallenge {
+  scope_digest: Uint8Array; nonce: bigint; account_id: string; account_version: bigint;
+  principals: Array<Principal>; subject: Principal; history_revision: bigint;
+  removal_generation: bigint; recovery_epoch: bigint;
+}
+export interface G2WitnessRequest { approval: G2SignedScope; challenge: G2SubjectChallenge }
+export interface G2WitnessReceipt { challenge: G2SubjectChallenge; witness_revision: bigint }
+export type G2WitnessResult = { Ok: G2WitnessReceipt } | { Err: string };
 export interface _SERVICE {
   'accept_recovery_fence' : ActorMethod<[SignedAcceptance], Result>,
+  'authorize_active_g2_subject_reader' : ActorMethod<[G2SignedScope], Result_1>,
+  'disable_active_g2_subject_reader' : ActorMethod<[], Result_1>,
+  'verify_active_g2_subject_read_fence' : ActorMethod<[G2WitnessRequest], G2WitnessResult>,
   'authorize_subject_removal_progress' : ActorMethod<
     [SignedAcceptance],
     Result_1
