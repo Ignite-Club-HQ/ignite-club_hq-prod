@@ -188,16 +188,6 @@ try {
   ok(await club.actor.sync_my_linked_account());
   mark('Held Club Domain update cannot complete a stale account link after concurrent suspension');
 
-  stage='erased account must lose identity-backed re-sync without a witness removal record';
-  club.actor.setPrincipal(alias);
-  ok(await club.actor.sync_my_linked_account());
-  assert.equal(ok(await club.actor.read_account_whoami()).id,erasedAccount.id);
-  id.setPrincipal(alias);
-  ok(await id.erase_account(erasedAccount.id));
-  rejects(await id.register_account(),/Erased|denied|not allowed|blocked|revoked|removed/i);
-  club.actor.setPrincipal(alias);
-  rejects(await club.actor.sync_my_linked_account(),/Account|Unknown|Erased|unavailable|revoked/i);
-  mark('Real Club Domain rejects erased account independently of witness-side removal');
 
   const scopeDigest=new Uint8Array(createHash('sha256').update(ok(await w.active_g2_scope_signing_bytes(scope))).digest());
   // The true three-canister call will use identity's fresh request sequence 1.
@@ -255,6 +245,16 @@ try {
   await pic.upgradeCanister({canisterId:witnessId,sender:owner,wasm:witnessWasm,arg:IDL.encode([],[])});
   rejects(await w.verify_active_g2_subject_read_fence({...request,challenge:{...q,nonce:51n}}));
   mark('Witness upgrade cannot restore prior signed reader authorisation');
+  stage='erased account must lose identity-backed re-sync without a witness removal record';
+  club.actor.setPrincipal(alias);
+  ok(await club.actor.sync_my_linked_account());
+  assert.equal(ok(await club.actor.read_account_whoami()).id,erasedAccount.id);
+  id.setPrincipal(alias);
+  ok(await id.erase_account(erasedAccount.id));
+  rejects(await id.register_account(),/Erased|denied|not allowed|blocked|revoked|removed/i);
+  club.actor.setPrincipal(alias);
+  rejects(await club.actor.sync_my_linked_account(),/Account|Unknown|Erased|unavailable|revoked/i);
+  mark('Real Club Domain rejects erased account independently of witness-side removal');
   report.passed=true;
 } catch(error) {
   if(error.hostReport)report.host=error.hostReport;
