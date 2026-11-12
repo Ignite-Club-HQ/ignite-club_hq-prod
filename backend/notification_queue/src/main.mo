@@ -303,7 +303,7 @@ persistent actor class Main(governorInit : Principal) = this {
       switch (await appAdminOnly(p)) { case (#Ok) { true }; case (#Err(_)) { false } }
     };
     func memberCheck(p : Principal, clubId : Text) : async Bool {
-      await clubs.is_club_member(p, clubId)
+      await (with timeout = 10) clubs.is_club_member(p, clubId)
     };
     await UpdateReminderAccess.authorize(caller, users, club, adminCheck, memberCheck)
   };
@@ -591,9 +591,9 @@ persistent actor class Main(governorInit : Principal) = this {
         is_app_admin : shared query (Principal) -> async Bool;
       };
       let permitted = try {
-        let roles = do { let removalReply = await clubs.list_user_club_roles(caller, club); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
+        let roles = do { let removalReply = await (with timeout = 10) clubs.list_user_club_roles(caller, club); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
         if (ScheduleAccess.canBroadcast(roles, related_id)) { true }
-        else { do { let removalReply = await clubs.is_app_admin(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } }
+        else { do { let removalReply = await (with timeout = 10) clubs.is_app_admin(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } }
       } catch (_) { false };
       if (not permitted) { return #Err("Schedule manager required") };
       // Validate the full batch before writing any notification. Never trust
@@ -601,7 +601,7 @@ persistent actor class Main(governorInit : Principal) = this {
       for (user in users.values()) {
         let principal = Principal.fromText(user);
         if (Principal.isAnonymous(principal)) { return #Err("Invalid recipient") };
-        let roles = try { do { let removalReply = await clubs.list_user_club_roles(principal, club); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } }
+        let roles = try { do { let removalReply = await (with timeout = 10) clubs.list_user_club_roles(principal, club); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } }
           catch (_) { return #Err("Could not verify schedule recipient") };
         if (not ScheduleAccess.recipient(roles, related_id)) {
           return #Err("Recipient is not in the schedule scope")
@@ -2284,7 +2284,7 @@ persistent actor class Main(governorInit : Principal) = this {
     let configured = messagingDomainCanister;
     let messaging = switch (configured) { case null return #Err("Chat authority unavailable"); case (?id) id };
     let domain : actor { read_account_can_read_digest : shared (Principal, Text) -> async Bool } = actor(messaging.toText());
-    let allowed = try { do { let removalReply = await domain.read_account_can_read_digest(caller, chat_scope_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { false };
+    let allowed = try { do { let removalReply = await (with timeout = 10) domain.read_account_can_read_digest(caller, chat_scope_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { return #Err("Chat authority unavailable") };
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (not allowed or configured != messagingDomainCanister) return #Err("Chat scope access forbidden");
     authenticated(caller);

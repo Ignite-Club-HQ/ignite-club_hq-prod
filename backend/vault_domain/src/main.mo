@@ -158,7 +158,7 @@ persistent actor class Main(governorInit : Principal) = this {
           get_vault_access : shared (Text, Principal) -> async { #Ok : CompetitionVaultAccess; #Err : Text };
         } = actor (Principal.toText(canister));
         let result = try {
-          await competitionDomain.get_vault_access(competitionId, caller)
+          await (with timeout = 10) competitionDomain.get_vault_access(competitionId, caller)
         } catch (_) {
           return null;
         };
