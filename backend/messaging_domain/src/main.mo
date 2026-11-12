@@ -2452,9 +2452,29 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await* requireChatClubMember(caller, club_id);
     if (not valid(club_id)) return #Err("Invalid club id");
-    if (not canBrowseClubGroups(caller, club_id)) return #Err("Club access forbidden");
-    let matches = groupMetadata.filter(func(m) = m.club_id == ?club_id and m.team_id == null and not m.deleted);
-    #Ok(Array.map<Types.GroupMetadata, Types.GroupSummary>(matches, func(m) = toGroupSummary(caller, m)))
+    let privileged = isGovernor(caller) or hasRole(caller, "app_admin", null, null) or hasRole(caller, "club_admin", ?club_id, null);
+    // Authoritative club membership was checked above. Ordinary members see
+    // only groups they actually joined or that are explicitly discoverable;
+    // invite-only coach/committee groups remain private.
+    let matches = groupMetadata.filter(func(m) =
+      m.club_id == ?club_id and m.team_id == null and not m.deleted and
+      (privileged or m.members.any(func(p) = p.equal(caller)) or
+       joinPolicyOf(m.conversation_id).join_policy != "invite_only")
+    );
+    let listed = Array.map<Types.GroupMetadata, Types.GroupSummary>(matches, func(m) = toGroupSummary(caller, m));
+    // The standard club chat can exist without a GroupMetadata record.
+    let canonical = conversations.filter(func(c) =
+      c.id == club_id and c.club_id == club_id and c.team_id == null and
+      c.participants.any(func(p) = p.equal(caller)) and
+      not isGroupDeleted(c.id) and
+      not matches.any(func(meta) = meta.conversation_id == c.id)
+    ).map<Types.Conversation, Types.GroupSummary>(func(c) = {
+      conversation_id = c.id; name = "Club chat"; kind = "group";
+      club_id = ?club_id; team_id = null; avatar = null; description = null;
+      member_count = Nat32.fromNat(c.participants.size()); is_member = true;
+    });
+    if (removalReceiver.denied(caller) or isFenced(club_id)) return #Err("Club access changed");
+    #Ok(listed.concat(canonical))
   
     } finally { removalReceiver.leave(caller) };
   
@@ -2470,11 +2490,44 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     if (not valid(team_id)) return #Err("Invalid team id");
     var club_of_team = "";
-    for (m in groupMetadata.values()) { if (m.team_id == ?team_id) { club_of_team := Option.get(m.club_id, "") } };
+    // Canonical team chats need not have a GroupMetadata row. Locate their
+    // club from the original conversation before checking current membership.
+    for (c in conversations.values()) {
+      if (c.team_id == ?team_id and c.club_id != "dm") {
+        if (club_of_team != "" and club_of_team != c.club_id) return #Err("Conflicting team chat owners");
+        club_of_team := c.club_id;
+      };
+    };
+    for (meta in groupMetadata.values()) {
+      if (meta.team_id == ?team_id) {
+        let candidate = Option.get(meta.club_id, "");
+        if (candidate == "" or (club_of_team != "" and club_of_team != candidate)) return #Err("Conflicting team chat owners");
+        club_of_team := candidate;
+      };
+    };
+    if (club_of_team == "") return #Ok([]);
     await* requireChatClubMember(caller, club_of_team);
-    if (not canBrowseTeamGroups(caller, club_of_team, team_id)) return #Err("Team access forbidden");
-    let matches = groupMetadata.filter(func(m) = m.team_id == ?team_id and not m.deleted);
-    #Ok(Array.map<Types.GroupMetadata, Types.GroupSummary>(matches, func(m) = toGroupSummary(caller, m)))
+    let privileged = isGovernor(caller) or hasRole(caller, "app_admin", null, null) or
+      hasRole(caller, "club_admin", ?club_of_team, null) or
+      hasRole(caller, "team_admin", ?club_of_team, ?team_id) or
+      hasRole(caller, "coach", ?club_of_team, ?team_id);
+    let matches = groupMetadata.filter(func(meta) =
+      meta.team_id == ?team_id and meta.club_id == ?club_of_team and not meta.deleted and
+      (privileged or meta.members.any(func(p) = p.equal(caller)))
+    );
+    let listed = Array.map<Types.GroupMetadata, Types.GroupSummary>(matches, func(meta) = toGroupSummary(caller, meta));
+    let canonical = conversations.filter(func(c) =
+      c.team_id == ?team_id and c.club_id == club_of_team and
+      c.participants.any(func(p) = p.equal(caller)) and
+      not isGroupDeleted(c.id) and
+      not matches.any(func(meta) = meta.conversation_id == c.id)
+    ).map<Types.Conversation, Types.GroupSummary>(func(c) = {
+      conversation_id = c.id; name = "Team chat"; kind = "team";
+      club_id = ?club_of_team; team_id = ?team_id; avatar = null; description = null;
+      member_count = Nat32.fromNat(c.participants.size()); is_member = true;
+    });
+    if (removalReceiver.denied(caller) or isFenced(club_of_team)) return #Err("Team access changed");
+    #Ok(listed.concat(canonical))
   
     } finally { removalReceiver.leave(caller) };
   
