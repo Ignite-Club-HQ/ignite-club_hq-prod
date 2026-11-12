@@ -69,6 +69,14 @@ describe('general routing switch', () => {
     state.groups = [{ ...liveGroup('g2'), accepting: false }];
     await expect(routingActive(ctx)).rejects.toThrow('policy changed');
   });
+  it('does not reuse approval when any target domain changes on the same router', async () => {
+    state.snapshot = snapshot(); state.groups = [liveGroup('g2')];
+    expect(await routingActive(ctx)).toBe(true);
+    // @ts-expect-error -- deliberately narrow context fixture
+    const changed = { ...ctx, target: { ...ctx.target, canisterIds: { ...ctx.target.canisterIds, club_domain: 'new-domain' } } } as never;
+    expect(await routingActive(changed)).toBe(true);
+    expect(state.connect).toHaveBeenCalledTimes(2);
+  });
   it('keeps approval active after two ordinary club reservations advance the assignment revision', async () => {
     state.snapshot = snapshot(); state.groups = [liveGroup('g2')];
     state.revision = 8n; expect(await routingActive(ctx)).toBe(true);

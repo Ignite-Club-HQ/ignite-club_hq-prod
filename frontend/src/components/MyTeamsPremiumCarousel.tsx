@@ -1161,7 +1161,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       : (snapshot?.items ?? []),
   );
   const displayItems = isIcp
-    ? (inventoryReady ? scopedItems : [
+    ? (inventoryReady ? scopedItems.filter(item => item.type !== 'league' || hasSavedCards || eventsFetched) : [
       ...scopedItems.filter(item => item.type !== 'league' || hasSavedCards || eventsFetched),
       ...snapshotItems.filter(item => !scopedItems.some(fresh => fresh.type === item.type && fresh.id === item.id)
         && (item.type === "team" ? !isSuccess : !leagueInventory.isSuccess)),
