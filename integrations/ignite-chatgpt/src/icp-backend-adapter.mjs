@@ -61,7 +61,10 @@ function parseRows(data){
 }
 function paginationEnd(data){
   if(!data||!Array.isArray(data.clubs))deny("Invalid club membership response");
-  if(data.next!=null)deny("Club membership index requires pagination; refusing partial result");
+  // Candid opt None is encoded by JS actor bindings as []; Some(cursor)
+  // is [cursor]. Treat an unconsumed next page as incomplete authority.
+  if(data.next!=null && (!Array.isArray(data.next) || data.next.length!==0))
+    deny("Club membership index requires pagination; refusing partial result");
   return data.clubs.map(x=>ensureId(x,"club"));
 }
 export function createCallerIcpBackend({listDevGroups,resolveClubPlacement}={}){
