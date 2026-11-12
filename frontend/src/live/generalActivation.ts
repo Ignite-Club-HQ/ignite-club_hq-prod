@@ -18,6 +18,7 @@ import { withReadDeadline } from './readDeadline';
 import { ROUTING_GATES_SNAPSHOT } from './generated/routingGates';
 import type { RemovalWiringEvidence } from './groupRemovalWiring';
 import { groupApprovalConfiguration, approvalConfigurationSha256 } from './groupApproval';
+import { timeCarouselRead } from '@/lib/carouselReadTiming';
 
 export type RoutingGatesSnapshot = {
   approved: true;
@@ -52,7 +53,8 @@ export function clearGeneralRoutingCache() { generation++; cache = null; infligh
 export function cachedGeneralRoutingActive(): boolean { return cache?.value.active ?? false; }
 
 const keyFor = (ctx: FeatureBackendContext) => JSON.stringify([safePrincipal(ctx), ctx?.target?.alias ?? null,
-  ctx?.target?.host ?? null, ctx?.target?.networkKind ?? null, ctx?.target?.canisterIds?.shard_router ?? null]);
+  ctx?.target?.host ?? null, ctx?.target?.networkKind ?? null,
+  Object.entries(ctx?.target?.canisterIds ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
 const safePrincipal = (ctx?: FeatureBackendContext) => {
   try { return ctx?.identity?.getPrincipal?.().toText?.() ?? null; } catch { return null; }
 };
@@ -63,7 +65,7 @@ export async function generalRoutingStatus(ctx: FeatureBackendContext): Promise<
   if (cache && cache.key === key && Date.now() - cache.atMs < TTL_MS) return cache.value;
   // Concurrent callers on page load share one check (it reads the registry twice).
   if (inflight?.key !== key) {
-    const p = withReadDeadline(compute(ctx), 'Routing approval').finally(() => { if (inflight?.p === p) inflight = null; });
+    const p = timeCarouselRead('approval', () => withReadDeadline(compute(ctx), 'Routing approval')).finally(() => { if (inflight?.p === p) inflight = null; });
     inflight = { key, p };
   }
   const entry = inflight;
