@@ -271,9 +271,10 @@ async fn verify_active_g2_subject_read_fence(
     }
     let digest=active_g2_scope_evidence(&captured,version,ic_cdk::api::time())?;
     g2::validate_challenge(&digest,&r.challenge)?;
-    if r.challenge.recovery_epoch!=captured.scope.recovery_epoch ||
-        r.challenge.history_revision==0 || r.challenge.removal_generation==0 {
-        return Err("Current fenced G2 history required".into());
+    // A fresh account may legitimately have history/removal generation zero.
+    // The independently signed baseline enforces minimum generations.
+    if r.challenge.recovery_epoch!=captured.scope.recovery_epoch {
+        return Err("Current fenced G2 recovery epoch required".into());
     }
     if G2_READER_NONCES.with(|s|s.borrow().contains_key(&r.challenge.nonce)) {
         return Err("Replayed G2 account read challenge".into());
