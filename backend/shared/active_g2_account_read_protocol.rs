@@ -74,12 +74,11 @@ pub fn pinned_g2_signer() -> Result<VerifyingKey, String> {
 }
 /// Bind an independent signed G2 scope to the *actual* separately accepted
 /// recovery baseline, including its signature. No client-supplied digest.
-pub fn recovery_baseline_digest(
-    signed:&crate::recovery_protocol::SignedAcceptance,
-) -> Result<[u8;32],String> {
-    let bytes=candid::encode_one(signed).map_err(|_|"Invalid independent baseline encoding")?;
-    if bytes.len()>131_072 {return Err("Oversized recovery baseline".into());}
-    Ok(Sha256::digest(bytes).into())
+pub fn recovery_baseline_digest(encoded_signed_baseline:&[u8]) -> Result<[u8;32],String> {
+    if encoded_signed_baseline.len()<64 || encoded_signed_baseline.len()>131_072 {
+        return Err("Bounded independently signed recovery baseline required".into());
+    }
+    Ok(Sha256::digest(encoded_signed_baseline).into())
 }
 pub fn scope_signing_bytes(scope: &Scope) -> Result<Vec<u8>, String> {
     let encoded = candid::encode_one(scope).map_err(|_| "Invalid G2 scope encoding")?;
