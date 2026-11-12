@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {createIgniteHandlers, invokeIgniteTool, PluginAccessError, DEV_ORIGIN, TOOL_NAMES} from "./core.mjs";
+import {createIgniteHandlers, invokeIgniteTool, PluginAccessError, DEV_ORIGIN, TOOL_NAMES, APP_ONLY_TOOL_NAMES, invokeIgniteAppTool} from "./core.mjs";
 
 const principal = "mbrvi-lvde7-gdspi-hamp3-nxj43-p4tt6-at6q5-jlbit-eehve-7xqwc-wqe";
 const session = {oauthVerified:true, internetIdentityDelegationVerified:true,
@@ -11,6 +11,8 @@ const demo = {
   hasClubAccess: async (_s,club) => club === "club-1",
   hasTeamAccess: async (_s,c,t) => c === "club-1" && t === "team-1",
   hasConversationAccess: async (_s,c,t,chat) => c === "club-1" && t === "team-1" && chat === "chat-1",
+  canPostToConversation: async (_s,c,t,chat) => c === "club-1" && t === "team-1" && chat === "chat-1",
+  sendConversationMessage: async (session,c,t,chat,body,key) => ({id:"message-4",conversation_id:chat,body,sender:session.principal,idempotency_key:key,created_at_ms:1730000000000n}),
   listConversationMessages: async () => ({latest_sequence:3n,next_sequence:1n,messages:[
     {id:"msg-2",conversation_id:"chat-1",body:"Thanks",sender:principal,created_at_ms:200n,sequence:2n},
     {id:"msg-3",conversation_id:"chat-1",body:"Training tomorrow",sender:"other-principal",created_at_ms:300n,sequence:3n,attachment:{kind:"image",url:"private"}}
@@ -133,4 +135,68 @@ test("history does not accept absence of validated backend authority",async()=>{
   await denied(h.list_conversation_messages({club_id:"club-1",team_id:"team-1",conversation_id:"chat-1"}),"ACCESS_DENIED");
   const h2=setup({backend:{hasConversationAccess:undefined}});
   await denied(h2.list_conversation_messages({club_id:"club-1",team_id:"team-1",conversation_id:"chat-1"}),"NOT_AVAILABLE");
+});
+
+test("app-only Send is excluded from model tools and accepts exactly one authorized tap", async()=>{
+  const calls=[];
+  const h=setup({backend:{sendConversationMessage:async(session,c,t,chat,body,key)=>{
+    calls.push({session,c,t,chat,body,key});
+    return {id:"message-4",conversation_id:chat,body,sender:session.principal,idempotency_key:key,created_at_ms:1730000000000n};
+  }}});
+  assert.deepEqual(APP_ONLY_TOOL_NAMES,["send_team_message"]);
+  assert.equal(TOOL_NAMES.includes("send_team_message"),false);
+  const args={club_id:"club-1",team_id:"team-1",conversation_id:"chat-1",
+    body:"Please bring your boots tomorrow.",client_request_id:"fef5d3fc-9038-48d4-890c-4805d8fe773e"};
+  await denied(invokeIgniteTool(h,"send_team_message",args,{}),"UNKNOWN_TOOL");
+  const res=await invokeIgniteAppTool(h,"send_team_message",args,{});
+  assert.equal(res.status,"sent");
+  assert.equal(res.message.body,args.body);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].key,principal+":"+args.client_request_id);
+  assert.equal("idempotency_key" in res,false);
+});
+test("app-only send rejects forged principal, inappropriate conversation, blank body and invalid request IDs",async()=>{
+  const h=setup();
+  const good={club_id:"club-1",team_id:"team-1",conversation_id:"chat-1",body:"Hello!",
+    client_request_id:"fef5d3fc-9038-48d4-890c-4805d8fe773e"};
+  for(const supplied of [
+    {...good,principal},
+    {...good,club_id:"club-2"},
+    {...good,team_id:"team-2"},
+    {...good,conversation_id:"chat-2"},
+    {...good,body:"  "},
+    {...good,body:"x".repeat(2001)},
+    {...good,client_request_id:"00000000-0000-0000-0000-000000000000"}
+  ]) await denied(h.send_team_message(supplied),supplied.principal||supplied.body?.trim()===""||supplied.body?.length>2000||supplied.client_request_id?.startsWith("0000")?"INVALID_INPUT":"ACCESS_DENIED");
+});
+test("app-only send rejects posting-disabled and unverifiable replies, without retry",async()=>{
+  const good={club_id:"club-1",team_id:"team-1",conversation_id:"chat-1",body:"Hi",
+    client_request_id:"fef5d3fc-9038-48d4-890c-4805d8fe773e"};
+  let calls=0;
+  const h=setup({backend:{canPostToConversation:async()=>false,
+    sendConversationMessage:async()=>{calls++;throw Error("must not write")}}});
+  await denied(h.send_team_message(good),"ACCESS_DENIED");
+  assert.equal(calls,0);
+  const h2=setup({backend:{sendConversationMessage:async()=>{calls++;throw Error("Unknown outcome")}}});
+  await assert.rejects(h2.send_team_message(good),/Unknown outcome/);
+  assert.equal(calls,1);
+  for(const wrong of [
+    {conversation_id:"chat-2",body:"Hi",sender:principal},
+    {conversation_id:"chat-1",body:"Changed",sender:principal},
+    {conversation_id:"chat-1",body:"Hi",sender:"someone-else"}
+  ]) {
+    const x=setup({backend:{sendConversationMessage:async(_s,_c,_t,_ch,_body,key)=>
+      ({id:"message-4",idempotency_key:key,created_at_ms:1,...wrong})}});
+    await denied(x.send_team_message(good),"IDENTITY_MISMATCH");
+  }
+});
+test("expired authorization fails closed without even attempting a send", async()=>{
+  let calls=0;
+  const h=setup({resolveVerifiedSession:async()=>({...session,oauthVerified:false}),
+    backend:{sendConversationMessage:async()=>{calls++}}});
+  await denied(h.send_team_message({
+    club_id:"club-1",team_id:"team-1",conversation_id:"chat-1",body:"Hello",
+    client_request_id:"fef5d3fc-9038-48d4-890c-4805d8fe773e"
+  }),"NOT_CONNECTED");
+  assert.equal(calls,0);
 });
