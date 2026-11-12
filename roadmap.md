@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## ICP carousel repeated startup waits — 12 November
+- [ ] Remove league-wide waits from complete team-card reveal; save confirmed empty teams independently, preserve first-login card details and email behavior.
+- [ ] Reuse same-account/full-target approval and initial membership discovery without extra cold refreshes; retain fresh authorization checks.
+- [ ] Add bounded stage timing and regression coverage; physical-phone timing requires Paul's device. No PROD deployment authorized.
+
 
 ## Stuck GitHub release runs — 11 November 20:45 UTC
 - [x] Merge 24091ac's runs were created during GitHub's webhook incident (resolved 20:22 UTC) and never received jobs; cancel and delete both refuse them. Removed the August phantom test run. Netlify gate accepts a fresh push run.

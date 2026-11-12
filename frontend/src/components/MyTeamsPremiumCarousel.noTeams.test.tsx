@@ -21,6 +21,11 @@ vi.mock('@tanstack/react-query', () => ({ useQuery: (options: { queryKey: string
 } }));
 afterEach(() => { cleanup(); state.ready.mockClear(); state.saved = null; state.leagueError = false; });
 
+it('confirmed no teams settles immediately even while league discovery is pending', () => {
+  render(<MyTeamsPremiumCarousel onReadyChange={state.ready} />);
+  expect(state.ready).toHaveBeenLastCalledWith(true);
+});
+
 it('a member with no teams is not left on loading cards when a read fails', () => {
   state.leagueError = true;
   render(<MyTeamsPremiumCarousel onReadyChange={state.ready} />);

@@ -52,6 +52,12 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); });
 
 describe('mounted carousel resume data path', () => {
+  it('reveals and saves fully detailed teams without waiting for unrelated leagues', async () => {
+    m.items.mockImplementation((_ctx, _filter, options) => options?.inventory === 'leagues' ? new Promise(() => {}) : Promise.resolve(teams));
+    mount();
+    await screen.findByRole('button', { name: 'Team A — Club A' }, { timeout: 2500 });
+    await waitFor(() => expect(m.save).toHaveBeenCalledWith('paul', null, expect.objectContaining({ leaguesPending: true, items: teams.map(team => expect.objectContaining(team)) })));
+  });
   it('shows complete saved cards immediately while both inventories are suspended', () => {
     m.saved = { data: { items: teams }, timestamp: Date.now() - 2 * 86400000 };
     m.items.mockImplementation(() => new Promise(() => {}));
