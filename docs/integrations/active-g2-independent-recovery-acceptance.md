@@ -74,3 +74,13 @@ No release is authorised from this draft. No canisters or customer records have 
 - The repository's separate `auth-release-policy` CI job fails because the production workflow allowlist in `scripts/workflow-env-names.test.mjs` does not include an existing production rollout workflow. Do not broaden production workflow permission checks without a separate review.
 
 This is successful **isolated witness integration**, not a completed end-to-end onboarding, production authorisation, or permission to merge/deploy.
+
+## Genuine three-canister isolated acceptance (12 Nov 2026)
+
+- A **feature-gated, separately compiled** `identity_access` WASM and disposable Motoko `g2ChainProbe.mo` now exercise a real `club-side canister -> identity_access.read_linked_account -> recovery_witness.verify_active_g2_subject_read_fence` call. The probe uses a pinned Group 2 canister ID in a **local PocketIC replica** and runs with a signed-in user; it is not the full deployed `club_domain`.
+- CI run [43136956139](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/43136956139) reported **success** for isolated G2 witness tests and Rust security tests; the frontend was still running and unrelated repository-policy allowlist failed at observation. The test accepted a legitimate version-zero new account and rejected a distinct unregistered human.
+- Additional regression tests now reject the same club path after an independent account-removal record, plus a direct browser caller impersonating the G2 club. These additions need fresh CI confirmation.
+- **Production identity reader stays hard-disabled:** `ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED=false` and the standard build excludes `isolated-g2-chain-fixture`. The test fixture compiles only with `--features isolated-g2-chain-fixture` and `IGNITE_ISOLATED_G2_FIXTURE_BUILD=POCKETIC_ONLY_NOT_DEPLOYABLE`. Never pass either flag to any deploy/promotion workflow.
+- The fixture bypasses live router/receiver commissioning on purpose. It validates account identity and witness transport, **not** safe approval of live routing, signed inventory, governors, receiver admission, or ordinary release. No mainnet canisters or user data were changed.
+
+**Next:** independently review the feature-gated fixture's exclusion from every deployment/build path; run the actual Group 2 `club_domain.sync_my_linked_account` against a disposable reviewed receiver configuration; test suspended/erased account and concurrent unlink/removal while awaited calls are pending; separately fix unrelated workflow allowlist through production security review. Do not activate the new production reader until all gates are met.
