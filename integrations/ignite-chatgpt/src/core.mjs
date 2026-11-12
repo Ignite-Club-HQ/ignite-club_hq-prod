@@ -39,9 +39,12 @@ function secureSession(session) {
   }
   return session;
 }
+// App-only actions must not be registered as general model-visible tools.
+export const APP_ONLY_TOOL_NAMES = Object.freeze(["send_team_message"]);
+
 export const TOOL_NAMES = Object.freeze([
   "get_ignite_profile", "list_my_clubs", "list_my_teams",
-  "list_team_events", "list_conversations",
+  "list_team_events", "list_conversations", "list_conversation_messages",
 ]);
 
 export function createIgniteHandlers({resolveVerifiedSession, backend}) {
@@ -92,6 +95,126 @@ export function createIgniteHandlers({resolveVerifiedSession, backend}) {
           ends_at_ms: String(row.ends_at_ms), event_type: text(row.event_type, 48)}));
       return {club_id: club, team_id: team, events};
     },
+    // Caller-scoped, backwards-paged chat history. The account/principal is
+    // always taken from the trusted OAuth/Internet Identity session, never args.
+    // This is an app-only action, intended for an actual Send tap in an
+    // authenticated MCP Apps widget. The message stays within the verified
+    // caller's club/team/chat. A UI preview or model follow-up cannot call it
+    // through the read-only invokeIgniteTool dispatcher.
+    async send_team_message(args, extra) {
+      const {club_id, team_id, conversation_id, body, client_request_id} =
+        keys(args, ["club_id", "team_id", "conversation_id", "body", "client_request_id"]);
+      const club = id(club_id, "club ID");
+      const team = id(team_id, "team ID");
+      const conversation = id(conversation_id, "conversation ID");
+      if (typeof body !== "string" || !body.trim() || body.length > 2000 ||
+          new TextEncoder().encode(body).length > 4000) {
+        error("INVALID_INPUT", "Message must contain 1–2000 characters");
+      }
+      if (typeof client_request_id !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(client_request_id)) {
+        error("INVALID_INPUT", "Invalid message request ID");
+      }
+      const session = await sessionFor(extra);
+      if (!Array.isArray(session.scopes) || !session.scopes.includes("ignite:chat:send"))
+        error("ACCESS_DENIED", "Permission to send team messages is missing");
+      await clubAccess(session, club);
+      await teamAccess(session, club, team);
+      if (typeof backend.hasConversationAccess !== "function" ||
+          typeof backend.canPostToConversation !== "function" ||
+          typeof backend.sendConversationMessage !== "function") {
+        error("NOT_AVAILABLE", "Authenticated Ignite chat sending is not configured");
+      }
+      if ((await backend.hasConversationAccess(session, club, team, conversation)) !== true ||
+          (await backend.canPostToConversation(session, club, team, conversation)) !== true) {
+        error("ACCESS_DENIED", "You cannot post in this team chat");
+      }
+      // One deterministic 100-byte-or-less key for each caller-confirmed tap.
+      // The adaptor must use the SAME key for any recovery of an unknown result.
+      // It MUST use caller-signed ICP actors and must not auto-provision chats.
+      const idempotency_key = session.principal + ":" + client_request_id.toLowerCase();
+      if (idempotency_key.length > 128) error("INVALID_INPUT", "Message key too long");
+      const sent = obj(await backend.sendConversationMessage(
+        session, club, team, conversation, body, idempotency_key));
+      // The backend adapter must unwrap Candid #Ok before returning this value.
+      // Candid #Err, timeouts and missing replies must throw; never report Sent.
+      const messageId = id(sent.id, "sent message ID");
+      if (sent.conversation_id !== conversation || sent.sender !== session.principal ||
+          sent.body !== body || sent.idempotency_key !== idempotency_key) {
+        error("IDENTITY_MISMATCH", "Chat did not confirm the expected message");
+      }
+      return {status:"sent", club_id:club, team_id:team, conversation_id:conversation,
+        message:{id:messageId,body,created_at_ms:String(sent.created_at_ms)},
+        client_request_id};
+    },
+    async list_conversation_messages(args, extra) {
+      const {club_id, team_id, conversation_id, before_sequence, limit} =
+        keys(args, ["club_id", "team_id", "conversation_id", "before_sequence", "limit"]);
+      const club = id(club_id, "club ID"), team = id(team_id, "team ID");
+      const conversation = id(conversation_id, "conversation ID");
+      if (before_sequence != null &&
+          (typeof before_sequence !== "string" || !/^\d{1,20}$/.test(before_sequence) ||
+           BigInt(before_sequence) > 18446744073709551615n || BigInt(before_sequence) === 0n)) {
+        error("INVALID_INPUT", "Invalid message history cursor");
+      }
+      if (limit != null && (!Number.isInteger(limit) || limit < 1 || limit > 50)) {
+        error("INVALID_INPUT", "History page size must be 1-50");
+      }
+      const pageSize = limit ?? 25;
+      const session = await sessionFor(extra);
+      await clubAccess(session, club);
+      await teamAccess(session, club, team);
+      if (typeof backend.hasConversationAccess !== "function" ||
+          typeof backend.listConversationMessages !== "function") {
+        error("NOT_AVAILABLE", "Authenticated chat history is not configured");
+      }
+      if ((await backend.hasConversationAccess(session, club, team, conversation)) !== true) {
+        error("ACCESS_DENIED", "Conversation is not accessible to this account");
+      }
+      const page = obj(await backend.listConversationMessages(session, club, team, conversation,
+        before_sequence ?? null, pageSize));
+      if (!Array.isArray(page.messages) || page.messages.length > pageSize) {
+        error("INVALID_BACKEND_RESULT", "Invalid conversation page");
+      }
+      const cursor = (value, label) => {
+        if (value == null) return null;
+        const val = String(value);
+        if (!/^\d{1,20}$/.test(val) || BigInt(val) > 18446744073709551615n) {
+          error("INVALID_BACKEND_RESULT", `Invalid ${label}`);
+        }
+        return val;
+      };
+      const seen = new Set();
+      const messages = page.messages.map(row => {
+        const item = obj(row);
+        const messageId = id(item.id, "message ID");
+        const scopeId = id(item.conversation_id, "message conversation");
+        if (scopeId !== conversation || seen.has(messageId)) {
+          error("ACCESS_DENIED", "Conversation message scope mismatch");
+        }
+        seen.add(messageId);
+        if (typeof item.body !== "string" || item.body.length > 12000) {
+          error("INVALID_BACKEND_RESULT", "Invalid message body");
+        }
+        const author = id(item.sender, "message sender");
+        return {
+          id: messageId, body: item.body, conversation_id: conversation,
+          created_at_ms: cursor(item.created_at_ms, "message time"),
+          edited_at_ms: cursor(item.edited_at_ms, "edit time"),
+          sequence: cursor(item.sequence, "sequence"),
+          reply_to_id: item.reply_to_id == null ? null : id(item.reply_to_id, "reply ID"),
+          is_mine: author === session.principal,
+          sender_name: typeof item.sender_name === "string"
+            ? text(item.sender_name, 100) : author === session.principal ? "You" : "Team member",
+          attachment: item.attachment == null ? null :
+            {kind: text(obj(item.attachment).kind, 40)},
+        };
+      }).sort((a,b) => BigInt(a.sequence) < BigInt(b.sequence) ? -1 :
+                        BigInt(a.sequence) > BigInt(b.sequence) ? 1 : 0);
+      return {club_id:club, team_id:team, conversation_id:conversation,
+        messages, latest_sequence:cursor(page.latest_sequence, "latest sequence"),
+        next_sequence:cursor(page.next_sequence, "next sequence")};
+    },
     async list_conversations(args, extra) {
       const {club_id, team_id} = keys(args, ["club_id", "team_id"]);
       const club = id(club_id, "club ID"), team = team_id == null ? null : id(team_id, "team ID");
@@ -109,5 +232,15 @@ export function createIgniteHandlers({resolveVerifiedSession, backend}) {
 
 export async function invokeIgniteTool(handlers, name, args, extra) {
   if (!TOOL_NAMES.includes(name) || typeof handlers?.[name] !== "function") error("UNKNOWN_TOOL", "Unsupported Ignite action");
+  return handlers[name](args, extra);
+}
+
+
+/** App-visibility only. The hosted MCP descriptor must specify
+ * _meta.ui.visibility ["app"], never list this as a model-visible tool.
+ * A tap on Send is the user's explicit action; there is no chat follow-up. */
+export async function invokeIgniteAppTool(handlers, name, args, extra) {
+  if (!APP_ONLY_TOOL_NAMES.includes(name) || typeof handlers?.[name] !== "function")
+    error("UNKNOWN_TOOL", "Unsupported Ignite app action");
   return handlers[name](args, extra);
 }

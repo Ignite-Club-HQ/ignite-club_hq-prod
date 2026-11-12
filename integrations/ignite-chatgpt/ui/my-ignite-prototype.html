@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>My Ignite — interactive MCP Apps UX prototype</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#243343;background:#f5f7fa;font-size:15px}
+*{box-sizing:border-box}body{margin:0}.shell{max-width:720px;margin:auto;padding:16px}
+header,.row{display:flex;align-items:center;gap:12px}header{justify-content:space-between;margin-bottom:16px}
+.brand{font-weight:800;font-size:1.2rem;color:#122e49}.muted{color:#647589;font-size:.86rem}.tag{border:1px solid #ffcb93;background:#fff6ec;color:#86520f;border-radius:50px;padding:5px 10px;font-size:.76rem}
+.card{background:white;border:1px solid #dbe3eb;border-radius:16px;padding:17px;margin:10px 0;box-shadow:0 1px 4px #13283b0a}
+h1,h2,h3,p{margin:0 0 8px}h1{font-size:1.5rem}h2{font-size:1.03rem}h3{font-size:.95rem}
+.topline{display:flex;justify-content:space-between;gap:8px;align-items:center}.success{color:#236842;font-weight:650}
+.tabs,.quick,.rsvp{display:flex;gap:8px;flex-wrap:wrap}button{font:inherit;border:1px solid #d1dbe4;border-radius:12px;background:#fff;color:#203648;padding:10px 13px;cursor:pointer;font-weight:600;min-height:42px}
+button:hover{border-color:#668aa6}button:focus-visible,textarea:focus-visible{outline:3px solid #82c8ed;outline-offset:2px}
+button[aria-pressed="true"],.primary{background:#173f66;color:white;border-color:#173f66}
+button:disabled{opacity:.45;cursor:not-allowed}.quick button{flex:1;min-width:130px;text-align:left}
+.rsvp button{font-size:.87rem;flex:1;min-width:100px}.event{padding:13px 0;border-top:1px solid #e7ecf0}
+.event:first-of-type{border:0}.time{font-weight:700}.sub{font-size:.85rem;color:#637488;margin-top:4px}
+.pill{display:inline-block;font-size:.78rem;padding:4px 9px;border-radius:100px;background:#edf4fc;color:#184a72}
+.messages{display:grid;gap:10px;max-height:220px;overflow:auto;padding:8px 0 18px}
+.bubble{max-width:84%;background:#eef2f6;padding:10px 13px;border-radius:14px 14px 14px 4px;line-height:1.4}
+.bubble.mine{margin-left:auto;background:#e0edf8;border-radius:14px 14px 4px 14px}
+small{color:#617386}textarea{width:100%;border:1px solid #cfdce6;border-radius:12px;background:#fff;color:#1b3448;resize:vertical;min-height:80px;padding:12px;font:inherit}
+.actions{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.notice{border-left:3px solid #dc9030;background:#fff9ef;color:#65491d;padding:10px 12px;border-radius:7px;margin-top:11px;font-size:.85rem}
+
+.chattools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}.chattools button{min-height:38px;font-size:.83rem}.chatsearch{flex:1;min-width:130px;padding:10px;border-radius:10px;border:1px solid #d1dbe4;background:transparent;color:inherit;font:inherit}.message-window{height:320px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:10px;border:1px solid #e4eaf0;border-radius:13px;padding:12px;background:#f9fafb}.bubble{overflow-wrap:anywhere;white-space:pre-wrap}.chat-date{text-align:center;color:#647589;font-size:.78rem;margin:6px 0}.message-meta{font-size:.73rem;color:#647589;margin-top:6px}.msg-attachment{font-size:.78rem;border:1px dashed #a8baca;border-radius:8px;padding:6px;margin-top:6px}.history-loading{min-height:41px;width:100%}.chat-empty{color:#647589;text-align:center;padding:20px}.chatinfo{font-size:.82rem;color:#647589;margin:8px 0}.conversation-switch{margin-top:5px} .conversation-switch select{width:100%;padding:11px;border:1px solid #d1dbe4;border-radius:10px;background:transparent;color:inherit;font:inherit}
+@media(prefers-color-scheme:dark){.message-window{background:#162433;border-color:#344659}.chatsearch,.conversation-switch select{border-color:#456078;color:#e6edf6}.chat-date,.message-meta,.chatinfo,.chat-empty{color:#a0b4c5}}
+#review{padding:13px;border:1px solid #becddb;border-radius:12px;margin-top:12px;white-space:pre-wrap;word-break:break-word}
+
+.shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}
+.shortcut{display:flex;gap:10px;align-items:center;min-width:0;padding:13px;border:1px solid #d1dbe4;border-radius:13px;background:#fff;color:#173c5c;text-decoration:none;min-height:69px}
+.shortcut:hover{border-color:#668aa6;background:#f5faff}.shortcut:focus-visible,.storelink:focus-visible{outline:3px solid #82c8ed;outline-offset:2px}
+.shortcut .emoji{font-size:1.35rem;flex-shrink:0}.shortcut strong,.shortcut small{display:block}.shortcut strong{font-size:.9rem}.shortcut small{font-size:.74rem;line-height:1.35;margin-top:3px}
+.storelinks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}
+.storelink{min-height:52px;border:1px solid #d1dbe4;border-radius:12px;text-decoration:none;color:#173c5c;background:#fff;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;font-weight:700;text-align:center}
+.storelink:hover{border-color:#668aa6;background:#f5faff}.hint{margin-top:10px;font-size:.79rem;color:#647589}
+@media(max-width:400px){.storelinks{grid-template-columns:1fr}.shortcuts{gap:7px}.shortcut{padding:10px}}
+@media(prefers-color-scheme:dark){.shortcut,.storelink{background:#203447;border-color:#456078;color:#e6edf6}.shortcut:hover,.storelink:hover{background:#2b4763}.hint{color:#a0b4c5}}
+
+[hidden]{display:none!important}
+@media(prefers-color-scheme:dark){:root{color:#e6edf6;background:#131d28}.brand{color:#e6edf6}.card{background:#1a2938;border-color:#344659}button,textarea{background:#203447;border-color:#456078;color:#eaf1f8}button[aria-pressed=true],.primary{background:#386a9b}.sub,.muted,small{color:#a0b4c5}.event{border-color:#344659}.pill{background:#1c4360;color:#d9ebff}.bubble{background:#263d51}.bubble.mine{background:#245878}.tag{background:#473a24;color:#ffdb9d;border-color:#735e35}.notice{background:#49381f;color:#ffdea9}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <span class="brand">🔥 Ignite Club HQ</span>
+    <span class="tag">UX PROTOTYPE · sample data</span>
+  </header>
+  <section class="card" aria-label="Team overview">
+    <div class="topline"><p class="muted">MY TEAM</p><span class="success">● Connected (demo)</span></div>
+    <h1>Riverdogs · U8 Rockets</h1>
+    <p class="muted">Pick an action below. No live changes are possible in this prototype.</p>
+    <div class="quick" aria-label="Quick actions">
+      <button type="button" data-view="schedule">📅 View schedule</button>
+      <button type="button" data-view="chat">💬 Team chat</button>
+      <button type="button" data-view="rsvp">✅ Quick RSVP</button>
+    </div>
+  </section>
+  <section class="card" aria-label="Explore more Ignite features">
+    <div class="topline"><h2>Explore Ignite</h2><span class="pill">Open in DEV</span></div>
+    <p class="muted">Go straight to other parts of your club's app.</p>
+    <div class="shortcuts" aria-label="Club feature links">
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/media" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">📸</span><span><strong>Gallery ↗</strong><small>Photos &amp; videos</small></span></a>
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/news" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">📰</span><span><strong>Club news ↗</strong><small>Updates &amp; announcements</small></span></a>
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/vault" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">📁</span><span><strong>File vault ↗</strong><small>Team files &amp; documents</small></span></a>
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/events" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">🗓️</span><span><strong>All events ↗</strong><small>Fixtures &amp; training</small></span></a>
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/teams/5ece6fc0-f2a8-4295-86e7-e71775d243f8" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">⚽</span><span><strong>Team page ↗</strong><small>Riverdogs U8 Rockets</small></span></a>
+      <a class="shortcut" href="https://ignite-club-launchpad.lovable.app/clubs/f9f7d89c-a51f-454d-af8e-b976c10d2fc4/rewards" target="_blank" rel="noopener noreferrer"><span class="emoji" aria-hidden="true">🏅</span><span><strong>Rewards ↗</strong><small>May require Pro access</small></span></a>
+    </div>
+    <p class="hint">These links open Ignite DEV and may ask you to sign in. Available content and premium features depend on your club permissions and subscription.</p>
+  </section>
+  <section class="card" aria-label="Get the mobile Ignite app">
+    <h2>Take Ignite with you</h2>
+    <p class="muted">Use Ignite on your iPhone or Android phone.</p>
+    <div class="storelinks">
+      <a class="storelink" href="https://apps.apple.com/au/app/ignite-club-hq/id6758928691" target="_blank" rel="noopener noreferrer" aria-label="Ignite Club HQ on Apple App Store"><span aria-hidden="true">🍎</span> App Store ↗</a>
+      <a class="storelink" href="https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub" target="_blank" rel="noopener noreferrer" aria-label="Ignite Club HQ on Google Play"><span aria-hidden="true">▶️</span> Google Play ↗</a>
+    </div>
+    <p class="hint">The store links open the published mobile apps, not the Ignite DEV test environment.</p>
+  </section>
+  <nav class="tabs" aria-label="Sections">
+    <button type="button" id="tab-schedule" data-view="schedule" aria-pressed="true">Schedule</button>
+    <button type="button" id="tab-chat" data-view="chat" aria-pressed="false">Chat</button>
+  </nav>
+  <section id="schedule" class="card" aria-label="Team schedule">
+    <div class="topline"><h2>Upcoming events</h2><span class="pill">Sample events</span></div>
+    <article class="event">
+      <div class="time">Saturday · 9:00 am</div>
+      <h3>Match vs Hills United</h3>
+      <p class="sub">Bridgewater Oval · Arrive at 8:30 am</p>
+      <p class="muted" style="margin-top:13px">Your RSVP</p>
+      <div class="rsvp" role="group" aria-label="RSVP to sample match">
+        <button type="button" data-rsvp="Going" aria-pressed="false">✓ Going</button>
+        <button type="button" data-rsvp="Maybe" aria-pressed="false">? Maybe</button>
+        <button type="button" data-rsvp="Can't attend" aria-pressed="false">✕ Can't attend</button>
+      </div>
+      <div id="rsvp-preview" class="notice" role="status" hidden></div>
+    </article>
+    <article class="event">
+      <div class="time">Wednesday · 4:30 pm</div>
+      <h3>Training</h3>
+      <p class="sub">Main training pitch</p>
+    </article>
+  </section>
+  <section id="chat" class="card" aria-label="Team chat" hidden>
+    <div class="topline"><h2>Team chat</h2><span class="pill">Demo history</span></div>
+    <div class="conversation-switch">
+      <label for="conversation"><strong>Conversation</strong></label>
+      <select id="conversation" aria-label="Choose a conversation">
+        <option value="rockets">U8 Rockets · Team chat</option>
+        <option value="practice">U8 Rockets · Training group (sample)</option>
+      </select>
+    </div>
+    <div class="chattools">
+      <button type="button" class="history-loading" id="loadOlder">↑ Load earlier messages</button>
+      <input class="chatsearch" id="chatSearch" placeholder="Search loaded messages" aria-label="Search loaded messages">
+      <button type="button" id="refreshChat">↻ Refresh</button>
+    </div>
+    <div class="chatinfo" id="historyStatus" role="status">Showing locally stored sample messages. Use Load earlier messages to browse the demo history.</div>
+    <div class="message-window" id="messageWindow" role="log" aria-live="polite" aria-label="Team chat message history">
+      <div class="chat-empty">Loading sample conversation…</div>
+    </div>
+    <div class="actions">
+      <button type="button" id="jumpNewest">↓ Latest messages</button>
+    </div>
+    <label for="message"><strong>Message the team</strong></label>
+    <textarea id="message" maxlength="2000" placeholder="Type a message to your team…"></textarea>
+    <div class="actions">
+      <button type="button" class="primary" id="reviewBtn">Review message</button>
+      <button type="button" id="sendBtn" disabled aria-label="Send to verified team chat">Send</button>
+    </div>
+    <div class="chatinfo" id="sendStatus" role="status" aria-live="polite">Send is unavailable in this static prototype. The live MCP App will send directly without a new ChatGPT message.</div>
+    <div id="review" role="status" hidden></div>
+  </section>
+  <p class="notice"><strong>Prototype only:</strong> The event and messages above are fictional examples. RSVP choices and drafted messages remain in this browser view; nothing is saved or sent to Ignite DEV. Live actions require an authenticated Ignite MCP tool with server-side role checks and confirmed readback.</p>
+</div>
+<script>
+(() => {
+  const $=id=>document.getElementById(id);
+  const show=view=>{
+    const target=view==="rsvp"?"schedule":view;
+    ["schedule","chat"].forEach(x=>{
+      $(x).hidden=x!==target;
+      $("tab-"+x).setAttribute("aria-pressed",String(x===target));
+    });
+    if(view==="rsvp") document.querySelector("[data-rsvp]").focus();
+    if(view==="chat") $("message").focus();
+  };
+  document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>show(b.dataset.view)));
+  document.querySelectorAll("[data-rsvp]").forEach(b=>b.addEventListener("click",()=>{
+    document.querySelectorAll("[data-rsvp]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+    $("rsvp-preview").hidden=false;
+    $("rsvp-preview").textContent="RSVP preview: "+b.dataset.rsvp+". Not saved — live RSVP controls are not yet connected.";
+  }));
+  // Source-only history demo. In a deployed MCP App, replace this fixture
+  // adapter with a caller-scoped list_conversation_messages tool response.
+  const history={
+    rockets:[
+      {id:"r1",sender:"Coach",mine:false,day:"Mon 2 Nov",time:"5:15 pm",body:"Next week we have the team photo. Please bring your club shirt."},
+      {id:"r2",sender:"Parent",mine:false,day:"Tue 3 Nov",time:"9:12 am",body:"Thanks for the reminder."},
+      {id:"r3",sender:"You",mine:true,day:"Tue 3 Nov",time:"9:20 am",body:"Will do!"},
+      {id:"r4",sender:"Coach",mine:false,day:"Wed 4 Nov",time:"4:30 pm",body:"Training is on despite the light drizzle."},
+      {id:"r5",sender:"Coach",mine:false,day:"Fri 6 Nov",time:"6:00 pm",body:"Remember shin pads for tomorrow."},
+      {id:"r6",sender:"Parent",mine:false,day:"Sat 7 Nov",time:"8:13 am",body:"We are running about 5 minutes late."},
+      {id:"r7",sender:"You",mine:true,day:"Sat 7 Nov",time:"8:21 am",body:"Thanks, see you at the ground!"},
+      {id:"r8",sender:"Coach",mine:false,day:"Mon 9 Nov",time:"5:00 pm",body:"Thanks everyone for a great match on the weekend."}
+    ],
+    practice:[
+      {id:"p1",sender:"Coach",mine:false,day:"Wed 4 Nov",time:"3:30 pm",body:"Dribbling and passing drills at training today."},
+      {id:"p2",sender:"You",mine:true,day:"Wed 4 Nov",time:"3:35 pm",body:"See you there."}
+    ]
+  };
+  const viewState={conversation:"rockets",displayed:[],olderIndex:0,pageSize:3};
+  function escapeContent(value){return String(value).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  function bubbleMarkup(m){return '<div class="bubble'+(m.mine?' mine':'')+'"><strong>'+
+    escapeContent(m.sender)+'</strong><div>'+escapeContent(m.body)+'</div><div class="message-meta">'+
+    escapeContent(m.day+' · '+m.time)+'</div></div>';}
+  function renderHistory({keepScroll=false}={}){
+    const el=$("messageWindow"), beforeHeight=el.scrollHeight, beforeTop=el.scrollTop;
+    const query=$("chatSearch").value.trim().toLocaleLowerCase();
+    const messages=viewState.displayed.filter(m=>!query||[m.sender,m.body].some(v=>v.toLocaleLowerCase().includes(query)));
+    let prevDay="";
+    el.innerHTML=messages.map(m=>{
+      const heading=m.day!==prevDay?'<div class="chat-date">'+escapeContent(m.day)+'</div>':"";
+      prevDay=m.day;
+      return heading+bubbleMarkup(m);
+    }).join("")||'<div class="chat-empty">No messages found in the loaded history.</div>';
+    if(keepScroll&&!query)el.scrollTop=beforeTop+el.scrollHeight-beforeHeight;
+    else if(!query)el.scrollTop=el.scrollHeight;
+    const full=history[viewState.conversation];
+    $("loadOlder").disabled=viewState.olderIndex===0;
+    $("loadOlder").textContent=viewState.olderIndex===0?"All sample history loaded":"↑ Load earlier messages";
+    $("historyStatus").textContent="Showing "+viewState.displayed.length+" of "+full.length+
+      " sample messages"+(viewState.olderIndex===0?". You've reached the beginning of this demo chat.":". Older messages are available.");
+  }
+  function openHistory(conversation){
+    viewState.conversation=conversation;
+    const full=history[conversation];
+    viewState.olderIndex=Math.max(0,full.length-viewState.pageSize);
+    viewState.displayed=full.slice(viewState.olderIndex);
+    $("chatSearch").value="";
+    renderHistory();
+  }
+  $("loadOlder").addEventListener("click",()=>{
+    if(viewState.olderIndex===0)return;
+    const all=history[viewState.conversation];
+    viewState.olderIndex=Math.max(0,viewState.olderIndex-viewState.pageSize);
+    viewState.displayed=all.slice(viewState.olderIndex);
+    renderHistory({keepScroll:true});
+  });
+  $("chatSearch").addEventListener("input",()=>renderHistory({keepScroll:true}));
+  $("refreshChat").addEventListener("click",()=>openHistory(viewState.conversation));
+  $("jumpNewest").addEventListener("click",()=>{$("messageWindow").scrollTop=$("messageWindow").scrollHeight;});
+  $("conversation").addEventListener("change",e=>openHistory(e.target.value));
+  openHistory("rockets");
+
+  // The installed skills-only pilot cannot provide a direct Send action.
+  // The eventual MCP App registers send_team_message with visibility ["app"]
+  // and returns a caller-scoped server result through this host bridge.
+  const callTool=window.openai?.callTool?.bind(window.openai);
+  const send=$("sendBtn"), sendStatus=$("sendStatus");
+  let pendingSend=null;
+  if (callTool) {
+    send.disabled=false;
+    sendStatus.textContent="Messages are sent only when you tap Send. An authorized MCP connection is required.";
+  }
+  $("message").addEventListener("input",()=>{
+    if (!pendingSend) return;
+    // A failed/unknown send must not be resubmitted with a new key.
+    // Editing the text is a *new* draft, not a retry of the old request.
+    pendingSend=null;
+  });
+  send.addEventListener("click",async()=>{
+    if (!callTool || send.disabled) return;
+    const body=$("message").value;
+    if (!body.trim() || body.length>2000) {
+      sendStatus.textContent="Enter a message (up to 2,000 characters).";return;
+    }
+    if (pendingSend?.status==="unknown" && pendingSend.body===body) {
+      sendStatus.textContent="Delivery is unconfirmed. Refresh the chat before trying again to avoid duplicates.";
+      return;
+    }
+    // These are fixture values in this static prototype, NEVER real user
+    // metadata. The deployed widget must use verified structuredContent from
+    // the current authenticated My Ignite tool, not a hard-coded demo room.
+    const verified=window.__igniteVerifiedContext;
+    if (!verified?.club_id || !verified?.team_id || !verified?.conversation_id ||
+        verified?.environment!=="dev" || verified?.can_send!==true) {
+      sendStatus.textContent="Direct sending requires a verified Ignite DEV chat connection.";
+      return;
+    }
+    const key=crypto.randomUUID();
+    pendingSend={body,key,status:"sending",room:verified.conversation_id};
+    send.disabled=true;
+    sendStatus.textContent="Sending…";
+    try {
+      const result=await callTool("send_team_message",{
+        club_id:verified.club_id,team_id:verified.team_id,
+        conversation_id:verified.conversation_id,
+        body,client_request_id:key,
+      });
+      if (result?.isError) throw Error("Send was not confirmed");
+      const payload=result?.structuredContent ??
+        (result?.content?.find?.(x=>x.type==="text")?.text &&
+         JSON.parse(result.content.find(x=>x.type==="text").text));
+      if (payload?.status!=="sent" || payload?.conversation_id!==verified.conversation_id ||
+          payload?.message?.body!==body || payload?.client_request_id!==key) {
+        throw Error("Send was not confirmed");
+      }
+      pendingSend={body,key,status:"sent",room:verified.conversation_id};
+      $("message").value="";
+      sendStatus.textContent="Sent ✓";
+      // Reopen a fresh authorized chat page asynchronously, preserving
+      // normal host error handling; the server is authoritative on history.
+    } catch(err) {
+      pendingSend={body,key,status:"unknown",room:verified.conversation_id};
+      sendStatus.textContent="Delivery not confirmed. Refresh the chat before sending again.";
+    } finally {
+      send.disabled=false;
+    }
+  });
+  $("reviewBtn").addEventListener("click",()=>{
+    const body=$("message").value.trim();
+    $("review").hidden=false;
+    $("review").textContent=body?("Message draft (not sent):\n"+body):"Type a message before reviewing.";
+  });
+})();
+</script>
+</body>
+</html>

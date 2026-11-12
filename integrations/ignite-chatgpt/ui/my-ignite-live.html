@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Ignite DEV · Team chat</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#24384a;background:#fafcfe;font-size:14px}
+*{box-sizing:border-box}body{margin:0}.app{max-width:760px;margin:auto;padding:14px}
+header{display:flex;gap:12px;align-items:center;justify-content:space-between}
+h1{font-size:1.25rem;margin:8px 0}.muted,small{color:#6b7a89}.pill{font-size:11px;background:#fff3db;color:#795106;padding:5px 9px;border-radius:20px}
+.toolbar,.compose-row{display:flex;gap:8px;align-items:center;margin:9px 0}
+button{background:#fff;border:1px solid #bdcad6;border-radius:12px;min-height:42px;padding:9px 12px;font:inherit;cursor:pointer}
+button[disabled]{opacity:.45;cursor:not-allowed}button:focus-visible,textarea:focus-visible{outline:3px solid #77bbe8}
+#send{background:#175783;color:white;border-color:#175783;font-weight:700}
+#history{height:350px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding:14px;background:#f0f4f8;border-radius:14px;overscroll-behavior:contain}
+.bubble{background:#fff;padding:10px 12px;border-radius:12px;max-width:85%;align-self:flex-start;white-space:pre-wrap;overflow-wrap:anywhere}
+.bubble.mine{align-self:flex-end;background:#dcecf7}
+.sender{font-weight:700;font-size:12px}.timestamp{font-size:11px;color:#63778b;margin-top:5px}
+#draft{min-height:60px;max-height:160px;resize:vertical;flex:1;font:inherit;background:#fff;color:#223748;padding:12px;border:1px solid #bdcad6;border-radius:12px}
+#status{min-height:24px;margin:7px 0}.error{color:#a63d2c}.success{color:#12653f}.note{font-size:11px;color:#698092}
+.external{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}.external a{color:inherit;border:1px solid #bdcad6;border-radius:10px;padding:9px 12px;text-decoration:none}
+@media(prefers-color-scheme:dark){:root{background:#151f2c;color:#e5edf5}.pill{background:#4e3d22;color:#fbd592}button,#draft{background:#243549;color:#e5edf5;border-color:#577087}#history{background:#1c2e40}.bubble{background:#304457}.bubble.mine{background:#1b5078}.timestamp,.muted,.note{color:#b3c0ce}}
+</style></head><body>
+<main class="app">
+<header><div><small>MY IGNITE · DEV</small><h1 id="heading">Team chat</h1></div><span class="pill">Private pilot</span></header>
+<div class="toolbar"><button id="older" disabled>↑ Load earlier</button><button id="refresh" disabled>↻ Refresh</button></div>
+<div id="history" role="log" aria-live="polite"><p class="muted">Connecting to your team chat…</p></div>
+<div id="status" role="status">Waiting for verified Ignite connection</div>
+<label for="draft"><strong>Message the team</strong></label>
+<div class="compose-row"><textarea id="draft" maxlength="2000" placeholder="Write a message…"></textarea><button id="send" disabled>Send</button></div>
+<p class="note">Messages are sent only when you tap Send. Delivery status is verified by the Ignite server. No ChatGPT follow-up message is created.</p>
+<div class="external">
+<a id="appchat" href="https://ignite-club-launchpad.lovable.app/messages" target="_blank" rel="noopener">Open in Ignite DEV</a>
+<a href="https://ignite-club-launchpad.lovable.app/media" target="_blank" rel="noopener">Gallery</a>
+<a href="https://ignite-club-launchpad.lovable.app/news" target="_blank" rel="noopener">News</a>
+<a href="https://ignite-club-launchpad.lovable.app/vault" target="_blank" rel="noopener">File vault</a>
+<a href="https://igniteclubhq.com/get/ios" target="_blank" rel="noopener">iOS</a>
+<a href="https://igniteclubhq.com/get/android" target="_blank" rel="noopener">Android</a>
+</div>
+</main>
+<script>
+(()=>{
+"use strict";
+const $=id=>document.getElementById(id);
+const host=window.openai;
+let ctx=null, history=[], cursor=null, sending=false, unknown=null;
+const status=(message,type="")=>{$("status").textContent=message;$("status").className=type;};
+function toolResult(r){
+  if(!r||r.isError)throw Error("Ignite request was not confirmed");
+  if(r.structuredContent && typeof r.structuredContent==="object")return r.structuredContent;
+  const x=r.content?.find?.(it=>it.type==="text")?.text;
+  if(x){try{return JSON.parse(x);}catch{}}
+  throw Error("Missing Ignite tool result");
+}
+function safeText(v){return typeof v==="string"?v:"";}
+function escape(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function dateTime(ms){let n=Number(ms);if(!Number.isFinite(n)||n<1)return "";return new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(n));}
+function render(keepScroll=false){
+  const pane=$("history"),prevHeight=pane.scrollHeight,prevTop=pane.scrollTop;
+  pane.innerHTML=history.map(m=>{
+    const body=/^\[poll:[^\]]+\]$/.test(m.body)?"📊 Shared poll (open in Ignite for details)":m.body;
+    const attachment=m.attachment ? "<div class='timestamp'>Attachment: "+escape(m.attachment.kind)+"</div>":"";
+    return "<div class='bubble"+(m.is_mine?" mine":"")+"'><div class='sender'>"+
+      escape(m.sender_name|| (m.is_mine?"You":"Team member"))+"</div><div>"+
+      escape(body)+"</div>"+attachment+"<div class='timestamp'>"+
+      escape(dateTime(m.created_at_ms)+(m.edited_at_ms?" · edited":""))+"</div></div>";
+  }).join("")||"<p class='muted'>No messages yet.</p>";
+  pane.scrollTop=keepScroll?prevTop+pane.scrollHeight-prevHeight:pane.scrollHeight;
+  $("older").disabled=!cursor;$("refresh").disabled=!ctx;
+}
+function merge(items){
+  const all=new Map(history.map(m=>[m.id,m]));
+  for(const m of items||[])if(m&&typeof m.id==="string")all.set(m.id,m);
+  history=[...all.values()].sort((a,b)=>BigInt(a.sequence)<BigInt(b.sequence)?-1:BigInt(a.sequence)>BigInt(b.sequence)?1:0);
+}
+function establish(result){
+  const data=toolResult(result);
+  if(!data||data.environment!=="dev"||!data.club_id||!data.team_id||!data.conversation_id) {
+    status("The chat session could not be verified.","error");return;
+  }
+  ctx={club_id:data.club_id,team_id:data.team_id,conversation_id:data.conversation_id,can_send:data.can_send===true};
+  $("heading").textContent="Team chat";
+  $("appchat").href="https://ignite-club-launchpad.lovable.app/messages/"+encodeURIComponent(ctx.team_id);
+  history=[];merge(data.messages);
+  cursor=data.next_sequence??null;render();
+  status(ctx.can_send?"Connected · Ready to send":"Connected · Read-only");
+  $("send").disabled=!ctx.can_send;
+}
+async function call(name,params){
+  if(!host?.callTool)throw Error("ChatGPT direct tool calls are unavailable");
+  return toolResult(await host.callTool(name,params));
+}
+async function loadPage(before=null){
+  if(!ctx)return;
+  const r=await call("list_conversation_messages",{...ctx, ...(before===null?{}:{before_sequence:before}),limit:20});
+  if(r.conversation_id!==ctx.conversation_id)throw Error("Wrong conversation");
+  merge(r.messages);
+  cursor=r.next_sequence??null;render(before!==null);
+}
+$("older").addEventListener("click",async()=>{
+  if(!ctx||!cursor)return;const next=cursor;$("older").disabled=true;
+  try{await loadPage(next);status("Older messages loaded");}
+  catch{status("Couldn't load earlier messages. Try again.","error");$("older").disabled=false;}
+});
+$("refresh").addEventListener("click",async()=>{
+  if(!ctx)return;$("refresh").disabled=true;
+  try{await loadPage();status("Chat refreshed");unknown=null;}
+  catch{status("Couldn't refresh the chat.","error");}
+  finally{$("refresh").disabled=false;}
+});
+$("send").addEventListener("click",async()=>{
+  if(!ctx?.can_send||sending)return;
+  const body=$("draft").value;
+  if(!body.trim()||body.length>2000){status("Enter a message (1–2,000 characters)","error");return;}
+  if(unknown?.body===body){status("Delivery unconfirmed. Refresh before sending again to avoid duplicates.","error");return;}
+  const requestId=crypto.randomUUID();sending=true;$("send").disabled=true;status("Sending…");
+  try{
+    const result=await call("send_team_message",{club_id:ctx.club_id,team_id:ctx.team_id,
+      conversation_id:ctx.conversation_id,body,client_request_id:requestId});
+    if(result.status!=="sent"||result.conversation_id!==ctx.conversation_id||
+      result.message?.body!==body||result.client_request_id!==requestId)
+      throw Error("Unexpected send result");
+    $("draft").value="";unknown=null;status("Sent ✓","success");
+    // A new authorized read confirms the newly accepted message and timeline.
+    try{await loadPage();}catch{status("Sent ✓ · Refresh to update history","success");}
+  }catch{
+    unknown={body,requestId};status("Delivery not confirmed. Refresh before trying again.","error");
+  }finally{sending=false;$("send").disabled=!ctx.can_send;}
+});
+$("draft").addEventListener("input",()=>{
+  if(unknown?.body!==$("draft").value)unknown=null;
+});
+// ChatGPT compatibility bridge. For full MCP Apps portability, replace with
+// @modelcontextprotocol/ext-apps onToolResult and callServerTool on deployment.
+if(host?.toolOutput){try{establish({structuredContent:host.toolOutput});}catch{status("Chat could not be loaded","error");}}
+else status("Open this chat using the authenticated Ignite MCP tool.");
+window.addEventListener("openai:set_globals",e=>{
+  if(e.detail?.globals?.toolOutput)try{establish({structuredContent:e.detail.globals.toolOutput});}catch{status("Chat could not be loaded","error");}
+});
+})();
+</script>
+</body></html>
