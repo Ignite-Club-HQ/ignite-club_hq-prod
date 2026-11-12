@@ -35,6 +35,10 @@ fi
 PROJECT_DIR="$(cd "$(dirname "$0")/../deploy/$DEPLOY_TARGET" && pwd)"
 IDS_JSON="$PROJECT_DIR/.icp/data/mappings/$ICP_ENV.ids.json"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# Both DEV and PROD target real ICP mainnet: reject any disposable identity
+# reader feature/marker before build or a canister write. This cannot replace
+# independent governor and release approval.
+node "$REPO_DIR/scripts/identity-g2-fixture-release-guard.mjs"
 # Held across attestation, upgrade and key read-back. Never treat a local
 # lock as proof against another controller: preflight requires sole governor.
 mkdir -p "$PROJECT_DIR/.icp/data/media-key-attestations"
