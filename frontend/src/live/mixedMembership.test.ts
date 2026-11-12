@@ -5,6 +5,10 @@ import type { GroupRegistry, GroupSessionTransport } from './groupSession';
 import { openMixedMembershipSession } from './mixedMembershipSession';
 import { clearMixedMembershipRuntime, dispatchMixedMembership, installMixedMembershipRuntime } from './mixedMembershipRuntime';
 import { isScopedContext } from './scopedContext';
+const roleMocks = vi.hoisted(() => ({ read: vi.fn() }));
+vi.mock('./domains', () => ({ connectLiveClubDomain: async (target: unknown) => ({ actor: { my_role_grants: () => roleMocks.read(target) } }) }));
+import { fetchMyRoleGrantsEverywhere } from './features/myRoleGrants';
+import { clearRoleGrantsMemo } from './roleGrantsMemo';
 
 function destination(kind: 'public_mainnet' | 'cloud_engine', club: string) {
   let account = 'member';
@@ -35,9 +39,37 @@ async function fixture() {
   const session = await openMixedMembershipSession(mainnet.context, [mainnet, engine]);
   return { mainnet, engine, session };
 }
-afterEach(() => { clearMixedMembershipRuntime(); vi.unstubAllGlobals(); });
+afterEach(() => { clearMixedMembershipRuntime(); clearRoleGrantsMemo(); vi.unstubAllGlobals(); });
 
 describe('one account, independently authorized mainnet and engine clubs', () => {
+  it('keeps mainnet administrator rights separate from engine player rights and rejects foreign role mirrors', async () => {
+    vi.stubGlobal('location', { hostname: 'localhost' });
+    const { session, mainnet } = await fixture();
+    roleMocks.read.mockImplementation(async (target: { networkKind: string }) => target.networkKind === 'cloud_engine'
+      ? [{ role: 'player', club: ['club-engine'], team: ['engine-team'] },
+        { role: 'club_admin', club: ['club-mainnet'], team: [] }, { role: 'app_admin', club: [], team: [] }]
+      : [{ role: 'club_admin', club: ['club-mainnet'], team: [] }]);
+    installMixedMembershipRuntime({ session, locate: async () => null });
+    expect(await fetchMyRoleGrantsEverywhere(mainnet.context)).toEqual([
+      { role: 'player', club: ['club-engine'], team: ['engine-team'] },
+      { role: 'club_admin', club: ['club-mainnet'], team: [] },
+    ]);
+  });
+
+  it('sends and reads back separate chat histories through the installed mixed dispatcher', async () => {
+    vi.stubGlobal('location', { hostname: 'localhost' }); const { session, mainnet } = await fixture();
+    const histories = new Map<string, string[]>();
+    installMixedMembershipRuntime({ session, locate: async () => null });
+    for (const [club, body] of [['club-mainnet', 'Mainnet club only'], ['club-engine', 'Engine club only']]) {
+      await dispatchMixedMembership(mainnet.context, 'messaging_domain', { clubId: club, writeKey: `send-${club}`, attempts: 1 }, async ctx => {
+        const key = ctx.target.canisterIds.messaging_domain;
+        const messages = histories.get(key) ?? []; messages.push(body); histories.set(key, messages); return body;
+      });
+    }
+    const read = async (ctx: FeatureBackendContext) => histories.get(ctx.target.canisterIds.messaging_domain);
+    expect(await dispatchMixedMembership(mainnet.context, 'messaging_domain', { clubId: 'club-mainnet' }, read)).toEqual({ value: ['Mainnet club only'] });
+    expect(await dispatchMixedMembership(mainnet.context, 'messaging_domain', { clubId: 'club-engine' }, read)).toEqual({ value: ['Engine club only'] });
+  });
   it('discovers both clubs despite both deployments naming their group base', async () => {
     const { session } = await fixture();
     expect(session.memberClubIds).toEqual(['club-engine', 'club-mainnet']);

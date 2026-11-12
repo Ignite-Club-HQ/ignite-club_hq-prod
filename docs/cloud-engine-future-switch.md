@@ -24,7 +24,7 @@ bunx vitest run --config vitest.legacy.config.mjs src/live/engineIndependent.tes
 
 The local backup reader only accepts supplied local exports (16 MiB total, at most 64 services); it is not connected to mainnet snapshots. Full live backups and permission-preserving recovery still use the existing separately fenced recovery procedures. Successful local decoding never claims encrypted photo-key recovery or independent real-engine evidence.
 
-**Still deferred:** item 2 (proxy-backed engine encryption), actual engine/operator access, engine-compatible calls in both directions, real mixed-deployment admission/membership and group push coverage, rental-provider readings/delivery wiring, and a real-engine install/backup/restore acceptance. No engine connection, rental, funding, settings save, country pin, existing-club move or PROD action occurs in these rehearsals.
+**Still deferred:** item 2 (proxy-backed engine encryption), actual engine/operator access, remaining engine-compatible calls in both directions, real mixed-deployment admission and commissioning, group push coverage, rental-provider readings/delivery wiring, and a real-engine install/backup/restore acceptance. Mixed membership session/dispatch and isolated role/chat support are now prepared in TEST source; see [mixed membership](cloud-engine-mixed-membership.md) for implemented boundaries and remaining real-engine acceptance. No engine connection, rental, funding, settings save, country pin, existing-club move or PROD action occurs in these rehearsals.
 
 ## Later handover checklist
 
