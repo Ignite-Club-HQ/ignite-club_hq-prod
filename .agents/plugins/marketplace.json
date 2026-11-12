@@ -1,0 +1,20 @@
+{
+  "name": "ignite-dev-private",
+  "interface": {
+    "displayName": "Ignite Club HQ — DEV testing"
+  },
+  "plugins": [
+    {
+      "name": "ignite-club-hq-icp-dev",
+      "source": {
+        "source": "local",
+        "path": "./integrations/ignite-chatgpt/dfinity-dependency-pilot"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
