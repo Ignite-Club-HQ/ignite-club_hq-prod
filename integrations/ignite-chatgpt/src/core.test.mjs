@@ -4,7 +4,7 @@ import {createIgniteHandlers, invokeIgniteTool, PluginAccessError, DEV_ORIGIN, T
 
 const principal = "mbrvi-lvde7-gdspi-hamp3-nxj43-p4tt6-at6q5-jlbit-eehve-7xqwc-wqe";
 const session = {oauthVerified:true, internetIdentityDelegationVerified:true,
-  environment:"dev",derivationOrigin:DEV_ORIGIN, principal,actorFactory:()=>({})};
+  environment:"dev",derivationOrigin:DEV_ORIGIN, principal,actorFactory:()=>({}),scopes:["ignite:read","ignite:chat:send"]};
 const demo = {
   getProfile: async () => ({id:principal,nickname:"Test parent",secret:"private"}),
   listMyClubs: async () => [{id:"club-1",name:"Example club",private:"secret"}],
@@ -199,4 +199,9 @@ test("expired authorization fails closed without even attempting a send", async(
     client_request_id:"fef5d3fc-9038-48d4-890c-4805d8fe773e"
   }),"NOT_CONNECTED");
   assert.equal(calls,0);
+});
+
+test("message sending needs the separately granted chat-send scope",async()=>{
+  const h=setup({resolveVerifiedSession:async()=>({...session,scopes:["ignite:read"]})});
+  await denied(h.send_team_message({club_id:"club-1",team_id:"team-1",conversation_id:"chat-1",body:"Hello",client_request_id:"fef5d3fc-9038-48d4-890c-4805d8fe773e"}),"ACCESS_DENIED");
 });
