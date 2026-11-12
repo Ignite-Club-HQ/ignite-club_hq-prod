@@ -5,6 +5,16 @@ import { bindMembershipDiscovery, clearMembershipDiscovery, MEMBERSHIP_RECONCILE
 beforeEach(() => { clearMembershipDiscovery(); vi.useFakeTimers(); vi.setSystemTime(1000); });
 afterEach(() => { clearMembershipDiscovery(); vi.useRealTimers(); });
 describe('shared membership discovery', () => {
+  it('reuses initial discovery and only requests session refresh for reconciliation', async () => {
+    const load = vi.fn(async (_refresh: boolean) => []);
+    await readMembershipDiscovery('empty-account', load);
+    await readMembershipDiscovery('empty-account', load);
+    expect(load.mock.calls).toEqual([[false]]);
+    vi.setSystemTime(1000 + MEMBERSHIP_RECONCILE_MS);
+    reconcileMembershipDiscovery();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(load.mock.calls).toEqual([[false], [true]]);
+  });
   it('retires a suspended discovery so the next read can recover and late replies cannot replace it', async () => {
     let release: ((rows: string[]) => void) | undefined;
     const first = readMembershipDiscovery('resume', () => new Promise<string[]>(resolve => { release = resolve; }));

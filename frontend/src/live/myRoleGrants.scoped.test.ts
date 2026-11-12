@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-const state = vi.hoisted(() => ({ readAcross: vi.fn(), readMemberGroups: vi.fn(), grants: vi.fn() }));
+const state = vi.hoisted(() => ({ readAcross: vi.fn(), readMemberGroups: vi.fn(), grants: vi.fn(), refresh: vi.fn() }));
 vi.mock('./domains', () => ({ connectLiveClubDomain: async () => ({ actor: { my_role_grants: state.grants } }) }));
 vi.mock('./generalActivation', () => ({ routingActive: async () => true }));
 vi.mock('./ownerTestRouting', () => ({ readOwnerTestRoute: async () => null, readOwnerTestRouteCached: async () => null }));
-vi.mock('./groupDispatch', () => ({ clubDispatch: { readAcross: state.readAcross, readMemberGroups: state.readMemberGroups } }));
+vi.mock('./groupDispatch', () => ({ clubDispatch: { readAcross: state.readAcross, readMemberGroups: state.readMemberGroups, refreshMembershipSession: state.refresh } }));
 import { fetchMyRoleGrantsEverywhere } from './features/myRoleGrants';
 import { markScopedContext } from './scopedContext';
 
@@ -26,5 +26,6 @@ describe('role grants inside a fan-out leg', () => {
     const ctx = { target: {}, identity: { getPrincipal: () => ({ toText: () => 'other-person' }) } } as never;
     await expect(fetchMyRoleGrantsEverywhere(ctx)).rejects.toThrow('Member source unavailable');
     expect(state.readAcross).not.toHaveBeenCalled();
+    expect(state.refresh).not.toHaveBeenCalled();
   });
 });

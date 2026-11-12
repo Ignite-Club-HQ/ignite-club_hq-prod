@@ -9,17 +9,18 @@ const state = vi.hoisted(() => ({
   configurationRevision: 7n,
   groups: [] as unknown[],
   approval: undefined as unknown,
+  connect: vi.fn(),
 }));
 vi.mock('./generated/routingGates', () => ({ get ROUTING_GATES_SNAPSHOT() { return state.snapshot; } }));
 vi.mock('./domains', () => ({
-  connectLiveShardRouter: async () => ({
+  connectLiveShardRouter: async () => { state.connect(); return ({
     actor: {
       read_group_registry_page: async () => ({
         Ok: { revision: state.revision, configuration_revision: [state.configurationRevision], groups: state.groups, placements: state.groups.map((g: { id: string }) => placement(g.id)), next_cursor: [] },
       }),
       ...(state.approval === undefined ? {} : { read_routing_approval: async () => state.approval }),
     },
-  }),
+  }); },
 }));
 
 const principal = 'renrk-eyaaa-aaaal-qadea-cai';
@@ -56,9 +57,18 @@ const snapshot = (): RoutingGatesSnapshot => ({
   evidenceSha256: 'a'.repeat(64),
 });
 
-beforeEach(() => { clearGeneralRoutingCache(); state.approval = undefined; state.snapshot = null; state.groups = []; state.revision = 7n; state.configurationRevision = 7n; });
+beforeEach(() => { clearGeneralRoutingCache(); state.connect.mockClear(); state.approval = undefined; state.snapshot = null; state.groups = []; state.revision = 7n; state.configurationRevision = 7n; });
 
 describe('general routing switch', () => {
+  it('shares approval across concurrent startup readers and subsequent same-target reads', async () => {
+    state.snapshot = snapshot(); state.groups = [liveGroup('g2')];
+    expect(await Promise.all([routingActive(ctx), routingActive(ctx), routingActive(ctx)])).toEqual([true, true, true]);
+    expect(await routingActive(ctx)).toBe(true);
+    expect(state.connect).toHaveBeenCalledTimes(1);
+    clearGeneralRoutingCache();
+    state.groups = [{ ...liveGroup('g2'), accepting: false }];
+    await expect(routingActive(ctx)).rejects.toThrow('policy changed');
+  });
   it('keeps approval active after two ordinary club reservations advance the assignment revision', async () => {
     state.snapshot = snapshot(); state.groups = [liveGroup('g2')];
     state.revision = 8n; expect(await routingActive(ctx)).toBe(true);
