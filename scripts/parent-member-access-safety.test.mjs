@@ -27,6 +27,9 @@ test("protected group discovery excludes invite-only groups from ordinary browsi
   for (const method of ["read_account_list_groups_by_club", "read_account_list_groups_by_team"]) {
     const b = body(messages, method);
     assert.ok(b.includes("requireChatClubMember(caller"), `${method} must verify original member`);
+    const entered = b.indexOf("removalReceiver.enter(caller)");
+    const admitted = b.indexOf("await admitAccount(caller)");
+    assert.ok(entered >= 0 && admitted > entered, `${method} must acquire removal fence before account admission`);
     assert.ok(b.includes("meta.members.any") || b.includes("m.members.any"), `${method} must restrict private group audience`);
     assert.ok(b.includes("removalReceiver.denied(caller)"), `${method} must check removal after awaits`);
     assert.ok(b.includes("c.participants.any"), `${method} must restrict canonical chats`);
