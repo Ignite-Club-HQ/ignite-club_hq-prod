@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Real service-call and canister-restore preparation — 12 November
+- [ ] Update a cohesive set of actual engine-incompatible service reads, preserving authorization and unknown-write holds; no encryption or PROD changes.
+- [ ] Prepare a real disposable-canister snapshot/restore check using existing saved-data interfaces.
+- [ ] Run bounded compiler/regression checks and the required native-host probe; report runtime acceptance separately.
+
 ## Further engine-independent preparation — 12 November
 - [x] Prepared bounded cross-destination local call rehearsals with exact-bound durable unknown-write holds and readback-only reconciliation; no live call-site changes or automatic resends.
 - [x] Rebuilt all 17 required services from synthetic encrypted local exports; full decoded permissions, denials, pending work, history, zero/null and destination readback checked. Timing is local only, not live canister recovery.
