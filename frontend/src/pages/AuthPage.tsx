@@ -965,7 +965,7 @@ export default function AuthPage() {
                       <Input
                         id="signin-email"
                         type="email"
-                        placeholder="redacted@example.invalid"
+                        placeholder="you@example.com"
                         className="pl-10"
                         value={email}
                         disabled={!!inviteAuthContext?.invitedEmail}
@@ -1199,7 +1199,7 @@ export default function AuthPage() {
                       <Input
                         id="signup-email"
                         type="email"
-                        placeholder="redacted@example.invalid"
+                        placeholder="you@example.com"
                         className="pl-10"
                         value={email}
                         disabled={!!inviteAuthContext?.invitedEmail}
