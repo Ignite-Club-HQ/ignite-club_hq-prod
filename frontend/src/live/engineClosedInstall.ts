@@ -133,3 +133,59 @@ export async function runEngineClosedInstall(m: EngineInstallManifest, start: En
   }
   return { binding, provision: p };
 }
+
+export type DestinationUpgradeJournal = {
+  binding: string; completed: EngineInstallService[];
+  pending?: { service: EngineInstallService; canisterId: string; operation: string };
+};
+/** Explicit existing-group upgrades only, never reinstall/create/register/open.
+ * Source hashes, IDs and destination are pinned before the first operation. */
+export async function runDestinationUpgrade(m: EngineInstallManifest,
+  inventory: Record<EngineInstallService, { canisterId: string; beforeHash: string }>,
+  start: DestinationUpgradeJournal,
+  t: Pick<EngineClosedTransport, 'status'> & {
+    upgrade(id: string, service: EngineInstallService, operation: string): Promise<void>;
+  }, save: (j: DestinationUpgradeJournal) => Promise<void>, operation: () => string) {
+  m = structuredClone(m); inventory = structuredClone(inventory); start = structuredClone(start);
+  const binding = JSON.stringify([engineInstallBinding(m), ENGINE_INSTALL_SERVICES.map(d => [d, inventory[d]?.canisterId, inventory[d]?.beforeHash])]);
+  if (start.binding !== binding || start.pending) throw new Error('Upgrade binding changed or unresolved intent');
+  if (new Set(start.completed).size !== start.completed.length || start.completed.some(d => !ENGINE_INSTALL_SERVICES.includes(d))) throw new Error('Invalid completed upgrade inventory');
+  const ids = ENGINE_INSTALL_SERVICES.map(d => inventory[d]?.canisterId);
+  if (new Set(ids).size !== ids.length) throw new Error('Duplicate upgrade inventory');
+  const reserved = new Set([...m.liveCanisters, m.proxyCanisterId, m.identityAccess, m.pushWorker]);
+  for (const d of ENGINE_INSTALL_SERVICES) {
+    const entry = inventory[d];
+    if (!entry || !/^[a-f0-9]{64}$/.test(entry.beforeHash) || reserved.has(entry.canisterId)) throw new Error('Invalid or shared upgrade inventory');
+    principal(entry.canisterId);
+  }
+  const engine = (m.networkKind ?? 'cloud_engine') === 'cloud_engine';
+  const verify = async (d: EngineInstallService, expectedHash: string) => {
+    const s = await t.status(inventory[d].canisterId);
+    if (s.subnetId !== m.subnetId || s.controllers.length !== 1 || s.controllers[0] !== m.operator ||
+        !s.running || !s.engineServing || !s.interfaceVerified || s.moduleHash !== expectedHash ||
+        typeof s.cycles !== 'bigint' || (engine ? s.cycles !== 0n : m.minimumCycles === undefined || s.cycles < m.minimumCycles) ||
+        !Number.isSafeInteger(s.memoryBytes) || s.memoryBytes < 0 || !Number.isSafeInteger(s.capacityBytes) || s.capacityBytes <= s.memoryBytes) throw new Error('Upgrade destination/source evidence changed');
+  };
+  // Check the complete inventory, including completed receipts, before any mutation.
+  for (const d of ENGINE_INSTALL_SERVICES) await verify(d, start.completed.includes(d) ? m.moduleHashes[d] : inventory[d].beforeHash);
+  let journal = start;
+  for (const service of ENGINE_INSTALL_SERVICES) {
+    if (journal.completed.includes(service)) continue;
+    await verify(service, inventory[service].beforeHash);
+    if (inventory[service].beforeHash !== m.moduleHashes[service]) {
+      const token = operation(); if (!token.trim()) throw new Error('Upgrade operation required');
+      const intent = { ...journal, pending: { service, canisterId: inventory[service].canisterId, operation: token } };
+      await save(structuredClone(intent));
+      await t.upgrade(inventory[service].canisterId, service, token);
+      await verify(service, m.moduleHashes[service]);
+    }
+    const next = { binding, completed: [...journal.completed, service] };
+    await save(structuredClone(next)); journal = next;
+  }
+  return journal;
+}
+
+export function destinationUpgradeBinding(m: EngineInstallManifest,
+  inventory: Record<EngineInstallService, { canisterId: string; beforeHash: string }>) {
+  return JSON.stringify([engineInstallBinding(m), ENGINE_INSTALL_SERVICES.map(d => [d, inventory[d]?.canisterId, inventory[d]?.beforeHash])]);
+}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Principal } from '@icp-sdk/core/principal';
-import { ENGINE_INSTALL_SERVICES, engineInstallBinding, runEngineClosedInstall, type EngineInstallManifest, type EngineInstallJournal, type EngineClosedTransport, type EngineServiceStatus } from './engineClosedInstall';
+import { ENGINE_INSTALL_SERVICES, engineInstallBinding, runEngineClosedInstall, runDestinationUpgrade, destinationUpgradeBinding, type DestinationUpgradeJournal, type EngineInstallManifest, type EngineInstallJournal, type EngineClosedTransport, type EngineServiceStatus } from './engineClosedInstall';
 import { collectEngineAcceptance, ENGINE_ACCEPTANCE_CHECKS, MAX_ENGINE_EVIDENCE_BYTES, type EngineAcceptanceScope } from './engineAcceptance';
 import { assessEngineOperationalSafety, type EngineSafetyPolicy } from './engineOperationalSafety';
 import { planClubPlacement, rehearseEngineNewClubSwitch } from './engineClubPlacement';
@@ -35,6 +35,36 @@ function installer(manifest = m) {
 }
 
 describe('zero-cycle engine closed installation — offline transport', () => {
+  it.each(['public_mainnet', 'cloud_engine'] as const)('upgrades pinned %s groups without creating, reinstalling or replaying completed work', async networkKind => {
+    const manifest: EngineInstallManifest = { ...m, networkKind,
+      ...(networkKind === 'public_mainnet' ? { initialCycles: 200n, minimumCycles: 100n } : {}) };
+    const w = installer(manifest); await w.run(); w.mutations.length = 0;
+    const inventory = Object.fromEntries(ENGINE_INSTALL_SERVICES.map((d, i) => [d, { canisterId: id(i + 1), beforeHash: 'a'.repeat(64) }])) as Record<typeof ENGINE_INSTALL_SERVICES[number], { canisterId: string; beforeHash: string }>;
+    const next = { ...manifest, moduleHashes: Object.fromEntries(ENGINE_INSTALL_SERVICES.map(d => [d, 'b'.repeat(64)])) as EngineInstallManifest['moduleHashes'] };
+    const start: DestinationUpgradeJournal = { binding: destinationUpgradeBinding(next, inventory), completed: [] };
+    const saves: DestinationUpgradeJournal[] = []; let calls = 0;
+    const t = { status: w.t.status, upgrade: async (canisterId: string) => {
+      expect(saves.at(-1)?.pending?.canisterId).toBe(canisterId);
+      const s = w.status.get(canisterId); if (!s) throw new Error('missing'); s.moduleHash = 'b'.repeat(64); calls++;
+    } };
+    const save = async (j: DestinationUpgradeJournal) => { saves.push(structuredClone(j)); };
+    const done = await runDestinationUpgrade(next, inventory, start, t, save, () => `upgrade-${calls}`);
+    expect(done.completed).toHaveLength(13); expect(calls).toBe(13); expect(w.mutations).toEqual([]);
+    await runDestinationUpgrade(next, inventory, done, t, save, () => 'again'); expect(calls).toBe(13);
+  });
+  it('retains ambiguous upgrade intent and refuses replay', async () => {
+    const w = installer(); await w.run();
+    const inventory = Object.fromEntries(ENGINE_INSTALL_SERVICES.map((d, i) => [d, { canisterId: id(i + 1), beforeHash: 'a'.repeat(64) }])) as Record<typeof ENGINE_INSTALL_SERVICES[number], { canisterId: string; beforeHash: string }>;
+    const next = { ...m, moduleHashes: Object.fromEntries(ENGINE_INSTALL_SERVICES.map(d => [d, 'b'.repeat(64)])) as EngineInstallManifest['moduleHashes'] };
+    const start: DestinationUpgradeJournal = { binding: destinationUpgradeBinding(next, inventory), completed: [] };
+    let durable = start, calls = 0;
+    const t = { status: w.t.status, upgrade: async () => { calls++; throw new Error('SYS_UNKNOWN'); } };
+    const save = async (j: DestinationUpgradeJournal) => { durable = structuredClone(j); };
+    await expect(runDestinationUpgrade(next, inventory, start, t, save, () => 'op')).rejects.toThrow('SYS_UNKNOWN');
+    expect(durable.pending?.service).toBe(ENGINE_INSTALL_SERVICES[0]);
+    await expect(runDestinationUpgrade(next, inventory, durable, t, save, () => 'op')).rejects.toThrow('unresolved'); expect(calls).toBe(1);
+    await expect(runDestinationUpgrade(next, inventory, start, t, async () => { throw new Error('disk'); }, () => 'op')).rejects.toThrow('disk'); expect(calls).toBe(1);
+  });
   it('uses the same complete closed installer for explicitly funded mainnet groups', async () => {
     const manifest: EngineInstallManifest = { ...m, networkKind: 'public_mainnet', proxyCanisterId: '', initialCycles: 200n, minimumCycles: 100n };
     const w = installer(manifest); const done = await w.run();

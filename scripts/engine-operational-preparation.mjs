@@ -2,7 +2,7 @@
  * routing adapter is created here. Encrypted files are local drills, not live
  * snapshots or independent evidence that encrypted club media is recoverable. */
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'node:crypto';
-import { open, readFile } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
 
 const MAX_BYTES = 16 * 1024 * 1024;
 const MAX_SERVICES = 64;
