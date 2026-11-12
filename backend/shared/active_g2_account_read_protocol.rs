@@ -161,6 +161,20 @@ mod tests {
             history_revision:13,removal_generation:7,recovery_epoch:3}
     }
     #[test]
+    fn challenge_is_tied_to_signed_scope_and_account_subject() {
+        let q=challenge();let digest=[1u8;32];
+        assert!(validate_challenge(&digest,&q).is_ok());
+        assert!(validate_challenge(&[2u8;32],&q).is_err());
+        let mut changed=q.clone();changed.account_version=0;
+        assert!(validate_challenge(&digest,&changed).is_err());
+        changed=q.clone();changed.principals=vec![p(7)];
+        assert!(validate_challenge(&digest,&changed).is_err());
+        changed=q.clone();changed.nonce=0;
+        assert!(validate_challenge(&digest,&changed).is_err());
+        changed=q.clone();changed.principals.push(p(6));
+        assert!(validate_challenge(&digest,&changed).is_err());
+    }
+    #[test]
     fn subject_receipt_rejects_other_principals_accounts_and_generations() {
         let q=challenge();
         let reply=IndependentlyVerifiedSubject {challenge:q.clone(),witness_revision:5};
