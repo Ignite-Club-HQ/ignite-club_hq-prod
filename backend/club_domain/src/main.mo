@@ -4013,7 +4013,7 @@ persistent actor class Main(governorInit : Principal) = this {
       if (not currentChildGuardian(user, child_id)) return false;
       if (switch (child.club_id) { case (?c) c != club_id; case null false }) return false;
       child.teams.any(func(t) =
-        liveTeamClub(t) == ?club_id and
+        teams.any(func(team) = team.id == t and team.club_id == club_id and team.deleted_at_ms == null and team.is_active and not team.archived) and
         (switch (team_id) {
           case (?team) t == team;
           case null if (target_team_ids.size() > 0) target_team_ids.any(func(target) = target == t)
