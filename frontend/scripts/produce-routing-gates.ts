@@ -74,6 +74,15 @@ const readConfig = async (id: string, resultVariant = false) => {
 const registry = await readPinnedGroupRegistry((rev, cursor, limit) => router.read_group_registry_page('mainnet', rev, cursor, limit));
 if (registry.groups.length === 0) throw new Error('No registered groups; register a group before producing a routing snapshot');
 if (registry.configurationRevision === undefined) throw new Error('Upgrade the router before producing a configuration-bound snapshot');
+// The DEV approval workflow pins the exact revision accepted by its signed
+// read-only preflight. Ignore absent pins for other established workflows.
+const requiredDevRevision = process.env.EXPECTED_DEV_ROUTING_CONFIGURATION_REVISION;
+if (requiredDevRevision !== undefined) {
+  if (PROD || !/^(0|[1-9][0-9]*)$/.test(requiredDevRevision) ||
+      registry.configurationRevision.toString() !== requiredDevRevision) {
+    throw new Error('DEV routing configuration revision changed since approval preflight');
+  }
+}
 
 const problems: string[] = [];
 const SNAPSHOT_CHECK_ONLY_DETAIL = process.env.SNAPSHOT_CHECK_ONLY === '1';
@@ -169,6 +178,13 @@ const evidence = { registryRevision: String(registry.revision), groups: snapshot
   approvedConfiguration: groupApprovalConfiguration(registry.groups, registry.placements),
   removalWiring: { ...wiring.evidence, revision: String(registry.configurationRevision) }, generatedAt };
 const evidenceSha256 = createHash('sha256').update(JSON.stringify(evidence)).digest('hex');
+const requiredDevConfigSha = process.env.EXPECTED_DEV_ROUTING_CONFIGURATION_SHA256;
+if (requiredDevConfigSha !== undefined) {
+  const actualConfigSha = createHash('sha256').update(evidence.approvedConfiguration).digest('hex');
+  if (PROD || !/^[a-f0-9]{64}$/.test(requiredDevConfigSha) || actualConfigSha !== requiredDevConfigSha) {
+    throw new Error('DEV routing configuration digest changed since approval preflight');
+  }
+}
 const snapshot = { approved: true as const, targetAlias: 'mainnet', host, routerCanisterId: routerId, ...evidence, evidenceSha256 };
 saveJson(report, snapshot);
 if (process.env.SNAPSHOT_CHECK_ONLY === '1') {
