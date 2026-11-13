@@ -3993,6 +3993,36 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(user) };
   };
 
+  // Authoritative, boolean-only parent/child eligibility for the pinned events
+  // domain. Never trust the events canister's older child/team mirror.
+  // The caller must be the configured events canister, not a browser/admin.
+  public shared ({ caller }) func read_can_guardian_rsvp_child(
+    user : Principal, child_id : Text, club_id : Text,
+    team_id : ?Text, target_team_ids : [Text]
+  ) : async Bool {
+    if (switch (eventsDomainCanister) { case (?id) not id.equal(caller); case null true }) return false;
+    if (Principal.isAnonymous(user) or child_id == "" or club_id == "" or target_team_ids.size() > 100) return false;
+    if (not removalReceiver.enter(user)) return false;
+    try {
+      await admitAccount(user);
+      if (removalReceiver.denied(user) or isTransferFenced(club_id) or not isMember(user, club_id)) return false;
+      let child = switch (acl.children.find(func(c) = c.id == child_id)) {
+        case (?c) c;
+        case null return false;
+      };
+      if (not currentChildGuardian(user, child_id)) return false;
+      if (switch (child.club_id) { case (?c) c != club_id; case null false }) return false;
+      child.teams.any(func(t) =
+        teams.any(func(team) = team.id == t and team.club_id == club_id and team.deleted_at_ms == null and team.is_active and not team.archived) and
+        (switch (team_id) {
+          case (?team) t == team;
+          case null if (target_team_ids.size() > 0) target_team_ids.any(func(target) = target == t)
+            else true;
+        })
+      )
+    } finally { removalReceiver.leave(user) };
+  };
+
   // The user's role grants in one club as (role, team) pairs. events_domain
   // mirrors these on create/update so club and team admins set up here can
   // schedule events without a separate grant there. Public query, same

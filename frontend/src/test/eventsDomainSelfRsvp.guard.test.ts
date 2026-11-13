@@ -64,14 +64,14 @@ describe("events_domain RSVP integrity and guardian authorization", () => {
     const body = methodBlock("func freshGuardianRsvpForChild(", "// Parent RSVPs their own child");
     expect(body).toContain("account_id != caller.toText()");
     expect(body).toContain("Principal.isAnonymous(caller)");
-    expect(body).toContain("cd.read_has_club_membership(caller, event.club_id)");
+    expect(body).toContain("cd.read_can_guardian_rsvp_child(caller, child_id, event.club_id, current.team_id, targets)");
     expect(body).not.toContain("requireManage(caller");
-    expect(body).toContain("child.parent_id == ?callerId");
+    expect(body).not.toContain("child.parent_id == ?callerId");
     expect(body).toContain('restricted.any(func(role) = role == "player")');
     expect(body).toContain('event.rsvp_audience == ?"parents_only"');
     expect(body).toContain("current.revision != event.revision");
-    expect(body).toContain("childGuardians.any");
-    expect(body).toContain("childTeamAssignments.any");
+    expect(body).not.toContain("childGuardians.any");
+    expect(body).not.toContain("childTeamAssignments.any");
     expect(body).toContain("clubDomainCanister != ?authority");
     expect(body).toContain("return false");
   });
@@ -88,5 +88,32 @@ describe("member-owned child RSVP UX and read authorization", () => {
     const carousel = readFileSync(resolve(process.cwd(), "src/components/NextUpCarousel.tsx"),"utf8");
     expect(carousel).toContain("setLiveChildRsvp(ctx, event.id, accountId, childId, status)");
     expect(carousel).not.toContain("adminUpsertLiveRsvp(");
+  });
+});
+
+describe("authoritative club-domain child RSVP eligibility", () => {
+  const club = readFileSync(resolve(process.cwd(), "../backend/club_domain/src/main.mo"), "utf8");
+  const ui = readFileSync(resolve(process.cwd(), "src/lib/resolveEventChildScope.ts"), "utf8");
+  it("restricts the authority method to the configured events canister and current membership", () => {
+    const start = club.indexOf("func read_can_guardian_rsvp_child(");
+    const end = club.indexOf("// The user's role grants", start);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const body = club.slice(start, end);
+    expect(body).toContain("eventsDomainCanister");
+    expect(body).toContain("caller");
+    expect(body).toContain("currentChildGuardian(user, child_id)");
+    expect(body).toContain("isMember(user, club_id)");
+    expect(body).toContain("isTransferFenced(club_id)");
+    expect(body).toContain("team.club_id == club_id");
+    expect(body).toContain("team.is_active and not team.archived");
+    expect(body).toContain("target_team_ids.any");
+    expect(body).toContain("team_id");
+  });
+  it("reads parent children from club authority rather than stale events mirror", () => {
+    expect(ui).toContain("listMyLiveOwnChildren(ctx)");
+    expect(ui).toContain("listLiveTeams(ctx, scope.clubId)");
+    expect(ui).not.toContain("getLiveMyChildTeamAssignments");
+    expect(ui).not.toContain("getLiveMyChildren");
   });
 });

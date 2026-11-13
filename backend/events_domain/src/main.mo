@@ -1206,24 +1206,18 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not allowed) return false;
     let authority = clubDomainCanister ?? return false;
     let cd : actor {
-      read_has_club_membership : shared (Principal, Text) -> async Bool;
+      read_can_guardian_rsvp_child : shared (Principal, Text, Text, ?Text, [Text]) -> async Bool;
     } = actor(authority.toText());
-    let member = try { await (with timeout = 10) cd.read_has_club_membership(caller, event.club_id) } catch (_) { return false };
-    if (not member or clubDomainCanister != ?authority) return false;
     let current = switch (events.find(func(item) = item.id == event.id)) { case (?item) item; case null return false };
     if (current.revision != event.revision or current.club_id != event.club_id or current.deleted or current.cancelled or current.adults_only) return false;
-    let callerId = caller.toText();
-    let linked = children.any(func(child) = child.id == child_id and child.parent_id == ?callerId) or
-      childGuardians.any(func(guardian) = guardian.child_id == child_id and guardian.guardian_id == callerId);
-    if (not linked) return false;
     let targets = current.target_team_ids ?? [];
-    childTeamAssignments.any(func(assignment) =
-      assignment.child_id == child_id and assignment.club_id == current.club_id and
-      (switch (current.team_id) {
-        case (?team) assignment.team_id == team;
-        case null if (targets.size() > 0) targets.any(func(target) = target == assignment.team_id) else true;
-      })
-    )
+    let eligible = try {
+      await (with timeout = 10) cd.read_can_guardian_rsvp_child(caller, child_id, event.club_id, current.team_id, targets)
+    } catch (_) { return false };
+    if (not eligible or clubDomainCanister != ?authority or eventFenced(event.id)) return false;
+    let after = switch (events.find(func(item) = item.id == event.id)) { case (?item) item; case null return false };
+    after.revision == current.revision and after.club_id == current.club_id and
+      not after.deleted and not after.cancelled and not after.adults_only
   };
 
   // Parent RSVPs their own child (Supabase childRsvpMutation parity) — same
