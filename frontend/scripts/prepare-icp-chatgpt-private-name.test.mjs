@@ -10,6 +10,11 @@ const key = Uint8Array.from([177,78,48,240,39,234,226,250,163,45,107,185,179,87,
 test('encrypt an owner name locally, producing only ciphertext arguments', () => {
   const prepared=prepareEncryptedChatgptProfileName({displayName:'Test2',callerPrincipal:principal,piiAuthority:authority,verificationKey:key});
   assert.equal(prepared.reference, `pii-display-name:v1:${authority}:${principal}`);
+  // Synthetic Test2-only acceptance fixture: log only the randomized encrypted
+  // Candid argument, never user secrets, plaintext or Internet Identity keys.
+  console.log('TEST2_ENCRYPTED_REGISTRATION_ARGS=' + prepared.registrationArgs);
+  console.log('TEST2_ENCRYPTED_PROFILE_ARGS=' + prepared.profileArgs);
+
   assert(prepared.ciphertext.length > 40);
   assert(!prepared.registrationArgs.includes('Test2'));
   assert(!prepared.profileArgs.includes('Test2'));
