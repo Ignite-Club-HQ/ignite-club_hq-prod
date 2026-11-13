@@ -5095,6 +5095,14 @@ persistent actor class Main(governorInit : Principal) = this {
           acl := { acl with roles = acl.roles.concat([grant]) };
           accountRoles := accountRoles.concat([{ account_id = accountIdFor(caller); role = link.role; club = ?link.club_id; team = ?link.team_id }]);
         };
+        // The invite grants membership in club_domain, but messaging keeps a
+        // separate participant roster. Refresh only the canonical club/team
+        // conversations for this invite. These are idempotent, best-effort
+        // messages to the already-configured messaging authority; they never
+        // mint new roles or widen chat privileges, and an unavailable chat
+        // service must not roll back valid membership.
+        ignore fanOutEnsureConversation(link.club_id, null, clubChatParticipants(link.club_id));
+        ignore fanOutEnsureConversation(link.club_id, ?link.team_id, teamChatParticipants(link.club_id, link.team_id));
         #Ok(link)
       };
     }
