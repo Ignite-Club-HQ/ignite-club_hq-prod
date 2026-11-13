@@ -32,7 +32,7 @@ export function validateDevOwnNamePreparation(args) {
   if (typeof args.displayName !== 'string') throw Error('Display name required');
   const name = args.displayName.trim();
   if (!name || [...name].length > 80 || encoder.encode(name).length > 512 ||
-      /[\u0000-\u001f\u007f]/u.test(name))
+      [...name].some(ch => { const code = ch.codePointAt(0); return code < 32 || code === 127; }))
     throw Error('Display name must be 1-80 characters without control characters');
   return Object.freeze({
     subject: callerPrincipal,
