@@ -15,7 +15,7 @@ import { resolveRsvpAudience, shouldPromptPlayer } from "@/lib/rsvpAudience";
 import { getEventEligibleTeamIds } from "@/lib/eventAudience";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { getLiveMyChildren, getLiveMyChildTeamAssignments } from "@/live/features/events";
+import { listMyLiveOwnChildren, listLiveTeams } from "@/live/features/club";
 import { resolveLivePiiTextBatch } from "@/live/features/vault";
 import type { FeatureBackendContext } from "@/live/featureRouter";
 
@@ -67,54 +67,38 @@ async function intersectWithTeams(children: RsvpChild[], teamIds: string[]): Pro
 }
 
 
-/**
- * ICP counterpart of intersectWithTeams: events_domain has no
- * child_team_assignments table, so membership is read per-child via
- * my_child_team_assignments and matched against either the eligible team ids
- * (team-scoped / targeted events) or the event's club id (club-wide events).
- * Never widen — a lookup failure for a child drops that child rather than
- * including it.
- */
+/** Authoritative club-owned child/team eligibility, fail-closed. */
+type IcpChildCandidate = RsvpChild & { teamIds: string[] };
+
 async function intersectWithTeamsIcp(
   ctx: FeatureBackendContext,
-  children: RsvpChild[],
+  children: IcpChildCandidate[],
   scope: { teamIds?: string[]; clubId?: string | null },
 ): Promise<RsvpChild[]> {
-  if (children.length === 0) return [];
-  const results = await Promise.all(
-    children.map(async (child) => {
-      try {
-        const assignments = await getLiveMyChildTeamAssignments(ctx, child.id);
-        const inScope = assignments.some((a) =>
-          scope.teamIds && scope.teamIds.length > 0
-            ? scope.teamIds.includes(a.team_id)
-            : !!scope.clubId && a.club_id === scope.clubId,
-        );
-        return inScope ? child : null;
-      } catch {
-        return null;
-      }
-    }),
-  );
-  return results.filter((c): c is RsvpChild => !!c);
+  if (!children.length || !scope.clubId) return [];
+  try {
+    const teams = await listLiveTeams(ctx, scope.clubId);
+    const liveIds = new Set(teams.filter(t => t.is_active && !t.archived && t.deleted_at_ms.length === 0).map(t => t.id));
+    const eligible = scope.teamIds?.length
+      ? scope.teamIds.filter(id => liveIds.has(id))
+      : [...liveIds];
+    if (!eligible.length) return [];
+    return children.filter(c => c.teamIds.some(id => eligible.includes(id)));
+  } catch {
+    return [];
+  }
 }
 
-/** The caller's own children (events_domain `my_children`), mapped to the shared RsvpChild shape. */
-async function getIcpCandidateChildren(ctx: FeatureBackendContext): Promise<RsvpChild[]> {
-  const children = await getLiveMyChildren(ctx);
-  // events_domain Child records are nameless (PII hardening) — names resolve
-  // best-effort from pii_access_control under pii_id=child id, field "name".
+async function getIcpCandidateChildren(ctx: FeatureBackendContext): Promise<IcpChildCandidate[]> {
+  const children = await listMyLiveOwnChildren(ctx);
   const names = await resolveLivePiiTextBatch(
-    ctx,
-    children.map((c) => c.id),
-    "name",
-    "rsvp_scope",
-    "RSVP child names",
+    ctx, children.map(c => c.id), "name", "rsvp_scope", "RSVP child names",
   );
-  return children.map((c) => ({
+  return children.map(c => ({
     id: c.id,
     name: names.get(c.id) ?? "Child",
-    parent_id: c.parent_id.length ? c.parent_id[0] : null,
+    parent_id: c.parent.length ? c.parent[0].toText() : null,
+    teamIds: c.teams,
   }));
 }
 
@@ -142,7 +126,7 @@ export async function resolveRsvpChildren({
         const candidates = await getIcpCandidateChildren(ctx);
         if (candidates.length === 0) return [];
         const eligible = getEventEligibleTeamIds(event);
-        if (eligible) return intersectWithTeamsIcp(ctx, candidates, { teamIds: eligible });
+        if (eligible) return intersectWithTeamsIcp(ctx, candidates, { teamIds: eligible, clubId: event.club_id });
         if (!event.club_id) return [];
         return intersectWithTeamsIcp(ctx, candidates, { clubId: event.club_id });
       },
@@ -204,7 +188,7 @@ export async function resolveEventChildRoster({
         const candidates = await getIcpCandidateChildren(ctx);
         if (candidates.length === 0) return [];
         const eligible = getEventEligibleTeamIds(event);
-        if (eligible) return intersectWithTeamsIcp(ctx, candidates, { teamIds: eligible });
+        if (eligible) return intersectWithTeamsIcp(ctx, candidates, { teamIds: eligible, clubId: event.club_id });
         if (!event.club_id) return [];
         return intersectWithTeamsIcp(ctx, candidates, { clubId: event.club_id });
       },
