@@ -18,7 +18,7 @@ jobs:
           node-version: "22.12.0"
       - run: node --test scripts/auth-release-preflight.test.mjs scripts/prod-push-config.test.mjs scripts/workflow-env-names.test.mjs
       - name: Validate ICP MCP onboarding and DEV legal-release OQL contracts
-        run: node --test scripts/icp-mcp-onboarding-doc.test.mjs scripts/legal-release-oql-contract.test.mjs scripts/dev-legal-release-policy.test.mjs
+        run: node --test scripts/icp-mcp-onboarding-doc.test.mjs scripts/legal-release-oql-contract.test.mjs scripts/chatgpt-own-name-crypto-contract.test.mjs scripts/dev-legal-release-policy.test.mjs
       # Offline source consistency only; live target checks remain in promotion.
       - name: Install pinned offline SQL parser for PROD PR
         if: github.base_ref == 'prod'
@@ -42,6 +42,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --ignore-scripts --no-fund --no-audit
+      - name: Verify client-only in-chat VetKeys crypto with synthetic principal
+        run: node --test scripts/chatgpt-own-name-crypto.test.mjs
       - run: npm run check:step1
       - run: node --test scripts/generated-contract-syntax.test.mjs
       - run: npm run lint
