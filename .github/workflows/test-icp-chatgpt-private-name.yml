@@ -1,0 +1,29 @@
+name: "[TEST] Secure ChatGPT private-name preparation"
+
+on:
+  pull_request:
+    paths:
+      - "frontend/scripts/prepare-icp-chatgpt-private-name.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-private-name.test.mjs"
+      - ".github/workflows/test-icp-chatgpt-private-name.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-local-vetkeys:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install pinned frontend libraries
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Verify offline encrypted-name preparation
+        working-directory: frontend
+        run: node --test scripts/prepare-icp-chatgpt-private-name.test.mjs
