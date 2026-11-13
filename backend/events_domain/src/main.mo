@@ -5302,25 +5302,53 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(caller) };
   };
 
+  // Caller-scoped, authoritative child RSVP read. The events-domain child and
+  // guardian mirrors are legacy data and cannot be used to grant visibility.
+  // Use the same live club relationship and event audience check as writes.
+  // Return no stale or unverifiable records rather than falling back to mirrors.
   public shared ({ caller }) func read_account_my_child_rsvps(event_id : ?Text, club_id : ?Text) : async [Types.RsvpWithChild] {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
-
-    do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    auth(caller);
-    let callerId = Principal.toText(caller);
-    let myChildIds = children.filter(func(child) = child.parent_id == ?callerId).map(func(child) = child.id);
-    let guardianIds = childGuardians.filter(func(g) = g.guardian_id == callerId).map(func(g) = g.child_id);
-    let accessibleChildIds = myChildIds.concat(guardianIds);
-    rsvps.filter(func(item) =
-      (switch (item.child_id) { case (?cid) accessibleChildIds.any(func(id) = id == cid); case null false })
-        and (event_id == null or event_id == ?item.event_id)
-        and (club_id == null or (switch (events.find(func(e) = e.id == item.event_id)) { case (?e) ?e.club_id == club_id; case null false }))
-    ).map(func(item) : Types.RsvpWithChild {
-      let child = switch (item.child_id) { case (?cid) children.find(func(c) = c.id == cid); case null null };
-      { rsvp = item; child }
-    })
-  
+      do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
+      auth(caller);
+      let authority = clubDomainCanister ?? return [];
+      let club : actor {
+        read_can_list_guardian_children : shared (Principal) -> async [Types.Child];
+      } = actor(authority.toText());
+      let linked = try { await (with timeout = 10) club.read_can_list_guardian_children(caller) } catch (_) { return [] };
+      if (removalReceiver.denied(caller) or clubDomainCanister != ?authority) return [];
+      let linkedIds = linked.map(func(c) = c.id);
+      let candidates = rsvps.filter(func(item) =
+        (switch (item.child_id) {
+          case (?id) linkedIds.any(func(linkedId) = id == linkedId);
+          case null false;
+        }) and
+        (event_id == null or event_id == ?item.event_id) and
+        (club_id == null or (switch (events.find(func(e) = e.id == item.event_id)) {
+          case (?e) ?e.club_id == club_id;
+          case null false;
+        }))
+      );
+      // Bound inter-canister calls on a user-scoped read; never return a
+      // partially authorized listing when the request is too large.
+      if (candidates.size() > 500) return [];
+      var authorized : [Types.RsvpWithChild] = [];
+      for (item in candidates.values()) {
+        switch (item.child_id, events.find(func(e) = e.id == item.event_id)) {
+          case (?childId, ?event) {
+            // The caller, not the original RSVP writer, must be an eligible guardian.
+            if (await freshGuardianRsvpForChild(caller, event, caller.toText(), childId)) {
+              if (removalReceiver.denied(caller) or eventFenced(event.id)) return [];
+              authorized := authorized.concat([{
+                rsvp = item;
+                child = linked.find(func(c) = c.id == childId);
+              }]);
+            };
+          };
+          case (_, _) {};
+        };
+      };
+      authorized
     } finally { removalReceiver.leave(caller) };
   };
 
@@ -5690,13 +5718,15 @@ persistent actor class Main(governorInit : Principal) = this {
   public shared ({ caller }) func read_account_my_children() : async [Types.Child] {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
-
-    do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    auth(caller);
-    let callerId = Principal.toText(caller);
-    let guardedIds = childGuardians.filter(func(g) = g.guardian_id == callerId).map(func(g) = g.child_id);
-    children.filter(func(c) = (c.parent_id == ?callerId) or guardedIds.any(func(id) = id == c.id))
-  
+      do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
+      auth(caller);
+      let authority = clubDomainCanister ?? return [];
+      let club : actor {
+        read_can_list_guardian_children : shared (Principal) -> async [Types.Child];
+      } = actor(authority.toText());
+      let linked = try { await (with timeout = 10) club.read_can_list_guardian_children(caller) } catch (_) { return [] };
+      if (removalReceiver.denied(caller) or clubDomainCanister != ?authority) return [];
+      linked
     } finally { removalReceiver.leave(caller) };
   };
 

@@ -2378,6 +2378,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
         [],
       ),
+    'read_can_list_guardian_children' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(IDL.Record({ 'id' : IDL.Text, 'parent_id' : IDL.Opt(IDL.Text) }))],
+        [],
+      ),
     'read_can_guardian_rsvp_child' : IDL.Func(
         [IDL.Principal, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Vec(IDL.Text)],
         [IDL.Bool],

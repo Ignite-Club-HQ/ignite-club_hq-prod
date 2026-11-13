@@ -4023,6 +4023,26 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(user) };
   };
 
+  // Minimal caller-scoped child IDs for the configured events canister.
+  // Guardian links are evaluated against the authoritative club ACL.
+  // Never expose child names or unrelated family records.
+  public shared ({ caller }) func read_can_list_guardian_children(user : Principal) : async [{ id : Text; parent_id : ?Text }] {
+    if (switch (eventsDomainCanister) { case (?id) not id.equal(caller); case null true }) return [];
+    if (Principal.isAnonymous(user)) return [];
+    if (not removalReceiver.enter(user)) return [];
+    try {
+      await admitAccount(user);
+      if (removalReceiver.denied(user)) return [];
+      acl.children.filter(func(child) =
+        currentChildGuardian(user, child.id) and
+        (switch (child.club_id) { case (?club) not isTransferFenced(club); case null true })
+      ).map(func(child) : { id : Text; parent_id : ?Text } = {
+        id = child.id;
+        parent_id = switch (child.parent) { case (?parent) ?parent.toText(); case null null };
+      })
+    } finally { removalReceiver.leave(user) };
+  };
+
   // The user's role grants in one club as (role, team) pairs. events_domain
   // mirrors these on create/update so club and team admins set up here can
   // schedule events without a separate grant there. Public query, same
