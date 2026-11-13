@@ -202,7 +202,7 @@ export const ROUTING_GATES_SNAPSHOT: RoutingGatesSnapshot = ${JSON.stringify(sna
 `);
 console.log(`Routing snapshot verified for ${snapshotGroups.map(g => g.id).join(', ')} at registry revision ${registry.revision}.`);
 if (globalThis.process?.env?.RECORD_ROUTING_APPROVAL === '1') {
-  recordLiveApproval(evidence.approvedConfiguration, evidenceSha256).catch(e => { console.error(e); process.exitCode = 1; });
+  await recordLiveApproval(evidence.approvedConfiguration, evidenceSha256);
 } else {
   console.log('Committed snapshot ships with the next frontend release; publish the frontend canister after this run.');
 }
