@@ -5341,7 +5341,7 @@ persistent actor class Main(governorInit : Principal) = this {
               if (removalReceiver.denied(caller) or eventFenced(event.id)) return [];
               authorized := authorized.concat([{
                 rsvp = item;
-                child = children.find(func(c) = c.id == childId);
+                child = linked.find(func(c) = c.id == childId);
               }]);
             };
           };
