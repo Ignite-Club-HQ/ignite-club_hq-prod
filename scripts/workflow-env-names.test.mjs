@@ -47,7 +47,7 @@ test('only explicitly allowlisted PROD setup, checks, promotion, funding and iso
   const prod = workflows.filter(({ name }) => name.startsWith('[PROD] '));
   assert.deepEqual(prod.map(({ file }) => file).sort(),
     ['apply-prod-lifecycle-wiring.yml', 'check-prod-canister-connections.yml', 'check-prod-routing-gates.yml', 'create-prod-second-group.yml', 'execute-prod-cycles-topup.yml', 'fund-prod-canisters-by-card.yml', 'icp-push-deliver-prod.yml',
-      'link-prod-account-service.yml', 'prod-app-admin.yml', 'prod-native-push-sender.yml', 'prod-sign-in-routing.yml',
+      'link-prod-account-service.yml', 'prod-app-admin.yml', 'prod-native-push-rollout.yml', 'prod-native-push-sender.yml', 'prod-sign-in-routing.yml',
       'plan-prod-cycles-topup.yml', 'plan-prod-second-group.yml', 'prod-create-governor.yml', 'prod-create-push-key.yml', 'promote-icp-prod.yml',
       'register-prod-second-group.yml', 'reload-prod-member-services.yml', 'prod-enable-secure-name-save.yml', 'check-prod-group-opening.yml', 'open-prod-group.yml', 'publish-prod-routing-approval.yml', 'set-prod-group-settings.yml', 'setup-prod-base-group.yml',
       'check-prod-control-record.yml', 'prod-activate-protections.yml', 'prod-create-account-approval-key.yml', 'prod-enable-member-access.yml', 'prod-setup-safeguard.yml', 'prod-verify-account-approval-key.yml'].sort());
