@@ -3377,6 +3377,19 @@ persistent actor class Main(governorInit : Principal) = this {
     "- Denied calls return #Err(\"...\"); anonymous calls to authenticated methods trap."
   };
 
+  // Initial-signup policy version, published separately from the global
+  // legal_reacceptance switch. No unapproved or synthetic fallback exists.
+  // The governor/app admin must first attest that the matching legal documents
+  // are published before setting this public, non-secret exact key.
+  func publishedLegalReleaseRows() : [Text] {
+    switch (appConfig.find(func((key, _)) = key == "legal_document_release")) {
+      case (?(_, version)) {
+        if (version == "") [] else [version]
+      };
+      case null [];
+    }
+  };
+
   public query func schema() : async Text {
     Oql.schema(OqlClubs.entities, "{\"entity\":\"clubs\",\"select\":[\"id\",\"name\"],\"limit\":50}")
   };
@@ -3393,6 +3406,11 @@ persistent actor class Main(governorInit : Principal) = this {
       Oql.run<Types.ClubSubscription>(request, clubSubscriptions,
         func(sub) = profiles.any(func(c) = c.id == sub.club_id and c.deleted_at_ms == null) and (isMember(caller, sub.club_id) or isAdmin(caller, sub.club_id)),
         func(sub) = OqlClubs.clubSubscriptionRow(sub, timestamp))
+    } else if (request.entity == "legal_release") {
+      // Only the single whitelisted published release label; no arbitrary
+      // app settings, private terms records or subscription metadata.
+      Oql.run<Text>(request, publishedLegalReleaseRows(),
+        func(_) = true, OqlClubs.legalReleaseRow)
     } else {
       let timestamp = nowMs();
       Oql.run<Types.TeamSubscription>(request, teamSubscriptions,
@@ -9107,6 +9125,11 @@ persistent actor class Main(governorInit : Principal) = this {
       Oql.run<Types.ClubSubscription>(request, clubSubscriptions,
         func(sub) = profiles.any(func(c) = c.id == sub.club_id and c.deleted_at_ms == null) and (isMember(caller, sub.club_id) or isAdmin(caller, sub.club_id)),
         func(sub) = OqlClubs.clubSubscriptionRow(sub, timestamp))
+    } else if (request.entity == "legal_release") {
+      // Only the single whitelisted published release label; no arbitrary
+      // app settings, private terms records or subscription metadata.
+      Oql.run<Text>(request, publishedLegalReleaseRows(),
+        func(_) = true, OqlClubs.legalReleaseRow)
     } else {
       let timestamp = nowMs();
       Oql.run<Types.TeamSubscription>(request, teamSubscriptions,
