@@ -33,3 +33,60 @@ describe("events_domain self RSVP authorization", () => {
     expect(source).toContain("requireManage(caller, event_id)");
   });
 });
+function methodBlock(startMarker: string, endMarker: string) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  return source.slice(start,end);
+}
+
+describe("events_domain RSVP integrity and guardian authorization", () => {
+  it("updates only the self row, leaving every child row intact", () => {
+    const method = selfRsvpMethod();
+    expect(method).toContain("item.account_id == account_id and item.child_id == null");
+    expect(method).toContain("retainedPaid");
+    expect(method).toContain("retainedNotes");
+    expect(method).toContain("has_paid = retainedPaid");
+    expect(method).not.toContain("not (item.event_id == event_id and item.account_id == account_id))");
+  });
+
+  it("child RSVP uses a verified guardian relationship rather than a management permission", () => {
+    const method = methodBlock("public shared ({ caller }) func set_child_rsvp(", "public shared ({ caller }) func set_rsvp_note(");
+    expect(method).not.toContain("requireManage(caller, event_id)");
+    expect(method).toContain("freshGuardianRsvpForChild(caller, event, account_id, child_id)");
+    expect(method).toContain("item.child_id == ?child_id");
+    expect(method).toContain("has_paid = retainedPaid");
+    expect(method).toContain("notes = retainedNotes");
+  });
+
+  it("fresh guardian authorization must check current roles, membership, team assignment and event revision", () => {
+    const body = methodBlock("func freshGuardianRsvpForChild(", "// Parent RSVPs their own child");
+    expect(body).toContain("account_id != caller.toText()");
+    expect(body).toContain("Principal.isAnonymous(caller)");
+    expect(body).toContain("cd.read_has_club_membership(caller, event.club_id)");
+    expect(body).not.toContain("requireManage(caller");
+    expect(body).toContain("child.parent_id == ?callerId");
+    expect(body).toContain('restricted.any(func(role) = role == "player")');
+    expect(body).toContain('event.rsvp_audience == ?"parents_only"');
+    expect(body).toContain("current.revision != event.revision");
+    expect(body).toContain("childGuardians.any");
+    expect(body).toContain("childTeamAssignments.any");
+    expect(body).toContain("clubDomainCanister != ?authority");
+    expect(body).toContain("return false");
+  });
+});
+
+describe("member-owned child RSVP UX and read authorization", () => {
+  it("allows parent-owned children and explicit guardians to read their own child RSVPs", () => {
+    const method = methodBlock("public shared ({ caller }) func read_account_my_child_rsvps(", "public shared ({ caller }) func read_account_child_is_in_event_audience(");
+    expect(method).toContain("children.filter(func(child) = child.parent_id == ?callerId)");
+    expect(method).toContain("childGuardians.filter(func(g) = g.guardian_id == callerId)");
+    expect(method).toContain("accessibleChildIds.any(func(id) = id == cid)");
+  });
+  it("uses the dedicated guardian-scoped endpoint in the event carousel, not the admin endpoint", () => {
+    const carousel = readFileSync(resolve(process.cwd(), "src/components/NextUpCarousel.tsx"),"utf8");
+    expect(carousel).toContain("setLiveChildRsvp(ctx, event.id, accountId, childId, status)");
+    expect(carousel).not.toContain("adminUpsertLiveRsvp(");
+  });
+});

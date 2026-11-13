@@ -1162,12 +1162,68 @@ persistent actor class Main(governorInit : Principal) = this {
         if (removalReceiver.denied(caller) or eventFenced(event_id)) return #Err("Event RSVP not allowed for this member");
       };
     };
-    if (not valid(account_id) or not valid(state) or notes.size() > 2000) return #Err("Invalid RSVP");
+    if (not valid(account_id) or (state != "going" and state != "maybe" and state != "not_going") or notes.size() > 2000) return #Err("Invalid RSVP");
+    // A parent's own attendance is a different record from each of their
+    // children's attendance. Preserve those rows when updating only self.
+    // Status changes must also preserve paid state and existing notes when
+    // the caller supplied no new note (note deletion has set_rsvp_note).
+    let previous = rsvps.find(func(item) = item.event_id == event_id and item.account_id == account_id and item.child_id == null);
+    let retainedPaid = switch (previous) { case (?item) item.has_paid; case null null };
+    let retainedNotes = switch (previous) {
+      case (?item) if (notes == "") item.notes else notes;
+      case null notes;
+    };
     recordRsvpCreatedAt(event_id, account_id);
-    let value : Types.Rsvp = { event_id; account_id; child_id = null; state; notes; has_paid = null; source = "member"; updated_at_ms = nowMs() };
-    rsvps := rsvps.filter(func(item) = not (item.event_id == event_id and item.account_id == account_id)); rsvps := rsvps.concat([value]); #Ok(value)
+    let value : Types.Rsvp = { event_id; account_id; child_id = null; state; notes = retainedNotes; has_paid = retainedPaid; source = "member"; updated_at_ms = nowMs() };
+    rsvps := rsvps.filter(func(item) = not (item.event_id == event_id and item.account_id == account_id and item.child_id == null));
+    rsvps := rsvps.concat([value]); #Ok(value)
   
     } finally { removalReceiver.leave(caller) };
+  };
+
+  // Child RSVP security differs from the staff-only event view mirror:
+  // parents are not mirrored as local staff role grants. Verify both an
+  // existing guardian link and a live current club/parent role, then re-read
+  // the event and child assignment AFTER the authority awaits. Fail closed.
+  // This is deliberately NOT used by admin_upsert_rsvp; staff permissions
+  // and parent-only writes remain separate.
+  // Member-only child RSVP. A valid parent/guardian link plus the child's
+  // current event team assignment is the permission, NOT coach/admin access.
+  // Re-check club membership through the authoritative club_domain on each
+  // write and re-read mutable child/event state after the await.
+  func freshGuardianRsvpForChild(caller : Principal, event : Types.Event, account_id : Text, child_id : Text) : async Bool {
+    if (Principal.isAnonymous(caller) or account_id != caller.toText() or event.deleted or event.cancelled or event.adults_only) return false;
+    // A parents-only event is for the adult; player attendance is a
+    // different subject. A player-only event is valid for a child.
+    if (event.rsvp_audience == ?"parents_only") return false;
+    let allowed = switch (event.restricted_to_roles) {
+      case (?restricted) {
+        if (restricted.size() == 0) true
+        else restricted.any(func(role) = role == "player")
+      };
+      case null true;
+    };
+    if (not allowed) return false;
+    let authority = clubDomainCanister ?? return false;
+    let cd : actor {
+      read_has_club_membership : shared (Principal, Text) -> async Bool;
+    } = actor(authority.toText());
+    let member = try { await (with timeout = 10) cd.read_has_club_membership(caller, event.club_id) } catch (_) { return false };
+    if (not member or clubDomainCanister != ?authority) return false;
+    let current = switch (events.find(func(item) = item.id == event.id)) { case (?item) item; case null return false };
+    if (current.revision != event.revision or current.club_id != event.club_id or current.deleted or current.cancelled or current.adults_only) return false;
+    let callerId = caller.toText();
+    let linked = children.any(func(child) = child.id == child_id and child.parent_id == ?callerId) or
+      childGuardians.any(func(guardian) = guardian.child_id == child_id and guardian.guardian_id == callerId);
+    if (not linked) return false;
+    let targets = current.target_team_ids ?? [];
+    childTeamAssignments.any(func(assignment) =
+      assignment.child_id == child_id and assignment.club_id == current.club_id and
+      (switch (current.team_id) {
+        case (?team) assignment.team_id == team;
+        case null if (targets.size() > 0) targets.any(func(target) = target == assignment.team_id) else true;
+      })
+    )
   };
 
   // Parent RSVPs their own child (Supabase childRsvpMutation parity) — same
@@ -1180,14 +1236,26 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (eventFenced(event_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
-    switch (requireManage(caller, event_id)) {
-      case (#Err(e)) return #Err(e);
-      case (#Ok(_)) {};
+    if (not valid(account_id) or not valid(child_id) or (state != "going" and state != "maybe" and state != "not_going") or notes.size() > 2000)
+      return #Err("Invalid RSVP");
+    let event = switch (events.find(func(item) = item.id == event_id)) {
+      case null return #Err("Event not found");
+      case (?item) item;
     };
-    if (not valid(account_id) or not valid(child_id) or not valid(state) or notes.size() > 2000) return #Err("Invalid RSVP");
+    if (not (await freshGuardianRsvpForChild(caller, event, account_id, child_id)))
+      return #Err("Child RSVP not allowed for this guardian or event");
+    if (removalReceiver.denied(caller) or eventFenced(event_id))
+      return #Err("Child RSVP not allowed for this guardian or event");
+    let previous = rsvps.find(func(item) = item.event_id == event_id and item.account_id == account_id and item.child_id == ?child_id);
+    let retainedPaid = switch (previous) { case (?item) item.has_paid; case null null };
+    let retainedNotes = switch (previous) {
+      case (?item) if (notes == "") item.notes else notes;
+      case null notes;
+    };
     recordRsvpCreatedAt(event_id, account_id);
-    let value : Types.Rsvp = { event_id; account_id; child_id = ?child_id; state; notes; has_paid = null; source = "member"; updated_at_ms = nowMs() };
-    rsvps := rsvps.filter(func(item) = not (item.event_id == event_id and item.account_id == account_id and item.child_id == ?child_id)); rsvps := rsvps.concat([value]); #Ok(value)
+    let value : Types.Rsvp = { event_id; account_id; child_id = ?child_id; state; notes = retainedNotes; has_paid = retainedPaid; source = "member"; updated_at_ms = nowMs() };
+    rsvps := rsvps.filter(func(item) = not (item.event_id == event_id and item.account_id == account_id and item.child_id == ?child_id));
+    rsvps := rsvps.concat([value]); #Ok(value)
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -1752,9 +1820,11 @@ persistent actor class Main(governorInit : Principal) = this {
     denyLegacyAccountQuery();
     auth(caller);
     let callerId = Principal.toText(caller);
-    let myChildIds = childGuardians.filter(func(g) = g.guardian_id == callerId).map(func(g) = g.child_id);
+    let myChildIds = children.filter(func(child) = child.parent_id == ?callerId).map(func(child) = child.id);
+    let guardianIds = childGuardians.filter(func(g) = g.guardian_id == callerId).map(func(g) = g.child_id);
+    let accessibleChildIds = myChildIds.concat(guardianIds);
     rsvps.filter(func(item) =
-      (switch (item.child_id) { case (?cid) myChildIds.any(func(id) = id == cid); case null false })
+      (switch (item.child_id) { case (?cid) accessibleChildIds.any(func(id) = id == cid); case null false })
         and (event_id == null or event_id == ?item.event_id)
         and (club_id == null or (switch (events.find(func(e) = e.id == item.event_id)) { case (?e) ?e.club_id == club_id; case null false }))
     ).map(func(item) : Types.RsvpWithChild {
@@ -5245,9 +5315,11 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
     let callerId = Principal.toText(caller);
-    let myChildIds = childGuardians.filter(func(g) = g.guardian_id == callerId).map(func(g) = g.child_id);
+    let myChildIds = children.filter(func(child) = child.parent_id == ?callerId).map(func(child) = child.id);
+    let guardianIds = childGuardians.filter(func(g) = g.guardian_id == callerId).map(func(g) = g.child_id);
+    let accessibleChildIds = myChildIds.concat(guardianIds);
     rsvps.filter(func(item) =
-      (switch (item.child_id) { case (?cid) myChildIds.any(func(id) = id == cid); case null false })
+      (switch (item.child_id) { case (?cid) accessibleChildIds.any(func(id) = id == cid); case null false })
         and (event_id == null or event_id == ?item.event_id)
         and (club_id == null or (switch (events.find(func(e) = e.id == item.event_id)) { case (?e) ?e.club_id == club_id; case null false }))
     ).map(func(item) : Types.RsvpWithChild {

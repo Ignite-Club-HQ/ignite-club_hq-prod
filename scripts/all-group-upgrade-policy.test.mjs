@@ -70,6 +70,25 @@ test('DEV plugin member access can upgrade only the four pinned events and chat 
   changed.registry.placements[0].domains.find(d=>d.domain==='events_domain').canister=p('other-canister-cai');
   assert.throws(()=>planInventory(shared,changed.provisions,changed.registry,'plugin_member_access',changed.hashes),/exactly four pinned/);
 });
+test('DEV RSVP-only release requires exact confirmation and only two pinned events canisters',()=>{
+  const f=fixture();
+  const plan=planInventory(shared,f.provisions,f.registry,'rsvp_integrity',f.hashes);
+  assert.deepEqual(SCOPES.rsvp_integrity,['events_domain']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g1','events_domain','m6y7b-6yaaa-aaaal-qxlra-cai'],
+    ['g2','events_domain','ymvtj-3qaaa-aaaal-qxpza-cai'],
+  ]);
+  assert.equal(plan.targets.some(t=>t.name!=='events_domain'),false);
+  validateRequest('check','rsvp_integrity');
+  validateRequest('upgrade','rsvp_integrity','UPGRADE DEV RSVP ONLY',hash(1));
+  assert.throws(()=>validateRequest('upgrade','rsvp_integrity','UPGRADE ALL MAINNET GROUPS',hash(1)),/UPGRADE DEV RSVP ONLY/);
+  assert.throws(()=>validateRequest('upgrade','rsvp_integrity','UPGRADE DEV RSVP ONLY',''),/Checked plan/);
+  assert.throws(()=>planInventory(shared,fixture(3).provisions,fixture(3).registry,'rsvp_integrity',fixture(3).hashes),/exactly two pinned/);
+  const changed=fixture();changed.provisions[0].canisters.events_domain='other-events-cai';
+  changed.registry.groups[0].domains.find(d=>d.domain==='events_domain').canister=p('other-events-cai');
+  changed.registry.placements[0].domains.find(d=>d.domain==='events_domain').canister=p('other-events-cai');
+  assert.throws(()=>planInventory(shared,changed.provisions,changed.registry,'rsvp_integrity',changed.hashes),/exactly two pinned/);
+});
 test('future Group 3 and Group 4 cannot be silently skipped',()=>{
   const f=fixture(4),plan=planInventory(shared,f.provisions,f.registry,'messaging',f.hashes);
   assert.deepEqual(plan.targets.map(t=>t.groupId),['g1','g2','g3','g4']);
@@ -131,7 +150,7 @@ test('collisions, wrong placement, incomplete domain inventory and registry over
   }
 });
 test('every scope uses the same artifact hash across all group instances',()=>{
-  const f=fixture(3);for(const scope of Object.keys(SCOPES)){const selected=scope==='plugin_member_access'?fixture(2):f;const plan=planInventory(shared,selected.provisions,selected.registry,scope,selected.hashes);for(const t of plan.targets)assert.equal(t.newHash,hash(2));}
+  const f=fixture(3);for(const scope of Object.keys(SCOPES)){const selected=['plugin_member_access','rsvp_integrity'].includes(scope)?fixture(2):f;const plan=planInventory(shared,selected.provisions,selected.registry,scope,selected.hashes);for(const t of plan.targets)assert.equal(t.newHash,hash(2));}
   delete f.hashes.notification_queue;assert.throws(()=>planInventory(shared,f.provisions,f.registry,'app_admin',f.hashes));
 });
 test('unexpected or duplicated saved domain names fail before target creation',()=>{
