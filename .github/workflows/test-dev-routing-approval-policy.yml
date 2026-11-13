@@ -1,0 +1,24 @@
+name: "[TEST] DEV routing approval policy"
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/approve-dev-public-routing.yml"
+      - ".github/workflows/test-dev-routing-approval-policy.yml"
+      - "scripts/dev-routing-approval-policy.mjs"
+      - "scripts/dev-routing-approval-policy.test.mjs"
+      - "frontend/scripts/produce-routing-gates.ts"
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Assert DEV routing approval is revision-bound and release-only
+        run: node --test scripts/dev-routing-approval-policy.test.mjs
