@@ -15,6 +15,7 @@ export const SCOPES = Object.freeze({
   messaging: ['messaging_domain'],
   plugin_member_access: ['events_domain', 'messaging_domain'],
   rsvp_integrity: ['events_domain'],
+  guardian_rsvp_authority: ['club_domain', 'events_domain'],
   browser_push_test: ['notification_queue'],
   competition: ['notification_queue', 'club_domain', 'events_domain', 'competition_domain'],
   history: ['events_domain', 'competition_domain'],
@@ -28,7 +29,7 @@ export const normalizeConfirmation = v => String(v ?? '').replace(/[\u200b-\u200
 export function validateRequest(action, scope, confirmation, checkedPlan) {
   action = String(action ?? '').trim(); scope = String(scope ?? '').trim();
   if (!['check', 'upgrade', 'recover'].includes(action) || !Object.hasOwn(SCOPES, scope)) throw Error('Choose a reviewed scope and check, upgrade or recover');
-  const words = action === 'upgrade' && scope === 'plugin_member_access' ? 'UPGRADE DEV MEMBER ACCESS' : action === 'upgrade' && scope === 'rsvp_integrity' ? 'UPGRADE DEV RSVP ONLY' : { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
+  const words = action === 'upgrade' && scope === 'plugin_member_access' ? 'UPGRADE DEV MEMBER ACCESS' : action === 'upgrade' && scope === 'rsvp_integrity' ? 'UPGRADE DEV RSVP ONLY' : action === 'upgrade' && scope === 'guardian_rsvp_authority' ? 'UPGRADE DEV GUARDIAN RSVP' : { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
   if (words) {
     const c = normalizeConfirmation(confirmation), plan = normalizePlan(checkedPlan);
     if (c !== words) throw Error(`Confirmation box must say ${words} (received ${c.length} characters${c ? ` starting "${c.slice(0, 12)}"` : ''})`);
@@ -96,6 +97,20 @@ export function planInventory(shared, provisions, registry, scope, hashes) {
       const t = targets[i];
       return !t || t.groupId !== groupId || t.name !== name || t.canisterId !== canisterId;
     })) throw Error('DEV RSVP upgrade requires exactly two pinned Group 1 and Group 2 events canisters');
+  }
+  // Guardian RSVP authority needs both canisters. This scope may only touch
+  // these four pinned DEV group targets, with no shared/PROD infrastructure.
+  if (scope === 'guardian_rsvp_authority') {
+    const expected = [
+      ['g1', 'club_domain', 'mzzzv-taaaa-aaaal-qxlrq-cai'],
+      ['g2', 'club_domain', 'yfwyv-nyaaa-aaaal-qxpyq-cai'],
+      ['g1', 'events_domain', 'm6y7b-6yaaa-aaaal-qxlra-cai'],
+      ['g2', 'events_domain', 'ymvtj-3qaaa-aaaal-qxpza-cai'],
+    ];
+    if (targets.length !== 4 || expected.some(([groupId, name, canisterId], i) => {
+      const t = targets[i];
+      return !t || t.groupId !== groupId || t.name !== name || t.canisterId !== canisterId;
+    })) throw Error('DEV guardian RSVP authority requires exactly four pinned Group 1 and Group 2 canisters');
   }
   return { groups: all, targets, pii: Object.fromEntries(all.map(g=>[g.id,g.services.find(s=>s.name==='pii_access_control').canisterId])) };
 }
