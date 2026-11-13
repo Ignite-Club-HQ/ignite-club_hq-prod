@@ -26,8 +26,20 @@ module {
       { name = "is_pro"; kind = "bool" }, { name = "is_pro_football"; kind = "bool" },
       { name = "is_trial"; kind = "bool" }, { name = "trial_active"; kind = "bool" },
       { name = "premium_active"; kind = "bool" }, { name = "trial_ends_at_ms"; kind = "int" }
+    ] },
+    // Only this explicitly approved, public, non-secret configuration key is
+    // exposed. No general app_config, reacceptance flag or policy contents.
+    { name = "legal_release"; fields = [
+      { name = "version"; kind = "text" },
+      { name = "terms_url"; kind = "text" },
+      { name = "privacy_url"; kind = "text" }
     ] }
   ];
+  public func legalReleaseRow(version : Text) : Oql.Row {
+    [Oql.text("version", version),
+     Oql.text("terms_url", "https://igniteclubhq.com/terms"),
+     Oql.text("privacy_url", "https://igniteclubhq.com/privacy")]
+  };
   public func clubRow(club : Types.ClubProfile) : Oql.Row {
     [Oql.text("id", club.id), Oql.text("name", club.name), Oql.text("slug", club.slug),
      Oql.optional("sport", club.sport), Oql.boolean("is_active", club.is_active)]
