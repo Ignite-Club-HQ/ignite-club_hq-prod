@@ -51,7 +51,7 @@ export function prepareEncryptedChatgptProfileName(input) {
   // Key origin MUST be pinned by the caller integration to the declared DEV
   // PII canister, NOT by an untrusted end-user field.
   const publicKey = DerivedPublicKey.deserialize(input.verificationKey);
-  const identity = IbeIdentity.fromBytes(encoder.encode(subject + '\\u001f' + FIELD));
+  const identity = IbeIdentity.fromBytes(encoder.encode(subject + '\u001f' + FIELD));
   const ciphertext = IbeCiphertext.encrypt(publicKey, identity, encoder.encode(name), IbeSeed.random()).serialize();
   const reference = REFERENCE_PREFIX + authority + ':' + subject;
   return {
