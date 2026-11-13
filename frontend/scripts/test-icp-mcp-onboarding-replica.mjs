@@ -108,6 +108,36 @@ try {
     return (await club.actor.execute(planQuery(entity))).rows;
   };
   const getValue = (row, field) => row.find(cell => cell.name === field)?.value;
+
+  // The legal-release reader is a strict, documented whitelist, independent
+  // of forced reacceptance. This uses a synthetic PocketIC-only label; it does
+  // not publish or endorse any real Terms/Privacy version on DEV or PROD.
+  const legalQuery = JSON.stringify({
+    entity: 'legal_release',
+    select: ['version','terms_url','privacy_url'],
+    limit: 1
+  });
+  const legalRowsFor = async principal => {
+    club.actor.setPrincipal(principal);
+    return (await club.actor.read_account_execute(legalQuery)).rows;
+  };
+  assert.equal((await legalRowsFor(creator)).length, 0,
+    'Absent legal release must never silently default to a synthetic version');
+
+  club.actor.setPrincipal(creator);
+  assert.ok('Err' in await club.actor.set_app_config('legal_document_release', '2099-12-31'),
+    'Ordinary club admins must not publish legal versions');
+  club.actor.setPrincipal(governor);
+  ok(await club.actor.set_app_config('legal_document_release', '2099-12-31'));
+  assert.deepEqual(await club.actor.get_app_config('legal_document_release'), ['2099-12-31']);
+  const release = await legalRowsFor(creator);
+  assert.equal(release.length, 1);
+  assert.deepEqual(getValue(release[0], 'version'), {text: '2099-12-31'});
+  assert.deepEqual(getValue(release[0], 'terms_url'), {text: 'https://igniteclubhq.com/terms'});
+  assert.deepEqual(getValue(release[0], 'privacy_url'), {text: 'https://igniteclubhq.com/privacy'});
+  await assert.rejects(
+    () => club.actor.read_account_execute(JSON.stringify({entity:'app_config',select:['value']})),
+    'The connector must not expose arbitrary app configuration through legal OQL');
   for (const entity of ['club_subscriptions','team_subscriptions']) {
     assert.equal((await subscriptionsFor(outsider, entity)).length, 0,
       'Unrelated principal must not see ' + entity);
