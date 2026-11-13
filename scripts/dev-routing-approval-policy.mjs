@@ -23,6 +23,7 @@ export function validateDevRoutingEvidence(report, expectedRevision) {
       report.groups[0]?.id !== GROUP || !Array.isArray(report.groups[0]?.domains) ||
       report.groups[0].domains.length !== 13 ||
       new Set(report.groups[0].domains.map(d => d.domain)).size !== 13 ||
+      Object.keys(report.groups[0].moduleHashes ?? {}).length !== 13 ||
       !Object.values(report.groups[0].moduleHashes ?? {}).every(value => HEX.test(value))) {
     throw new Error('DEV routing report has an incomplete or unexpected group inventory');
   }
