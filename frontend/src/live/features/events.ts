@@ -833,7 +833,7 @@ export async function getMyLiveChildRsvps(
   clubId?: string | null,
 ) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return actor.my_child_rsvps(candidOpt(eventId), candidOpt(clubId));
+  return actor.read_account_my_child_rsvps(eventId ?? null, clubId ?? null);
 }
 
 /** Whether a child is part of an event's audience (roster/guardian scope). */
@@ -1629,7 +1629,7 @@ export async function listLiveDuties(ctx: FeatureBackendContext, eventId: string
 /** The caller's own linked children (events-domain self-service roster). */
 export async function getLiveMyChildren(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return actor.my_children();
+  return actor.read_account_my_children();
 }
 
 /** Admin upsert of a child->team assignment. */
