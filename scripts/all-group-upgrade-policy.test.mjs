@@ -150,7 +150,7 @@ test('collisions, wrong placement, incomplete domain inventory and registry over
   }
 });
 test('every scope uses the same artifact hash across all group instances',()=>{
-  const f=fixture(3);for(const scope of Object.keys(SCOPES)){const selected=['plugin_member_access','rsvp_integrity'].includes(scope)?fixture(2):f;const plan=planInventory(shared,selected.provisions,selected.registry,scope,selected.hashes);for(const t of plan.targets)assert.equal(t.newHash,hash(2));}
+  const f=fixture(3);for(const scope of Object.keys(SCOPES)){const selected=['plugin_member_access','rsvp_integrity','guardian_rsvp_authority'].includes(scope)?fixture(2):f;const plan=planInventory(shared,selected.provisions,selected.registry,scope,selected.hashes);for(const t of plan.targets)assert.equal(t.newHash,hash(2));}
   delete f.hashes.notification_queue;assert.throws(()=>planInventory(shared,f.provisions,f.registry,'app_admin',f.hashes));
 });
 test('unexpected or duplicated saved domain names fail before target creation',()=>{
