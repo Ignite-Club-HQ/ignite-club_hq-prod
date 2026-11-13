@@ -5311,8 +5311,18 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
       do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
       auth(caller);
+      let authority = clubDomainCanister ?? return [];
+      let club : actor {
+        read_can_list_guardian_children : shared (Principal) -> async [Types.Child];
+      } = actor(authority.toText());
+      let linked = try { await (with timeout = 10) club.read_can_list_guardian_children(caller) } catch (_) { return [] };
+      if (removalReceiver.denied(caller) or clubDomainCanister != ?authority) return [];
+      let linkedIds = linked.map(func(c) = c.id);
       let candidates = rsvps.filter(func(item) =
-        item.child_id != null and
+        (switch (item.child_id) {
+          case (?id) linkedIds.any(func(linkedId) = id == linkedId);
+          case null false;
+        }) and
         (event_id == null or event_id == ?item.event_id) and
         (club_id == null or (switch (events.find(func(e) = e.id == item.event_id)) {
           case (?e) ?e.club_id == club_id;
