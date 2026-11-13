@@ -17,13 +17,13 @@
       "name": "club_domain",
       "canisterId": "yfwyv-nyaaa-aaaal-qxpyq-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "ffb1adfbfd0e285412f2c113b55fca5ea19c4b45f3772784821857f515d09d1b"
+      "moduleHash": "8dd3843a2ff70d44d7760a34d0fd0bbb791803a3b0c43025021fa3f8e4e34d83"
     },
     {
       "name": "events_domain",
       "canisterId": "ymvtj-3qaaa-aaaal-qxpza-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "70dbc93280ac0ec34e75074baabe00ceeefbd47d5387a6394c354f2b16d6acb3"
+      "moduleHash": "a01a88b226a091611b19d3edc848e69993302ab47046c3dd113f8da698790738"
     },
     {
       "name": "messaging_domain",
