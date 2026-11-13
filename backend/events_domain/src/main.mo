@@ -5324,19 +5324,18 @@ persistent actor class Main(governorInit : Principal) = this {
       if (candidates.size() > 500) return [];
       var authorized : [Types.RsvpWithChild] = [];
       for (item in candidates.values()) {
-        let childId = switch (item.child_id) { case (?id) id; case null continue };
-        let event = switch (events.find(func(e) = e.id == item.event_id)) {
-          case (?e) e;
-          case null continue;
-        };
-        // Legacy rows may have other account_ids. Authorization is always
-        // checked for the signed-in guardian, never the original writer.
-        if (await freshGuardianRsvpForChild(caller, event, caller.toText(), childId)) {
-          if (removalReceiver.denied(caller) or eventFenced(event.id)) return [];
-          authorized := authorized.concat([{
-            rsvp = item;
-            child = children.find(func(c) = c.id == childId);
-          }]);
+        switch (item.child_id, events.find(func(e) = e.id == item.event_id)) {
+          case (?childId, ?event) {
+            // The caller, not the original RSVP writer, must be an eligible guardian.
+            if (await freshGuardianRsvpForChild(caller, event, caller.toText(), childId)) {
+              if (removalReceiver.denied(caller) or eventFenced(event.id)) return [];
+              authorized := authorized.concat([{
+                rsvp = item;
+                child = children.find(func(c) = c.id == childId);
+              }]);
+            };
+          };
+          case (_, _) {};
         };
       };
       authorized
@@ -5709,13 +5708,15 @@ persistent actor class Main(governorInit : Principal) = this {
   public shared ({ caller }) func read_account_my_children() : async [Types.Child] {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
-
-    do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    auth(caller);
-    let callerId = Principal.toText(caller);
-    let guardedIds = childGuardians.filter(func(g) = g.guardian_id == callerId).map(func(g) = g.child_id);
-    children.filter(func(c) = (c.parent_id == ?callerId) or guardedIds.any(func(id) = id == c.id))
-  
+      do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
+      auth(caller);
+      let authority = clubDomainCanister ?? return [];
+      let club : actor {
+        read_can_list_guardian_children : shared (Principal) -> async [Types.Child];
+      } = actor(authority.toText());
+      let linked = try { await (with timeout = 10) club.read_can_list_guardian_children(caller) } catch (_) { return [] };
+      if (removalReceiver.denied(caller) or clubDomainCanister != ?authority) return [];
+      linked
     } finally { removalReceiver.leave(caller) };
   };
 
