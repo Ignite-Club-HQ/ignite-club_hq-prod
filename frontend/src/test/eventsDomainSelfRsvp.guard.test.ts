@@ -147,7 +147,7 @@ describe("native ICP child read routing", () => {
   const feature = readFileSync(resolve(process.cwd(), "src/live/features/events.ts"), "utf8");
   it("uses account-scoped child and RSVP reads instead of stale legacy queries", () => {
     expect(feature).toContain("actor.read_account_my_children()");
-    expect(feature).toContain("actor.read_account_my_child_rsvps(eventId ?? null, clubId ?? null)");
+    expect(feature).toContain("actor.read_account_my_child_rsvps(candidOpt(eventId), candidOpt(clubId))");
     expect(feature).not.toContain("actor.my_child_rsvps(");
   });
 });
