@@ -250,3 +250,20 @@ test('recover accepts pasted hash/wording with stray spaces, quotes or line brea
   assert.throws(() => validateRequest('recover', 'full_backend', 'UPGRADE ALL MAINNET GROUPS', plan), /Confirmation box must say RECOVER/);
   assert.throws(() => validateRequest('recover', 'full_backend', 'RECOVER COMPLETED MAINNET RELEASE', plan.slice(1)), /received 63 characters/);
 });
+
+test('DEV guardian RSVP authority requires only four pinned club/event canisters and exact confirmation',()=>{
+  const f=fixture();
+  const plan=planInventory(shared,f.provisions,f.registry,'guardian_rsvp_authority',f.hashes);
+  assert.deepEqual(SCOPES.guardian_rsvp_authority,['club_domain','events_domain']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g1','club_domain','mzzzv-taaaa-aaaal-qxlrq-cai'],
+    ['g2','club_domain','yfwyv-nyaaa-aaaal-qxpyq-cai'],
+    ['g1','events_domain','m6y7b-6yaaa-aaaal-qxlra-cai'],
+    ['g2','events_domain','ymvtj-3qaaa-aaaal-qxpza-cai'],
+  ]);
+  validateRequest('check','guardian_rsvp_authority');
+  validateRequest('upgrade','guardian_rsvp_authority','UPGRADE DEV GUARDIAN RSVP',hash(1));
+  assert.throws(()=>validateRequest('upgrade','guardian_rsvp_authority','UPGRADE ALL MAINNET GROUPS',hash(1)),/UPGRADE DEV GUARDIAN RSVP/);
+  assert.throws(()=>validateRequest('upgrade','guardian_rsvp_authority','UPGRADE DEV GUARDIAN RSVP',''),/Checked plan/);
+  assert.throws(()=>planInventory(shared,fixture(3).provisions,fixture(3).registry,'guardian_rsvp_authority',fixture(3).hashes),/exactly four pinned/);
+});
