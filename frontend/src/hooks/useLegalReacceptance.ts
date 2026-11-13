@@ -64,16 +64,28 @@ export async function fetchLegalReacceptanceSetting(): Promise<LegalReacceptance
 }
 
 /**
- * A stable, monotonically-increasing numeric terms version for the
- * identity_access canister (which stores `terms_version: number`, not a
- * date string). The canister rejects a version lower than a previously
- * recorded one, so deriving it from `effective_at` (each activation must use
- * a later effective date than the last) keeps it monotonic for free.
+ * ICP identity_access stores the accepted version as nat32 (1..2^32-1).
+ * Admins label legal releases with their effective UTC calendar day
+ * (YYYY-MM-DD); YYYYMMDD fits nat32 and increases across successive days.
+ * Never use a millisecond epoch (too large) or use an absent effective date
+ * to imply acceptance. Returns 0 for missing/invalid configuration; callers
+ * MUST refuse writes of version 0.
+ *
+ * The label is an operator-published legal document release identifier.
+ * Do not synthesize today's date as a substitute for publishing a version.
  */
 export function icpTermsVersionFromSetting(setting: LegalReacceptanceSetting): number {
-  if (!setting.effective_at) return 0;
-  const ms = new Date(setting.effective_at).getTime();
-  return Number.isFinite(ms) ? ms : 0;
+  if (!setting.required || !setting.effective_at || !setting.version) return 0;
+  const match = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(setting.version);
+  if (!match) return 0;
+  const date = new Date(setting.version + "T00:00:00.000Z");
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== setting.version) return 0;
+  const effective = new Date(setting.effective_at).getTime();
+  if (!Number.isFinite(effective)) return 0;
+  // Version labels identify a document release, not the time of the admin click.
+  // A release may be enabled later than its document's published date.
+  const version = Number(match[1] + match[2] + match[3]);
+  return Number.isSafeInteger(version) && version > 0 && version <= 0xffffffff ? version : 0;
 }
 
 export interface UseLegalReacceptanceResult {
@@ -147,7 +159,8 @@ export function useLegalReacceptance(): UseLegalReacceptanceResult {
       if (icpAcceptanceQuery.data !== undefined) {
         const requiredVersion = icpTermsVersionFromSetting(setting);
         const acceptedVersion = icpAcceptanceQuery.data?.termsVersion ?? -1;
-        mustAccept = acceptedVersion < requiredVersion;
+        // A required but malformed version must never count as accepted.
+        mustAccept = requiredVersion === 0 || acceptedVersion < requiredVersion;
       }
     } else if (acceptanceQuery.data !== undefined) {
       const effective = new Date(setting.effective_at).getTime();
@@ -169,7 +182,11 @@ export function useLegalReacceptance(): UseLegalReacceptanceResult {
       if (!identity) {
         throw new Error("No active Internet Identity session. Sign in again to continue.");
       }
-      await setIcpTermsAcceptance(identity, icpTermsVersionFromSetting(setting));
+      const termsVersion = icpTermsVersionFromSetting(setting);
+      if (termsVersion === 0) {
+        throw new Error("No valid, published YYYY-MM-DD legal version is configured for ICP. Contact an app admin.");
+      }
+      await setIcpTermsAcceptance(identity, termsVersion);
       return;
     }
     const { error } = await supabase.rpc("accept_current_legal_terms" as never);
