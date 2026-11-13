@@ -2030,6 +2030,7 @@ export interface MainInterface {
      * / Bounded consensus configuration evidence; never changes or grants access.
      */
     read_group_opening_configuration(): Promise<Array<[string, string]>>;
+    read_can_list_guardian_children(user: Principal): Promise<Array<{ id: string; parent_id: [] | [string] }>>;
     read_can_guardian_rsvp_child(user: Principal, child_id: string, club_id: string, team_id: [] | [string], target_team_ids: Array<string>): Promise<boolean>;
     read_has_child_guardian(user: Principal, child_id: string): Promise<boolean>;
     read_has_club_membership(user: Principal, club_id: string): Promise<boolean>;
@@ -6273,6 +6274,10 @@ export class Club_domain implements club_domainInterface {
     }
     async read_group_opening_configuration(): Promise<Array<[string, string]>> {
         const result = await this.actor.read_group_opening_configuration();
+        return result;
+    }
+    async read_can_list_guardian_children(arg0: Principal): Promise<Array<{ id: string; parent_id: [] | [string] }>> {
+        const result = await this.actor.read_can_list_guardian_children(arg0);
         return result;
     }
     async read_can_guardian_rsvp_child(arg0: Principal, arg1: string, arg2: string, arg3: [] | [string], arg4: Array<string>): Promise<boolean> {
