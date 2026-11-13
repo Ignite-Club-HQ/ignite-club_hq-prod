@@ -42,6 +42,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --ignore-scripts --no-fund --no-audit
+      - name: Verify client-only in-chat VetKeys crypto with synthetic principal
+        run: node --test scripts/chatgpt-own-name-crypto.test.mjs
       - run: npm run check:step1
       - run: node --test scripts/generated-contract-syntax.test.mjs
       - run: npm run lint
