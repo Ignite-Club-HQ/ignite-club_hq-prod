@@ -1660,6 +1660,7 @@ export interface Main {
    * / Bounded consensus configuration evidence; never changes or grants access.
    */
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
+  'read_can_guardian_rsvp_child' : ActorMethod<[Principal, string, string, [] | [string], Array<string>], boolean>,
   'read_has_child_guardian' : ActorMethod<[Principal, string], boolean>,
   'read_has_club_membership' : ActorMethod<[Principal, string], boolean>,
   'read_has_club_staff_role' : ActorMethod<[Principal, string], boolean>,
