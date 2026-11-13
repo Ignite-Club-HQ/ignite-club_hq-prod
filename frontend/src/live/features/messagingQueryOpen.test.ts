@@ -17,7 +17,8 @@ import {
 } from "./messaging";
 import { __resetChatOpenTrace, takeChatOpenBreakdown } from "@/lib/chatOpenTrace";
 
-const ctx = { target: {}, identity: { getPrincipal: () => ({ toText: () => "me" }) } } as never;
+const ctxShape = { target: {}, identity: { getPrincipal: () => ({ toText: () => "me" }) } };
+const ctx = ctxShape as never;
 const bundle = (latest: number, id = "m1") => ({
   Ok: { page: { messages: [{ id }], next_sequence: [], latest_sequence: BigInt(latest) }, reactions: [], pins: [], polls: [] },
 });
@@ -30,8 +31,8 @@ beforeEach(() => {
 
 describe("first-page quick read", () => {
   it('isolates reactions and poll bundles even when mainnet and engine use the same conversation ID', async () => {
-    const mainnet = { ...ctx, target: { host: 'https://mainnet.example.com', networkKind: 'public_mainnet', canisterIds: { messaging_domain: 'mainnet-chat' } } } as never;
-    const engine = { ...ctx, target: { host: 'https://engine.example.com', networkKind: 'cloud_engine', canisterIds: { messaging_domain: 'engine-chat' } } } as never;
+    const mainnet = { ...ctxShape, target: { host: 'https://mainnet.example.com', networkKind: 'public_mainnet', canisterIds: { messaging_domain: 'mainnet-chat' } } } as never;
+    const engine = { ...ctxShape, target: { host: 'https://engine.example.com', networkKind: 'cloud_engine', canisterIds: { messaging_domain: 'engine-chat' } } } as never;
     actor.open_conversation_query.mockResolvedValueOnce({ Ok: { ...bundle(1).Ok,
       reactions: [{ message_id: 'm1', emoji: 'mainnet-private' }], polls: [{ poll: { id: 'same-poll' }, private: 'mainnet' }] } });
     await listLiveLatestMessagesPage(mainnet, 'same-chat', null, 30);
@@ -44,8 +45,8 @@ describe("first-page quick read", () => {
   });
 
   it('does not apply mainnet sequence history or unavailable-method flags to engine chats', async () => {
-    const mainnet = { ...ctx, target: { canisterIds: { messaging_domain: 'mainnet-chat' } } } as never;
-    const engine = { ...ctx, target: { canisterIds: { messaging_domain: 'engine-chat' } } } as never;
+    const mainnet = { ...ctxShape, target: { canisterIds: { messaging_domain: 'mainnet-chat' } } } as never;
+    const engine = { ...ctxShape, target: { canisterIds: { messaging_domain: 'engine-chat' } } } as never;
     actor.open_conversation_query.mockResolvedValueOnce(bundle(100, 'mainnet'));
     await listLiveLatestMessagesPage(mainnet, 'same-chat', null, 30);
     actor.open_conversation_query.mockResolvedValueOnce(bundle(1, 'engine'));
@@ -58,8 +59,8 @@ describe("first-page quick read", () => {
   });
 
   it('a mainnet write fence does not delay a different engine chat', async () => {
-    const mainnet = { ...ctx, target: { canisterIds: { messaging_domain: 'mainnet-chat' } } } as never;
-    const engine = { ...ctx, target: { canisterIds: { messaging_domain: 'engine-chat' } } } as never;
+    const mainnet = { ...ctxShape, target: { canisterIds: { messaging_domain: 'mainnet-chat' } } } as never;
+    const engine = { ...ctxShape, target: { canisterIds: { messaging_domain: 'engine-chat' } } } as never;
     noteLiveConversationWrite('same-chat', Date.now(), mainnet);
     actor.open_conversation_query.mockResolvedValue(bundle(1, 'engine'));
     expect((await listLiveLatestMessagesPage(engine, 'same-chat', null, 30)).messages[0].id).toBe('engine');
