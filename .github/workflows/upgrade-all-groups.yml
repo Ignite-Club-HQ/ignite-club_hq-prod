@@ -13,13 +13,13 @@ on:
         type: choice
         required: true
         default: full_backend
-        options: [full_backend, club_migration, private_name_cleanup, secure_name_save, private_club_name_display, app_admin, team_invites, messaging, plugin_member_access, browser_push_test, competition, history, subscriptions, events_pitch, gallery_vault]
+        options: [full_backend, club_migration, private_name_cleanup, secure_name_save, private_club_name_display, app_admin, team_invites, messaging, plugin_member_access, rsvp_integrity, browser_push_test, competition, history, subscriptions, events_pitch, gallery_vault]
       checked_plan:
         description: "CHECKED PLAN HASH (64 letters/numbers) - required for recover; optional for upgrade"
         required: false
         default: ''
       confirmation:
-        description: "CONFIRMATION WORDS - UPGRADE DEV MEMBER ACCESS for plugin_member_access; otherwise UPGRADE ALL MAINNET GROUPS (upgrade) or RECOVER COMPLETED MAINNET RELEASE (recover); empty for check"
+        description: "CONFIRMATION WORDS - UPGRADE DEV MEMBER ACCESS for plugin_member_access; UPGRADE DEV RSVP ONLY for rsvp_integrity; otherwise UPGRADE ALL MAINNET GROUPS (upgrade) or RECOVER COMPLETED MAINNET RELEASE (recover); empty for check"
         required: false
         default: ''
 permissions:
@@ -54,18 +54,18 @@ jobs:
         run: |
           node --input-type=module <<'JS'
           import {validateRequest,normalizeConfirmation,normalizePlan} from './scripts/all-group-upgrade-policy.mjs';
-          if(process.env.ACTION==='upgrade'&&['full_backend','club_migration','private_name_cleanup','secure_name_save','private_club_name_display','plugin_member_access'].includes(process.env.SCOPE)&&!normalizePlan(process.env.CHECKED_PLAN)){
+          if(process.env.ACTION==='upgrade'&&['full_backend','club_migration','private_name_cleanup','secure_name_save','private_club_name_display','plugin_member_access','rsvp_integrity'].includes(process.env.SCOPE)&&!normalizePlan(process.env.CHECKED_PLAN)){
             const typed=normalizeConfirmation(process.env.CONFIRMATION);
             if(typed.startsWith('RECOVER'))throw Error('Action dropdown is still "upgrade". Change Action to "recover" and paste the original checked plan hash into Checked plan');
-            const needed=process.env.SCOPE==='plugin_member_access'?'UPGRADE DEV MEMBER ACCESS':'UPGRADE ALL MAINNET GROUPS';
+            const needed=process.env.SCOPE==='plugin_member_access'?'UPGRADE DEV MEMBER ACCESS':process.env.SCOPE==='rsvp_integrity'?'UPGRADE DEV RSVP ONLY':'UPGRADE ALL MAINNET GROUPS';
             if(typed!==needed)throw Error('Type '+needed);
             validateRequest('check',process.env.SCOPE);
           }else validateRequest(process.env.ACTION,process.env.SCOPE,process.env.CONFIRMATION,process.env.CHECKED_PLAN);
           JS
       - name: Reject any non-DEV release ref for member-access scope
-        if: inputs.scope == 'plugin_member_access'
+        if: inputs.scope == 'plugin_member_access' || inputs.scope == 'rsvp_integrity'
         run: |
-          test "$GITHUB_REF" = "refs/heads/main" || { echo "::error::DEV member access must run from main"; exit 1; }
+          test "$GITHUB_REF" = "refs/heads/main" || { echo "::error::DEV member access and RSVP repairs must run from main"; exit 1; }
       - name: Install pinned tools and existing dependencies
         run: |
           npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
@@ -147,7 +147,7 @@ jobs:
           for(const name of names)copyFileSync(privateRelease&&name==='identity_access'?'target/private-name-cleanup/wasm32-unknown-unknown/release/identity_access.wasm':'deploy/mainnet/.icp/cache/artifacts/'+name,dest+'/'+name);
           JS
       - name: Automatically check the complete release on this exact source revision
-        if: inputs.action == 'upgrade' && (inputs.scope == 'full_backend' || inputs.scope == 'club_migration' || inputs.scope == 'plugin_member_access' || (inputs.scope == 'private_name_cleanup' || inputs.scope == 'secure_name_save' || inputs.scope == 'private_club_name_display')) && inputs.checked_plan == ''
+        if: inputs.action == 'upgrade' && (inputs.scope == 'full_backend' || inputs.scope == 'club_migration' || inputs.scope == 'plugin_member_access' || inputs.scope == 'rsvp_integrity' || (inputs.scope == 'private_name_cleanup' || inputs.scope == 'secure_name_save' || inputs.scope == 'private_club_name_display')) && inputs.checked_plan == ''
         working-directory: frontend
         run: |
           npx --yes tsx@4 scripts/upgrade-all-groups.ts check "$SCOPE" "$RUNNER_TEMP/all-group-wasm" "$RUNNER_TEMP/all-group.pem" "$RUNNER_TEMP/all-group-report"
