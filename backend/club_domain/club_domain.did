@@ -1839,6 +1839,8 @@ type Main =
                                                   text;
                                                 });
    read_has_child_guardian: (user: principal, child_id: text) -> (bool);
+   read_can_guardian_rsvp_child: (user: principal, child_id: text, club_id: text,
+     team_id: opt text, target_team_ids: vec text) -> (bool);
    read_has_club_membership: (user: principal, club_id: text) -> (bool);
    read_has_club_staff_role: (user: principal, club_id: text) -> (bool);
    read_has_pii_audience: (user: principal, kind: text, scope: text) ->
