@@ -105,7 +105,8 @@ describe("authoritative club-domain child RSVP eligibility", () => {
     expect(body).toContain("currentChildGuardian(user, child_id)");
     expect(body).toContain("isMember(user, club_id)");
     expect(body).toContain("isTransferFenced(club_id)");
-    expect(body).toContain("liveTeamClub(t) == ?club_id");
+    expect(body).toContain("team.club_id == club_id");
+    expect(body).toContain("team.is_active and not team.archived");
     expect(body).toContain("target_team_ids.any");
     expect(body).toContain("team_id");
   });
