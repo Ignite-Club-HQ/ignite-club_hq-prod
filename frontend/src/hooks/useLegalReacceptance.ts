@@ -76,7 +76,7 @@ export async function fetchLegalReacceptanceSetting(): Promise<LegalReacceptance
  */
 export function icpTermsVersionFromSetting(setting: LegalReacceptanceSetting): number {
   if (!setting.required || !setting.effective_at || !setting.version) return 0;
-  const match = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(setting.version);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(setting.version);
   if (!match) return 0;
   const date = new Date(setting.version + "T00:00:00.000Z");
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== setting.version) return 0;
