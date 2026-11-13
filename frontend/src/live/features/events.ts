@@ -833,7 +833,7 @@ export async function getMyLiveChildRsvps(
   clubId?: string | null,
 ) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return actor.read_account_my_child_rsvps(eventId ?? null, clubId ?? null);
+  return actor.read_account_my_child_rsvps(candidOpt(eventId), candidOpt(clubId));
 }
 
 /** Whether a child is part of an event's audience (roster/guardian scope). */
