@@ -50,6 +50,7 @@ test('DEV routing publisher validates operator pins before writing approval',()=
   const digestCheck=route.indexOf('requiredDevConfigSha');
   const approval=route.indexOf('recordLiveApproval(evidence.approvedConfiguration, evidenceSha256)');
   assert(revisionCheck>0 && digestCheck>revisionCheck && approval>digestCheck);
+  assert.match(route,/await recordLiveApproval\(evidence\.approvedConfiguration, evidenceSha256\)/);
 });
 
 test('approval workflow requires separate manual DEV confirmation, never uses PROD or direct arbitrary router setters',()=>{
