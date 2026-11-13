@@ -183,6 +183,29 @@ describe("useLegalReacceptance", () => {
   });
 });
 
+describe("ICP legal version nat32 contract", () => {
+  it("derives a stable positive YYYYMMDD version from a published legal label", () => {
+    expect(icpTermsVersionFromSetting(firstActivation)).toBe(20260801);
+    expect(icpTermsVersionFromSetting({
+      ...firstActivation,
+      version: "2026-09-15",
+      effective_at: "2026-09-16T18:37:00.000Z",
+    })).toBe(20260915);
+  });
+
+  it.each([
+    { ...firstActivation, required: false },
+    { ...firstActivation, version: null },
+    { ...firstActivation, effective_at: null },
+    { ...firstActivation, version: "2026-02-30" },
+    { ...firstActivation, version: "2026-13-01" },
+    { ...firstActivation, version: "random label" },
+    { ...firstActivation, effective_at: "not-a-date" },
+  ])("never invents an ICP legal version from invalid configuration %#", (setting) => {
+    expect(icpTermsVersionFromSetting(setting)).toBe(0);
+  });
+});
+
 describe("useLegalReacceptance (ICP branch)", () => {
   beforeEach(() => {
     mocks.userId = "principal-a";
@@ -239,6 +262,24 @@ describe("useLegalReacceptance (ICP branch)", () => {
     const { result } = renderHook(() => useLegalReacceptance(), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.mustAccept).toBe(true);
+  });
+
+  it("refuses an unset published version without calling set_terms_acceptance", async () => {
+    mocks.setting = null;
+    const { result } = renderHook(() => useLegalReacceptance(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await expect(result.current.acceptCurrentTerms()).rejects.toThrow("No valid, published YYYY-MM-DD legal version");
+    expect(mocks.setIcpTermsAcceptance).not.toHaveBeenCalled();
+  });
+
+  it("blocks an invalid required version rather than treating it as accepted", async () => {
+    mocks.setting = { ...firstActivation, version: "not-a-date" };
+    mocks.icpAcceptance = { termsVersion: 20260801 };
+    const { result } = renderHook(() => useLegalReacceptance(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.mustAccept).toBe(true);
+    await expect(result.current.acceptCurrentTerms()).rejects.toThrow("No valid, published YYYY-MM-DD legal version");
+    expect(mocks.setIcpTermsAcceptance).not.toHaveBeenCalled();
   });
 
   it("acceptCurrentTerms calls setIcpTermsAcceptance with the derived version for the current identity", async () => {
