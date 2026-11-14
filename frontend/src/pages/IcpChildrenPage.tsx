@@ -37,6 +37,8 @@ import {
 } from "@/features/membership/icpChildrenGroupSafety";
 import { createIcpInviteChild } from "@/features/membership/createIcpInviteChild";
 import { verifyIcpChildNameAcrossGroups } from "@/features/membership/verifyIcpChildNameAcrossGroups";
+import { isDevTedU10PreviewCandidate, previewDevTedU10Transfer } from "@/features/membership/devTedU10TransferPreflight";
+import type { DevTedPreflight } from "@/features/membership/devTedU10TransferPreflight";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -119,6 +121,18 @@ export default function IcpChildrenPage() {
   const [teamFor, setTeamFor] = useState<IcpChild | null>(null);
   const [guardiansFor, setGuardiansFor] = useState<IcpChild | null>(null);
   const [deleteId, setDeleteId] = useState<IcpChild | null>(null);
+  const [tedPreview, setTedPreview] = useState<DevTedPreflight | null>(null);
+  const reviewTed = useMutation({
+    // Read-only. This never calls create_own_child, set_own_child_team, or
+    // PII writes. Every source/target group is verified live on each click.
+    mutationFn: () => previewDevTedU10Transfer(window.location.hostname),
+    onSuccess: setTedPreview,
+    onError: (error: Error) => toast({
+      title: "Transfer preview unavailable",
+      description: error.message,
+      variant: "destructive",
+    }),
+  });
 
   const { data: childRows, isLoading, isError, refetch } = useQuery({
     queryKey: KEY,
@@ -414,6 +428,13 @@ export default function IcpChildrenPage() {
                   <Button variant="outline" size="sm" onClick={() => setTeamFor(c)}>
                     <Plus className="h-3 w-3 mr-1" /> Add to team
                   </Button>
+                  {isDevTedU10PreviewCandidate(window.location.hostname, c) && (
+                    <Button variant="outline" size="sm" disabled={reviewTed.isPending}
+                      onClick={() => reviewTed.mutate()}>
+                      {reviewTed.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                      Review U10 move
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -485,6 +506,31 @@ export default function IcpChildrenPage() {
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
+      <ResponsiveDialog open={!!tedPreview} onOpenChange={open => { if (!open) setTedPreview(null); }}>
+        <ResponsiveDialogContent>
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Read-only transfer review: Ted to U10</ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
+          {tedPreview && (
+            <div className="space-y-3 text-sm">
+              <p>Verified Ted's exact encrypted name, primary Parent, source child record,
+                sole guardian, empty source team assignments, active U10 membership,
+                and that this Parent has no children in destination Group 2.</p>
+              <p><strong>Original record:</strong> {tedPreview.sourceChildId}</p>
+              <p><strong>From:</strong> Group 1 ({tedPreview.sourceCanister.slice(0, 12)}…)</p>
+              <p><strong>To:</strong> ChatGPT Plugin Test U10, Group 2 ({tedPreview.targetCanister.slice(0, 12)}…)</p>
+              <p className="text-muted-foreground">
+                No move, duplicate, child creation, guardian update or deletion has been performed.
+                Current canisters do not support importing a single existing child across groups.
+                A separately approved implementation and verification are required before any write.
+              </p>
+            </div>
+          )}
+          <ResponsiveDialogFooter>
+            <Button variant="outline" onClick={() => setTedPreview(null)}>Close</Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
       {guardiansFor && (
         <GuardiansDialog child={guardiansFor} teamIds={guardiansFor.teams} onClose={() => setGuardiansFor(null)} onChanged={invalidate} />
       )}
