@@ -1,4 +1,4 @@
-name: DEV Test2 delivery readback — source-contract tests
+name: "[REPO] Test2 DEV delivery readback source-contract checks"
 
 on:
   pull_request:
