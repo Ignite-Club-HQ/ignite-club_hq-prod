@@ -11,6 +11,7 @@ on:
       - scripts/group2-mcp-discovery.mjs
       - .github/workflows/dev-test2-notification-readback.yml
       - frontend/scripts/test-dev-test2-delivery-readback-replica.mjs
+      - backend/events_domain/src/main.mo
 
 permissions:
   contents: read
@@ -77,6 +78,7 @@ jobs:
           MOC="$HOME/.cache/mops/moc/1.16.1/moc"
           (cd backend/club_domain && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/club_domain.wasm src/main.mo)
           (cd backend/notification_queue && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/notification_queue.wasm src/main.mo)
+          (cd backend/events_domain && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/events_domain.wasm src/main.mo)
       - name: Test exact caller and membership boundary on disposable PocketIC
         working-directory: frontend
         env:
@@ -85,4 +87,5 @@ jobs:
           R="$GITHUB_WORKSPACE"
           CLUB_DOMAIN_WASM="$R/backend/club_domain/.mops/.build/club_domain.wasm" \
           NOTIFICATION_QUEUE_WASM="$R/backend/notification_queue/.mops/.build/notification_queue.wasm" \
+          EVENTS_DOMAIN_WASM="$R/backend/events_domain/.mops/.build/events_domain.wasm" \
           node scripts/test-dev-test2-delivery-readback-replica.mjs
