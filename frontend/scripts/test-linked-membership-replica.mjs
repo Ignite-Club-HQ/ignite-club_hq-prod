@@ -92,7 +92,10 @@ try {
   identity.actor.setPrincipal(governor); ok(await identity.actor.set_account_status(account.id, { Active: null }));
   // Club removal on either alias denies the whole account only in that club.
   groups[0].actor.setPrincipal(governor); ok(await groups[0].actor.remove_member(groups[0].name, app));
-  groups[0].actor.setPrincipal(browser); assert.deepEqual(await groups[0].actor.read_account_my_role_grants(), []);
+  groups[0].actor.setPrincipal(browser);
+  const survivingRoles = await groups[0].actor.read_account_my_role_grants();
+  assert.equal(survivingRoles.some(g => g.club[0] === groups[0].name), false, 'removed-club grants cleared');
+  assert.equal(survivingRoles.some(g => g.club[0] === 'other-private-club'), true, 'unrelated club grant survives removal');
   assert.equal(await groups[0].actor.read_account_is_club_member(browser, groups[0].name), false);
   groups[1].actor.setPrincipal(browser); assert.equal((await groups[1].actor.read_account_my_role_grants()).length, 2);
   await pic.stopCanister({ canisterId: identity.canisterId, sender: governor });
