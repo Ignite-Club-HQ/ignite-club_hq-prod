@@ -21,14 +21,14 @@ The generic frontend routing accepts dynamic notification kinds. Existing search
 
 ## Implemented minimal policy
 
-`eventInviteSourceAllowed(kind, caller)` returns true for all non-`event_invite` kinds. For `event_invite` it requires `caller == configured clubDomainCanister`, **not** governor, coach, parent, app admin, messaging service, or an arbitrary signed principal.
+`eventInviteWriteAllowed(kind, id, key, caller)` requires `caller == configured clubDomainCanister` if **either** the kind is exactly `event_invite` **or** the notification ID/key begins with the reserved `event_invite-` namespace. It blocks forged IDs/keys under another notification kind, not merely forged labels. Normal non-invitation notifications using other ID/key prefixes retain their existing permissions. A club administrator, coach, parent, governor or messaging service does **not** inherit the Club canister's caller identity.
 
-Both `enqueue` and `fan_out` check this **before admission** and **again just before mutation**, after potentially suspending `await` calls. Without a configured Club canister, `event_invite` fails closed. The filter is exact-match: other event kinds keep their existing behaviour. No data migration or Candid shape change.
+Both `enqueue` and `fan_out` check this **before admission** and **again just before mutation**, after potentially suspending `await` calls. Without a configured Club canister, `event_invite` fails closed. The kind filter is exact-match, with the reserved canonical ID/key namespace protected across kinds: other event kinds using unrelated keys retain existing behaviour. No data migration or Candid shape change.
 
 ## Tests: local only
 
 - `node --test scripts/event-invite-queue-authority.test.mjs`: verify both paths and both pre-/post-await guards; verify only the exact invite label is restricted; verify trusted service routing.
-- `frontend/scripts/test-event-invite-queue-authority-replica.mjs`: compile real `club_domain`, `events_domain` and `notification_queue` Motoko Wasm into disposable PocketIC. Confirm direct `fan_out` and `enqueue` rejects untrusted users, club admins/governor and messaging service; a browser cannot pre-seed the canonical event invite key; the legitimate `events_domain → club_domain → notification_queue` call succeeds exactly once; legacy non-invite fan-outs and enqueues still work. No device token or external push.
+- `frontend/scripts/test-event-invite-queue-authority-replica.mjs`: compile real `club_domain`, `events_domain` and `notification_queue` Motoko Wasm into disposable PocketIC. Confirm direct `fan_out` and `enqueue` rejects untrusted users, club admins/governor and messaging service; a browser cannot pre-seed the canonical event-invitation ID/key even using a different notification kind; the legitimate `events_domain → club_domain → notification_queue` call succeeds exactly once; legacy non-invite fan-outs and enqueues still work. No device token or external push.
 - Run the existing `frontend/scripts/test-event-setup-replica.mjs` regression on the same local-only compile (tests reminder workflow).
 - PR-only Actions workflow checks Motoko source compilation and runs the above tests without a deployment.
 
