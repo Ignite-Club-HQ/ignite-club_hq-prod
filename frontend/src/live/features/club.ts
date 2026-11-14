@@ -1530,6 +1530,13 @@ export async function sendLiveFeeReminders(
 }
 
 /** Parent self-service children (Children page, ICP mode). */
+/** Caller-only membership proof for notification club switching.
+ * Does not expose the club's roster or principals to guardians/parents. */
+export async function isMyLiveClubMember(ctx: FeatureBackendContext, clubId: string): Promise<boolean> {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  return actor.read_account_is_club_member(ctx.identity.getPrincipal(), clubId);
+}
+
 export async function listMyLiveOwnChildren(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
   return actor.list_my_children();

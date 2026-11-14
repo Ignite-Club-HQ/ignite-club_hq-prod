@@ -57,7 +57,6 @@ async function verifyClubMembershipIcp(clubId: string): Promise<MembershipVerdic
     const identity = await getCurrentInternetIdentity();
     if (!identity) return "error";
     const ctx = { identity, target: getActiveIcpTarget() };
-    const principalText = identity.getPrincipal().toText();
 
     const grants = await membership.getLiveMyRoleGrants(ctx);
     if (grants.some((g) => (g.club[0] ?? null) === clubId)) return "yes";
@@ -70,11 +69,15 @@ async function verifyClubMembershipIcp(clubId: string): Promise<MembershipVerdic
       if (teamScopedIds.some((id) => teamIds.has(id))) return "yes";
     }
 
-    // Guardian of a child rostered on one of this club's teams.
-    const roster = await club.getLiveClubRoster(ctx, clubId);
-    if (roster.children.some((c) => c.parent?.toText() === principalText)) return "yes";
-
-    return "no";
+    // Guardian-only memberships also count, but the club-wide roster carries
+    // other families' principals. Use a caller-bound membership boolean in
+    // the actual owning group, never a staff-only roster endpoint.
+    const { withFeatureBackend } = await import("@/live/featureRouter");
+    const isMember = await withFeatureBackend("membership", {
+      supabase: async () => { throw new Error("Internet Identity required"); },
+      icp: scoped => club.isMyLiveClubMember(scoped, clubId),
+    }, { clubId });
+    return isMember ? "yes" : "no";
   } catch (error) {
     console.warn("[NotificationClubSwitch] ICP membership check failed", error);
     return "error";
