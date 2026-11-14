@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, UserPlus, Loader2, Users, X } from "lucide-react";
@@ -26,6 +26,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import type { FeatureBackendContext } from "@/live/featureRouter";
+import {
+  assertChildSourceMatchesTeam,
+  assertMayCreateChild,
+  childSourceKey,
+  collectVerifiedChildren,
+  requireSourceClubCanisterId,
+  runForVerifiedOwnedChild,
+} from "@/features/membership/icpChildrenGroupSafety";
+import { createIcpInviteChild } from "@/features/membership/createIcpInviteChild";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { withReadDeadline } from "@/live/readDeadline";
 
 /**
@@ -39,8 +52,9 @@ interface IcpChild {
   name: string;
   teams: string[];
   isPrimary: boolean;
+  sourceClubCanisterId: string;
 }
-interface TeamOpt { id: string; name: string; club_id: string; club_name: string }
+interface TeamOpt { id: string; name: string; club_id: string; club_name: string; sourceClubCanisterId: string }
 interface Guardian { principal: string; name: string; isPrimary: boolean; isMe: boolean }
 
 async function load() {
@@ -52,33 +66,73 @@ async function load() {
   return { ctx: await icpCtx(), club, vault };
 }
 
+/** Reading all groups is essential even for unassigned children. A child
+ * starts with club_id=null, so a clubId lookup cannot recover its source.
+ * Require a complete member/shared inventory instead of showing a false empty
+ * list when one of the groups is unavailable.
+ */
+async function readAllMyChildren(): Promise<IcpChild[]> {
+  const [{ withFeatureBackend }, club] = await Promise.all([
+    import("@/live/featureRouter"), import("@/live/features/club"),
+  ]);
+  return withFeatureBackend<IcpChild[]>("membership", {
+    supabase: async () => { throw new Error("Internet Identity required to retrieve ICP children"); },
+    icp: async scoped => {
+      const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
+      const me = scoped.identity.getPrincipal().toText();
+      const rows = await withReadDeadline(club.listMyLiveOwnChildren(scoped), "Children in club group", 20_000);
+      return rows.map(r => ({
+        id: r.id, name: "", teams: [...r.teams],
+        isPrimary: r.parent?.[0]?.toText() === me,
+        sourceClubCanisterId,
+      }));
+    },
+  }, { everyGroup: true, requireComplete: true, merge: collectVerifiedChildren });
+}
+
+/** A later action must re-locate the child's *original* group, recheck the
+ * caller's child relationship there, and only then write. Never select the
+ * destination based on a team ID or default ICP target.
+ */
+async function withVerifiedChildGroup<T>(
+  child: IcpChild,
+  run: (ctx: FeatureBackendContext) => Promise<T>,
+): Promise<T> {
+  const [{ withFeatureBackend }, club] = await Promise.all([
+    import("@/live/featureRouter"), import("@/live/features/club"),
+  ]);
+  const contexts = await withFeatureBackend<FeatureBackendContext[]>("membership", {
+    supabase: async () => { throw new Error("Internet Identity required for child changes"); },
+    icp: async scoped =>
+      requireSourceClubCanisterId(scoped.target) === child.sourceClubCanisterId ? [scoped] : [],
+  }, { everyGroup: true, requireComplete: true, merge: parts => parts.flat() });
+  return runForVerifiedOwnedChild(
+    child, contexts, ctx => requireSourceClubCanisterId(ctx.target),
+    async (ctx, childId) => (await club.listMyLiveOwnChildren(ctx)).some(c => c.id === childId),
+    run,
+  );
+}
+
 export default function IcpChildrenPage() {
   const { user } = useAuth();
-  const KEY = ["icp-own-children", user?.id];
+  const KEY = ["icp-own-children-all-groups", user?.id];
   const navigate = useNavigate();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState("");
+  const [newChildTeamKey, setNewChildTeamKey] = useState("");
+  // create_own_child has no request-ID dedupe; lock after an ambiguous outcome.
+  const createAttempted = useRef(false);
   const [teamFor, setTeamFor] = useState<IcpChild | null>(null);
   const [guardiansFor, setGuardiansFor] = useState<IcpChild | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<IcpChild | null>(null);
 
   const { data: childRows, isLoading, isError, refetch } = useQuery({
     queryKey: KEY,
     enabled: !!user,
     retry: false,
-    queryFn: async (): Promise<IcpChild[]> => {
-      const { ctx, club } = await load();
-      const me = ctx.identity.getPrincipal().toText();
-      const rows = (await withReadDeadline(club.listMyLiveOwnChildren(ctx), 'Children list', 20_000)) as any[];
-      return rows.map((r) => ({
-        id: r.id,
-        name: "",
-        teams: r.teams as string[],
-        isPrimary: r.parent?.[0]?.toText?.() === me,
-      }));
-    },
+    queryFn: readAllMyChildren,
     // Children change rarely; keep the last list for a minute so revisiting
     // the page (or returning after Add child) is instant while a background
     // refetch refreshes it.
@@ -88,22 +142,45 @@ export default function IcpChildrenPage() {
 
   // Authorized child records reveal independently of private-name unlocking.
   // This separate account-scoped query never changes guardianship or teams.
-  const childIds = (childRows ?? []).map(child => child.id);
+  const sourceKeys = (childRows ?? []).map(childSourceKey).sort();
   const namesQuery = useQuery({
-    queryKey: ['icp-own-child-names', user?.id, childIds],
-    enabled: !!user && childIds.length > 0,
+    queryKey: ['icp-own-child-names-all-groups', user?.id, sourceKeys],
+    enabled: !!user && sourceKeys.length > 0,
     retry: false,
     staleTime: 5 * 60_000,
-    queryFn: async () => {
-      const { ctx, vault } = await load();
-      return Object.fromEntries(await withReadDeadline(vault.resolveLivePiiTextBatch(ctx, childIds, 'name', 'read', 'children_page'), 'Child names', 20_000));
+    queryFn: async (): Promise<Record<string, string>> => {
+      const [{ withFeatureBackend }, vault] = await Promise.all([
+        import("@/live/featureRouter"), import("@/live/features/vault"),
+      ]);
+      return withFeatureBackend<Record<string, string>>("membership", {
+        supabase: async () => { throw new Error("Internet Identity required for private child names"); },
+        icp: async scoped => {
+          const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
+          const ids = (childRows ?? [])
+            .filter(child => child.sourceClubCanisterId === sourceClubCanisterId)
+            .map(child => child.id);
+          if (ids.length === 0) return {};
+          const names = await withReadDeadline(
+            vault.resolveLivePiiTextBatch(scoped, ids, 'name', 'read', 'children_page'),
+            "Private child names", 20_000,
+          );
+          return Object.fromEntries([...names.entries()].map(([id, name]) =>
+            [childSourceKey({ id, sourceClubCanisterId }), name]));
+        },
+      }, { everyGroup: true, requireComplete: true, merge: parts => Object.assign({}, ...parts) });
     },
   });
-  const children = childRows?.map(child => ({ ...child, name: namesQuery.data?.[child.id] ?? child.name }));
+  const children = childRows?.map(child => ({
+    ...child,
+    name: namesQuery.data?.[childSourceKey(child)] ?? child.name,
+  }));
+  const existingNamesResolved = !childRows?.length || (
+    namesQuery.isSuccess && children?.every(child => !child.isPrimary || !!child.name.trim())
+  );
 
   const { data: teams } = useQuery({
     queryKey: ["icp-children-teams", user?.id],
-    enabled: !!user && (!!teamFor || !!childRows?.some(child => child.teams.length > 0)),
+    enabled: !!user,
     staleTime: 5 * 60_000,
     retry: false,
     queryFn: async (): Promise<TeamOpt[]> => {
@@ -117,88 +194,149 @@ export default function IcpChildrenPage() {
           const clubId = String(id);
           return withReadDeadline(readMembershipInScope(ctx, { clubId }, async scoped => {
             const [profile, teams] = await Promise.all([club.getLiveClubProfile(scoped, clubId), club.listLiveTeams(scoped, clubId)]);
-            return teams.filter(t => !t.deleted_at_ms?.length).map(t => ({ id: t.id, name: t.name, club_id: clubId, club_name: profile[0]?.name ?? 'Club' }));
+            const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
+            return teams.filter(t => !t.deleted_at_ms?.length).map(t => ({
+              id: t.id, name: t.name, club_id: clubId,
+              club_name: profile[0]?.name ?? 'Club', sourceClubCanisterId,
+            }));
           }), 'Children teams', 20_000);
         }),
       );
       return lists.flat();
     },
   });
-  const teamById = new Map((teams ?? []).map((t) => [t.id, t]));
+  const teamBySource = new Map((teams ?? []).map(t => [childSourceKey({
+    id: t.id, sourceClubCanisterId: t.sourceClubCanisterId,
+  }), t]));
+  const availableNewChildTeam = (teams ?? []).find(t =>
+    childSourceKey({ id: t.id, sourceClubCanisterId: t.sourceClubCanisterId }) === newChildTeamKey);
+
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: KEY });
-    qc.invalidateQueries({ queryKey: ['icp-own-child-names', user?.id] });
+    qc.invalidateQueries({ queryKey: ['icp-own-child-names-all-groups', user?.id] });
     qc.invalidateQueries({ queryKey: ["children"] });
     qc.invalidateQueries({ queryKey: ["own_children"] });
+    qc.invalidateQueries({ queryKey: ["icp-children-teams", user?.id] });
   };
 
   const addChild = useMutation({
     mutationFn: async () => {
       const trimmed = name.trim();
-      if (!trimmed) throw new Error("Enter a name");
-      if ((children ?? []).some((c) => c.isPrimary && c.name.toLowerCase() === trimmed.toLowerCase())) {
-        throw new Error(`${trimmed} is already in your children list.`);
+      assertMayCreateChild(trimmed, children, !!existingNamesResolved);
+      if (!availableNewChildTeam) throw new Error("Choose an eligible club team before adding a child.");
+      if (createAttempted.current) {
+        throw new Error("A previous child creation may have succeeded. Check My Children before creating another child.");
       }
-      const { ctx, club, vault } = await load();
-      const child = await club.createMyLiveChild(ctx);
-      const me = ctx.identity.getPrincipal();
-      await vault.registerLiveChildNamePii(ctx, child.id, trimmed, me);
-      return { id: child.id as string, name: trimmed, teams: [] as string[], isPrimary: true };
+      const team = availableNewChildTeam;
+      const [{ withFeatureBackend, writeOnce }, club, vault] = await Promise.all([
+        import("@/live/featureRouter"),
+        import("@/live/features/club"),
+        import("@/live/features/vault"),
+      ]);
+      return withFeatureBackend("membership", {
+        supabase: async () => { throw new Error("Internet Identity child creation cannot use Supabase."); },
+        icp: async ctx => {
+          const sourceClubCanisterId = requireSourceClubCanisterId(ctx.target);
+          if (sourceClubCanisterId !== team.sourceClubCanisterId)
+            throw new Error("Club placement changed; no child was created.");
+          if (!(await club.isMyLiveClubMember(ctx, team.club_id)))
+            throw new Error("You are no longer a member of this club. No child was created.");
+          const result = await createIcpInviteChild({
+            clubId: team.club_id, teamId: team.id, name: trimmed,
+          }, {
+            readTeam: async () => (await club.getLiveTeam(ctx, team.id))[0] ?? null,
+            createOwnChild: () => {
+              if (createAttempted.current) throw new Error("Child creation was already attempted; check My Children.");
+              createAttempted.current = true;
+              return club.createMyLiveChild(ctx);
+            },
+            saveName: id => vault.registerLiveChildNamePii(ctx, id, trimmed, ctx.identity.getPrincipal(), team.club_id),
+            assignOwnChildToTeam: id => club.setMyLiveChildTeam(ctx, id, team.id, true),
+          });
+          if (result.status === "linked") createAttempted.current = false;
+          return {
+            id: result.childId, name: trimmed,
+            teams: result.status === "linked" ? [team.id] : [],
+            isPrimary: true, sourceClubCanisterId,
+            status: result.status,
+          };
+        },
+      }, writeOnce({ clubId: team.club_id }));
     },
     onSuccess: (created) => {
-      // Show the new child immediately; the background refetch replaces this
-      // optimistic row with the canonical canister record.
-      qc.setQueryData<IcpChild[]>(KEY, (prev) =>
-        prev && !prev.some((c) => c.id === created.id) ? [...prev, created] : prev,
-      );
+      // Show only the confirmed source. Canonical cross-group reads replace
+      // this optimistic row and cannot accidentally pick up a Group 1 child.
+      qc.setQueryData<IcpChild[]>(KEY, prev => prev && !prev.some(c =>
+        childSourceKey(c) === childSourceKey(created)) ? [...prev, created] : prev);
       invalidate();
       setAddOpen(false);
       setName("");
-      toast({ title: "Child added successfully" });
+      setNewChildTeamKey("");
+      toast(created.status === "linked" ? { title: "Child added to team" } : {
+        title: "Child created, team link incomplete",
+        description: "The child exists, but was not assigned to the selected team. Check My Children before another attempt.",
+        variant: "destructive",
+      });
     },
-    onError: (e: any) => toast({ title: "Failed to add child", description: e?.message, variant: "destructive" }),
+    onError: (e: any) => toast({
+      title: "Couldn't finish adding child",
+      description: createAttempted.current
+        ? "The child may already exist. Check all groups in My Children before trying again."
+        : e?.message,
+      variant: "destructive",
+    }),
   });
 
   const deleteChild = useMutation({
-    mutationFn: async (id: string) => {
-      const { ctx, club } = await load();
-      await club.deleteMyLiveChild(ctx, id);
+    mutationFn: async (child: IcpChild) => {
+      if (!child.isPrimary) throw new Error("Only the primary parent can remove this child.");
+      const club = await import("@/live/features/club");
+      await withVerifiedChildGroup(child, ctx => club.deleteMyLiveChild(ctx, child.id));
     },
-    // Hide the child immediately and close the dialog; restore on failure.
-    onMutate: async (id: string) => {
+    onMutate: async (child: IcpChild) => {
       setDeleteId(null);
       await qc.cancelQueries({ queryKey: KEY });
       const previous = qc.getQueryData<IcpChild[]>(KEY);
-      qc.setQueryData<IcpChild[]>(KEY, (prev) => prev?.filter((c) => c.id !== id));
+      qc.setQueryData<IcpChild[]>(KEY, prev => prev?.filter(c =>
+        childSourceKey(c) !== childSourceKey(child)));
       return { previous };
     },
     onSuccess: () => { invalidate(); toast({ title: "Child removed" }); },
-    onError: (e: any, _id, context) => {
+    onError: (e: any, _child, context) => {
       if (context?.previous) qc.setQueryData(KEY, context.previous);
       toast({ title: "Failed to remove child", description: e?.message, variant: "destructive" });
     },
   });
 
   const setTeam = useMutation({
-    mutationFn: async ({ child, teamId, assigned }: { child: IcpChild; teamId: string; assigned: boolean }) => {
-      const { ctx, club, vault } = await load();
-      await club.setMyLiveChildTeam(ctx, child.id, teamId, assigned);
-      const t = teamById.get(teamId);
-      if (assigned && t) {
-        // First team: the child was saved before any club was known, so move
-        // the name onto that club's shared children key (one unlock per club
-        // instead of one per child). Later teams keep the existing key.
-        if (child.teams.length === 0 && child.isPrimary && child.name.trim()) {
-          await vault.registerLiveChildNamePii(ctx, child.id, child.name.trim(), ctx.identity.getPrincipal(), t.club_id);
-        } else {
-          // Let club staff see the name on rosters (best effort).
-          await vault.grantLiveClubChildNameRead(ctx, child.id, t.club_id).catch(() => {});
+    mutationFn: async ({ child, team, assigned }: {
+      child: IcpChild; team: TeamOpt; assigned: boolean;
+    }) => {
+      assertChildSourceMatchesTeam(child, team);
+      if (assigned && child.teams.includes(team.id)) return;
+      if (!assigned && !child.teams.includes(team.id))
+        throw new Error("Child is not on this team; nothing was changed.");
+      const [club, vault] = await Promise.all([
+        import("@/live/features/club"), import("@/live/features/vault"),
+      ]);
+      await withVerifiedChildGroup(child, async ctx => {
+        const actual = (await club.getLiveTeam(ctx, team.id))[0];
+        if (!actual || actual.club_id !== team.club_id)
+          throw new Error("Team or club placement changed; no assignment was made.");
+        await club.setMyLiveChildTeam(ctx, child.id, team.id, assigned);
+        if (assigned) {
+          // The name must be unlocked by the same source group as the child.
+          if (child.teams.length === 0 && child.isPrimary && child.name.trim()) {
+            await vault.registerLiveChildNamePii(ctx, child.id, child.name.trim(), ctx.identity.getPrincipal(), team.club_id);
+          } else {
+            await vault.grantLiveClubChildNameRead(ctx, child.id, team.club_id).catch(() => {});
+          }
         }
-      }
+      });
     },
     onSuccess: (_d, v) => { invalidate(); toast({ title: v.assigned ? "Added to team" : "Removed from team" }); },
-    onError: (e: any) => toast({ title: "Failed to update team", description: e?.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Couldn't update team", description: e?.message, variant: "destructive" }),
   });
 
   return (
@@ -233,12 +371,13 @@ export default function IcpChildrenPage() {
       ) : (
         <div className="space-y-3">
           {children.map((c) => (
-            <Card key={c.id}>
+            <Card key={childSourceKey(c)}>
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     {c.name ? <p className="font-semibold">{c.name}</p> : namesQuery.isLoading ? <div className="h-5 w-32 rounded bg-muted animate-pulse" aria-label="Retrieving child name" /> : <p className="font-semibold">Child</p>}
                     {!c.isPrimary && <p className="text-xs text-muted-foreground">You're a guardian</p>}
+                    <p className="text-xs text-muted-foreground">Stored on ICP group {c.sourceClubCanisterId.slice(0, 10)}…</p>
                   </div>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon" aria-label="Guardians" onClick={() => setGuardiansFor(c)}>
@@ -253,13 +392,14 @@ export default function IcpChildrenPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {c.teams.map((tid) => {
-                    const t = teamById.get(tid);
+                    const t = teamBySource.get(childSourceKey({ id: tid, sourceClubCanisterId: c.sourceClubCanisterId }));
                     return (
                       <Badge key={tid} variant="secondary" className="gap-1">
                         {t ? `${t.name} · ${t.club_name}` : "Team"}
                         <button
                           aria-label="Remove from team"
-                          onClick={() => setTeam.mutate({ child: c, teamId: tid, assigned: false })}
+                          disabled={!t}
+                          onClick={() => t && setTeam.mutate({ child: c, team: t, assigned: false })}
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -284,9 +424,26 @@ export default function IcpChildrenPage() {
             <Label htmlFor="icp-child-name">Name</Label>
             <Input id="icp-child-name" value={name} maxLength={120} onChange={(e) => setName(e.target.value)} placeholder="Child's name" />
             <p className="text-xs text-muted-foreground">The name is stored privately and only shown to you, other guardians and their clubs.</p>
+            <Label htmlFor="icp-new-child-team">Team (required to choose the correct group)</Label>
+            <Select value={newChildTeamKey} onValueChange={setNewChildTeamKey}>
+              <SelectTrigger id="icp-new-child-team"><SelectValue placeholder="Select your club team" /></SelectTrigger>
+              <SelectContent>
+                {(teams ?? []).map(t => (
+                  <SelectItem key={childSourceKey({ id: t.id, sourceClubCanisterId: t.sourceClubCanisterId })}
+                    value={childSourceKey({ id: t.id, sourceClubCanisterId: t.sourceClubCanisterId })}>
+                    {t.name} · {t.club_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {children?.some(c => c.isPrimary) && <p className="text-xs text-muted-foreground">
+              Existing children in another ICP group cannot be copied or re-created here.
+              Confirm their names and group before requesting a transfer.
+            </p>}
+            {!teams?.length && <p className="text-xs text-muted-foreground">No eligible team found. Join a club team first.</p>}
           </div>
           <ResponsiveDialogFooter>
-            <Button onClick={() => addChild.mutate()} disabled={!name.trim() || addChild.isPending}>
+            <Button onClick={() => addChild.mutate()} disabled={!name.trim() || !availableNewChildTeam || !existingNamesResolved || createAttempted.current || addChild.isPending}>
               {addChild.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Add child
             </Button>
           </ResponsiveDialogFooter>
@@ -297,19 +454,26 @@ export default function IcpChildrenPage() {
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader><ResponsiveDialogTitle>Add {teamFor?.name} to a team</ResponsiveDialogTitle></ResponsiveDialogHeader>
           <div className="space-y-2 py-2 max-h-[60vh] overflow-y-auto">
-            {(teams ?? []).filter((t) => !teamFor?.teams.includes(t.id)).map((t) => (
+            {(teams ?? []).filter(t =>
+              t.sourceClubCanisterId === teamFor?.sourceClubCanisterId && !teamFor?.teams.includes(t.id)
+            ).map((t) => (
               <Button
-                key={t.id}
+                key={childSourceKey({ id: t.id, sourceClubCanisterId: t.sourceClubCanisterId })}
                 variant="outline"
                 className="w-full justify-start"
                 disabled={setTeam.isPending}
-                onClick={() => { setTeam.mutate({ child: teamFor!, teamId: t.id, assigned: true }); setTeamFor(null); }}
+                onClick={() => { setTeam.mutate({ child: teamFor!, team: t, assigned: true }); setTeamFor(null); }}
               >
                 {t.name} <span className="ml-2 text-xs text-muted-foreground">{t.club_name}</span>
               </Button>
             ))}
-            {teams && teams.filter((t) => !teamFor?.teams.includes(t.id)).length === 0 && (
-              <p className="text-sm text-muted-foreground">No other teams in your clubs.</p>
+            {teams && teams.filter(t =>
+              t.sourceClubCanisterId === teamFor?.sourceClubCanisterId && !teamFor?.teams.includes(t.id)
+            ).length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No available team in this child's original canister group.
+                A child cannot be moved to another group by selecting a team.
+              </p>
             )}
             {!teams && <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
           </div>
@@ -339,14 +503,15 @@ export default function IcpChildrenPage() {
 function GuardiansDialog({ child, teamIds, onClose, onChanged }: { child: IcpChild; teamIds: string[]; onClose: () => void; onChanged: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const key = ["icp-child-guardians", child.id];
+  const key = ["icp-child-guardians", childSourceKey(child)];
 
   const { data, isLoading } = useQuery({
     queryKey: key,
     queryFn: async () => {
-      const { ctx, club } = await load();
+      const club = await import("@/live/features/club");
       const { listLiveProfilesByIds, accountIdForPrincipal } = await import("@/live/features/identityAccessClient");
       const { listLiveTeamRoleGrants } = await import("@/live/features/membership");
+      return withVerifiedChildGroup(child, async ctx => {
       const me = ctx.identity.getPrincipal().toText();
       const principals = ((await club.listLiveChildGuardians(ctx, child.id)) as any[]).map((p) => p.toText());
       // Candidates: members of the child's teams.
@@ -369,17 +534,21 @@ function GuardiansDialog({ child, teamIds, onClose, onChanged }: { child: IcpChi
       }));
       const addable = candidates.filter((p) => !principals.includes(p) && p !== me).map((p) => ({ principal: p, name: nameOf(p) }));
       return { guardians, addable };
+      });
     },
   });
 
   const change = useMutation({
     mutationFn: async ({ principal, linked }: { principal: string; linked: boolean }) => {
-      const { ctx, club, vault } = await load();
-      const { Principal } = await import("@icp-sdk/core/principal");
+      const [club, vault, { Principal }] = await Promise.all([
+        import("@/live/features/club"), import("@/live/features/vault"), import("@icp-sdk/core/principal"),
+      ]);
       const p = Principal.fromText(principal);
-      await club.setMyLiveChildGuardian(ctx, child.id, p, linked);
-      if (linked) await vault.grantLiveGuardianChildNameRead(ctx, child.id, p);
-      else await vault.revokeLivePiiRead(ctx, child.id, "name", p).catch(() => {});
+      await withVerifiedChildGroup(child, async ctx => {
+        await club.setMyLiveChildGuardian(ctx, child.id, p, linked);
+        if (linked) await vault.grantLiveGuardianChildNameRead(ctx, child.id, p);
+        else await vault.revokeLivePiiRead(ctx, child.id, "name", p).catch(() => {});
+      });
     },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: key });
