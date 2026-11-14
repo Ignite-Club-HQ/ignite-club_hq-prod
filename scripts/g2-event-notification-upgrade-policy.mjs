@@ -77,7 +77,8 @@ export function validateJournal(journal, binding) {
   if (!journal || digest(journal.binding) !== digest(binding) ||
       !Array.isArray(journal.steps) || journal.steps.length !== 2 ||
       typeof journal.complete !== 'boolean' || new Set(journal.steps.map(s=>s.canisterId)).size !== 2 ||
-      !/^\d+$/.test(journal.routerRevision) || !HASH.test(journal.configurationHash))
+      !/^\d+$/.test(journal.routerRevision) || journal.routerRevision !== binding.registryRevision ||
+      !HASH.test(journal.configurationHash) || journal.configurationHash !== binding.configurationHash)
     throw Error('Foreign, corrupt or incomplete two-canister release journal');
   for (const t of binding.targets) {
     const step = journal.steps.find(s=>s.canisterId===t.canisterId);
