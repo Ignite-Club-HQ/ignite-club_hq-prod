@@ -62,6 +62,27 @@ try {
   assert.equal(queue.canisterId.toText(), queueCanisterId.toText());
   const c = club.actor, q = queue.actor;
 
+  // The two endpoint methods must fail when installed at ANY other canister
+  // identity, even when the caller attempts to use the exact Test2 principal.
+  // Both additional actors are disposable PocketIC instances, never mainnet.
+  const wrongClub = await pic.setupCanister({
+    idlFactory: clubIdl, wasm: process.env.CLUB_DOMAIN_WASM,
+    sender: governor, controllers: [governor], arg
+  });
+  assert.notEqual(wrongClub.canisterId.toText(), clubCanisterId.toText());
+  wrongClub.actor.setPrincipal(test2);
+  denied(await wrongClub.actor.read_account_my_dev_test2_event_delivery(eventId));
+
+  const wrongQueue = await pic.setupCanister({
+    idlFactory: queueIdl, wasm: process.env.NOTIFICATION_QUEUE_WASM,
+    sender: governor, controllers: [governor], arg
+  });
+  assert.notEqual(wrongQueue.canisterId.toText(), queueCanisterId.toText());
+  wrongQueue.actor.setPrincipal(governor);
+  ok(await wrongQueue.actor.set_club_domain_canister(clubCanisterId));
+  wrongQueue.actor.setPrincipal(clubCanisterId);
+  denied(await wrongQueue.actor.read_trusted_dev_test2_event_delivery(eventId, test2));
+
   // Exact canister pair exists solely on this disposable replica.
   c.setPrincipal(governor);
   ok(await c.set_notification_queue_canister(queueCanisterId));
@@ -132,6 +153,16 @@ try {
   c.setPrincipal(test2);
   denied(await c.read_account_my_dev_test2_event_delivery(eventId));
   c.setPrincipal(governor);
+  ok(await c.add_role_grant(test2, clubId, 'parent', [teamId]));
+
+  // Another team Parent role is insufficient even inside the same club.
+  c.setPrincipal(governor);
+  ok(await c.remove_role_grant(test2, clubId, 'parent', [teamId]));
+  ok(await c.add_role_grant(test2, clubId, 'parent', ['00000000-0000-4000-8000-000000001234']));
+  c.setPrincipal(test2);
+  denied(await c.read_account_my_dev_test2_event_delivery(eventId));
+  c.setPrincipal(governor);
+  ok(await c.remove_role_grant(test2, clubId, 'parent', ['00000000-0000-4000-8000-000000001234']));
   ok(await c.add_role_grant(test2, clubId, 'parent', [teamId]));
 
   // Recovered membership is sufficient, but the queue must not be fenced.
