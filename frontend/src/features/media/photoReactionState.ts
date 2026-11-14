@@ -32,11 +32,18 @@ export function overlayPending(client: QueryClient, userId: string, ids: readonl
 export function cachedReactions(client: QueryClient, userId: string | undefined, ids: readonly string[]) {
   if (!userId) return undefined;
   const entries = client.getQueriesData<PhotoReaction[]>({ queryKey: ["photo-reactions", userId] });
-  const successful = entries.filter(([, rows]) => rows !== undefined);
+  const successful = entries.filter(([, rows]) => rows !== undefined && Array.isArray(entries.find(([key, value]) => value === rows)?.[0][2]));
   if (!successful.length) return undefined;
   const rows = new Map<string, PhotoReaction>();
-  for (const [, reactions] of successful) for (const row of reactions ?? []) {
-    if (ids.includes(row.photo_id)) rows.set(tokenFor(row.user_id, row.photo_id), row);
+  successful.sort(([a], [b]) => (client.getQueryState(a)?.dataUpdatedAt ?? 0) - (client.getQueryState(b)?.dataUpdatedAt ?? 0));
+  for (const [key, reactions] of successful) {
+    const scope = key[2] as string[];
+    // A newer successful empty list is authoritative too; older lists must
+    // not resurrect removed reactions when expanding the loaded photo set.
+    for (const [token, row] of rows) if (scope.includes(row.photo_id)) rows.delete(token);
+    for (const row of reactions ?? []) {
+      if (ids.includes(row.photo_id)) rows.set(tokenFor(row.user_id, row.photo_id), row);
+    }
   }
   return overlayPending(client, userId, ids, [...rows.values()]);
 }

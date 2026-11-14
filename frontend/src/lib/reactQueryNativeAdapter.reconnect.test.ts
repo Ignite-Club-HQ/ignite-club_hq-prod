@@ -355,6 +355,7 @@ describe("reactQueryNativeAdapter — reconnect preserves club theme", () => {
     await new Promise(r => setTimeout(r, 0));
     if (event === "resume") {
       appStateListeners[0]({ isActive: false });
+      await new Promise(r => setTimeout(r, 5));
       appStateListeners[0]({ isActive: true });
     } else {
       flipNetwork(false);
