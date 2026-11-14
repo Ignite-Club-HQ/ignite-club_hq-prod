@@ -29,7 +29,7 @@ import { JoinTeamInviteCard } from "@/components/join-team/JoinTeamInviteCard";
 import { JoinTeamStatusCard } from "@/components/join-team/JoinTeamStatusCard";
 import type { Database } from "@/integrations/supabase/types";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
-import { resolveAuthBackend } from "@/live/authBackendMode";
+import { resolveAuthBackend, setAuthMethodChoice } from "@/live/authBackendMode";
 import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
 import { getLocalLabClaimableTeam } from "@/lab/fixtureDataLayer";
 import { membershipKeys } from "@/lab/membershipQueryKeys";
@@ -160,6 +160,10 @@ function SupabaseJoinTeamPage() {
 
   // Check if this is a pending invite token (name-restricted) or a regular team invite
   const isPendingInvite = location.pathname.startsWith("/join/p/");
+  // Only club_domain's shareable TeamInviteLink uses tok- + 32 lower-case
+  // hex characters. Unlike email invite tokens, these must be previewed on
+  // ICP even for a signed-out visitor whose device defaults to Supabase.
+  const isIcpShareableLink = !isPendingInvite && /^tok-[a-f0-9]{32}$/.test(token ?? "");
 
   // Fetch pending invite details using RPC function (for name-restricted invites)
   const { data: pendingInviteData, isLoading: pendingInviteLoading, error: pendingInviteError, isError: pendingInviteIsError } = useQuery({
@@ -409,7 +413,7 @@ function SupabaseJoinTeamPage() {
             },
           };
         },
-      });
+      }, { forceIcp: isIcpShareableLink });
     },
     enabled: !!token && !isPendingInvite,
     retry: 2,
@@ -1874,13 +1878,45 @@ function SupabaseJoinTeamPage() {
 
   // Regular team invites are now allowed (shareable links from AddTeamMemberSheet)
 
-  if (inviteError || !invite) {
+  // An unreadable/failed lookup must not be mislabeled as a revoked link.
+  if (inviteError) {
+    return (
+      <JoinTeamStatusCard
+        tone="warning"
+        title="Couldn't Verify Invitation"
+        description="We couldn't check this invitation right now. No membership has been changed."
+        actions={<Button onClick={() => window.location.reload()}>Retry</Button>}
+      />
+    );
+  }
+
+  if (!invite) {
     return (
       <JoinTeamStatusCard
         tone="error"
         title="Invalid Invite Link"
         description="This invite link is invalid or has been deleted."
         actions={<Button onClick={() => navigate("/")}>Go to Home</Button>}
+      />
+    );
+  }
+
+  // A verified ICP invite must never be redeemed through the email/Supabase
+  // membership writer, even when the visitor is already signed in by email.
+  // Switching auth providers requires this explicit user action.
+  if (isIcpShareableLink && !isIcpAccount) {
+    return (
+      <JoinTeamStatusCard
+        tone="warning"
+        title="Internet Identity Required"
+        description="This team invitation belongs to Ignite's Internet Identity account system. Continue with Internet Identity to choose whether to join. If you're currently signed in with email, this will switch sign-in methods on this device."
+        actions={
+          <Button onClick={() => {
+            safeSessionRemove("autoJoinAfterAuth");
+            setAuthMethodChoice("icp");
+            handleSignInClick();
+          }}>Continue with Internet Identity</Button>
+        }
       />
     );
   }
