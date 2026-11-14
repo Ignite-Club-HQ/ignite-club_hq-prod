@@ -112,11 +112,32 @@ jobs:
           test -n "${DEPLOYER_PEM:-}" || { echo "::error::Existing deployer key required"; exit 1; }
           umask 077
           mkdir -p "$ICP_HOME/identity/keys"
-          printf '%s' "$DEPLOYER_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$RUNNER_TEMP/g2-notification.pem"
-          test -s "$RUNNER_TEMP/g2-notification.pem"
-          icp identity import --from-pem "$RUNNER_TEMP/g2-notification.pem" --storage plaintext ignite-governor
-          icp identity default ignite-governor
-          test "$(icp identity principal)" = "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+          PEM_FILE="$RUNNER_TEMP/g2-notification.pem"
+          printf '%s' "$DEPLOYER_PEM" \
+            | tr -d '\r' \
+            | sed 's/\\\\n/\n/g' \
+            | sed 's/\\n/\n/g' \
+            | sed -n '/-----BEGIN/,/-----END/p' \
+            | sed 's/^.*-----BEGIN/-----BEGIN/' \
+            | sed 's/\(-----END [A-Z ]*KEY-----\).*$/\1/' \
+            > "$PEM_FILE"
+          if ! grep -q -- '-----BEGIN' "$PEM_FILE" || ! grep -q -- '-----END' "$PEM_FILE"; then
+            echo "::error::DEPLOYER_PEM could not be normalized to a private-key PEM; key material has not been logged."
+            exit 1
+          fi
+          if ! icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor >/dev/null 2>&1; then
+            echo "::error::DEPLOYER_PEM is present, but the ICP CLI rejected the key format; check the protected GitHub secret without posting it."
+            exit 1
+          fi
+          icp identity default ignite-governor >/dev/null
+          if ! GOVERNOR_PRINCIPAL="$(icp identity principal)"; then
+            echo "::error::Unable to read the restored Group 2 governor principal; no canister operation attempted."
+            exit 1
+          fi
+          if [ "$GOVERNOR_PRINCIPAL" != "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae" ]; then
+            echo "::error::Restored key principal differs from pinned Group 2 governor. Check environment/repository secret precedence; no canister operation attempted."
+            exit 1
+          fi
       - name: Build ONLY the two bounded service recipes
         working-directory: deploy/mainnet
         run: |
