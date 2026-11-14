@@ -293,6 +293,30 @@ const textEncoder = new TextEncoder();
  * so a PII failure is logged, never thrown — the grant can be retried later.
  * The caller becomes the record's domain owner.
  */
+/**
+ * Strict, caller-owned PII write intended for explicitly approved DEV
+ * reconciliation only. Unlike registerLiveChildNamePii, errors propagate;
+ * the caller MUST independently decrypt/read back the new child name before
+ * applying any team assignment or marking a migration step complete.
+ *
+ * Do not call this from automatic invitation or background flows.
+ */
+export async function registerLiveChildNamePiiStrict(
+  ctx: FeatureBackendContext,
+  childId: string,
+  childName: string,
+  parent: Principal,
+  clubId: string,
+): Promise<void> {
+  if (!childId || !childName.trim() || !clubId ||
+      ctx.identity.getPrincipal().toText() !== parent.toText())
+    throw new Error("Child PII requires the signed-in primary Parent and a verified club");
+  await registerLivePii(ctx, childId, "name", textEncoder.encode(childName), parent,
+    { kind: "clubchildren", scope: clubId, club: clubId });
+  await grantLiveClubPiiRead(ctx, childId, "name", clubId);
+  await grantLivePiiRead(ctx, childId, "name", parent);
+}
+
 export async function registerLiveChildNamePii(
   ctx: FeatureBackendContext,
   childId: string,
