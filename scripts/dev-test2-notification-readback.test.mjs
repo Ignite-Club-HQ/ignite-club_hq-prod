@@ -40,7 +40,7 @@ test('only exact G2 services and Test2 event/recipient are eligible', () => {
   assert.match(qRead, /Principal\.toText\(Principal\.fromActor\(this\)\) != devQueue/);
   assert.match(cRead, /caller\.toText\(\) != devUser/);
   assert.match(cRead, /Principal\.toText\(Principal\.fromActor\(this\)\) != devClubCanister/);
-  assert.match(cRead, /not isMember\(caller, devClub\)/);
+  assert.match(cRead, /not isExcluded\(caller, devClub\) and isMember\(caller, devClub\)/);
   assert.match(cRead, /grant\.team == \?devTeam and grant\.role == "parent"/);
   assert.match(cRead, /not eligible\(\) or notificationQueueCanister != \?configured/);
 });
