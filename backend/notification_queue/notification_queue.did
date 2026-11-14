@@ -282,7 +282,16 @@ type Main =
           status: text;
         };
      }) query;
-   get_notification: (id: text) -> (opt Notification);
+   read_trusted_dev_test2_event_delivery: (event_id: text, recipient: principal) ->
+    (variant {
+       Err: text;
+       Ok: opt record {
+                 attempts: nat32;
+                 created_at_ms: nat64;
+                 status: text;
+               };
+     });
+      get_notification: (id: text) -> (opt Notification);
    get_preferences: (user: text) -> (Preferences) query;
    get_push_alert_settings: () -> (PushAlertSettings) query;
    get_push_delivery_health: (now_ms: nat64) -> (PushDeliveryHealthResult);
