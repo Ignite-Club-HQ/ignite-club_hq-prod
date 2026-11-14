@@ -276,7 +276,10 @@ describe("JoinTeamPage team-invite acceptance routing", () => {
 
     renderAt("/join/" + token);
 
-    expect(await screen.findByText("Couldn't Verify Invitation")).toBeInTheDocument();
+    // The page intentionally retries failed invite reads twice (1s delay)
+    // before showing an error. Keep the security assertion, but give that
+    // existing retry policy time to finish.
+    expect(await screen.findByText("Couldn't Verify Invitation", {}, { timeout: 6000 })).toBeInTheDocument();
     expect(screen.queryByText("Someone Else's Team")).not.toBeInTheDocument();
     expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
   });
