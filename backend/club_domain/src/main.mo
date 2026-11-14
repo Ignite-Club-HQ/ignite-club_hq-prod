@@ -4101,11 +4101,16 @@ persistent actor class Main(governorInit : Principal) = this {
   // vetKey-gated pii_access_control relay.
   public query ({ caller }) func get_club_roster(club_id : Text) : async { #Ok : { children : [Types.Child]; roles : [Types.RoleGrant] }; #Err : Text } {
     denyLegacyAccountQuery();
-    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id)) {
-      return #Err("Club staff role required");
-    };
+    // The full roster contains child/parent principals and club-wide roles.
+    // Only club administrators may read it; team coaches and parents need
+    // narrower team/family views, not the whole club's family metadata.
+    if (not isAdmin(caller, club_id)) return #Err("Club admin required");
+    let scopedTeamIds = clubTeamIds(club_id);
     #Ok({
-      children = acl.children.filter(func(c) = c.club_id == ?club_id);
+      // A parent-created child begins with club_id=null; placement on a
+      // verified team in this club must still make that child visible to staff.
+      // Reuse the exact club/team inclusion boundary used by snapshots.
+      children = acl.children.filter(func(c) = clubChild(club_id, scopedTeamIds, c));
       roles = acl.roles.filter(func(g) = g.club == ?club_id);
     })
   };
@@ -9348,11 +9353,12 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    if (not acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and grant.club == ?club_id)) {
-      return #Err("Club staff role required");
-    };
+    // Admission/linked-principal checks have already run. Apply the same
+    // administrator-only roster boundary as the legacy query variant.
+    if (not isAdmin(caller, club_id)) return #Err("Club admin required");
+    let scopedTeamIds = clubTeamIds(club_id);
     #Ok({
-      children = acl.children.filter(func(c) = c.club_id == ?club_id);
+      children = acl.children.filter(func(c) = clubChild(club_id, scopedTeamIds, c));
       roles = acl.roles.filter(func(g) = g.club == ?club_id);
     })
   
