@@ -175,7 +175,7 @@ export default function IcpChildrenPage() {
   }));
   const existingNamesResolved = !!childRows && (
     childRows.length === 0 || (
-      namesQuery.isSuccess && !!children?.every(child => !child.isPrimary || !!child.name.trim())
+      namesQuery.isSuccess && !!children?.every(child => !!child.name.trim())
     )
   );
 
