@@ -32,7 +32,7 @@ export function overlayPending(client: QueryClient, userId: string, ids: readonl
 export function cachedReactions(client: QueryClient, userId: string | undefined, ids: readonly string[]) {
   if (!userId) return undefined;
   const entries = client.getQueriesData<PhotoReaction[]>({ queryKey: ["photo-reactions", userId] });
-  const successful = entries.filter(([, rows]) => rows !== undefined && Array.isArray(entries.find(([key, value]) => value === rows)?.[0][2]));
+  const successful = entries.filter(([key, rows]) => rows !== undefined && Array.isArray(key[2]));
   if (!successful.length) return undefined;
   const rows = new Map<string, PhotoReaction>();
   successful.sort(([a], [b]) => (client.getQueryState(a)?.dataUpdatedAt ?? 0) - (client.getQueryState(b)?.dataUpdatedAt ?? 0));

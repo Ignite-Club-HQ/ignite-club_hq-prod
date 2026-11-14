@@ -131,4 +131,10 @@ describe("DEV Media photo reaction state", () => {
     expect(albumReactionPhoto(cover, 1).id).toBe("second");
     expect(albumReactionPhoto({ id: "standalone" }).id).toBe("standalone");
   });
+
+  it("newer successful empty reads do not resurrect reactions from older overlapping lists", () => {
+    client.setQueryData(reactionKey("paul", ids), [row(ids[0])], { updatedAt: 10 });
+    client.setQueryData(reactionKey("paul", [ids[0]]), [], { updatedAt: 20 });
+    expect(cachedReactions(client, "paul", [...ids, "highlighted"])).toEqual([]);
+  });
 });
