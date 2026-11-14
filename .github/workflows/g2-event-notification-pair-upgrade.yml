@@ -106,21 +106,19 @@ jobs:
           icp canister install --help | grep -q -- --wasm-memory-persistence
       - name: Restore only the existing signed Group 2 governor
         env:
-          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+          # The Group 2 governor lives in GOVERNOR_PEM; DEPLOYER_PEM may be the web-app publisher key.
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
         run: |
           set -euo pipefail
           test -n "${DEPLOYER_PEM:-}" || { echo "::error::Existing deployer key required"; exit 1; }
           umask 077
           mkdir -p "$ICP_HOME/identity/keys"
           PEM_FILE="$RUNNER_TEMP/g2-notification.pem"
-          printf '%s' "$DEPLOYER_PEM" \
-            | tr -d '\r' \
-            | sed 's/\\\\n/\n/g' \
-            | sed 's/\\n/\n/g' \
-            | sed -n '/-----BEGIN/,/-----END/p' \
-            | sed 's/^.*-----BEGIN/-----BEGIN/' \
-            | sed 's/\(-----END [A-Z ]*KEY-----\).*$/\1/' \
-            > "$PEM_FILE"
+          # Reuse the existing TEST governor PEM normalizer; never emit PEM to logs.
+          if ! PEM_IN="$DEPLOYER_PEM" node scripts/normalize-pem.mjs > "$PEM_FILE"; then
+            echo "::error::Existing Group 2 governor secret has no usable private-key PEM. Check GOVERNOR_PEM and environment-level overrides without exposing the key."
+            exit 1
+          fi
           if ! grep -q -- '-----BEGIN' "$PEM_FILE" || ! grep -q -- '-----END' "$PEM_FILE"; then
             echo "::error::DEPLOYER_PEM could not be normalized to a private-key PEM; key material has not been logged."
             exit 1

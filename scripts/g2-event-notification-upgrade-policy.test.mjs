@@ -162,3 +162,13 @@ test('governor restore supports escaped PEM and stops with nonsecret diagnostic 
   assert.doesNotMatch(restore,/echo .*GOVERNOR_PRINCIPAL/);
   assert.doesNotMatch(restore,/echo[^\n]*\$(?:\{)?DEPLOYER_PEM/);
 });
+
+test('paired G2 check prioritizes existing protected governor secret and uses the established PEM normalizer',()=>{
+  const w=readFileSync(new URL('../.github/workflows/g2-event-notification-pair-upgrade.yml',import.meta.url),'utf8');
+  const restore=w.slice(w.indexOf('- name: Restore only the existing signed Group 2 governor'),w.indexOf('- name: Build ONLY the two bounded service recipes'));
+  assert.match(restore, /secrets\.GOVERNOR_PEM \|\| secrets\.DEPLOYER_PEM/);
+  assert.match(restore, /node scripts\/normalize-pem\.mjs > "\$PEM_FILE"/);
+  assert.match(restore, /Restored key principal differs from pinned Group 2 governor/);
+  assert.doesNotMatch(restore, /echo[^\n]*\$(?:\{)?DEPLOYER_PEM/);
+  assert.match(restore, /2>&1/);
+});
