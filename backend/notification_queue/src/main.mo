@@ -956,6 +956,41 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
 
+  // Temporary, read-only DEV integration. This queue lives on mainnet G2, so
+  // *both* the exact queue canister and Test2 event/recipient are pinned. The
+  // trusted club-domain broker is the only caller; this never exposes a
+  // general-purpose inbox, body, user list, token, or notification id.
+  // "delivered" means worker/provider completion, not device display.
+  public shared ({ caller }) func read_trusted_dev_test2_event_delivery(event_id : Text, recipient : Principal) : async {
+    #Ok : ?{ status : Text; attempts : Nat32; created_at_ms : Nat64 };
+    #Err : Text;
+  } {
+    let devQueue = "zu4gk-vqaaa-aaaal-qxp5a-cai";
+    let devClub = "70eccd5e-28cd-54b5-9bbd-d0dc74eea9ca";
+    let devEvent = "evt-70eccd5e-28cd-54b5-9bbd-d0dc74eea9ca-1";
+    let devUser = "pfslb-rpozk-543m5-zll3a-a3ay4-rdg3b-elojg-ukmfs-e624l-6rjyp-jae";
+    if (clubDomainCanister != ?caller or Principal.toText(Principal.fromActor(this)) != devQueue) {
+      return #Err("Trusted DEV club authority required");
+    };
+    if (event_id != devEvent or recipient.toText() != devUser or isFenced(devClub) or recipientFenced(devUser)) {
+      return #Err("DEV event readback scope forbidden");
+    };
+    let matches = items.filter(func(n) =
+      n.user == devUser and n.club == devClub and n.kind == "event_invite" and n.related_id == ?devEvent
+    );
+    // Duplicate rows mean the provenance is ambiguous: fail closed.
+    if (matches.size() > 1) return #Err("Ambiguous DEV event delivery records");
+    if (matches.size() == 0) return #Ok(null);
+    let item = matches[0];
+    let status = switch (item.status) {
+      case (#Pending) "pending";
+      case (#Processing) "processing";
+      case (#Delivered) "delivered";
+      case (#Failed) "failed";
+    };
+    #Ok(?{ status; attempts = item.attempts; created_at_ms = item.created_at_ms })
+  };
+
   public shared ({ caller }) func get_notification(id : Text) : async ?Types.Notification {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
