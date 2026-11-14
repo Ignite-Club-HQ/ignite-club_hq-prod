@@ -51,7 +51,7 @@ export async function listLiveRoleGrants(ctx: FeatureBackendContext, clubId: str
  */
 export async function listLiveTeamRoleGrants(ctx: FeatureBackendContext, teamId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.list_team_role_grants(teamId), "List team role grants");
+  return unwrapCandid(actor.read_account_list_team_role_grants(teamId), "List team role grants");
 }
 
 /** Caller-scoped: children linked to the signed-in member's account. */
