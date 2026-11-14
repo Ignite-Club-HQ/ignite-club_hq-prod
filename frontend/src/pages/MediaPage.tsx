@@ -38,8 +38,10 @@ import {
   fetchHighlightedMediaPhoto,
   fetchMediaFeedPage,
 } from "@/features/media/mediaReadRepository";
-import { fetchMediaComments, fetchMediaReactions } from "@/features/media/mediaReadRepository";
-import { createMediaComment, removeMediaReaction, replaceMediaReaction } from "@/features/media/mediaEngagementRepository";
+import { fetchMediaComments } from "@/features/media/mediaReadRepository";
+import { createMediaComment } from "@/features/media/mediaEngagementRepository";
+import { usePhotoReactions } from "@/features/media/usePhotoReactions";
+import { albumReactionPhoto } from "@/features/media/photoReactionState";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
@@ -136,6 +138,7 @@ function SupabaseMediaPage() {
   // Track which feed cards have an active inline album swipe index, so the
   // tap-to-open lightbox starts at the right photo within the album.
   const albumIndexByPhotoIdRef = useRef<Map<string, number>>(new Map());
+  const [albumIndices, setAlbumIndices] = useState<Record<string, number>>({});
   // Show a one-time swipe hint on the first album the user sees.
   const [albumHintShown, setAlbumHintShown] = useState<boolean>(() => {
     try { return localStorage.getItem("media:albumHintShown") === "1"; } catch { return false; }
@@ -944,22 +947,9 @@ function SupabaseMediaPage() {
   const { recordView, observeView } = useRecordPhotoView(user?.id);
   usePhotoViewRealtime(allPhotoIds, user?.id);
 
-  // Stable query key for reactions - bucket photo count by 50 to avoid refetching
-  // on every infinite-scroll page load. Realtime channel below keeps data fresh in between.
   const photoCountBucket = Math.ceil(allPhotoIds.length / 50);
-  const reactionsQueryKey = useMemo(() => ["photo-reactions", user?.id, photoCountBucket], [user?.id, photoCountBucket]);
-  
-  // Fetch reactions for ALL loaded photos - use inline reactions as placeholder for instant display
-  const { data: fetchedReactions } = useQuery({
-    queryKey: reactionsQueryKey,
-    queryFn: async () => {
-      if (allPhotoIds.length === 0) return [];
-      return fetchMediaReactions(allPhotoIds);
-    },
-    enabled: !!user && allPhotoIds.length > 0,
-    staleTime: 120000,
-    placeholderData: (prev) => prev,
-  });
+  const { data: fetchedReactions, isError: reactionsIsError, refetch: refetchReactions, react, pendingPhotoId } =
+    usePhotoReactions(user?.id, allPhotoIds, userProfile);
 
   // Use fetched reactions
   const allReactions = fetchedReactions || [];
@@ -1034,69 +1024,15 @@ function SupabaseMediaPage() {
       }
     };
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    const onOnline = () => {
+      if (!isNativeRuntime()) queryClient.invalidateQueries({ queryKey: ["photo-reactions", user.id] });
+    };
+    window.addEventListener("online", onOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
+    };
   }, [user?.id, queryClient]);
-
-  const reactMutation = useMutation({
-    mutationFn: async ({ photoId, reactionType }: { photoId: string; reactionType: string }) => {
-      await replaceMediaReaction({ photoId, userId: user!.id, reactionType });
-    },
-    onMutate: async ({ photoId, reactionType }) => {
-      await queryClient.cancelQueries({ queryKey: reactionsQueryKey });
-      const previousReactions = queryClient.getQueryData(reactionsQueryKey);
-      
-      queryClient.setQueryData(reactionsQueryKey, (old: any[] | undefined) => {
-        const newReaction = { 
-          photo_id: photoId, 
-          user_id: user!.id, 
-          reaction_type: reactionType,
-          profiles: { display_name: userProfile?.display_name || "You", avatar_url: userProfile?.avatar_url || null }
-        };
-        if (!old) return [newReaction];
-        // Remove existing reaction from this user on this photo
-        const filtered = old.filter(r => !(r.photo_id === photoId && r.user_id === user!.id));
-        // Add the new reaction
-        return [...filtered, newReaction];
-      });
-      
-      return { previousReactions };
-    },
-    onError: (err, variables, context) => {
-      if (context?.previousReactions) {
-        queryClient.setQueryData(reactionsQueryKey, context.previousReactions);
-      }
-      toast.error("Failed to add reaction");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: reactionsQueryKey });
-    },
-  });
-
-  const removeReactionMutation = useMutation({
-    mutationFn: async (photoId: string) => {
-      await removeMediaReaction({ photoId, userId: user!.id });
-    },
-    onMutate: async (photoId: string) => {
-      await queryClient.cancelQueries({ queryKey: reactionsQueryKey });
-      const previousReactions = queryClient.getQueryData(reactionsQueryKey);
-      
-      queryClient.setQueryData(reactionsQueryKey, (old: any[] | undefined) => {
-        if (!old) return [];
-        return old.filter(r => !(r.photo_id === photoId && r.user_id === user!.id));
-      });
-      
-      return { previousReactions };
-    },
-    onError: (err, variables, context) => {
-      if (context?.previousReactions) {
-        queryClient.setQueryData(reactionsQueryKey, context.previousReactions);
-      }
-      toast.error("Failed to remove reaction");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: reactionsQueryKey });
-    },
-  });
 
   const addCommentMutation = useMutation({
     mutationFn: async ({ photoId, text, replyToId }: { photoId: string; text: string; replyToId?: string }) => {
@@ -1409,6 +1345,11 @@ function SupabaseMediaPage() {
       )}
 
       {/* Header sponsor / ad strip — Pro: any club with media_header_sponsors_enabled (default off). Free: app ads only. */}
+      {reactionsIsError && (
+        <div className="max-w-lg mx-auto">
+          <QueryErrorBanner hasError message="Couldn't load latest reactions. Tap to retry." onRetry={async () => { await refetchReactions(); }} />
+        </div>
+      )}
       <div className="max-w-lg mx-auto">
         <MediaHeaderSponsorStrip
           clubId={activeClubFilter ?? (userRoles?.find(r => r.club_id)?.club_id as string | undefined) ?? null}
@@ -1560,7 +1501,8 @@ function SupabaseMediaPage() {
             ))
           )}
           {photos.map((photo, index) => {
-            const reactions = getPhotoReactions(photo.id);
+            const reactionPhoto = albumReactionPhoto(photo, albumIndices[photo.id]);
+            const reactions = getPhotoReactions(reactionPhoto.id);
             const comments = getPhotoComments(photo.id);
             const isExpanded = expandedComments.has(photo.id);
             const commentInput = commentInputs[photo.id] || "";
@@ -1630,6 +1572,7 @@ function SupabaseMediaPage() {
                     showSwipeHintOnMount={!albumHintShown && index === 0 && (photo._albumCount ?? 1) > 1}
                     onIndexChange={(i) => {
                       albumIndexByPhotoIdRef.current.set(photo.id, i);
+                      setAlbumIndices(previous => ({ ...previous, [photo.id]: i }));
                       if (!albumHintShown) {
                         setAlbumHintShown(true);
                         try { localStorage.setItem("media:albumHintShown", "1"); } catch {}
@@ -1677,10 +1620,12 @@ function SupabaseMediaPage() {
                 <div className="px-3 pt-2 pb-3 space-y-1">
                   <div className="flex items-center gap-3 pr-0.5">
                     <EmojiReactions
+                      key={`${user?.id}:${reactionPhoto.id}`}
                       reactions={reactions}
                       currentUserId={user?.id}
-                      onReact={(type) => reactMutation.mutate({ photoId: photo.id, reactionType: type })}
-                      onRemove={() => removeReactionMutation.mutate(photo.id)}
+                      disabled={pendingPhotoId === reactionPhoto.id}
+                      onReact={(type) => react(reactionPhoto.id, type)}
+                      onRemove={() => react(reactionPhoto.id, null)}
                     />
                     {(() => {
                       const viewCount = photoViewCounts?.get(photo.id) || 0;

@@ -154,18 +154,20 @@ export async function fetchHighlightedMediaPhoto(
 export async function fetchMediaReactions(
   photoIds: readonly string[],
   client: IgniteSupabaseClient = supabase,
+  signal?: AbortSignal,
 ) {
   if (photoIds.length === 0) return [];
 
   return withFeatureBackend("media", {
     supabase: async () => {
-      const { data, error } = await client
+      const query = client
         .from("photo_reactions")
         .select("photo_id, user_id, reaction_type, profiles:user_id(display_name, avatar_url)")
         .in("photo_id", [...photoIds]);
+      const { data, error } = await (signal ? query.abortSignal(signal) : query);
       if (error) {
         console.error("Error fetching reactions:", error);
-        return [];
+        throw error;
       }
       return data ?? [];
     },

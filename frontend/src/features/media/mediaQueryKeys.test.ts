@@ -23,8 +23,8 @@ describe("mediaKeys", () => {
     expect(mediaKeys.feeds("user-a")).toEqual(["photos", "user-a"]);
   });
 
-  it("preserves bucketed engagement keys and their user prefixes", () => {
-    expect(mediaKeys.reactionsBucket("user-a", 2)).toEqual(["photo-reactions", "user-a", 2]);
+  it("keys reactions by sorted unique photo IDs and preserves user prefixes", () => {
+    expect(mediaKeys.reactionsForPhotos("user-a", ["photo-b", "photo-a", "photo-b"])).toEqual(["photo-reactions", "user-a", ["photo-a", "photo-b"]]);
     expect(mediaKeys.reactions("user-a")).toEqual(["photo-reactions", "user-a"]);
     expect(mediaKeys.commentsBucket("user-a", 2)).toEqual(["photo-comments", "user-a", 2]);
     expect(mediaKeys.comments("user-a")).toEqual(["photo-comments", "user-a"]);
