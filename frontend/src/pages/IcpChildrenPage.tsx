@@ -58,14 +58,6 @@ interface IcpChild {
 interface TeamOpt { id: string; name: string; club_id: string; club_name: string; sourceClubCanisterId: string }
 interface Guardian { principal: string; name: string; isPrimary: boolean; isMe: boolean }
 
-async function load() {
-  const [{ icpCtx }, club] = await Promise.all([
-    import("@/lib/icpClubTeamLookup"),
-    import("@/live/features/club"),
-  ]);
-  return { ctx: await icpCtx(), club };
-}
-
 /** Reading all groups is essential even for unassigned children. A child
  * starts with club_id=null, so a clubId lookup cannot recover its source.
  * Require a complete member/shared inventory instead of showing a false empty
@@ -186,25 +178,34 @@ export default function IcpChildrenPage() {
     staleTime: 5 * 60_000,
     retry: false,
     queryFn: async (): Promise<TeamOpt[]> => {
-      const { ctx, club } = await load();
-      const { readMembershipInScope } = await import('@/live/membershipRouting');
-      const membership = await import("@/live/features/membership");
-      const grants = (await withReadDeadline(membership.getLiveMyRoleGrants(ctx), 'Children memberships', 20_000)) as any[];
-      const myClubIds = new Set(grants.map((g) => g.club?.[0]).filter(Boolean));
-      const lists = await Promise.all(
-        [...myClubIds].map(async (id) => {
-          const clubId = String(id);
-          return withReadDeadline(readMembershipInScope(ctx, { clubId }, async scoped => {
-            const [profile, teams] = await Promise.all([club.getLiveClubProfile(scoped, clubId), club.listLiveTeams(scoped, clubId)]);
-            const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
+      const [{ withFeatureBackend }, club, membership] = await Promise.all([
+        import("@/live/featureRouter"),
+        import("@/live/features/club"),
+        import("@/live/features/membership"),
+      ]);
+      // The default ctx is Group 1. Discover each group's caller-scoped club
+      // roles INSIDE that group; otherwise a Group 2 parent sees no U10 team.
+      return withFeatureBackend<TeamOpt[]>("membership", {
+        supabase: async () => { throw new Error("Internet Identity required for ICP teams"); },
+        icp: async scoped => {
+          const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
+          const grants = await withReadDeadline(
+            membership.getLiveMyRoleGrants(scoped), "Children memberships by group", 20_000,
+          );
+          const myClubIds = [...new Set(grants.map(g => g.club?.[0]).filter((id): id is string => !!id))];
+          const all = await Promise.all(myClubIds.map(async clubId => {
+            const [profile, teams] = await withReadDeadline(Promise.all([
+              club.getLiveClubProfile(scoped, clubId),
+              club.listLiveTeams(scoped, clubId),
+            ]), "Children teams in group", 20_000);
             return teams.filter(t => !t.deleted_at_ms?.length).map(t => ({
               id: t.id, name: t.name, club_id: clubId,
-              club_name: profile[0]?.name ?? 'Club', sourceClubCanisterId,
+              club_name: profile[0]?.name ?? "Club", sourceClubCanisterId,
             }));
-          }), 'Children teams', 20_000);
-        }),
-      );
-      return lists.flat();
+          }));
+          return all.flat();
+        },
+      }, { everyGroup: true, requireComplete: true, merge: parts => parts.flat() });
     },
   });
   const teamBySource = new Map((teams ?? []).map(t => [childSourceKey({
