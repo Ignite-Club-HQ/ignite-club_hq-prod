@@ -44,9 +44,15 @@ export interface TedCopyActions {
   preflight: () => Promise<DevTedPreflight>;
   /** Must re-read unchanged original G1 record. No G1 writes are allowed. */
   checkSourcePreserved: () => Promise<boolean>;
-  /** Durable read/write store. Never store plaintext name or private keys. */
+  /** Durable, SERVER-AUTHORITATIVE readback. No plaintext name/private keys. */
   readReceipt: () => Promise<TedCopyReceipt | null>;
-  persistReceipt: (receipt: TedCopyReceipt) => Promise<void>;
+  /** Atomic create-only journal claim: across devices, exactly ONE caller
+   * may reserve this source+destination. A browser localStorage lock is
+   * NOT sufficient. Return false if the key already exists. */
+  claimCreateOnce: (receipt: TedCopyReceipt) => Promise<boolean>;
+  /** Conditional compare-and-set transition. Must reject concurrent writes,
+   * stale prior state, different source or target, and lost lock ownership. */
+  advanceReceipt: (previous: TedCopyReceipt, next: TedCopyReceipt) => Promise<void>;
   /** Must target only the pinned G2 club_domain with the signed-in Parent. */
   createDestinationOwnChild: () => Promise<{ id: string }>;
   /** Must target G2 PII and propagate failures (NO best-effort catch). */
@@ -134,16 +140,18 @@ export async function beginTedCopyOnce(approval: string, actions: TedCopyActions
   assertVerifiedPreflight(await actions.preflight());
   assertCaller(actions);
   if (!(await actions.checkSourcePreserved())) throw new Error("Original Group 1 child could not be reverified.");
-  // A durable checkpoint MUST succeed before any non-idempotent create.
+  // A globally atomic claim MUST succeed before any non-idempotent create.
   const pending = baseReceipt();
-  await actions.persistReceipt(pending);
+  if (!(await actions.claimCreateOnce(pending))) {
+    throw new Error("Another session already reserved this transfer. No child was created.");
+  }
   assertCaller(actions);
   const newChild = await actions.createDestinationOwnChild();
   // Unknown outcome: preserve the pending journal; do not retry creation.
   if (!newChild?.id || newChild.id === pending.sourceChildId)
     throw new Error("The new Group 2 child ID is unconfirmed. Reconcile the pending journal before continuing.");
   const created: TedCopyReceipt = { ...pending, phase: "created", targetChildId: newChild.id };
-  await actions.persistReceipt(created);
+  await actions.advanceReceipt(pending, created);
   return created;
 }
 
@@ -168,7 +176,7 @@ export async function continueTedCopy(receipt: TedCopyReceipt, actions: TedCopyA
   if (receipt.phase === "created") {
     assertDestinationChild(await actions.readDestinationChild(id), receipt, false);
     const pending = { ...receipt, phase: "name-pending" as const };
-    await actions.persistReceipt(pending);
+    await actions.advanceReceipt(receipt, pending);
     assertCaller(actions);
     // This must be a STRICT PII writer; registerLiveChildNamePii is unsuitable
     // because it catches errors and returns void as if writing succeeded.
@@ -177,7 +185,7 @@ export async function continueTedCopy(receipt: TedCopyReceipt, actions: TedCopyA
       throw new Error("The encrypted Group 2 name could not be independently read back as Ted.");
     }
     const next = { ...receipt, phase: "name-verified" as const };
-    await actions.persistReceipt(next);
+    await actions.advanceReceipt(pending, next);
     return next;
   }
 
@@ -185,12 +193,12 @@ export async function continueTedCopy(receipt: TedCopyReceipt, actions: TedCopyA
     assertDestinationChild(await actions.readDestinationChild(id), receipt, false);
     if ((await actions.readEncryptedName(id)) !== "Ted") throw new Error("Verified Group 2 name changed.");
     const pending = { ...receipt, phase: "team-pending" as const };
-    await actions.persistReceipt(pending);
+    await actions.advanceReceipt(receipt, pending);
     assertCaller(actions);
     await actions.assignDestinationU10(id);
     assertDestinationChild(await actions.readDestinationChild(id), receipt, true);
     const next = { ...receipt, phase: "team-verified" as const };
-    await actions.persistReceipt(next);
+    await actions.advanceReceipt(pending, next);
     return next;
   }
 
@@ -200,7 +208,7 @@ export async function continueTedCopy(receipt: TedCopyReceipt, actions: TedCopyA
         !(await actions.verifyStaffU10Roster(id)))
       throw new Error("G2 PII or independent staff roster readback not confirmed.");
     const next = { ...receipt, phase: "staff-verified" as const };
-    await actions.persistReceipt(next);
+    await actions.advanceReceipt(receipt, next);
     return next;
   }
 
