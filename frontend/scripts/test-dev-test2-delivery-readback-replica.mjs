@@ -115,6 +115,14 @@ try {
     duties: [], duty_team_id: [], reminder_hours: []
   };
   events.actor.setPrincipal(governor);
+  // Live Test3's event was the *second* event in this club (sequence -1).
+  // Recreate that exact local sequence to test the hard-pinned DEV readback
+  // without changing its intended scope or touching a mainnet canister.
+  const first = ok(await events.actor.create_event_with_setup({
+    ...input, request_id: 'test2-disposable-earlier-event',
+    title: 'Earlier local-only fixture'
+  }));
+  assert.equal(first.first_event_id, `evt-${clubId}-0`);
   const created = ok(await events.actor.create_event_with_setup(input));
   assert.equal(created.first_event_id,eventId, 'Synthetic test event ID must match gated readback');
 
