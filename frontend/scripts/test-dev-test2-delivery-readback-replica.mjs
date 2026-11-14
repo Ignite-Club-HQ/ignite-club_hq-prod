@@ -96,10 +96,21 @@ try {
     denied(await q.read_trusted_dev_test2_event_delivery(eventId, outsider));
   }
 
-  // Create ONE synthetic event-invite queue row, never a real push delivery.
+  // An unrelated event_invite row sharing the event ID must NOT be
+  // interpreted as evidence that the event-domain workflow queued its invite.
+  // This synthetic row is not sent to any device or network.
   q.setPrincipal(governor);
   assert.equal(ok(await q.fan_out([test2.toText()], clubId, 'event_invite',
-    'Synthetic only, never delivered to a device', 'pocketic-event-notice-1', [eventId])), 1);
+    'Noncanonical fixture only', 'pocketic-unrelated-invite', [eventId])), 1);
+  c.setPrincipal(test2);
+  assert.deepEqual(option(await c.read_account_my_dev_test2_event_delivery(eventId)), [],
+    'Wrong-key event notification must be ignored, not misreported as queued');
+
+  // The real events-domain workflow uses this canonical key/id convention.
+  // This fixture seeds a local queue row, not a real trusted event-domain send.
+  q.setPrincipal(governor);
+  assert.equal(ok(await q.fan_out([test2.toText()], clubId, 'event_invite',
+    'Canonical fixture only, no device delivery', `event_invite-${eventId}-invite`, [eventId])), 1);
   c.setPrincipal(test2);
   const status = option(await c.read_account_my_dev_test2_event_delivery(eventId));
   assert.equal(status.length, 1);
@@ -131,14 +142,17 @@ try {
   q.setPrincipal(governor);
   ok(await q.set_transfer_fence(clubId, false));
 
-  // Ambiguous multiple notifications are denied, never arbitrarily chosen.
+  // Other noncanonical invite rows cannot change the result of the precise
+  // official-event-key lookup. Duplicate canonical IDs are separately
+  // prohibited by fan_out's existing idempotency handling.
+  q.setPrincipal(governor);
   assert.equal(ok(await q.fan_out([test2.toText()], clubId, 'event_invite',
-    'Different synthetic invite', 'pocketic-event-notice-2', [eventId])), 1);
+    'Different unrelated invite', 'pocketic-event-notice-2', [eventId])), 1);
   c.setPrincipal(test2);
-  denied(await c.read_account_my_dev_test2_event_delivery(eventId));
+  assert.equal(option(await c.read_account_my_dev_test2_event_delivery(eventId))[0].status, 'pending');
 
   // The test never registers devices, marks delivery, or calls a live endpoint.
-  console.log('PASS: disposable G2 canister-ID pins, signed Test2 Parent success/null, caller/event/queue/role/fence denials, constrained response and duplicate fail-closed. Zero real pushes and zero deployment.');
+  console.log('PASS: disposable G2 IDs, signed Test2 Parent success/null, caller/event/queue/role/fence denials, canonical receipt-key matching, bounded response. Zero real pushes and zero deployment.');
 } finally {
   await pic?.tearDown();
   await server.stop();
