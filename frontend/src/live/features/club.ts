@@ -1539,7 +1539,9 @@ export async function isMyLiveClubMember(ctx: FeatureBackendContext, clubId: str
 
 export async function listMyLiveOwnChildren(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return actor.list_my_children();
+  // Group 2 requires protected consensus account reads; its legacy query
+  // traps instead of consulting identity_access for a current linked account.
+  return actor.read_account_list_my_children();
 }
 export async function createMyLiveChild(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
@@ -1555,7 +1557,7 @@ export async function setMyLiveChildTeam(ctx: FeatureBackendContext, childId: st
 }
 export async function listLiveChildGuardians(ctx: FeatureBackendContext, childId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.list_child_guardians(childId), "List guardians");
+  return unwrapCandid(actor.read_account_list_child_guardians(childId), "List guardians");
 }
 export async function setMyLiveChildGuardian(ctx: FeatureBackendContext, childId: string, user: Principal, linked: boolean) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);

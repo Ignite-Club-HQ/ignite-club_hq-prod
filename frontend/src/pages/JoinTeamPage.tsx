@@ -41,6 +41,7 @@ import { acceptIcpInviteAndWelcome } from "@/features/membership/acceptIcpInvite
 import { needsInviteChildEntry } from "@/features/membership/inviteFlowRules";
 import { shareableInviteJoinErrorMessage } from "@/live/acceptShareableInviteWithRetry";
 import { createIcpInviteChild } from "@/features/membership/createIcpInviteChild";
+import { verifyIcpChildNameAcrossGroups } from "@/features/membership/verifyIcpChildNameAcrossGroups";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -2222,9 +2223,18 @@ function SupabaseJoinTeamPage() {
           if (icpChildCreateAttempted.current) {
             throw new Error("A previous child creation may have succeeded. Check My Children before trying to add another.");
           }
-          // The create_own_child call is not request-idempotent. This guard
-          // deliberately remains set after an unknown or partial outcome.
+          // Lock concurrent submissions while checking every group for an
+          // existing child. A failed read/PII unlock is not evidence of absence.
+          // Release the lock on a denied preflight (no create was called).
           icpChildCreateAttempted.current = true;
+          try {
+            await verifyIcpChildNameAcrossGroups(addedLabel);
+          } catch (error) {
+            icpChildCreateAttempted.current = false;
+            throw error;
+          }
+          // Keep the lock after any unknown create or team-link outcome:
+          // create_own_child has no cross-group idempotency key.
           const result = await withFeatureBackend("membership", {
             supabase: async () => { throw new Error("Internet Identity invitation cannot use the email database"); },
             icp: async (ctx) => {

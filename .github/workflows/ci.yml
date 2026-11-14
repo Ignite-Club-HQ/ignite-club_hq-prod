@@ -49,6 +49,10 @@ jobs:
       - run: npx vitest run --config vitest.legacy.config.mjs src/live/localRuntimeMode.test.ts src/live/disabledLabRuntime.test.ts
       - name: Verify club roster privacy and parent-child inclusion source gates
         run: node --test scripts/test-club-roster-gate-source.test.mjs
+      - name: Verify ICP children group provenance and duplicate protection
+        run: npx vitest run --config vitest.legacy.config.mjs src/features/membership/icpChildrenGroupSafety.test.ts
+      - name: Verify ICP child pages cannot send unscoped group writes
+        run: node --test scripts/test-icp-children-group-routing.mjs
       - name: Verify DEV invite lookups, authority retry, and Internet Identity handoff
         run: npx vitest run --config vitest.legacy.config.mjs src/live/invitePreview.test.ts src/live/acceptShareableInviteWithRetry.test.ts src/features/membership/createIcpInviteChild.test.ts src/pages/JoinTeamPage.icp.test.tsx
       - run: npm run build
