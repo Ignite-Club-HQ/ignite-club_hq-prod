@@ -1,0 +1,150 @@
+name: "[TEST] G2 club roster ONLY upgrade (owner gated)"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/g2-club-roster-only-upgrade.yml"
+      - "frontend/scripts/upgrade-g2-club-roster.ts"
+      - "scripts/g2-club-roster-release-policy.mjs"
+      - "scripts/g2-club-roster-release-policy.test.mjs"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "check is read-only; upgrade installs ONLY existing Group 2 club_domain"
+        required: true
+        type: choice
+        default: check
+        options: [check, upgrade]
+      confirmation:
+        description: "Upgrade confirmation: UPGRADE G2 CLUB ROSTER ONLY (blank for check)"
+        type: string
+        required: false
+        default: ""
+      expected_release_sha:
+        description: "Exact 40-character main commit from successful check.json"
+        type: string
+        required: false
+        default: ""
+      expected_club_hash:
+        description: "Exact live club_domain oldHash from successful check.json"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+
+jobs:
+  scope-policy:
+    name: Verify pinned single-canister scope without credentials
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - run: node --test scripts/g2-club-roster-release-policy.test.mjs
+      - name: Syntax-check runner without executing it
+        run: npx --yes esbuild@0.25.12 frontend/scripts/upgrade-g2-club-roster.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/g2-club-roster-runner.mjs"
+
+  owner-manual-check-or-upgrade:
+    needs: scope-policy
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: group-2-admin-controls
+    permissions:
+      contents: write
+    timeout-minutes: 90
+    env:
+      ACTION: ${{ inputs.action }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      EXPECTED_RELEASE_SHA: ${{ inputs.expected_release_sha }}
+      EXPECTED_CLUB_HASH: ${{ inputs.expected_club_hash }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Initialise isolated ICP tool home
+        run: echo "ICP_HOME=$RUNNER_TEMP/g2-club-roster-icp-home" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Reject non-main source or unapproved action
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "Ignite-Club-HQ/ignite-club_hq-prod"
+          test "$GITHUB_REF" = "refs/heads/main"
+          node --input-type=module <<'NODE'
+          import { validateRequest } from './scripts/g2-club-roster-release-policy.mjs';
+          validateRequest({
+            action:process.env.ACTION,
+            confirmation:process.env.CONFIRMATION,
+            release:process.env.EXPECTED_RELEASE_SHA,
+            actualCommit:process.env.GITHUB_SHA,
+            oldHash:process.env.EXPECTED_CLUB_HASH
+          });
+          NODE
+      - name: Install pinned CLI and existing dependencies
+        run: |
+          set -euo pipefail
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          node scripts/ensure-frontend-deps.mjs
+          icp canister install --help | grep -q -- --wasm-memory-persistence
+      - name: Verify fixed scope and existing release safeguards
+        run: node --test scripts/g2-club-roster-release-policy.test.mjs scripts/group2-journal.test.mjs scripts/group2-upgrade-rules.test.mjs
+      - name: Restore ONLY existing signed Group 2 governor
+        env:
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOYER_PEM:-}" || { echo "::error::Existing Group 2 governor secret required"; exit 1; }
+          umask 077
+          mkdir -p "$ICP_HOME/identity/keys"
+          PEM_FILE="$RUNNER_TEMP/g2-club-roster.pem"
+          if ! PEM_IN="$DEPLOYER_PEM" node scripts/normalize-pem.mjs > "$PEM_FILE"; then
+            echo "::error::Governor private-key PEM could not be normalized; no canister changed."
+            exit 1
+          fi
+          if ! icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor >/dev/null 2>&1; then
+            echo "::error::Existing governor identity was rejected by CLI; no canister changed."
+            exit 1
+          fi
+          icp identity default ignite-governor >/dev/null
+          test "$(icp identity principal)" = vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae || {
+            echo "::error::Connected identity differs from pinned TEST Group 2 governor; no canister changed."
+            exit 1
+          }
+      - name: Build ONLY the club_domain recipe artifact
+        working-directory: deploy/mainnet
+        run: |
+          set -euo pipefail
+          icp build club_domain
+          mkdir -p "$RUNNER_TEMP/g2-club-roster-wasm"
+          cp .icp/cache/artifacts/club_domain "$RUNNER_TEMP/g2-club-roster-wasm/club_domain"
+          test -s "$RUNNER_TEMP/g2-club-roster-wasm/club_domain"
+      - name: Check or journal-and-upgrade ONLY the pinned G2 club_domain
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          npx --yes tsx@4 scripts/upgrade-g2-club-roster.ts \
+            "$ACTION" "$RUNNER_TEMP/g2-club-roster-wasm" \
+            "$RUNNER_TEMP/g2-club-roster.pem" "$RUNNER_TEMP/g2-club-roster-report"
+      - name: Destroy signing credentials
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/g2-club-roster.pem"
+          rm -rf "$ICP_HOME"
+      - name: Save non-sensitive read-only check or release receipt
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: g2-club-roster-only-report
+          path: ${{ runner.temp }}/g2-club-roster-report
+          if-no-files-found: ignore
