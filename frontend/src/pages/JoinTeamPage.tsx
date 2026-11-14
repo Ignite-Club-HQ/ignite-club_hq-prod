@@ -357,6 +357,41 @@ function SupabaseJoinTeamPage() {
           try {
             const link = await getLiveTeamInviteLinkByToken(ctx, token!);
             if (link && !link.revoked) {
+              // This token has already resolved to exactly one owning ICP
+              // group. Read only its nominated club/team public labels from
+              // that same club_domain; no cross-group lookups or token logs.
+              // Names are display-only; a temporary label lookup outage must
+              // not invalidate the real invitation or grant membership.
+              let teamName = "";
+              let clubName = "";
+              let teamLogoUrl: string | null = null;
+              let clubLogoUrl: string | null = null;
+              const [teamResult, clubResult] = await Promise.allSettled([
+                getLiveTeam(ctx, link.team_id),
+                getLiveClubProfile(ctx, link.club_id),
+              ]);
+              if (teamResult.status === "fulfilled") {
+                const team = teamResult.value[0];
+                if (team) {
+                  if (team.id !== link.team_id || team.club_id !== link.club_id) {
+                    throw new Error("Invitation target team/club mismatch");
+                  }
+                  teamName = team.name ?? "";
+                  teamLogoUrl = team.logo_url?.[0] ?? null;
+                }
+              } else {
+                console.warn("[JoinTeam] Team invitation label unavailable");
+              }
+              if (clubResult.status === "fulfilled") {
+                const club = clubResult.value[0];
+                if (club) {
+                  if (club.id !== link.club_id) throw new Error("Invitation target club mismatch");
+                  clubName = club.name ?? "";
+                  clubLogoUrl = club.logo_url?.[0] ?? null;
+                }
+              } else {
+                console.warn("[JoinTeam] Club invitation label unavailable");
+              }
               return {
                 id: link.id,
                 team_id: link.team_id,
@@ -370,12 +405,12 @@ function SupabaseJoinTeamPage() {
                 metadata: { icp_invite_link: true } as { child_name?: string; child_year_of_birth?: number; icp_invite_link?: boolean },
                 teams: {
                   id: link.team_id,
-                  name: "",
-                  logo_url: null as string | null,
+                  name: teamName,
+                  logo_url: teamLogoUrl,
                   club_id: link.club_id,
                   clubs: {
-                    name: "",
-                    logo_url: undefined as string | undefined,
+                    name: clubName,
+                    logo_url: clubLogoUrl ?? undefined,
                   },
                 },
               };
@@ -474,7 +509,7 @@ function SupabaseJoinTeamPage() {
     enabled: !!inviteMiniLeagueId && resolveAuthBackend() !== "icp",
   });
 
-  const inviteEntityName = inviteMiniLeague?.name || invite?.teams?.name || invite?.teams?.clubs?.name || "organization";
+  const inviteEntityName = inviteMiniLeague?.name || invite?.teams?.name || invite?.teams?.clubs?.name || (invite?.team_id ? "this team" : "organization");
   const inviteDestination = inviteMiniLeagueId
     ? `/mini-leagues/${inviteMiniLeagueId}?from=invite`
     : invite?.team_id
