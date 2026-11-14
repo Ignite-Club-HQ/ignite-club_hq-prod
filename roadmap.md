@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## DEV Media photo reactions — 14 November
+- [ ] Correct loaded-photo query identity, refresh/retry and optimistic mutation recovery; retain photo IDs, album targeting, account isolation and existing permissions.
+- [ ] Run focused pagination/list/mutation/error/album/native-resume tests and verify the authenticated web/Android flow where available; no production changes or promotion.
+
 ## Mixed mainnet / Cloud Engine membership — 12 November
 - [x] Composed independently verified destination sessions for one Internet Identity; each club's roles and chat calls stay at its own authority, with single-attempt writes and no cross-destination replay.
 - [x] Prepared explicit commissioning and feature dispatch; membership role filtering, message/reaction/pin/poll caches and sequence/method state are account/destination separated. 142 focused checks pass in both sign-in configurations; no PROD operations or engine connection.
