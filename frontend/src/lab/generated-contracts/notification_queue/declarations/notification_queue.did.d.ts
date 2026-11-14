@@ -266,6 +266,11 @@ export interface Main {
       { 'Err' : string }
   >,
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
+  'read_trusted_dev_test2_event_delivery' : ActorMethod<
+    [string, Principal],
+    { 'Ok' : [] | [{ 'status' : string, 'attempts' : number, 'created_at_ms' : bigint }] } |
+      { 'Err' : string }
+  >,
   'record_chat_notify_batch' : ActorMethod<
     [string, string, string, string, Array<string>, Array<string>],
     ChatNotifyBatchResult
