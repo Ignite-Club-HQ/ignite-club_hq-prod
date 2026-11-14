@@ -1,4 +1,4 @@
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -26,9 +26,10 @@ interface EmojiReactionsProps {
   currentUserId?: string;
   onReact: (reactionType: string) => void;
   onRemove: () => void;
+  disabled?: boolean;
 }
 
-export const EmojiReactions = memo(function EmojiReactions({ reactions, currentUserId, onReact, onRemove }: EmojiReactionsProps) {
+export const EmojiReactions = memo(function EmojiReactions({ reactions, currentUserId, onReact, onRemove, disabled = false }: EmojiReactionsProps) {
   const [viewingReactionType, setViewingReactionType] = useState<string | null>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const userReaction = reactions.find((r) => r.user_id === currentUserId);
@@ -47,7 +48,7 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
   const handleEmojiClick = (type: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setIsPickerOpen(false);
-    if (!currentUserId) return;
+    if (!currentUserId || disabled) return;
     if (userReaction?.reaction_type === type) {
       onRemove();
     } else {
@@ -69,6 +70,9 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
   // own reaction. Long-press removes your reaction if it matches this pill.
   const longPressTimer = useRef<number | null>(null);
   const longPressFired = useRef(false);
+  useEffect(() => () => {
+    if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+  }, []);
 
   const clearLongPress = () => {
     if (longPressTimer.current !== null) {
@@ -82,7 +86,7 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
     clearLongPress();
     longPressTimer.current = window.setTimeout(() => {
       longPressFired.current = true;
-      if (currentUserId && userReaction?.reaction_type === type) {
+      if (!disabled && currentUserId && userReaction?.reaction_type === type) {
         onRemove();
       }
     }, 500);
@@ -133,7 +137,7 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
         {/* Add reaction button */}
         <Popover open={isPickerOpen} onOpenChange={setIsPickerOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" aria-label="Add or change reaction" disabled={disabled || !currentUserId}>
               <Smile className="h-4 w-4" />
             </Button>
           </PopoverTrigger>
@@ -145,6 +149,8 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
                   variant="ghost"
                   size="sm"
                   onClick={(e) => handleEmojiClick(type, e)}
+                  disabled={disabled}
+                  aria-label={`React ${emoji}`}
                   className={`h-8 w-8 p-0 text-lg ${
                     userReaction?.reaction_type === type ? "bg-primary/20" : ""
                   }`}
@@ -208,6 +214,7 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
                       <Button
                         variant="ghost"
                         size="sm"
+                        disabled={disabled}
                         onClick={(e) => {
                           e.stopPropagation();
                           onRemove();

@@ -4,6 +4,8 @@ import { Capacitor } from '@capacitor/core';
 import { abortAllInFlightRestGets } from '@/lib/supabaseAuthRetry';
 
 const CHAT_RESUME_QUERY_KEYS = new Set([
+  // Existing photo reactions need a read on ordinary resume, not just realtime.
+  'photo-reactions',
   'team-messages',
   'club-messages',
   'group-messages',

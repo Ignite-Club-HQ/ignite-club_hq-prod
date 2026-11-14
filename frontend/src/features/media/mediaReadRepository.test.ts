@@ -123,13 +123,13 @@ describe.runIf(supabaseMode)("Media read repository — Supabase", () => {
     ]));
   });
 
-  it("keeps reaction and comment reads best-effort after backend errors", async () => {
+  it("throws reaction failures while leaving comment handling unchanged", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { client } = scriptedClient({
       photo_reactions: [{ data: null, error: { message: "reaction denied" } }],
       photo_comments: [{ data: null, error: { message: "comment denied" } }],
     });
-    await expect(fetchMediaReactions(["photo-a"], client)).resolves.toEqual([]);
+    await expect(fetchMediaReactions(["photo-a"], client)).rejects.toEqual({ message: "reaction denied" });
     await expect(fetchMediaComments(["photo-a"], client)).resolves.toEqual([]);
     expect(errorSpy).toHaveBeenCalledTimes(2);
     errorSpy.mockRestore();
