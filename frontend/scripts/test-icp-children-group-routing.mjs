@@ -4,6 +4,18 @@ import { readFileSync } from "node:fs";
 
 const page = readFileSync(new URL("../src/pages/IcpChildrenPage.tsx", import.meta.url), "utf8");
 
+const invite = readFileSync(new URL("../src/pages/JoinTeamPage.tsx", import.meta.url), "utf8");
+const duplicate = readFileSync(new URL("../src/features/membership/verifyIcpChildNameAcrossGroups.ts", import.meta.url), "utf8");
+
+test("invite and My Children both check duplicate names across every group before create", () => {
+  assert.match(invite, /await verifyIcpChildNameAcrossGroups\(addedLabel\)/);
+  assert.match(page, /await verifyIcpChildNameAcrossGroups\(trimmed\)/);
+  assert.match(duplicate, /everyGroup: true, requireComplete: true/);
+  assert.match(duplicate, /vault\.resolveLivePiiTextBatch\(/);
+  assert.match(duplicate, /assertMayCreateChild\(name, existing, true\)/);
+  assert.doesNotMatch(duplicate, /createMyLiveChild\(|create_own_child\(/);
+});
+
 test("caller-only child and name reads require every group and full success", () => {
   assert.match(page, /function readAllMyChildren/);
   assert.match(page, /withFeatureBackend<IcpChild\[]>\("membership"/);
