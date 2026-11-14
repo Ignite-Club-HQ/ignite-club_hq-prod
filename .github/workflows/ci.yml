@@ -47,6 +47,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck:product
       - run: npx vitest run --config vitest.legacy.config.mjs src/live/localRuntimeMode.test.ts src/live/disabledLabRuntime.test.ts
+      - name: Verify DEV invite lookups and explicit Internet Identity handoff
+        run: npx vitest run --config vitest.legacy.config.mjs src/live/invitePreview.test.ts src/pages/JoinTeamPage.icp.test.tsx
       - run: npm run build
         env:
           IGNITE_LIVE_SUPABASE_ALIAS: dev-ci
