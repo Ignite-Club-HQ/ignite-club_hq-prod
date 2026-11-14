@@ -1347,7 +1347,7 @@ function SupabaseMediaPage() {
       {/* Header sponsor / ad strip — Pro: any club with media_header_sponsors_enabled (default off). Free: app ads only. */}
       {reactionsIsError && (
         <div className="max-w-lg mx-auto">
-          <QueryErrorBanner hasError message="Couldn't refresh reactions. Your last loaded reactions are still shown. Tap to retry." onRetry={async () => { await refetchReactions(); }} />
+          <QueryErrorBanner hasError message="Couldn't load latest reactions. Tap to retry." onRetry={async () => { await refetchReactions(); }} />
         </div>
       )}
       <div className="max-w-lg mx-auto">

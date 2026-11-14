@@ -35,8 +35,12 @@ export function usePhotoReactions(userId: string | undefined, photoIds: readonly
       photoId, userId: accountId,
       reaction: reactionType === null ? null : { photo_id: photoId, user_id: accountId, reaction_type: reactionType, profiles: profile },
     }),
-    onSuccess: (_result, _variables, context) => { if (context) finishReaction(client, context, false); },
-    onError: (_error, _variables, context) => {
+    onSuccess: async (_result, variables, context) => {
+      await client.cancelQueries({ queryKey: ["photo-reactions", variables.accountId] });
+      if (context) finishReaction(client, context, false);
+    },
+    onError: async (_error, variables, context) => {
+      await client.cancelQueries({ queryKey: ["photo-reactions", variables.accountId] });
       if (context) finishReaction(client, context, true);
       toast.error("Couldn't save your reaction. Please try again.");
     },
