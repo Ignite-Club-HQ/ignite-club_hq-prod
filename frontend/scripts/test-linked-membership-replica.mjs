@@ -9,6 +9,7 @@ const governor = Principal.fromUint8Array(Uint8Array.from([1, 1]));
 const app = Principal.fromUint8Array(Uint8Array.from([2, 1]));
 const browser = Principal.fromUint8Array(Uint8Array.from([3, 1]));
 const outsider = Principal.fromUint8Array(Uint8Array.from([4, 1]));
+const coach = Principal.fromUint8Array(Uint8Array.from([5, 1]));
 const ok = r => { assert.ok('Ok' in r, JSON.stringify(r, (_, v) => typeof v === 'bigint' ? String(v) : v)); return r.Ok; };
 const refused = async call => { let failed = false; try { const r = await call(); failed = !!r && 'Err' in r; } catch (e) { assert.match(String(e), /Account admission denied|Linked account authority unavailable|Account removal fenced/); failed = true; } assert.equal(failed, true); };
 const server = await PocketIcServer.start(); let pic;
@@ -33,6 +34,7 @@ try {
   identity.actor.setPrincipal(app); const account = ok(await identity.actor.register_account());
   const challenge = ok(await identity.actor.begin_link(browser)); identity.actor.setPrincipal(browser); ok(await identity.actor.accept_link(challenge.id));
   identity.actor.setPrincipal(outsider); ok(await identity.actor.register_account());
+  identity.actor.setPrincipal(coach); ok(await identity.actor.register_account());
   for (const group of groups) {
     // No sync/role copy: browser discovers existing app grants immediately.
     group.actor.setPrincipal(browser);
@@ -58,6 +60,7 @@ try {
   const rosterGroup = groups[0];
   rosterGroup.actor.setPrincipal(governor);
   ok(await rosterGroup.actor.add_role_grant(outsider, rosterGroup.name, 'parent', ['u9']));
+  ok(await rosterGroup.actor.add_role_grant(coach, rosterGroup.name, 'coach', ['u9']));
   rosterGroup.actor.setPrincipal(outsider);
   const ownChild = ok(await rosterGroup.actor.create_own_child());
   assert.deepEqual(ownChild.club_id, [], 'parent-owned child initially has no club_id');
@@ -69,6 +72,10 @@ try {
   rosterGroup.actor.setPrincipal(browser);
   const adminRoster = ok(await rosterGroup.actor.read_account_get_club_roster(rosterGroup.name));
   assert.ok(adminRoster.children.some(c => c.id === ownChild.id), 'club admin sees assigned self-service child');
+
+  rosterGroup.actor.setPrincipal(coach);
+  const coachRoster = ok(await rosterGroup.actor.read_account_get_club_roster(rosterGroup.name));
+  assert.ok(coachRoster.children.some(c => c.id === ownChild.id), 'coach may see the child on club roster');
 
   rosterGroup.actor.setPrincipal(governor);
   ok(await rosterGroup.actor.create_club('other-private-club', 'Other', 'Other', [], []));
