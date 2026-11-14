@@ -1537,6 +1537,15 @@ export async function isMyLiveClubMember(ctx: FeatureBackendContext, clubId: str
   return actor.read_account_is_club_member(ctx.identity.getPrincipal(), clubId);
 }
 
+/** Caller-scoped protected role view for a single group.
+ * Used by My Children while fan-out already supplies the owning group;
+ * never call the legacy my_role_grants query in admission-protected G2.
+ */
+export async function listMyLiveGroupRoleGrants(ctx: FeatureBackendContext) {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  return actor.read_account_my_role_grants();
+}
+
 export async function listMyLiveOwnChildren(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
   // Group 2 requires protected consensus account reads; its legacy query
