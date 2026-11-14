@@ -33,6 +33,7 @@ export function JoinTeamChildStepCard({
   linkExistingChildId,
   childName,
   childYearOfBirth,
+  showYearOfBirth = true,
   canAddChild,
   addingChild,
   showSkipConfirm,
@@ -52,6 +53,7 @@ export function JoinTeamChildStepCard({
   linkExistingChildId: string | null;
   childName: string;
   childYearOfBirth: string;
+  showYearOfBirth?: boolean;
   canAddChild: boolean;
   addingChild: boolean;
   showSkipConfirm: boolean;
@@ -165,7 +167,7 @@ export function JoinTeamChildStepCard({
                       placeholder="Enter child's name"
                     />
                   </div>
-                  <div>
+                  {showYearOfBirth && <div>
                     <Label htmlFor="child-yob" className="text-sm">Year of Birth (optional)</Label>
                     <Input
                       id="child-yob"
@@ -176,7 +178,7 @@ export function JoinTeamChildStepCard({
                       min={1940}
                       max={new Date().getFullYear()}
                     />
-                  </div>
+                  </div>}
                 </div>
               )}
 

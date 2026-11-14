@@ -40,6 +40,7 @@ import { getLivePendingInvite, getLiveTeamInviteLinkByToken, acceptLiveTeamInvit
 import { acceptIcpInviteAndWelcome } from "@/features/membership/acceptIcpInviteAndWelcome";
 import { needsInviteChildEntry } from "@/features/membership/inviteFlowRules";
 import { shareableInviteJoinErrorMessage } from "@/live/acceptShareableInviteWithRetry";
+import { createIcpInviteChild } from "@/features/membership/createIcpInviteChild";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -155,6 +156,8 @@ function SupabaseJoinTeamPage() {
   const [clubSwitchName, setClubSwitchName] = useState<string | null>(null);
   const [showSkipConfirm, setShowSkipConfirm] = useState(false);
   const autoJoinAttempted = useRef(false);
+  // Non-idempotent ICP create_own_child: never replay an uncertain create on this page mount.
+  const icpChildCreateAttempted = useRef(false);
   
   // Check if we should auto-join (returning from auth after install flow)
   const shouldAutoJoin = safeSessionGet("autoJoinAfterAuth") === "true";
@@ -1495,7 +1498,9 @@ function SupabaseJoinTeamPage() {
     }
 
     // Send membership confirmation email if user has an email
-    if (user.email) {
+    // ICP/Internet Identity accounts do not use the Supabase email sender,
+    // even if an identity profile happens to expose an email-looking field.
+    if (!isIcpAccount && user.email) {
       try {
         // Fetch club branding for the email
         const clubId = invite.teams?.club_id;
@@ -2176,6 +2181,11 @@ function SupabaseJoinTeamPage() {
     try {
       let addedLabel = "";
       if (linkExistingChildId) {
+        // Never write to Supabase guardian links from an Internet Identity
+        // invite. A team admin must authorise joining an existing child's family.
+        if (isIcpAccount) {
+          throw new Error("Ask your team admin to link you to an existing child. No guardian record was changed.");
+        }
         // Find existing child name for the summary
         const existing = (existingTeamChildren as any[]).find(c => c.id === linkExistingChildId);
         addedLabel = existing?.name || "Child";
@@ -2195,38 +2205,65 @@ function SupabaseJoinTeamPage() {
         // ICP: mini-league parent join links mint the roster player directly
         // on the mini_league_domain canister (idempotent per parent + child
         // name), replacing the children + child_mini_league_assignments writes.
-        const icpHandled = leagueLinkMiniLeagueId
-          ? await withFeatureBackend("mini_leagues", {
-              supabase: async () => false,
-              icp: async (ctx) => {
-                await joinLiveMiniLeagueByToken(ctx, token!, addedLabel);
-                return true;
-              },
-            }, writeOnce({ inviteToken: token ?? "" }))
-          : invite?.team_id
-            // ICP team link: create the child on club_domain and keep its
-            // name on pii_access_control — same as the auto-create path.
-            ? await withFeatureBackend("membership", {
-                supabase: async () => false,
-                icp: async (ctx) => {
-                  const [{ icpGetTeam }, club, vault] = await Promise.all([
-                    import("@/lib/icpClubTeamLookup"),
-                    import("@/live/features/club"),
-                    import("@/live/features/vault"),
-                  ]);
-                  const team = await icpGetTeam(invite.team_id!);
-                  const clubId = (team as any)?.club_id as string | undefined;
-                  if (!clubId) throw new Error("Team not found");
-                  const me = ctx.identity.getPrincipal();
-                  const child = await club.createLiveChildForParentOnTeam(ctx, clubId, invite.team_id!, me);
-                  const childId = (child as any).id as string;
-                  await vault.registerLiveChildNamePii(ctx, childId, addedLabel, me, clubId);
-                  await vault.grantLiveClubChildNameRead(ctx, childId, clubId);
-                  return true;
-                },
-              }, writeOnce({ teamId: invite.team_id ?? '' }))
-            : false;
+        let icpHandled = false;
+        if (leagueLinkMiniLeagueId) {
+          icpHandled = await withFeatureBackend("mini_leagues", {
+            supabase: async () => false,
+            icp: async (ctx) => {
+              await joinLiveMiniLeagueByToken(ctx, token!, addedLabel);
+              return true;
+            },
+          }, writeOnce({ inviteToken: token ?? "" }));
+        } else if (isIcpAccount && invite?.team_id) {
+          // Route the write by the verified invite's club, then verify the
+          // referenced team belongs to that club before any child creation.
+          const verifiedClubId = invite.teams?.club_id;
+          if (!verifiedClubId) throw new Error("Invitation has no verified club");
+          if (icpChildCreateAttempted.current) {
+            throw new Error("A previous child creation may have succeeded. Check My Children before trying to add another.");
+          }
+          // The create_own_child call is not request-idempotent. This guard
+          // deliberately remains set after an unknown or partial outcome.
+          icpChildCreateAttempted.current = true;
+          const result = await withFeatureBackend("membership", {
+            supabase: async () => { throw new Error("Internet Identity invitation cannot use the email database"); },
+            icp: async (ctx) => {
+              const [club, vault] = await Promise.all([
+                import("@/live/features/club"),
+                import("@/live/features/vault"),
+              ]);
+              const clubId = verifiedClubId;
+              const teamId = invite.team_id!;
+              const parent = ctx.identity.getPrincipal();
+              return createIcpInviteChild({ clubId, teamId, name: addedLabel }, {
+                readTeam: async () => (await club.getLiveTeam(ctx, teamId))[0] ?? null,
+                createOwnChild: () => club.createMyLiveChild(ctx),
+                saveName: (id) => vault.registerLiveChildNamePii(ctx, id, addedLabel, parent, clubId),
+                assignOwnChildToTeam: (id) => club.setMyLiveChildTeam(ctx, id, teamId, true),
+              });
+            },
+          }, writeOnce({ clubId: verifiedClubId }));
+          if (result.status === "created_unlinked") {
+            // Do not create a duplicate: the child exists but the team link did
+            // not succeed. Keep a visible partial outcome and let the member
+            // finish, or use My Children/team admin for later assignment.
+            setAddedChildren(prev => [...prev, addedLabel + " (not yet linked to team)"]);
+            setChildName("");
+            setChildYearOfBirth("");
+            toast({
+              title: "Child saved, team link incomplete",
+              description: "Your child was created, but wasn't added to this team. Check My Children or contact the team admin; don't create a duplicate.",
+              variant: "destructive",
+            });
+            return;
+          }
+          icpHandled = true;
+          // A confirmed team assignment permits creating the next sibling.
+          icpChildCreateAttempted.current = false;
+          toast({ title: `${addedLabel} added to ${inviteEntityName}!` });
+        }
         if (!icpHandled) {
+        if (isIcpAccount) throw new Error("Internet Identity child creation is unavailable for this invitation. No email-database write was made.");
         // Create new child
         const { data: newChild, error: childErr } = await supabase
           .from("children")
@@ -2295,7 +2332,13 @@ function SupabaseJoinTeamPage() {
       queryClient.invalidateQueries({ queryKey: membershipKeys.teamChildrenForLinking(invite?.team_id) });
     } catch (err) {
       console.error("[JoinTeam] Error adding child:", err);
-      toast({ title: "Failed to add child", variant: "destructive" });
+      toast({
+        title: "Couldn't finish adding your child",
+        description: isIcpAccount
+          ? "Check My Children before trying again. Your child may already have been created; contact your team admin if you need help."
+          : (err as Error)?.message || "Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setAddingChild(false);
     }
@@ -2365,6 +2408,7 @@ function SupabaseJoinTeamPage() {
         linkExistingChildId={linkExistingChildId}
         childName={childName}
         childYearOfBirth={childYearOfBirth}
+        showYearOfBirth={!isIcpAccount}
         canAddChild={canAddChild}
         addingChild={addingChild}
         showSkipConfirm={showSkipConfirm}
