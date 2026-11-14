@@ -46,6 +46,9 @@ test('only exact G2 services and Test2 event/recipient are eligible', () => {
 });
 
 test('queue readback cannot enumerate inboxes, users, bodies, tokens, or receipts', () => {
+  assert.match(qRead, /expectedKey = "event_invite-" # devEvent # "-invite"/);
+  assert.match(qRead, /expectedId = expectedKey # "-" # devUser/);
+  assert.match(qRead, /n\.id == expectedId and n\.idempotency_key == expectedKey/);
   assert.match(qRead, /n\.user == devUser and n\.club == devClub and n\.kind == "event_invite" and n\.related_id == \?devEvent/);
   assert.match(qRead, /matches\.size\(\) > 1/);
   assert.match(qRead, /matches\.size\(\) == 0/);
