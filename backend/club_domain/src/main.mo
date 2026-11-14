@@ -736,6 +736,20 @@ persistent actor class Main(governorInit : Principal) = this {
   func isAdmin(caller : Principal, club : Text) : Bool {
     isGovernor(caller) or (not isExcluded(caller, club) and acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (grant.role == "club_admin" or grant.role == "app_admin") and (grant.club == ?club or grant.club == null)))
   };
+  // A full roster is a staff-only inventory, not a membership-wide read.
+  // Preserve existing coach/team-admin workflows while excluding parents,
+  // players and club-only non-staff users from principal-level role rows.
+  // The separate has_club_staff_role API is deliberately membership-wide
+  // for PII club audiences and must not be reused for roster permissions.
+  func canReadClubRoster(caller : Principal, club : Text) : Bool {
+    if (isAdmin(caller, club)) return true;
+    if (isExcluded(caller, club) or removalReceiver.denied(caller)) return false;
+    acl.roles.any(func(grant) =
+      ownsMembershipPrincipal(caller, grant.user) and grant.club == ?club and
+      (grant.role == "team_admin" or grant.role == "coach" or grant.role == "committee_member" or grant.role == "committee")
+    )
+  };
+
 
   func nowNs() : Nat64 { Nat.toNat64(Int.abs(Time.now())) };
 
@@ -4102,9 +4116,9 @@ persistent actor class Main(governorInit : Principal) = this {
   public query ({ caller }) func get_club_roster(club_id : Text) : async { #Ok : { children : [Types.Child]; roles : [Types.RoleGrant] }; #Err : Text } {
     denyLegacyAccountQuery();
     // The full roster contains child/parent principals and club-wide roles.
-    // Only club administrators may read it; team coaches and parents need
-    // narrower team/family views, not the whole club's family metadata.
-    if (not isAdmin(caller, club_id)) return #Err("Club admin required");
+    // Only actual club staff may read it; parents and players need
+    // caller-scoped family/team views, not the whole club's family metadata.
+    if (not canReadClubRoster(caller, club_id)) return #Err("Club staff role required");
     let scopedTeamIds = clubTeamIds(club_id);
     #Ok({
       // A parent-created child begins with club_id=null; placement on a
@@ -9354,8 +9368,8 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(caller);
     // Admission/linked-principal checks have already run. Apply the same
-    // administrator-only roster boundary as the legacy query variant.
-    if (not isAdmin(caller, club_id)) return #Err("Club admin required");
+    // staff-only roster boundary as the legacy query variant.
+    if (not canReadClubRoster(caller, club_id)) return #Err("Club staff role required");
     let scopedTeamIds = clubTeamIds(club_id);
     #Ok({
       children = acl.children.filter(func(c) = clubChild(club_id, scopedTeamIds, c));
