@@ -52,7 +52,7 @@ describe("DEV Ted U10 transfer read-only preflight", () => {
     ["missing guardian",[{...source(),guardians:[]}],/guardian relationship/],
     ["additional guardian",[{...source(),guardians:[DEV_TED_U10.parentPrincipal,"other"]}],/guardian relationship/],
   ] as const)("%s stops before any move",(_reason,rows,rejection)=>{
-    expect(()=>validateDevTedPreflight(host,rows as DevTedSourceReadback[],destination())).toThrow(rejection);
+    expect(()=>validateDevTedPreflight(host,rows as unknown as readonly DevTedSourceReadback[],destination())).toThrow(rejection);
   });
   it.each([
     ["wrong destination canister",{group:DEV_TED_U10.sourceCanister}],
@@ -63,6 +63,6 @@ describe("DEV Ted U10 transfer read-only preflight", () => {
     ["no membership",{member:false}],
     ["destination child already exists",{existingChildIds:["child-id"]}],
   ] as const)("%s blocks move",(_reason,delta)=>{
-    expect(()=>validateDevTedPreflight(host,[source()],{...destination(),...delta})).toThrow();
+    expect(()=>validateDevTedPreflight(host,[source()],Object.assign(destination(),delta))).toThrow();
   });
 });
