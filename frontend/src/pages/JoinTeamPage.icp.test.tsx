@@ -33,9 +33,10 @@ vi.mock("@/live/features/miniLeagues", () => ({
 
 let membershipRoutedToIcp = false;
 vi.mock("@/live/invitePreview", () => ({
-  readInvitePreview: async (_token: string, providers: any) => membershipRoutedToIcp
-    ? providers.icp({ identity: {}, target: {} })
-    : providers.supabase(),
+  readInvitePreview: async (_token: string, providers: any, options?: { forceIcp?: boolean }) =>
+    membershipRoutedToIcp || options?.forceIcp
+      ? providers.icp({ identity: {}, target: {} })
+      : providers.supabase(),
 }));
 vi.mock("@/live/loadBackendRouting", () => ({
   isFeatureRoutedToIcp: (feature: string) => feature === "membership" && membershipRoutedToIcp,
@@ -52,8 +53,10 @@ vi.mock("@/lab/localRuntimeMode", () => ({
   resolveLocalAuthMode: () => false,
 }));
 
+const setAuthMethodChoiceMock = vi.fn();
 vi.mock("@/live/authBackendMode", () => ({
   resolveAuthBackend: () => (membershipRoutedToIcp ? "icp" : "supabase"),
+  setAuthMethodChoice: (...args: unknown[]) => setAuthMethodChoiceMock(...args),
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -143,6 +146,7 @@ beforeEach(() => {
   acceptLiveTeamInviteLinkMock.mockReset().mockResolvedValue(undefined);
   toastMock.mockClear();
   sendGamificationNotificationMock.mockClear();
+  setAuthMethodChoiceMock.mockClear();
   playerPreviewMock.mockReset().mockResolvedValue(null);
   claimPlayerMock.mockReset();
   getLiveJoinLinkByTokenMock.mockReset();
@@ -212,6 +216,26 @@ describe("JoinTeamPage team-invite acceptance routing", () => {
     await waitFor(() => expect(acceptLiveTeamInviteLinkMock).toHaveBeenCalledWith(expect.anything(), "share-token"));
     expect(acceptLiveTeamInviteMock).not.toHaveBeenCalled();
     expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("ICP tok-hex parent invites are previewed even when signed-out routing defaults to email", async () => {
+    membershipRoutedToIcp = false;
+    const token = "tok-0123456789abcdef0123456789abcdef";
+    getLiveTeamInviteLinkByTokenMock.mockResolvedValue({
+      id: "tlink-" + token, token, team_id: "team-1", club_id: "club-1",
+      role: "parent", revoked: false, created_at_ms: 1000n,
+    });
+
+    renderAt("/join/" + token);
+    expect(await screen.findByText("Internet Identity Required")).toBeInTheDocument();
+    expect(getLiveTeamInviteLinkByTokenMock).toHaveBeenCalledWith(expect.anything(), token);
+    expect(rpcMock).not.toHaveBeenCalledWith("get_team_invite_by_token", expect.anything());
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /continue with internet identity/i }));
+    expect(setAuthMethodChoiceMock).toHaveBeenCalledTimes(1);
+    expect(setAuthMethodChoiceMock).toHaveBeenCalledWith("icp");
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
   });
 
   it("mini-league join under ICP shows an unavailable message instead of joining", async () => {
