@@ -58,12 +58,11 @@ interface TeamOpt { id: string; name: string; club_id: string; club_name: string
 interface Guardian { principal: string; name: string; isPrimary: boolean; isMe: boolean }
 
 async function load() {
-  const [{ icpCtx }, club, vault] = await Promise.all([
+  const [{ icpCtx }, club] = await Promise.all([
     import("@/lib/icpClubTeamLookup"),
     import("@/live/features/club"),
-    import("@/live/features/vault"),
   ]);
-  return { ctx: await icpCtx(), club, vault };
+  return { ctx: await icpCtx(), club };
 }
 
 /** Reading all groups is essential even for unassigned children. A child
@@ -87,7 +86,7 @@ async function readAllMyChildren(): Promise<IcpChild[]> {
         sourceClubCanisterId,
       }));
     },
-  }, { everyGroup: true, requireComplete: true, merge: collectVerifiedChildren });
+  }, { everyGroup: true, requireComplete: true, merge: parts => collectVerifiedChildren(parts as IcpChild[][]) });
 }
 
 /** A later action must re-locate the child's *original* group, recheck the
@@ -174,8 +173,10 @@ export default function IcpChildrenPage() {
     ...child,
     name: namesQuery.data?.[childSourceKey(child)] ?? child.name,
   }));
-  const existingNamesResolved = !childRows?.length || (
-    namesQuery.isSuccess && children?.every(child => !child.isPrimary || !!child.name.trim())
+  const existingNamesResolved = !!childRows && (
+    childRows.length === 0 || (
+      namesQuery.isSuccess && !!children?.every(child => !child.isPrimary || !!child.name.trim())
+    )
   );
 
   const { data: teams } = useQuery({
@@ -384,7 +385,7 @@ export default function IcpChildrenPage() {
                       <UserPlus className="h-4 w-4" />
                     </Button>
                     {c.isPrimary && (
-                      <Button variant="ghost" size="icon" aria-label="Remove child" onClick={() => setDeleteId(c.id)}>
+                      <Button variant="ghost" size="icon" aria-label="Remove child" onClick={() => setDeleteId(c)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     )}
