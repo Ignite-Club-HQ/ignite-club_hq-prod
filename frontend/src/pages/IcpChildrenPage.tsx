@@ -36,6 +36,7 @@ import {
   runForVerifiedOwnedChild,
 } from "@/features/membership/icpChildrenGroupSafety";
 import { createIcpInviteChild } from "@/features/membership/createIcpInviteChild";
+import { verifyIcpChildNameAcrossGroups } from "@/features/membership/verifyIcpChildNameAcrossGroups";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -225,6 +226,9 @@ export default function IcpChildrenPage() {
     mutationFn: async () => {
       const trimmed = name.trim();
       assertMayCreateChild(trimmed, children, !!existingNamesResolved);
+      // Re-read all groups immediately before writing; a cached page list is
+      // insufficient protection against another signed-in session.
+      await verifyIcpChildNameAcrossGroups(trimmed);
       if (!availableNewChildTeam) throw new Error("Choose an eligible club team before adding a child.");
       if (createAttempted.current) {
         throw new Error("A previous child creation may have succeeded. Check My Children before creating another child.");
