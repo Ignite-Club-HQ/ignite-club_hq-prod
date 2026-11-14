@@ -5,6 +5,7 @@ import { fetchMyRoleGrantsEverywhere } from "./myRoleGrants";
 import type { FeatureBackendContext } from "../featureRouter";
 import { candidOpt, unwrapCandid } from "./candid";
 import { batched as batchedCall } from "./batching";
+import { acceptShareableInviteWithRetry } from "../acceptShareableInviteWithRetry";
 
 /**
  * Club data -> club_domain canister. Shared by the membership and news
@@ -1253,7 +1254,13 @@ export async function getLivePendingInvite(ctx: FeatureBackendContext, inviteId:
 /** Redeem a shareable team-invite link token (grants the link's role, idempotent). */
 export async function acceptLiveTeamInviteLink(ctx: FeatureBackendContext, token: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_team_invite_link(token), "Accept team invite link"));
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(
+    acceptShareableInviteWithRetry(
+      () => actor.accept_team_invite_link(token),
+      () => ctx.identity.getPrincipal().toText(),
+    ),
+    "Accept team invite link",
+  ));
   syncAvatarClubGrantsBestEffort(ctx);
   return accepted;
 }

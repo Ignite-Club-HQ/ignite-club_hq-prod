@@ -39,6 +39,7 @@ import { getLivePlayerInvitePreview, claimLiveInvite, getLiveJoinLinkByToken, ge
 import { getLivePendingInvite, getLiveTeamInviteLinkByToken, acceptLiveTeamInviteLink, getLiveClubProfile, getLiveTeam } from "@/live/features/club";
 import { acceptIcpInviteAndWelcome } from "@/features/membership/acceptIcpInviteAndWelcome";
 import { needsInviteChildEntry } from "@/features/membership/inviteFlowRules";
+import { shareableInviteJoinErrorMessage } from "@/live/acceptShareableInviteWithRetry";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -1678,7 +1679,9 @@ function SupabaseJoinTeamPage() {
       console.error("[SignupFlow] Auto-join failed", error);
       toast({
         title: "Couldn't complete your join",
-        description: error.message || "Failed to join. Please try again or ask your admin to resend the invite.",
+        description: isIcpShareableLink
+          ? shareableInviteJoinErrorMessage(error)
+          : error.message || "Failed to join. Please try again or ask your admin to resend the invite.",
         variant: "destructive",
       });
     },
