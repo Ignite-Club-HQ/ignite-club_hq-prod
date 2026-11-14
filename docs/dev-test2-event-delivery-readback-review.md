@@ -18,8 +18,17 @@ This temporary two-hop diagnostic **does not publish the Group 2 queue** or alte
 ## Review/test gates
 1. Run `node --test scripts/dev-test2-notification-readback.test.mjs` (static source-contract tests). Tests confirm both actor identities, exact caller/event/team pins, absence of queue discoverability, no wide list or sensitive response fields, and read-only method bodies.
 2. Compile both Motoko canisters and validate their Candid declarations against generated DID before any deployment; the Node checks are **not** a substitute.
-3. Run **isolated PocketIC** positive and negative tests: exact Test2 status; unrelated identities, other teams/events, impersonation, changed/revoked Parent role, unfenced/fenced accounts, wrong queue wiring, wrong canister identity, zero and duplicate matching rows, and no data leakage. No private token or unrelated user may appear in replies.
+3. **PASS — disposable PocketIC execution:** `frontend/scripts/test-dev-test2-delivery-readback-replica.mjs` compiled and installed the actual G2 `club_domain` and `notification_queue` WASM into a **local-only** PocketIC instance using pinned test addresses. It proved signed Test2 Parent `Ok(null)` and `pending` readbacks, denied unrelated identities/admins, wrong events, revoked Parent role, miswired queue, transfer fence, and duplicate matching notification rows. It also validated the limited response shape. This does **not** exercise remote devices, a PROD configuration, or a real delivery worker. Further hardening recommended: child/linked-identity and account-removal races, alternate-team grant, and mismatched executing canister under replica scenarios.
 4. Require human security review. **Do not merge, deploy to G2, enable new discoverability, or send any additional notifications** without separate explicit authorization. Only after an approved G2 deployment and the above tests should Test2 run the caller-scoped readback.
+
+## Current branch CI evidence (14 Nov 2026)
+- **PASS:** Node source-contract test (`scripts/dev-test2-notification-readback.test.mjs`)
+- **PASS:** standalone notification_queue Motoko 1.16.1 compilation
+- **PASS:** standalone club_domain Motoko 1.16.1 compilation
+- **PASS:** disposable PocketIC authorization suite for the exact deployed-source pair, with **no internet/device push** (GitHub Actions isolated-permissions job)
+- **PASS:** repository auth-release-policy and existing parent chat-sync tests
+- **Additional broad frontend/onboarding jobs:** consult the latest commit's CI result; these are not substitutes for the above security gates
+- **Still required:** human review, future production/mainnet installation authorisation, and final exact-commit CI verification. No merge or deployment is authorised by these checks.
 
 ## Risk notes
 All Group 2 canisters are mainnet services; even a “DEV” test read can touch that shared state. The one-notification enqueue is already complete and this PR does **not** trigger another. The reviewer must validate protection/fencing and queue wiring in the target environment. The branch and draft PR alone cannot confirm delivery to the device.
