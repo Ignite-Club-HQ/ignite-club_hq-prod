@@ -149,3 +149,16 @@ test('workflow cannot deploy on PR or push, install nonpair services, or bypass 
   assert.match(w,/if: always\(\)/);
   assert.match(w,/rm -f "\$RUNNER_TEMP\/g2-notification.pem"/);
 });
+
+test('governor restore supports escaped PEM and stops with nonsecret diagnostic before any build',()=>{
+  const w=readFileSync(new URL('../.github/workflows/g2-event-notification-pair-upgrade.yml',import.meta.url),'utf8');
+  const restore=w.slice(w.indexOf('- name: Restore only the existing signed Group 2 governor'),w.indexOf('- name: Build ONLY the two bounded service recipes'));
+  assert.match(restore,/secrets\.DEPLOYER_PEM/);
+  assert.match(restore,/DEPLOYER_PEM could not be normalized/);
+  assert.match(restore,/ICP CLI rejected the key format/);
+  assert.match(restore,/Restored key principal differs from pinned Group 2 governor/);
+  assert.match(restore,/vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae/);
+  assert.match(restore,/2>&1/,'import errors must not leak key details');
+  assert.doesNotMatch(restore,/echo .*GOVERNOR_PRINCIPAL/);
+  assert.doesNotMatch(restore,/echo .*DEPLOYER_PEM/);
+});
