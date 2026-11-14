@@ -9295,6 +9295,52 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
+  // Temporary Test2-only DEV diagnostic, *not* a general inbox endpoint.
+  // G2 services are live mainnet canisters: pin service, signed recipient,
+  // exact synthetic club/team/event, and current Parent membership. Calls
+  // the queue only through its existing trusted club-domain wiring.
+  // No queue or delivery-admin API is added to ICP MCP discovery.
+  public shared ({ caller }) func read_account_my_dev_test2_event_delivery(event_id : Text) : async {
+    #Ok : ?{ status : Text; attempts : Nat32; created_at_ms : Nat64 };
+    #Err : Text;
+  } {
+    let devClubCanister = "yfwyv-nyaaa-aaaal-qxpyq-cai";
+    let devQueue = "zu4gk-vqaaa-aaaal-qxp5a-cai";
+    let devClub = "70eccd5e-28cd-54b5-9bbd-d0dc74eea9ca";
+    let devTeam = "ef943494-1c7f-58e3-a28d-db39e545319f";
+    let devEvent = "evt-70eccd5e-28cd-54b5-9bbd-d0dc74eea9ca-1";
+    let devUser = "pfslb-rpozk-543m5-zll3a-a3ay4-rdg3b-elojg-ukmfs-e624l-6rjyp-jae";
+    if (Principal.toText(Principal.fromActor(this)) != devClubCanister or caller.toText() != devUser or event_id != devEvent) {
+      return #Err("DEV test readback unavailable");
+    };
+    if (not removalReceiver.enter(caller)) return #Err("Account removal fenced");
+    try {
+      await admitAccount(caller);
+      let eligible = func() : Bool {
+        not removalReceiver.denied(caller) and not isTransferFenced(devClub) and
+        not isExcluded(caller, devClub) and isMember(caller, devClub) and
+        acl.roles.any(func(grant) =
+          ownsMembershipPrincipal(caller, grant.user) and grant.club == ?devClub and
+          grant.team == ?devTeam and grant.role == "parent"
+        )
+      };
+      if (not eligible()) return #Err("Parent access required");
+      let configured = notificationQueueCanister ?? return #Err("Notification queue unavailable");
+      if (configured.toText() != devQueue) return #Err("DEV queue identity mismatch");
+      let queue : actor {
+        read_trusted_dev_test2_event_delivery : shared (Text, Principal) -> async {
+          #Ok : ?{ status : Text; attempts : Nat32; created_at_ms : Nat64 };
+          #Err : Text;
+        }
+      } = actor(configured.toText());
+      let result = try {
+        await (with timeout = 10) queue.read_trusted_dev_test2_event_delivery(event_id, caller)
+      } catch (_) { return #Err("DEV delivery readback unavailable") };
+      if (not eligible() or notificationQueueCanister != ?configured) return #Err("Membership or routing changed");
+      result
+    } finally { removalReceiver.leave(caller) }
+  };
+
   public shared ({ caller }) func read_account_get_club_roster(club_id : Text) : async { #Ok : { children : [Types.Child]; roles : [Types.RoleGrant] }; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
