@@ -50,6 +50,36 @@ try {
     assert.deepEqual(await group.actor.read_account_my_role_grants(), []);
     await refused(() => group.actor.read_account_get_club_roster(group.name));
   }
+  // An invited parent can create and assign their own child, but must never
+  // obtain the club-wide role/child roster. A linked club admin can see the
+  // child on the owning club's team even while child.club_id remains null.
+  // Test with two clubs on the SAME canister, so isolation is not an artifact
+  // of separate Group 1/Group 2 storage.
+  const rosterGroup = groups[0];
+  rosterGroup.actor.setPrincipal(governor);
+  ok(await rosterGroup.actor.add_role_grant(outsider, rosterGroup.name, 'parent', ['u9']));
+  rosterGroup.actor.setPrincipal(outsider);
+  const ownChild = ok(await rosterGroup.actor.create_own_child());
+  assert.deepEqual(ownChild.club_id, [], 'parent-owned child initially has no club_id');
+  const rosteredChild = ok(await rosterGroup.actor.set_own_child_team(ownChild.id, 'u9', true));
+  assert.ok(rosteredChild.teams.includes('u9'), 'parent assigned own child to target team');
+  const deniedParentRoster = await rosterGroup.actor.read_account_get_club_roster(rosterGroup.name);
+  assert.ok('Err' in deniedParentRoster, 'parent must never read club-wide roster/role principals');
+
+  rosterGroup.actor.setPrincipal(browser);
+  const adminRoster = ok(await rosterGroup.actor.read_account_get_club_roster(rosterGroup.name));
+  assert.ok(adminRoster.children.some(c => c.id === ownChild.id), 'club admin sees assigned self-service child');
+
+  rosterGroup.actor.setPrincipal(governor);
+  ok(await rosterGroup.actor.create_club('other-private-club', 'Other', 'Other', [], []));
+  ok(await rosterGroup.actor.add_role_grant(app, 'other-private-club', 'club_admin', []));
+  rosterGroup.actor.setPrincipal(browser);
+  const foreignRoster = ok(await rosterGroup.actor.read_account_get_club_roster('other-private-club'));
+  assert.ok(!foreignRoster.children.some(c => c.id === ownChild.id), 'unrelated club staff never sees the child');
+  rosterGroup.actor.setPrincipal(outsider);
+  const deniedForeign = await rosterGroup.actor.read_account_get_club_roster('other-private-club');
+  assert.ok('Err' in deniedForeign, 'parent cannot read another club roster');
+
   identity.actor.setPrincipal(governor); ok(await identity.actor.set_account_status(account.id, { Suspended: null }));
   groups[0].actor.setPrincipal(browser); await refused(() => groups[0].actor.read_account_my_role_grants());
   identity.actor.setPrincipal(governor); ok(await identity.actor.set_account_status(account.id, { Active: null }));
@@ -63,5 +93,5 @@ try {
   await pic.startCanister({ canisterId: identity.canisterId, sender: governor });
   identity.actor.setPrincipal(app); ok(await identity.actor.revoke(browser, 1n));
   await refused(() => groups[1].actor.read_account_my_role_grants());
-  console.log('PASS: real two-group linked discovery/rosters, stored owners preserved, unrelated caller/club denial, suspension, club-only removal and unlink denial.');
+  console.log('PASS: linked two-group discovery, admin-only club rosters including parent-owned assigned child, cross-club child isolation, suspension and unlink denial.');
 } finally { await pic?.tearDown(); await server.stop(); }
