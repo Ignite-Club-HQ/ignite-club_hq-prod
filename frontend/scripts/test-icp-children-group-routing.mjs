@@ -6,6 +6,17 @@ const page = readFileSync(new URL("../src/pages/IcpChildrenPage.tsx", import.met
 
 const invite = readFileSync(new URL("../src/pages/JoinTeamPage.tsx", import.meta.url), "utf8");
 const duplicate = readFileSync(new URL("../src/features/membership/verifyIcpChildNameAcrossGroups.ts", import.meta.url), "utf8");
+const club = readFileSync(new URL("../src/live/features/club.ts", import.meta.url), "utf8");
+const membership = readFileSync(new URL("../src/live/features/membership.ts", import.meta.url), "utf8");
+
+test("Group 2 child and guardian reads use protected consensus account APIs", () => {
+  assert.match(club, /actor\.read_account_list_my_children\(\)/);
+  assert.match(club, /actor\.read_account_list_child_guardians\(childId\)/);
+  assert.match(membership, /actor\.read_account_list_team_role_grants\(teamId\)/);
+  assert.doesNotMatch(club, /actor\.list_my_children\(\)/);
+  assert.doesNotMatch(club, /actor\.list_child_guardians\(childId\)/);
+});
+
 
 test("invite and My Children both check duplicate names across every group before create", () => {
   assert.match(invite, /await verifyIcpChildNameAcrossGroups\(addedLabel\)/);
