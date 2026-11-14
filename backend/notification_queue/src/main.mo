@@ -325,6 +325,19 @@ persistent actor class Main(governorInit : Principal) = this {
     };
   };
 
+  // Event invitations have one trusted route:
+  // events_domain -> club_domain.relay_event_notice -> queue.fan_out.
+  // Also reserve the canonical event_invite-* notification id/key namespace.
+  // Otherwise an ordinary caller could pre-seed that ID under another kind
+  // and cause fan_out's idempotency lookup to suppress the genuine invitation.
+  // Check both before admission and after all awaits, immediately pre-write.
+  func eventInviteWriteAllowed(kind : Text, id : Text, key : Text, caller : Principal) : Bool {
+    let reserved = kind == "event_invite" or
+      Text.startsWith(id, #text "event_invite-") or
+      Text.startsWith(key, #text "event_invite-");
+    not reserved or clubDomainCanister == ?caller
+  };
+
   func valid(value : Text) : Bool { value != "" };
 
   func findIndex(id : Text) : ?Nat {
@@ -495,6 +508,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     let trustedService = clubDomainCanister == ?caller or messagingDomainCanister == ?caller;
+    if (not eventInviteWriteAllowed(kind, id, key, caller)) return #Err("Trusted club event-invitation relay required");
     if (kind == "competition_broadcast") return #Err("Use trusted competition broadcast relay");
     if ((kind == "photo_uploaded" or kind == "photo_comment" or kind == "photo_reaction" or kind == "comment_reply") and clubDomainCanister != ?caller) return #Err("Trusted gallery relay required");
     if (not trustedService) do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
@@ -511,6 +525,7 @@ persistent actor class Main(governorInit : Principal) = this {
     };
     if (not trustedService) do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (isFenced(club)) return #Err("Notification scope changed");
+    if (not eventInviteWriteAllowed(kind, id, key, caller)) return #Err("Event invitation authority changed");
     switch (get(id)) {
       case (?existing) {
         if (existing.idempotency_key != key) return #Err("Notification id already exists with a different idempotency key");
@@ -557,6 +572,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     let trustedService = clubDomainCanister == ?caller or messagingDomainCanister == ?caller;
+    if (not eventInviteWriteAllowed(kind, "", key_prefix, caller)) return #Err("Trusted club event-invitation relay required");
     if (kind == "competition_broadcast") return #Err("Use trusted competition broadcast relay");
     if ((kind == "photo_uploaded" or kind == "photo_comment" or kind == "photo_reaction" or kind == "comment_reply") and clubDomainCanister != ?caller) return #Err("Trusted gallery relay required");
     if (not trustedService) do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
@@ -610,6 +626,7 @@ persistent actor class Main(governorInit : Principal) = this {
     };
     if (not trustedService) do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (isFenced(club)) return #Err("Notification scope changed");
+    if (not eventInviteWriteAllowed(kind, "", key_prefix, caller)) return #Err("Event invitation authority changed");
     let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
     var created : Nat16 = 0;
     for (user in users.values()) {
