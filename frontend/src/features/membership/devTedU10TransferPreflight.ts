@@ -91,7 +91,18 @@ export function validateDevTedPreflight(
   };
 }
 
+export function isDevTedU10PreviewCandidate(hostname: string, child: {
+  id: string; name: string; isPrimary: boolean; sourceClubCanisterId: string;
+}): boolean {
+  return DEV_HOSTS.has(hostname.toLowerCase()) && child.isPrimary &&
+    child.id === DEV_TED_U10.sourceChildId &&
+    child.sourceClubCanisterId === DEV_TED_U10.sourceCanister &&
+    child.name.trim() === DEV_TED_U10.expectedName;
+}
+
 export async function previewDevTedU10Transfer(hostname: string): Promise<DevTedPreflight> {
+  // Refuse other sites BEFORE consulting any private canister records.
+  if (!DEV_HOSTS.has(hostname.toLowerCase())) throw new Error("This review is restricted to Ignite DEV.");
   // Every group must answer, including the original shared service. A failed
   // or slow leg never counts as an absent child. Nothing is written.
   const source = await withFeatureBackend<DevTedSourceReadback[]>("membership", {
