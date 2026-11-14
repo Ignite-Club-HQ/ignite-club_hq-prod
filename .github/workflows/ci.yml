@@ -56,10 +56,82 @@ jobs:
           IGNITE_LIVE_ICP_CANISTER_IDS_JSON: "{}"
       - run: npm run check:prod-secrets
 
+  # Disposable PocketIC only: installs local WASM, no credentials/deployment.
+  g2-witness-isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install pinned disposable PocketIC runtime
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts --no-fund --no-audit
+          node node_modules/@dfinity/pic/postinstall.mjs
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+      - name: Build disposable management lifecycle probe
+        run: |
+          bun add -g ic-mops@3.5.1
+          mops toolchain use moc 1.16.1
+          cd backend/events_domain
+          mops install
+          mkdir -p .mops/.build
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          "$MOC" $(mops sources) -o .mops/.build/recoveryLifecycleProbe.wasm ../shared/test/recoveryLifecycleProbe.mo
+          "$MOC" $(mops sources) -o .mops/.build/g2ChainProbe.wasm ../shared/test/g2ChainProbe.mo
+      - name: Compile actual disposable Club Domain with checked migrations
+        working-directory: backend/club_domain
+        run: |
+          mops install
+          mkdir -p .mops/.build
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/club_domain.wasm src/main.mo
+      - name: Exercise real isolated G2 identity and independent witness WASM
+        working-directory: frontend
+        env:
+          G2_WITNESS_ISOLATED_REPORT: ${{ runner.temp }}/g2-witness-isolated.json
+          REMOVAL_LIFECYCLE_PROBE_WASM: ${{ github.workspace }}/backend/events_domain/.mops/.build/recoveryLifecycleProbe.wasm
+          G2_CHAIN_PROBE_WASM: ${{ github.workspace }}/backend/events_domain/.mops/.build/g2ChainProbe.wasm
+          G2_ACTUAL_CLUB_DOMAIN_WASM: ${{ github.workspace }}/backend/club_domain/.mops/.build/club_domain.wasm
+        run: |
+          export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
+          timeout --kill-after=5s 840s node scripts/test-active-g2-witness-replica.mjs
+      - name: Save isolated witness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g2-witness-isolated
+          path: ${{ runner.temp }}/g2-witness-isolated.json
+          if-no-files-found: warn
+
   rust-canisters:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      - name: Reject test-only G2 fixture in mainnet release artifacts
+        run: node --test scripts/identity-g2-fixture-release-guard.test.mjs
       - run: cargo check --workspace --locked
+      - name: Build standard identity release WASM without fixture feature
+        run: |
+          node scripts/identity-g2-fixture-release-guard.mjs
+          cargo build --locked --release --target wasm32-unknown-unknown -p identity_access
+          node scripts/identity-g2-fixture-release-guard.mjs target/wasm32-unknown-unknown/release/identity_access.wasm
+      - name: Verify isolated DEV G2 identity reader security tests
+        run: |
+          cargo test -p identity_access active_g2_club_reader --locked
+          cargo test -p identity_access active_g2_recovery_acceptance --locked
+          cargo test -p recovery_witness active_g2_account_read_protocol --locked

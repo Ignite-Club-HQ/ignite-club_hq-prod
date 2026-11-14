@@ -119,6 +119,8 @@ jobs:
           ICP_PUSH_WORKER_SEED: ${{ secrets.ICP_PUSH_WORKER_SEED }}
           PUSH_WORKER_PRINCIPAL: ${{ vars.PUSH_WORKER_PRINCIPAL }}
         run: bash scripts/resolve-group-push-worker.sh
+      - name: Reject isolated identity reader before any mainnet release
+        run: node scripts/identity-g2-fixture-release-guard.mjs
       - name: Build selected recipe artifacts once
         if: inputs.action != 'recover'
         run: |
@@ -143,6 +145,15 @@ jobs:
             for(const key of Object.keys(env))if(key.includes('REHEARSAL'))delete env[key];
             const rust=spawnSync('cargo',['build','--locked','--release','--target','wasm32-unknown-unknown','--target-dir','target/private-name-cleanup','-p','identity_access'],{env,stdio:'inherit'});
             if(rust.status!==0)process.exit(1);
+          }
+          // Check the *exact staged* identity build after recipes have run, not
+          // merely Cargo defaults. Reject even gzip-packed fixture exports.
+          const {assertReleaseArtifact,assertReleaseEnvironment}=await import('./scripts/identity-g2-fixture-release-guard.mjs');
+          const {readFileSync}=await import('node:fs');
+          assertReleaseEnvironment();
+          if(names.includes('identity_access')){
+            const artifact=privateRelease?'target/private-name-cleanup/wasm32-unknown-unknown/release/identity_access.wasm':'deploy/mainnet/.icp/cache/artifacts/identity_access';
+            assertReleaseArtifact(readFileSync(artifact));
           }
           for(const name of names)copyFileSync(privateRelease&&name==='identity_access'?'target/private-name-cleanup/wasm32-unknown-unknown/release/identity_access.wasm':'deploy/mainnet/.icp/cache/artifacts/'+name,dest+'/'+name);
           JS

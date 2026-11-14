@@ -41,6 +41,11 @@ mod recovery_journal;
 mod removal_barrier;
 mod deletion_timing;
 mod admission;
+mod active_g2_club_reader;
+// Pure signed proposal only: no runtime activation until the independently
+// fenced recovery witness implementation has been security-reviewed.
+#[path = "../../shared/active_g2_account_read_protocol.rs"]
+mod active_g2_recovery_acceptance;
 #[cfg(test)] mod member_access_tests;
 mod membership_directory;
 mod membership_directory_store;
@@ -124,6 +129,8 @@ const MEM_PRODUCTION_ACCOUNT_REQUEST: u8 = 35;
 const MEM_RECOVERY_PENDING: u8 = 36;
 const MEM_RECOVERY_ACKS: u8 = 37;
 const MEM_PRODUCTION_INVENTORY_RECEIPT: u8 = 38;
+/// Additive, isolated DEV G2 club-account read capability. Never global access.
+const MEM_ACTIVE_G2_CLUB_READER: u8 = 39;
 // Directory-specific additive storage: never share lifecycle/admission maps.
 const MEM_DIRECTORY_POOL_META:u8=18;
 const MEM_DIRECTORY_POOL_BLOCKS:u8=19;
@@ -601,6 +608,8 @@ thread_local! {
         RefCell::new(StableBTreeMap::init(memory(MEM_REMOVAL_RECEIPTS)));
     static REMOVAL_COMPLETIONS: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> =
         RefCell::new(StableBTreeMap::init(memory(MEM_REMOVAL_COMPLETIONS)));
+    static ACTIVE_G2_CLUB_READER: RefCell<StableCell<Vec<u8>,Memory>> =
+        RefCell::new(StableCell::init(memory(MEM_ACTIVE_G2_CLUB_READER),Vec::new()));
     static PRODUCTION_ACCOUNT_AUTHORIZATION: RefCell<StableCell<Vec<u8>,Memory>> =
         RefCell::new(StableCell::init(memory(MEM_PRODUCTION_ACCOUNT_AUTHORIZATION),Vec::new()));
     static PRODUCTION_ACCOUNT_REQUEST: RefCell<StableCell<u64,Memory>> =
@@ -1493,7 +1502,222 @@ fn production_account_approval_encoding(body:production_account_authorization::A
 fn production_account_approval_signing_bytes(body:production_account_authorization::ApprovalBody)->Outcome<Vec<u8>> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;production_account_authorization::signing_bytes(&body)
 }
+/// Independent recovery-witness equivalence for this new reader mode has not
+/// yet been implemented or reviewed. Keep the feature unconditionally OFF
+/// regardless of governor calls, stable-state values or environment settings.
+/// This constant must not change without audited evidence and new tests.
+const ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED: bool = false;
+/// Only compiled into a separately built, isolated PocketIC test WASM. The
+/// standard mainnet build cannot activate this by environment or governor call.
+#[cfg(feature="isolated-g2-chain-fixture")]
+fn isolated_g2_chain_fixture() -> bool {
+    option_env!("IGNITE_ISOLATED_G2_FIXTURE_BUILD") == Some("POCKETIC_ONLY_NOT_DEPLOYABLE")
+}
+#[cfg(not(feature="isolated-g2-chain-fixture"))]
+fn isolated_g2_chain_fixture() -> bool { false }
+
+/// Exact one-canister capability, separate from eligibility and from global
+/// account removal. Remains absent unless the existing governor approves it.
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
+struct ActiveG2ClubReader {
+    binding: group_inventory::Binding,
+    club: Principal,
+    approval: active_g2_recovery_acceptance::SignedScope,
+}
+fn active_g2_club_reader() -> Option<ActiveG2ClubReader> {
+    ACTIVE_G2_CLUB_READER.with(|m| if m.borrow().get().is_empty() { None } else { Some(decode(m.borrow().get())) })
+}
+async fn read_live_active_g2(
+    binding:&group_inventory::Binding,
+    recheck:&impl Fn()->Outcome<()>,
+) -> Outcome<active_g2_club_reader::OpenPage> {
+    recheck()?;
+    // Always use the currently committed registry revision, not a client-provided
+    // list of readers. The second read detects mid-flight inventory changes.
+    let reply = ic_cdk::call::Call::bounded_wait(binding.registry,"read_group_registry_page")
+        .with_args(&(&binding.target_alias,None::<u64>,None::<String>,32u32))
+        .await.map_err(|_|"Active G2 registry unavailable".to_string())?;
+    recheck()?;
+    let page:Outcome<active_g2_club_reader::OpenPage> =
+        reply.candid().map_err(|_|"Invalid active G2 registry reply".to_string())?;
+    let page=page?;
+    if page.next_cursor.is_some() || page.revision < binding.registry_revision {
+        return Err("Active G2 registry requires review".into());
+    }
+    Ok(page)
+}
+async fn verify_active_g2_club_reader(caller:Principal, state:&ActiveG2ClubReader) -> Outcome<()> {
+    if !ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED {return Err("Independent recovery attestation not released".into());}
+    if caller!=state.club || caller==Principal::anonymous() {
+        return Err("Configured active G2 club reader required".into());
+    }
+    production_account_reads_clear()?;
+    let pinned=group_inventory_binding().ok_or("Active G2 registry not pinned")?;
+    let same=|a:&group_inventory::Binding,b:&group_inventory::Binding| {
+        a.registry==b.registry && a.target_alias==b.target_alias &&
+        a.deployment_id==b.deployment_id && a.deployment_revision==b.deployment_revision &&
+        a.host==b.host && a.network_kind==b.network_kind
+    };
+    if !same(&pinned,&state.binding) {
+        return Err("Active G2 authority binding changed".into());
+    }
+    let recheck=||->Outcome<()> {
+        production_account_reads_clear()?;
+        if active_g2_club_reader().as_ref()!=Some(state) || group_inventory_binding().as_ref()!=Some(&pinned) {
+            return Err("Active G2 reader changed".into());
+        }
+        Ok(())
+    };
+    let first=read_live_active_g2(&state.binding,&recheck).await?;
+    let second=read_live_active_g2(&state.binding,&recheck).await?;
+    if first!=second || first.revision!=state.binding.registry_revision {
+        return Err("Signed active G2 registry revision changed; review and reauthorise".into());
+    }
+    let live=state.binding.clone();
+    if active_g2_club_reader::verify_open_g2_club(&live,first.revision,&first.groups,&first.placements,ic_cdk::api::canister_self())? !=caller {
+        return Err("Active G2 canister not authorised".into());
+    }
+    recheck()
+}
+/// A governor-approved, pinned DEV G2 **club only** account reader.
+/// No client principal list, no local rehearsal flag, no removal controls.
+#[ic_cdk::update]
+async fn authorize_active_g2_club_reader(
+    binding:group_inventory::Binding,
+    approval:active_g2_recovery_acceptance::SignedScope,
+)->Outcome<()> {
+    if !ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED {return Err("Independent recovery attestation not released".into());}
+    let _lease=private_name_writer_window::enter()?;
+    let operator=ic_cdk::api::msg_caller();
+    require_governor(&state(),operator)?;
+    if account_group_rehearsal_enabled() {return Err("Local rehearsal not authorised".into());}
+    admission_configuration_clear()?;
+    let pinned=group_inventory_binding().ok_or("Group 2 inventory not pinned")?;
+    if pinned!=binding || !bound_deletion_released() {
+        return Err("Pinned Group 2 bound-deletion connection required".into());
+    }
+    if active_g2_club_reader().is_some() {return Err("Active G2 reader already configured; check current binding".into());}
+    let prior=group2_admission();
+    let history=removal_history_revision();
+    let recheck=||->Outcome<()> {
+        require_governor(&state(),operator)?;
+        admission_configuration_clear()?;
+        if group_inventory_binding().as_ref()!=Some(&pinned) ||
+            encode(&group2_admission())!=encode(&prior) || active_g2_club_reader().is_some() ||
+            removal_history_revision()!=history {
+            return Err("Active G2 approval prerequisites changed".into());
+        }
+        Ok(())
+    };
+    let first=read_live_active_g2(&binding,&recheck).await?;
+    let second=read_live_active_g2(&binding,&recheck).await?;
+    if first!=second || first.revision!=binding.registry_revision {
+        return Err("Active G2 registry must match reviewed revision".into());
+    }
+    let club=active_g2_club_reader::verify_open_g2_club(&binding,first.revision,&first.groups,&first.placements,ic_cdk::api::canister_self())?;
+    if approval.scope.witness!=production_account_authorization::witness()? ||
+        approval.scope.registry_revision!=binding.registry_revision {
+        return Err("Exact pinned G2 witness and registry revision required".into());
+    }
+    active_g2_recovery_acceptance::verify_independent_scope(
+        &approval,&active_g2_recovery_acceptance::pinned_g2_signer()?,
+        ic_cdk::api::time(),binding.registry_revision,0,
+    )?;
+    check_witness_program(approval.scope.witness).await?;
+    recheck()?;
+
+    // The club canister must itself attest active admission-only protection.
+    // A stale inventory or wrong identity binding cannot be commissioned.
+    let reply=ic_cdk::call::Call::bounded_wait(club,"read_account_protection_configuration")
+        .await.map_err(|_|"G2 club receiver configuration unavailable".to_string())?;
+    recheck()?;
+    let observed:Outcome<production_account_protection::ReceiverConfiguration>=
+        reply.candid().map_err(|_|"Invalid G2 club receiver configuration".to_string())?;
+    let observed=observed?;
+    if observed.receiver!=club || observed.authority!=Some(ic_cdk::api::canister_self()) ||
+        observed.protocol!=1 || !observed.admission_required ||
+        observed.removal_enabled || observed.rehearsal {
+        return Err("Exact G2 admission-only club receiver required".into());
+    }
+    recheck()?;
+    ACTIVE_G2_CLUB_READER.with(|m|m.borrow_mut().set(encode(&ActiveG2ClubReader {binding,club,approval})));
+    bump_removal_history();
+    Ok(())
+}
+#[ic_cdk::update]
+fn disable_active_g2_club_reader()->Outcome<()> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    ACTIVE_G2_CLUB_READER.with(|m|m.borrow_mut().set(Vec::new()));
+    bump_removal_history();
+    Ok(())
+}
+#[ic_cdk::update]
+fn read_active_g2_club_reader()->Outcome<Option<ActiveG2ClubReader>> {
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    Ok(active_g2_club_reader())
+}
+
+/// Cross-canister subject fencing. The independently controlled recovery
+/// witness MUST produce the exact challenge under its current signed baseline,
+/// and the identity's account must remain byte-for-byte unchanged afterwards.
+async fn read_active_g2_linked_account(
+    caller:Principal,subject:Principal,reader:&ActiveG2ClubReader,
+)->Outcome<Account> {
+    use active_g2_recovery_acceptance as g2;
+    if !ACTIVE_G2_READER_INDEPENDENT_RECOVERY_APPROVED && !isolated_g2_chain_fixture() {
+        return Err("Independent recovery attestation not released".into());
+    }
+    if caller!=reader.club || active_g2_club_reader().as_ref()!=Some(reader) {
+        return Err("Current exact G2 club reader required".into());
+    }
+    let account=current_service_account(subject)?;
+    let history=removal_history_revision();
+    let removal=REMOVAL_GENERATION.with(|m|*m.borrow().get());
+    let approved=reader.approval.clone();
+    let revision=approved.scope.registry_revision;
+    let digest=g2::verify_independent_scope(&approved,&g2::pinned_g2_signer()?,
+        ic_cdk::api::time(),revision,0)?;
+    let challenge=g2::SubjectChallenge {
+        scope_digest:digest.to_vec(),nonce:next_production_request()?,
+        account_id:account.id.clone(),account_version:account.version,
+        principals:account.principals.clone(),subject,
+        history_revision:history,removal_generation:removal,
+        recovery_epoch:approved.scope.recovery_epoch,
+    };
+    g2::validate_challenge(&digest,&challenge)?;
+    if approved.scope.witness!=production_account_authorization::witness()? {
+        return Err("Pinned independent recovery witness required".into());
+    }
+    check_witness_program(approved.scope.witness).await?;
+    if active_g2_club_reader().as_ref()!=Some(reader) ||
+        removal_history_revision()!=history || current_service_account(subject)?!=account {
+        return Err("G2 account state changed before witness".into());
+    }
+    let request=g2::WitnessRequest {approval:approved.clone(),challenge:challenge.clone()};
+    let reply=ic_cdk::call::Call::bounded_wait(approved.scope.witness,"verify_active_g2_subject_read_fence")
+        .with_arg(&request).await.map_err(|_|"Independent G2 subject witness unavailable".to_string())?;
+    let witness:Outcome<g2::IndependentlyVerifiedSubject>=
+        reply.candid().map_err(|_|"Invalid independent G2 subject witness reply".to_string())?;
+    g2::validate_subject_receipt(&challenge,&witness?)?;
+    check_witness_program(approved.scope.witness).await?;
+    if removal_history_revision()!=history || REMOVAL_GENERATION.with(|m|*m.borrow().get())!=removal ||
+        active_g2_club_reader().as_ref()!=Some(reader) ||
+        current_service_account(subject)?!=account || ic_cdk::api::time()>=approved.scope.expires_at_ns {
+        return Err("G2 account/recovery state changed during independent witness".into());
+    }
+    production_account_reads_clear()?;
+    Ok(account)
+}
+
 async fn production_service_account(caller:Principal,subject:Principal,club_only:bool)->Outcome<Account> {
+    if club_only {
+        if let Some(approved)=active_g2_club_reader() {
+            if approved.club==caller {
+                verify_active_g2_club_reader(caller,&approved).await?;
+                return read_active_g2_linked_account(caller,subject,&approved).await;
+            }
+        }
+    }
     if group2_admission().member_access {
         verify_member_reader(caller,club_only).await?;
         // Reconstruct only after the final await: current denials/tickets/aliases win.
@@ -2163,10 +2387,43 @@ fn set_club_authorities(authorities: Vec<Principal>) -> Outcome<()> {
     lifecycle.authorities = authorities; store_link_lifecycle(&lifecycle); Ok(())
 }
 
-/// Only configured canisters may ask for another caller's links. No browser
-/// supplies an account id or a principal list; the index is authoritative.
+// The fixture endpoints are compiled ONLY with the isolated test feature and
+// an exact build-time marker. No generic production release path references them.
+#[cfg(feature="isolated-g2-chain-fixture")]
+#[ic_cdk::update]
+fn fixture_g2_authorize_reader(approval:active_g2_recovery_acceptance::SignedScope)->Outcome<()> {
+    if !isolated_g2_chain_fixture() { return Err("Isolated G2 fixture build required".into()); }
+    require_governor(&state(),ic_cdk::api::msg_caller())?;
+    if active_g2_club_reader().is_some() {return Err("Fixture reader already installed".into());}
+    let club=Principal::from_text(active_g2_club_reader::CLUB_ID).map_err(|_|"Invalid fixture club")?;
+    if approval.scope.club_reader!=club || approval.scope.identity!=ic_cdk::api::canister_self() ||
+       approval.scope.witness!=production_account_authorization::witness()? {
+       return Err("Exact G2 fixture scope required".into());
+    }
+    active_g2_recovery_acceptance::verify_independent_scope(
+      &approval,&active_g2_recovery_acceptance::pinned_g2_signer()?,
+      ic_cdk::api::time(),approval.scope.registry_revision,0)?;
+    let binding=group_inventory::Binding {
+      registry:Principal::from_text(active_g2_club_reader::ROUTER_ID).map_err(|_|"Invalid fixture router")?,
+      registry_revision:approval.scope.registry_revision,target_alias:"mainnet".into(),
+      deployment_id:"mainnet".into(),deployment_revision:1,
+      host:"https://icp-api.io".into(),network_kind:"public_mainnet".into(),
+    };
+    ACTIVE_G2_CLUB_READER.with(|m|m.borrow_mut().set(encode(&ActiveG2ClubReader {binding,club,approval})));
+    Ok(())
+}
+// Only configured canisters may ask for another caller's links. No browser
+// supplies an account id or a principal list; the index is authoritative.
 #[ic_cdk::update]
 async fn read_linked_account(viewer: Principal) -> Outcome<Account> {
+    if isolated_g2_chain_fixture() {
+        let caller=ic_cdk::api::msg_caller();
+        let state=active_g2_club_reader().ok_or("Isolated signed G2 fixture not commissioned")?;
+        if caller!=state.club || state.club!=Principal::from_text(active_g2_club_reader::CLUB_ID).map_err(|_|"Invalid club fixture pin")? {
+            return Err("Exact Group 2 club canister caller required".into());
+        }
+        return read_active_g2_linked_account(caller,viewer,&state).await;
+    }
     if !account_group_rehearsal_enabled(){return production_service_account(ic_cdk::api::msg_caller(),viewer,true).await;}
     let lifecycle = link_lifecycle();
     if !lifecycle.authorities.contains(&ic_cdk::api::msg_caller()) { return Err("Club authority required".into()); }

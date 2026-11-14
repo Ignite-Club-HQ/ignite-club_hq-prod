@@ -35,6 +35,10 @@ fi
 PROJECT_DIR="$(cd "$(dirname "$0")/../deploy/$DEPLOY_TARGET" && pwd)"
 IDS_JSON="$PROJECT_DIR/.icp/data/mappings/$ICP_ENV.ids.json"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# Both DEV and PROD target real ICP mainnet: reject any disposable identity
+# reader feature/marker before build or a canister write. This cannot replace
+# independent governor and release approval.
+node "$REPO_DIR/scripts/identity-g2-fixture-release-guard.mjs"
 # Held across attestation, upgrade and key read-back. Never treat a local
 # lock as proof against another controller: preflight requires sole governor.
 mkdir -p "$PROJECT_DIR/.icp/data/media-key-attestations"
@@ -96,6 +100,12 @@ if [ "$DEPLOY_SCOPE" = history ]; then
   echo "==> History-only upgrade complete"
   exit 0
 fi
+# Build and inspect the exact ICP identity recipe output before the automated
+# deploy. A feature-gated PocketIC fixture is not permitted on mainnet even if
+# build tooling or an operator environment was misconfigured.
+echo "==> Verifying identity_access recipe has no disposable G2 account reader"
+icp build identity_access
+node "$REPO_DIR/scripts/identity-g2-fixture-release-guard.mjs" "$PROJECT_DIR/.icp/cache/artifacts/identity_access"
 echo "==> Deploying all 18 canisters to $DEPLOY_TARGET (this funds them from your cycles balance)"
 # 1T cycles per canister (18T total) fits a ~8 ICP budget with headroom; top up later as needed.
 # -y skips interactive candid/confirmation prompts so this runs unattended in CI.

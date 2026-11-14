@@ -98,9 +98,30 @@ export const idlFactory = ({ IDL }) => {
   });
   const AccountReadReceipt = IDL.Record({ 'request' : AccountReadRequest });
   const Result_7 = IDL.Variant({ 'Ok' : AccountReadReceipt, 'Err' : IDL.Text });
+  const G2Scope = IDL.Record({
+    'identity': IDL.Principal, 'router': IDL.Principal, 'club_reader': IDL.Principal,
+    'witness': IDL.Principal, 'registry_revision': IDL.Nat64, 'generation': IDL.Nat64,
+    'recovery_epoch': IDL.Nat64, 'expires_at_ns': IDL.Nat64,
+    'accepted_recovery_digest': IDL.Vec(IDL.Nat8),
+  });
+  const G2SignedScope = IDL.Record({ 'scope': G2Scope, 'signature': IDL.Vec(IDL.Nat8) });
+  const G2SubjectChallenge = IDL.Record({
+    'scope_digest': IDL.Vec(IDL.Nat8), 'nonce': IDL.Nat64, 'account_id': IDL.Text,
+    'account_version': IDL.Nat64, 'principals': IDL.Vec(IDL.Principal),
+    'subject': IDL.Principal, 'history_revision': IDL.Nat64,
+    'removal_generation': IDL.Nat64, 'recovery_epoch': IDL.Nat64,
+  });
+  const G2WitnessRequest = IDL.Record({ 'approval': G2SignedScope, 'challenge': G2SubjectChallenge });
+  const G2WitnessReceipt = IDL.Record({ 'challenge': G2SubjectChallenge, 'witness_revision': IDL.Nat64 });
+  const G2WitnessResult = IDL.Variant({ 'Ok': G2WitnessReceipt, 'Err': IDL.Text });
   
   return IDL.Service({
     'accept_recovery_fence' : IDL.Func([SignedAcceptance], [Result], []),
+    'authorize_active_g2_subject_reader' : IDL.Func([G2SignedScope], [Result_1], []),
+    'read_active_g2_baseline_digest' : IDL.Func([], [Result_5], []),
+    'active_g2_scope_signing_bytes' : IDL.Func([G2Scope], [Result_5], []),
+    'disable_active_g2_subject_reader' : IDL.Func([], [Result_1], []),
+    'verify_active_g2_subject_read_fence' : IDL.Func([G2WitnessRequest], [G2WitnessResult], []),
     'authorize_subject_removal_progress' : IDL.Func(
         [SignedAcceptance],
         [Result_1],

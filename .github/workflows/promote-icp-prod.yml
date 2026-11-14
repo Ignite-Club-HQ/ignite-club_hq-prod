@@ -203,6 +203,7 @@ jobs:
           node --test scripts/prod-preserve-settings-policy.test.mjs
           npm install --prefix "$RUNNER_TEMP/preserve-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
           export PRESERVE_DEPS_DIR="$RUNNER_TEMP/preserve-deps"
+          node scripts/identity-g2-fixture-release-guard.mjs
           for NAME in $NAMES; do
             echo "==> Upgrading $NAME"
             if [ "$NAME" = identity_access ]; then
@@ -214,6 +215,13 @@ jobs:
             if [ "$NAME" = identity_access ] && [ -n "${IGNITE_PRODUCTION_ACCOUNT_WITNESS:-}" ]; then
               (cd deploy/prod && icp build identity_access)
               grep -aq "$IGNITE_PRODUCTION_ACCOUNT_WITNESS" deploy/prod/.icp/cache/artifacts/identity_access || { echo "::error::identity_access was built without its pins"; exit 1; }
+            fi
+            # Fail closed if a cached or manually rebuilt identity Wasm contains
+            # the fixture export. icp deploy also rebuilds through its standard
+            # recipe; release environment is separately verified above.
+            if [ "$NAME" = identity_access ]; then
+              (cd deploy/prod && icp build identity_access)
+              node scripts/identity-g2-fixture-release-guard.mjs deploy/prod/.icp/cache/artifacts/identity_access
             fi
             # Switches set outside the code (e.g. secure name saving) must survive:
             # record live settings, upgrade, then put back anything removed and
