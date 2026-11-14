@@ -1,0 +1,148 @@
+name: "[TEST] G2 event-notification paired upgrade (owner gated)"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/g2-event-notification-pair-upgrade.yml"
+      - "frontend/scripts/upgrade-g2-event-notification.ts"
+      - "scripts/g2-event-notification-upgrade-policy.mjs"
+      - "scripts/g2-event-notification-upgrade-policy.test.mjs"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "check is read-only; upgrade installs ONLY G2 notification_queue and club_domain"
+        required: true
+        type: choice
+        default: check
+        options: [check, upgrade]
+      confirmation:
+        description: "For upgrade type: UPGRADE G2 EVENT NOTIFICATION PAIR"
+        required: false
+        type: string
+        default: ""
+      expected_release_sha:
+        description: "For upgrade enter exact 40-character main commit SHA from check report"
+        required: false
+        type: string
+        default: ""
+      expected_queue_hash:
+        description: "For upgrade enter existing notification_queue hash from check.json"
+        required: false
+        type: string
+        default: ""
+      expected_club_hash:
+        description: "For upgrade enter existing club_domain hash from check.json"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+
+jobs:
+  policy-tests:
+    name: Verify two-canister release boundary without credentials
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - run: node --test scripts/g2-event-notification-upgrade-policy.test.mjs
+      - name: Compile-check the TypeScript runner without executing it
+        run: npx --yes esbuild@0.25.12 frontend/scripts/upgrade-g2-event-notification.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/g2-notification-runner-syntax.mjs"
+
+  owner-manual-check-or-upgrade:
+    needs: policy-tests
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: group-2-admin-controls
+    permissions:
+      contents: write
+    timeout-minutes: 75
+    env:
+      ACTION: ${{ inputs.action }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      EXPECTED_RELEASE_SHA: ${{ inputs.expected_release_sha }}
+      EXPECTED_QUEUE_HASH: ${{ inputs.expected_queue_hash }}
+      EXPECTED_CLUB_HASH: ${{ inputs.expected_club_hash }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Initialise isolated ICP tool home
+        run: echo "ICP_HOME=$RUNNER_TEMP/g2-notification-icp-home" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Reject non-main workflow source and invalid approval
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "Ignite-Club-HQ/ignite-club_hq-prod"
+          test "$GITHUB_REF" = "refs/heads/main"
+          node --input-type=module <<'NODE'
+          import { validateRequest } from './scripts/g2-event-notification-upgrade-policy.mjs';
+          validateRequest({
+            action:process.env.ACTION,
+            confirmation:process.env.CONFIRMATION,
+            release:process.env.EXPECTED_RELEASE_SHA,
+            actualCommit:process.env.GITHUB_SHA,
+            expectedQueueHash:process.env.EXPECTED_QUEUE_HASH,
+            expectedClubHash:process.env.EXPECTED_CLUB_HASH
+          });
+          NODE
+      - name: Install pinned CLI and existing dependencies
+        run: |
+          set -euo pipefail
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          node scripts/ensure-frontend-deps.mjs
+          icp canister install --help | grep -q -- --wasm-memory-persistence
+      - name: Restore only the existing signed Group 2 governor
+        env:
+          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOYER_PEM:-}" || { echo "::error::Existing deployer key required"; exit 1; }
+          umask 077
+          mkdir -p "$ICP_HOME/identity/keys"
+          printf '%s' "$DEPLOYER_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$RUNNER_TEMP/g2-notification.pem"
+          test -s "$RUNNER_TEMP/g2-notification.pem"
+          icp identity import --from-pem "$RUNNER_TEMP/g2-notification.pem" --storage plaintext ignite-governor
+          icp identity default ignite-governor
+          test "$(icp identity principal)" = "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+      - name: Build ONLY the two bounded service recipes
+        working-directory: deploy/mainnet
+        run: |
+          set -euo pipefail
+          icp build notification_queue club_domain
+          mkdir -p "$RUNNER_TEMP/g2-notification-wasm"
+          cp .icp/cache/artifacts/notification_queue "$RUNNER_TEMP/g2-notification-wasm/notification_queue"
+          cp .icp/cache/artifacts/club_domain "$RUNNER_TEMP/g2-notification-wasm/club_domain"
+          test -s "$RUNNER_TEMP/g2-notification-wasm/notification_queue"
+          test -s "$RUNNER_TEMP/g2-notification-wasm/club_domain"
+      - name: Check or journal-and-upgrade ONLY the two pinned G2 canisters
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          npx --yes tsx@4 scripts/upgrade-g2-event-notification.ts \
+            "$ACTION" "$RUNNER_TEMP/g2-notification-wasm" \
+            "$RUNNER_TEMP/g2-notification.pem" "$RUNNER_TEMP/g2-notification-report"
+      - name: Destroy ephemeral signing credentials
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/g2-notification.pem"
+          rm -rf "$ICP_HOME"
+      - name: Save non-sensitive check or release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g2-event-notification-two-canister-report
+          path: ${{ runner.temp }}/g2-notification-report
+          if-no-files-found: ignore
