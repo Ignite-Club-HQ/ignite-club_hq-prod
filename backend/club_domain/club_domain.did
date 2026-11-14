@@ -1490,15 +1490,6 @@ type Main =
        Err: text;
        Ok: opt text;
      });
-   read_account_my_dev_test2_event_delivery: (event_id: text) ->
-    (variant {
-       Err: text;
-       Ok: opt record {
-                 attempts: nat32;
-                 created_at_ms: nat64;
-                 status: text;
-               };
-     });
    read_account_get_club_roster: (club_id: text) ->
     (variant {
        Err: text;
@@ -1742,6 +1733,15 @@ type Main =
            opt text;
          });
    read_account_membership_erased: (principals: vec principal) -> (bool);
+   read_account_my_dev_test2_event_delivery: (event_id: text) ->
+    (variant {
+       Err: text;
+       Ok: opt record {
+                 attempts: nat32;
+                 created_at_ms: nat64;
+                 status: text;
+               };
+     });
    read_account_my_role_grants: () -> (vec RoleGrant);
    read_account_profile_team_history: (profile_id: text) ->
     (vec ProfileTeamHistoryEntry);
