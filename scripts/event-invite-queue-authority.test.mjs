@@ -18,18 +18,19 @@ const section=(a,b)=>{
 const enqueue=section('public shared ({ caller }) func enqueue(', 'public shared ({ caller }) func fan_out(');
 const fan=section('public shared ({ caller }) func fan_out(', 'public shared ({ caller }) func enqueue_competition_broadcast(');
 
-test('event_invite requires currently trusted club domain, not messaging or governor',()=>{
- assert.match(queue,/func eventInviteSourceAllowed\(kind : Text, caller : Principal\) : Bool \{\s*kind != "event_invite" or clubDomainCanister == \?caller/);
- for (const source of [enqueue,fan]){
-   assert.equal(source.match(/if \(not eventInviteSourceAllowed\(kind, caller\)\) return #Err/g)?.length,2,
-     'both early pre-admission and final pre-persist checks needed');
-   assert.ok(source.indexOf('eventInviteSourceAllowed(kind, caller)')<source.indexOf('await admitAccount(caller)'),
-     'privileged check must be before any caller admission await');
-   assert.ok(source.lastIndexOf('eventInviteSourceAllowed(kind, caller)')>source.indexOf('if (isFenced(club)) return #Err("Notification scope changed")'),
-     'revalidate authority after all cross-canister awaits');
+test('event_invite label and canonical id/key namespace require trusted club authority',()=>{
+ assert.match(queue,/func eventInviteWriteAllowed\(kind : Text, id : Text, key : Text, caller : Principal\) : Bool/);
+ assert.match(queue,/kind == "event_invite" or/);
+ assert.match(queue,/Text\.startsWith\(id, #text "event_invite-"\)/);
+ assert.match(queue,/Text\.startsWith\(key, #text "event_invite-"\)/);
+ assert.match(queue,/not reserved or clubDomainCanister == \?caller/);
+ for (const [source, call] of [[enqueue,'eventInviteWriteAllowed(kind, id, key, caller)'],[fan,'eventInviteWriteAllowed(kind, "", key_prefix, caller)']]){
+   assert.equal(source.split(call).length-1,2,'must check before admission and immediately before persistence');
+   assert.ok(source.indexOf(call)<source.indexOf('await admitAccount(caller)'),'check before await');
+   assert.ok(source.lastIndexOf(call)>source.indexOf('if (isFenced(club)) return #Err("Notification scope changed")'),'recheck after all awaits');
  }
- assert.ok(enqueue.lastIndexOf('eventInviteSourceAllowed(kind, caller)')<enqueue.indexOf('switch (get(id))'));
- assert.ok(fan.lastIndexOf('eventInviteSourceAllowed(kind, caller)')<fan.indexOf('items := items.concat([notification])'));
+ assert.ok(enqueue.lastIndexOf('eventInviteWriteAllowed(')<enqueue.indexOf('switch (get(id))'));
+ assert.ok(fan.lastIndexOf('eventInviteWriteAllowed(')<fan.indexOf('items := items.concat([notification])'));
 });
 
 test('official event invitation still goes through the club authority',()=>{
@@ -41,7 +42,7 @@ test('official event invitation still goes through the club authority',()=>{
 
 test('other notification types are not subject to the new event invite gate',()=>{
  assert.match(access,/Text\.startsWith\(kind, #text "update_reminder"\)/);
- assert.match(queue,/kind != "event_invite" or clubDomainCanister == \?caller/);
+ assert.match(queue,/not reserved or clubDomainCanister == \?caller/);
  assert.match(notifications,/actor\.enqueue\(/);
  assert.match(notifications,/actor\.fan_out\(/);
  assert.doesNotMatch(queue,/kind == "event_invite" or kind == "event_reminder"/);
