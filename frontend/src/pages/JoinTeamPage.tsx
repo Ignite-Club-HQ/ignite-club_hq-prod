@@ -2215,6 +2215,10 @@ function SupabaseJoinTeamPage() {
             },
           }, writeOnce({ inviteToken: token ?? "" }));
         } else if (isIcpAccount && invite?.team_id) {
+          // Route the write by the verified invite's club, then verify the
+          // referenced team belongs to that club before any child creation.
+          const verifiedClubId = invite.teams?.club_id;
+          if (!verifiedClubId) throw new Error("Invitation has no verified club");
           if (icpChildCreateAttempted.current) {
             throw new Error("A previous child creation may have succeeded. Check My Children before trying to add another.");
           }
@@ -2228,9 +2232,8 @@ function SupabaseJoinTeamPage() {
                 import("@/live/features/club"),
                 import("@/live/features/vault"),
               ]);
-              const clubId = invite.teams?.club_id ?? null;
+              const clubId = verifiedClubId;
               const teamId = invite.team_id!;
-              if (!clubId) throw new Error("Invitation has no verified club");
               const parent = ctx.identity.getPrincipal();
               return createIcpInviteChild({ clubId, teamId, name: addedLabel }, {
                 readTeam: async () => (await club.getLiveTeam(ctx, teamId))[0] ?? null,
@@ -2239,7 +2242,7 @@ function SupabaseJoinTeamPage() {
                 assignOwnChildToTeam: (id) => club.setMyLiveChildTeam(ctx, id, teamId, true),
               });
             },
-          }, writeOnce({ clubId: invite.teams?.club_id ?? "", teamId: invite.team_id }));
+          }, writeOnce({ clubId: verifiedClubId }));
           if (result.status === "created_unlinked") {
             // Do not create a duplicate: the child exists but the team link did
             // not succeed. Keep a visible partial outcome and let the member
