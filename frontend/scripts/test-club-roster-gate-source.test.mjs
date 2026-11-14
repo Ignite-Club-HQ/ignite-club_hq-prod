@@ -15,12 +15,21 @@ function bodyFor(method) {
   return motoko.slice(i, i + 2000);
 }
 
-test("both roster entry points require an administrator, not merely a club role", () => {
+test("both roster entry points require staff authority, not merely a club role", () => {
   for (const method of ["get_club_roster", "read_account_get_club_roster"]) {
     const body = bodyFor(method);
-    assert.match(body, /if \(not isAdmin\(caller, club_id\)\) return #Err\("Club admin required"\)/);
+    assert.match(body, /if \(not canReadClubRoster\(caller, club_id\)\) return #Err\("Club staff role required"\)/);
     assert.doesNotMatch(body, /if \(not acl\.roles\.any\(/);
   }
+});
+
+test("staff helper excludes Parent/player from club-wide principal reads", () => {
+  const helper = bodyFor("canReadClubRoster");
+  assert.match(helper, /isAdmin\(caller, club\)/);
+  for (const role of ["team_admin", "coach", "committee_member"]) {
+    assert.ok(helper.includes(`grant.role == "${role}"`), `staff role ${role} missing`);
+  }
+  assert.doesNotMatch(helper, /grant\.role == "parent"|grant\.role == "player"/);
 });
 
 test("both roster entry points use the same team-aware club child boundary", () => {
