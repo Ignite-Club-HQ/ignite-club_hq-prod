@@ -38,7 +38,7 @@ describe("DEV Ted U10 transfer read-only preflight", () => {
     expect(isDevTedU10PreviewCandidate(host,{...child,isPrimary:false})).toBe(false);
     expect(isDevTedU10PreviewCandidate(host,{...child,id:"a different child"})).toBe(false);
     expect(isDevTedU10PreviewCandidate(host,{...child,sourceClubCanisterId:DEV_TED_U10.destinationCanister})).toBe(false);
-    expect(validateDevTedPreflight("igniteclubhq.com",[source()],destination())).toThrow("Ignite DEV");
+    expect(() => validateDevTedPreflight("igniteclubhq.com",[source()],destination())).toThrow("Ignite DEV");
   });
   it.each([
     ["source absent",[],/uniquely verified/],
