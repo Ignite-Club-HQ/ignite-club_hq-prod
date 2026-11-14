@@ -9,6 +9,7 @@ import { Principal } from '@icp-sdk/core/principal';
 import { IDL } from '@icp-sdk/core/candid';
 import { idlFactory as clubIdl } from '../src/lab/bindings/club_domain/declarations/club_domain.did.js';
 import { idlFactory as queueIdl } from '../src/lab/bindings/notification_queue/declarations/notification_queue.did.js';
+import { idlFactory as eventsIdl } from '../src/lab/bindings/events_domain/declarations/events_domain.did.js';
 
 const principal = n => Principal.fromUint8Array(Uint8Array.of(n, 1));
 const governor = principal(1), outsider = principal(2), otherAdmin = principal(3);
@@ -41,7 +42,7 @@ const teamInput = () => {
   return row;
 };
 
-assert.ok(process.env.CLUB_DOMAIN_WASM && process.env.NOTIFICATION_QUEUE_WASM,
+assert.ok(process.env.CLUB_DOMAIN_WASM && process.env.NOTIFICATION_QUEUE_WASM && process.env.EVENTS_DOMAIN_WASM,
   'Two locally built canister WASM files are required; never fetch remote WASM');
 const server = await PocketIcServer.start();
 let pic;
@@ -57,6 +58,10 @@ try {
     idlFactory: queueIdl, wasm: process.env.NOTIFICATION_QUEUE_WASM,
     targetCanisterId: queueCanisterId, sender: governor,
     controllers: [governor], arg
+  });
+  const events = await pic.setupCanister({
+    idlFactory: eventsIdl, wasm: process.env.EVENTS_DOMAIN_WASM,
+    sender: governor, controllers: [governor], arg
   });
   assert.equal(club.canisterId.toText(), clubCanisterId.toText());
   assert.equal(queue.canisterId.toText(), queueCanisterId.toText());
@@ -86,6 +91,9 @@ try {
   // Exact canister pair exists solely on this disposable replica.
   c.setPrincipal(governor);
   ok(await c.set_notification_queue_canister(queueCanisterId));
+  ok(await c.set_events_domain_canister(events.canisterId));
+  events.actor.setPrincipal(governor);
+  ok(await events.actor.set_club_domain_canister(clubCanisterId));
   q.setPrincipal(governor);
   ok(await q.set_club_domain_canister(clubCanisterId));
 
@@ -94,6 +102,21 @@ try {
   ok(await c.save_team(teamInput()));
   ok(await c.add_role_grant(test2, clubId, 'parent', [teamId]));
   assert.deepEqual(await c.read_account_list_user_club_roles(test2, clubId), [['parent', [teamId]]]);
+
+  // Create the exact test event through the real event domain, rather than
+  // writing a fake invitation row into the queue. This is local PocketIC only.
+  const start = BigInt((await pic.getTime()) + 48 * 3_600_000);
+  const input = {
+    request_id: 'test2-integration-event', club_id: clubId, team_id: [teamId],
+    title: 'Local Test2 Invitation', description: 'Disposable event; no real attendees',
+    event_type: 'training', location: [], opponent: [], address: [], mini_league_id: [],
+    rsvp_audience: ['parents_only'], adults_only: true, restricted_to_roles: [],
+    target_team_ids: [], occurrences: [{starts_at_ms:start, ends_at_ms:start+3_600_000n}],
+    duties: [], duty_team_id: [], reminder_hours: []
+  };
+  events.actor.setPrincipal(governor);
+  const created = ok(await events.actor.create_event_with_setup(input));
+  assert.equal(created.first_event_id,eventId, 'Synthetic test event ID must match gated readback');
 
   // Correct signed principal and Parent role, but no matching queue row yet.
   c.setPrincipal(test2);
@@ -117,21 +140,24 @@ try {
     denied(await q.read_trusted_dev_test2_event_delivery(eventId, outsider));
   }
 
-  // An unrelated event_invite row sharing the event ID must NOT be
-  // interpreted as evidence that the event-domain workflow queued its invite.
-  // This synthetic row is not sent to any device or network.
+  // Only the Club canister is permitted to create event-invite queue rows.
+  // Former direct user/governor fixture fan-outs must now fail closed.
   q.setPrincipal(governor);
-  assert.equal(ok(await q.fan_out([test2.toText()], clubId, 'event_invite',
-    'Noncanonical fixture only', 'pocketic-unrelated-invite', [eventId])), 1);
+  denied(await q.fan_out([test2.toText()], clubId, 'event_invite',
+    'Noncanonical fake', 'pocketic-unrelated-invite', [eventId]));
+  denied(await q.fan_out([test2.toText()], clubId, 'event_invite',
+    'Canonical fake', `event_invite-${eventId}-invite`, [eventId]));
+  denied(await q.enqueue(`event_invite-${eventId}-invite-${test2.toText()}`,
+    test2.toText(), clubId, 'club_news', 'Wrong-kind id squat', 'unrelated-key'));
   c.setPrincipal(test2);
   assert.deepEqual(option(await c.read_account_my_dev_test2_event_delivery(eventId)), [],
-    'Wrong-key event notification must be ignored, not misreported as queued');
+    'No legitimate event invitation has been sent yet');
 
-  // The real events-domain workflow uses this canonical key/id convention.
-  // This fixture seeds a local queue row, not a real trusted event-domain send.
-  q.setPrincipal(governor);
-  assert.equal(ok(await q.fan_out([test2.toText()], clubId, 'event_invite',
-    'Canonical fixture only, no device delivery', `event_invite-${eventId}-invite`, [eventId])), 1);
+  // Actual signed events -> Club -> Queue path creates exactly one canonical
+  // notification for Test2, without external push credentials or device tokens.
+  events.actor.setPrincipal(governor);
+  assert.equal(ok(await events.actor.notify_event_audience(eventId,'event_invite')),1);
+  assert.equal(ok(await events.actor.notify_event_audience(eventId,'event_invite')),0);
   c.setPrincipal(test2);
   const status = option(await c.read_account_my_dev_test2_event_delivery(eventId));
   assert.equal(status.length, 1);
@@ -173,12 +199,11 @@ try {
   q.setPrincipal(governor);
   ok(await q.set_transfer_fence(clubId, false));
 
-  // Other noncanonical invite rows cannot change the result of the precise
-  // official-event-key lookup. Duplicate canonical IDs are separately
-  // prohibited by fan_out's existing idempotency handling.
+  // Even after a real event notice, an untrusted sender cannot create a
+  // competing row using another key or a forged canonical one.
   q.setPrincipal(governor);
-  assert.equal(ok(await q.fan_out([test2.toText()], clubId, 'event_invite',
-    'Different unrelated invite', 'pocketic-event-notice-2', [eventId])), 1);
+  denied(await q.fan_out([test2.toText()], clubId, 'event_invite',
+    'Competing fake invite', 'pocketic-other-invite', [eventId]));
   c.setPrincipal(test2);
   assert.equal(option(await c.read_account_my_dev_test2_event_delivery(eventId))[0].status, 'pending');
 
