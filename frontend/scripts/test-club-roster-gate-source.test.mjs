@@ -40,3 +40,12 @@ test("both roster entry points use the same team-aware club child boundary", () 
   }
   assert.match(motoko, /func clubChild\(club : Text, ids : \[Text\], c : Types\.Child\) : Bool = c\.club_id == \?club or c\.teams\.any/);
 });
+
+test("notification club switching uses scoped boolean membership, never full family roster", () => {
+  const hook = readFileSync(new URL("../src/hooks/useNotificationClubSwitch.ts", import.meta.url), "utf8");
+  const feature = readFileSync(new URL("../src/live/features/club.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(hook, /getLiveClubRoster\(/);
+  assert.match(hook, /isMyLiveClubMember\(scoped, clubId\)/);
+  assert.match(hook, /\}, \{ clubId \}\)/);
+  assert.match(feature, /actor\.read_account_is_club_member\(ctx\.identity\.getPrincipal\(\), clubId\)/);
+});
