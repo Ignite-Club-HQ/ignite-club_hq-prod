@@ -181,13 +181,11 @@ if(!refs.some(r=>r.ref==='refs/heads/'+branch)){
   api('git/refs','POST',{ref:'refs/heads/'+branch,sha:base.object.sha});
 }
 const path='contents/deploy/groups/g2/notification-readback-upgrade.json';
-let stored;
-try{stored=api(path+'?ref='+branch)}catch(error){
-  // Only a truly missing journal can be created. Do not mistake transport or
-  // permissions errors for an absent journal; branch creation path handles it.
-  // This call is replaced with a branch-contents listing to distinguish 404.
-  throw Error('Cannot read existing upgrade journal; stop before install');
-}
+const entries=api('contents/deploy/groups/g2?ref='+branch);
+if(!Array.isArray(entries))throw Error('Cannot list durable journal directory; stop');
+let stored=entries.some(entry=>entry.name==='notification-readback-upgrade.json')
+  ? api(path+'?ref='+branch) : null;
+// Never mistake GitHub transport/permission failure for an absent journal.
 let journal;
 if(stored?.content){
   journal=JSON.parse(Buffer.from(stored.content,'base64').toString());
