@@ -19,6 +19,7 @@ const provision=()=>({
 const targets=()=>PAIR.map((x,i)=>({...x,subnetId:SUBNET,newHash:i?NEWC:NEWQ}));
 const binding=()=>({
   release:SHA,governor:'vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae',
+  registryRevision:'11',configurationHash:'1'.repeat(64),
   targets:targets(),provision:provision(),oldHashes:{notification_queue:OLDQ,club_domain:OLDC}
 });
 const journal=()=>{
@@ -98,6 +99,8 @@ test('journal must be bound to two immutable services, original hash, settings a
   assert.throws(()=>validateJournal({...j,steps:j.steps.map((s,i)=>i?{...s,phase:'installed'}:s)},j.binding));
   assert.throws(()=>validateJournal({...j,binding:{...j.binding,release:'z'.repeat(40)}},j.binding));
   assert.throws(()=>validateJournal({...j,complete:true},j.binding));
+  assert.throws(()=>validateJournal({...j,routerRevision:'12'},j.binding));
+  assert.throws(()=>validateJournal({...j,configurationHash:'2'.repeat(64)},j.binding));
 });
 test('the only install order is queue then club, with durable pending intent readback',async()=>{
   const j=journal(),f=fake(j);
