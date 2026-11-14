@@ -35,6 +35,11 @@ describe("ICP children across club groups",()=>{
     expect(()=>assertMayCreateChild(" ted ",existing,true)).toThrow("already appears");
     expect(()=>assertMayCreateChild("Bob",existing,true)).not.toThrow();
   });
+  it("also protects guardian-linked children from duplicate creation",()=>{
+    const guardian={...groupChild(g1,"g-child","Ted"),isPrimary:false};
+    expect(()=>assertMayCreateChild("ted",[guardian],true)).toThrow("already appears");
+    expect(()=>assertMayCreateChild("Another child",[{...guardian,name:""}],true)).toThrow("could not be confirmed");
+  });
   it("fails closed when any existing private name or child inventory is unresolved",()=>{
     expect(()=>assertMayCreateChild("Ted",undefined,true)).toThrow("must be checked");
     expect(()=>assertMayCreateChild("Ted",[groupChild(g1,"x","")],true)).toThrow("could not be confirmed");
