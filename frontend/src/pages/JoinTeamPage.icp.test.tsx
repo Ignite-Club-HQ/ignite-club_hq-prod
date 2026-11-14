@@ -9,9 +9,13 @@ const getLiveTeamInviteMock = vi.fn();
 const acceptLiveTeamInviteMock = vi.fn();
 const getLiveTeamInviteLinkByTokenMock = vi.fn();
 const acceptLiveTeamInviteLinkMock = vi.fn();
+const getLiveTeamMock = vi.fn();
+const getLiveClubProfileMock = vi.fn();
 vi.mock("@/live/features/club", () => ({
   getLiveTeamInviteLinkByToken: (...args: unknown[]) => getLiveTeamInviteLinkByTokenMock(...args),
   acceptLiveTeamInviteLink: (...args: unknown[]) => acceptLiveTeamInviteLinkMock(...args),
+  getLiveTeam: (...args: unknown[]) => getLiveTeamMock(...args),
+  getLiveClubProfile: (...args: unknown[]) => getLiveClubProfileMock(...args),
 }));
 vi.mock("@/live/features/membership", () => ({
   getLiveTeamInvite: (...args: unknown[]) => getLiveTeamInviteMock(...args),
@@ -144,6 +148,8 @@ beforeEach(() => {
   acceptLiveTeamInviteMock.mockReset();
   getLiveTeamInviteLinkByTokenMock.mockReset().mockResolvedValue(null);
   acceptLiveTeamInviteLinkMock.mockReset().mockResolvedValue(undefined);
+  getLiveTeamMock.mockReset().mockResolvedValue([]);
+  getLiveClubProfileMock.mockReset().mockResolvedValue([]);
   toastMock.mockClear();
   sendGamificationNotificationMock.mockClear();
   setAuthMethodChoiceMock.mockClear();
@@ -235,6 +241,59 @@ describe("JoinTeamPage team-invite acceptance routing", () => {
     fireEvent.click(screen.getByRole("button", { name: /continue with internet identity/i }));
     expect(setAuthMethodChoiceMock).toHaveBeenCalledTimes(1);
     expect(setAuthMethodChoiceMock).toHaveBeenCalledWith("icp");
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
+  });
+
+  it("renders the actual team and club names for a verified ICP shareable parent invite", async () => {
+    membershipRoutedToIcp = true;
+    const token = "tok-0123456789abcdef0123456789abcdef";
+    getLiveTeamInviteLinkByTokenMock.mockResolvedValue({
+      id: "tlink-" + token, token, team_id: "team-1", club_id: "club-1",
+      role: "parent", revoked: false, created_at_ms: 1000n,
+    });
+    getLiveTeamMock.mockResolvedValue([{ id: "team-1", club_id: "club-1", name: "ChatGPT Plugin Test U10", logo_url: [] }]);
+    getLiveClubProfileMock.mockResolvedValue([{ id: "club-1", name: "Group 2 test", logo_url: [] }]);
+
+    renderAt("/join/" + token);
+
+    expect(await screen.findByRole("heading", { name: "Join ChatGPT Plugin Test U10" })).toBeInTheDocument();
+    expect(screen.getByText("Group 2 test")).toBeInTheDocument();
+    expect(getLiveTeamMock).toHaveBeenCalledWith(expect.anything(), "team-1");
+    expect(getLiveClubProfileMock).toHaveBeenCalledWith(expect.anything(), "club-1");
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("does not display unrelated team names when an invite's team/club ownership mismatches", async () => {
+    membershipRoutedToIcp = true;
+    const token = "tok-0123456789abcdef0123456789abcdef";
+    getLiveTeamInviteLinkByTokenMock.mockResolvedValue({
+      id: "tlink-" + token, token, team_id: "team-1", club_id: "club-1",
+      role: "parent", revoked: false, created_at_ms: 1000n,
+    });
+    getLiveTeamMock.mockResolvedValue([{ id: "team-1", club_id: "other-club", name: "Someone Else's Team", logo_url: [] }]);
+    getLiveClubProfileMock.mockResolvedValue([{ id: "club-1", name: "Group 2 test", logo_url: [] }]);
+
+    renderAt("/join/" + token);
+
+    expect(await screen.findByText("Couldn't Verify Invitation")).toBeInTheDocument();
+    expect(screen.queryByText("Someone Else's Team")).not.toBeInTheDocument();
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps a valid ICP invite usable when public label reads are temporarily unavailable", async () => {
+    membershipRoutedToIcp = true;
+    const token = "tok-0123456789abcdef0123456789abcdef";
+    getLiveTeamInviteLinkByTokenMock.mockResolvedValue({
+      id: "tlink-" + token, token, team_id: "team-1", club_id: "club-1",
+      role: "parent", revoked: false, created_at_ms: 1000n,
+    });
+    getLiveTeamMock.mockRejectedValue(new Error("temporary public read outage"));
+    getLiveClubProfileMock.mockResolvedValue([]);
+
+    renderAt("/join/" + token);
+
+    expect(await screen.findByRole("heading", { name: "Join this team" })).toBeInTheDocument();
     expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
   });
 
