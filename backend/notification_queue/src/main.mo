@@ -975,7 +975,14 @@ persistent actor class Main(governorInit : Principal) = this {
     if (event_id != devEvent or recipient.toText() != devUser or isFenced(devClub) or recipientFenced(devUser)) {
       return #Err("DEV event readback scope forbidden");
     };
+    // Match the exact notification ID and idempotency key emitted by
+    // events_domain.sendEventNotice -> club_domain.relay_event_notice.
+    // A generic event_invite with the same related_id is not proof of the
+    // official event-invitation workflow.
+    let expectedKey = "event_invite-" # devEvent # "-invite";
+    let expectedId = expectedKey # "-" # devUser;
     let matches = items.filter(func(n) =
+      n.id == expectedId and n.idempotency_key == expectedKey and
       n.user == devUser and n.club == devClub and n.kind == "event_invite" and n.related_id == ?devEvent
     );
     // Duplicate rows mean the provenance is ambiguous: fail closed.
