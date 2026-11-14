@@ -65,7 +65,6 @@ jobs:
       contents: write
     timeout-minutes: 75
     env:
-      ICP_HOME: ${{ runner.temp }}/g2-notification-icp-home
       ACTION: ${{ inputs.action }}
       CONFIRMATION: ${{ inputs.confirmation }}
       EXPECTED_RELEASE_SHA: ${{ inputs.expected_release_sha }}
@@ -73,6 +72,8 @@ jobs:
       EXPECTED_CLUB_HASH: ${{ inputs.expected_club_hash }}
       GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Initialise isolated ICP tool home
+        run: echo "ICP_HOME=$RUNNER_TEMP/g2-notification-icp-home" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
