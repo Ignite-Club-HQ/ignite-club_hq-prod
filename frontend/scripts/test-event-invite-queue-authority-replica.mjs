@@ -97,6 +97,14 @@ try {
   denied(await q.fan_out([member.toText()],clubId,'event_invite','spoof same key',canonicalKey,[eventId]));
   denied(await q.enqueue(canonicalKey+'-'+member.toText(),member.toText(),clubId,
     'event_invite','spoof direct enqueue',canonicalKey));
+  // Reserve the canonical key/id *even under a different visible kind*:
+  // otherwise a malicious membership/news row could squat on the dedupe ID.
+  denied(await q.fan_out([member.toText()],clubId,'membership',
+    'wrong-kind canonical-key squat',canonicalKey,[eventId]));
+  denied(await q.enqueue(canonicalKey+'-'+member.toText(),member.toText(),clubId,
+    'club_news','wrong-kind canonical-id squat','unrelated-key'));
+  denied(await q.enqueue('different-id',member.toText(),clubId,
+    'club_news','wrong-kind canonical-key squat',canonicalKey));
   q.setPrincipal(member);
   assert.equal(ok(await q.list_inbox(member.toText(),[clubId],25)).filter(n=>n.kind==='event_invite').length,0);
 
@@ -115,7 +123,7 @@ try {
   assert.equal(ok(await e.notify_event_audience(eventId,'event_invite')),0);
   q.setPrincipal(member);
   assert.equal(ok(await q.list_inbox(member.toText(),[clubId],25)).filter(n=>n.kind==='event_invite').length,1);
-  console.log('PASS: local PocketIC: both forgery methods blocked, governor/messaging excluded, legacy kinds unchanged, trusted events->club->queue invite admitted once, canonical key and duplicate safety, no device notifications.');
+  console.log('PASS: local PocketIC: event_invite label and reserved IDs/keys denied to untrusted callers on both methods; governor/messaging excluded, legacy kinds unchanged, trusted events->club->queue invite admitted once, no device notifications.');
 } finally {
   await pic?.tearDown();
   await server.stop();
