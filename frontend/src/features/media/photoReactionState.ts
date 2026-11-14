@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { mediaKeys } from "./mediaQueryKeys";
 
 export interface PhotoReaction {
   photo_id: string;
@@ -7,8 +8,7 @@ export interface PhotoReaction {
   profiles?: { display_name: string | null; avatar_url: string | null } | null;
 }
 
-export const reactionKey = (userId: string | undefined, ids: readonly string[]) =>
-  ["photo-reactions", userId, [...new Set(ids)].sort()] as const;
+export const reactionKey = mediaKeys.reactionsForPhotos;
 
 type Pending = { photoId: string; userId: string; reaction: PhotoReaction | null };
 const pendingByClient = new WeakMap<QueryClient, Map<string, Pending>>();

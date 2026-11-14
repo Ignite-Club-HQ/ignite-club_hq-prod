@@ -39,8 +39,8 @@ export const mediaKeys = {
   highlightedPhoto: (userId: string | undefined, photoId: string | null) =>
     ["highlighted-photo", userId, photoId] as const,
   reactions: (userId: string | undefined) => ["photo-reactions", userId] as const,
-  reactionsBucket: (userId: string | undefined, photoCountBucket: number) =>
-    ["photo-reactions", userId, photoCountBucket] as const,
+  reactionsForPhotos: (userId: string | undefined, photoIds: readonly string[]) =>
+    ["photo-reactions", userId, [...new Set(photoIds)].sort()] as const,
   comments: (userId: string | undefined) => ["photo-comments", userId] as const,
   commentsBucket: (userId: string | undefined, photoCountBucket: number) =>
     ["photo-comments", userId, photoCountBucket] as const,
