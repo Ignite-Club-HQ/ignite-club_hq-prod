@@ -1,0 +1,27 @@
+name: DEV Test2 delivery readback — source-contract tests
+
+on:
+  pull_request:
+    paths:
+      - backend/notification_queue/src/main.mo
+      - backend/notification_queue/notification_queue.did
+      - backend/club_domain/src/main.mo
+      - backend/club_domain/club_domain.did
+      - scripts/dev-test2-notification-readback.test.mjs
+      - scripts/group2-mcp-discovery.mjs
+      - .github/workflows/dev-test2-notification-readback.yml
+
+permissions:
+  contents: read
+
+jobs:
+  source-contracts:
+    name: Test2 DEV delivery readback source contracts (no deployment)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run read-only source contract checks
+        run: node --test scripts/dev-test2-notification-readback.test.mjs
