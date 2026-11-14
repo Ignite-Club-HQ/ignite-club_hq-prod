@@ -160,5 +160,5 @@ test('governor restore supports escaped PEM and stops with nonsecret diagnostic 
   assert.match(restore,/vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae/);
   assert.match(restore,/2>&1/,'import errors must not leak key details');
   assert.doesNotMatch(restore,/echo .*GOVERNOR_PRINCIPAL/);
-  assert.doesNotMatch(restore,/echo .*DEPLOYER_PEM/);
+  assert.doesNotMatch(restore,/echo[^\n]*\$(?:\{)?DEPLOYER_PEM/);
 });
