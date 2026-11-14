@@ -178,10 +178,9 @@ export default function IcpChildrenPage() {
     staleTime: 5 * 60_000,
     retry: false,
     queryFn: async (): Promise<TeamOpt[]> => {
-      const [{ withFeatureBackend }, club, membership] = await Promise.all([
+      const [{ withFeatureBackend }, club] = await Promise.all([
         import("@/live/featureRouter"),
         import("@/live/features/club"),
-        import("@/live/features/membership"),
       ]);
       // The default ctx is Group 1. Discover each group's caller-scoped club
       // roles INSIDE that group; otherwise a Group 2 parent sees no U10 team.
@@ -190,7 +189,7 @@ export default function IcpChildrenPage() {
         icp: async scoped => {
           const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
           const grants = await withReadDeadline(
-            membership.getLiveMyRoleGrants(scoped), "Children memberships by group", 20_000,
+            club.listMyLiveGroupRoleGrants(scoped), "Protected children memberships by group", 20_000,
           );
           const myClubIds = [...new Set(grants.map(g => g.club?.[0]).filter((id): id is string => !!id))];
           const all = await Promise.all(myClubIds.map(async clubId => {
