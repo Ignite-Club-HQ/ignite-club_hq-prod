@@ -22,11 +22,11 @@ describe("self-service ICP invite child onboarding", () => {
     expect(a.assignOwnChildToTeam).toHaveBeenCalledWith("child-owned");
   });
 
-  it.each([
-    [null, "missing team"],
-    [{ id: "team-g2", club_id: "other-club" }, "wrong club"],
-    [{ id: "other-team", club_id: "club-g2" }, "wrong team"],
-  ] as const)("refuses to create a child for %s (%s)", async (team) => {
+  it.each<{ team: { id: string; club_id: string } | null; reason: string }>([
+    { team: null, reason: "missing team" },
+    { team: { id: "team-g2", club_id: "other-club" }, reason: "wrong club" },
+    { team: { id: "other-team", club_id: "club-g2" }, reason: "wrong team" },
+  ])("refuses to create a child for $reason", async ({ team }) => {
     const a = actions();
     a.readTeam.mockResolvedValue(team as any);
     await expect(createIcpInviteChild(input, a)).rejects.toThrow("Invitation team/club mismatch");
