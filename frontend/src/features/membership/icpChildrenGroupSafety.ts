@@ -59,10 +59,10 @@ export function assertMayCreateChild(
     throw new Error("Your existing children must be checked across all groups before a new child can be created.");
   }
   // Never assume an encrypted or unavailable name is a different child.
-  if (knownChildren.some(c => c.isPrimary && !c.name.trim())) {
+  if (knownChildren.some(c => !c.name.trim())) {
     throw new Error("An existing child's name could not be confirmed. Resolve it before creating another child.");
   }
-  if (knownChildren.some(c => c.isPrimary && c.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase())) {
+  if (knownChildren.some(c => c.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase())) {
     throw new Error(`${name.trim()} already appears in your children. An existing child cannot be copied between groups automatically.`);
   }
 }
