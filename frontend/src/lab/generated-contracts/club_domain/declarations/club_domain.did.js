@@ -2245,6 +2245,20 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Bool],
         [],
       ),
+    'read_account_my_dev_test2_event_delivery' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Opt(IDL.Record({
+              'status' : IDL.Text,
+              'attempts' : IDL.Nat32,
+              'created_at_ms' : IDL.Nat64,
+            })),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
     'read_account_my_role_grants' : IDL.Func([], [IDL.Vec(RoleGrant)], []),
     'read_account_profile_team_history' : IDL.Func(
         [IDL.Text],

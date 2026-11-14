@@ -1,0 +1,91 @@
+name: "[REPO] Test2 DEV delivery readback source-contract checks"
+
+on:
+  pull_request:
+    paths:
+      - backend/notification_queue/src/main.mo
+      - backend/notification_queue/notification_queue.did
+      - backend/club_domain/src/main.mo
+      - backend/club_domain/club_domain.did
+      - scripts/dev-test2-notification-readback.test.mjs
+      - scripts/group2-mcp-discovery.mjs
+      - .github/workflows/dev-test2-notification-readback.yml
+      - frontend/scripts/test-dev-test2-delivery-readback-replica.mjs
+      - backend/events_domain/src/main.mo
+
+permissions:
+  contents: read
+
+jobs:
+  source-contracts:
+    name: Test2 DEV delivery readback source contracts (no deployment)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run read-only source contract checks
+        run: node --test scripts/dev-test2-notification-readback.test.mjs
+
+  compile-notification-queue:
+    name: Check notification queue Motoko (no deployment)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+      - name: Install pinned Motoko compiler
+        run: |
+          bun add -g ic-mops@3.5.1
+          mops toolchain use moc 1.16.1
+      - name: Typecheck notification queue with migrations (no deploy)
+        working-directory: backend/notification_queue
+        run: |
+          mops install
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations --check src/main.mo
+
+  isolated-permissions:
+    name: G2 Test2 delivery permissions — isolated PocketIC only
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+      - name: Prepare pinned local-only toolchain
+        run: |
+          node scripts/ensure-frontend-deps.mjs
+          bun add -g ic-mops@3.5.1
+          mops toolchain use moc 1.16.1
+          (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
+      - name: Compile disposable G2 canister WASM (no deployment)
+        run: |
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          (cd backend/club_domain && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/club_domain.wasm src/main.mo)
+          (cd backend/notification_queue && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/notification_queue.wasm src/main.mo)
+          (cd backend/events_domain && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/events_domain.wasm src/main.mo)
+      - name: Test exact caller and membership boundary on disposable PocketIC
+        working-directory: frontend
+        env:
+          CI: "true"
+        run: |
+          R="$GITHUB_WORKSPACE"
+          CLUB_DOMAIN_WASM="$R/backend/club_domain/.mops/.build/club_domain.wasm" \
+          NOTIFICATION_QUEUE_WASM="$R/backend/notification_queue/.mops/.build/notification_queue.wasm" \
+          EVENTS_DOMAIN_WASM="$R/backend/events_domain/.mops/.build/events_domain.wasm" \
+          node scripts/test-dev-test2-delivery-readback-replica.mjs
