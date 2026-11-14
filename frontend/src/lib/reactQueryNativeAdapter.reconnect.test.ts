@@ -340,4 +340,31 @@ describe("reactQueryNativeAdapter — reconnect preserves club theme", () => {
 
     now.mockRestore();
   });
+
+  it.each(["resume", "reconnect"])("refreshes saved photo reactions on Android %s without refreshing inactive accounts", async (event) => {
+    const activeKey = ["photo-reactions", "paul", ["photo-a", "photo-b"]] as const;
+    const inactiveKey = ["photo-reactions", "signed-out-account", ["photo-a"]] as const;
+    const rows = [{ photo_id: "photo-a", user_id: "paul", reaction_type: "like" }];
+    qc.setQueryData(activeKey, rows);
+    qc.setQueryData(inactiveKey, []);
+    const observer = new QueryObserver(qc, { queryKey: activeKey, queryFn: async () => rows, staleTime: Infinity });
+    const unsubscribe = observer.subscribe(() => {});
+    const refetchSpy = vi.spyOn(qc, "refetchQueries").mockResolvedValue(undefined as never);
+    setupReactQueryNativeAdapter(qc);
+    await new Promise(r => setTimeout(r, 0));
+    await new Promise(r => setTimeout(r, 0));
+    if (event === "resume") {
+      appStateListeners[0]({ isActive: false });
+      appStateListeners[0]({ isActive: true });
+    } else {
+      flipNetwork(false);
+      flipNetwork(true);
+    }
+    await new Promise(r => setTimeout(r, 350));
+    const keys = refetchSpy.mock.calls.map(([options]) => options?.queryKey);
+    expect(keys.filter(key => JSON.stringify(key) === JSON.stringify(activeKey))).toHaveLength(1);
+    expect(keys).not.toContainEqual(inactiveKey);
+    expect(qc.getQueryData(activeKey)).toEqual(rows);
+    unsubscribe(); observer.destroy();
+  });
 });
