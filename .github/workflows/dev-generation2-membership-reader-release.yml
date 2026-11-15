@@ -1,0 +1,105 @@
+name: "[TEST] DEV generation-2 private membership reader release"
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dev-generation2-membership-reader-release.yml"
+      - "frontend/scripts/dev-generation2-directory-reader-release.ts"
+      - "scripts/dev-generation2-reader-release-contract.test.mjs"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Read-only release preflight or separately approved reader-only release"
+        required: true
+        type: choice
+        options: [check, release]
+      checked_plan:
+        description: "For release only: the exact 64-character hash from the current check report"
+        required: false
+        type: string
+      confirmation:
+        description: "For release only: RELEASE IGNITE DEV MEMBERSHIP LOOKUP GENERATION 2"
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+jobs:
+  contract-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Verify DEV-only reader-release safety contracts
+        run: node --test scripts/dev-generation2-reader-release-contract.test.mjs
+      - name: Parse the operator script without invoking any canister
+        run: npx --yes esbuild@0.25.12 frontend/scripts/dev-generation2-directory-reader-release.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/gen2-reader-release-syntax.mjs"
+  operator:
+    if: github.event_name == 'workflow_dispatch'
+    needs: contract-only
+    environment: group-2-admin-controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Require main branch, checked plan and distinct release confirmation
+        env:
+          GEN2_ACTION: ${{ inputs.action }}
+          GEN2_CHECKED_PLAN: ${{ inputs.checked_plan }}
+          GEN2_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY,,}" = "ignite-club-hq/ignite-club_hq-prod"
+          test "$GITHUB_REF" = "refs/heads/main"
+          case "$GEN2_ACTION" in
+            check)
+              test -z "$GEN2_CHECKED_PLAN"
+              test -z "$GEN2_CONFIRMATION"
+              ;;
+            release)
+              [[ "$GEN2_CHECKED_PLAN" =~ ^[a-f0-9]{64}$ ]]
+              test "$GEN2_CONFIRMATION" = "RELEASE IGNITE DEV MEMBERSHIP LOOKUP GENERATION 2"
+              ;;
+            *) exit 1 ;;
+          esac
+      - name: Install existing frontend dependencies
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Restore original protected DEV governor only
+        env:
+          PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "${PEM:-}" || { echo "::error::Protected original DEV governor required; no changes."; exit 1; }
+          umask 077
+          PEM_IN="$PEM" node scripts/normalize-pem.mjs > "$RUNNER_TEMP/dev-gen2-reader-governor.pem"
+          test -s "$RUNNER_TEMP/dev-gen2-reader-governor.pem"
+      - name: Perform checked source verification or one approved DEV Identity reader release
+        working-directory: frontend
+        env:
+          DEV_GEN2_RELEASE_ACTION: ${{ inputs.action }}
+          DEV_GEN2_CHECKED_PLAN: ${{ inputs.checked_plan }}
+          DEV_GEN2_RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          npx --yes tsx@4 scripts/dev-generation2-directory-reader-release.ts \
+            "$RUNNER_TEMP/dev-gen2-reader-governor.pem" "$RUNNER_TEMP/dev-gen2-reader-report"
+      - name: Destroy temporary signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/dev-gen2-reader-governor.pem"
+      - name: Upload non-PII release preflight or receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-generation2-private-reader-release-report
+          path: ${{ runner.temp }}/dev-gen2-reader-report
+          if-no-files-found: ignore
