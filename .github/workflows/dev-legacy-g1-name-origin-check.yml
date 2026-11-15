@@ -29,8 +29,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Contract check (offline, no network)
+      - name: Contract check (offline, no live canisters)
         run: node --test scripts/dev-legacy-name-origin-check.test.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Bundle-check TypeScript audit runner without executing it
+        run: npx --yes esbuild@0.25.12 frontend/scripts/check-dev-legacy-adult-name-origin.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/legacy-origin-check-syntax.mjs"
 
   approved-read-only-check:
     if: github.event_name == 'workflow_dispatch'
