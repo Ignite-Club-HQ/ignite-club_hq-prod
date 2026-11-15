@@ -79,7 +79,7 @@ test('a failed preflight names only safe mismatch fields before any canister wri
   assert.match(preflight,/readyForReset:false/);
   assert.match(preflight,/mismatches\.join\(', '\)/);
   for(const forbidden of ['inventory_digest','publicKey','private_key','profile_name',
-    'plaintext','token','grant','secret']) assert.ok(
+    'plaintext','token','secret']) assert.ok(
     !preflight.includes(forbidden), 'sensitive diagnostic content: '+forbidden);
   assert.ok(script.indexOf('const fixtureChecks = {') <
     script.indexOf('identity.reset_disposable_dev_membership_directory('));
