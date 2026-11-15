@@ -1722,6 +1722,11 @@ type Main =
        Err: text;
        Ok: vec TeamInvite;
      });
+   read_account_list_team_child_ids: (club_id: text, team_id: text) ->
+    (variant {
+       Err: text;
+       Ok: vec text;
+     });
    read_account_list_team_role_grants: (team: text) ->
     (variant {
        Err: text;
