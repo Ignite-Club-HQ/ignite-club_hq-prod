@@ -79,3 +79,37 @@ test("parent invite child creation preflights current club membership and locks 
   // A parent must never link an arbitrary other family's child with a client-only grant.
   assert.match(invite, /Ask your team admin to link you to an existing child/);
 });
+
+
+const teamRoster = readFileSync(new URL("../src/lib/teamRosterReads.ts", import.meta.url), "utf8");
+const clubBackend = readFileSync(new URL("../../backend/club_domain/src/main.mo", import.meta.url), "utf8");
+const privateNameBackend = readFileSync(new URL("../../backend/pii_access_control/src/main.mo", import.meta.url), "utf8");
+
+test("team child roster uses caller-authorized canonical group placement, not the Events mirror", () => {
+  assert.match(teamRoster, /listLiveTeamChildIds\(ctx, clubId, teamId\)/);
+  assert.match(club, /actor\.read_account_list_team_child_ids\(clubId, teamId\)/);
+  assert.match(clubBackend, /func read_account_list_team_child_ids\(club_id : Text, team_id : Text\)/);
+  assert.match(clubBackend, /not teamInClub\(team_id, club_id\)/);
+  assert.match(clubBackend, /not isMember\(caller, club_id\)/);
+  assert.match(clubBackend, /acl\.children\.filter\(func\(child\) = child\.teams\.any/);
+  assert.match(teamRoster, /if \(!\/has no/);
+  assert.doesNotMatch(teamRoster, /catch \{\s*return \[\]/);
+});
+
+test("parents see only authorized same-team child names; private fields stay restricted", () => {
+  // Existing adult profile display remains relationship-authorized rather than
+  // returning names or guardian metadata in the roster-ID endpoint.
+  assert.match(clubBackend, /func read_can_team_child_name_visibility/);
+  assert.match(clubBackend, /switch \(piiCanister\)/);
+  assert.match(clubBackend, /configured\.equal\(caller\)/);
+  assert.match(clubBackend, /isOnTeam\(viewer, teamId\)/);
+  assert.match(clubBackend, /not isExcluded\(viewer, clubId\)/);
+  assert.match(clubBackend, /not isTransferFenced\(clubId\)/);
+  assert.match(clubBackend, /not \(isOnTeam\(caller, team_id\) or canManageTeam\(caller, club_id, \?team_id\)\)/);
+  assert.match(privateNameBackend, /func verifiedTeamChildNames/);
+  assert.match(privateNameBackend, /fieldId != "name"/);
+  assert.match(privateNameBackend, /read_can_team_child_name_visibility\(viewer, ids\)/);
+  assert.match(privateNameBackend, /let teamChildNames = await verifiedTeamChildNames\(caller, pii_ids, field_id\)/);
+  assert.match(privateNameBackend, /let freshTeamChildNames = await verifiedTeamChildNames\(caller, \[pii_id\], field_id\)/);
+  assert.doesNotMatch(teamRoster, /return .*child\.name/);
+});

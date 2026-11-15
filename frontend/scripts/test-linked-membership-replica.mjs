@@ -66,6 +66,39 @@ try {
   assert.deepEqual(ownChild.club_id, [], 'parent-owned child initially has no club_id');
   const rosteredChild = ok(await rosterGroup.actor.set_own_child_team(ownChild.id, 'u9', true));
   assert.ok(rosteredChild.teams.includes('u9'), 'parent assigned own child to target team');
+
+  // Parent-team roster and child name checks are a separate bounded surface,
+  // not permission to read the staff-only club roster. The PII-only verifier
+  // must reject unconfigured/wrong caller principals, cross-team viewers,
+  // unknown children and anonymous viewers.
+  const privateReader = Principal.fromUint8Array(Uint8Array.from([7, 1]));
+  const otherParent = Principal.fromUint8Array(Uint8Array.from([6, 1]));
+  identity.actor.setPrincipal(otherParent); ok(await identity.actor.register_account());
+  rosterGroup.actor.setPrincipal(governor);
+  const otherTeam = { id: 'u8', club_id: rosterGroup.name, name: 'U8', archived: false, is_active: true, is_shell: false, playhq_auto_create_events: false };
+  for (const key of ['age_group', 'deleted_at_ms', 'description', 'division', 'folder_id', 'gender', 'logo_url', 'playhq_competition_id', 'playhq_team_id', 'shell_claim_token', 'shell_claimed_at_ms', 'shell_claimed_by', 'shell_contact_email', 'shell_contact_name', 'shell_invited_by', 'team_type']) otherTeam[key] = [];
+  ok(await rosterGroup.actor.save_team(otherTeam));
+  ok(await rosterGroup.actor.add_role_grant(otherParent, rosterGroup.name, 'parent', ['u8']));
+  rosterGroup.actor.setPrincipal(outsider);
+  assert.deepEqual(ok(await rosterGroup.actor.read_account_list_team_child_ids(rosterGroup.name, 'u9')), [ownChild.id]);
+  assert.deepEqual(await rosterGroup.actor.read_can_team_child_name_visibility(outsider, [ownChild.id]), [], 'browser cannot impersonate the PII service');
+  rosterGroup.actor.setPrincipal(otherParent);
+  assert.ok('Err' in await rosterGroup.actor.read_account_list_team_child_ids(rosterGroup.name, 'u9'), 'other-team parent cannot enumerate this team');
+  rosterGroup.actor.setPrincipal(governor);
+  ok(await rosterGroup.actor.set_pii_canister(privateReader));
+  rosterGroup.actor.setPrincipal(privateReader);
+  assert.deepEqual(await rosterGroup.actor.read_can_team_child_name_visibility(outsider, [ownChild.id, 'not-a-child']), [ownChild.id], 'same-team parent can read only matching child name IDs');
+  assert.deepEqual(await rosterGroup.actor.read_can_team_child_name_visibility(otherParent, [ownChild.id]), [], 'other-team parent cannot read U9 name');
+  assert.deepEqual(await rosterGroup.actor.read_can_team_child_name_visibility(Principal.anonymous(), [ownChild.id]), [], 'anonymous access denied');
+  rosterGroup.actor.setPrincipal(coach);
+  assert.deepEqual(ok(await rosterGroup.actor.read_account_list_team_child_ids(rosterGroup.name, 'u9')), [ownChild.id], 'coach can see team roster');
+  assert.deepEqual(await rosterGroup.actor.read_can_team_child_name_visibility(coach, [ownChild.id]), [], 'coach cannot impersonate PII service');
+  rosterGroup.actor.setPrincipal(privateReader);
+  assert.deepEqual(await rosterGroup.actor.read_can_team_child_name_visibility(coach, [ownChild.id]), [ownChild.id], 'same-team coach can read authorized child name');
+
+
+  // Return from the synthetic canister caller to the ordinary parent.
+  rosterGroup.actor.setPrincipal(outsider);
   const deniedParentRoster = await rosterGroup.actor.read_account_get_club_roster(rosterGroup.name);
   assert.ok('Err' in deniedParentRoster, 'parent must never read club-wide roster/role principals');
 
