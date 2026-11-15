@@ -1,4 +1,4 @@
-name: "[DEV only] Disposable membership directory reset (router 7 -> 11)"
+name: "[TEST] DEV-only disposable membership directory reset (router 7 -> 11)"
 
 on:
   pull_request:
