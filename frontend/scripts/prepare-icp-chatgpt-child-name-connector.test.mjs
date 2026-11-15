@@ -149,3 +149,13 @@ test('only successful, newly returned unassigned parent-owned child IDs qualify'
   assert.throws(()=>parseCreatedChildId(created.replace('club_id = null','club_id = opt "elsewhere"')));
   assert.throws(()=>parseCreatedChildId(created.replace('teams = vec {}','teams = vec {"elsewhere"}')));
 });
+
+
+test('optional portable bundle performs the same synthetic secure preparation', {skip: !process.env.IGNITE_CHATGPT_BUNDLED_CLI}, () => {
+  const file=process.env.IGNITE_CHATGPT_BUNDLED_CLI;
+  const r=spawnSync(process.execPath,[file],{input:JSON.stringify(fixture()),encoding:'utf8',timeout:15000});
+  assert.equal(r.status,0,r.stderr);
+  assert.equal(r.stderr,'');
+  assert.equal(JSON.parse(r.stdout).childId,childId);
+  assert(!r.stdout.includes('Ted'));
+});
