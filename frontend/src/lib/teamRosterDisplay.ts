@@ -37,3 +37,26 @@ export function scopedIcpTeamRosterKey(
 ): readonly unknown[] {
   return [...base, 'icp', principal ?? '', clubId ?? ''];
 }
+
+
+/**
+ * Present the exact per-child PII read state without rewriting the child's
+ * source-of-truth name, leaking ciphertext or treating placeholder "Player" as
+ * a decrypted identity. The real text must originate from an authorized read.
+ */
+export function visibleChildRosterName(
+  unlocked: string | null | undefined,
+  pending: boolean,
+): string {
+  const name = typeof unlocked === 'string' ? unlocked.trim() : '';
+  if (name && !name.startsWith('pii-')) return name;
+  return pending ? 'Unlocking name…' : 'Name unavailable';
+}
+
+export function needsChildNameRetry(
+  ids: readonly string[],
+  names: ReadonlyMap<string, string> | undefined,
+  pending: boolean,
+): boolean {
+  return ids.length > 0 && !pending && ids.some(id => !names?.get(id)?.trim());
+}

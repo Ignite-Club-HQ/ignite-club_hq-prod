@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { visibleTeamMemberName, teamRosterHeaderStatus, scopedIcpTeamRosterKey } from './teamRosterDisplay';
+import { visibleTeamMemberName, visibleChildRosterName, needsChildNameRetry, teamRosterHeaderStatus, scopedIcpTeamRosterKey } from './teamRosterDisplay';
 
 describe('team-roster privacy and loading', () => {
   it('shows existing public/authorized display names without changing them', () => {
@@ -33,5 +33,24 @@ describe('team-roster privacy and loading', () => {
     expect(a).not.toEqual(b);
     expect(a).not.toEqual(c);
     expect(base).toEqual(['team-children', 'U10']);
+  });
+});
+
+describe('authorized child-name read states', () => {
+  it('displays only decrypted text while leaving the source record unchanged', () => {
+    const id = { id: 'child-1', name: 'Player' };
+    expect(visibleChildRosterName(' Ted ', false)).toBe('Ted');
+    expect(visibleChildRosterName(undefined, true)).toBe('Unlocking name…');
+    expect(visibleChildRosterName(undefined, false)).toBe('Name unavailable');
+    expect(visibleChildRosterName('pii-display-name:unauthorized', false)).toBe('Name unavailable');
+    expect(id.name).toBe('Player');
+  });
+  it('offers a read-only retry only for unresolved member names after the query finishes', () => {
+    const ids = ['child-1','child-2'];
+    expect(needsChildNameRetry(ids, undefined, true)).toBe(false);
+    expect(needsChildNameRetry(ids, new Map(), false)).toBe(true);
+    expect(needsChildNameRetry(ids, new Map([['child-1','Ted']]), false)).toBe(true);
+    expect(needsChildNameRetry(ids, new Map([['child-1','Ted'], ['child-2','QA']]), false)).toBe(false);
+    expect(needsChildNameRetry([], undefined, false)).toBe(false);
   });
 });

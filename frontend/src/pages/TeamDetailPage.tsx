@@ -128,7 +128,7 @@ import { TeamDetailAccordionSections } from "@/components/team/TeamDetailAccordi
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { readIcpTeamPendingInvites } from "@/features/membership/teamPendingInvites";
 import { readTeamChildRows, teamRoleRows } from '@/lib/teamRosterReads';
-import { scopedIcpTeamRosterKey, teamRosterHeaderStatus } from '@/lib/teamRosterDisplay';
+import { scopedIcpTeamRosterKey, teamRosterHeaderStatus, visibleChildRosterName, needsChildNameRetry } from '@/lib/teamRosterDisplay';
 
 
 type TeamRole = TeamJoinRole;
@@ -703,7 +703,14 @@ export default function TeamDetailPage() {
         if (!id || !team?.club_id) return [];
         return withFeatureBackend('membership', {
           supabase: () => { throw new Error('ICP roster required'); },
-          icp: ctx => withRosterDeadline(readTeamChildRows(ctx, team.club_id, id), 30_000, 'team player list'),
+          icp: async ctx => {
+            // The public vetKey verification-key read is slow on a cold device.
+            // Overlap it with the Club roster-ID read; no name or access grant
+            // is fetched here and any warm-up error is safely ignored.
+            const { prewarmPiiVerificationKey } = await import('@/live/piiVetKeys');
+            prewarmPiiVerificationKey(ctx);
+            return withRosterDeadline(readTeamChildRows(ctx, team.club_id, id), 30_000, 'team player list');
+          },
         }, { clubId: team.club_id });
       }
       const { data: rpcChildren, error: rpcError } = await supabase.rpc("get_team_children_for_pitch_board", {
@@ -862,7 +869,7 @@ export default function TeamDetailPage() {
     staleTime: 60_000,
     retry: 1,
   });
-  const { data: childNames } = useQuery({
+  const { data: childNames, isLoading: isChildNamesLoading, isFetching: isChildNamesFetching, refetch: refetchChildNames } = useQuery({
     queryKey: ['team-roster-child-names', user?.id, id, team?.club_id, childNameIds],
     enabled: isIcpAccount && !!team?.club_id && childNameIds.length > 0,
     queryFn: () => withFeatureBackend('membership', {
@@ -873,11 +880,25 @@ export default function TeamDetailPage() {
       },
     }, { clubId: team?.club_id ?? '' }),
     staleTime: 60_000,
-    retry: 1,
+    // The PII helper already treats denied/unknown reads as missing. A failed
+    // cold-key unlock can be retried explicitly without silently waiting 40s.
+    retry: 0,
   });
-  const teamChildren = useMemo(() => !isIcpAccount || !childNames ? teamChildrenData : teamChildrenData.map(row => ({
-    ...row, children: { ...row.children, name: childNames.get(row.child_id) ?? row.children.name },
-  })), [isIcpAccount, teamChildrenData, childNames]);
+  const childNamesPending = isIcpAccount && (isChildNamesLoading || (isChildNamesFetching && !childNames));
+  const teamChildren = useMemo(() => !isIcpAccount ? teamChildrenData : teamChildrenData.map(row => {
+    const unlocked = childNames?.get(row.child_id);
+    return {
+      ...row,
+      children: {
+        ...row.children,
+        name: unlocked ?? row.children.name,
+        // UI-only: never pass a placeholder into selection/roster mutations.
+        rosterDisplayName: visibleChildRosterName(unlocked, childNamesPending),
+      },
+    };
+  }), [isIcpAccount, teamChildrenData, childNames, childNamesPending]);
+  const hasUnresolvedChildNames = isIcpAccount
+    && needsChildNameRetry(childNameIds, childNames, childNamesPending || isChildNamesFetching);
 
   // Fill in the signed-in member's own name at render time too — the cached
   // member list may have been fetched before their profile finished loading.
@@ -2029,6 +2050,7 @@ export default function TeamDetailPage() {
           membersSectionProps={{
             members, teamChildren, pendingInvites, memberRoleFilter, adultPlayerCount, isAdmin, isClubAdmin, currentUserId: user?.id,
             isMembersLoading, isMembersFetching, isChildrenLoading, isChildrenFetching, isMembersError, membersError, isChildrenError, childrenError, refetchMembers, refetchChildren,
+    isChildNamesLoading: childNamesPending, hasUnresolvedChildNames, refetchChildNames,
             isSoccerClub: !!isSoccerClub, onOpenHeaderInvite: () => setHeaderInviteOpen(true), onOpenAddPlayer: () => setAddPlayerOpen(true),
             onSelectChild: setSelectedChild, onLinkChildToParent: setLinkChildToParent, onMoveToTeam: setMoveToTeam, onAddRoleMember: setAddRoleMember,
             onSelectMember: setSelectedMember, onInviteParentChild: setInviteParentChild, onOpenPositionSheet: setPositionSheetPlayer, onRemoveMember: setRemoveMember,
