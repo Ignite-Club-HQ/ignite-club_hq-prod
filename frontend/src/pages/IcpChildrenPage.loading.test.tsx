@@ -48,8 +48,8 @@ it('reveals authorized child controls without waiting for name decryption or glo
   expect(screen.getByLabelText('Retrieving child name')).toBeInTheDocument();
   // The team query may begin, but it must never block a verified child card.
   expect(state.teams).not.toHaveBeenCalled();
-  expect(client.getQueryData(['icp-own-children', 'parent-a'])).toHaveLength(1);
-  expect(client.getQueryData(['icp-own-children', 'parent-b'])).toBeUndefined();
+  expect(client.getQueryData(['icp-own-children-all-groups', 'parent-a'])).toHaveLength(1);
+  expect(client.getQueryData(['icp-own-children-all-groups', 'parent-b'])).toBeUndefined();
 });
 it('failed child reads show retry rather than falsely reporting no children', async () => {
   state.children.mockRejectedValue(new Error('Denied'));
