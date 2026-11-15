@@ -14,7 +14,7 @@ export const GROUP2_CUSTOMER_SERVICES = Object.freeze([
   ["media_blob_store", "Club media blobs; ciphertext and storage permissions remain enforced."],
   ["insights_domain", "Club analytics; existing admin permissions remain enforced."],
 ]);
- 
+
 // Explicitly opt-in only on the pinned DEV frontend for the child-name test.
 // Discovery exposes the WHOLE canister interface, not just registration methods.
 // The vault must continue to enforce owner/guardian/club authorization on-chain.
@@ -25,9 +25,11 @@ const GROUP2_CHILD_NAME_PII_SERVICE = Object.freeze([
   "Encrypted child-name vault; owner-authorized writes and scoped reads. No plaintext.",
 ]);
 
-// Not exposed on Group 2 by default:
+// Not exposed on Group 2 by this DEV integration:
 // pii_access_control, notification_queue, timer_jobs, secret_workload_identity,
-// governor/deployment controls. No PROD frontend may advertise these G2 ids.
+// governor/deployment controls. The PII exception above is disabled by default
+// and requires explicit opt-in on the pinned DEV frontend; queue/worker services
+// stay excluded in all cases. No PROD frontend may advertise these G2 ids.
 const CANISTER_ID = /^[a-z0-9]{5}(?:-[a-z0-9]{5}){3}-cai$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 
