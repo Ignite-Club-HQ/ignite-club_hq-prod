@@ -1546,6 +1546,12 @@ export async function listMyLiveGroupRoleGrants(ctx: FeatureBackendContext) {
   return actor.read_account_my_role_grants();
 }
 
+/** Authorized roster IDs from club_domain's canonical Child.teams. No PII or guardian export. */
+export async function listLiveTeamChildIds(ctx: FeatureBackendContext, clubId: string, teamId: string): Promise<string[]> {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  return unwrapCandid(actor.read_account_list_team_child_ids(clubId, teamId), "List team children");
+}
+
 export async function listMyLiveOwnChildren(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
   // Group 2 requires protected consensus account reads; its legacy query
