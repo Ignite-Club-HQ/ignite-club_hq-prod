@@ -178,3 +178,22 @@ Any mid-flight refusal is left explicit for a scoped follow-up rather than
 blind retry or a broad release workflow.
 
 No DEV canister was upgraded, reset or configured by preparing this PR.
+
+
+### Identity-only DEV upgrade (separate owner approval)
+
+The existing `[TEST] Upgrade backend (all test groups)` workflow now has
+`scope = dev_identity_directory`. The source policy accepts exactly the
+one shared `identity_access` target, not notification, Club, PII, router or
+PROD targets. Use `action = check` to obtain and review the checked plan
+hash before any upgrade. A subsequent, **separately approved** `upgrade`
+requires:
+- `scope = dev_identity_directory`
+- `checked_plan =` exact observed 64-character hash
+- confirmation `UPGRADE DEV IDENTITY DIRECTORY ONLY`
+
+The directory reset is a separate protected workflow with separate approval:
+`[TEST] DEV-only disposable membership directory reset (router 7 -> 11)`.
+First run its read-only `check` action. Only after reviewing those facts
+can the `reset` action be authorised. Neither merge nor frontend deployment
+automatically executes either upgrade or reset.
