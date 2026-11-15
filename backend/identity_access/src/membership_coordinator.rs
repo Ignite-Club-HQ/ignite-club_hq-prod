@@ -89,6 +89,19 @@ impl<M:Memory+Clone> Coordinator<M>{
     pub fn verified_generation(&self)->Outcome<u64>{Ok(self.inventory()?.generation)}
     fn build(&self,source:&str)->Option<Build>{self.rows.get(&format!("source:{source}")).map(|b|decode(&b))}
     fn save(&mut self,source:&str,b:&Build){self.rows.insert(format!("source:{source}"),encode(b));}
+    /// Disposal is deliberately confined to the membership-directory stable
+    /// partitions. No account, identity-link, role or PII storage is touched.
+    pub fn dev_disposal_within_budget(&self)->bool {
+        self.rows.len()<=10_000 && self.journal.dev_disposal_within_budget()
+            && self.pool.dev_disposal_within_budget()
+    }
+    pub fn dev_discard_test_directory(&mut self) {
+        // No await: all obsolete build data and its journals disappear together.
+        self.pool.dev_discard_small_test_pool();
+        self.journal.dev_discard_test_updates();
+        let keys:Vec<String>=self.rows.iter().map(|e|e.key().clone()).collect();
+        for key in keys { self.rows.remove(&key); }
+    }
     pub fn bind_inventory(&mut self,verified:VerifiedInventory)->Outcome<()>{
         let next=verified.0;
         if let Ok(prior)=self.inventory(){
