@@ -86,4 +86,25 @@ describe("self-service ICP invite child onboarding", () => {
     expect(a.assignOwnChildToTeam).not.toHaveBeenCalled();
   });
 
+  it("starts the independent team assignment without waiting for encrypted-name storage", async () => {
+    const a = actions();
+    let finishName: (() => void) | undefined;
+    a.saveName.mockImplementation(() => new Promise<void>(resolve => { finishName = resolve; }));
+    const inFlight = createIcpInviteChild(input, a);
+    await vi.waitFor(() => expect(a.assignOwnChildToTeam).toHaveBeenCalledWith("child-owned"));
+    expect(finishName).toBeTypeOf("function");
+    expect(a.createOwnChild).toHaveBeenCalledTimes(1);
+    finishName?.();
+    await expect(inFlight).resolves.toEqual({ status: "linked", childId: "child-owned" });
+  });
+
+  it("does not skip team assignment when the encrypted-name action throws synchronously", async () => {
+    const a = actions();
+    a.saveName.mockImplementation(() => { throw new Error("Unexpected PII failure"); });
+    const result = await createIcpInviteChild(input, a);
+    expect(result).toEqual({ status: "linked_without_name", childId: "child-owned" });
+    expect(a.createOwnChild).toHaveBeenCalledTimes(1);
+    expect(a.assignOwnChildToTeam).toHaveBeenCalledTimes(1);
+  });
+
 });
