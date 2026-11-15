@@ -570,6 +570,24 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
 
+  // Pinned club-domain source verifies *same-team* child names only.
+  // Input child IDs cannot grant access: the Club canister checks its own
+  // Child.teams and the viewer's currently admitted team membership.
+  // Any unavailable authority or denial fails closed.
+  func verifiedTeamChildNames(viewer : Principal, ids : [Text], fieldId : Text) : async [Text] {
+    if (fieldId != "name" or ids.size() == 0 or ids.size() > 100) return [];
+    switch (club_domain_canister) {
+      case null [];
+      case (?cid) {
+        let clubDomain : actor {
+          read_can_team_child_name_visibility : shared (Principal, [Text]) -> async [Text];
+        } = actor(cid.toText());
+        try { await (with timeout = 10) clubDomain.read_can_team_child_name_visibility(viewer, ids) }
+        catch (_) { [] }
+      };
+    }
+  };
+
   // ==================== vetKeys (IBE) ====================
 
   // The canister's IBE public key for the vetKD context. Not sensitive —
@@ -602,6 +620,7 @@ persistent actor class Main(governorInit : Principal) = this {
     let epoch = mediaAuthEpoch;
     let allowedClubs = await resolveAllowedClubs(caller, pii_ids, field_id);
     let allowedCompetitions = await resolveAllowedCompetitions(caller, pii_ids, field_id);
+    let teamChildNames = await verifiedTeamChildNames(caller, pii_ids, field_id);
     if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
     var out : [?Blob] = [];
     for (pii_id in pii_ids.values()) {
@@ -609,7 +628,7 @@ persistent actor class Main(governorInit : Principal) = this {
         case (?r) {
           let direct = await directRead(caller, r);
           if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
-          let allowed = direct or canReadViaClub(r, allowedClubs) or canReadViaCompetition(r, allowedCompetitions);
+          let allowed = direct or canReadViaClub(r, allowedClubs) or canReadViaCompetition(r, allowedCompetitions) or teamChildNames.any(func(id) = id == pii_id);
           log_audit(caller, pii_id, field_id, "vetkey_derive", allowed, "PII vetKey derivation");
           if (allowed) {
             let encryptedKey = await ManagementCanister.vetKdDeriveKey(
@@ -621,8 +640,9 @@ persistent actor class Main(governorInit : Principal) = this {
             let freshClubs = await resolveAllowedClubs(caller, [pii_id], field_id);
             let freshCompetitions = await resolveAllowedCompetitions(caller, [pii_id], field_id);
             let freshDirect = await directRead(caller, r);
+            let freshTeamChildNames = await verifiedTeamChildNames(caller, [pii_id], field_id);
             await admitAccount(caller);
-            if (epoch != mediaAuthEpoch or not (freshDirect or canReadViaClub(r, freshClubs) or canReadViaCompetition(r, freshCompetitions)))
+            if (epoch != mediaAuthEpoch or not (freshDirect or canReadViaClub(r, freshClubs) or canReadViaCompetition(r, freshCompetitions) or freshTeamChildNames.any(func(id) = id == pii_id)))
               return #Err("PII authorization changed");
             out := out.concat([?encryptedKey]);
           } else {
@@ -1217,6 +1237,7 @@ persistent actor class Main(governorInit : Principal) = this {
     let epoch = mediaAuthEpoch;
     let allowedClubs = await resolveAllowedClubs(caller, pii_ids, field_id);
     let allowedCompetitions = await resolveAllowedCompetitions(caller, pii_ids, field_id);
+    let teamChildNames = await verifiedTeamChildNames(caller, pii_ids, field_id);
     if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
     var out : [EncryptedPii] = [];
     for (pii_id in pii_ids.values()) {
@@ -1224,7 +1245,7 @@ persistent actor class Main(governorInit : Principal) = this {
         case (?r) {
           let direct = await directRead(caller, r);
           if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
-          let allowed = direct or canReadViaClub(r, allowedClubs) or canReadViaCompetition(r, allowedCompetitions);
+          let allowed = direct or canReadViaClub(r, allowedClubs) or canReadViaCompetition(r, allowedCompetitions) or teamChildNames.any(func(id) = id == pii_id);
           log_audit(caller, pii_id, field_id, operation, allowed, purpose);
           if (allowed) {
             out := out.concat([{
@@ -1242,6 +1263,10 @@ persistent actor class Main(governorInit : Principal) = this {
       };
     };
     await admitAccount(caller);
+    // An in-flight team removal/revocation must not release ciphertext after
+    // the viewer loses access. The verifier rechecks the authoritative ACL.
+    if (teamChildNames.size() > 0 and (await verifiedTeamChildNames(caller, pii_ids, field_id)) != teamChildNames)
+      return #Err("Team child-name authorization changed");
     if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
     #Ok(out)
   
