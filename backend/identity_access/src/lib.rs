@@ -722,8 +722,13 @@ async fn reset_disposable_dev_membership_directory(
     let mut current_binding=before.binding.clone();
     current_binding.registry_revision=expected_router_revision;
     let unchanged=||->Outcome<()>{
-        if directory_config()?!=before {
-            return Err("DEV directory changed during preflight; no reset performed".into());
+        // The timer may advance next_source and an authenticated source may
+        // advance pending invalidation watermarks while router reads await.
+        // These are disposable directory progress, not authority changes.
+        // Keep strict fencing of binding, generation, source inventory,
+        // lifecycle, enabled state and released-reader marker.
+        if !directory_config()?.same_configuration(&before) {
+            return Err("DEV directory authority changed during preflight; no reset performed".into());
         }
         if DIRECTORY_TIMER_BUSY.with(|busy|*busy.borrow()) {
             return Err("Directory refresh became active; no reset performed".into());
