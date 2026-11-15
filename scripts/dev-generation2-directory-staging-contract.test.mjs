@@ -51,7 +51,8 @@ test('fill is bounded, identity-owned and cannot activate a reader or change per
 
 test('legacy generation-one release refuses a rebuilt directory before attempting installs',()=>{
   assert.match(legacy,/read_membership_directory_configuration\(\)/);
-  assert.match(legacy,/generation===2n/);
+  assert.match(legacy,/generation!==1n/);
+  assert.match(legacy,/if \('Err' in current\)/);
   const fence=legacy.indexOf('read_membership_directory_configuration()');
   const install=legacy.indexOf('await executeUpgrades(');
   assert.ok(fence>=0 && install>fence,'generation-2 rejection must precede any install');
