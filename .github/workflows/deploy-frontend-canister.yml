@@ -12,7 +12,13 @@
 name: "[TEST] Deploy web app (frontend canister)"
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      enable_dev_g2_child_pii:
+        description: "DEV only: publish Group 2 encrypted child-name vault for ChatGPT (review required)"
+        required: true
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ["frontend/**", "deploy/frontend/**", ".github/workflows/deploy-frontend-canister.yml", "!frontend/scripts/**", "!frontend/**/*.test.*", "!frontend/**/*.md"]
@@ -57,6 +63,10 @@ jobs:
           IGNITE_LIVE_DEV_FIREBASE_PROJECT_ID: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_PROJECT_ID }}
           IGNITE_LIVE_DEV_FIREBASE_APP_ID: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_APP_ID }}
           IGNITE_LIVE_DEV_FIREBASE_VAPID_KEY: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_VAPID_KEY }}
+          # Opt-in only for canonical DEV frontend: either a separately selected
+          # manual run or the explicitly configured repository variable.
+          # Other automatic builds and PROD must never inherit this by default.
+          IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY: ${{ (github.ref == 'refs/heads/main' && (vars.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY == '1' || (github.event_name == 'workflow_dispatch' && inputs.enable_dev_g2_child_pii))) && '1' || '0' }}
         run: |
           set -euo pipefail
           # DEV/test canisters only; refuses any PROD canister in the table.
@@ -66,6 +76,24 @@ jobs:
           node ../scripts/sync-canister-ids.mjs || true
           npm run build:live
           node scripts/prepare-canister-dist.mjs
+          # Assert the build's actual published bytes: the DEV PII service
+          # appears exactly once only with opt-in, and workers remain hidden.
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const m = JSON.parse(readFileSync('dist-canister/.well-known/ic-architecture', 'utf8'));
+          const ids = m.canisters.map(c => c.id);
+          const g2Pii = 'zt5a6-yiaaa-aaaal-qxp5q-cai';
+          const forbidden = ['zu4gk-vqaaa-aaaal-qxp5a-cai', 'zg2rt-zaaaa-aaaal-qxp6a-cai', 'tbeh7-5qaaa-aaaai-ayenq-cai'];
+          const enabled = process.env.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY === '1';
+          if (ids.filter(id => id === g2Pii).length !== (enabled ? 1 : 0)) {
+            throw new Error('DEV Group 2 child-name PII manifest disagrees with explicit opt-in');
+          }
+          if (forbidden.some(id => ids.includes(id))) {
+            throw new Error('DEV manifest unexpectedly contains a worker or PROD service');
+          }
+          console.log(enabled ? 'DEV Group 2 child-name PII published (caller ACL still enforced)'
+                              : 'DEV Group 2 child-name PII remains unpublished');
+          NODE
           # The static-site plugin may only read files inside deploy/frontend.
           rm -rf ../deploy/frontend/dist
           cp -r dist-canister ../deploy/frontend/dist
