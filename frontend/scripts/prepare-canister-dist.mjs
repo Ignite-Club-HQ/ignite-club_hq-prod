@@ -107,8 +107,9 @@ function devGroup2Discovery() {
   return reviewedDevGroup2Canisters({
     sharedIds: canisterIds,
     frontendId: frontendCanisterId,
-    // Separate, exact opt-in: PII is intentionally absent from normal Group 2
-    // plugin discovery. Never enable automatically or for a PROD frontend.
+    // Separate, exact DEV-only pin: the owner-approved main frontend release
+    // workflow now persists this opt-in across automatic deployments. Local
+    // builds remain off by default and PROD/pinned-other frontends fail closed.
     includeChildNamePii: process.env.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY === "1",
   });
 }
