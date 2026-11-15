@@ -101,7 +101,9 @@ it('prefers the verified member-group route for names and prewarms the public ke
   expect(await screen.findByText('Ted')).toBeInTheDocument();
   expect(state.prewarm).toHaveBeenCalled();
   const memberRoutes = state.routed.mock.calls.filter(([scope]) => scope?.memberGroups);
-  expect(memberRoutes).toHaveLength(1);
+  // The member route now serves both the early child preview and the
+  // subsequent ciphertext/name read; neither requires an all-group name sweep.
+  expect(memberRoutes.length).toBeGreaterThanOrEqual(2);
   expect(state.names).toHaveBeenCalledTimes(1);
 });
 
