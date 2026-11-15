@@ -88,17 +88,37 @@ const directory = unwrap(await identity.read_membership_directory_configuration(
 const expectedSources=[['g1',PIN.g1],['g2',PIN.g2]];
 const matchesSources=(sources:typeof directory.sources)=>
   fingerprint(sources.map(([g,p])=>[g,p.toText()]))===fingerprint(expectedSources);
-if(directory.binding.registry.toText()!==PIN.router||
-   directory.binding.registry_revision!==7n||
-   directory.binding.target_alias!=='mainnet'||
-   directory.binding.deployment_id!=='mainnet'||
-   directory.binding.deployment_revision!==1n||
-   directory.binding.host!=='https://icp-api.io'||
-   directory.binding.network_kind!=='public_mainnet'||
-   directory.generation!==1n||
-   directory.app_enabled||
-   !matchesSources(directory.sources)) {
-  throw new Error('Existing directory is not the exact unreleased DEV revision-7 fixture; no changes');
+// Diagnose only which non-sensitive configuration invariants mismatch.
+// Keep the exact backend 7-to-11 fence; a diagnostic is not a reset waiver.
+const fixtureChecks = {
+  expectedRouter:directory.binding.registry.toText()===PIN.router,
+  savedRevision7:directory.binding.registry_revision===7n,
+  targetAlias:directory.binding.target_alias==='mainnet',
+  deploymentId:directory.binding.deployment_id==='mainnet',
+  deploymentRevision1:directory.binding.deployment_revision===1n,
+  host:directory.binding.host==='https://icp-api.io',
+  networkKind:directory.binding.network_kind==='public_mainnet',
+  generation1:directory.generation===1n,
+  membershipReaderUnreleased:directory.app_enabled===false,
+  exactTwoSourceMapping:matchesSources(directory.sources),
+};
+const mismatches=Object.entries(fixtureChecks).filter(([,passed])=>!passed).map(([name])=>name);
+if(mismatches.length) {
+  // No keys, principal lists, profile data, PII, cryptographic digests or grants.
+  // A runner has already obtained the governor readback; do not re-query.
+  mkdirSync(resolve(reportDir),{recursive:true});
+  writeFileSync(resolve(reportDir,'check.json'),JSON.stringify({
+    action, state:'blocked',reason:'exact-existing-directory-preflight-mismatch',
+    observedSavedDirectoryRevision:String(directory.binding.registry_revision),
+    observedDirectoryGeneration:String(directory.generation),
+    observedSourceCount:directory.sources.length,
+    observedMembershipReaderReleased:directory.app_enabled,
+    expectedRouterRevision:'11',
+    fixtureChecks, mismatches, noWritesAttempted:true,
+    readyForReset:false, privateNameAccessReleased:false,
+  },null,2));
+  throw new Error('DEV disposable directory check blocked on '+mismatches.join(', ')+
+    '. Non-sensitive mismatch evidence saved; no changes made.');
 }
 const sourceBefore = [];
 for (const s of clubs) {
