@@ -4,7 +4,7 @@
 
 ## Verified preflight targets (reverify just before writes)
 
-- App: `https://ignite-club-launchpad.lovable.app`
+- App (canonical ICP frontend): `https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io`
 - Internet Identity origin: `https://proe7-kqaaa-aaaas-qg6gq-cai.ic0.app` (obtain through `open_app` again)
 - DEV Group 2 club_domain: `yfwyv-nyaaa-aaaal-qxpyq-cai`
 - DEV Group 2 pii_access_control: `zt5a6-yiaaa-aaaal-qxp5q-cai`
@@ -99,3 +99,35 @@ Synthetic end-to-end execution (Node + real @icp-sdk/vetkeys, no canister access
 - Source tests, synthetic encryption and actual live DEV access verification are necessary but do not prove a **new live child** is created, named and decrypted. No such write is permitted by this code or PR.
 - The public key comes from a signed-in connector call but is not secret, and the node process never receives the user's Internet Identity delegation, passwords, signing keys or vetKeys. Its returned Candid arguments are ciphertext and can be sent by the existing connector only with separate write approval.
 - The bridge is intentionally pinned to **Test3 and Group 2 ChatGPT Plugin Test U10**; it is a narrow DEV acceptance test, not a generic user onboarding implementation.
+
+
+### Portable runner verified in ChatGPT (no extra plugin)
+
+The [TEST] Secure ChatGPT private-name preparation workflow now packages the
+locked Node dependencies and three local scripts into a short-lived GitHub
+Actions artifact named ignite-dev-g2-child-name-offline-cli. CI executes a
+synthetic encryption request using that detached package before uploading it.
+No user names, Internet Identity delegations or canister writes enter CI.
+
+The connected GitHub tool can retrieve the artifact and ChatGPT's container
+can unpack and execute it with Node 22 without an internet npm installation.
+This was verified in the live ChatGPT session on 15 November 2026: the official
+DFINITY ICP connector provided the actual DEV Group 2 PII canister's public
+96-byte verification key; the offline runner used a synthetic child ID and
+synthetic name to produce a 263-byte IGSK1 clubchildren ciphertext and the
+five expected Candid operations, with no plaintext in output and zero writes.
+
+For an approved real child test, retrieve a reviewed matching artifact and
+verify the Test3 app, Parent role, U10 team, Group 2 membership and empty child
+inventory. Only after one-child approval call create_own_child once and
+preserve the returned exact child receipt. Then use the offline helper with
+the genuine tool responses and intended child name over private stdin; do
+not put personal data in GitHub or any shell arguments. Separately approve
+each canister write, verify registration ciphertext before grants/assignment,
+and stop on ambiguous outcomes. Never create a duplicate child as recovery.
+
+The DFINITY ICP connector remains the ONLY signer and canister transport.
+The temporary offline runtime contains no keys or delegations, calls no
+network endpoints and cannot write to PROD or send notifications. This is a
+pinned DEV U10 acceptance tool, not a generic consumer onboarding plugin.
+A future ChatGPT session may need to retrieve a fresh approved CI artifact.
