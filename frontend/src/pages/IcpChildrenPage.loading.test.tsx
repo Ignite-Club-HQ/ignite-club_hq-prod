@@ -108,7 +108,11 @@ it('falls back to verified all-group name reads when an orphan child is not in a
   open();
   await waitFor(() => {
     const status = client.getQueryState(['icp-own-children-all-groups', 'parent-a']);
-    if (status?.status === 'error') throw status.error;
+    if (status?.status === 'error') {
+      throw new Error('Full-child lookup failed: ' + String(status.error)
+        + '; routed scopes=' + JSON.stringify(state.routed.mock.calls.map(([scope]) =>
+          scope ? Object.keys(scope) : ['none'])));
+    }
     expect(status?.status).toBe('success');
   });
   expect(await screen.findByText('Ted')).toBeInTheDocument();
@@ -163,7 +167,11 @@ it('allows child controls only after the complete cross-group inventory is verif
   expect(await screen.findByText('Ted')).toBeInTheDocument();
   await waitFor(() => {
     const status = client.getQueryState(['icp-own-children-all-groups', 'parent-a']);
-    if (status?.status === 'error') throw status.error;
+    if (status?.status === 'error') {
+      throw new Error('Full-child lookup failed: ' + String(status.error)
+        + '; routed scopes=' + JSON.stringify(state.routed.mock.calls.map(([scope]) =>
+          scope ? Object.keys(scope) : ['none'])));
+    }
     expect(status?.status).toBe('success');
     expect(screen.getByRole('button', { name: 'Add child' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Remove child' })).toBeEnabled();
