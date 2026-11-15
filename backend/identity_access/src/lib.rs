@@ -2315,7 +2315,10 @@ async fn read_guardian_profile_candidates(authority: Principal, child: String, c
 /// never admits a human. References must name this precise original PII caller.
 #[ic_cdk::update]
 async fn read_private_profile_name_authorization(viewer_principal: Principal, subjects: Vec<Principal>, scope: private_name_audience::Scope) -> Outcome<Vec<ProfileSearchResult>> {
-    if option_env!("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != Some("1") && !(scope.kind == "club" && private_club_name_displays_released()) { return Err("Private name audiences are not released".into()); }
+    if option_env!("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != Some("1") &&
+        !((scope.kind == "club" || scope.kind == "team") && private_club_name_displays_released()) {
+        return Err("Private name audiences are not released".into());
+    }
     private_name_audience::validate(viewer_principal, &subjects, &scope)?;
     let service = ic_cdk::api::msg_caller();
     if !service_authorities().contains(&service) { return Err("Configured private-name service required".into()); }
@@ -2356,7 +2359,7 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         verify_guardian_search(viewer_principal, scope.authority, &scope.resource, &viewer, &config).await?;
         active()?;
     } else {
-        let method = match scope.kind.as_str() { "club" => "read_profile_membership_batch", "family" => "read_profile_family_batch", "competition" | "league" => "read_profile_audience_batch", "direct" => "read_profile_direct_batch", "broadcast" => "read_profile_broadcast_batch", "competition_admin" => "read_profile_competition_admin_batch", _ => return Err("Invalid audience".into()) };
+        let method = match scope.kind.as_str() { "club" => "read_profile_membership_batch", "team" => "read_profile_team_membership_batch", "family" => "read_profile_family_batch", "competition" | "league" => "read_profile_audience_batch", "direct" => "read_profile_direct_batch", "broadcast" => "read_profile_broadcast_batch", "competition_admin" => "read_profile_competition_admin_batch", _ => return Err("Invalid audience".into()) };
         let mut retained: Option<club_profiles::MembershipBatch> = None;
         for _ in 0..2 {
             let expected = retained.as_ref().map(|r| r.revision.clone());
