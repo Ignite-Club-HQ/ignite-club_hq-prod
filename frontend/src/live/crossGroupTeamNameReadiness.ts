@@ -126,17 +126,25 @@ export function inspectLegacyGroup1TeamNameTopology(
   }
 
   const wire = directory.binding;
-  if (wire.registry.toText() !== pins.routerCanister ||
-      wire.registry_revision !== snapshot.revision || wire.registry_revision !== registeredBinding.registryRevision ||
-      wire.target_alias !== (registeredBinding.registryAlias ?? registeredBinding.targetAlias) ||
-      wire.deployment_id !== registeredBinding.deploymentId ||
-      wire.deployment_revision !== registeredBinding.deploymentRevision ||
-      wire.host !== registeredBinding.host ||
-      wire.network_kind !== registeredBinding.networkKind ||
-      !directory.enabled || !directory.app_enabled ||
-      directory.generation < 1n || directory.inventory_digest.length !== 32) {
-    throw new Error('Current complete Identity directory binding/readback is required');
-  }
+  // Each failure is a stable, non-sensitive diagnostic. The previous combined
+  // boolean masked whether an intentionally gated directory was disabled,
+  // stale, or pointed at a different deployment. Never log directory payloads,
+  // personal identifiers, keys or source inventories.
+  const blocked = (reason: string): never => {
+    throw new Error(`Current complete Identity directory binding/readback is required: ${reason}. No private-name access was attempted.`);
+  };
+  if (wire.registry.toText() !== pins.routerCanister) blocked('original router authority mismatch');
+  if (wire.registry_revision !== snapshot.revision) blocked('Identity directory revision differs from the live router revision');
+  if (wire.registry_revision !== registeredBinding.registryRevision) blocked('Identity directory revision differs from the approved registry pin');
+  if (wire.target_alias !== (registeredBinding.registryAlias ?? registeredBinding.targetAlias)) blocked('deployment alias mismatch');
+  if (wire.deployment_id !== registeredBinding.deploymentId) blocked('deployment identity mismatch');
+  if (wire.deployment_revision !== registeredBinding.deploymentRevision) blocked('deployment revision mismatch');
+  if (wire.host !== registeredBinding.host) blocked('deployment host mismatch');
+  if (wire.network_kind !== registeredBinding.networkKind) blocked('network kind mismatch');
+  if (!directory.enabled) blocked('Identity membership directory disabled');
+  if (!directory.app_enabled) blocked('Identity membership directory reader not released');
+  if (directory.generation < 1n) blocked('directory generation not activated');
+  if (directory.inventory_digest.length !== 32) blocked('inventory fingerprint missing or invalid');
 
   const actual = directory.sources.map(([groupId, authority]) => [groupId, authority.toText()] as const);
   const expected = [
