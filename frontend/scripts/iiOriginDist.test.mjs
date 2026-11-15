@@ -12,6 +12,7 @@ const PROD_FRONTEND = "pjx2u-tiaaa-aaaac-qhj3a-cai";
 const DEV_CLUB = "mzzzv-taaaa-aaaal-qxlrq-cai";
 const PROD_CLUB = "tbeh7-5qaaa-aaaai-ayenq-cai";
 const GROUP2_CLUB = "yfwyv-nyaaa-aaaal-qxpyq-cai";
+const GROUP2_PII = "zt5a6-yiaaa-aaaal-qxp5q-cai";
 const provisionFile = path.join(scriptDirectory, "../../deploy/groups/g2/provision.json");
 const provision = JSON.parse(readFileSync(provisionFile, "utf8"));
 const sharedDevCanisters = JSON.parse(readFileSync(path.join(scriptDirectory, "../../deploy/mainnet/.icp/data/mappings/ic.ids.json"), "utf8"));
@@ -51,6 +52,7 @@ function generatedManifest(environment, opts = {}) {
         ...process.env,
         IGNITE_FRONTEND_ENV: environment,
         IGNITE_MCP_DEV_GROUP2_DISCOVERY: opts.enableGroup2 === undefined ? "" : (opts.enableGroup2 ? "1" : "0"),
+        IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY: opts.enableChildNamePii ? "1" : "0",
         FRONTEND_CANISTER_ID: frontId,
         IGNITE_LIVE_ICP_CANISTER_IDS_JSON: JSON.stringify(isProd ? { club_domain: clubId } : sharedDevCanisters),
       },
@@ -106,6 +108,30 @@ test("opt-in DEV discovery declares only pinned customer-facing Group 2 services
   for (const name of ["pii_access_control", "notification_queue", "timer_jobs"]) {
     assert.ok(!declared.some(c => c.id === provision.canisters[name]), "do not expose private/worker canisters");
   }
+});
+
+test("exact DEV opt-in exposes only the pinned Group 2 PII canister beyond reviewed customer services", () => {
+  const dev = generatedManifest("dev", { enableGroup2: true, enableChildNamePii: true });
+  const baseline = generatedManifest("dev");
+  const declared = dev.manifest.canisters.filter(c => c.name.startsWith("g2/"));
+  const extra = declared.filter(c => !baseline.manifest.canisters.some(base => base.id === c.id));
+  assert.equal(extra.length, 1);
+  assert.equal(extra[0].id, GROUP2_PII);
+  assert.equal(extra[0].name, "g2/pii_access_control");
+  assert.equal(new Set(dev.manifest.canisters.map(c => c.id)).size, dev.manifest.canisters.length);
+  for (const internal of ["notification_queue", "timer_jobs"]) {
+    assert.ok(!declared.some(c => c.id === provision.canisters[internal]));
+  }
+  assert.ok(!dev.manifest.canisters.some(c => c.id === PROD_CLUB || c.id === PROD_FRONTEND));
+  const prod = generatedManifest("prod", { enableGroup2: true, enableChildNamePii: true });
+  assert.ok(!prod.manifest.canisters.some(c => c.id === GROUP2_PII));
+  assert.ok(!prod.manifest.canisters.some(c => c.id === GROUP2_CLUB));
+});
+
+test("misconfigured Group 2 PII ID fails closed rather than publishing an arbitrary service", () => {
+  const bad = structuredClone(provision);
+  bad.canisters.pii_access_control = "yfwyv-nyaaa-aaaal-qxpyq-cai"; // wrong authority, duplicated canister
+  assert.throws(() => generatedManifest("dev", { enableGroup2: true, enableChildNamePii: true, badProvision: bad }));
 });
 
 test("Group 2 discovery can be disabled on DEV and is always disabled on PROD", () => {
