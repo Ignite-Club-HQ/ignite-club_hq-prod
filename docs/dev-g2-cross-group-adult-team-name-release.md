@@ -2,8 +2,11 @@
 
 **Status: source verification prepared; real name release BLOCKED.**
 
-No deployment, canister upgrade, registry change, permissions grant, PII write,
-key rotation, notification, or PROD change is part of these PRs. Ignite DEV
+The prepared check never deploys or upgrades canisters, changes routing or
+permissions, writes PII, rotates keys, sends notifications or touches PROD.
+However, **merging a PR that changes `frontend/` may automatically trigger the
+repository's normal DEV frontend deployment**, even if no visible UI behavior
+changes. Treat merge as a separate owner-reviewed action. Ignite DEV
 canisters run on the ICP public mainnet.
 
 ## What the browser and canisters show
