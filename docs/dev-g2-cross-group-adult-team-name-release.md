@@ -103,3 +103,34 @@ The final user test is simply loading the U10 team as both existing parents,
 confirming their authorised teammate names and checking another team/club
 cannot read them. Do not create new children, duplicate Ted/Dingo or modify
 either parent's PII to test routing.
+
+
+## 16 November 2026: observed live revision drift — do not reconfigure yet
+
+The approved `DEV legacy G1 name origin read-only check` completed its
+main/confirmation gate and governor-only Identity configuration read. It
+failed with: `Identity directory revision differs from the live router
+revision`. That is a **real currentness blocker**, not a name decryption
+error and not evidence of a missing child or membership record.
+
+`identity_access.configure_membership_directory` rejects replacement
+of an existing directory if its pinned binding, generation, inventory digest,
+sources or enabled state differs. It reports `Directory replacement requires
+fenced recovery; not released`. Thus, neither increasing a client-side
+revision constant nor blindly rerunning `RELEASE MEMBERSHIP LOOKUP`
+is a safe reconciliation.
+
+The next protected workflow will record **only** the two revision numbers,
+status booleans and confirmation that two independent authenticated readbacks
+agree. On revision mismatch, it writes a `blocked` report artifact and
+deliberately fails before any private/public key operation. It does not
+pin the new revision, enable the reader, alter service inventories or grant
+PII access.
+
+A later recovery proposal must independently establish why the router
+revision changed, compare the source inventory at each revision, preserve
+invalidation watermark, life-cycle and ownership evidence, and implement
+a governor-gated, journaled **fenced transition** with isolated replica
+tests before any separate owner-approved DEV change. Existing records,
+sources, children and private keys must not be overwritten or replayed.
+Draft PR #1543 remains on hold.
