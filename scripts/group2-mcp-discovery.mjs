@@ -14,14 +14,24 @@ export const GROUP2_CUSTOMER_SERVICES = Object.freeze([
   ["media_blob_store", "Club media blobs; ciphertext and storage permissions remain enforced."],
   ["insights_domain", "Club analytics; existing admin permissions remain enforced."],
 ]);
+ 
+// Explicitly opt-in only on the pinned DEV frontend for the child-name test.
+// Discovery exposes the WHOLE canister interface, not just registration methods.
+// The vault must continue to enforce owner/guardian/club authorization on-chain.
+// Never publish governor or worker services through this path.
+const DEV_G2_CHILD_PII_PIN = "zt5a6-yiaaa-aaaal-qxp5q-cai";
+const GROUP2_CHILD_NAME_PII_SERVICE = Object.freeze([
+  "pii_access_control",
+  "Encrypted child-name vault; owner-authorized writes and scoped reads. No plaintext.",
+]);
 
-// Not exposed on Group 2 by this DEV integration:
+// Not exposed on Group 2 by default:
 // pii_access_control, notification_queue, timer_jobs, secret_workload_identity,
 // governor/deployment controls. No PROD frontend may advertise these G2 ids.
 const CANISTER_ID = /^[a-z0-9]{5}(?:-[a-z0-9]{5}){3}-cai$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 
-export function validateGroup2CustomerCanisters({ provision, approval, sharedIds, frontendId }) {
+export function validateGroup2CustomerCanisters({ provision, approval, sharedIds, frontendId, includeChildNamePii = false }) {
   if (provision?.groupId !== "g2" || provision?.deploymentId !== "mainnet" ||
       provision?.phase !== "checked" || approval?.targetAlias !== "mainnet" ||
       approval?.deploymentId !== "mainnet" ||
@@ -34,8 +44,22 @@ export function validateGroup2CustomerCanisters({ provision, approval, sharedIds
   const approved = new Map(approval.services.map(service => [service.name, service]));
   if (approved.size !== approval.services.length) throw new Error("Duplicate Group 2 approval service");
   const occupied = new Set([frontendId, ...Object.values(sharedIds)]);
+  // Fail closed if the reviewed DEV PII identity, independent module approval,
+  // or subnet binding changes. Never accept a caller-supplied arbitrary PII ID.
+  if (includeChildNamePii) {
+    const pii = approval.services.find(s => s.name === "pii_access_control");
+    const club = approval.services.find(s => s.name === "club_domain");
+    if (provision.canisters?.pii_access_control !== DEV_G2_CHILD_PII_PIN ||
+        pii?.canisterId !== DEV_G2_CHILD_PII_PIN ||
+        !pii?.subnetId || pii.subnetId !== club?.subnetId) {
+      throw Error("Unreviewed DEV Group 2 child-name PII authority");
+    }
+  }
   const result = [];
-  for (const [name, description] of GROUP2_CUSTOMER_SERVICES) {
+  const domains = includeChildNamePii
+    ? [...GROUP2_CUSTOMER_SERVICES, GROUP2_CHILD_NAME_PII_SERVICE]
+    : GROUP2_CUSTOMER_SERVICES;
+  for (const [name, description] of domains) {
     const isBlob = name === "media_blob_store";
     const canisterId = isBlob ? provision.dedicatedBlobStore?.canisterId : provision.canisters?.[name];
     const service = approved.get(name);
@@ -52,8 +76,8 @@ export function validateGroup2CustomerCanisters({ provision, approval, sharedIds
   return result;
 }
 
-export function reviewedDevGroup2Canisters({ sharedIds, frontendId }) {
+export function reviewedDevGroup2Canisters({ sharedIds, frontendId, includeChildNamePii = false }) {
   const provision = JSON.parse(readFileSync(new URL("../deploy/groups/g2/provision.json", import.meta.url), "utf8"));
   const approval = JSON.parse(readFileSync(new URL("../deploy/groups/g2/general-opening.json", import.meta.url), "utf8"));
-  return validateGroup2CustomerCanisters({ provision, approval, sharedIds, frontendId });
+  return validateGroup2CustomerCanisters({ provision, approval, sharedIds, frontendId, includeChildNamePii });
 }
