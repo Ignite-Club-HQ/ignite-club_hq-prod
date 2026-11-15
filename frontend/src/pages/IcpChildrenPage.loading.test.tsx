@@ -34,3 +34,21 @@ it('failed child reads show retry rather than falsely reporting no children', as
   expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument();
   expect(screen.queryByText('No children added yet.')).not.toBeInTheDocument();
 });
+it('shows a retryable private-name state instead of labelling the child as Child', async () => {
+  // The group-2 ciphertext can already be readable, while the signed-in
+  // vetKey derivation is slow/unavailable on a cold browser session.
+  state.names.mockResolvedValue(new Map());
+  open();
+  expect(await screen.findByText('Name unavailable')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Retry child names' })).toBeInTheDocument();
+  expect(screen.queryByText('No children added yet.')).not.toBeInTheDocument();
+  expect(screen.getByText("You're a guardian")).toBeInTheDocument();
+});
+
+it('renders the locally decrypted child name once it becomes available', async () => {
+  state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
+  open();
+  expect(await screen.findByText('Ted')).toBeInTheDocument();
+  expect(screen.queryByText('Name unavailable')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Retry child names' })).not.toBeInTheDocument();
+});
