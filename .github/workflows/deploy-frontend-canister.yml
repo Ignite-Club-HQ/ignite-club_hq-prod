@@ -74,6 +74,13 @@ jobs:
           IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY: ${{ (github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.enable_dev_g2_child_pii))) && '1' || '0' }}
         run: |
           set -euo pipefail
+          # The previous deployment went green while silently publishing no
+          # PII service. A main-branch push must fail, not silently revert the
+          # reviewed DEV discovery manifest, if the expression ever regresses.
+          if [[ "${GITHUB_EVENT_NAME:-}" == "push" && "${IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY:-}" != "1" ]]; then
+            echo "::error::Approved DEV Group 2 PII discovery unexpectedly disabled on main push"
+            exit 1
+          fi
           # DEV/test canisters only; refuses any PROD canister in the table.
           export IGNITE_ICP_ENV=dev
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids dev)"
