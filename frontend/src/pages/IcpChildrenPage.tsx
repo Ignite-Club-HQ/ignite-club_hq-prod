@@ -74,7 +74,12 @@ function coalesceOwnChildRead<T>(
   const pending = read();
   session.set(sourceKey, pending);
   const forget = () => { if (session?.get(sourceKey) === pending) session.delete(sourceKey); };
-  void pending.then(forget, forget);
+  // A stalled IC call must not poison subsequent reads or account retries.
+  // The outer read deadline remains authoritative; this only evicts a stale
+  // coalescing entry, never retries or writes to a canister.
+  const eviction = setTimeout(forget, 20_000);
+  const settle = () => { clearTimeout(eviction); forget(); };
+  void pending.then(settle, settle);
   return pending;
 }
 
