@@ -1,0 +1,93 @@
+name: "[TEST] DEV generation-2 membership directory staging (reader stays closed)"
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dev-generation2-membership-directory-staging.yml"
+      - "frontend/scripts/dev-generation2-directory-staging.ts"
+      - "scripts/dev-generation2-directory-staging-contract.test.mjs"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Read-only check OR separately approved generation-2 membership-index fill (never reader release)"
+        required: true
+        type: choice
+        options: [check, fill]
+      confirmation:
+        description: "For fill only: FILL IGNITE DEV MEMBERSHIP DIRECTORY GENERATION 2"
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+jobs:
+  contract-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce isolated generation-2 staging contract
+        run: node --test scripts/dev-generation2-directory-staging-contract.test.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Parse operator script without executing it
+        run: npx --yes esbuild@0.25.12 frontend/scripts/dev-generation2-directory-staging.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/dev-gen2-staging-syntax.mjs"
+  operator:
+    if: github.event_name == 'workflow_dispatch'
+    needs: contract-only
+    environment: group-2-admin-controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Verify exact DEV main-branch action and fill acknowledgement
+        env:
+          GEN2_ACTION: ${{ inputs.action }}
+          GEN2_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY,,}" = "ignite-club-hq/ignite-club_hq-prod"
+          test "$GITHUB_REF" = "refs/heads/main"
+          case "$GEN2_ACTION" in
+            check) test -z "$GEN2_CONFIRMATION" ;;
+            fill) test "$GEN2_CONFIRMATION" = "FILL IGNITE DEV MEMBERSHIP DIRECTORY GENERATION 2" ;;
+            *) exit 1 ;;
+          esac
+      - name: Install pinned frontend dependencies
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Restore exact existing DEV governor
+        env:
+          PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "${PEM:-}" || { echo "::error::Existing DEV governor key required; no changes."; exit 1; }
+          umask 077
+          PEM_IN="$PEM" node scripts/normalize-pem.mjs > "$RUNNER_TEMP/dev-gen2-governor.pem"
+          test -s "$RUNNER_TEMP/dev-gen2-governor.pem"
+      - name: Execute exact closed-reader check or approved fill
+        working-directory: frontend
+        env:
+          DEV_DIRECTORY_GEN2_ACTION: ${{ inputs.action }}
+          DEV_DIRECTORY_GEN2_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          npx --yes tsx@4 scripts/dev-generation2-directory-staging.ts \
+            "$RUNNER_TEMP/dev-gen2-governor.pem" "$RUNNER_TEMP/dev-gen2-directory-report"
+      - name: Destroy temporary signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/dev-gen2-governor.pem"
+      - name: Upload non-PII generation-2 staging report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-generation2-directory-report
+          path: ${{ runner.temp }}/dev-gen2-directory-report
+          if-no-files-found: ignore
