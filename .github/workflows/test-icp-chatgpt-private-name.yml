@@ -7,6 +7,9 @@ on:
       - "frontend/scripts/prepare-icp-chatgpt-private-name.test.mjs"
       - "frontend/scripts/prepare-icp-chatgpt-child-name.mjs"
       - "frontend/scripts/prepare-icp-chatgpt-child-name.test.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-child-name-connector.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-child-name-cli.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-child-name-connector.test.mjs"
       - ".github/workflows/test-icp-chatgpt-private-name.yml"
   workflow_dispatch:
 
@@ -32,3 +35,6 @@ jobs:
       - name: Verify DEV-only encrypted child-name preparation and guards
         working-directory: frontend
         run: node --test scripts/prepare-icp-chatgpt-child-name.test.mjs
+      - name: Verify actual connector Candid bridge and local stdin CLI with synthetic data only
+        working-directory: frontend
+        run: node --test scripts/prepare-icp-chatgpt-child-name-connector.test.mjs
