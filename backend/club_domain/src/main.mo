@@ -9200,6 +9200,39 @@ persistent actor class Main(governorInit : Principal) = this {
   // Team roster IDs come from the same child->team source of truth used by
   // set_own_child_team. A club member can read IDs for a verified team, never
   // all families, guardians, or unencrypted names. PII reads remain separate.
+  // PII-to-club authority check for a *named child*, not a general roster
+  // export. Only the configured PII canister can ask whether a currently
+  // admitted viewer shares an actual team with each child. No principal,
+  // guardian, name or club-wide family inventory is returned. Revoked,
+  // excluded, deleted-team and transfer-fenced access fail closed.
+  public shared ({ caller }) func read_can_team_child_name_visibility(
+    viewer : Principal, child_ids : [Text],
+  ) : async [Text] {
+    if (switch (piiCanister) { case (?configured) not configured.equal(caller); case null true }) return [];
+    if (viewer.isAnonymous() or child_ids.size() > 100) return [];
+    if (not removalReceiver.enter(viewer)) return [];
+    try {
+      await admitAccount(viewer);
+      if (removalReceiver.denied(viewer)) return [];
+      child_ids.filter(func(childId) {
+        switch (acl.children.find(func(child) = child.id == childId)) {
+          case null false;
+          case (?child) child.teams.any(func(teamId) {
+            switch (liveTeamClub(teamId)) {
+              case null false;
+              case (?clubId) {
+                not isExcluded(viewer, clubId)
+                  and not isTransferFenced(clubId)
+                  and isMember(viewer, clubId)
+                  and isOnTeam(viewer, teamId)
+              };
+            }
+          });
+        }
+      })
+    } finally { removalReceiver.leave(viewer) };
+  };
+
   public shared ({ caller }) func read_account_list_team_child_ids(club_id : Text, team_id : Text) : async { #Ok : [Text]; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
