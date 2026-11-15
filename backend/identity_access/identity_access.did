@@ -727,6 +727,9 @@ service : (Init) -> {
   // Only configured canisters may ask for another caller's links. No browser
   // supplies an account id or a principal list; the index is authoritative.
   read_linked_account : (principal) -> (Result);
+  // One-off exact original DEV Identity directory disposal (not account/PII reset).
+  // Owner must verify the subsequent fresh generation/ownership separately.
+  reset_disposable_dev_membership_directory : (nat64, nat64, text) -> (Result_2);
   read_membership_directory_configuration : () -> (Result_32);
   read_my_membership_directory : (nat64, opt Token) -> (Result_33);
   // Caller-private diagnostic, not the release/current reader. The actor never
