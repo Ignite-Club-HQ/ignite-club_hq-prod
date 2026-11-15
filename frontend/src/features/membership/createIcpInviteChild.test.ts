@@ -39,7 +39,7 @@ describe("self-service ICP invite child onboarding", () => {
     const a = actions();
     a.assignOwnChildToTeam.mockRejectedValue(new Error("Club membership required"));
     const result = await createIcpInviteChild(input, a);
-    expect(result).toEqual({ status: "created_unlinked", childId: "child-owned" });
+    expect(result).toEqual({ status: "created_unlinked", childId: "child-owned", nameSaved: true });
     expect(a.createOwnChild).toHaveBeenCalledTimes(1);
     expect(a.saveName).toHaveBeenCalledTimes(1);
   });
@@ -57,4 +57,33 @@ describe("self-service ICP invite child onboarding", () => {
     expect(a.createOwnChild).toHaveBeenCalledTimes(1);
     expect(a.assignOwnChildToTeam).not.toHaveBeenCalled();
   });
+  it("reports an encrypted-name failure without suppressing the team assignment", async () => {
+    const a = actions();
+    a.saveName.mockRejectedValue(new Error("PII service unavailable"));
+    const result = await createIcpInviteChild(input, a);
+    expect(result).toEqual({ status: "linked_without_name", childId: "child-owned" });
+    expect(a.createOwnChild).toHaveBeenCalledTimes(1);
+    expect(a.saveName).toHaveBeenCalledTimes(1);
+    expect(a.assignOwnChildToTeam).toHaveBeenCalledWith("child-owned");
+  });
+
+  it("retains a confirmed child ID when both name and team writes fail", async () => {
+    const a = actions();
+    a.saveName.mockRejectedValue(new Error("PII temporarily unavailable"));
+    a.assignOwnChildToTeam.mockRejectedValue(new Error("Team temporarily unavailable"));
+    const result = await createIcpInviteChild(input, a);
+    expect(result).toEqual({ status: "created_unlinked", childId: "child-owned", nameSaved: false });
+    expect(a.createOwnChild).toHaveBeenCalledTimes(1);
+    expect(a.assignOwnChildToTeam).toHaveBeenCalledTimes(1);
+  });
+
+  it("never requests a new child if target membership preflight refuses", async () => {
+    const a = actions();
+    a.readTeam.mockRejectedValue(new Error("No longer a club member"));
+    await expect(createIcpInviteChild(input, a)).rejects.toThrow("No longer a club member");
+    expect(a.createOwnChild).not.toHaveBeenCalled();
+    expect(a.saveName).not.toHaveBeenCalled();
+    expect(a.assignOwnChildToTeam).not.toHaveBeenCalled();
+  });
+
 });

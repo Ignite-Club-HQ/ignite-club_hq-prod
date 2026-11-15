@@ -159,6 +159,10 @@ function SupabaseJoinTeamPage() {
   const autoJoinAttempted = useRef(false);
   // Non-idempotent ICP create_own_child: never replay an uncertain create on this page mount.
   const icpChildCreateAttempted = useRef(false);
+  // The add-child form may be double-tapped before React disables its button.
+  // Keep this synchronous guard through the whole read-preflight/write flow,
+  // so two in-flight checks cannot each create a child under the same account.
+  const icpChildSubmissionPending = useRef(false);
   
   // Check if we should auto-join (returning from auth after install flow)
   const shouldAutoJoin = safeSessionGet("autoJoinAfterAuth") === "true";
@@ -2178,6 +2182,8 @@ function SupabaseJoinTeamPage() {
   const handleAddChild = async () => {
     if (!user) return;
     if (!invite?.team_id && !leagueLinkMiniLeagueId) return;
+    if (isIcpAccount && icpChildSubmissionPending.current) return;
+    if (isIcpAccount) icpChildSubmissionPending.current = true;
     setAddingChild(true);
     try {
       let addedLabel = "";
@@ -2223,18 +2229,12 @@ function SupabaseJoinTeamPage() {
           if (icpChildCreateAttempted.current) {
             throw new Error("A previous child creation may have succeeded. Check My Children before trying to add another.");
           }
-          // Lock concurrent submissions while checking every group for an
-          // existing child. A failed read/PII unlock is not evidence of absence.
-          // Release the lock on a denied preflight (no create was called).
-          icpChildCreateAttempted.current = true;
-          try {
-            await verifyIcpChildNameAcrossGroups(addedLabel);
-          } catch (error) {
-            icpChildCreateAttempted.current = false;
-            throw error;
-          }
-          // Keep the lock after any unknown create or team-link outcome:
-          // create_own_child has no cross-group idempotency key.
+          // Do not lock out a parent's next attempt when a READ-ONLY
+          // duplicate check fails. The one-write guard is set immediately
+          // before create_own_child below, never before canister routing or
+          // membership verification. Concurrent submits still cannot create
+          // two children because the guard is set synchronously before call.
+          await verifyIcpChildNameAcrossGroups(addedLabel);
           const result = await withFeatureBackend("membership", {
             supabase: async () => { throw new Error("Internet Identity invitation cannot use the email database"); },
             icp: async (ctx) => {
@@ -2246,23 +2246,43 @@ function SupabaseJoinTeamPage() {
               const teamId = invite.team_id!;
               const parent = ctx.identity.getPrincipal();
               return createIcpInviteChild({ clubId, teamId, name: addedLabel }, {
-                readTeam: async () => (await club.getLiveTeam(ctx, teamId))[0] ?? null,
-                createOwnChild: () => club.createMyLiveChild(ctx),
-                saveName: (id) => vault.registerLiveChildNamePii(ctx, id, addedLabel, parent, clubId),
+                readTeam: async () => {
+                  if (!(await club.isMyLiveClubMember(ctx, clubId))) {
+                    throw new Error("You are no longer a member of this club. No child was created.");
+                  }
+                  return (await club.getLiveTeam(ctx, teamId))[0] ?? null;
+                },
+                createOwnChild: () => {
+                  if (icpChildCreateAttempted.current) {
+                    throw new Error("Child creation was already attempted. Check My Children before retrying.");
+                  }
+                  icpChildCreateAttempted.current = true;
+                  return club.createMyLiveChild(ctx);
+                },
+                // The invite must report encrypted-name write errors rather
+                // than treating an unlabelled record as a complete success.
+                saveName: (id) => vault.registerLiveChildNamePiiOrThrow(ctx, id, addedLabel, parent, clubId),
                 assignOwnChildToTeam: (id) => club.setMyLiveChildTeam(ctx, id, teamId, true),
               });
             },
           }, writeOnce({ clubId: verifiedClubId }));
-          if (result.status === "created_unlinked") {
-            // Do not create a duplicate: the child exists but the team link did
-            // not succeed. Keep a visible partial outcome and let the member
-            // finish, or use My Children/team admin for later assignment.
-            setAddedChildren(prev => [...prev, addedLabel + " (not yet linked to team)"]);
+          if (result.status !== "linked") {
+            // A child exists. Do not repeat creation or claim successful
+            // onboarding when encrypted name or team assignment failed.
+            // The actual child ID is retained by the result for recovery.
+            const teamLinked = result.status === "linked_without_name";
+            const nameSaved = result.status === "created_unlinked" && result.nameSaved;
+            const problem = teamLinked
+              ? "Name needs attention"
+              : nameSaved ? "Not yet linked to team" : "Name and team need attention";
+            setAddedChildren(prev => [...prev, addedLabel + " (" + problem + ")"]);
             setChildName("");
             setChildYearOfBirth("");
             toast({
-              title: "Child saved, team link incomplete",
-              description: "Your child was created, but wasn't added to this team. Check My Children or contact the team admin; don't create a duplicate.",
+              title: "Child created — setup incomplete",
+              description: teamLinked
+                ? "Your child is on the team, but their encrypted name could not be saved. Check My Children or contact the team admin; don't create a duplicate."
+                : "Your child exists, but the team link was not confirmed. Check My Children or contact the team admin; don't create a duplicate.",
               variant: "destructive",
             });
             return;
@@ -2350,6 +2370,7 @@ function SupabaseJoinTeamPage() {
         variant: "destructive",
       });
     } finally {
+      if (isIcpAccount) icpChildSubmissionPending.current = false;
       setAddingChild(false);
     }
   };
@@ -2407,7 +2428,8 @@ function SupabaseJoinTeamPage() {
   if (showChildStep) {
     // handleAddChild early-returns without either of these — never show a
     // tappable button that would silently do nothing.
-    const canAddChild = !!invite?.team_id || !!leagueLinkMiniLeagueId;
+    const canAddChild = (!!invite?.team_id || !!leagueLinkMiniLeagueId) &&
+      !(isIcpAccount && icpChildCreateAttempted.current);
     return (
       <JoinTeamChildStepCard
         currentStep={getCurrentStep()}

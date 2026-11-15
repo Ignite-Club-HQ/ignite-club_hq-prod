@@ -9,7 +9,8 @@
  */
 export type IcpInviteChildResult =
   | { status: "linked"; childId: string }
-  | { status: "created_unlinked"; childId: string };
+  | { status: "linked_without_name"; childId: string }
+  | { status: "created_unlinked"; childId: string; nameSaved: boolean };
 
 export async function createIcpInviteChild(
   input: { teamId: string; clubId: string; name: string },
@@ -31,13 +32,24 @@ export async function createIcpInviteChild(
   if (!child?.id) {
     throw new Error("Child creation could not be confirmed. Check your children list before retrying.");
   }
-  // This field is encrypted by the existing vault helper. It is best-effort,
-  // consistent with the existing ICP Children page; no name enters club_domain.
-  await actions.saveName(child.id);
+  // After create_own_child returns, every subsequent failure is a PARTIAL
+  // SUCCESS. Try both independent follow-up actions exactly once; never lose
+  // the created child ID or retry the non-idempotent create call.
+  let nameSaved = false;
+  try {
+    await actions.saveName(child.id);
+    nameSaved = true;
+  } catch {
+    // Never log the child's plaintext name or retry an unknown PII write.
+  }
+  let teamLinked = false;
   try {
     await actions.assignOwnChildToTeam(child.id);
+    teamLinked = true;
   } catch {
-    return { status: "created_unlinked", childId: child.id };
+    // A failed name registration must not prevent the team-link attempt.
   }
+  if (!teamLinked) return { status: "created_unlinked", childId: child.id, nameSaved };
+  if (!nameSaved) return { status: "linked_without_name", childId: child.id };
   return { status: "linked", childId: child.id };
 }

@@ -380,13 +380,16 @@ export default function IcpChildrenPage() {
               createAttempted.current = true;
               return club.createMyLiveChild(ctx);
             },
-            saveName: id => vault.registerLiveChildNamePii(ctx, id, trimmed, ctx.identity.getPrincipal(), team.club_id),
+            saveName: id => vault.registerLiveChildNamePiiOrThrow(ctx, id, trimmed, ctx.identity.getPrincipal(), team.club_id),
             assignOwnChildToTeam: id => club.setMyLiveChildTeam(ctx, id, team.id, true),
           });
           if (result.status === "linked") createAttempted.current = false;
+          const teamLinked = result.status !== "created_unlinked";
+          const nameSaved = result.status === "linked" ||
+            (result.status === "created_unlinked" && result.nameSaved);
           return {
-            id: result.childId, name: trimmed,
-            teams: result.status === "linked" ? [team.id] : [],
+            id: result.childId, name: nameSaved ? trimmed : "",
+            teams: teamLinked ? [team.id] : [],
             isPrimary: true, sourceClubCanisterId,
             status: result.status,
           };
@@ -403,8 +406,10 @@ export default function IcpChildrenPage() {
       setName("");
       setNewChildTeamKey("");
       toast(created.status === "linked" ? { title: "Child added to team" } : {
-        title: "Child created, team link incomplete",
-        description: "The child exists, but was not assigned to the selected team. Check My Children before another attempt.",
+        title: "Child created, setup incomplete",
+        description: created.status === "linked_without_name"
+          ? "Your child is on the team, but their encrypted name was not confirmed. Check My Children before another attempt."
+          : "The child exists, but its team assignment was not confirmed. Check My Children before another attempt.",
         variant: "destructive",
       });
     },
