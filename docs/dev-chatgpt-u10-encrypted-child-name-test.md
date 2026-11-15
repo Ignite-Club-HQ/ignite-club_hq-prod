@@ -4,7 +4,7 @@
 
 ## Verified preflight targets (reverify just before writes)
 
-- App: `https://ignite-club-launchpad.lovable.app`
+- App (canonical ICP frontend): `https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io`
 - Internet Identity origin: `https://proe7-kqaaa-aaaas-qg6gq-cai.ic0.app` (obtain through `open_app` again)
 - DEV Group 2 club_domain: `yfwyv-nyaaa-aaaal-qxpyq-cai`
 - DEV Group 2 pii_access_control: `zt5a6-yiaaa-aaaal-qxp5q-cai`
@@ -54,3 +54,121 @@ If the vault cannot be reached, key is not verified, name ciphertext differs, pe
 - The helper constructs valid ciphertext and Candid arguments; it does not connect to Internet Identity, sign, submit writes or verify actual deployment. The ICP connector handles authenticated calls.
 - Passing local tests does **not** demonstrate a deployed Group 2 PII service publication, secure remote crypto readback, or all on-chain ACL regression tests. Verify separately before treating this as live-ready.
 - No UI invite-flow change is bundled: the U10 parent membership was accepted previously through the ChatGPT plugin.
+
+
+## November 15: canonical ICP frontend + executable connector bridge
+
+The DEV frontend now advertises Group 2's PII canister on the **canonical ICP host**, not necessarily on the older Lovable preview origin. The correct app argument for the existing DFINITY connector is:
+
+- app_url: https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io
+- derivation_origin: https://proe7-kqaaa-aaaas-qg6gq-cai.ic0.app
+
+The SDK helper above is now wrapped by local-only adapters (no new network service):
+
+- frontend/scripts/prepare-icp-chatgpt-child-name-connector.mjs
+- frontend/scripts/prepare-icp-chatgpt-child-name-cli.mjs
+
+The bridge expects the unmodified, exact response objects returned by the existing DFINITY plugin:
+
+1. open_app(app=canonical ICP URL) with Test3: declared Group 2 club_domain and pii_access_control; origin matches.
+2. get_app_principal Test3 for that derivation origin; Test3 principal, writable session.
+3. read_account_my_role_grants() on the pinned G2 club_domain: single U10 Parent grant in the complete record; an unrelated club_admin role does not qualify.
+4. pii_vetkey_verification_key() on the pinned G2 pii_access_control as Test3: exact 96-byte escaped Candid blob.
+5. **Only after separately approved creation:** one successful create_own_child() result from pinned G2 club_domain with exact Test3 parent, unassigned child ID and no inherited team.
+
+All response provenance fields (method, canister ID, manifest origin, derivation origin, anonymous flag) must match; altered or incomplete evidence refuses encryption. The bridge is OFFLINE and makes zero canister calls. It uses the same vetted ICP SDK and the same clubchildren IBE identity, random seed and IGSK1 header as the live app.
+
+In a trusted **local** checkout with frontend dependencies already installed, supply ONE complete JSON input object over stdin containing app, identity, roleReceipt, childReceipt, publicKeyReceipt and childName. **Use only synthetic test names in CI.** For actual child data, keep the JSON **only in the trusted execution process's memory** and pipe it directly to the local CLI on stdin. Do not persist the child's plaintext JSON to a file, even outside GitHub. Never pass a child's name as command-line arguments, environment/CI variables, a URL, a public file or a workflow artifact.
+
+The trusted ChatGPT process launches the Node CLI with stdin connected to an in-memory pipe; the CLI reads one JSON value, emits only ciphertext-bearing Candid arguments, and exits. The process should release the input as soon as practicable. No shell command needs to contain the name.
+
+The resulting JSON contains ONLY ciphertext-bearing Candid arguments and scoped routing metadata for separate, individually approved connector calls:
+register_pii, get_encrypted_pii_batch, grant_pii_read_club, grant_pii_read and set_own_child_team.
+**Do not automatically execute the returned calls.** Check the registration receipt or authorised ciphertext readback before granting/assigning, never retry uncertain writes blindly. Never create a second child to recover a failed name write.
+
+Synthetic end-to-end execution (Node + real @icp-sdk/vetkeys, no canister access, no identities):
+
+    cd frontend
+    node --test scripts/prepare-icp-chatgpt-child-name-connector.test.mjs
+
+### Important deployment / tool limitations
+
+- This is an executable, offline local cryptographic adapter, not a network bridge or a new MCP method. The DFINITY ICP plugin still handles signing and all canister access, and cannot itself run arbitrary local JavaScript. A ChatGPT runtime with this repository and its installed dependencies is required to execute the bridge, or an independently reviewed, connected encryption tool would be needed.
+- Source tests, synthetic encryption and actual live DEV access verification are necessary but do not prove a **new live child** is created, named and decrypted. No such write is permitted by this code or PR.
+- The public key comes from a signed-in connector call but is not secret, and the node process never receives the user's Internet Identity delegation, passwords, signing keys or vetKeys. Its returned Candid arguments are ciphertext and can be sent by the existing connector only with separate write approval.
+- The bridge is intentionally pinned to **Test3 and Group 2 ChatGPT Plugin Test U10**; it is a narrow DEV acceptance test, not a generic user onboarding implementation.
+
+
+### Portable runner verified in ChatGPT (no extra plugin)
+
+The [TEST] Secure ChatGPT private-name preparation workflow now packages the
+locked Node dependencies and three local scripts into a short-lived GitHub
+Actions artifact named ignite-dev-g2-child-name-offline-cli. CI executes a
+synthetic encryption request using that detached package before uploading it.
+No user names, Internet Identity delegations or canister writes enter CI.
+
+The connected GitHub tool can retrieve the artifact and ChatGPT's container
+can unpack and execute it with Node 22 without an internet npm installation.
+This was verified in the live ChatGPT session on 15 November 2026: the official
+DFINITY ICP connector provided the actual DEV Group 2 PII canister's public
+96-byte verification key; the offline runner used a synthetic child ID and
+synthetic name to produce a 263-byte IGSK1 clubchildren ciphertext and the
+five expected Candid operations, with no plaintext in output and zero writes.
+
+For an approved real child test, retrieve a reviewed matching artifact and
+verify the Test3 app, Parent role, U10 team, Group 2 membership and empty child
+inventory. Only after one-child approval call create_own_child once and
+preserve the returned exact child receipt. Then use the offline helper with
+the genuine tool responses and intended child name over private stdin; do
+not put personal data in GitHub or any shell arguments. Separately approve
+each canister write, verify registration ciphertext before grants/assignment,
+and stop on ambiguous outcomes. Never create a duplicate child as recovery.
+
+The DFINITY ICP connector remains the ONLY signer and canister transport.
+The temporary offline runtime contains no keys or delegations, calls no
+network endpoints and cannot write to PROD or send notifications. This is a
+pinned DEV U10 acceptance tool, not a generic consumer onboarding plugin.
+A future ChatGPT session may need to retrieve a fresh approved CI artifact.
+
+### Approved direct-ICP boundary and offline-runner security
+
+Owner approved this direction on 15 November 2026; see architecture decision #1532.
+The **only authenticated canister transport** is the **official DFINITY ICP connector**.
+The standalone Node script is an **offline local cryptographic calculation**.
+It is not a hosted bridge/proxy and cannot sign canister requests. Do not
+introduce an off-chain Ignite API, Supabase bridge, remote encryption server,
+webhook or an alternative wallet session for this workflow.
+
+- The runtime SDK modules are copied from the pinned frontend lockfile; the
+  test workflow checks the detached package using only synthetic inputs.
+- Both the installed and portable versions have source checks rejecting
+  network API imports, dynamic execution, spawned child processes, use of
+  environment variables, and console logging along the executable crypto path.
+- The portable Node 22 test uses --experimental-permission and
+  --allow-fs-read=<package-root>/; it does not grant filesystem writes or
+  child-process execution. On newer Node versions --permission is an alias.
+- **Critical limit:** Node 22 permission mode does not restrict outbound
+  network connections. No-network behavior is a property of the reviewed code
+  and pinned dependencies, not a complete OS-level network sandbox. Do not
+  claim otherwise.
+- Do not write the child's plaintext name or real signed connector receipts
+  to source control, CI logs or workflow artifacts. A child's name given to
+  ChatGPT is still visible to the ChatGPT service before local encryption.
+- The current clubchildren IBE audience permits authorised **club members**
+  to derive the shared club key, not only the child's parents. The native Ignite
+  app uses this same policy; confirm it is appropriate before production use.
+- Connector result JSON is not a cryptographic signature. Treat original
+  direct tool responses as trusted only after checking the origin, caller and
+  on-chain state; never replay a fabricated receipt.
+- No real child creation, encrypted registration, grant or team assignment is
+  part of this pull request. Each live update needs separate explicit approval
+  and its own readback. No automatic retries following uncertain writes.
+
+Restricted local execution pattern for an *already vetted package* (input is
+private and supplied over stdin, not a shell argument):
+
+    node --no-warnings --experimental-permission --allow-fs-read=<package-root>/ <package-root>/scripts/prepare-icp-chatgpt-child-name-cli.mjs
+
+No merge or deployment of this PR has been performed as part of the security
+review. DEV-only PII discovery already deployed separately; the broader
+Candid exposure remains a distinct least-privilege review item.
