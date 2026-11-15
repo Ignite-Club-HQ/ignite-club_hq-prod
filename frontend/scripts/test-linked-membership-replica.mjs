@@ -97,6 +97,8 @@ try {
   assert.deepEqual(await rosterGroup.actor.read_can_team_child_name_visibility(coach, [ownChild.id]), [ownChild.id], 'same-team coach can read authorized child name');
 
 
+  // Return from the synthetic canister caller to the ordinary parent.
+  rosterGroup.actor.setPrincipal(outsider);
   const deniedParentRoster = await rosterGroup.actor.read_account_get_club_roster(rosterGroup.name);
   assert.ok('Err' in deniedParentRoster, 'parent must never read club-wide roster/role principals');
 
