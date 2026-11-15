@@ -55,9 +55,22 @@ jobs:
           CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
-          test "$GITHUB_REPOSITORY" = "Ignite-Club-HQ/ignite-club_hq-prod"
-          test "$GITHUB_REF" = "refs/heads/main"
-          test "$CONFIRMATION" = "CHECK LEGACY G1 SOURCE ONLY"
+          # GitHub repository names are case-insensitive. Do not reject a
+          # legitimate repo solely because Actions normalises owner casing.
+          # Keep the exact main branch and confirmation requirements.
+          if [[ "${GITHUB_REPOSITORY,,}" != "ignite-club-hq/ignite-club_hq-prod" ]]; then
+            echo "::error title=Wrong repository::This workflow must run in Ignite-Club-HQ/ignite-club_hq-prod; observed GITHUB_REPOSITORY='${GITHUB_REPOSITORY:-unset}'"
+            exit 1
+          fi
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error title=Wrong branch::Choose 'main' under 'Use workflow from'. Observed GITHUB_REF='${GITHUB_REF:-unset}'"
+            exit 1
+          fi
+          if [[ "$CONFIRMATION" != "CHECK LEGACY G1 SOURCE ONLY" ]]; then
+            echo "::error title=Wrong confirmation::Enter exactly CHECK LEGACY G1 SOURCE ONLY"
+            exit 1
+          fi
+          echo "Read-only workflow source, main branch and confirmation verified."
       - name: Install existing frontend dependencies only (no ICP CLI or canister build)
         run: node scripts/ensure-frontend-deps.mjs
       - name: Restore exact original governor PEM
