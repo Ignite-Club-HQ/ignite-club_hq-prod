@@ -38,6 +38,7 @@ it('shows a retryable private-name state instead of labelling the child as Child
   // The group-2 ciphertext can already be readable, while the signed-in
   // vetKey derivation is slow/unavailable on a cold browser session.
   state.names.mockResolvedValue(new Map());
+  state.children.mockResolvedValue([{ id: 'child-a', teams: [], parent: [{ toText: () => 'other-parent' }] }]);
   open();
   expect(await screen.findByText('Name unavailable')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Retry child names' })).toBeInTheDocument();
