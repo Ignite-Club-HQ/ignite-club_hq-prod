@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   memberCanisters: ['group-2-club'] as string[],
   everyCanisters: ['group-2-club'] as string[],
   routed: vi.fn(),
+  blockCompleteInventory: false,
 }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'parent-a' } }) }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
@@ -24,6 +25,11 @@ vi.mock('@/live/piiVetKeys', () => ({ prewarmPiiVerificationKey: state.prewarm }
 vi.mock('@/live/featureRouter', () => ({
   withFeatureBackend: vi.fn(async (_feature: string, providers: { icp: (ctx: unknown) => Promise<unknown> }, scope?: { everyGroup?: boolean; memberGroups?: boolean; merge?: (parts: unknown[]) => unknown }) => {
     state.routed(scope);
+    // Model the slow, complete cross-group inventory while a narrower
+    // membership-verified preview may already be readable.
+    if (scope?.everyGroup && state.blockCompleteInventory) {
+      return new Promise(() => {});
+    }
     const ids = scope?.memberGroups ? state.memberCanisters : state.everyCanisters;
     const results = await Promise.all(ids.map(id => providers.icp({
       identity: { getPrincipal: () => ({ toText: () => 'parent-a' }) },
@@ -48,6 +54,7 @@ beforeEach(() => {
   state.grants.mockResolvedValue([]);
   state.memberCanisters = ['group-2-club'];
   state.everyCanisters = ['group-2-club'];
+  state.blockCompleteInventory = false;
 });
 afterEach(() => { cleanup(); client.clear(); });
 const open = () => render(<QueryClientProvider client={client}><MemoryRouter><IcpChildrenPage /></MemoryRouter></QueryClientProvider>);
@@ -117,4 +124,35 @@ it('does not request private names from an unrelated group', async () => {
   expect(await screen.findByText('Ted')).toBeInTheDocument();
   expect(state.names).toHaveBeenCalledTimes(1);
   expect(state.names.mock.calls[0][0].target.canisterIds.club_domain).toBe('group-2-club');
+});
+
+it('shows a verified member-group child early but blocks writes until full discovery finishes', async () => {
+  state.blockCompleteInventory = true;
+  state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
+  open();
+  expect(await screen.findByText('Ted')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Remove child' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Guardians' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Add child' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Add to team' })).toBeDisabled();
+  expect(screen.getByText(/Checking the remaining ICP groups/)).toBeInTheDocument();
+  expect(screen.queryByText('No children added yet.')).not.toBeInTheDocument();
+  expect(state.children).toHaveBeenCalledTimes(1); // concurrent previews are coalesced
+});
+
+it('does not falsely show No children when the fast member-group preview is empty', async () => {
+  state.blockCompleteInventory = true;
+  state.children.mockResolvedValue([]);
+  open();
+  expect(await screen.findByText('Loading children...')).toBeInTheDocument();
+  expect(screen.queryByText('No children added yet.')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Add child' })).toBeDisabled();
+});
+
+it('allows child controls only after the complete cross-group inventory is verified', async () => {
+  state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
+  open();
+  expect(await screen.findByText('Ted')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Add child' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Remove child' })).toBeEnabled();
 });
