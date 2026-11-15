@@ -66,3 +66,21 @@ test('rebuild stays unreleased and exact G1/G2 source bindings only', () => {
   assert.doesNotMatch(script,/read_private_profile_name_authorization\(/);
   assert.doesNotMatch(script,/open_private_name_writer_window\(/);
 });
+
+test('a failed preflight names only safe mismatch fields before any canister writes', () => {
+  const checks=['expectedRouter','savedRevision7','targetAlias','deploymentId',
+    'deploymentRevision1','host','networkKind','generation1',
+    'membershipReaderUnreleased','exactTwoSourceMapping'];
+  const preflight=script.slice(script.indexOf('const fixtureChecks = {'),
+    script.indexOf('const sourceBefore = [];'));
+  for(const k of checks) assert.ok(preflight.includes(k+':'), 'missing '+k);
+  assert.match(preflight,/reason:'exact-existing-directory-preflight-mismatch'/);
+  assert.match(preflight,/noWritesAttempted:true/);
+  assert.match(preflight,/readyForReset:false/);
+  assert.match(preflight,/mismatches\.join\(', '\)/);
+  for(const forbidden of ['inventory_digest','publicKey','private_key','profile_name',
+    'plaintext','token','secret']) assert.ok(
+    !preflight.includes(forbidden), 'sensitive diagnostic content: '+forbidden);
+  assert.ok(script.indexOf('const fixtureChecks = {') <
+    script.indexOf('identity.reset_disposable_dev_membership_directory('));
+});
