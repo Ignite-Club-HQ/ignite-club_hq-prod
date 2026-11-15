@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Principal } from '@icp-sdk/core/principal';
 import { GROUP_DOMAINS } from './groupRouting';
 import type { AccountRegistryBinding, AccountRegistrySnapshot } from './accountAuthorityRegistry';
-import { verifyCrossGroupTeamNameRoute, type TeamNameRoutePins } from './crossGroupTeamNameReadiness';
+import { inspectLegacyGroup1TeamNameTopology, verifyCrossGroupTeamNameRoute, type LegacyIdentityDirectoryReadback, type TeamNameRoutePins } from './crossGroupTeamNameReadiness';
 
 const subnet = Principal.fromText('e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe');
 const pins: TeamNameRoutePins = {
@@ -78,5 +78,93 @@ describe('DEV Group 1 → Group 2 adult name routing preflight (no release)', ()
     expect(() => verifyCrossGroupTeamNameRoute(registry(),binding,{...pins,targetGroupId:'g1'})).toThrow(/distinct/i);
     expect(() => verifyCrossGroupTeamNameRoute(registry(),binding,{...pins,targetClubDomain:pins.originalClubDomain})).toThrow(/distinct/i);
     expect(() => verifyCrossGroupTeamNameRoute(registry(),binding,{...pins,targetGroupId:'g3'})).toThrow(/both groups/i);
+  });
+});
+
+
+const legacyBinding: AccountRegistryBinding = {
+  ...binding, requiredClubAuthorities: [pins.targetClubDomain],
+};
+function legacyDirectory(): LegacyIdentityDirectoryReadback {
+  return {
+    binding: {
+      registry: Principal.fromText('jcdfe-vqaaa-aaaal-qxloq-cai'),
+      registry_revision: 11n,
+      target_alias: 'mainnet',
+      deployment_id: 'mainnet',
+      deployment_revision: 1n,
+      host: 'https://icp-api.io',
+      network_kind: 'public_mainnet',
+    },
+    generation: 1n,
+    inventory_digest: new Uint8Array(32).fill(7),
+    sources: [
+      ['g1', Principal.fromText(pins.originalClubDomain)],
+      ['g2', Principal.fromText(pins.targetClubDomain)],
+    ],
+    enabled: true, app_enabled: true,
+  };
+}
+const legacyPins = { ...pins, routerCanister: 'jcdfe-vqaaa-aaaal-qxloq-cai' };
+
+describe('legacy G1 Identity-sourced topology audit (still NO name release)', () => {
+  it('accepts an approved legacy G1 source WITHOUT fabricating a Group 1 router placement', () => {
+    const snapshot = registry([group('g2')]);
+    const original = JSON.stringify(snapshot, (_, v) => typeof v === 'bigint' ? v.toString() : v);
+    const result = inspectLegacyGroup1TeamNameTopology(snapshot, legacyBinding, legacyDirectory(), legacyPins);
+    expect(result).toEqual({
+      legacySource: pins.originalClubDomain,
+      targetClub: pins.targetClubDomain,
+      targetPii: pins.targetPiiCanister,
+      registryRevision: 11n,
+      directoryGeneration: 1n,
+      verifiedSourceMapping: true,
+      originalPiiKeyVerified: false,
+      nameReadAuthorised: false,
+      requiresOriginalPiiIdentityAllowlist: true,
+      requiresLiveTeamPermission: true,
+      requiresOwnerRelease: true,
+    });
+    expect(JSON.stringify(snapshot, (_, v) => typeof v === 'bigint' ? v.toString() : v)).toEqual(original);
+    expect(snapshot.groups).toHaveLength(1);
+  });
+  it('fails if Identity does not explicitly pin the original G1 source', () => {
+    const d = legacyDirectory();
+    d.sources = d.sources.slice(1);
+    expect(() => inspectLegacyGroup1TeamNameTopology(registry([group('g2')]),legacyBinding,d,legacyPins))
+      .toThrow(/Identity source inventory/);
+  });
+  it('fails if a foreign original club masquerades as Group 1', () => {
+    const d = legacyDirectory();
+    d.sources = [['g1', Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai')], d.sources[1]];
+    expect(() => inspectLegacyGroup1TeamNameTopology(registry([group('g2')]),legacyBinding,d,legacyPins))
+      .toThrow(/Identity source inventory/);
+  });
+  it('fails on duplicate source, wrong revision or unapproved router', () => {
+    const d = legacyDirectory();
+    d.sources = [...d.sources, d.sources[0]];
+    expect(() => inspectLegacyGroup1TeamNameTopology(registry([group('g2')]),legacyBinding,d,legacyPins))
+      .toThrow(/Identity source inventory/);
+    const r=legacyDirectory();r.binding.registry_revision = 10n;
+    expect(() => inspectLegacyGroup1TeamNameTopology(registry([group('g2')]),legacyBinding,r,legacyPins))
+      .toThrow(/Identity directory binding/);
+    expect(() => inspectLegacyGroup1TeamNameTopology(registry([group('g2')]),legacyBinding,legacyDirectory(),
+      {...legacyPins,routerCanister:'ryjl3-tyaaa-aaaaa-aaaba-cai'})).toThrow(/Identity directory binding/);
+  });
+  it('rejects directory before reader enable or malformed inventory digest', () => {
+    const d=legacyDirectory();d.app_enabled=false;
+    expect(() => inspectLegacyGroup1TeamNameTopology(registry([group('g2')]),legacyBinding,d,legacyPins))
+      .toThrow(/Identity directory binding/);
+    const d2=legacyDirectory();d2.inventory_digest=[7];
+    expect(() => inspectLegacyGroup1TeamNameTopology(registry([group('g2')]),legacyBinding,d2,legacyPins))
+      .toThrow(/Identity directory binding/);
+  });
+  it('rejects fabricated modern G1 registration, foreign Group 2 PII, or a wide registry binding', () => {
+    expect(() => inspectLegacyGroup1TeamNameTopology(registry(),legacyBinding,legacyDirectory(),legacyPins))
+      .toThrow(/Legacy G1 unexpectedly registered/);
+    expect(() => inspectLegacyGroup1TeamNameTopology(registry([group('g2')]),legacyBinding,legacyDirectory(),
+      {...legacyPins,targetPiiCanister:pins.originalPiiCanister})).toThrow(/Exact disjoint/);
+    expect(() => inspectLegacyGroup1TeamNameTopology(registry([group('g2')]),binding,legacyDirectory(),legacyPins))
+      .toThrow(/Registered and legacy authority/);
   });
 });
