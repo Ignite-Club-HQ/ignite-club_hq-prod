@@ -3985,7 +3985,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
       let revision = membershipEpoch();
       switch (expected) {
-        case (?value) if (value != revision) return #Err("Profile membership revision changed");
+        case (?value) { if (value != revision) return #Err("Profile membership revision changed") };
         case null {};
       };
       await admitAccount(requester);
@@ -4008,7 +4008,7 @@ persistent actor class Main(governorInit : Principal) = this {
           case (?account) account.principals;
           case null [subject];
         };
-        aliases.any(func(p) =
+        aliases.any(func p =
           not removalReceiver.denied(p) and isMember(p, club_id)
           and (isOnTeam(p, team_id) or canManageTeam(p, club_id, ?team_id))
         )
