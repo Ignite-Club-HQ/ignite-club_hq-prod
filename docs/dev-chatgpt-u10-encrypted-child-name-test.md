@@ -131,3 +131,46 @@ The temporary offline runtime contains no keys or delegations, calls no
 network endpoints and cannot write to PROD or send notifications. This is a
 pinned DEV U10 acceptance tool, not a generic consumer onboarding plugin.
 A future ChatGPT session may need to retrieve a fresh approved CI artifact.
+
+### Approved direct-ICP boundary and offline-runner security
+
+Owner approved this direction on 15 November 2026; see architecture decision #1532.
+The **only authenticated canister transport** is the **official DFINITY ICP connector**.
+The standalone Node script is an **offline local cryptographic calculation**.
+It is not a hosted bridge/proxy and cannot sign canister requests. Do not
+introduce an off-chain Ignite API, Supabase bridge, remote encryption server,
+webhook or an alternative wallet session for this workflow.
+
+- The runtime SDK modules are copied from the pinned frontend lockfile; the
+  test workflow checks the detached package using only synthetic inputs.
+- Both the installed and portable versions have source checks rejecting
+  network API imports, dynamic execution, spawned child processes, use of
+  environment variables, and console logging along the executable crypto path.
+- The portable Node 22 test uses --experimental-permission and
+  --allow-fs-read=<package-root>/; it does not grant filesystem writes or
+  child-process execution. On newer Node versions --permission is an alias.
+- **Critical limit:** Node 22 permission mode does not restrict outbound
+  network connections. No-network behavior is a property of the reviewed code
+  and pinned dependencies, not a complete OS-level network sandbox. Do not
+  claim otherwise.
+- Do not write the child's plaintext name or real signed connector receipts
+  to source control, CI logs or workflow artifacts. A child's name given to
+  ChatGPT is still visible to the ChatGPT service before local encryption.
+- The current clubchildren IBE audience permits authorised **club members**
+  to derive the shared club key, not only the child's parents. The native Ignite
+  app uses this same policy; confirm it is appropriate before production use.
+- Connector result JSON is not a cryptographic signature. Treat original
+  direct tool responses as trusted only after checking the origin, caller and
+  on-chain state; never replay a fabricated receipt.
+- No real child creation, encrypted registration, grant or team assignment is
+  part of this pull request. Each live update needs separate explicit approval
+  and its own readback. No automatic retries following uncertain writes.
+
+Restricted local execution pattern for an *already vetted package* (input is
+private and supplied over stdin, not a shell argument):
+
+    node --no-warnings --experimental-permission --allow-fs-read=<package-root>/ <package-root>/scripts/prepare-icp-chatgpt-child-name-cli.mjs
+
+No merge or deployment of this PR has been performed as part of the security
+review. DEV-only PII discovery already deployed separately; the broader
+Candid exposure remains a distinct least-privilege review item.
