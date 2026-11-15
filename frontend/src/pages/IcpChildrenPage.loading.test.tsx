@@ -1,4 +1,4 @@
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   memberCanisters: ['group-2-club'] as string[],
   everyCanisters: ['group-2-club'] as string[],
   routed: vi.fn(),
+  identity: { getPrincipal: () => ({ toText: () => 'parent-a' }) },
 }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'parent-a' } }) }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
@@ -26,7 +27,7 @@ vi.mock('@/live/featureRouter', () => ({
     state.routed(scope);
     const ids = scope?.memberGroups ? state.memberCanisters : state.everyCanisters;
     const results = await Promise.all(ids.map(id => providers.icp({
-      identity: { getPrincipal: () => ({ toText: () => 'parent-a' }) },
+      identity: state.identity,
       target: {
         alias: 'mainnet', host: 'https://icp-api.io',
         networkKind: 'public_mainnet',
@@ -48,6 +49,7 @@ beforeEach(() => {
   state.grants.mockResolvedValue([]);
   state.memberCanisters = ['group-2-club'];
   state.everyCanisters = ['group-2-club'];
+  state.identity = { getPrincipal: () => ({ toText: () => 'parent-a' }) };
 });
 afterEach(() => { cleanup(); client.clear(); });
 const open = () => render(<QueryClientProvider client={client}><MemoryRouter><IcpChildrenPage /></MemoryRouter></QueryClientProvider>);
@@ -57,8 +59,10 @@ it('reveals authorized child controls without waiting for name decryption or glo
   expect(screen.getByLabelText('Retrieving child name')).toBeInTheDocument();
   // The team query may begin, but it must never block a verified child card.
   expect(state.teams).not.toHaveBeenCalled();
-  expect(client.getQueryData(['icp-own-children-all-groups', 'parent-a'])).toHaveLength(1);
-  expect(client.getQueryData(['icp-own-children-all-groups', 'parent-b'])).toBeUndefined();
+  await waitFor(() => expect(client.getQueryData(['icp-member-children-preview', 'parent-a'])).toHaveLength(1));
+  expect(client.getQueryData(['icp-member-children-preview', 'parent-b'])).toBeUndefined();
+  // The complete inventory may still be running when the preview appears.
+  // Never require its cache to be populated before rendering the card.
 });
 it('failed child reads show retry rather than falsely reporting no children', async () => {
   state.children.mockRejectedValue(new Error('Denied'));
@@ -92,7 +96,9 @@ it('prefers the verified member-group route for names and prewarms the public ke
   expect(await screen.findByText('Ted')).toBeInTheDocument();
   expect(state.prewarm).toHaveBeenCalled();
   const memberRoutes = state.routed.mock.calls.filter(([scope]) => scope?.memberGroups);
-  expect(memberRoutes).toHaveLength(1);
+  // The member route now serves both the early child preview and the
+  // subsequent ciphertext/name read; neither requires an all-group name sweep.
+  expect(memberRoutes.length).toBeGreaterThanOrEqual(2);
   expect(state.names).toHaveBeenCalledTimes(1);
 });
 
@@ -100,6 +106,15 @@ it('falls back to verified all-group name reads when an orphan child is not in a
   state.memberCanisters = []; // No current club membership, but the child still exists.
   state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
   open();
+  await waitFor(() => {
+    const status = client.getQueryState(['icp-own-children-all-groups', 'parent-a']);
+    if (status?.status === 'error') {
+      throw new Error('Full-child lookup failed: ' + String(status.error)
+        + '; routed scopes=' + JSON.stringify(state.routed.mock.calls.map(([scope]) =>
+          scope ? Object.keys(scope) : ['none'])));
+    }
+    expect(status?.status).toBe('success');
+  });
   expect(await screen.findByText('Ted')).toBeInTheDocument();
   expect(state.routed.mock.calls.some(([scope]) => scope?.memberGroups)).toBe(true);
   expect(state.names).toHaveBeenCalledTimes(1); // No other-group PII reads.
@@ -117,4 +132,48 @@ it('does not request private names from an unrelated group', async () => {
   expect(await screen.findByText('Ted')).toBeInTheDocument();
   expect(state.names).toHaveBeenCalledTimes(1);
   expect(state.names.mock.calls[0][0].target.canisterIds.club_domain).toBe('group-2-club');
+});
+
+it('shows a verified member-group child early but blocks writes until full discovery finishes', async () => {
+  state.everyCanisters = ['slow-unrelated-group', 'group-2-club'];
+  state.children.mockImplementation(async (ctx: { target: { canisterIds: { club_domain: string } } }) =>
+    ctx.target.canisterIds.club_domain === 'slow-unrelated-group'
+      ? new Promise(() => {}) // simulate protected read pending in another group
+      : [{ id: 'child-a', teams: [], parent: [{ toText: () => 'parent-a' }] }]);
+  state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
+  open();
+  expect(await screen.findByText('Ted')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Remove child' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Guardians' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Add child' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Add to team' })).toBeDisabled();
+  expect(screen.getByText(/Checking the remaining ICP groups/)).toBeInTheDocument();
+  expect(screen.queryByText('No children added yet.')).not.toBeInTheDocument();
+});
+
+it('does not falsely show No children when the fast member-group preview is empty', async () => {
+  state.memberCanisters = [];
+  state.everyCanisters = ['slow-unrelated-group'];
+  state.children.mockReturnValue(new Promise(() => {}));
+  open();
+  expect(await screen.findByText('Loading children...')).toBeInTheDocument();
+  expect(screen.queryByText('No children added yet.')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Add child' })).toBeDisabled();
+});
+
+it('allows child controls only after the complete cross-group inventory is verified', async () => {
+  state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
+  open();
+  expect(await screen.findByText('Ted')).toBeInTheDocument();
+  await waitFor(() => {
+    const status = client.getQueryState(['icp-own-children-all-groups', 'parent-a']);
+    if (status?.status === 'error') {
+      throw new Error('Full-child lookup failed: ' + String(status.error)
+        + '; routed scopes=' + JSON.stringify(state.routed.mock.calls.map(([scope]) =>
+          scope ? Object.keys(scope) : ['none'])));
+    }
+    expect(status?.status).toBe('success');
+    expect(screen.getByRole('button', { name: 'Add child' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Remove child' })).toBeEnabled();
+  });
 });

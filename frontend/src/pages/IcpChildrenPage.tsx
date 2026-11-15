@@ -60,21 +60,74 @@ interface IcpChild {
 interface TeamOpt { id: string; name: string; club_id: string; club_name: string; sourceClubCanisterId: string }
 interface Guardian { principal: string; name: string; isPrimary: boolean; isMe: boolean }
 
+// Cold Children opens may start both preview and full reads concurrently.
+// Share one lazy import rather than racing two dynamic feature-router module
+// loads; a failed import is evicted so an authenticated retry can recover.
+let featureRouterLoad: Promise<typeof import("@/live/featureRouter")> | null = null;
+function loadFeatureRouter(): Promise<typeof import("@/live/featureRouter")> {
+  if (!featureRouterLoad) {
+    featureRouterLoad = import("@/live/featureRouter").catch(error => {
+      featureRouterLoad = null;
+      throw error;
+    });
+  }
+  return featureRouterLoad;
+}
+// The same shared import also prevents simultaneous preview/full queries from
+// resolving different club-domain actor module instances during a cold open.
+let clubReadLoad: Promise<typeof import("@/live/features/club")> | null = null;
+function loadClubRead(): Promise<typeof import("@/live/features/club")> {
+  if (!clubReadLoad) {
+    clubReadLoad = import("@/live/features/club").catch(error => {
+      clubReadLoad = null;
+      throw error;
+    });
+  }
+  return clubReadLoad;
+}
+
+/** Deduplicate simultaneous full/preview authenticated reads of the same
+ * source on one signed-in identity. Entries only exist while the call is in
+ * flight; neither child data nor identity is persisted or shared remotely. */
+const groupChildReads = new WeakMap<object, Map<string, Promise<unknown>>>();
+function coalesceOwnChildRead<T>(
+  identity: object, sourceKey: string, read: () => Promise<T>,
+): Promise<T> {
+  let session = groupChildReads.get(identity);
+  if (!session) { session = new Map(); groupChildReads.set(identity, session); }
+  const existing = session.get(sourceKey);
+  if (existing) return existing as Promise<T>;
+  const pending = read();
+  session.set(sourceKey, pending);
+  const forget = () => { if (session?.get(sourceKey) === pending) session.delete(sourceKey); };
+  // A stalled IC call must not poison subsequent reads or account retries.
+  // The outer read deadline remains authoritative; this only evicts a stale
+  // coalescing entry, never retries or writes to a canister.
+  const eviction = setTimeout(forget, 20_000);
+  const settle = () => { clearTimeout(eviction); forget(); };
+  void pending.then(settle, settle);
+  return pending;
+}
+
 /** Reading all groups is essential even for unassigned children. A child
  * starts with club_id=null, so a clubId lookup cannot recover its source.
  * Require a complete member/shared inventory instead of showing a false empty
  * list when one of the groups is unavailable.
  */
-async function readAllMyChildren(): Promise<IcpChild[]> {
+async function readChildrenFromVerifiedSources(mode: 'member' | 'all'): Promise<IcpChild[]> {
   const [{ withFeatureBackend }, club] = await Promise.all([
-    import("@/live/featureRouter"), import("@/live/features/club"),
+    loadFeatureRouter(), loadClubRead(),
   ]);
   return withFeatureBackend<IcpChild[]>("membership", {
     supabase: async () => { throw new Error("Internet Identity required to retrieve ICP children"); },
     icp: async scoped => {
       const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
       const me = scoped.identity.getPrincipal().toText();
-      const rows = await withReadDeadline(club.listMyLiveOwnChildren(scoped), "Children in club group", 20_000);
+      const rows = await withReadDeadline(
+        coalesceOwnChildRead(scoped.identity, `${scoped.target.host}|${sourceClubCanisterId}`,
+          () => club.listMyLiveOwnChildren(scoped)),
+        "Children in club group", 20_000,
+      );
       if (rows.length > 0) {
         // As soon as an authenticated group confirms a child, overlap the
         // PUBLIC PII verification-key read with the rest of cross-group child
@@ -90,7 +143,9 @@ async function readAllMyChildren(): Promise<IcpChild[]> {
         sourceClubCanisterId,
       }));
     },
-  }, { everyGroup: true, requireComplete: true, merge: parts => collectVerifiedChildren(parts as IcpChild[][]) });
+  }, mode === 'member'
+    ? { memberGroups: true, merge: parts => collectVerifiedChildren(parts as IcpChild[][]) }
+    : { everyGroup: true, requireComplete: true, merge: parts => collectVerifiedChildren(parts as IcpChild[][]) });
 }
 
 /** A later action must re-locate the child's *original* group, recheck the
@@ -102,7 +157,7 @@ async function withVerifiedChildGroup<T>(
   run: (ctx: FeatureBackendContext) => Promise<T>,
 ): Promise<T> {
   const [{ withFeatureBackend }, club] = await Promise.all([
-    import("@/live/featureRouter"), import("@/live/features/club"),
+    loadFeatureRouter(), loadClubRead(),
   ]);
   const contexts = await withFeatureBackend<FeatureBackendContext[]>("membership", {
     supabase: async () => { throw new Error("Internet Identity required for child changes"); },
@@ -143,17 +198,31 @@ export default function IcpChildrenPage() {
     }),
   });
 
-  const { data: childRows, isLoading, isError, refetch } = useQuery({
+  // Fast, verified preview: only groups where this account already has
+  // membership. It can be incomplete (a guardian may have a child in another
+  // group), so NEVER allow mutations or an empty-state claim from this query.
+  const memberChildrenQuery = useQuery({
+    queryKey: ['icp-member-children-preview', user?.id],
+    enabled: !!user,
+    retry: false,
+    queryFn: () => readChildrenFromVerifiedSources('member'),
+    staleTime: 60_000,
+  });
+  // The full inventory remains authoritative for duplicate prevention,
+  // cross-group children and all write controls. It runs independently of the
+  // preview and still requires every group to answer successfully.
+  const { data: completeChildRows, isLoading: completeLoading, isError, refetch } = useQuery({
     queryKey: KEY,
     enabled: !!user,
     retry: false,
-    queryFn: readAllMyChildren,
-    // Children change rarely; keep the last list for a minute so revisiting
-    // the page (or returning after Add child) is instant while a background
-    // refetch refreshes it.
+    queryFn: () => readChildrenFromVerifiedSources('all'),
     staleTime: 60_000,
-    placeholderData: (prev) => prev,
   });
+  const inventoryComplete = !!completeChildRows && !isError;
+  const childRows = completeChildRows ?? (
+    memberChildrenQuery.data?.length ? memberChildrenQuery.data : undefined
+  );
+  const isLoading = !childRows && completeLoading;
 
   // Authorized child records reveal independently of private-name unlocking.
   // This separate account-scoped query never changes guardianship or teams.
@@ -165,7 +234,7 @@ export default function IcpChildrenPage() {
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<Record<string, string>> => {
       const [{ withFeatureBackend }, vault, piiKeys] = await Promise.all([
-        import("@/live/featureRouter"), import("@/live/features/vault"), import("@/live/piiVetKeys"),
+        loadFeatureRouter(), import("@/live/features/vault"), import("@/live/piiVetKeys"),
       ]);
       type SourceNames = { sourceClubCanisterId: string; names: Record<string, string> };
       // The child inventory was already verified across ALL groups. A name
@@ -220,8 +289,8 @@ export default function IcpChildrenPage() {
     ...child,
     name: namesQuery.data?.[childSourceKey(child)] ?? child.name,
   }));
-  const existingNamesResolved = !!childRows && (
-    childRows.length === 0 || (
+  const existingNamesResolved = inventoryComplete && (
+    completeChildRows?.length === 0 || (
       namesQuery.isSuccess && !!children?.every(child => !!child.name.trim())
     )
   );
@@ -233,8 +302,8 @@ export default function IcpChildrenPage() {
     retry: false,
     queryFn: async (): Promise<TeamOpt[]> => {
       const [{ withFeatureBackend }, club] = await Promise.all([
-        import("@/live/featureRouter"),
-        import("@/live/features/club"),
+        loadFeatureRouter(),
+        loadClubRead(),
       ]);
       // The default ctx is Group 1. Discover each group's caller-scoped club
       // roles INSIDE that group; otherwise a Group 2 parent sees no U10 team.
@@ -269,6 +338,7 @@ export default function IcpChildrenPage() {
 
 
   const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['icp-member-children-preview', user?.id] });
     qc.invalidateQueries({ queryKey: KEY });
     qc.invalidateQueries({ queryKey: ['icp-own-child-names-all-groups', user?.id] });
     qc.invalidateQueries({ queryKey: ["children"] });
@@ -289,8 +359,8 @@ export default function IcpChildrenPage() {
       }
       const team = availableNewChildTeam;
       const [{ withFeatureBackend, writeOnce }, club, vault] = await Promise.all([
-        import("@/live/featureRouter"),
-        import("@/live/features/club"),
+        loadFeatureRouter(),
+        loadClubRead(),
         import("@/live/features/vault"),
       ]);
       return withFeatureBackend("membership", {
@@ -349,8 +419,9 @@ export default function IcpChildrenPage() {
 
   const deleteChild = useMutation({
     mutationFn: async (child: IcpChild) => {
+      if (!inventoryComplete) throw new Error("Verify the complete child inventory before making changes.");
       if (!child.isPrimary) throw new Error("Only the primary parent can remove this child.");
-      const club = await import("@/live/features/club");
+      const club = await loadClubRead();
       await withVerifiedChildGroup(child, ctx => club.deleteMyLiveChild(ctx, child.id));
     },
     onMutate: async (child: IcpChild) => {
@@ -372,12 +443,13 @@ export default function IcpChildrenPage() {
     mutationFn: async ({ child, team, assigned }: {
       child: IcpChild; team: TeamOpt; assigned: boolean;
     }) => {
+      if (!inventoryComplete) throw new Error("Verify the complete child inventory before making changes.");
       assertChildSourceMatchesTeam(child, team);
       if (assigned && child.teams.includes(team.id)) return;
       if (!assigned && !child.teams.includes(team.id))
         throw new Error("Child is not on this team; nothing was changed.");
       const [club, vault] = await Promise.all([
-        import("@/live/features/club"), import("@/live/features/vault"),
+        loadClubRead(), import("@/live/features/vault"),
       ]);
       await withVerifiedChildGroup(child, async ctx => {
         const actual = (await club.getLiveTeam(ctx, team.id))[0];
@@ -407,11 +479,20 @@ export default function IcpChildrenPage() {
           </Button>
           <h1 className="text-lg font-bold">Children</h1>
         </div>
-        <Button size="sm" onClick={() => setAddOpen(true)}>
+        <Button size="sm" disabled={!inventoryComplete} onClick={() => setAddOpen(true)}>
           <Plus className="h-4 w-4 mr-1" /> Add child
         </Button>
       </div>
 
+      {!inventoryComplete && !!children?.length && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {isError
+            ? 'Could not verify all ICP groups. Child changes are disabled until you retry.'
+            : 'Checking the remaining ICP groups… Child changes are unavailable until verification finishes.'}
+          {isError && <Button variant="outline" size="sm" className="ml-2"
+            onClick={() => void refetch()}>Retry verification</Button>}
+        </p>
+      )}
       {isLoading ? (
         <div className="py-10 flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -424,7 +505,7 @@ export default function IcpChildrenPage() {
           <CardContent className="py-10 text-center space-y-3">
             <Users className="h-10 w-10 mx-auto text-muted-foreground" />
             <p className="text-muted-foreground">No children added yet.</p>
-            <Button onClick={() => setAddOpen(true)}><Plus className="h-4 w-4 mr-1" /> Add your first child</Button>
+            <Button disabled={!inventoryComplete} onClick={() => setAddOpen(true)}><Plus className="h-4 w-4 mr-1" /> Add your first child</Button>
           </CardContent>
         </Card>
       ) : (
@@ -439,11 +520,11 @@ export default function IcpChildrenPage() {
                     <p className="text-xs text-muted-foreground">Stored on ICP group {c.sourceClubCanisterId.slice(0, 10)}…</p>
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" aria-label="Guardians" onClick={() => setGuardiansFor(c)}>
+                    <Button variant="ghost" size="icon" aria-label="Guardians" disabled={!inventoryComplete} onClick={() => setGuardiansFor(c)}>
                       <UserPlus className="h-4 w-4" />
                     </Button>
                     {c.isPrimary && (
-                      <Button variant="ghost" size="icon" aria-label="Remove child" onClick={() => setDeleteId(c)}>
+                      <Button variant="ghost" size="icon" aria-label="Remove child" disabled={!inventoryComplete} onClick={() => setDeleteId(c)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     )}
@@ -457,19 +538,19 @@ export default function IcpChildrenPage() {
                         {t ? `${t.name} · ${t.club_name}` : "Team"}
                         <button
                           aria-label="Remove from team"
-                          disabled={!t}
-                          onClick={() => t && setTeam.mutate({ child: c, team: t, assigned: false })}
+                          disabled={!t || !inventoryComplete}
+                          onClick={() => t && inventoryComplete && setTeam.mutate({ child: c, team: t, assigned: false })}
                         >
                           <X className="h-3 w-3" />
                         </button>
                       </Badge>
                     );
                   })}
-                  <Button variant="outline" size="sm" onClick={() => setTeamFor(c)}>
+                  <Button variant="outline" size="sm" disabled={!inventoryComplete} onClick={() => setTeamFor(c)}>
                     <Plus className="h-3 w-3 mr-1" /> Add to team
                   </Button>
                   {isDevTedU10PreviewCandidate(window.location.hostname, c) && (
-                    <Button variant="outline" size="sm" disabled={reviewTed.isPending}
+                    <Button variant="outline" size="sm" disabled={reviewTed.isPending || !inventoryComplete}
                       onClick={() => reviewTed.mutate()}>
                       {reviewTed.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
                       Review U10 move
@@ -605,7 +686,7 @@ function GuardiansDialog({ child, teamIds, onClose, onChanged }: { child: IcpChi
   const { data, isLoading } = useQuery({
     queryKey: key,
     queryFn: async () => {
-      const club = await import("@/live/features/club");
+      const club = await loadClubRead();
       const { listLiveProfilesByIds, accountIdForPrincipal } = await import("@/live/features/identityAccessClient");
       const { listLiveTeamRoleGrants } = await import("@/live/features/membership");
       return withVerifiedChildGroup(child, async ctx => {
@@ -638,7 +719,7 @@ function GuardiansDialog({ child, teamIds, onClose, onChanged }: { child: IcpChi
   const change = useMutation({
     mutationFn: async ({ principal, linked }: { principal: string; linked: boolean }) => {
       const [club, vault, { Principal }] = await Promise.all([
-        import("@/live/features/club"), import("@/live/features/vault"), import("@icp-sdk/core/principal"),
+        loadClubRead(), import("@/live/features/vault"), import("@icp-sdk/core/principal"),
       ]);
       const p = Principal.fromText(principal);
       await withVerifiedChildGroup(child, async ctx => {
