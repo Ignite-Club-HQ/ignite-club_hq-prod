@@ -9197,6 +9197,23 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
+  // Team roster IDs come from the same child->team source of truth used by
+  // set_own_child_team. A club member can read IDs for a verified team, never
+  // all families, guardians, or unencrypted names. PII reads remain separate.
+  public shared ({ caller }) func read_account_list_team_child_ids(club_id : Text, team_id : Text) : async { #Ok : [Text]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+      if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+      try {
+        await admitAccount(caller);
+        auth(caller);
+        if (not teamInClub(team_id, club_id)) return #Err("Team not found in club");
+        if (not isMember(caller, club_id)) return #Err("Club membership required");
+        #Ok(acl.children.filter(func(child) = child.teams.any(func(t) = t == team_id)).map(func(child) = child.id))
+      } finally { removalReceiver.leave(caller) };
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
   public shared ({ caller }) func read_account_list_team_role_grants(team : Text) : async { #Ok : [Types.AccountRole]; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
