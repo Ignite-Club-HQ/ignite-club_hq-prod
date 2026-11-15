@@ -1,4 +1,4 @@
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -59,8 +59,10 @@ it('reveals authorized child controls without waiting for name decryption or glo
   expect(screen.getByLabelText('Retrieving child name')).toBeInTheDocument();
   // The team query may begin, but it must never block a verified child card.
   expect(state.teams).not.toHaveBeenCalled();
-  expect(client.getQueryData(['icp-own-children-all-groups', 'parent-a'])).toHaveLength(1);
-  expect(client.getQueryData(['icp-own-children-all-groups', 'parent-b'])).toBeUndefined();
+  expect(client.getQueryData(['icp-member-children-preview', 'parent-a'])).toHaveLength(1);
+  expect(client.getQueryData(['icp-member-children-preview', 'parent-b'])).toBeUndefined();
+  // The complete inventory may still be running when the preview appears.
+  // Never require its cache to be populated before rendering the card.
 });
 it('failed child reads show retry rather than falsely reporting no children', async () => {
   state.children.mockRejectedValue(new Error('Denied'));
@@ -154,6 +156,11 @@ it('allows child controls only after the complete cross-group inventory is verif
   state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
   open();
   expect(await screen.findByText('Ted')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Add child' })).toBeEnabled();
-  expect(screen.getByRole('button', { name: 'Remove child' })).toBeEnabled();
+  await waitFor(() => {
+    const status = client.getQueryState(['icp-own-children-all-groups', 'parent-a']);
+    if (status?.status === 'error') throw status.error;
+    expect(status?.status).toBe('success');
+    expect(screen.getByRole('button', { name: 'Add child' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Remove child' })).toBeEnabled();
+  });
 });
