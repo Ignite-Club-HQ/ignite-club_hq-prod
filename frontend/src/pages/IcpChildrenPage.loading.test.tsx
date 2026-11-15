@@ -59,7 +59,7 @@ it('reveals authorized child controls without waiting for name decryption or glo
   expect(screen.getByLabelText('Retrieving child name')).toBeInTheDocument();
   // The team query may begin, but it must never block a verified child card.
   expect(state.teams).not.toHaveBeenCalled();
-  expect(client.getQueryData(['icp-member-children-preview', 'parent-a'])).toHaveLength(1);
+  await waitFor(() => expect(client.getQueryData(['icp-member-children-preview', 'parent-a'])).toHaveLength(1));
   expect(client.getQueryData(['icp-member-children-preview', 'parent-b'])).toBeUndefined();
   // The complete inventory may still be running when the preview appears.
   // Never require its cache to be populated before rendering the card.
