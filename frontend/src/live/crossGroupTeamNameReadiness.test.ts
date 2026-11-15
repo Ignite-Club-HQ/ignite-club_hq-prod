@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Principal } from '@icp-sdk/core/principal';
 import { GROUP_DOMAINS } from './groupRouting';
 import type { AccountRegistryBinding, AccountRegistrySnapshot } from './accountAuthorityRegistry';
-import { inspectLegacyGroup1TeamNameTopology, verifyCrossGroupTeamNameRoute, type LegacyIdentityDirectoryReadback, type TeamNameRoutePins } from './crossGroupTeamNameReadiness';
+import { classifyLegacyIdentityDirectoryRevision, inspectLegacyGroup1TeamNameTopology, verifyCrossGroupTeamNameRoute, type LegacyIdentityDirectoryReadback, type TeamNameRoutePins } from './crossGroupTeamNameReadiness';
 
 const subnet = Principal.fromText('e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe');
 const pins: TeamNameRoutePins = {
@@ -206,5 +206,19 @@ describe('exact, non-sensitive Identity directory failure diagnosis', () => {
     expect(good.originalPiiKeyVerified).toBe(false);
     expect(good.requiresLiveTeamPermission).toBe(true);
     expect(good.requiresOwnerRelease).toBe(true);
+  });
+});
+
+describe('read-only legacy registry drift classification', () => {
+  it('returns matching when directory and live router agree', () => {
+    expect(classifyLegacyIdentityDirectoryRevision(11n,11n)).toBe('matching');
+  });
+  it('distinguishes older directory from newer router without auto-rebinding', () => {
+    expect(classifyLegacyIdentityDirectoryRevision(11n,10n)).toBe('identity-behind-router');
+    expect(classifyLegacyIdentityDirectoryRevision(11n,12n)).toBe('identity-ahead-of-router');
+  });
+  it('rejects incomplete observations and never treats zero as a safe release', () => {
+    expect(() => classifyLegacyIdentityDirectoryRevision(0n,11n)).toThrow(/positive/);
+    expect(() => classifyLegacyIdentityDirectoryRevision(11n,0n)).toThrow(/positive/);
   });
 });

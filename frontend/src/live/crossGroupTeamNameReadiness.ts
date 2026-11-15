@@ -171,3 +171,18 @@ export function inspectLegacyGroup1TeamNameTopology(
     requiresOwnerRelease: true as const,
   };
 }
+
+/** Read-only classification of independently observed registry revisions.
+ * This reports a mismatch; it does not allow pin substitution or repair.
+ * A future/older directory requires the operator's fenced recovery process.
+ */
+export function classifyLegacyIdentityDirectoryRevision(
+  liveRouterRevision: bigint,
+  savedIdentityRevision: bigint,
+): 'matching' | 'identity-behind-router' | 'identity-ahead-of-router' {
+  if (liveRouterRevision < 1n || savedIdentityRevision < 1n)
+    throw new Error('Both observed registry revisions must be positive');
+  return savedIdentityRevision === liveRouterRevision ? 'matching'
+    : savedIdentityRevision < liveRouterRevision
+      ? 'identity-behind-router' : 'identity-ahead-of-router';
+}

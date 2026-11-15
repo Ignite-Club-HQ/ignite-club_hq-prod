@@ -17,7 +17,7 @@ import { idlFactory as routerIdl } from '../src/lab/bindings/shard_router/declar
 import type { _SERVICE as RouterService } from '../src/lab/bindings/shard_router/declarations/shard_router.did';
 import { idlFactory as identityIdl } from '../src/lab/bindings/identity_access/declarations/identity_access.did.js';
 import type { _SERVICE as IdentityService } from '../src/lab/bindings/identity_access/declarations/identity_access.did';
-import { inspectLegacyGroup1TeamNameTopology } from '../src/live/crossGroupTeamNameReadiness';
+import { classifyLegacyIdentityDirectoryRevision, inspectLegacyGroup1TeamNameTopology } from '../src/live/crossGroupTeamNameReadiness';
 import { GROUP2_GOVERNOR } from '../../scripts/group2-upgrade-rules.mjs';
 
 const [pem, reportDir] = process.argv.slice(2);
@@ -64,6 +64,46 @@ const binding = {
 };
 const first = await identity.read_membership_directory_configuration();
 if ('Err' in first) throw new Error('Governor Identity directory read refused: '+first.Err);
+// A stale binding cannot be fixed by silently substituting the current router
+// revision. Capture only non-sensitive metadata; make two independent reads
+// before recording an actionable, explicitly BLOCKED recovery report.
+const drift = classifyLegacyIdentityDirectoryRevision(snapshot.revision, first.Ok.binding.registry_revision);
+if (drift !== 'matching') {
+  const afterSnapshot = await readPinnedGroupRegistry((rev, cursor, limit) =>
+    router.read_group_registry_page('mainnet', rev, cursor, limit));
+  const afterDirectory = await identity.read_membership_directory_configuration();
+  if ('Err' in afterDirectory) throw new Error('Closing Identity directory read refused; no recovery report.');
+  const fingerprint = (value: unknown) => JSON.stringify(value, (_, item) =>
+    typeof item === 'bigint' ? item.toString() : item instanceof Uint8Array ? Array.from(item) : item);
+  if (fingerprint(snapshot) !== fingerprint(afterSnapshot) ||
+      fingerprint(first.Ok) !== fingerprint(afterDirectory.Ok)) {
+    throw new Error('Identity/router configuration changed during drift check; stop without reporting stale evidence.');
+  }
+  // Do not publish source principal lists, names, keys, full directory binding,
+  // or the signed governor credential; only revision/status facts.
+  mkdirSync(resolve(reportDir), {recursive:true});
+  writeFileSync(resolve(reportDir,'check.json'), JSON.stringify({
+    action:'check', state:'blocked', reason:'identity-directory-registry-revision-drift',
+    direction:drift,
+    liveRouterRevision:String(snapshot.revision),
+    savedIdentityDirectoryRevision:String(first.Ok.binding.registry_revision),
+    twoIndependentReadbacksStable:true,
+    directoryEnabled:first.Ok.enabled,
+    membershipLookupReleased:first.Ok.app_enabled,
+    directoryGeneration:String(first.Ok.generation),
+    originalPiiKeyVerified:false,
+    originalPiiIdentityAllowlistVerified:false,
+    teamOnlyNamePermissionVerified:false,
+    readyToReleaseName:false,
+    nameReadAuthorised:false,
+    noWritesAttempted:true,
+  },null,2));
+  throw new Error(
+    'Fenced recovery required: live router revision ' + String(snapshot.revision) +
+    ', saved Identity directory revision ' + String(first.Ok.binding.registry_revision) +
+    '. Evidence saved; no PII, keys, grants or configurations changed.'
+  );
+}
 const observed = inspectLegacyGroup1TeamNameTopology(snapshot,binding,first.Ok,pins);
 
 // Public canister key, not a vetKey decryption or a name. This fingerprint
