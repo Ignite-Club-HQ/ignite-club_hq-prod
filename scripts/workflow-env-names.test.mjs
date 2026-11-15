@@ -116,6 +116,11 @@ test('approved DEV Group 2 PII discovery does not depend on an unset repo variab
   assert.match(text, /github\.event_name == 'push'/);
   assert.match(text, /github\.event_name == 'workflow_dispatch' && inputs\.enable_dev_g2_child_pii/);
   assert.doesNotMatch(text, /vars\.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY/);
+  // Reject an accidental green deployment with Group 2 PII omitted, as seen
+  // on the previously successful but opt-out DEV push.
+  assert.match(text, /GITHUB_EVENT_NAME:-/);
+  assert.match(text, /IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY:-/);
+  assert.match(text, /Approved DEV Group 2 PII discovery unexpectedly disabled on main push/);
   assert.match(text, /'zt5a6-yiaaa-aaaal-qxp5q-cai'/);
   assert.match(text, /ids\.filter\(id => id === g2Pii\)\.length !== \(enabled \? 1 : 0\)/);
   assert.match(text, /'zu4gk-vqaaa-aaaal-qxp5a-cai'/);
