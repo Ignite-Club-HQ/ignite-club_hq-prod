@@ -40,7 +40,7 @@ export function verifyCrossGroupTeamNameRoute(
     throw new Error('Both groups must appear in the complete verified registry');
   }
 
-  const authority = (group: typeof source, domain: string) =>
+  const authority = (group: NonNullable<typeof source>, domain: string) =>
     group.domains.find(row => row.domain === domain)?.canister.toText();
   if (authority(source, 'club_domain') !== pins.originalClubDomain ||
       authority(source, 'pii_access_control') !== pins.originalPiiCanister ||
