@@ -2,7 +2,13 @@ import { render, screen, cleanup } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ children: vi.fn(), names: vi.fn(), teams: vi.fn(), grants: vi.fn() }));
+const state = vi.hoisted(() => ({
+  children: vi.fn(), names: vi.fn(), teams: vi.fn(), grants: vi.fn(),
+  prewarm: vi.fn(),
+  memberCanisters: ['group-2-club'] as string[],
+  everyCanisters: ['group-2-club'] as string[],
+  routed: vi.fn(),
+}));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'parent-a' } }) }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/lib/icpClubTeamLookup', () => ({ icpCtx: async () => ({ identity: { getPrincipal: () => ({ toText: () => 'parent-a' }) } }) }));
@@ -11,22 +17,23 @@ vi.mock('@/live/features/club', () => ({
   listLiveTeams: state.teams,
   listMyLiveGroupRoleGrants: state.grants,
 }));
-vi.mock('@/live/piiVetKeys', () => ({ prewarmPiiVerificationKey: vi.fn() }));
+vi.mock('@/live/piiVetKeys', () => ({ prewarmPiiVerificationKey: state.prewarm }));
 // Exercise the real Children-page group callback with one signed-in Group 2
 // context, rather than accidentally falling through an unconfigured test
 // registry and reporting a child-list error.
 vi.mock('@/live/featureRouter', () => ({
-  withFeatureBackend: vi.fn(async (_feature: string, providers: { icp: (ctx: unknown) => Promise<unknown> }, scope?: { everyGroup?: boolean; merge?: (parts: unknown[]) => unknown }) => {
-    const ctx = {
+  withFeatureBackend: vi.fn(async (_feature: string, providers: { icp: (ctx: unknown) => Promise<unknown> }, scope?: { everyGroup?: boolean; memberGroups?: boolean; merge?: (parts: unknown[]) => unknown }) => {
+    state.routed(scope);
+    const ids = scope?.memberGroups ? state.memberCanisters : state.everyCanisters;
+    const results = await Promise.all(ids.map(id => providers.icp({
       identity: { getPrincipal: () => ({ toText: () => 'parent-a' }) },
       target: {
         alias: 'mainnet', host: 'https://icp-api.io',
         networkKind: 'public_mainnet',
-        canisterIds: { club_domain: 'group-2-club', pii_access_control: 'group-2-pii' },
+        canisterIds: { club_domain: id, pii_access_control: 'pii-for-' + id },
       },
-    };
-    const result = await providers.icp(ctx);
-    return scope?.everyGroup ? scope.merge!([result]) : result;
+    })));
+    return scope?.everyGroup || scope?.memberGroups ? scope.merge!(results) : results[0];
   }),
 }));
 vi.mock('@/live/features/membership', () => ({ getLiveMyRoleGrants: state.grants }));
@@ -39,6 +46,8 @@ beforeEach(() => {
   state.children.mockResolvedValue([{ id: 'child-a', teams: [], parent: [{ toText: () => 'parent-a' }] }]);
   state.names.mockReturnValue(new Promise(() => {}));
   state.grants.mockResolvedValue([]);
+  state.memberCanisters = ['group-2-club'];
+  state.everyCanisters = ['group-2-club'];
 });
 afterEach(() => { cleanup(); client.clear(); });
 const open = () => render(<QueryClientProvider client={client}><MemoryRouter><IcpChildrenPage /></MemoryRouter></QueryClientProvider>);
@@ -75,4 +84,37 @@ it('renders the locally decrypted child name once it becomes available', async (
   expect(await screen.findByText('Ted')).toBeInTheDocument();
   expect(screen.queryByText('Name unavailable')).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Retry child names' })).not.toBeInTheDocument();
+});
+
+it('prefers the verified member-group route for names and prewarms the public key', async () => {
+  state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
+  open();
+  expect(await screen.findByText('Ted')).toBeInTheDocument();
+  expect(state.prewarm).toHaveBeenCalled();
+  const memberRoutes = state.routed.mock.calls.filter(([scope]) => scope?.memberGroups);
+  expect(memberRoutes).toHaveLength(1);
+  expect(state.names).toHaveBeenCalledTimes(1);
+});
+
+it('falls back to verified all-group name reads when an orphan child is not in a member group', async () => {
+  state.memberCanisters = []; // No current club membership, but the child still exists.
+  state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
+  open();
+  expect(await screen.findByText('Ted')).toBeInTheDocument();
+  expect(state.routed.mock.calls.some(([scope]) => scope?.memberGroups)).toBe(true);
+  expect(state.names).toHaveBeenCalledTimes(1); // No other-group PII reads.
+});
+
+it('does not request private names from an unrelated group', async () => {
+  state.everyCanisters = ['group-1-club', 'group-2-club'];
+  state.memberCanisters = ['group-2-club'];
+  state.children.mockImplementation(async (ctx: { target: { canisterIds: { club_domain: string } } }) =>
+    ctx.target.canisterIds.club_domain === 'group-2-club'
+      ? [{ id: 'child-a', teams: [], parent: [{ toText: () => 'parent-a' }] }]
+      : []);
+  state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
+  open();
+  expect(await screen.findByText('Ted')).toBeInTheDocument();
+  expect(state.names).toHaveBeenCalledTimes(1);
+  expect(state.names.mock.calls[0][0].target.canisterIds.club_domain).toBe('group-2-club');
 });

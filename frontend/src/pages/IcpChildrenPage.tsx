@@ -75,6 +75,15 @@ async function readAllMyChildren(): Promise<IcpChild[]> {
       const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
       const me = scoped.identity.getPrincipal().toText();
       const rows = await withReadDeadline(club.listMyLiveOwnChildren(scoped), "Children in club group", 20_000);
+      if (rows.length > 0) {
+        // As soon as an authenticated group confirms a child, overlap the
+        // PUBLIC PII verification-key read with the rest of cross-group child
+        // discovery. Do not block rendering on the crypto SDK import/key read.
+        // Keys are never exported to another service or stored in this query.
+        void import("@/live/piiVetKeys")
+          .then(m => m.prewarmPiiVerificationKey(scoped))
+          .catch(() => { /* an optional public-key warm-up must not hide children */ });
+      }
       return rows.map(r => ({
         id: r.id, name: "", teams: [...r.teams],
         isPrimary: r.parent?.[0]?.toText() === me,
@@ -158,27 +167,53 @@ export default function IcpChildrenPage() {
       const [{ withFeatureBackend }, vault, piiKeys] = await Promise.all([
         import("@/live/featureRouter"), import("@/live/features/vault"), import("@/live/piiVetKeys"),
       ]);
-      return withFeatureBackend<Record<string, string>>("membership", {
-        supabase: async () => { throw new Error("Internet Identity required for private child names"); },
-        icp: async scoped => {
-          const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
-          const ids = (childRows ?? [])
-            .filter(child => child.sourceClubCanisterId === sourceClubCanisterId)
-            .map(child => child.id);
-          if (ids.length === 0) return {};
-          // A cold name unlock needs ciphertext, a public verification key and
-          // a permission-gated vetKey. Start the public-key fetch in parallel,
-          // without sending names or introducing a proxy/server.
-          piiKeys.prewarmPiiVerificationKey(scoped);
-          const names = await withReadDeadline(
-            vault.resolveLivePiiTextBatch(scoped, ids, 'name', 'read', 'children_page'),
-            "Private child names", 30_000,
-          );
-          return Object.fromEntries([...names.entries()].map(([id, name]) =>
-            [childSourceKey({ id, sourceClubCanisterId }), name]));
+      type SourceNames = { sourceClubCanisterId: string; names: Record<string, string> };
+      // The child inventory was already verified across ALL groups. A name
+      // only needs to be read from the group that actually owns that child.
+      // Most parents belong to that group: prefer the narrower authenticated
+      // member-group read instead of repeating a full group/registry sweep.
+      const sourceIds = new Set((childRows ?? []).map(child => child.sourceClubCanisterId));
+      const scopedRead = async (scoped: FeatureBackendContext): Promise<SourceNames[]> => {
+        const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
+        const ids = (childRows ?? [])
+          .filter(child => child.sourceClubCanisterId === sourceClubCanisterId)
+          .map(child => child.id);
+        if (ids.length === 0) return [{ sourceClubCanisterId, names: {} }];
+        // The key is public, but the actual derived vetKey is authorised,
+        // transport-encrypted and decrypted only in the user's own browser.
+        piiKeys.prewarmPiiVerificationKey(scoped);
+        const names = await withReadDeadline(
+          vault.resolveLivePiiTextBatch(scoped, ids, 'name', 'read', 'children_page'),
+          "Private child names", 30_000,
+        );
+        return [{ sourceClubCanisterId, names: Object.fromEntries([...names.entries()].map(([id, name]) =>
+          [childSourceKey({ id, sourceClubCanisterId }), name])) }];
+      };
+      const providers = {
+        supabase: async (): Promise<SourceNames[]> => {
+          throw new Error("Internet Identity required for private child names");
         },
-      }, { everyGroup: true, requireComplete: true, readDeadlineMs: 35_000,
-        merge: parts => Object.assign({}, ...parts) });
+        icp: scopedRead,
+      };
+      const merge = (parts: unknown[]): SourceNames[] => (parts as SourceNames[][]).flat();
+      // Member-group reads are already proven by the caller's membership
+      // registry. They exclude unrelated ICP groups and keep the original
+      // canister-side child-name authorisation intact.
+      const memberParts = await withFeatureBackend<SourceNames[]>(
+        "membership", providers, { memberGroups: true, merge },
+      );
+      if ([...sourceIds].every(id => memberParts.some(part => part.sourceClubCanisterId === id))) {
+        return Object.assign({}, ...memberParts.map(part => part.names));
+      }
+      // A child may still be owned in a group where their guardian no longer
+      // has a club membership. Never silently omit those names: fall back to
+      // the original complete, verified cross-group read for that case.
+      const allParts = await withFeatureBackend<SourceNames[]>(
+        "membership", providers, {
+          everyGroup: true, requireComplete: true, readDeadlineMs: 35_000, merge,
+        },
+      );
+      return Object.assign({}, ...allParts.map(part => part.names));
     },
   });
   const children = childRows?.map(child => ({
