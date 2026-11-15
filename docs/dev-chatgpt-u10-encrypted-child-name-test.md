@@ -54,3 +54,48 @@ If the vault cannot be reached, key is not verified, name ciphertext differs, pe
 - The helper constructs valid ciphertext and Candid arguments; it does not connect to Internet Identity, sign, submit writes or verify actual deployment. The ICP connector handles authenticated calls.
 - Passing local tests does **not** demonstrate a deployed Group 2 PII service publication, secure remote crypto readback, or all on-chain ACL regression tests. Verify separately before treating this as live-ready.
 - No UI invite-flow change is bundled: the U10 parent membership was accepted previously through the ChatGPT plugin.
+
+
+## November 15: canonical ICP frontend + executable connector bridge
+
+The DEV frontend now advertises Group 2's PII canister on the **canonical ICP host**, not necessarily on the older Lovable preview origin. The correct app argument for the existing DFINITY connector is:
+
+- app_url: https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io
+- derivation_origin: https://proe7-kqaaa-aaaas-qg6gq-cai.ic0.app
+
+The SDK helper above is now wrapped by:
+
+- frontend/scripts/prepare-icp-chatgpt-child-name-connector.mjs
+- frontend/scripts/prepare-icp-chatgpt-child-name-cli.mjs
+
+The bridge expects the unmodified, exact response objects returned by the existing DFINITY plugin:
+
+1. open_app(app=canonical ICP URL) with Test3: declared Group 2 club_domain and pii_access_control; origin matches.
+2. get_app_principal Test3 for that derivation origin; Test3 principal, writable session.
+3. read_account_my_role_grants() on the pinned G2 club_domain: single U10 Parent grant in the complete record; an unrelated club_admin role does not qualify.
+4. pii_vetkey_verification_key() on the pinned G2 pii_access_control as Test3: exact 96-byte escaped Candid blob.
+5. **Only after separately approved creation:** one successful create_own_child() result from pinned G2 club_domain with exact Test3 parent, unassigned child ID and no inherited team.
+
+All response provenance fields (method, canister ID, manifest origin, derivation origin, anonymous flag) must match; altered or incomplete evidence refuses encryption. The bridge is OFFLINE and makes zero canister calls. It uses the same vetted ICP SDK and the same clubchildren IBE identity, random seed and IGSK1 header as the live app.
+
+In a trusted **local** checkout with frontend dependencies already installed, supply ONE complete JSON input object over stdin containing app, identity, roleReceipt, childReceipt, publicKeyReceipt and childName. **Use only synthetic test names in CI.** For actual child data keep the JSON outside the Git repository and GitHub Actions logs. Never pass a child's name as command-line arguments, CI variables, a URL or a public file.
+
+Run from the frontend directory:
+
+    node scripts/prepare-icp-chatgpt-child-name-cli.mjs < /secure/local/child-input.json > /secure/local/encrypted-candid.json
+
+The resulting JSON contains ONLY ciphertext-bearing Candid arguments and scoped routing metadata for separate, individually approved connector calls:
+register_pii, get_encrypted_pii_batch, grant_pii_read_club, grant_pii_read and set_own_child_team.
+**Do not automatically execute the returned calls.** Check the registration receipt or authorised ciphertext readback before granting/assigning, never retry uncertain writes blindly. Never create a second child to recover a failed name write.
+
+Synthetic end-to-end execution (Node + real @icp-sdk/vetkeys, no canister access, no identities):
+
+    cd frontend
+    node --test scripts/prepare-icp-chatgpt-child-name-connector.test.mjs
+
+### Important deployment / tool limitations
+
+- This is an executable LOCAL Node bridge, not a new MCP method. The DFINITY ICP plugin still handles signing and all canister access, and cannot itself run arbitrary local JavaScript. A ChatGPT runtime with this repository and its installed dependencies is required to execute the bridge, or an independently reviewed, connected encryption tool would be needed.
+- Source tests, synthetic encryption and actual live DEV access verification are necessary but do not prove a **new live child** is created, named and decrypted. No such write is permitted by this code or PR.
+- The public key comes from a signed-in connector call but is not secret, and the node process never receives the user's Internet Identity delegation, passwords, signing keys or vetKeys. Its returned Candid arguments are ciphertext and can be sent by the existing connector only with separate write approval.
+- The bridge is intentionally pinned to **Test3 and Group 2 ChatGPT Plugin Test U10**; it is a narrow DEV acceptance test, not a generic user onboarding implementation.
