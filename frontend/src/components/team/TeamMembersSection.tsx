@@ -22,6 +22,7 @@ import {
 import PendingInvitesList from "@/components/PendingInvitesList";
 import { friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
 import { cn } from "@/lib/utils";
+import { visibleTeamMemberName } from "@/lib/teamRosterDisplay";
 
 export type TeamMemberEntry = {
   profile: any;
@@ -256,6 +257,15 @@ export function TeamMembersSection({
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   </div>
                 )}
+              {/* Adult role grants often load before the private child roster.
+                   Keep that distinct pending state visible instead of showing
+                   just two parents and making it look like children vanished. */}
+              {(isChildrenLoading || (isChildrenFetching && teamChildren.length === 0 && !isChildrenError)) && (
+                <div role="status" aria-live="polite" className="flex items-center gap-2 px-2 py-3 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden="true" />
+                  Loading players…
+                </div>
+              )}
               {/* Combined Players section — child players first, adult players
                         continue directly below under the same heading. */}
               {(teamChildren.length > 0 ||
@@ -876,7 +886,7 @@ export function TeamMembersSection({
                                   onAddRoleMember({
                                     userId,
                                     userName:
-                                      member.profile?.display_name || "User",
+                                      visibleTeamMemberName(member.profile?.display_name),
                                     existingRoles:
                                       member.roles?.map((r) => r.role) || [],
                                   }),
@@ -892,7 +902,7 @@ export function TeamMembersSection({
                                     type: "adult",
                                     id: userId,
                                     name:
-                                      member.profile?.display_name || "User",
+                                      visibleTeamMemberName(member.profile?.display_name),
                                     roles:
                                       member.roles?.map((r) => r.role) || [],
                                   }),
@@ -907,7 +917,7 @@ export function TeamMembersSection({
                                   onRemoveMember({
                                     userId,
                                     name:
-                                      member.profile?.display_name || "User",
+                                      visibleTeamMemberName(member.profile?.display_name),
                                   }),
                                 className: "bg-destructive",
                               });
@@ -926,8 +936,7 @@ export function TeamMembersSection({
                                     onSelectMember({
                                       userId,
                                       displayName:
-                                        member.profile?.display_name ||
-                                        "Unknown User",
+                                        visibleTeamMemberName(member.profile?.display_name),
                                       avatarUrl: member.profile?.avatar_url,
                                       roles: member.roles || [],
                                     })
@@ -947,8 +956,7 @@ export function TeamMembersSection({
                                   </Avatar>
                                   <div className="flex-1 min-w-0">
                                     <p className="font-medium text-sm truncate">
-                                      {member.profile?.display_name ||
-                                        "Unknown User"}
+                                      {visibleTeamMemberName(member.profile?.display_name)}
                                     </p>
                                   </div>
                                   <div className="flex flex-wrap gap-1">

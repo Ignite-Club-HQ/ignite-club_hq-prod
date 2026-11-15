@@ -128,6 +128,7 @@ import { TeamDetailAccordionSections } from "@/components/team/TeamDetailAccordi
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { readIcpTeamPendingInvites } from "@/features/membership/teamPendingInvites";
 import { readTeamChildRows, teamRoleRows } from '@/lib/teamRosterReads';
+import { scopedIcpTeamRosterKey, teamRosterHeaderStatus } from '@/lib/teamRosterDisplay';
 
 
 type TeamRole = TeamJoinRole;
@@ -694,7 +695,9 @@ export default function TeamDetailPage() {
 
   // Fetch children assigned to the team
   const { data: teamChildrenData = [], isLoading: isChildrenLoading, isFetching: isChildrenFetching, isError: isChildrenError, error: childrenError, refetch: refetchChildren } = useQuery({
-    queryKey: membershipKeys.teamChildren(id),
+    queryKey: isIcpAccount
+      ? scopedIcpTeamRosterKey(membershipKeys.teamChildren(id), user?.id, team?.club_id)
+      : membershipKeys.teamChildren(id),
     queryFn: async () => {
       if (isIcpAccount) {
         if (!id || !team?.club_id) return [];
@@ -774,6 +777,8 @@ export default function TeamDetailPage() {
       });
     },
     enabled: !!id && !useIcpLab && (!isIcpAccount || !!team?.club_id),
+    // Keep identity- and club-scoped keys, but always revalidate live
+    // membership on mount so a revoked role is never trusted as fresh.
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
     refetchOnMount: 'always',
@@ -782,7 +787,9 @@ export default function TeamDetailPage() {
 
   // Fetch roles data with profiles - with caching for faster loads
   const { data: rawMembersData = [], isLoading: isMembersLoading, isFetching: isMembersFetching, isError: isMembersError, error: membersError, refetch: refetchMembers } = useQuery({
-    queryKey: membershipKeys.teamRoles(id),
+    queryKey: isIcpAccount
+      ? scopedIcpTeamRosterKey(membershipKeys.teamRoles(id), user?.id, team?.club_id)
+      : membershipKeys.teamRoles(id),
     queryFn: async () => {
       if (isFeatureRoutedToIcp("membership")) {
         // Live ICP: the member list comes from club_domain role grants, not
@@ -834,9 +841,9 @@ export default function TeamDetailPage() {
     // rather than probing every group for the team owner.
     enabled: !!id && !useIcpLab && (!isIcpAccount || !!team?.club_id),
     retry: isIcpAccount ? 1 : 3,
-    staleTime: 0, // Always fetch fresh data
+    staleTime: 0, // Revalidate member access on mount
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-    refetchOnMount: 'always', // Always refetch when component mounts
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   });
 
@@ -1574,7 +1581,11 @@ export default function TeamDetailPage() {
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold truncate leading-tight">{team.name}</h1>
           <p className="text-xs text-muted-foreground leading-tight">
-            {isMembersLoading || isChildrenLoading ? 'Loading members…' : isMembersError || isChildrenError ? 'Members unavailable' : <>{Object.keys(members).length + teamChildren.length} member{Object.keys(members).length + teamChildren.length !== 1 ? 's' : ''}</>}
+            {teamRosterHeaderStatus({
+              members: Object.keys(members).length, children: teamChildren.length,
+              loadingMembers: isMembersLoading, loadingChildren: isChildrenLoading,
+              memberError: isMembersError, childError: isChildrenError,
+            })}
           </p>
         </div>
         {showInvite && (
