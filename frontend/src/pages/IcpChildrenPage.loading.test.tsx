@@ -8,7 +8,6 @@ const state = vi.hoisted(() => ({
   memberCanisters: ['group-2-club'] as string[],
   everyCanisters: ['group-2-club'] as string[],
   routed: vi.fn(),
-  blockCompleteInventory: false,
   identity: { getPrincipal: () => ({ toText: () => 'parent-a' }) },
 }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'parent-a' } }) }));
@@ -26,11 +25,6 @@ vi.mock('@/live/piiVetKeys', () => ({ prewarmPiiVerificationKey: state.prewarm }
 vi.mock('@/live/featureRouter', () => ({
   withFeatureBackend: vi.fn(async (_feature: string, providers: { icp: (ctx: unknown) => Promise<unknown> }, scope?: { everyGroup?: boolean; memberGroups?: boolean; merge?: (parts: unknown[]) => unknown }) => {
     state.routed(scope);
-    // Model the slow, complete cross-group inventory while a narrower
-    // membership-verified preview may already be readable.
-    if (scope?.everyGroup && state.blockCompleteInventory) {
-      return new Promise(() => {});
-    }
     const ids = scope?.memberGroups ? state.memberCanisters : state.everyCanisters;
     const results = await Promise.all(ids.map(id => providers.icp({
       identity: state.identity,
@@ -55,7 +49,6 @@ beforeEach(() => {
   state.grants.mockResolvedValue([]);
   state.memberCanisters = ['group-2-club'];
   state.everyCanisters = ['group-2-club'];
-  state.blockCompleteInventory = false;
   state.identity = { getPrincipal: () => ({ toText: () => 'parent-a' }) };
 });
 afterEach(() => { cleanup(); client.clear(); });
@@ -131,7 +124,11 @@ it('does not request private names from an unrelated group', async () => {
 });
 
 it('shows a verified member-group child early but blocks writes until full discovery finishes', async () => {
-  state.blockCompleteInventory = true;
+  state.everyCanisters = ['slow-unrelated-group', 'group-2-club'];
+  state.children.mockImplementation(async (ctx: { target: { canisterIds: { club_domain: string } } }) =>
+    ctx.target.canisterIds.club_domain === 'slow-unrelated-group'
+      ? new Promise(() => {}) // simulate protected read pending in another group
+      : [{ id: 'child-a', teams: [], parent: [{ toText: () => 'parent-a' }] }]);
   state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
   open();
   expect(await screen.findByText('Ted')).toBeInTheDocument();
@@ -144,8 +141,9 @@ it('shows a verified member-group child early but blocks writes until full disco
 });
 
 it('does not falsely show No children when the fast member-group preview is empty', async () => {
-  state.blockCompleteInventory = true;
-  state.children.mockResolvedValue([]);
+  state.memberCanisters = [];
+  state.everyCanisters = ['slow-unrelated-group'];
+  state.children.mockReturnValue(new Promise(() => {}));
   open();
   expect(await screen.findByText('Loading children...')).toBeInTheDocument();
   expect(screen.queryByText('No children added yet.')).not.toBeInTheDocument();
