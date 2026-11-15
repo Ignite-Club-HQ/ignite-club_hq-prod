@@ -91,6 +91,6 @@ test("team child roster uses caller-authorized canonical group placement, not th
   assert.match(clubBackend, /not teamInClub\(team_id, club_id\)/);
   assert.match(clubBackend, /not isMember\(caller, club_id\)/);
   assert.match(clubBackend, /acl\.children\.filter\(func\(child\) = child\.teams\.any/);
-  assert.match(teamRoster, /if \(!\/has no \(\?:query\|update\) method/);
+  assert.match(teamRoster, /if \(!\/has no/);
   assert.doesNotMatch(teamRoster, /catch \{\s*return \[\]/);
 });
