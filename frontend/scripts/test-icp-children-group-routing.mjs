@@ -69,6 +69,9 @@ test("parent invite child creation preflights current club membership and locks 
   assert.match(invite, /readTeam: async \(\) => \{/);
   assert.match(invite, /createOwnChild: \(\) => \{/);
   assert.match(invite, /icpChildCreateAttempted\.current = true;\s*return club\.createMyLiveChild\(ctx\)/);
+  assert.match(invite, /icpChildSubmissionPending\.current\) return/);
+  assert.match(invite, /icpChildSubmissionPending\.current = true/);
+  assert.match(invite, /icpChildSubmissionPending\.current = false/);
   assert.match(invite, /writeOnce\(\{ clubId: verifiedClubId \}\)/);
   assert.match(invite, /vault\.registerLiveChildNamePiiOrThrow\(ctx, id, addedLabel, parent, clubId\)/);
   assert.match(invite, /result\.status !== "linked"/);
