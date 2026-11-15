@@ -70,9 +70,24 @@ function checkParentRole(reply) {
 /** One newly returned caller-owned unassigned child; never parse an Err. */
 export function parseCreatedChildId(reply) {
   check(typeof reply === 'string' && reply.length < 16_000, 'Missing child creation response');
-  const records = [...reply.matchAll(/\b(?:Ok|"Ok")\s*=\s*record\s*\{([^{}]{1,3000})\}/g)];
-  check(records.length === 1 && !/\bErr\s*=/.test(reply), 'Expected one successful create_own_child result');
-  const body = compact(records[0][1]);
+  const success = [...reply.matchAll(/\b(?:Ok|"Ok")\s*=\s*record\s*\{/g)];
+  check(success.length === 1 && !/\bErr\s*=/.test(reply), 'Expected one successful create_own_child result');
+  // A child record contains "teams = vec {}", so a flat record regex would
+  // falsely reject every legitimate reply. Parse balanced Candid braces.
+  const start = success[0].index + success[0][0].length - 1;
+  let depth = 0;
+  let end = -1;
+  for (let i = start; i < reply.length; i++) {
+    const c = reply[i];
+    if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) { end = i; break; }
+    }
+    check(depth >= 0 && depth <= 4, 'Malformed child creation reply');
+  }
+  check(end > start && depth === 0, 'Unbalanced child creation reply');
+  const body = compact(reply.slice(start + 1, end));
   const ids = [...body.matchAll(/\bid\s*=\s*"([^"]+)"/g)];
   check(ids.length === 1 && CHILD_ID.test(ids[0][1]), 'Unverified new child ID');
   check(body.includes('parent = opt principal "' + T.test3Principal + '"'),
