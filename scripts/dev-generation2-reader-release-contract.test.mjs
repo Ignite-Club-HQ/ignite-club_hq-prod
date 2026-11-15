@@ -44,7 +44,7 @@ test('release target, rev, generation and closure preflight are all pinned',()=>
 
 test('only one write operation may enable the DEV membership reader after checked plan',()=>{
   assert.match(script,/checkedPlan!==planHash/);
-  assert.match(script,/checkedPlan!==''/);
+  assert.match(script,/action==='release' && \(confirmation!==exactPhrase/);
   assert.match(script,/createHash\('sha256'\)/);
   assert.match(script,/releaseCommit:commit/);
   assert.match(script,/action==='check'/);
