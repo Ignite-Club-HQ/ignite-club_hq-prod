@@ -60,6 +60,24 @@ interface IcpChild {
 interface TeamOpt { id: string; name: string; club_id: string; club_name: string; sourceClubCanisterId: string }
 interface Guardian { principal: string; name: string; isPrimary: boolean; isMe: boolean }
 
+/** Deduplicate simultaneous full/preview authenticated reads of the same
+ * source on one signed-in identity. Entries only exist while the call is in
+ * flight; neither child data nor identity is persisted or shared remotely. */
+const groupChildReads = new WeakMap<object, Map<string, Promise<unknown>>>();
+function coalesceOwnChildRead<T>(
+  identity: object, sourceKey: string, read: () => Promise<T>,
+): Promise<T> {
+  let session = groupChildReads.get(identity);
+  if (!session) { session = new Map(); groupChildReads.set(identity, session); }
+  const existing = session.get(sourceKey);
+  if (existing) return existing as Promise<T>;
+  const pending = read();
+  session.set(sourceKey, pending);
+  const forget = () => { if (session?.get(sourceKey) === pending) session.delete(sourceKey); };
+  void pending.then(forget, forget);
+  return pending;
+}
+
 /** Reading all groups is essential even for unassigned children. A child
  * starts with club_id=null, so a clubId lookup cannot recover its source.
  * Require a complete member/shared inventory instead of showing a false empty
@@ -74,7 +92,11 @@ async function readChildrenFromVerifiedSources(mode: 'member' | 'all'): Promise<
     icp: async scoped => {
       const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
       const me = scoped.identity.getPrincipal().toText();
-      const rows = await withReadDeadline(club.listMyLiveOwnChildren(scoped), "Children in club group", 20_000);
+      const rows = await withReadDeadline(
+        coalesceOwnChildRead(scoped.identity, `${scoped.target.host}|${sourceClubCanisterId}`,
+          () => club.listMyLiveOwnChildren(scoped)),
+        "Children in club group", 20_000,
+      );
       if (rows.length > 0) {
         // As soon as an authenticated group confirms a child, overlap the
         // PUBLIC PII verification-key read with the rest of cross-group child
