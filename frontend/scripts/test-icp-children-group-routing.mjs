@@ -61,3 +61,17 @@ test("new child has an explicit team placement and an unretried create", () => {
   assert.match(page, /writeOnce\(\{ clubId: team\.club_id \}\)/);
   assert.match(page, /status === "linked" \? \[team\.id\] : \[\]/);
 });
+
+test("parent invite child creation preflights current club membership and locks only the write", () => {
+  assert.match(invite, /await verifyIcpChildNameAcrossGroups\(addedLabel\)/);
+  assert.match(invite, /club\.isMyLiveClubMember\(ctx, clubId\)/);
+  assert.match(invite, /readTeam: async \(\) => \{/);
+  assert.match(invite, /createOwnChild: \(\) => \{/);
+  assert.match(invite, /icpChildCreateAttempted\.current = true;\s*return club\.createMyLiveChild\(ctx\)/);
+  assert.match(invite, /writeOnce\(\{ clubId: verifiedClubId \}\)/);
+  assert.match(invite, /vault\.registerLiveChildNamePiiOrThrow\(ctx, id, addedLabel, parent, clubId\)/);
+  assert.match(invite, /result\.status !== "linked"/);
+  assert.match(invite, /result\.status === "linked_without_name"/);
+  // A parent must never link an arbitrary other family's child with a client-only grant.
+  assert.match(invite, /Ask your team admin to link you to an existing child/);
+});
