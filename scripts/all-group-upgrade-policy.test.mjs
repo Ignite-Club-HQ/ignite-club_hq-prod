@@ -267,3 +267,16 @@ test('DEV guardian RSVP authority requires only four pinned club/event canisters
   assert.throws(()=>validateRequest('upgrade','guardian_rsvp_authority','UPGRADE DEV GUARDIAN RSVP',''),/Checked plan/);
   assert.throws(()=>planInventory(shared,fixture(3).provisions,fixture(3).registry,'guardian_rsvp_authority',fixture(3).hashes),/exactly four pinned/);
 });
+
+test('DEV disposable directory upgrade scope installs only the shared original Identity canister',()=>{
+  assert.deepEqual(SCOPES.dev_identity_directory,['identity_access']);
+  validateRequest('check','dev_identity_directory');
+  validateRequest('upgrade','dev_identity_directory','UPGRADE DEV IDENTITY DIRECTORY ONLY',hash(1));
+  assert.throws(()=>validateRequest('upgrade','dev_identity_directory','UPGRADE ALL MAINNET GROUPS',hash(1)));
+  assert.throws(()=>validateRequest('upgrade','dev_identity_directory','UPGRADE DEV IDENTITY DIRECTORY ONLY',''));
+  const f=fixture();
+  const plan=planInventory(shared,f.provisions,f.registry,'dev_identity_directory',f.hashes);
+  assert.equal(plan.targets.length,1);
+  assert.equal(plan.targets[0].name,'identity_access');
+  assert.equal(plan.targets[0].canisterId,shared.identity_access);
+});

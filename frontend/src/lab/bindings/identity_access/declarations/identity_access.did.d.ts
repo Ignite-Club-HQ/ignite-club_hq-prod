@@ -971,6 +971,7 @@ export interface _SERVICE {
    * supplies an account id or a principal list; the index is authoritative.
    */
   'read_linked_account' : ActorMethod<[Principal], Result>,
+  'reset_disposable_dev_membership_directory' : ActorMethod<[bigint, bigint, string], Result_2>,
   'read_membership_directory_configuration' : ActorMethod<[], Result_32>,
   'read_my_membership_directory' : ActorMethod<
     [bigint, [] | [Token]],

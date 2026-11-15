@@ -1106,6 +1106,7 @@ export interface identity_accessInterface {
     read_guardian_profile_candidates(arg0: Principal, arg1: string, arg2: Cursor | null): Promise<Result_31>;
     read_guardian_profiles(arg0: Principal, arg1: string, arg2: Array<Principal>, arg3: bigint): Promise<Result_28>;
     read_linked_account(arg0: Principal): Promise<Result>;
+    reset_disposable_dev_membership_directory(arg0: bigint, arg1: bigint, arg2: string): Promise<Result_2>;
     read_membership_directory_configuration(): Promise<Result_32>;
     read_my_membership_directory(arg0: bigint, arg1: Token | null): Promise<Result_33>;
     read_my_membership_directory_diagnostic(arg0: bigint, arg1: Token | null): Promise<Result_34>;

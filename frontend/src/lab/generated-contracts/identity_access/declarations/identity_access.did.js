@@ -872,6 +872,8 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'read_linked_account' : IDL.Func([IDL.Principal], [Result], []),
+    'reset_disposable_dev_membership_directory' : IDL.Func(
+        [IDL.Nat64, IDL.Nat64, IDL.Text], [Result_2], []),
     'read_membership_directory_configuration' : IDL.Func([], [Result_32], []),
     'read_my_membership_directory' : IDL.Func(
         [IDL.Nat64, IDL.Opt(Token)],

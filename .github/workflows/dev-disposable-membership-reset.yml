@@ -1,0 +1,108 @@
+name: "[TEST] DEV-only disposable membership directory reset (router 7 -> 11)"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dev-disposable-membership-reset.yml"
+      - "frontend/scripts/disposable-dev-membership-reset.ts"
+      - "scripts/dev-disposable-membership-reset-contract.test.mjs"
+      - "backend/identity_access/src/lib.rs"
+      - "backend/identity_access/src/membership_runtime.rs"
+      - "backend/identity_access/src/membership_coordinator.rs"
+      - "backend/identity_access/src/membership_namespace.rs"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "check (no writes) OR reset (DEV membership directory only)"
+        required: true
+        type: choice
+        options:
+          - check
+          - reset
+      confirmation:
+        description: "For reset only: RESET IGNITE DEV DIRECTORY 7 TO 11"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+
+jobs:
+  contract-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Guardrails for DEV-only operation
+        run: node --test scripts/dev-disposable-membership-reset-contract.test.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Syntax check only (never execute runner on PR)
+        run: npx --yes esbuild@0.25.12 frontend/scripts/disposable-dev-membership-reset.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/dev-directory-reset-syntax.mjs"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Focused Rust reset/anti-regression tests (isolated memory only)
+        run: cargo test --locked -p identity_access disposable --lib
+
+
+  manually-approved:
+    if: github.event_name == 'workflow_dispatch'
+    needs: contract-only
+    runs-on: ubuntu-latest
+    environment: group-2-admin-controls
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Exact original repo, main branch and reset confirmation
+        env:
+          DEV_DIRECTORY_ACTION: ${{ inputs.action }}
+          DEV_DIRECTORY_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY,,}" = "ignite-club-hq/ignite-club_hq-prod"
+          test "$GITHUB_REF" = "refs/heads/main"
+          case "$DEV_DIRECTORY_ACTION" in
+            check) ;;
+            reset) test "$DEV_DIRECTORY_CONFIRMATION" = "RESET IGNITE DEV DIRECTORY 7 TO 11" ;;
+            *) exit 1 ;;
+          esac
+      - name: Install existing pinned dependencies
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Restore protected original governor PEM
+        env:
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOYER_PEM:-}" || { echo "::error::Existing protected governor credential required"; exit 1; }
+          umask 077
+          PEM_IN="$DEPLOYER_PEM" node scripts/normalize-pem.mjs > "$RUNNER_TEMP/ignite-dev-directory-governor.pem"
+          test -s "$RUNNER_TEMP/ignite-dev-directory-governor.pem"
+      - name: Perform owner-approved check or exact DEV test directory reset
+        working-directory: frontend
+        env:
+          DEV_DIRECTORY_ACTION: ${{ inputs.action }}
+          DEV_DIRECTORY_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          npx --yes tsx@4 scripts/disposable-dev-membership-reset.ts \
+            "$RUNNER_TEMP/ignite-dev-directory-governor.pem" "$RUNNER_TEMP/dev-membership-reset-report"
+      - name: Destroy temporary governor credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ignite-dev-directory-governor.pem"
+      - name: Upload non-PII DEV scope report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-membership-directory-reset-check
+          path: ${{ runner.temp }}/dev-membership-reset-report
+          if-no-files-found: ignore
