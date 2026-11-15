@@ -35,20 +35,17 @@ export async function createIcpInviteChild(
   // After create_own_child returns, every subsequent failure is a PARTIAL
   // SUCCESS. Try both independent follow-up actions exactly once; never lose
   // the created child ID or retry the non-idempotent create call.
-  let nameSaved = false;
-  try {
-    await actions.saveName(child.id);
-    nameSaved = true;
-  } catch {
-    // Never log the child's plaintext name or retry an unknown PII write.
-  }
-  let teamLinked = false;
-  try {
-    await actions.assignOwnChildToTeam(child.id);
-    teamLinked = true;
-  } catch {
-    // A failed name registration must not prevent the team-link attempt.
-  }
+  // These writes use different canisters and have no dependency on each
+  // other once the child exists. Launch both once, reducing the two-update
+  // waterfall without retrying either unknown write. Promise.resolve also
+  // protects against a synchronous failure preventing the second attempt.
+  const [nameResult, teamResult] = await Promise.allSettled([
+    Promise.resolve().then(() => actions.saveName(child.id)),
+    Promise.resolve().then(() => actions.assignOwnChildToTeam(child.id)),
+  ]);
+  // Never print a PII failure or the child's plaintext name in logs.
+  const nameSaved = nameResult.status === "fulfilled";
+  const teamLinked = teamResult.status === "fulfilled";
   if (!teamLinked) return { status: "created_unlinked", childId: child.id, nameSaved };
   if (!nameSaved) return { status: "linked_without_name", childId: child.id };
   return { status: "linked", childId: child.id };
