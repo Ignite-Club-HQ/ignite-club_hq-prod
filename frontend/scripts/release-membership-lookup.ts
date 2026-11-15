@@ -54,8 +54,11 @@ const initial = await registry();
 if (action === 'upgrade') {
   const liveIdentity=Actor.createActor<IdentityService>(identityIdl,{agent,canisterId:PINNED.identity});
   const current=await liveIdentity.read_membership_directory_configuration();
-  if ('Ok' in current && current.Ok.generation===2n) {
-    throw new Error('Refusing generation-1 lookup release against restored DEV generation-2 directory; use DEV gen-2 staging workflow, no canisters changed');
+  if ('Err' in current) {
+    throw new Error('Unable to verify existing DEV directory generation; no canister upgrades permitted');
+  }
+  if (current.Ok.generation!==1n) {
+    throw new Error('Refusing generation-1 lookup release against a different DEV directory generation; use the DEV gen-2 staging workflow, no canisters changed');
   }
 }
 // Validate the exact complete service/subnet inventory before any upgrade,
