@@ -150,6 +150,29 @@ mod disposable_dev_reset_tests {
             assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
         }
     }
+    #[test]fn disposable_reset_preflight_allows_progress_but_refuses_authority_drift(){
+        let mut before=fixture();
+        before.release=Some("a".repeat(40));
+        let mut current=before.clone();
+        // The timer rotates the cursor, and authenticated source invalidation
+        // raises watermarks while the reset awaits consensus router reads.
+        current.next_source=1;
+        current.pending.insert("g1".into(),17);
+        assert_ne!(current,before);
+        assert!(current.same_configuration(&before));
+        current.binding.registry_revision=11;
+        assert!(!current.same_configuration(&before));
+        current=before.clone();current.sources[0].1=p(11);
+        assert!(!current.same_configuration(&before));
+        current=before.clone();current.release=None;
+        assert!(!current.same_configuration(&before));
+        current=before.clone();current.enabled=false;
+        assert!(!current.same_configuration(&before));
+        current=before.clone();current.inventory_digest[0]=2;
+        assert!(!current.same_configuration(&before));
+        current=before.clone();current.generation=2;
+        assert!(!current.same_configuration(&before));
+    }
     #[test]fn cannot_reset_released_or_foreign_sources(){
         let who=p(3);let mut c=fixture();c.release=Some("test".into());
         assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RESET_CONFIRMATION).is_err());
