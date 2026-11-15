@@ -48,6 +48,19 @@ const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
 const router = Actor.createActor<_SERVICE>(idlFactory, { agent, canisterId: shared.shard_router });
 const registry = () => readPinnedGroupRegistry((rev, cursor, limit) => router.read_group_registry_page('mainnet', rev, cursor, limit));
 const initial = await registry();
+// This older operator upgrades all three canisters and configures generation 1.
+// The recovered DEV identity directory is already generation 2; refuse BEFORE
+// any upgrade, journal intent or grants. Use the closed-reader gen-2 workflow.
+if (action === 'upgrade') {
+  const liveIdentity=Actor.createActor<IdentityService>(identityIdl,{agent,canisterId:PINNED.identity});
+  const current=await liveIdentity.read_membership_directory_configuration();
+  if ('Err' in current) {
+    throw new Error('Unable to verify existing DEV directory generation; no canister upgrades permitted');
+  }
+  if (current.Ok.generation!==1n) {
+    throw new Error('Refusing generation-1 lookup release against a different DEV directory generation; use the DEV gen-2 staging workflow, no canisters changed');
+  }
+}
 // Validate the exact complete service/subnet inventory before any upgrade,
 // not after installing and discovering identity would reject the binding.
 const domains = ['club_domain','events_domain','messaging_domain','vault_domain','competition_domain','club_points_domain','mini_league_domain','media_metadata','insights_domain','notification_queue','pii_access_control','timer_jobs','secret_workload_identity'];
