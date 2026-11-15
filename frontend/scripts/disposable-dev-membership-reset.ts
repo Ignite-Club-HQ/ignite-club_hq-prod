@@ -100,15 +100,18 @@ if(directory.binding.registry.toText()!==PIN.router||
    !matchesSources(directory.sources)) {
   throw new Error('Existing directory is not the exact unreleased DEV revision-7 fixture; no changes');
 }
+const sourceBefore = [];
 for (const s of clubs) {
   const observed=unwrap(await s.actor.read_membership_directory_source_binding(),'old '+s.group+' source');
-  if (observed.binding.length!==1 ||
-      observed.binding[0].identity.toText()!==PIN.identity ||
-      observed.binding[0].router.toText()!==PIN.router ||
-      observed.binding[0].group!==s.group ||
-      observed.binding[0].generation!==1n) {
-    throw new Error('Unexpected source configuration for '+s.group+'; stop before reset');
+  if (observed.binding.length>1 || (observed.binding.length===1 &&
+      (observed.binding[0].identity.toText()!==PIN.identity ||
+       observed.binding[0].router.toText()!==PIN.router ||
+       observed.binding[0].group!==s.group ||
+       observed.binding[0].deployment!=='mainnet' ||
+       observed.binding[0].generation!==1n))) {
+    throw new Error('Foreign old source configuration for '+s.group+'; stop before reset');
   }
+  sourceBefore.push(observed);
 }
 const reread=unwrap(await identity.read_membership_directory_configuration(),'rechecked old directory');
 const routerAgain=await assertRegistry();
@@ -146,14 +149,14 @@ if(grants.length!==2||grants.some(g=>g.generation!==2n||g.router.toText()!==PIN.
     g.identity.toText()!==PIN.identity||g.inventory_digest.length!==32)){
   throw new Error('Fresh DEV directory source grants are incomplete');
 }
-for (const s of clubs) {
+for (const [i,s] of clubs.entries()) {
   const grant=grants.find(g=>g.group===s.group);
   if(!grant) throw new Error('Missing fresh '+s.group+' source grant');
   const current=unwrap(await s.actor.read_membership_directory_source_binding(),
     'source pre-rebind '+s.group);
   if (current.binding.length===1 && current.binding[0].generation===2n &&
       fingerprint(current.binding[0])===fingerprint(grant) && current.enabled) continue;
-  if (current.binding.length!==1 || current.binding[0].generation!==1n) {
+  if (fingerprint(current)!==fingerprint(sourceBefore[i])) {
     throw new Error('Source binding changed after reset; stop without overwriting '+s.group);
   }
   unwrap(await s.actor.configure_membership_directory_source(grant),
