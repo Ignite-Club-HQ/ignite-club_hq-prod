@@ -63,14 +63,15 @@ jobs:
           IGNITE_LIVE_DEV_FIREBASE_PROJECT_ID: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_PROJECT_ID }}
           IGNITE_LIVE_DEV_FIREBASE_APP_ID: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_APP_ID }}
           IGNITE_LIVE_DEV_FIREBASE_VAPID_KEY: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_VAPID_KEY }}
-          # Persistent, owner-approved DEV Group 2 PII discovery: manual
-          # opt-in was previously overwritten by the next automatic main push.
-          # Keep this exact DEV-only pin enabled on normal main builds. The
-          # repository variable set to 0 is an explicit emergency kill switch;
-          # the manual input can disable an individual manual build. PROD has
-          # a separate workflow and is never eligible. The manifest builder
-          # independently refuses an incorrect frontend, PII ID or approval.
-          IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY: ${{ (github.ref == 'refs/heads/main' && vars.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY != '0' && (github.event_name != 'workflow_dispatch' || inputs.enable_dev_g2_child_pii)) && '1' || '0' }}
+          # Previously approved, pinned DEV Group 2 encrypted child-name
+          # discovery. Do not depend on an optional repository variable:
+          # the absent variable evaluated to 0 in the observed push release,
+          # silently omitting the PII canister despite a green deployment.
+          # Enable on canonical main push, or a manual main run only when its
+          # explicit checkbox is true (manual false remains an opt-out).
+          # The manifest validator independently rejects wrong frontend IDs,
+          # unapproved PII IDs and worker/PROD canister disclosure.
+          IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY: ${{ (github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.enable_dev_g2_child_pii))) && '1' || '0' }}
         run: |
           set -euo pipefail
           # DEV/test canisters only; refuses any PROD canister in the table.
