@@ -84,6 +84,9 @@ interface TeamMembersSectionProps {
   childrenError?: unknown;
   refetchMembers: () => unknown;
   refetchChildren: () => unknown;
+  isChildNamesLoading?: boolean;
+  hasUnresolvedChildNames?: boolean;
+  refetchChildNames?: () => unknown;
   isSoccerClub: boolean;
   onOpenHeaderInvite: () => void;
   onOpenAddPlayer: () => void;
@@ -127,6 +130,9 @@ export function TeamMembersSection({
   childrenError,
   refetchMembers,
   refetchChildren,
+  isChildNamesLoading = false,
+  hasUnresolvedChildNames = false,
+  refetchChildNames,
   isSoccerClub,
   onOpenHeaderInvite,
   onOpenAddPlayer,
@@ -264,6 +270,21 @@ export function TeamMembersSection({
                 <div role="status" aria-live="polite" className="flex items-center gap-2 px-2 py-3 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden="true" />
                   Loading players…
+                </div>
+              )}
+              {teamChildren.length > 0 && isChildNamesLoading && (
+                <div role="status" aria-live="polite" className="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+                  Unlocking player names…
+                </div>
+              )}
+              {teamChildren.length > 0 && !isChildNamesLoading && hasUnresolvedChildNames && (
+                <div role="status" className="flex flex-wrap items-center justify-between gap-2 px-2 py-2 text-sm text-muted-foreground">
+                  <span>Some player names could not be unlocked.</span>
+                  <Button size="sm" variant="outline" onClick={() => { refetchChildNames?.(); }} disabled={!refetchChildNames}>
+                    <RefreshCw className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                    Retry names
+                  </Button>
                 </div>
               )}
               {/* Combined Players section — child players first, adult players
@@ -557,13 +578,13 @@ export function TeamMembersSection({
                                         : "bg-pink-500/20 text-pink-500",
                                     )}
                                   >
-                                    {child.name?.charAt(0)?.toUpperCase() ||
-                                      "?"}
+                                    {child.rosterDisplayName && child.rosterDisplayName !== "Name unavailable" && child.rosterDisplayName !== "Unlocking name…"
+                                      ? child.rosterDisplayName.charAt(0).toUpperCase() : "?"}
                                   </AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1 min-w-0">
                                   <p className="font-semibold text-sm truncate">
-                                    {child.name}
+                                    {child.rosterDisplayName ?? child.name}
                                   </p>
                                   {parentDisplay && (
                                     <p className="text-xs text-muted-foreground truncate mt-0.5">
