@@ -11,6 +11,7 @@ import { connectLivePiiAccessControl } from "./domains";
 import type { FeatureBackendContext } from "./featureRouter";
 import type { PrivateProfileAudience } from './privateProfileAudience';
 import { unwrapCandid } from "./features/candid";
+import { readSharedVetKeyMaterialsConcurrently } from "./sharedVetKeyReadParallel";
 import { clearDeviceCachedPhotos, forgetStoredClubKey, loadStoredClubKey, storeClubKey } from "./deviceMediaCache";
 
 /**
@@ -525,11 +526,17 @@ export function fetchSharedAudienceVetKey(ctx: FeatureBackendContext, a: SharedA
       if (stored) {
         try { return VetKey.deserialize(stored); } catch { forgetStoredClubKey(cid, principal, slot); }
       }
-      const { key: verification } = await getPiiVerificationKey(ctx);
       const transport = TransportSecretKey.random();
-      const bytes = await unwrapCandid((actor as unknown as {
-        get_shared_audience_vetkey: (k: string, s: string, t: Uint8Array) => Promise<{ Ok: Uint8Array | number[] } | { Err: string }>;
-      }).get_shared_audience_vetkey(a.kind, a.scope, transport.publicKeyBytes()), 'Unlock shared details');
+      // These calls are independent: the encrypted vetKey is bound to the
+      // transport public key, while the PII canister's verification key is
+      // PUBLIC. Previously waiting for the latter before requesting the vetKey
+      // added a full remote round trip on a cold device.
+      const [{ key: verification }, bytes] = await readSharedVetKeyMaterialsConcurrently(
+        () => getPiiVerificationKey(ctx),
+        () => unwrapCandid((actor as unknown as {
+          get_shared_audience_vetkey: (k: string, s: string, t: Uint8Array) => Promise<{ Ok: Uint8Array | number[] } | { Err: string }>;
+        }).get_shared_audience_vetkey(a.kind, a.scope, transport.publicKeyBytes()), 'Unlock shared details'),
+      );
       const key = EncryptedVetKey.deserialize(Uint8Array.from(bytes)).decryptAndVerify(transport, verification, piiIbeIdentity(sharedAudiencePiiId(a), SHARED_FIELD));
       storeClubKey(cid, principal, slot, key.serialize());
       return key;
