@@ -336,7 +336,7 @@ describe('bounded extended deadline for private-name reads', () => {
 
   it('rejects an unbounded private-name deadline before opening a group', async () => {
     const { d } = deps(ON);
-    const dispatcher = createClubDispatcher(d);
+    const dispatcher = createClubDispatcher(d as never);
     await expect(dispatcher.readAcross(
       'membership', 'club_domain', async () => 'secret',
       (parts: string[]) => parts, true, 60_000,
