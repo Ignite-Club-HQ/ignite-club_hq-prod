@@ -320,3 +320,27 @@ describe('event group ownership', () => {
     expect(session.writeClub).toHaveBeenCalledWith('moved', 'events_domain', 'cas', expect.any(Function), 1);
   });
 });
+
+describe('bounded extended deadline for private-name reads', () => {
+  it('private-name unlock may opt into 35 seconds without changing general read defaults', async () => {
+    const { d, session } = deps(ON);
+    const s2 = { ...session, readEveryGroup: vi.fn(async (_domain, run) => run('g2' as never)) };
+    const dispatcher = createClubDispatcher({ ...d, open: vi.fn(async () => s2) } as never);
+    const out = await dispatcher.readAcross(
+      'membership', 'club_domain', async () => 'group-2-name',
+      (parts: string[]) => parts, true, 35_000,
+    );
+    expect(out).toEqual(['legacy', 'group-2-name']);
+    expect(s2.readEveryGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an unbounded private-name deadline before opening a group', async () => {
+    const { d } = deps(ON);
+    const dispatcher = createClubDispatcher(d);
+    await expect(dispatcher.readAcross(
+      'membership', 'club_domain', async () => 'secret',
+      (parts: string[]) => parts, true, 60_000,
+    )).rejects.toThrow('Invalid bounded group read deadline');
+    expect(d.open).not.toHaveBeenCalled();
+  });
+});
