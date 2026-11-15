@@ -170,3 +170,36 @@ test('activation restart requires the exact release and settled snapshot checkpo
   validateJournal(j,b);
   for(const changes of [{activation:{release:'b'.repeat(40),phase:'pending'}},{complete:false},{replicaAcceptance:{snapshotVerified:true}}])assert.throws(()=>validateJournal({...j,...changes},b));
 });
+
+
+test('DEV membership lookup keeps the successful protected governor restore and fails closed', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/release-membership-lookup.yml', import.meta.url), 'utf8');
+  const restore = workflow.split('      - name: Restore existing governor only\n')[1]
+    ?.split('      - uses: dtolnay/rust-toolchain@stable\n')[0] ?? '';
+  assert.ok(restore, 'governor import block exists');
+  assert.match(restore, /secrets\.GOVERNOR_PEM \|\| secrets\.DEPLOYER_PEM/);
+  assert.match(restore, /GITHUB_REF.*refs\/heads\/main/);
+  assert.match(restore, /PEM_IN="\$DEPLOYER_PEM" node scripts\/normalize-pem\.mjs/);
+  assert.match(restore, /icp identity import --from-pem/);
+  assert.match(restore, /icp identity principal --identity ignite-governor/);
+  assert.match(restore, /vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae/);
+  assert.doesNotMatch(restore, /sed -n|sed 's\/|cat "\$DEPLOYER_PEM"/);
+  assert.match(workflow, /environment: group-2-admin-controls/);
+  assert.match(workflow, /if: inputs\.action == 'upgrade'/);
+});
+
+test('DEV PEM normalizer accepts multiline, escaped and flattened secret formats', async () => {
+  const { generateKeyPairSync, createPrivateKey } = await import('node:crypto');
+  const { spawnSync } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const { privateKey } = generateKeyPairSync('ed25519');
+  const original = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  for (const input of [original, original.replace(/\n/g, '\\n'), original.replace(/\n/g, ' ')]) {
+    const child = spawnSync(process.execPath, [fileURLToPath(new URL('./normalize-pem.mjs', import.meta.url))], {
+      env: { ...process.env, PEM_IN: input }, encoding: 'utf8',
+    });
+    assert.equal(child.status, 0, child.stderr);
+    const roundTrip = createPrivateKey(child.stdout).export({ type: 'pkcs8', format: 'pem' }).toString();
+    assert.equal(roundTrip, original);
+  }
+});
