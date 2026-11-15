@@ -60,6 +60,20 @@ interface IcpChild {
 interface TeamOpt { id: string; name: string; club_id: string; club_name: string; sourceClubCanisterId: string }
 interface Guardian { principal: string; name: string; isPrimary: boolean; isMe: boolean }
 
+// Cold Children opens may start both preview and full reads concurrently.
+// Share one lazy import rather than racing two dynamic feature-router module
+// loads; a failed import is evicted so an authenticated retry can recover.
+let featureRouterLoad: Promise<typeof import("@/live/featureRouter")> | null = null;
+function loadFeatureRouter(): Promise<typeof import("@/live/featureRouter")> {
+  if (!featureRouterLoad) {
+    featureRouterLoad = import("@/live/featureRouter").catch(error => {
+      featureRouterLoad = null;
+      throw error;
+    });
+  }
+  return featureRouterLoad;
+}
+
 /** Deduplicate simultaneous full/preview authenticated reads of the same
  * source on one signed-in identity. Entries only exist while the call is in
  * flight; neither child data nor identity is persisted or shared remotely. */
@@ -90,7 +104,7 @@ function coalesceOwnChildRead<T>(
  */
 async function readChildrenFromVerifiedSources(mode: 'member' | 'all'): Promise<IcpChild[]> {
   const [{ withFeatureBackend }, club] = await Promise.all([
-    import("@/live/featureRouter"), import("@/live/features/club"),
+    loadFeatureRouter(), import("@/live/features/club"),
   ]);
   return withFeatureBackend<IcpChild[]>("membership", {
     supabase: async () => { throw new Error("Internet Identity required to retrieve ICP children"); },
@@ -131,7 +145,7 @@ async function withVerifiedChildGroup<T>(
   run: (ctx: FeatureBackendContext) => Promise<T>,
 ): Promise<T> {
   const [{ withFeatureBackend }, club] = await Promise.all([
-    import("@/live/featureRouter"), import("@/live/features/club"),
+    loadFeatureRouter(), import("@/live/features/club"),
   ]);
   const contexts = await withFeatureBackend<FeatureBackendContext[]>("membership", {
     supabase: async () => { throw new Error("Internet Identity required for child changes"); },
@@ -208,7 +222,7 @@ export default function IcpChildrenPage() {
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<Record<string, string>> => {
       const [{ withFeatureBackend }, vault, piiKeys] = await Promise.all([
-        import("@/live/featureRouter"), import("@/live/features/vault"), import("@/live/piiVetKeys"),
+        loadFeatureRouter(), import("@/live/features/vault"), import("@/live/piiVetKeys"),
       ]);
       type SourceNames = { sourceClubCanisterId: string; names: Record<string, string> };
       // The child inventory was already verified across ALL groups. A name
@@ -276,7 +290,7 @@ export default function IcpChildrenPage() {
     retry: false,
     queryFn: async (): Promise<TeamOpt[]> => {
       const [{ withFeatureBackend }, club] = await Promise.all([
-        import("@/live/featureRouter"),
+        loadFeatureRouter(),
         import("@/live/features/club"),
       ]);
       // The default ctx is Group 1. Discover each group's caller-scoped club
@@ -333,7 +347,7 @@ export default function IcpChildrenPage() {
       }
       const team = availableNewChildTeam;
       const [{ withFeatureBackend, writeOnce }, club, vault] = await Promise.all([
-        import("@/live/featureRouter"),
+        loadFeatureRouter(),
         import("@/live/features/club"),
         import("@/live/features/vault"),
       ]);
