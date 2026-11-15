@@ -195,7 +195,7 @@ export default function IcpChildrenPage() {
         },
         icp: scopedRead,
       };
-      const merge = (parts: SourceNames[][]): SourceNames[] => parts.flat();
+      const merge = (parts: unknown[]): SourceNames[] => (parts as SourceNames[][]).flat();
       // Member-group reads are already proven by the caller's membership
       // registry. They exclude unrelated ICP groups and keep the original
       // canister-side child-name authorisation intact.
