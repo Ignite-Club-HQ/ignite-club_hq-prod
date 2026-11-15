@@ -11,7 +11,6 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { Actor, HttpAgent } from '@icp-sdk/core/agent';
 import { IDL } from '@icp-sdk/core/candid';
-import { Principal } from '@icp-sdk/core/principal';
 import { loadOperatorIdentity } from '../src/live/operatorTransport';
 import { readPinnedGroupRegistry } from '../src/live/groupRegistryPager';
 import { idlFactory as routerIdl } from '../src/lab/bindings/shard_router/declarations/shard_router.did.js';
@@ -69,8 +68,9 @@ const observed = inspectLegacyGroup1TeamNameTopology(snapshot,binding,first.Ok,p
 
 // Public canister key, not a vetKey decryption or a name. This fingerprint
 // must later be compared against independently approved original-key history.
-const keyIdl = ({IDL}:{IDL:typeof import('@icp-sdk/core/candid').IDL}) =>
-  IDL.Service({ pii_vetkey_verification_key:IDL.Func([], [IDL.Vec(IDL.Nat8)], []) });
+const keyIdl = () => IDL.Service({
+  pii_vetkey_verification_key: IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
+});
 const publicKeyActor = Actor.createActor<{pii_vetkey_verification_key():Promise<Uint8Array>}>(
   keyIdl, {agent,canisterId:pins.originalPiiCanister});
 const publicKey = Uint8Array.from(await publicKeyActor.pii_vetkey_verification_key());
