@@ -105,3 +105,20 @@ test('tags match what the workflow actually deploys', () => {
     assert.match(byFile[file].text, /deploy\/mainnet|deploy\/groups/);
   }
 });
+
+test('DEV ChatGPT child-name PII publication requires explicit owner opt-in and verified manifest', () => {
+  const text = workflows.find(w => w.file === 'deploy-frontend-canister.yml')?.text ?? '';
+  assert.match(text, /enable_dev_g2_child_pii:/);
+  assert.match(text, /type: boolean/);
+  assert.match(text, /default: false/);
+  assert.match(text, /IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY:/);
+  assert.match(text, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(text, /vars\.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY == '1'/);
+  assert.match(text, /github\.event_name == 'workflow_dispatch' && inputs\.enable_dev_g2_child_pii/);
+  assert.match(text, /'zt5a6-yiaaa-aaaal-qxp5q-cai'/);
+  assert.match(text, /ids\.filter\(id => id === g2Pii\)\.length !== \(enabled \? 1 : 0\)/);
+  assert.match(text, /'zu4gk-vqaaa-aaaal-qxp5a-cai'/);
+  assert.match(text, /'zg2rt-zaaaa-aaaal-qxp6a-cai'/);
+  assert.match(text, /node scripts\/prepare-canister-dist\.mjs/);
+  assert.doesNotMatch(text, /deploy\/prod|IGNITE_ICP_ENV=prod|deploy\/frontend-prod/);
+});
