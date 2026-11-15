@@ -1549,6 +1549,10 @@ export interface Main {
     { 'Ok' : Array<TeamInvite> } |
       { 'Err' : string }
   >,
+  'read_account_list_team_child_ids' : ActorMethod<
+    [string, string],
+    { 'Ok' : Array<string> } | { 'Err' : string }
+  >,
   'read_account_list_team_role_grants' : ActorMethod<
     [string],
     { 'Ok' : Array<AccountRole> } |
