@@ -385,8 +385,10 @@ export default function IcpChildrenPage() {
           });
           if (result.status === "linked") createAttempted.current = false;
           const teamLinked = result.status !== "created_unlinked";
+          const nameSaved = result.status === "linked" ||
+            (result.status === "created_unlinked" && result.nameSaved);
           return {
-            id: result.childId, name: trimmed,
+            id: result.childId, name: nameSaved ? trimmed : "",
             teams: teamLinked ? [team.id] : [],
             isPrimary: true, sourceClubCanisterId,
             status: result.status,
