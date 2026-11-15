@@ -65,7 +65,7 @@ interface Guardian { principal: string; name: string; isPrimary: boolean; isMe: 
  * Require a complete member/shared inventory instead of showing a false empty
  * list when one of the groups is unavailable.
  */
-async function readAllMyChildren(): Promise<IcpChild[]> {
+async function readChildrenFromVerifiedSources(mode: 'member' | 'all'): Promise<IcpChild[]> {
   const [{ withFeatureBackend }, club] = await Promise.all([
     import("@/live/featureRouter"), import("@/live/features/club"),
   ]);
@@ -90,7 +90,9 @@ async function readAllMyChildren(): Promise<IcpChild[]> {
         sourceClubCanisterId,
       }));
     },
-  }, { everyGroup: true, requireComplete: true, merge: parts => collectVerifiedChildren(parts as IcpChild[][]) });
+  }, mode === 'member'
+    ? { memberGroups: true, merge: parts => collectVerifiedChildren(parts as IcpChild[][]) }
+    : { everyGroup: true, requireComplete: true, merge: parts => collectVerifiedChildren(parts as IcpChild[][]) });
 }
 
 /** A later action must re-locate the child's *original* group, recheck the
@@ -143,17 +145,33 @@ export default function IcpChildrenPage() {
     }),
   });
 
-  const { data: childRows, isLoading, isError, refetch } = useQuery({
-    queryKey: KEY,
+  // Fast, verified preview: only groups where this account already has
+  // membership. It can be incomplete (a guardian may have a child in another
+  // group), so NEVER allow mutations or an empty-state claim from this query.
+  const memberChildrenQuery = useQuery({
+    queryKey: ['icp-member-children-preview', user?.id],
     enabled: !!user,
     retry: false,
-    queryFn: readAllMyChildren,
-    // Children change rarely; keep the last list for a minute so revisiting
-    // the page (or returning after Add child) is instant while a background
-    // refetch refreshes it.
+    queryFn: () => readChildrenFromVerifiedSources('member'),
     staleTime: 60_000,
     placeholderData: (prev) => prev,
   });
+  // The full inventory remains authoritative for duplicate prevention,
+  // cross-group children and all write controls. It runs independently of the
+  // preview and still requires every group to answer successfully.
+  const { data: completeChildRows, isLoading: completeLoading, isError, refetch } = useQuery({
+    queryKey: KEY,
+    enabled: !!user,
+    retry: false,
+    queryFn: () => readChildrenFromVerifiedSources('all'),
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+  });
+  const inventoryComplete = !!completeChildRows && !isError;
+  const childRows = completeChildRows ?? (
+    memberChildrenQuery.data?.length ? memberChildrenQuery.data : undefined
+  );
+  const isLoading = !childRows && completeLoading;
 
   // Authorized child records reveal independently of private-name unlocking.
   // This separate account-scoped query never changes guardianship or teams.
@@ -220,8 +238,8 @@ export default function IcpChildrenPage() {
     ...child,
     name: namesQuery.data?.[childSourceKey(child)] ?? child.name,
   }));
-  const existingNamesResolved = !!childRows && (
-    childRows.length === 0 || (
+  const existingNamesResolved = inventoryComplete && (
+    completeChildRows.length === 0 || (
       namesQuery.isSuccess && !!children?.every(child => !!child.name.trim())
     )
   );
@@ -269,6 +287,7 @@ export default function IcpChildrenPage() {
 
 
   const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['icp-member-children-preview', user?.id] });
     qc.invalidateQueries({ queryKey: KEY });
     qc.invalidateQueries({ queryKey: ['icp-own-child-names-all-groups', user?.id] });
     qc.invalidateQueries({ queryKey: ["children"] });
