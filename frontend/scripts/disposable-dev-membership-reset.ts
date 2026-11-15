@@ -109,7 +109,6 @@ for (const s of clubs) {
       observed.binding[0].generation!==1n) {
     throw new Error('Unexpected source configuration for '+s.group+'; stop before reset');
   }
-  sourceBefore.push(observed);
 }
 const reread=unwrap(await identity.read_membership_directory_configuration(),'rechecked old directory');
 const routerAgain=await assertRegistry();
