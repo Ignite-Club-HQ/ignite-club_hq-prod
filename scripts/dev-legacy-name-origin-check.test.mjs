@@ -43,3 +43,21 @@ test('live check never accepts a guessed missing G1 placement or audience token'
   assert.match(script,/teamOnlyNamePermissionVerified:false/);
   assert.doesNotMatch(script,/localStorage|sessionStorage|display_name|child_id|email/);
 });
+
+test('stale Identity directory emits an explicit blocked report without attempting a public key read', () => {
+  assert.match(script, /classifyLegacyIdentityDirectoryRevision/);
+  assert.match(script, /if \(drift !== 'matching'\)/);
+  assert.match(script, /twoIndependentReadbacksStable:true/);
+  assert.match(script, /savedIdentityDirectoryRevision/);
+  assert.match(script, /liveRouterRevision/);
+  assert.match(script, /reason:'identity-directory-registry-revision-drift'/);
+  assert.match(script, /readyToReleaseName:false/);
+  assert.match(script, /nameReadAuthorised:false/);
+  assert.match(script, /noWritesAttempted:true/);
+  assert.ok(
+    script.indexOf("if (drift !== 'matching')") < script.indexOf("pii_vetkey_verification_key"),
+    'mismatched revisions must fail before the PII public-key read',
+  );
+  assert.doesNotMatch(script, /configure_membership_directory\(/);
+  assert.doesNotMatch(script, /enable_membership_directory\(/);
+});
