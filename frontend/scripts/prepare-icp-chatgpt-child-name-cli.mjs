@@ -4,12 +4,13 @@
  * Read ONE JSON input from stdin (never argv, environment, GitHub variables or
  * URLs); emit only encrypted Candid argument objects to stdout.
  *
- * Usage (in a trusted checkout with frontend dependencies installed):
- *   node scripts/prepare-icp-chatgpt-child-name-cli.mjs < private-input.json
+ * Usage: trusted process orchestration supplies JSON through an ephemeral
+ * stdin pipe, rather than writing a plaintext child-name JSON file to disk.
+ * Invoke Node with this script path and pass the input directly to stdin.
  *
- * The file should be held outside the repository and securely deleted after
- * use. Do NOT run actual personal data in GitHub Actions/PR logs or paste it
- * in a terminal argument. This CLI never creates a child or calls a canister.
+ * Never include personal names in process arguments, environment variables,
+ * persistent files, GitHub Actions/PR logs or workflow artifacts. This CLI
+ * never creates a child or calls a canister; it emits ciphertext arguments.
  */
 import { readFileSync } from 'node:fs';
 import { prepareChildNameFromIcpConnector } from './prepare-icp-chatgpt-child-name-connector.mjs';
