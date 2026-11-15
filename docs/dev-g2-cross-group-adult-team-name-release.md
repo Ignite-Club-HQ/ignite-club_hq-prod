@@ -134,3 +134,47 @@ a governor-gated, journaled **fenced transition** with isolated replica
 tests before any separate owner-approved DEV change. Existing records,
 sources, children and private keys must not be overwritten or replayed.
 Draft PR #1543 remains on hold.
+
+
+## 16 November — simplified disposable DEV directory reset (draft; **not executed**)
+
+There are no real ICP clubs/users in this installation, so preserving disposable
+membership-directory indexes across revisions is not worth a general migration
+framework. **Do not reinstall the shared original Identity canister:** it owns
+account, account-link, family and private-profile references independent of
+the membership directory. The original shared DEV mainnet Identity is
+`mq2sj-fiaaa-aaaal-qxlqa-cai`.
+
+This proposed one-off code path is scoped to the original DEV Identity,
+the existing governor, the exact unreleased generation-1 G1/G2 directory
+inventory, saved router revision 7 and current router revision 11. It refuses
+if production account authorisation or a released directory is present.
+It reads the exact live registered G2 inventory twice and verifies source
+and lifecycle pins; there is no fabricated modern G1 registry placement.
+
+After a separate owner-approved upgrade of **only the original DEV Identity
+canister**, the protected
+`[DEV only] Disposable membership directory reset (router 7 -> 11)`
+workflow supports two explicit manual actions:
+- `check`: governor-authenticated read-only preflight; never resets anything
+- `reset`: requires `RESET IGNITE DEV DIRECTORY 7 TO 11` and a protected
+  environment approval. The one-off Identity method discards only
+  membership-directory coordinator, namespace pool, worker, update journal
+  and cached private lookup pages, preserving the anti-replay instance counter.
+  It leaves account, profile, principal, team/child and PII stores alone.
+
+The approved runner then configures the directory at router revision 11 and
+generation 2, rebinds original G1 and G2 Club directory-source endpoints at
+the newer generation, and reads all bindings back. It **does not** fill or
+release the membership directory, enable adult private-name reading, edit
+any club record, or touch PROD. Filling/ownership and the separate encrypted
+G1 name-release checks remain pending; draft PR #1543 must stay unmerged.
+
+If the live router advances beyond 11, existing release is enabled,
+non-DEV source inventory is detected, worker/index budgets are exceeded,
+or any prerequisite is absent, **stop**. Do not guess new revisions, reset
+the entire Identity canister, or reuse this one-off tool for a later release.
+Any mid-flight refusal is left explicit for a scoped follow-up rather than
+blind retry or a broad release workflow.
+
+No DEV canister was upgraded, reset or configured by preparing this PR.
