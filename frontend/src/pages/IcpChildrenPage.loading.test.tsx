@@ -106,6 +106,11 @@ it('falls back to verified all-group name reads when an orphan child is not in a
   state.memberCanisters = []; // No current club membership, but the child still exists.
   state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
   open();
+  await waitFor(() => {
+    const status = client.getQueryState(['icp-own-children-all-groups', 'parent-a']);
+    if (status?.status === 'error') throw status.error;
+    expect(status?.status).toBe('success');
+  });
   expect(await screen.findByText('Ted')).toBeInTheDocument();
   expect(state.routed.mock.calls.some(([scope]) => scope?.memberGroups)).toBe(true);
   expect(state.names).toHaveBeenCalledTimes(1); // No other-group PII reads.
