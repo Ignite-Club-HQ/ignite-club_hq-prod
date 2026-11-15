@@ -102,3 +102,14 @@ test('released directory reset requires explicit interruption acknowledgement, n
   assert.match(config,/if !config.enabled/);
   assert.match(backend,/production_authorization\(\)\.approval\.is_some\(\)/);
 });
+
+test('live DEV reset tolerates only directory progress during awaited router checks', () => {
+  const section=backend.slice(backend.indexOf('async fn reset_disposable_dev_membership_directory('),backend.indexOf('/// Exact operator readback'));
+  const recheck=section.slice(section.indexOf('let unchanged='),section.indexOf('// Authenticated consensus reads'));
+  assert.match(recheck,/!directory_config\(\)\?\.same_configuration\(&before\)/);
+  assert.doesNotMatch(recheck,/directory_config\(\)\?\s*!=\s*before/);
+  assert.match(recheck,/DIRECTORY_TIMER_BUSY/);
+  assert.match(recheck,/admission_configuration_clear\(\)/);
+  assert.match(config,/pub fn same_configuration\(&self,other:&Self\)/);
+  assert.match(config,/self\.lifecycle==other\.lifecycle&&self\.release==other\.release/);
+});
