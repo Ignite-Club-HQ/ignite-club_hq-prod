@@ -233,3 +233,31 @@ older reset method still blocks released directories. Do not invoke the
 released reset until the upgraded code and read-only preflight have been
 verified, and do not assume the separate G1 private-name permission fix
 is released.
+
+
+## Follow-up: reset refused during awaited router preflight (16 Nov 2026)
+
+The protected `action=check` passed, but the separately approved `action=reset`
+returned `DEV directory changed during preflight; no reset performed` from
+the Identity method before its directory disposal step. No directory reset
+was completed and the caller did not reach generation-2 reconfiguration.
+
+The original reset captured the full stable directory Config, then required
+exact whole-object equality after awaited router reads. The running directory
+timer legitimately advances `next_source` (and authenticated source
+invalidations can increase `pending` watermarks) without changing the
+source-authority configuration. That transient progress can trip exact
+equality; the error alone does not prove which field changed.
+
+The narrowly scoped repair compares `same_configuration` instead: pinned
+router binding/revision, generation, source principals, inventory digest,
+enabled status, lifecycle evidence and released-reader marker must remain
+identical. It still rejects an active timer, nonempty admission state, wrong
+principal, unexpected router contents and all other original reset guards.
+Only volatile, already-disposable progress fields are allowed to advance.
+
+**Operator hold:** a successful PR merge never authorizes a repeat reset.
+The fix needs a separately approved **DEV Identity-only** upgrade, followed
+by a fresh read-only `action=check`, before a new explicitly approved reset.
+Do not retry the earlier reset against the currently installed canister and
+do not publish the new membership reader or private-name permissions.
