@@ -104,3 +104,17 @@ it('falls back to verified all-group name reads when an orphan child is not in a
   expect(state.routed.mock.calls.some(([scope]) => scope?.memberGroups)).toBe(true);
   expect(state.names).toHaveBeenCalledTimes(1); // No other-group PII reads.
 });
+
+it('does not request private names from an unrelated group', async () => {
+  state.everyCanisters = ['group-1-club', 'group-2-club'];
+  state.memberCanisters = ['group-2-club'];
+  state.children.mockImplementation(async (ctx: { target: { canisterIds: { club_domain: string } } }) =>
+    ctx.target.canisterIds.club_domain === 'group-2-club'
+      ? [{ id: 'child-a', teams: [], parent: [{ toText: () => 'parent-a' }] }]
+      : []);
+  state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
+  open();
+  expect(await screen.findByText('Ted')).toBeInTheDocument();
+  expect(state.names).toHaveBeenCalledTimes(1);
+  expect(state.names.mock.calls[0][0].target.canisterIds.club_domain).toBe('group-2-club');
+});
