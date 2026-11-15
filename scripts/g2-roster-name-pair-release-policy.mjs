@@ -13,7 +13,7 @@ const SHA = /^[a-f0-9]{40}$/;
 export function validateRequest({action, confirmation = '', release = '', actualCommit = '', expectedPiiHash = '', expectedClubHash = ''}) {
   if (!['check', 'upgrade'].includes(action)) throw Error('Choose check or upgrade only');
   if (action === 'check') {
-    if (confirmation || expectedPiiHash || expectedClubHash) throw Error('Read-only check must not carry upgrade confirmation or prior hashes');
+    if (confirmation || release || expectedPiiHash || expectedClubHash) throw Error('Read-only check must not carry upgrade confirmation, pinned source or prior hashes');
     return;
   }
   if (confirmation !== RELEASE_CONFIRMATION) throw Error('Explicit exact two-canister approval is required');
@@ -78,14 +78,15 @@ export function validateJournal(journal, binding) {
       !Array.isArray(journal.steps) || journal.steps.length !== 2 ||
       typeof journal.complete !== 'boolean' || new Set(journal.steps.map(s=>s.canisterId)).size !== 2 ||
       !/^\d+$/.test(journal.routerRevision) || journal.routerRevision !== binding.registryRevision ||
-      !HASH.test(journal.configurationHash) || journal.configurationHash !== binding.configurationHash)
+      !HASH.test(journal.configurationHash) || journal.configurationHash !== binding.configurationHash ||
+      !HASH.test(binding.verificationKeyHash))
     throw Error('Foreign, corrupt or incomplete two-canister release journal');
   for (const t of binding.targets) {
     const step = journal.steps.find(s=>s.canisterId===t.canisterId);
     if (!step || step.name !== t.name || step.groupId !== 'g2' || step.subnetId !== t.subnetId ||
         step.newHash !== t.newHash || step.oldHash !== binding.oldHashes[t.name] ||
         !HASH.test(step.oldHash) || !HASH.test(step.settingsHash) || !HASH.test(step.wiringHash) ||
-        (step.name === 'pii_access_control' && !HASH.test(step.verificationKeyHash)) ||
+        (step.name === 'pii_access_control' && (!HASH.test(step.verificationKeyHash) || step.verificationKeyHash !== binding.verificationKeyHash)) ||
         (step.name === 'club_domain' && step.verificationKeyHash !== undefined) ||
         !['ready','pending','complete'].includes(step.phase))
       throw Error('Unrecognized journal target/phase');
