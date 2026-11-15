@@ -155,7 +155,7 @@ test('only successful, newly returned unassigned parent-owned child IDs qualify'
 
 test('optional portable bundle performs the same synthetic secure preparation', {skip: !process.env.IGNITE_CHATGPT_BUNDLED_CLI}, () => {
   const file=process.env.IGNITE_CHATGPT_BUNDLED_CLI;
-  const args=['--permission','--allow-fs-read='+dirname(dirname(file))+'/',file];
+  const args=['--experimental-permission','--allow-fs-read='+dirname(dirname(file))+'/',file];
   const r=spawnSync(process.execPath,args,{input:JSON.stringify(fixture()),encoding:'utf8',timeout:15000});
   assert.equal(r.status,0,r.stderr);
   assert.equal(r.stderr,'');
