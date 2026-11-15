@@ -45,6 +45,10 @@ jobs:
           node-version: '22.12.0'
       - name: Syntax check only (never execute runner on PR)
         run: npx --yes esbuild@0.25.12 frontend/scripts/disposable-dev-membership-reset.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/dev-directory-reset-syntax.mjs"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Focused Rust reset/anti-regression tests (isolated memory only)
+        run: cargo test --locked -p identity_access disposable --lib
+
 
   manually-approved:
     if: github.event_name == 'workflow_dispatch'
