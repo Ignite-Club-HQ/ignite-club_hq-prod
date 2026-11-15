@@ -73,6 +73,18 @@ function loadFeatureRouter(): Promise<typeof import("@/live/featureRouter")> {
   }
   return featureRouterLoad;
 }
+// The same shared import also prevents simultaneous preview/full queries from
+// resolving different club-domain actor module instances during a cold open.
+let clubReadLoad: Promise<typeof import("@/live/features/club")> | null = null;
+function loadClubRead(): Promise<typeof import("@/live/features/club")> {
+  if (!clubReadLoad) {
+    clubReadLoad = import("@/live/features/club").catch(error => {
+      clubReadLoad = null;
+      throw error;
+    });
+  }
+  return clubReadLoad;
+}
 
 /** Deduplicate simultaneous full/preview authenticated reads of the same
  * source on one signed-in identity. Entries only exist while the call is in
@@ -104,7 +116,7 @@ function coalesceOwnChildRead<T>(
  */
 async function readChildrenFromVerifiedSources(mode: 'member' | 'all'): Promise<IcpChild[]> {
   const [{ withFeatureBackend }, club] = await Promise.all([
-    loadFeatureRouter(), import("@/live/features/club"),
+    loadFeatureRouter(), loadClubRead(),
   ]);
   return withFeatureBackend<IcpChild[]>("membership", {
     supabase: async () => { throw new Error("Internet Identity required to retrieve ICP children"); },
@@ -145,7 +157,7 @@ async function withVerifiedChildGroup<T>(
   run: (ctx: FeatureBackendContext) => Promise<T>,
 ): Promise<T> {
   const [{ withFeatureBackend }, club] = await Promise.all([
-    loadFeatureRouter(), import("@/live/features/club"),
+    loadFeatureRouter(), loadClubRead(),
   ]);
   const contexts = await withFeatureBackend<FeatureBackendContext[]>("membership", {
     supabase: async () => { throw new Error("Internet Identity required for child changes"); },
@@ -291,7 +303,7 @@ export default function IcpChildrenPage() {
     queryFn: async (): Promise<TeamOpt[]> => {
       const [{ withFeatureBackend }, club] = await Promise.all([
         loadFeatureRouter(),
-        import("@/live/features/club"),
+        loadClubRead(),
       ]);
       // The default ctx is Group 1. Discover each group's caller-scoped club
       // roles INSIDE that group; otherwise a Group 2 parent sees no U10 team.
@@ -348,7 +360,7 @@ export default function IcpChildrenPage() {
       const team = availableNewChildTeam;
       const [{ withFeatureBackend, writeOnce }, club, vault] = await Promise.all([
         loadFeatureRouter(),
-        import("@/live/features/club"),
+        loadClubRead(),
         import("@/live/features/vault"),
       ]);
       return withFeatureBackend("membership", {
@@ -409,7 +421,7 @@ export default function IcpChildrenPage() {
     mutationFn: async (child: IcpChild) => {
       if (!inventoryComplete) throw new Error("Verify the complete child inventory before making changes.");
       if (!child.isPrimary) throw new Error("Only the primary parent can remove this child.");
-      const club = await import("@/live/features/club");
+      const club = await loadClubRead();
       await withVerifiedChildGroup(child, ctx => club.deleteMyLiveChild(ctx, child.id));
     },
     onMutate: async (child: IcpChild) => {
@@ -437,7 +449,7 @@ export default function IcpChildrenPage() {
       if (!assigned && !child.teams.includes(team.id))
         throw new Error("Child is not on this team; nothing was changed.");
       const [club, vault] = await Promise.all([
-        import("@/live/features/club"), import("@/live/features/vault"),
+        loadClubRead(), import("@/live/features/vault"),
       ]);
       await withVerifiedChildGroup(child, async ctx => {
         const actual = (await club.getLiveTeam(ctx, team.id))[0];
@@ -674,7 +686,7 @@ function GuardiansDialog({ child, teamIds, onClose, onChanged }: { child: IcpChi
   const { data, isLoading } = useQuery({
     queryKey: key,
     queryFn: async () => {
-      const club = await import("@/live/features/club");
+      const club = await loadClubRead();
       const { listLiveProfilesByIds, accountIdForPrincipal } = await import("@/live/features/identityAccessClient");
       const { listLiveTeamRoleGrants } = await import("@/live/features/membership");
       return withVerifiedChildGroup(child, async ctx => {
@@ -707,7 +719,7 @@ function GuardiansDialog({ child, teamIds, onClose, onChanged }: { child: IcpChi
   const change = useMutation({
     mutationFn: async ({ principal, linked }: { principal: string; linked: boolean }) => {
       const [club, vault, { Principal }] = await Promise.all([
-        import("@/live/features/club"), import("@/live/features/vault"), import("@icp-sdk/core/principal"),
+        loadClubRead(), import("@/live/features/vault"), import("@icp-sdk/core/principal"),
       ]);
       const p = Principal.fromText(principal);
       await withVerifiedChildGroup(child, async ctx => {
