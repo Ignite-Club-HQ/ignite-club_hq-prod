@@ -37,7 +37,7 @@ test('backend refuses foreign principals, prod releases, unexpected revisions an
   assert.match(config,/config.release.is_some\(\)/);
   assert.match(config,/current_canister!=dev_identity \|\| caller!=governor/);
   assert.match(config,/config.generation!=1/);
-  assert.match(config,/expected_saved_revision/); // static check following script uses exact
+  assert.match(backend,/expected_saved_revision/); // method requires exact observed revision
   assert.doesNotMatch(backend,/fn reset_disposable_dev_membership_directory[\s\S]{0,5000}erase_account\(/);
 });
 test('directory-only scope, bounded cleanup and anti-replay counters', () => {
