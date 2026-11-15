@@ -1,0 +1,158 @@
+name: "[TEST] G2 roster + PII name pair upgrade (owner gated)"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/g2-roster-name-pair-upgrade.yml"
+      - "frontend/scripts/upgrade-g2-roster-names.ts"
+      - "scripts/g2-roster-name-pair-release-policy.mjs"
+      - "scripts/g2-roster-name-pair-release-policy.test.mjs"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "check is read-only; upgrade installs ONLY existing G2 PII then Club"
+        required: true
+        type: choice
+        default: check
+        options: [check, upgrade]
+      confirmation:
+        description: "For upgrade type UPGRADE G2 ROSTER NAME PAIR (blank for check)"
+        required: false
+        type: string
+        default: ""
+      expected_release_sha:
+        description: "Exact 40-character main commit SHA from the completed check.json"
+        required: false
+        type: string
+        default: ""
+      expected_pii_hash:
+        description: "Exact old PII canister module hash from check.json"
+        required: false
+        type: string
+        default: ""
+      expected_club_hash:
+        description: "Exact old Club canister module hash from check.json"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+
+jobs:
+  policy-tests:
+    name: Verify exact two-canister privacy scope without credentials
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Test policy and unknown-upgrade recovery
+        run: node --test scripts/g2-roster-name-pair-release-policy.test.mjs
+      - name: Syntax check release runner, never execute on PR
+        run: npx --yes esbuild@0.25.12 frontend/scripts/upgrade-g2-roster-names.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/g2-roster-name-runner.mjs"
+
+  owner-manual-check-or-upgrade:
+    needs: policy-tests
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: group-2-admin-controls
+    timeout-minutes: 100
+    permissions:
+      contents: write
+    env:
+      ACTION: ${{ inputs.action }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      EXPECTED_RELEASE_SHA: ${{ inputs.expected_release_sha }}
+      EXPECTED_PII_HASH: ${{ inputs.expected_pii_hash }}
+      EXPECTED_CLUB_HASH: ${{ inputs.expected_club_hash }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Isolate ICP home
+        run: echo "ICP_HOME=$RUNNER_TEMP/g2-roster-name-icp-home" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Reject other repository, branch, or unapproved release
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "Ignite-Club-HQ/ignite-club_hq-prod"
+          test "$GITHUB_REF" = "refs/heads/main"
+          node --input-type=module <<'NODE'
+          import { validateRequest } from './scripts/g2-roster-name-pair-release-policy.mjs';
+          validateRequest({
+            action:process.env.ACTION, confirmation:process.env.CONFIRMATION,
+            release:process.env.EXPECTED_RELEASE_SHA, actualCommit:process.env.GITHUB_SHA,
+            expectedPiiHash:process.env.EXPECTED_PII_HASH,
+            expectedClubHash:process.env.EXPECTED_CLUB_HASH
+          });
+          NODE
+      - name: Install pinned ICP CLI and existing dependencies
+        run: |
+          set -euo pipefail
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          node scripts/ensure-frontend-deps.mjs
+          icp canister install --help | grep -q -- --wasm-memory-persistence
+      - name: Run exact-scope and journal regression checks
+        run: node --test scripts/g2-roster-name-pair-release-policy.test.mjs scripts/group2-journal.test.mjs scripts/group2-upgrade-rules.test.mjs
+      - name: Restore only the existing G2 governor identity
+        env:
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOYER_PEM:-}" || { echo "::error::Existing Group 2 governor secret required"; exit 1; }
+          umask 077
+          mkdir -p "$ICP_HOME/identity/keys"
+          PEM_FILE="$RUNNER_TEMP/g2-roster-name.pem"
+          if ! PEM_IN="$DEPLOYER_PEM" node scripts/normalize-pem.mjs > "$PEM_FILE"; then
+            echo "::error::Governor private-key PEM could not be normalized; no canister changed."
+            exit 1
+          fi
+          if ! icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor >/dev/null 2>&1; then
+            echo "::error::Existing governor key was rejected; no canister changed."
+            exit 1
+          fi
+          icp identity default ignite-governor >/dev/null
+          test "$(icp identity principal)" = vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae || {
+            echo "::error::G2 governor does not match pinned TEST identity; no canister changed."
+            exit 1
+          }
+      - name: Build ONLY PII and Club recipe artifacts
+        working-directory: deploy/mainnet
+        run: |
+          set -euo pipefail
+          icp build pii_access_control club_domain
+          mkdir -p "$RUNNER_TEMP/g2-roster-name-wasm"
+          cp .icp/cache/artifacts/pii_access_control "$RUNNER_TEMP/g2-roster-name-wasm/pii_access_control"
+          cp .icp/cache/artifacts/club_domain "$RUNNER_TEMP/g2-roster-name-wasm/club_domain"
+          test -s "$RUNNER_TEMP/g2-roster-name-wasm/pii_access_control"
+          test -s "$RUNNER_TEMP/g2-roster-name-wasm/club_domain"
+      - name: Read-only preflight or journaled exact G2 pair upgrade
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          npx --yes tsx@4 scripts/upgrade-g2-roster-names.ts \
+            "$ACTION" "$RUNNER_TEMP/g2-roster-name-wasm" \
+            "$RUNNER_TEMP/g2-roster-name.pem" "$RUNNER_TEMP/g2-roster-name-report"
+      - name: Destroy signing credentials
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/g2-roster-name.pem"
+          rm -rf "$ICP_HOME"
+      - name: Save non-sensitive read-only check or release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g2-roster-name-pair-report
+          path: ${{ runner.temp }}/g2-roster-name-report
+          if-no-files-found: ignore
