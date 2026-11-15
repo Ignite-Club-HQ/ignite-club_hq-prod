@@ -106,15 +106,15 @@ test('tags match what the workflow actually deploys', () => {
   }
 });
 
-test('DEV ChatGPT child-name PII publication requires explicit owner opt-in and verified manifest', () => {
+test('owner-approved DEV Group 2 PII discovery persists on main push but retains kill switch and pinned manifest', () => {
   const text = workflows.find(w => w.file === 'deploy-frontend-canister.yml')?.text ?? '';
   assert.match(text, /enable_dev_g2_child_pii:/);
   assert.match(text, /type: boolean/);
-  assert.match(text, /default: false/);
+  assert.match(text, /default: true/);
   assert.match(text, /IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY:/);
   assert.match(text, /github\.ref == 'refs\/heads\/main'/);
-  assert.match(text, /vars\.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY == '1'/);
-  assert.match(text, /github\.event_name == 'workflow_dispatch' && inputs\.enable_dev_g2_child_pii/);
+  assert.match(text, /vars\.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY != '0'/);
+  assert.match(text, /github\.event_name != 'workflow_dispatch' \|\| inputs\.enable_dev_g2_child_pii/);
   assert.match(text, /'zt5a6-yiaaa-aaaal-qxp5q-cai'/);
   assert.match(text, /ids\.filter\(id => id === g2Pii\)\.length !== \(enabled \? 1 : 0\)/);
   assert.match(text, /'zu4gk-vqaaa-aaaal-qxp5a-cai'/);
