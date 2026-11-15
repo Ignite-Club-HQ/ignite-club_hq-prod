@@ -777,11 +777,11 @@ export default function TeamDetailPage() {
       });
     },
     enabled: !!id && !useIcpLab && (!isIcpAccount || !!team?.club_id),
-    // Keep a short, identity/club-scoped ICP cache on repeat visits. A manual
-    // refresh still revalidates. Supabase behaviour remains unchanged.
-    staleTime: isIcpAccount ? 30_000 : 0,
+    // Keep identity- and club-scoped keys, but always revalidate live
+    // membership on mount so a revoked role is never trusted as fresh.
+    staleTime: 0,
     gcTime: 5 * 60 * 1000,
-    refetchOnMount: isIcpAccount ? true : 'always',
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   });
 
@@ -841,9 +841,9 @@ export default function TeamDetailPage() {
     // rather than probing every group for the team owner.
     enabled: !!id && !useIcpLab && (!isIcpAccount || !!team?.club_id),
     retry: isIcpAccount ? 1 : 3,
-    staleTime: isIcpAccount ? 30_000 : 0,
+    staleTime: 0, // Revalidate member access on mount
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-    refetchOnMount: isIcpAccount ? true : 'always',
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   });
 
