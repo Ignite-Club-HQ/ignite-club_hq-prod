@@ -181,7 +181,6 @@ export default function IcpChildrenPage() {
     retry: false,
     queryFn: () => readChildrenFromVerifiedSources('member'),
     staleTime: 60_000,
-    placeholderData: (prev) => prev,
   });
   // The full inventory remains authoritative for duplicate prevention,
   // cross-group children and all write controls. It runs independently of the
@@ -192,7 +191,6 @@ export default function IcpChildrenPage() {
     retry: false,
     queryFn: () => readChildrenFromVerifiedSources('all'),
     staleTime: 60_000,
-    placeholderData: (prev) => prev,
   });
   const inventoryComplete = !!completeChildRows && !isError;
   const childRows = completeChildRows ?? (
