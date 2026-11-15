@@ -9242,6 +9242,10 @@ persistent actor class Main(governorInit : Principal) = this {
         auth(caller);
         if (not teamInClub(team_id, club_id)) return #Err("Team not found in club");
         if (not isMember(caller, club_id)) return #Err("Club membership required");
+        // A parent on another team in this club must not enumerate these
+        // children. Team staff and club admins keep their existing access.
+        if (not (isOnTeam(caller, team_id) or canManageTeam(caller, club_id, ?team_id)))
+          return #Err("Team membership required");
         #Ok(acl.children.filter(func(child) = child.teams.any(func(t) = t == team_id)).map(func(child) = child.id))
       } finally { removalReceiver.leave(caller) };
     } finally { privateNameWriterGate.leave(privateWriterLease) };
