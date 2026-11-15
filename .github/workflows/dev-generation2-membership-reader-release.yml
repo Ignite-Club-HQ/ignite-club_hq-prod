@@ -5,6 +5,8 @@ on:
       - ".github/workflows/dev-generation2-membership-reader-release.yml"
       - "frontend/scripts/dev-generation2-directory-reader-release.ts"
       - "scripts/dev-generation2-reader-release-contract.test.mjs"
+      - "scripts/dev-generation2-reader-router-authority.mjs"
+      - "scripts/dev-generation2-reader-router-authority.test.mjs"
   workflow_dispatch:
     inputs:
       action:
@@ -36,7 +38,7 @@ jobs:
         with:
           node-version: '22.12.0'
       - name: Verify DEV-only reader-release safety contracts
-        run: node --test scripts/dev-generation2-reader-release-contract.test.mjs
+        run: node --test scripts/dev-generation2-reader-release-contract.test.mjs scripts/dev-generation2-reader-router-authority.test.mjs
       - name: Parse the operator script without invoking any canister
         run: npx --yes esbuild@0.25.12 frontend/scripts/dev-generation2-directory-reader-release.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/gen2-reader-release-syntax.mjs"
   operator:

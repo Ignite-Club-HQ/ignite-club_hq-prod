@@ -19,6 +19,7 @@ import { idlFactory as clubIdl } from '../src/lab/bindings/club_domain/declarati
 import type { _SERVICE as ClubService } from '../src/lab/bindings/club_domain/declarations/club_domain.did';
 import { fingerprint } from '../../scripts/membership-source-configuration.mjs';
 import { GROUP2_GOVERNOR } from '../../scripts/group2-upgrade-rules.mjs';
+import { readerRouterAuthorityFingerprint } from '../../scripts/dev-generation2-reader-router-authority.mjs';
 
 const [pemPath,reportDirectory] = process.argv.slice(2);
 const action=process.env.DEV_GEN2_RELEASE_ACTION;
@@ -106,14 +107,15 @@ const report=(name:string,body:Record<string,unknown>)=>{
   writeFileSync(resolve(reportDirectory,name),JSON.stringify(body,null,2));
 };
 const initialRouter=await verifyRegistry();
-const initialRouterFingerprint=fingerprint(initialRouter);
 const initialConfiguration=groupApprovalConfiguration(initialRouter.groups,initialRouter.placements);
+// Use routing-authority evidence, not ShardGroup health/cycle/heap telemetry.
+const initialRouterFingerprint=readerRouterAuthorityFingerprint(initialRouter,initialConfiguration);
 const initial=await verifyDirectory(false);
 const initialDirectoryFingerprint=fingerprint(initial);
 const preflight=async()=>{
   const currentRouter=await verifyRegistry();
-  if(fingerprint(currentRouter)!==initialRouterFingerprint ||
-     groupApprovalConfiguration(currentRouter.groups,currentRouter.placements)!==initialConfiguration)
+  if(readerRouterAuthorityFingerprint(currentRouter,
+       groupApprovalConfiguration(currentRouter.groups,currentRouter.placements))!==initialRouterFingerprint)
     throw new Error('DEV router configuration changed during release preflight');
   if(fingerprint(await verifyDirectory(false))!==initialDirectoryFingerprint)
     throw new Error('DEV directory changed during release preflight');
@@ -144,8 +146,16 @@ if(action==='check'){
   console.log('DEV generation-2 reader release PRECHECK passed; no changes. Plan hash: '+planHash);
   process.exit(0);
 }
-if(checkedPlan!==planHash)
+if(checkedPlan!==planHash) {
+  // Save non-PII evidence to distinguish a real source/authority drift from a
+  // stale operator hash. NEVER substitute the newly observed hash as consent.
+  report('mismatch.json',{action:'release',status:'plan-mismatch-reader-closed',
+    requestedPlanHash:checkedPlan,observedPlanHash:planHash,
+    releaseCommit:commit,routerRevision:'11',generation:'2',
+    sources:statuses,readerReleased:false,noModifications:true,
+    noPrivateNames:true,noProdOrSupabase:true});
   throw new Error('Checked DEV reader release plan is stale/mismatched; no changes made');
+}
 report('intent.json',{action:'release',status:'intent-before-one-identity-call',
   planHash,commit,target:P.identity,generation:'2',readerResult:'unknown',
   noCanisterUpgrades:true,noPrivateNames:true,noProdOrSupabase:true});
@@ -157,7 +167,8 @@ if(!enabled.app_enabled || !enabled.snapshot_verified || !enabled.restoration_gu
   throw new Error('Identity reader release reply did not match the checked source revisions; do not retry blindly');
 const confirmed=await verifyDirectory(true);
 const nowRouter=await verifyRegistry();
-if(fingerprint(nowRouter)!==initialRouterFingerprint ||
+if(readerRouterAuthorityFingerprint(nowRouter,
+     groupApprovalConfiguration(nowRouter.groups,nowRouter.placements))!==initialRouterFingerprint ||
    fingerprint({...confirmed,app_enabled:false})!==initialDirectoryFingerprint)
   throw new Error('Reader release readback changed or unverifiable; do not retry blindly');
 report('release.json',{action:'release',status:'reader-enabled-with-identity-owned-snapshot-check',
