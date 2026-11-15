@@ -79,3 +79,18 @@ test("parent invite child creation preflights current club membership and locks 
   // A parent must never link an arbitrary other family's child with a client-only grant.
   assert.match(invite, /Ask your team admin to link you to an existing child/);
 });
+
+
+const teamRoster = readFileSync(new URL("../src/lib/teamRosterReads.ts", import.meta.url), "utf8");
+const clubBackend = readFileSync(new URL("../../backend/club_domain/src/main.mo", import.meta.url), "utf8");
+
+test("team child roster uses caller-authorized canonical group placement, not the Events mirror", () => {
+  assert.match(teamRoster, /listLiveTeamChildIds\(ctx, clubId, teamId\)/);
+  assert.match(club, /actor\.read_account_list_team_child_ids\(clubId, teamId\)/);
+  assert.match(clubBackend, /func read_account_list_team_child_ids\(club_id : Text, team_id : Text\)/);
+  assert.match(clubBackend, /not teamInClub\(team_id, club_id\)/);
+  assert.match(clubBackend, /not isMember\(caller, club_id\)/);
+  assert.match(clubBackend, /acl\.children\.filter\(func\(child\) = child\.teams\.any/);
+  assert.match(teamRoster, /if \(!\/has no \(\?:query\|update\) method/);
+  assert.doesNotMatch(teamRoster, /catch \{\s*return \[\]/);
+});
