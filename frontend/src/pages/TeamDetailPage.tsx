@@ -703,7 +703,14 @@ export default function TeamDetailPage() {
         if (!id || !team?.club_id) return [];
         return withFeatureBackend('membership', {
           supabase: () => { throw new Error('ICP roster required'); },
-          icp: ctx => withRosterDeadline(readTeamChildRows(ctx, team.club_id, id), 30_000, 'team player list'),
+          icp: async ctx => {
+            // The public vetKey verification-key read is slow on a cold device.
+            // Overlap it with the Club roster-ID read; no name or access grant
+            // is fetched here and any warm-up error is safely ignored.
+            const { prewarmPiiVerificationKey } = await import('@/live/piiVetKeys');
+            prewarmPiiVerificationKey(ctx);
+            return withRosterDeadline(readTeamChildRows(ctx, team.club_id, id), 30_000, 'team player list');
+          },
         }, { clubId: team.club_id });
       }
       const { data: rpcChildren, error: rpcError } = await supabase.rpc("get_team_children_for_pitch_board", {
