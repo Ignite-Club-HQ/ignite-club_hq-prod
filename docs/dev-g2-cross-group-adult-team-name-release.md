@@ -197,3 +197,39 @@ The directory reset is a separate protected workflow with separate approval:
 First run its read-only `check` action. Only after reviewing those facts
 can the `reset` action be authorised. Neither merge nor frontend deployment
 automatically executes either upgrade or reset.
+
+
+## Observed released DEV directory (16 Nov 2026, follow-up)
+
+The owner-run `action=check` on the original DEV directory failed solely on
+`membershipReaderUnreleased`. All other exact revision-7 generation-1
+directory/source binding checks passed. This means `app_enabled=true`: the
+old directory lookup reader was previously released, although pinned to
+Router revision 7. The previous one-off reset correctly refused to erase
+an already released reader; it did **not** modify data.
+
+For this disposable ICP DEV setup only, the one-off reset can now explicitly
+accept this *previously released* state (valid 40-character lower-case hex
+release marker), provided the exact original governor and original shared
+Identity canister are used, PRODUCTION account authorisation is absent,
+there is no admission/recovery activity, and all existing canister/source
+and router revision 7→11 pins still match. A **different** manual
+confirmation is required:
+
+`RESET RELEASED IGNITE DEV DIRECTORY 7 TO 11`
+
+This is a destructive reset of **only the disposable membership-directory
+indexes and reader release state**. It also invalidates existing test
+membership-lookup sessions and leaves the newly configured generation-2
+directory **unreleased**. Existing account, principal, child, club, PII
+and encrypted profile records are not part of this operation. The old
+reader cannot be used again until a separately approved rebuild/release.
+
+The workflow retains `check` (read-only, with explicit prior release
+status), and `reset` (manual, protected, separately authorised). It
+never deploys the Identity canister automatically. A backend Identity-only
+upgrade is required after merging this follow-up PR; the already installed
+older reset method still blocks released directories. Do not invoke the
+released reset until the upgraded code and read-only preflight have been
+verified, and do not assume the separate G1 private-name permission fix
+is released.

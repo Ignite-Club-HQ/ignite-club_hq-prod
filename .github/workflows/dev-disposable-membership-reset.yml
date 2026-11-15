@@ -20,7 +20,7 @@ on:
           - check
           - reset
       confirmation:
-        description: "For reset only: RESET IGNITE DEV DIRECTORY 7 TO 11"
+        description: "For reset only: RESET RELEASED IGNITE DEV DIRECTORY 7 TO 11"
         required: false
         type: string
 
@@ -73,7 +73,7 @@ jobs:
           test "$GITHUB_REF" = "refs/heads/main"
           case "$DEV_DIRECTORY_ACTION" in
             check) ;;
-            reset) test "$DEV_DIRECTORY_CONFIRMATION" = "RESET IGNITE DEV DIRECTORY 7 TO 11" ;;
+            reset) test "$DEV_DIRECTORY_CONFIRMATION" = "RESET RELEASED IGNITE DEV DIRECTORY 7 TO 11" ;;
             *) exit 1 ;;
           esac
       - name: Install existing pinned dependencies

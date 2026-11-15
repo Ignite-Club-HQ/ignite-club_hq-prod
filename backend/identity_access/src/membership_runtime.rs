@@ -52,6 +52,9 @@ pub struct Progress { pub source:String, pub phase:String, pub revision:u64, pub
  * a general reset endpoint: the DEV account/PII service is a shared canister.
  */
 pub const DEV_RESET_CONFIRMATION:&str="RESET IGNITE DEV DIRECTORY 7 TO 11";
+/// Unlike an unreleased disposable directory, this explicitly acknowledges
+/// that existing DEV lookup consumers will lose their old directory session.
+pub const DEV_RELEASED_RESET_CONFIRMATION:&str="RESET RELEASED IGNITE DEV DIRECTORY 7 TO 11";
 pub fn require_exact_dev_disposable_reset(
     current_canister:Principal,
     caller:Principal,
@@ -69,8 +72,17 @@ pub fn require_exact_dev_disposable_reset(
     if current_canister!=dev_identity || caller!=governor {
         return Err("Only the exact DEV Identity canister and governor may reset test directory data".into());
     }
-    if saved_revision!=7 || live_revision!=11 || confirmation!=DEV_RESET_CONFIRMATION {
-        return Err("Exact one-time disposable DEV reset acknowledgement required".into());
+    if saved_revision!=7 || live_revision!=11 {
+        return Err("Exact 7-to-11 disposable DEV reset revision required".into());
+    }
+    // A released directory is not the same operation as an unreleased
+    // rehearsal. Require a stronger, separately approved acknowledgement.
+    match config.release.as_deref() {
+        None if confirmation==DEV_RESET_CONFIRMATION => {},
+        Some(release) if confirmation==DEV_RELEASED_RESET_CONFIRMATION
+            && release.len()==40 && release.bytes().all(|c|
+                c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) => {},
+        _ => return Err("Exact released/unreleased DEV directory reset acknowledgement required".into()),
     }
     let binding=&config.binding;
     if binding.registry!=router || binding.registry_revision!=saved_revision ||
@@ -82,8 +94,8 @@ pub fn require_exact_dev_disposable_reset(
         config.inventory_digest.len()!=32 {
         return Err("Identity directory does not match exact disposable DEV source inventory".into());
     }
-    if config.release.is_some() {
-        return Err("Released Identity directory cannot use the disposable reset path".into());
+    if !config.enabled {
+        return Err("Disabled Identity directory cannot use this disposable DEV reset path".into());
     }
     Ok(())
 }
@@ -119,6 +131,24 @@ mod disposable_dev_reset_tests {
         assert!(require_exact_dev_disposable_reset(identity(),who,p(4),&fixture(),7,11,DEV_RESET_CONFIRMATION).is_err());
         assert!(require_exact_dev_disposable_reset(p(5),who,who,&fixture(),7,11,DEV_RESET_CONFIRMATION).is_err());
         assert!(require_exact_dev_disposable_reset(identity(),who,who,&fixture(),7,11,"I agree").is_err());
+    }
+    #[test]fn exact_released_dev_test_directory_requires_distinct_acknowledgement(){
+        let who=p(3);
+        let mut c=fixture();
+        c.release=Some("a".repeat(40));
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_ok());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,8,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(identity(),who,p(4),&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(p(5),who,who,&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        c.enabled=false;
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        c.enabled=true;c.release=None;
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        for invalid in ["test".into(),"A".repeat(40),"z".repeat(40),"a".repeat(39)] {
+            c.release=Some(invalid);
+            assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        }
     }
     #[test]fn cannot_reset_released_or_foreign_sources(){
         let who=p(3);let mut c=fixture();c.release=Some("test".into());

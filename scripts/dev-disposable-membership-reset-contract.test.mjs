@@ -19,7 +19,7 @@ test('cannot execute a DEV reset from PR CI or without manual exact main-branch 
   assert.match(wf,/if: github.event_name == 'workflow_dispatch'/);
   assert.match(wf,/environment: group-2-admin-controls/);
   assert.match(wf,/test "\$GITHUB_REF" = "refs\/heads\/main"/);
-  assert.match(wf,/RESET IGNITE DEV DIRECTORY 7 TO 11/);
+  assert.match(wf,/RESET RELEASED IGNITE DEV DIRECTORY 7 TO 11/);
   assert.match(wf,/group: ignite-mainnet-governor-deployment/);
   assert.doesNotMatch(wf,/push:/);
   assert.match(script,/if\(action==='check'\)/);
@@ -34,7 +34,9 @@ test('backend refuses foreign principals, prod releases, unexpected revisions an
   assert.match(backend,/DIR(E|E)CTORY_TIMER_BUSY/);
   assert.match(config,/pub const DEV_RESET_CONFIRMATION:&str="RESET IGNITE DEV DIRECTORY 7 TO 11"/);
   assert.match(config,/binding.registry_revision!=saved_revision/);
-  assert.match(config,/config.release.is_some\(\)/);
+  assert.match(config,/DEV_RELEASED_RESET_CONFIRMATION/);
+  assert.match(config,/Some\(release\) if confirmation==DEV_RELEASED_RESET_CONFIRMATION/);
+  assert.match(config,/release.len\(\)==40/);
   assert.match(config,/current_canister!=dev_identity \|\| caller!=governor/);
   assert.match(config,/config.generation!=1/);
   assert.match(backend,/expected_saved_revision/); // method requires exact observed revision
@@ -70,7 +72,7 @@ test('rebuild stays unreleased and exact G1/G2 source bindings only', () => {
 test('a failed preflight names only safe mismatch fields before any canister writes', () => {
   const checks=['expectedRouter','savedRevision7','targetAlias','deploymentId',
     'deploymentRevision1','host','networkKind','generation1',
-    'membershipReaderUnreleased','exactTwoSourceMapping'];
+    'membershipReaderReleased','directoryEnabled','exactTwoSourceMapping'];
   const preflight=script.slice(script.indexOf('const fixtureChecks = {'),
     script.indexOf('const sourceBefore = [];'));
   for(const k of checks) assert.ok(preflight.includes(k+':'), 'missing '+k);
@@ -83,4 +85,20 @@ test('a failed preflight names only safe mismatch fields before any canister wri
     !preflight.includes(forbidden), 'sensitive diagnostic content: '+forbidden);
   assert.ok(script.indexOf('const fixtureChecks = {') <
     script.indexOf('identity.reset_disposable_dev_membership_directory('));
+});
+
+test('released directory reset requires explicit interruption acknowledgement, not the old reset words', () => {
+  assert.match(script,/const phrase = 'RESET RELEASED IGNITE DEV DIRECTORY 7 TO 11'/);
+  assert.match(wf,/reset\) test "\$DEV_DIRECTORY_CONFIRMATION" = "RESET RELEASED IGNITE DEV DIRECTORY 7 TO 11"/);
+  assert.match(script,/membershipReaderReleased:directory.app_enabled===true/);
+  assert.match(script,/directoryEnabled:directory.enabled===true/);
+  assert.match(script,/previousMembershipLookupReleased:true/);
+  assert.match(script,/willInvalidateExistingLookupSessionsOnReset:true/);
+  assert.match(script,/newMembershipLookupWillRemainClosed:true/);
+  assert.match(config,/pub const DEV_RESET_CONFIRMATION:&str="RESET IGNITE DEV DIRECTORY 7 TO 11"/);
+  assert.match(config,/pub const DEV_RELEASED_RESET_CONFIRMATION:&str="RESET RELEASED IGNITE DEV DIRECTORY 7 TO 11"/);
+  assert.match(config,/None if confirmation==DEV_RESET_CONFIRMATION/);
+  assert.match(config,/Some\(release\) if confirmation==DEV_RELEASED_RESET_CONFIRMATION/);
+  assert.match(config,/if !config.enabled/);
+  assert.match(backend,/production_authorization\(\)\.approval\.is_some\(\)/);
 });
