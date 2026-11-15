@@ -48,3 +48,84 @@ pub struct Progress { pub source:String, pub phase:String, pub revision:u64, pub
         assert_eq!(c.pending["g0"],10);c.enabled=false;assert!(c.invalidate(identity,a[0],&b,20).is_err());
     }
 }
+/** One specific disposable DEV setup. This check MUST NOT be repurposed into
+ * a general reset endpoint: the DEV account/PII service is a shared canister.
+ */
+pub const DEV_RESET_CONFIRMATION:&str="RESET IGNITE DEV DIRECTORY 7 TO 11";
+pub fn require_exact_dev_disposable_reset(
+    current_canister:Principal,
+    caller:Principal,
+    governor:Principal,
+    config:&Config,
+    saved_revision:u64,
+    live_revision:u64,
+    confirmation:&str,
+)->Result<(),String>{
+    let principal=|s|Principal::from_text(s).map_err(|_|"Invalid pinned DEV canister");
+    let dev_identity=principal("mq2sj-fiaaa-aaaal-qxlqa-cai")?;
+    let router=principal("jcdfe-vqaaa-aaaal-qxloq-cai")?;
+    let original_club=principal("mzzzv-taaaa-aaaal-qxlrq-cai")?;
+    let group2_club=principal("yfwyv-nyaaa-aaaal-qxpyq-cai")?;
+    if current_canister!=dev_identity || caller!=governor {
+        return Err("Only the exact DEV Identity canister and governor may reset test directory data".into());
+    }
+    if saved_revision!=7 || live_revision!=11 || confirmation!=DEV_RESET_CONFIRMATION {
+        return Err("Exact one-time disposable DEV reset acknowledgement required".into());
+    }
+    let binding=&config.binding;
+    if binding.registry!=router || binding.registry_revision!=saved_revision ||
+        binding.target_alias!="mainnet" || binding.deployment_id!="mainnet" ||
+        binding.deployment_revision!=1 || binding.host!="https://icp-api.io" ||
+        binding.network_kind!="public_mainnet" ||
+        config.generation!=1 ||
+        config.sources!=vec![("g1".into(),original_club),("g2".into(),group2_club)] ||
+        config.inventory_digest.len()!=32 {
+        return Err("Identity directory does not match exact disposable DEV source inventory".into());
+    }
+    if config.release.is_some() {
+        return Err("Released Identity directory cannot use the disposable reset path".into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod disposable_dev_reset_tests {
+    use super::*;
+    fn p(n:u8)->Principal{Principal::from_slice(&[n,1])}
+    fn fixture()->Config {
+        Config{
+            binding:group_inventory::Binding {
+                registry:Principal::from_text("jcdfe-vqaaa-aaaal-qxloq-cai").unwrap(),
+                registry_revision:7,
+                target_alias:"mainnet".into(),
+                deployment_id:"mainnet".into(),deployment_revision:1,
+                host:"https://icp-api.io".into(),network_kind:"public_mainnet".into(),
+            },
+            generation:1,inventory_digest:vec![1;32],
+            sources:vec![
+                ("g1".into(),Principal::from_text("mzzzv-taaaa-aaaal-qxlrq-cai").unwrap()),
+                ("g2".into(),Principal::from_text("yfwyv-nyaaa-aaaal-qxpyq-cai").unwrap()),
+            ],
+            pending:Default::default(),enabled:true,next_source:0,
+            lifecycle:vec![],release:None,
+        }
+    }
+    fn identity()->Principal{Principal::from_text("mq2sj-fiaaa-aaaal-qxlqa-cai").unwrap()}
+    #[test]fn exact_dev_test_configuration_only(){
+        let who=p(3);
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&fixture(),7,11,DEV_RESET_CONFIRMATION).is_ok());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&fixture(),7,10,DEV_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&fixture(),8,11,DEV_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(identity(),who,p(4),&fixture(),7,11,DEV_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(p(5),who,who,&fixture(),7,11,DEV_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&fixture(),7,11,"I agree").is_err());
+    }
+    #[test]fn cannot_reset_released_or_foreign_sources(){
+        let who=p(3);let mut c=fixture();c.release=Some("test".into());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RESET_CONFIRMATION).is_err());
+        c.release=None;c.sources[0].1=p(10);
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RESET_CONFIRMATION).is_err());
+        c=fixture();c.generation=2;
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RESET_CONFIRMATION).is_err());
+    }
+}
