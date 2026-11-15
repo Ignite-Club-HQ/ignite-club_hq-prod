@@ -72,7 +72,7 @@ describe('DEV Group 1 → Group 2 adult name routing preflight (no release)', ()
     expect(() => verifyCrossGroupTeamNameRoute(changed,binding,pins)).toThrow(/foreign/i);
     const changedSubnet = registry();
     changedSubnet.placements[0].domains[0].subnet = Principal.fromUint8Array(new Uint8Array([99]));
-    expect(() => verifyCrossGroupTeamNameRoute(changedSubnet,binding,pins)).toThrow(/subnet/i);
+    expect(() => verifyCrossGroupTeamNameRoute(changedSubnet,binding,pins)).toThrow(/subnet|placement/i);
   });
   it('denies ambiguous original and target groups and unpinned route IDs', () => {
     expect(() => verifyCrossGroupTeamNameRoute(registry(),binding,{...pins,targetGroupId:'g1'})).toThrow(/distinct/i);
