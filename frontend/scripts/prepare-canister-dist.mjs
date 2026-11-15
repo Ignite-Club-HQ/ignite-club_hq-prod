@@ -104,7 +104,13 @@ const canisterIds = loadCanisterIds();
 function devGroup2Discovery() {
   if (isProdBuild || frontendCanisterId !== DEV_FRONTEND_II_CANISTER ||
       process.env.IGNITE_MCP_DEV_GROUP2_DISCOVERY === "0") return [];
-  return reviewedDevGroup2Canisters({ sharedIds: canisterIds, frontendId: frontendCanisterId });
+  return reviewedDevGroup2Canisters({
+    sharedIds: canisterIds,
+    frontendId: frontendCanisterId,
+    // Separate, exact opt-in: PII is intentionally absent from normal Group 2
+    // plugin discovery. Never enable automatically or for a PROD frontend.
+    includeChildNamePii: process.env.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY === "1",
+  });
 }
 
 const manifest = {
