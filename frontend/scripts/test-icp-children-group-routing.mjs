@@ -59,7 +59,8 @@ test("new child has an explicit team placement and an unretried create", () => {
   assert.match(page, /createIcpInviteChild\(\{/);
   assert.match(page, /createAttempted\.current = true/);
   assert.match(page, /writeOnce\(\{ clubId: team\.club_id \}\)/);
-  assert.match(page, /status === "linked" \? \[team\.id\] : \[\]/);
+  assert.match(page, /teamLinked = result\.status !== "created_unlinked"/);
+  assert.match(page, /teams: teamLinked \? \[team\.id\] : \[\]/);
 });
 
 test("parent invite child creation preflights current club membership and locks only the write", () => {
