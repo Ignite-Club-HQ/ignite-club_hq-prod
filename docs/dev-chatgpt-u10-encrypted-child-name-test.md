@@ -63,7 +63,7 @@ The DEV frontend now advertises Group 2's PII canister on the **canonical ICP ho
 - app_url: https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io
 - derivation_origin: https://proe7-kqaaa-aaaas-qg6gq-cai.ic0.app
 
-The SDK helper above is now wrapped by:
+The SDK helper above is now wrapped by local-only adapters (no new network service):
 
 - frontend/scripts/prepare-icp-chatgpt-child-name-connector.mjs
 - frontend/scripts/prepare-icp-chatgpt-child-name-cli.mjs
@@ -78,11 +78,9 @@ The bridge expects the unmodified, exact response objects returned by the existi
 
 All response provenance fields (method, canister ID, manifest origin, derivation origin, anonymous flag) must match; altered or incomplete evidence refuses encryption. The bridge is OFFLINE and makes zero canister calls. It uses the same vetted ICP SDK and the same clubchildren IBE identity, random seed and IGSK1 header as the live app.
 
-In a trusted **local** checkout with frontend dependencies already installed, supply ONE complete JSON input object over stdin containing app, identity, roleReceipt, childReceipt, publicKeyReceipt and childName. **Use only synthetic test names in CI.** For actual child data keep the JSON outside the Git repository and GitHub Actions logs. Never pass a child's name as command-line arguments, CI variables, a URL or a public file.
+In a trusted **local** checkout with frontend dependencies already installed, supply ONE complete JSON input object over stdin containing app, identity, roleReceipt, childReceipt, publicKeyReceipt and childName. **Use only synthetic test names in CI.** For actual child data, keep the JSON **only in the trusted execution process's memory** and pipe it directly to the local CLI on stdin. Do not persist the child's plaintext JSON to a file, even outside GitHub. Never pass a child's name as command-line arguments, environment/CI variables, a URL, a public file or a workflow artifact.
 
-Run from the frontend directory:
-
-    node scripts/prepare-icp-chatgpt-child-name-cli.mjs < /secure/local/child-input.json > /secure/local/encrypted-candid.json
+The trusted ChatGPT process launches the Node CLI with stdin connected to an in-memory pipe; the CLI reads one JSON value, emits only ciphertext-bearing Candid arguments, and exits. The process should release the input as soon as practicable. No shell command needs to contain the name.
 
 The resulting JSON contains ONLY ciphertext-bearing Candid arguments and scoped routing metadata for separate, individually approved connector calls:
 register_pii, get_encrypted_pii_batch, grant_pii_read_club, grant_pii_read and set_own_child_team.
@@ -95,7 +93,7 @@ Synthetic end-to-end execution (Node + real @icp-sdk/vetkeys, no canister access
 
 ### Important deployment / tool limitations
 
-- This is an executable LOCAL Node bridge, not a new MCP method. The DFINITY ICP plugin still handles signing and all canister access, and cannot itself run arbitrary local JavaScript. A ChatGPT runtime with this repository and its installed dependencies is required to execute the bridge, or an independently reviewed, connected encryption tool would be needed.
+- This is an executable, offline local cryptographic adapter, not a network bridge or a new MCP method. The DFINITY ICP plugin still handles signing and all canister access, and cannot itself run arbitrary local JavaScript. A ChatGPT runtime with this repository and its installed dependencies is required to execute the bridge, or an independently reviewed, connected encryption tool would be needed.
 - Source tests, synthetic encryption and actual live DEV access verification are necessary but do not prove a **new live child** is created, named and decrypted. No such write is permitted by this code or PR.
 - The public key comes from a signed-in connector call but is not secret, and the node process never receives the user's Internet Identity delegation, passwords, signing keys or vetKeys. Its returned Candid arguments are ciphertext and can be sent by the existing connector only with separate write approval.
 - The bridge is intentionally pinned to **Test3 and Group 2 ChatGPT Plugin Test U10**; it is a narrow DEV acceptance test, not a generic user onboarding implementation.
