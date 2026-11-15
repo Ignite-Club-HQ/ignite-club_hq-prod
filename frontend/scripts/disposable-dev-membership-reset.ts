@@ -100,7 +100,6 @@ if(directory.binding.registry.toText()!==PIN.router||
    !matchesSources(directory.sources)) {
   throw new Error('Existing directory is not the exact unreleased DEV revision-7 fixture; no changes');
 }
-const sourceBefore = [];
 for (const s of clubs) {
   const observed=unwrap(await s.actor.read_membership_directory_source_binding(),'old '+s.group+' source');
   if (observed.binding.length!==1 ||
