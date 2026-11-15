@@ -159,6 +159,10 @@ function SupabaseJoinTeamPage() {
   const autoJoinAttempted = useRef(false);
   // Non-idempotent ICP create_own_child: never replay an uncertain create on this page mount.
   const icpChildCreateAttempted = useRef(false);
+  // The add-child form may be double-tapped before React disables its button.
+  // Keep this synchronous guard through the whole read-preflight/write flow,
+  // so two in-flight checks cannot each create a child under the same account.
+  const icpChildSubmissionPending = useRef(false);
   
   // Check if we should auto-join (returning from auth after install flow)
   const shouldAutoJoin = safeSessionGet("autoJoinAfterAuth") === "true";
@@ -2178,6 +2182,8 @@ function SupabaseJoinTeamPage() {
   const handleAddChild = async () => {
     if (!user) return;
     if (!invite?.team_id && !leagueLinkMiniLeagueId) return;
+    if (isIcpAccount && icpChildSubmissionPending.current) return;
+    if (isIcpAccount) icpChildSubmissionPending.current = true;
     setAddingChild(true);
     try {
       let addedLabel = "";
@@ -2364,6 +2370,7 @@ function SupabaseJoinTeamPage() {
         variant: "destructive",
       });
     } finally {
+      if (isIcpAccount) icpChildSubmissionPending.current = false;
       setAddingChild(false);
     }
   };
