@@ -146,8 +146,16 @@ if(action==='check'){
   console.log('DEV generation-2 reader release PRECHECK passed; no changes. Plan hash: '+planHash);
   process.exit(0);
 }
-if(checkedPlan!==planHash)
+if(checkedPlan!==planHash) {
+  // Save non-PII evidence to distinguish a real source/authority drift from a
+  // stale operator hash. NEVER substitute the newly observed hash as consent.
+  report('mismatch.json',{action:'release',status:'plan-mismatch-reader-closed',
+    requestedPlanHash:checkedPlan,observedPlanHash:planHash,
+    releaseCommit:commit,routerRevision:'11',generation:'2',
+    sources:statuses,readerReleased:false,noModifications:true,
+    noPrivateNames:true,noProdOrSupabase:true});
   throw new Error('Checked DEV reader release plan is stale/mismatched; no changes made');
+}
 report('intent.json',{action:'release',status:'intent-before-one-identity-call',
   planHash,commit,target:P.identity,generation:'2',readerResult:'unknown',
   noCanisterUpgrades:true,noPrivateNames:true,noProdOrSupabase:true});
