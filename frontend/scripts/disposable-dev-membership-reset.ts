@@ -1,8 +1,9 @@
 /**
  * DEV-only, explicit owner-approved DISPOSABLE membership DIRECTORY reset.
  * This intentionally neither upgrades wasm nor touches account/PII/child/club
- * records. It resets only an old, unreleased directory at revision 7 and
- * restores exact original G1 + registered G2 sources at router revision 11.
+ * records. This one-time DEV recovery explicitly acknowledges the previously
+ * released generation-1 directory at router revision 7 and replaces it with
+ * an UNRELEASED generation-2 directory at router revision 11.
  *
  * IMPORTANT: the new backend method must be deployed to the *exact* DEV
  * shared Identity canister via separately owner-approved upgrade first.
@@ -25,7 +26,7 @@ import { GROUP2_GOVERNOR } from '../../scripts/group2-upgrade-rules.mjs';
 const [pem, reportDir] = process.argv.slice(2);
 const action = process.env.DEV_DIRECTORY_ACTION;
 const confirmation = process.env.DEV_DIRECTORY_CONFIRMATION;
-const phrase = 'RESET IGNITE DEV DIRECTORY 7 TO 11';
+const phrase = 'RESET RELEASED IGNITE DEV DIRECTORY 7 TO 11';
 const repo = process.env.GITHUB_REPOSITORY?.toLowerCase();
 if (!pem || !reportDir || repo !== 'ignite-club-hq/ignite-club_hq-prod' ||
     process.env.GITHUB_REF !== 'refs/heads/main' ||
@@ -99,7 +100,8 @@ const fixtureChecks = {
   host:directory.binding.host==='https://icp-api.io',
   networkKind:directory.binding.network_kind==='public_mainnet',
   generation1:directory.generation===1n,
-  membershipReaderUnreleased:directory.app_enabled===false,
+  membershipReaderReleased:directory.app_enabled===true,
+  directoryEnabled:directory.enabled===true,
   exactTwoSourceMapping:matchesSources(directory.sources),
 };
 const mismatches=Object.entries(fixtureChecks).filter(([,passed])=>!passed).map(([name])=>name);
@@ -147,8 +149,9 @@ const report=(details:Record<string,unknown>)=>
     nameReadAuthorised:false,...details,
   },null,2));
 if(action==='check'){
-  report({status:'ready-for-separately-approved-reset',readOnly:true,sourceBindingsVerified:true,
-          membershipLookupReleased:false});
+  report({status:'released-directory-ready-for-separately-approved-reset',readOnly:true,sourceBindingsVerified:true,
+          previousMembershipLookupReleased:true,willInvalidateExistingLookupSessionsOnReset:true,
+          newMembershipLookupWillRemainClosed:true});
   console.log('Read-only DEV reset preflight PASSED; no settings or records modified.');
   process.exit(0);
 }
