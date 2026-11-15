@@ -36,6 +36,9 @@ test("authoritative child inventory remains all-groups complete while early memb
   assert.match(page, /inventoryComplete = !!completeChildRows && !isError/);
   assert.match(page, /disabled=\{!inventoryComplete\}/);
   assert.match(page, /existingNamesResolved = inventoryComplete/);
+  // Principal-scoped query keys must not briefly display the prior account's
+  // children when users switch between Internet Identity sessions.
+  assert.doesNotMatch(page, /placeholderData:\s*\(prev\)\s*=>\s*prev/);
   assert.ok((page.match(/everyGroup: true, requireComplete: true/g) ?? []).length >= 3);
   assert.match(page, /sourceClubCanisterId = requireSourceClubCanisterId\(scoped\.target\)/);
   assert.match(page, /childSourceKey\(\{ id, sourceClubCanisterId \}\)/);
