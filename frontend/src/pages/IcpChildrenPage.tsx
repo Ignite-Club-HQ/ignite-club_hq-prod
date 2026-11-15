@@ -155,8 +155,8 @@ export default function IcpChildrenPage() {
     retry: false,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<Record<string, string>> => {
-      const [{ withFeatureBackend }, vault] = await Promise.all([
-        import("@/live/featureRouter"), import("@/live/features/vault"),
+      const [{ withFeatureBackend }, vault, piiKeys] = await Promise.all([
+        import("@/live/featureRouter"), import("@/live/features/vault"), import("@/live/piiVetKeys"),
       ]);
       return withFeatureBackend<Record<string, string>>("membership", {
         supabase: async () => { throw new Error("Internet Identity required for private child names"); },
@@ -166,14 +166,19 @@ export default function IcpChildrenPage() {
             .filter(child => child.sourceClubCanisterId === sourceClubCanisterId)
             .map(child => child.id);
           if (ids.length === 0) return {};
+          // A cold name unlock needs ciphertext, a public verification key and
+          // a permission-gated vetKey. Start the public-key fetch in parallel,
+          // without sending names or introducing a proxy/server.
+          piiKeys.prewarmPiiVerificationKey(scoped);
           const names = await withReadDeadline(
             vault.resolveLivePiiTextBatch(scoped, ids, 'name', 'read', 'children_page'),
-            "Private child names", 20_000,
+            "Private child names", 30_000,
           );
           return Object.fromEntries([...names.entries()].map(([id, name]) =>
             [childSourceKey({ id, sourceClubCanisterId }), name]));
         },
-      }, { everyGroup: true, requireComplete: true, merge: parts => Object.assign({}, ...parts) });
+      }, { everyGroup: true, requireComplete: true, readDeadlineMs: 35_000,
+        merge: parts => Object.assign({}, ...parts) });
     },
   });
   const children = childRows?.map(child => ({
@@ -394,7 +399,7 @@ export default function IcpChildrenPage() {
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    {c.name ? <p className="font-semibold">{c.name}</p> : namesQuery.isLoading ? <div className="h-5 w-32 rounded bg-muted animate-pulse" aria-label="Retrieving child name" /> : <p className="font-semibold">Child</p>}
+                    {c.name ? <p className="font-semibold">{c.name}</p> : namesQuery.isFetching ? <div className="h-5 w-32 rounded bg-muted animate-pulse" aria-label="Retrieving child name" /> : <p className="font-semibold text-muted-foreground">Name unavailable</p>}
                     {!c.isPrimary && <p className="text-xs text-muted-foreground">You're a guardian</p>}
                     <p className="text-xs text-muted-foreground">Stored on ICP group {c.sourceClubCanisterId.slice(0, 10)}…</p>
                   </div>
@@ -442,7 +447,13 @@ export default function IcpChildrenPage() {
         </div>
       )}
 
-      {namesQuery.isError && <Button variant="outline" onClick={() => void namesQuery.refetch()}>Retry child names</Button>}
+      {!!children?.some(child => !child.name.trim()) && !namesQuery.isLoading && (
+        <Button variant="outline" disabled={namesQuery.isFetching}
+          onClick={() => void namesQuery.refetch()}>
+          {namesQuery.isFetching && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+          Retry child names
+        </Button>
+      )}
       <ResponsiveDialog open={addOpen} onOpenChange={setAddOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader><ResponsiveDialogTitle>Add child</ResponsiveDialogTitle></ResponsiveDialogHeader>

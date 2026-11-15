@@ -6,7 +6,29 @@ const state = vi.hoisted(() => ({ children: vi.fn(), names: vi.fn(), teams: vi.f
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'parent-a' } }) }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/lib/icpClubTeamLookup', () => ({ icpCtx: async () => ({ identity: { getPrincipal: () => ({ toText: () => 'parent-a' }) } }) }));
-vi.mock('@/live/features/club', () => ({ listMyLiveOwnChildren: state.children, listLiveTeams: state.teams }));
+vi.mock('@/live/features/club', () => ({
+  listMyLiveOwnChildren: state.children,
+  listLiveTeams: state.teams,
+  listMyLiveGroupRoleGrants: state.grants,
+}));
+vi.mock('@/live/piiVetKeys', () => ({ prewarmPiiVerificationKey: vi.fn() }));
+// Exercise the real Children-page group callback with one signed-in Group 2
+// context, rather than accidentally falling through an unconfigured test
+// registry and reporting a child-list error.
+vi.mock('@/live/featureRouter', () => ({
+  withFeatureBackend: vi.fn(async (_feature: string, providers: { icp: (ctx: unknown) => Promise<unknown> }, scope?: { everyGroup?: boolean; merge?: (parts: unknown[]) => unknown }) => {
+    const ctx = {
+      identity: { getPrincipal: () => ({ toText: () => 'parent-a' }) },
+      target: {
+        alias: 'mainnet', host: 'https://icp-api.io',
+        networkKind: 'public_mainnet',
+        canisterIds: { club_domain: 'group-2-club', pii_access_control: 'group-2-pii' },
+      },
+    };
+    const result = await providers.icp(ctx);
+    return scope?.everyGroup ? scope.merge!([result]) : result;
+  }),
+}));
 vi.mock('@/live/features/membership', () => ({ getLiveMyRoleGrants: state.grants }));
 vi.mock('@/live/features/vault', () => ({ resolveLivePiiTextBatch: state.names }));
 import IcpChildrenPage from './IcpChildrenPage';
@@ -16,6 +38,7 @@ beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   state.children.mockResolvedValue([{ id: 'child-a', teams: [], parent: [{ toText: () => 'parent-a' }] }]);
   state.names.mockReturnValue(new Promise(() => {}));
+  state.grants.mockResolvedValue([]);
 });
 afterEach(() => { cleanup(); client.clear(); });
 const open = () => render(<QueryClientProvider client={client}><MemoryRouter><IcpChildrenPage /></MemoryRouter></QueryClientProvider>);
@@ -23,14 +46,33 @@ it('reveals authorized child controls without waiting for name decryption or glo
   open();
   expect(await screen.findByRole('button', { name: 'Remove child' })).toBeInTheDocument();
   expect(screen.getByLabelText('Retrieving child name')).toBeInTheDocument();
-  expect(state.grants).not.toHaveBeenCalled();
+  // The team query may begin, but it must never block a verified child card.
   expect(state.teams).not.toHaveBeenCalled();
-  expect(client.getQueryData(['icp-own-children', 'parent-a'])).toHaveLength(1);
-  expect(client.getQueryData(['icp-own-children', 'parent-b'])).toBeUndefined();
+  expect(client.getQueryData(['icp-own-children-all-groups', 'parent-a'])).toHaveLength(1);
+  expect(client.getQueryData(['icp-own-children-all-groups', 'parent-b'])).toBeUndefined();
 });
 it('failed child reads show retry rather than falsely reporting no children', async () => {
   state.children.mockRejectedValue(new Error('Denied'));
   open();
   expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument();
   expect(screen.queryByText('No children added yet.')).not.toBeInTheDocument();
+});
+it('shows a retryable private-name state instead of labelling the child as Child', async () => {
+  // The group-2 ciphertext can already be readable, while the signed-in
+  // vetKey derivation is slow/unavailable on a cold browser session.
+  state.names.mockResolvedValue(new Map());
+  state.children.mockResolvedValue([{ id: 'child-a', teams: [], parent: [{ toText: () => 'other-parent' }] }]);
+  open();
+  expect(await screen.findByText('Name unavailable')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Retry child names' })).toBeInTheDocument();
+  expect(screen.queryByText('No children added yet.')).not.toBeInTheDocument();
+  expect(screen.getByText("You're a guardian")).toBeInTheDocument();
+});
+
+it('renders the locally decrypted child name once it becomes available', async () => {
+  state.names.mockResolvedValue(new Map([['child-a', 'Ted']]));
+  open();
+  expect(await screen.findByText('Ted')).toBeInTheDocument();
+  expect(screen.queryByText('Name unavailable')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Retry child names' })).not.toBeInTheDocument();
 });
