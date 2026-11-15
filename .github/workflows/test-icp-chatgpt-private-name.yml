@@ -5,6 +5,8 @@ on:
     paths:
       - "frontend/scripts/prepare-icp-chatgpt-private-name.mjs"
       - "frontend/scripts/prepare-icp-chatgpt-private-name.test.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-child-name.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-child-name.test.mjs"
       - ".github/workflows/test-icp-chatgpt-private-name.yml"
   workflow_dispatch:
 
@@ -27,3 +29,6 @@ jobs:
       - name: Verify offline encrypted-name preparation
         working-directory: frontend
         run: node --test scripts/prepare-icp-chatgpt-private-name.test.mjs
+      - name: Verify DEV-only encrypted child-name preparation and guards
+        working-directory: frontend
+        run: node --test scripts/prepare-icp-chatgpt-child-name.test.mjs
