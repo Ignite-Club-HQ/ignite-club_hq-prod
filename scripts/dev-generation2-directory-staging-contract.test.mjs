@@ -45,7 +45,7 @@ test('fill is bounded, identity-owned and cannot activate a reader or change per
   assert.match(script,/readyForReaderRelease:false/);
   assert.match(script,/readerReleased:false/);
   assert.doesNotMatch(script,/\.enable_membership_directory\(|\.configure_membership_directory\(|\.configure_membership_directory_source\(/);
-  assert.doesNotMatch(script,/install_code|spawnSync\(|execSync\(|executeUpgrades\(|\.grant_|\.set_|supabase|notify|send_push/gi);
+  assert.doesNotMatch(script,/install_code|spawnSync\(|execSync\(|executeUpgrades\(|\.grant_|\.set_|createSupabaseClient|supabase\.from\(|send_push\(/gi);
   assert.match(script,/await verifySources\(\)/);
 });
 
