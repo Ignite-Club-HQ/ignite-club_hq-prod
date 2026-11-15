@@ -239,7 +239,7 @@ export default function IcpChildrenPage() {
     name: namesQuery.data?.[childSourceKey(child)] ?? child.name,
   }));
   const existingNamesResolved = inventoryComplete && (
-    completeChildRows.length === 0 || (
+    completeChildRows?.length === 0 || (
       namesQuery.isSuccess && !!children?.every(child => !!child.name.trim())
     )
   );
@@ -368,6 +368,7 @@ export default function IcpChildrenPage() {
 
   const deleteChild = useMutation({
     mutationFn: async (child: IcpChild) => {
+      if (!inventoryComplete) throw new Error("Verify the complete child inventory before making changes.");
       if (!child.isPrimary) throw new Error("Only the primary parent can remove this child.");
       const club = await import("@/live/features/club");
       await withVerifiedChildGroup(child, ctx => club.deleteMyLiveChild(ctx, child.id));
@@ -391,6 +392,7 @@ export default function IcpChildrenPage() {
     mutationFn: async ({ child, team, assigned }: {
       child: IcpChild; team: TeamOpt; assigned: boolean;
     }) => {
+      if (!inventoryComplete) throw new Error("Verify the complete child inventory before making changes.");
       assertChildSourceMatchesTeam(child, team);
       if (assigned && child.teams.includes(team.id)) return;
       if (!assigned && !child.teams.includes(team.id))
@@ -426,11 +428,20 @@ export default function IcpChildrenPage() {
           </Button>
           <h1 className="text-lg font-bold">Children</h1>
         </div>
-        <Button size="sm" onClick={() => setAddOpen(true)}>
+        <Button size="sm" disabled={!inventoryComplete} onClick={() => setAddOpen(true)}>
           <Plus className="h-4 w-4 mr-1" /> Add child
         </Button>
       </div>
 
+      {!inventoryComplete && !!children?.length && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {isError
+            ? 'Could not verify all ICP groups. Child changes are disabled until you retry.'
+            : 'Checking the remaining ICP groups… Child changes are unavailable until verification finishes.'}
+          {isError && <Button variant="outline" size="sm" className="ml-2"
+            onClick={() => void refetch()}>Retry verification</Button>}
+        </p>
+      )}
       {isLoading ? (
         <div className="py-10 flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -443,7 +454,7 @@ export default function IcpChildrenPage() {
           <CardContent className="py-10 text-center space-y-3">
             <Users className="h-10 w-10 mx-auto text-muted-foreground" />
             <p className="text-muted-foreground">No children added yet.</p>
-            <Button onClick={() => setAddOpen(true)}><Plus className="h-4 w-4 mr-1" /> Add your first child</Button>
+            <Button disabled={!inventoryComplete} onClick={() => setAddOpen(true)}><Plus className="h-4 w-4 mr-1" /> Add your first child</Button>
           </CardContent>
         </Card>
       ) : (
@@ -458,11 +469,11 @@ export default function IcpChildrenPage() {
                     <p className="text-xs text-muted-foreground">Stored on ICP group {c.sourceClubCanisterId.slice(0, 10)}…</p>
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" aria-label="Guardians" onClick={() => setGuardiansFor(c)}>
+                    <Button variant="ghost" size="icon" aria-label="Guardians" disabled={!inventoryComplete} onClick={() => setGuardiansFor(c)}>
                       <UserPlus className="h-4 w-4" />
                     </Button>
                     {c.isPrimary && (
-                      <Button variant="ghost" size="icon" aria-label="Remove child" onClick={() => setDeleteId(c)}>
+                      <Button variant="ghost" size="icon" aria-label="Remove child" disabled={!inventoryComplete} onClick={() => setDeleteId(c)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     )}
@@ -476,19 +487,19 @@ export default function IcpChildrenPage() {
                         {t ? `${t.name} · ${t.club_name}` : "Team"}
                         <button
                           aria-label="Remove from team"
-                          disabled={!t}
-                          onClick={() => t && setTeam.mutate({ child: c, team: t, assigned: false })}
+                          disabled={!t || !inventoryComplete}
+                          onClick={() => t && inventoryComplete && setTeam.mutate({ child: c, team: t, assigned: false })}
                         >
                           <X className="h-3 w-3" />
                         </button>
                       </Badge>
                     );
                   })}
-                  <Button variant="outline" size="sm" onClick={() => setTeamFor(c)}>
+                  <Button variant="outline" size="sm" disabled={!inventoryComplete} onClick={() => setTeamFor(c)}>
                     <Plus className="h-3 w-3 mr-1" /> Add to team
                   </Button>
                   {isDevTedU10PreviewCandidate(window.location.hostname, c) && (
-                    <Button variant="outline" size="sm" disabled={reviewTed.isPending}
+                    <Button variant="outline" size="sm" disabled={reviewTed.isPending || !inventoryComplete}
                       onClick={() => reviewTed.mutate()}>
                       {reviewTed.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
                       Review U10 move
