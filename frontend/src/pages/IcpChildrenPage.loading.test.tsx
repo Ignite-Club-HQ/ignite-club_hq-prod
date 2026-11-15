@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   everyCanisters: ['group-2-club'] as string[],
   routed: vi.fn(),
   blockCompleteInventory: false,
+  identity: { getPrincipal: () => ({ toText: () => 'parent-a' }) },
 }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'parent-a' } }) }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
@@ -32,7 +33,7 @@ vi.mock('@/live/featureRouter', () => ({
     }
     const ids = scope?.memberGroups ? state.memberCanisters : state.everyCanisters;
     const results = await Promise.all(ids.map(id => providers.icp({
-      identity: { getPrincipal: () => ({ toText: () => 'parent-a' }) },
+      identity: state.identity,
       target: {
         alias: 'mainnet', host: 'https://icp-api.io',
         networkKind: 'public_mainnet',
@@ -55,6 +56,7 @@ beforeEach(() => {
   state.memberCanisters = ['group-2-club'];
   state.everyCanisters = ['group-2-club'];
   state.blockCompleteInventory = false;
+  state.identity = { getPrincipal: () => ({ toText: () => 'parent-a' }) };
 });
 afterEach(() => { cleanup(); client.clear(); });
 const open = () => render(<QueryClientProvider client={client}><MemoryRouter><IcpChildrenPage /></MemoryRouter></QueryClientProvider>);
