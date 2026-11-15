@@ -15,10 +15,10 @@ on:
   workflow_dispatch:
     inputs:
       enable_dev_g2_child_pii:
-        description: "DEV only: publish Group 2 encrypted child-name vault for ChatGPT (review required)"
+        description: "DEV only: preserve approved Group 2 child-name discovery (false temporarily disables this manual build)"
         required: true
         type: boolean
-        default: false
+        default: true
   push:
     branches: [main]
     paths: ["frontend/**", "deploy/frontend/**", ".github/workflows/deploy-frontend-canister.yml", "!frontend/scripts/**", "!frontend/**/*.test.*", "!frontend/**/*.md"]
@@ -63,10 +63,14 @@ jobs:
           IGNITE_LIVE_DEV_FIREBASE_PROJECT_ID: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_PROJECT_ID }}
           IGNITE_LIVE_DEV_FIREBASE_APP_ID: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_APP_ID }}
           IGNITE_LIVE_DEV_FIREBASE_VAPID_KEY: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_VAPID_KEY }}
-          # Opt-in only for canonical DEV frontend: either a separately selected
-          # manual run or the explicitly configured repository variable.
-          # Other automatic builds and PROD must never inherit this by default.
-          IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY: ${{ (github.ref == 'refs/heads/main' && (vars.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY == '1' || (github.event_name == 'workflow_dispatch' && inputs.enable_dev_g2_child_pii))) && '1' || '0' }}
+          # Persistent, owner-approved DEV Group 2 PII discovery: manual
+          # opt-in was previously overwritten by the next automatic main push.
+          # Keep this exact DEV-only pin enabled on normal main builds. The
+          # repository variable set to 0 is an explicit emergency kill switch;
+          # the manual input can disable an individual manual build. PROD has
+          # a separate workflow and is never eligible. The manifest builder
+          # independently refuses an incorrect frontend, PII ID or approval.
+          IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY: ${{ (github.ref == 'refs/heads/main' && vars.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY != '0' && (github.event_name != 'workflow_dispatch' || inputs.enable_dev_g2_child_pii)) && '1' || '0' }}
         run: |
           set -euo pipefail
           # DEV/test canisters only; refuses any PROD canister in the table.
