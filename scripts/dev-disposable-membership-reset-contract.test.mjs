@@ -60,7 +60,7 @@ test('rebuild stays unreleased and exact G1/G2 source bindings only', () => {
   assert.match(script,/2n/);
   assert.match(script,/membershipLookupReleased:false/);
   assert.match(script,/!configured.enabled\|\|configured.app_enabled/);
-  assert.match(script,/fingerprint\\(current\\)!==fingerprint\\(sourceBefore\\[i\\]\\)/);
+  assert.ok(script.includes('fingerprint(current)!==fingerprint(sourceBefore[i])'));
   assert.match(script,/configured.binding.registry_revision!==11n/);
   assert.doesNotMatch(script,/enable_membership_directory\(/);
   assert.doesNotMatch(script,/read_private_profile_name_authorization\(/);
