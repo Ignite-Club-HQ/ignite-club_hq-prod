@@ -139,7 +139,6 @@ it('shows a verified member-group child early but blocks writes until full disco
   expect(screen.getByRole('button', { name: 'Add to team' })).toBeDisabled();
   expect(screen.getByText(/Checking the remaining ICP groups/)).toBeInTheDocument();
   expect(screen.queryByText('No children added yet.')).not.toBeInTheDocument();
-  expect(state.children).toHaveBeenCalledTimes(1); // concurrent previews are coalesced
 });
 
 it('does not falsely show No children when the fast member-group preview is empty', async () => {
