@@ -168,3 +168,43 @@ describe('legacy G1 Identity-sourced topology audit (still NO name release)', ()
       .toThrow(/Registered and legacy authority/);
   });
 });
+
+describe('exact, non-sensitive Identity directory failure diagnosis', () => {
+  const check = (mutate: (d: LegacyIdentityDirectoryReadback) => void, message: RegExp) => {
+    const d = legacyDirectory();
+    mutate(d);
+    expect(() => inspectLegacyGroup1TeamNameTopology(
+      registry([group('g2')]), legacyBinding, d, legacyPins,
+    )).toThrow(message);
+  };
+  it('distinguishes stale router revision from stale approved registry revision', () => {
+    check(d => { d.binding.registry_revision = 10n; },
+      /directory revision differs from the live router revision/);
+    expect(() => inspectLegacyGroup1TeamNameTopology(
+      registry([group('g2')]), {...legacyBinding, registryRevision: 10n}, legacyDirectory(), legacyPins,
+    )).toThrow(/Incomplete or stale account registry/);
+  });
+  it('pinpoints disabled membership-directory and unreleased reader separately', () => {
+    check(d => { d.enabled = false; }, /Identity membership directory disabled/);
+    check(d => { d.app_enabled = false; }, /Identity membership directory reader not released/);
+    check(d => { d.generation = 0n; }, /directory generation not activated/);
+  });
+  it('pinpoints authority, binding, deployment and fingerprint mismatch without printing their data', () => {
+    check(d => { d.binding.registry = Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai'); },
+      /original router authority mismatch/);
+    check(d => { d.binding.target_alias = 'other'; }, /deployment alias mismatch/);
+    check(d => { d.binding.deployment_id = 'other'; }, /deployment identity mismatch/);
+    check(d => { d.binding.deployment_revision += 1n; }, /deployment revision mismatch/);
+    check(d => { d.binding.host = 'https://other.invalid'; }, /deployment host mismatch/);
+    check(d => { d.binding.network_kind = 'cloud_engine'; }, /network kind mismatch/);
+    check(d => { d.inventory_digest = new Uint8Array([3]); }, /inventory fingerprint missing or invalid/);
+  });
+  it('does not turn any of these failures into an authorisation or automatic repair', () => {
+    check(d => { d.enabled = false; }, /No private-name access was attempted/);
+    const good = inspectLegacyGroup1TeamNameTopology(registry([group('g2')]), legacyBinding, legacyDirectory(), legacyPins);
+    expect(good.nameReadAuthorised).toBe(false);
+    expect(good.originalPiiKeyVerified).toBe(false);
+    expect(good.requiresLiveTeamPermission).toBe(true);
+    expect(good.requiresOwnerRelease).toBe(true);
+  });
+});
