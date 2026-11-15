@@ -188,11 +188,6 @@ export function createClubDispatcher(deps: DispatchDeps) {
     },
     /** Member content is distinct from unrestricted discovery/foreign hosts. */
     readMemberGroups: async <T, R>(feature: FeatureArea, domain: GroupDomain, fn0: (ctx: FeatureBackendContext) => Promise<T>, merge: (parts: T[]) => R): Promise<R> => {
-      // Only high-latency reads (e.g. vetted local IBE name unlock) may opt into a longer deadline.
-      // Preserve the 15s default for every other screen; never make a user-supplied timeout unbounded.
-      if (!Number.isSafeInteger(readDeadlineMs) || readDeadlineMs < READ_ACROSS_LEG_MS || readDeadlineMs > 45_000) {
-        throw new Error('Invalid bounded group read deadline');
-      }
       if (!await active()) return merge([await deps.legacy(feature, '', fn0)]);
       const { s } = await sessionFor(deps);
       if (!s.readMemberGroups) throw new Error('Member-group reads unavailable');
@@ -223,6 +218,11 @@ export function createClubDispatcher(deps: DispatchDeps) {
     /** Data spanning the caller's clubs: shared canisters + every group, asked
      * at the same time (load time = slowest group, not the sum). */
     readAcross: async <T, R>(feature: FeatureArea, domain: GroupDomain, fn0: (ctx: FeatureBackendContext) => Promise<T>, merge: (parts: T[]) => R, requireComplete = false, readDeadlineMs = READ_ACROSS_LEG_MS): Promise<R> => {
+      // Only high-latency reads (e.g. vetted local IBE name unlock) may opt into a longer deadline.
+      // Preserve the 15s default for every other screen; never make a user-supplied timeout unbounded.
+      if (!Number.isSafeInteger(readDeadlineMs) || readDeadlineMs < READ_ACROSS_LEG_MS || readDeadlineMs > 45_000) {
+        throw new Error('Invalid bounded group read deadline');
+      }
       if (!await active()) return merge([await deps.legacy(feature, '', fn0)]);
       const fn = (ctx: FeatureBackendContext) => fn0(ctx && typeof ctx === 'object' ? markScopedContext(ctx) : ctx);
       const { s } = await sessionFor(deps);
