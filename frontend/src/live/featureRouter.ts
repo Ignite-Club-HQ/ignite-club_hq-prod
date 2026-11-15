@@ -59,7 +59,7 @@ export type ClubScope = ({ clubId: string } | { photoId: string } | { galleryCar
   /** Spans the caller's clubs (inbox, unread counts, "my events"): asked of
    * the shared canisters and every group the caller belongs to at the same
    * time, then combined with merge. Reads only. */
-  | { everyGroup: true; merge: (parts: unknown[]) => unknown; requireComplete?: boolean }
+  | { everyGroup: true; merge: (parts: unknown[]) => unknown; requireComplete?: boolean; readDeadlineMs?: number }
   | { memberGroups: true; merge: (parts: unknown[]) => unknown }
 ) & { writeKey?: string; attempts?: number; /** internal: club not moved, use shared canisters */ legacy?: true };
 /** Combine list results from several groups (one array per group). */
@@ -145,7 +145,7 @@ async function dispatchIcp<T>(feature: FeatureArea, providers: FeatureBackendPro
     if (scope && 'inviteToken' in scope) return clubDispatch.forInvite(feature, scope.inviteToken, async ctx => providers.icp(ctx));
     if (scope && domain && 'everyGroup' in scope) {
       if (scope.writeKey) throw new Error(`"${feature}" writes must name one club; group routing cannot fan them out.`);
-      return clubDispatch.readAcross(feature, domain, async ctx => providers.icp(ctx), scope.merge, scope.requireComplete) as Promise<T>;
+      return clubDispatch.readAcross(feature, domain, async ctx => providers.icp(ctx), scope.merge, scope.requireComplete, scope.readDeadlineMs) as Promise<T>;
     }
     if (scope && domain && 'memberGroups' in scope) {
       if (scope.writeKey) throw new Error(`"${feature}" writes must name one club.`);
