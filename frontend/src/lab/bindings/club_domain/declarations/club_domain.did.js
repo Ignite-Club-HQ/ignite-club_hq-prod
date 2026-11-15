@@ -2230,6 +2230,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Vec(TeamInvite), 'Err' : IDL.Text })],
         [],
       ),
+    'read_account_list_team_child_ids' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [IDL.Variant({ 'Ok' : IDL.Vec(IDL.Text), 'Err' : IDL.Text })],
+      [],
+    ),
     'read_account_list_team_role_grants' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Vec(AccountRole), 'Err' : IDL.Text })],
