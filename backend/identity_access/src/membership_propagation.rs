@@ -20,6 +20,12 @@ fn encode<T:Serialize>(v:&T)->Vec<u8>{let mut b=vec![];ciborium::into_writer(v,&
 fn decode<T:for<'a>Deserialize<'a>>(b:&[u8])->T{ciborium::from_reader(b).expect("propagation decode")}
 impl<M:Memory> Worker<M>{
     pub fn open(memory:M)->Self{Self{jobs:StableBTreeMap::init(memory)}}
+    /// Only for the exact disposable DEV directory after the reset fence.
+    pub fn dev_disposal_within_budget(&self)->bool {self.jobs.len()<=512}
+    pub fn dev_discard_test_jobs(&mut self) {
+        let keys:Vec<String>=self.jobs.iter().map(|e|e.key().clone()).collect();
+        for key in keys { self.jobs.remove(&key); }
+    }
     fn job(&self,source:&str)->Result<Job,String>{self.jobs.get(&source.into()).map(|b|decode(&b)).ok_or("Source propagation not started".into())}
     fn save(&mut self,j:&Job){self.jobs.insert(j.source.clone(),encode(j));}
     pub fn phase(&self,source:&str)->Result<(&'static str,u64),String>{
