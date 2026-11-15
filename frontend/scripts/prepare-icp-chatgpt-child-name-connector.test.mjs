@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { IbeCiphertext } from '@icp-sdk/vetkeys';
@@ -153,9 +155,36 @@ test('only successful, newly returned unassigned parent-owned child IDs qualify'
 
 test('optional portable bundle performs the same synthetic secure preparation', {skip: !process.env.IGNITE_CHATGPT_BUNDLED_CLI}, () => {
   const file=process.env.IGNITE_CHATGPT_BUNDLED_CLI;
-  const r=spawnSync(process.execPath,[file],{input:JSON.stringify(fixture()),encoding:'utf8',timeout:15000});
+  const args=['--permission','--allow-fs-read='+dirname(dirname(file))+'/',file];
+  const r=spawnSync(process.execPath,args,{input:JSON.stringify(fixture()),encoding:'utf8',timeout:15000});
   assert.equal(r.status,0,r.stderr);
   assert.equal(r.stderr,'');
   assert.equal(JSON.parse(r.stdout).childId,childId);
   assert(!r.stdout.includes('Ted'));
+});
+
+
+test('production-executable offline encryption path imports no network or remote execution APIs', () => {
+  // This static tripwire supplements, but does not replace, a runtime sandbox.
+  // In Node 22 --permission denies filesystem writes and spawning children;
+  // Node's permission flag does NOT deny outbound network access on its own.
+  const scripts = [
+    'prepare-icp-chatgpt-child-name.mjs',
+    'prepare-icp-chatgpt-child-name-connector.mjs',
+    'prepare-icp-chatgpt-child-name-cli.mjs',
+  ];
+  const reject = [
+    /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\(/,
+    /\b(?:import|require)\s*\(\s*['"](?:node:)?(?:http|https|net|tls|dns|dgram)(?:\/|['"])/,
+    /\bfrom\s*['"](?:node:)?(?:http|https|net|tls|dns|dgram)(?:\/|['"])/,
+    /\b(?:child_process|worker_threads|node:vm)\b/,
+    /\b(?:eval|new\s+Function)\s*\(/,
+    /\b(?:console\.(?:log|warn|error|info|debug)|process\.env)\b/,
+  ];
+  for (const file of scripts) {
+    const source=readFileSync(new URL('./'+file,import.meta.url),'utf8');
+    for (const rule of reject) {
+      assert.doesNotMatch(source,rule,file+' introduced an unexpected network, process, logging or dynamic-code path');
+    }
+  }
 });
