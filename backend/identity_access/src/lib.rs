@@ -694,6 +694,80 @@ async fn configure_membership_directory(binding:group_inventory::Binding,authori
 fn disable_membership_directory()->Outcome<()>{
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 require_governor(&state(),ic_cdk::api::msg_caller())?;let mut c=directory_config()?;c.enabled=false;save_directory_config(&c);Ok(())}
+/// Disposable test-only membership DIRECTORY reset for the original DEV
+/// mainnet Identity canister. Not an account reset, data migration or reader
+/// release. Never expose this method on a different canister or as a general
+/// purpose revision-repair API. Governed by exact hard-coded 7 -> 11 scope.
+#[ic_cdk::update]
+async fn reset_disposable_dev_membership_directory(
+    expected_saved_revision:u64, expected_router_revision:u64, confirmation:String,
+)->Outcome<()> {
+    let _private_writer_lease=private_name_writer_window::enter()
+        .unwrap_or_else(|reason|ic_cdk::trap(reason));
+    let caller=ic_cdk::api::msg_caller();
+    require_governor(&state(),caller)?;
+    admission_configuration_clear()?;
+    // Prevent this operation on a shared Identity ever authorized for PROD.
+    if production_authorization().approval.is_some() {
+        return Err("Production account authorization is present; DEV reset forbidden".into());
+    }
+    if DIRECTORY_TIMER_BUSY.with(|busy|*busy.borrow()) {
+        return Err("Membership directory timer is active; retry only after quiescence".into());
+    }
+    let before=directory_config()?;
+    membership_runtime::require_exact_dev_disposable_reset(
+        ic_cdk::api::canister_self(), caller, state().governor, &before,
+        expected_saved_revision, expected_router_revision, &confirmation,
+    )?;
+    let mut current_binding=before.binding.clone();
+    current_binding.registry_revision=expected_router_revision;
+    let unchanged=||->Outcome<()>{
+        if directory_config()?!=before {
+            return Err("DEV directory changed during preflight; no reset performed".into());
+        }
+        if DIRECTORY_TIMER_BUSY.with(|busy|*busy.borrow()) {
+            return Err("Directory refresh became active; no reset performed".into());
+        }
+        admission_configuration_clear()
+    };
+    // Authenticated consensus reads of the complete registered inventory.
+    // Modern G1 was never registered: original G1 stays separately pinned
+    // in the *existing* directory source list checked above.
+    let first=read_registry_pages(&current_binding,unchanged).await?;
+    let second=read_registry_pages(&current_binding,unchanged).await?;
+    unchanged()?;
+    if first!=second || first.revision!=expected_router_revision ||
+       first.groups.len()!=1 || first.placements.len()!=1 ||
+       first.groups[0].id!="g2" || first.placements[0].group_id!="g2" ||
+       first.groups[0].domains.iter().find(|d|d.domain=="club_domain")
+           .map(|d|d.canister.to_text())!=Some("yfwyv-nyaaa-aaaal-qxpyq-cai".into()) ||
+       first.groups[0].domains.iter().find(|d|d.domain=="pii_access_control")
+           .map(|d|d.canister.to_text())!=Some("zt5a6-yiaaa-aaaal-qxp5q-cai".into()) {
+        return Err("Exact registered DEV G2 inventory changed; no reset performed".into());
+    }
+    let clubs=vec![Principal::from_text("yfwyv-nyaaa-aaaal-qxpyq-cai")
+        .map_err(|_|"Invalid pinned DEV G2 Club")?];
+    group_inventory::validate(&first,&current_binding,&clubs,&[])?;
+    // All size checks occur before the first mutation. These are small DEV
+    // test indexes, not a general-purpose unbounded production reset.
+    let small_coordinator=DIRECTORY_COORDINATOR.with(|x|x.borrow().dev_disposal_within_budget());
+    let small_worker=DIRECTORY_WORKER.with(|x|x.borrow().dev_disposal_within_budget());
+    let small_sessions=DIRECTORY_SESSIONS.with(|x|x.borrow().dev_disposal_within_budget());
+    if !small_coordinator || !small_worker || !small_sessions {
+        return Err("DEV directory exceeded disposable test budget; stop without modifying data".into());
+    }
+    unchanged()?;
+    // No await between final recheck and disposal. Never touch ACCOUNTS,
+    // PRINCIPAL_INDEX, PROFILES, family links, club records, roles or PII.
+    DIRECTORY_WORKER.with(|x|x.borrow_mut().dev_discard_test_jobs());
+    DIRECTORY_SESSIONS.with(|x|x.borrow_mut().dev_discard_test_sessions());
+    DIRECTORY_COORDINATOR.with(|x|x.borrow_mut().dev_discard_test_directory());
+    DIRECTORY_CONFIG.with(|x|{x.borrow_mut().set(Vec::new());});
+    // The reader stays CLOSED. A separate explicitly approved owner workflow
+    // must configure g1/g2 sources using a new generation (>=2), materialize
+    // and verify fresh ownership before separately releasing any reader.
+    Ok(())
+}
 /// Exact operator readback of the separate directory configuration. Does not
 /// return memberships, grant lifecycle readers, or certify currentness.
 #[derive(CandidType,Deserialize)]
