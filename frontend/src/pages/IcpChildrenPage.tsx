@@ -75,6 +75,15 @@ async function readAllMyChildren(): Promise<IcpChild[]> {
       const sourceClubCanisterId = requireSourceClubCanisterId(scoped.target);
       const me = scoped.identity.getPrincipal().toText();
       const rows = await withReadDeadline(club.listMyLiveOwnChildren(scoped), "Children in club group", 20_000);
+      if (rows.length > 0) {
+        // As soon as an authenticated group confirms a child, overlap the
+        // PUBLIC PII verification-key read with the rest of cross-group child
+        // discovery. Do not block rendering on the crypto SDK import/key read.
+        // Keys are never exported to another service or stored in this query.
+        void import("@/live/piiVetKeys")
+          .then(m => m.prewarmPiiVerificationKey(scoped))
+          .catch(() => { /* an optional public-key warm-up must not hide children */ });
+      }
       return rows.map(r => ({
         id: r.id, name: "", teams: [...r.teams],
         isPrimary: r.parent?.[0]?.toText() === me,
