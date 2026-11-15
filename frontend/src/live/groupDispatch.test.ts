@@ -324,7 +324,7 @@ describe('event group ownership', () => {
 describe('bounded extended deadline for private-name reads', () => {
   it('private-name unlock may opt into 35 seconds without changing general read defaults', async () => {
     const { d, session } = deps(ON);
-    const s2 = { ...session, readEveryGroup: vi.fn(async (_domain, run) => run('g2' as never)) };
+    const s2 = { ...session, readEveryGroup: vi.fn(async (_domain: string, run: (ctx: never) => Promise<unknown[]>) => run('g2' as never)) };
     const dispatcher = createClubDispatcher({ ...d, open: vi.fn(async () => s2) } as never);
     const out = await dispatcher.readAcross(
       'membership', 'club_domain', async () => 'group-2-name',
