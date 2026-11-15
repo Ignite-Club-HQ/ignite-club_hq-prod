@@ -26,10 +26,10 @@ test('router health/telemetry changes do not invalidate a checked release plan',
 
 test('changes to authority configuration or either revision are rejected',()=>{
   const baseline=readerRouterAuthorityFingerprint(fixture(),authority);
-  for(const changed of [
-    {...fixture(),revision:12n},
-    {...fixture(),configurationRevision:12n},
-  ])assert.notEqual(readerRouterAuthorityFingerprint(changed,authority),baseline);
+  // A different router revision is not merely a new hash: this exact DEV
+  // release refuses it outright. Configuration revision drift invalidates it.
+  assert.throws(()=>readerRouterAuthorityFingerprint({...fixture(),revision:12n},authority));
+  assert.notEqual(readerRouterAuthorityFingerprint({...fixture(),configurationRevision:12n},authority),baseline);
   assert.notEqual(readerRouterAuthorityFingerprint(fixture(),authority.replace('yfwyv-','foreign-')),baseline);
   assert.notEqual(readerRouterAuthorityFingerprint(fixture(),authority.replace('"accepting":true','"accepting":false')),baseline);
 });
