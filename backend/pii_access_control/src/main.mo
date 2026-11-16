@@ -685,6 +685,15 @@ persistent actor class Main(governorInit : Principal) = this {
   func devG1SharedClubScope(scope : PrivateNameScope) : Bool {
     Principal.fromActor(this).toText() == "iui5p-aaaaa-aaaal-qxllq-cai" and devG2SharedClubScope(scope)
   };
+  // Only the already released original DEV G1 PII -> registered G2 club
+  // audience gets this ciphertext-only fast path. All other club, team,
+  // person and PROD scopes keep their existing double PII authorization.
+  // Identity itself checks current viewer/subject club membership twice
+  // with revision fencing before each returned authorization. The client
+  // independently checks the same ciphertext again after decryption.
+  func devG1SharedClubCiphertextFast(scope : PrivateNameScope) : Bool {
+    sharedClubNameEnforcement and devG2SharedClubNames and devG1SharedClubScope(scope)
+  };
   transient let privateNamesIdentity = Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_IDENTITY");
   var private_name_release_intents : Map.Map<Text, PrivateNameReleaseFence.Intent>;
   var private_name_release_epoch : Nat;
@@ -756,9 +765,23 @@ persistent actor class Main(governorInit : Principal) = this {
       await admitAccount(caller); auth(caller);
       let epoch = mediaAuthEpoch;
       let first = await authorizePrivateNames(caller, ids, scope);
-      await admitAccount(caller);
-      let final = await authorizePrivateNames(caller, ids, scope);
-      if (epoch != mediaAuthEpoch or first != final or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
+      if (devG1SharedClubCiphertextFast(scope)) {
+        // On this exact DEV club source, Identity has already verified the
+        // viewer/subjects twice against the authoritative G2 Club. There is
+        // NO await between this final synchronous gate and ciphertext
+        // selection. A second PII -> Identity round trip duplicates that
+        // work and was timing out the real Test -> Test3 roster read.
+        // The separate club-key relay still re-authorizes AFTER vetKD,
+        // and the frontend performs its own fresh closing ciphertext read.
+        if (epoch != mediaAuthEpoch or removalReceiver.denied(caller) or
+            not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
+      } else {
+        // Preserve the established double-check for every other audience,
+        // including any future PROD release.
+        await admitAccount(caller);
+        let final = await authorizePrivateNames(caller, ids, scope);
+        if (epoch != mediaAuthEpoch or first != final or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
+      };
       var out : [EncryptedPii] = [];
       for (id in ids.values()) {
         let r = pii_records.find(func r = r.pii_id == id and r.field_id == "display_name") ?? return #Err("Private name not found");
@@ -1011,7 +1034,12 @@ persistent actor class Main(governorInit : Principal) = this {
         if (r.master_key_id != clubNameScheme(scope.resource) or r.domain_owner.toText() != id) return #Err("Invalid club name replica");
       };
       let key = await ManagementCanister.vetKdDeriveKey(ibeIdentity("clubnames:" # scope.resource, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
-      await admitAccount(caller);
+      // The final Identity authorization below independently rechecks the
+      // live account, both club memberships, profile references and release
+      // revision AFTER the asynchronous key derivation. The original DEV G1
+      // club reader needn't issue a second, separate account-admission RPC.
+      // Keep that extra admission for every other audience and PII source.
+      if (not devG1SharedClubCiphertextFast(scope)) await admitAccount(caller);
       let final = await authorizePrivateNames(caller, ids, scope);
       if (first != final or epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
       log_audit(caller, "clubnames:" # scope.resource, "display_name", "club_name_vetkey", true, scope.kind);
