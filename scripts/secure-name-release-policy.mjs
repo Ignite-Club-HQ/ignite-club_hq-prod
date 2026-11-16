@@ -73,7 +73,9 @@ export function secureNameEnvironment(environment, service, scope, {identity, or
       exact(DEV_G1_OBSERVED_KEY,VERIFIED_DEV_G1_OBSERVED_SHA256,true);
     }
     return [...environment.filter(r=>!changed.includes(r.name)),
-      {name:changed[0],value:'1'}].sort((a,b)=>a.name.localeCompare(b.name));
+      {name:changed[0],value:'1'},
+      ...(service==='pii_access_control'?[{name:DEV_G2_SHARED_CLUB_RELEASE,value:'1'}]:[])
+    ].sort((a,b)=>a.name.localeCompare(b.name));
   }
   const additions=scope==='secure_name_save'
     ? [{name:SAVE_RELEASE,value:'1'},{name:changed[1],value:service==='identity_access'?originalPii:identity}]
