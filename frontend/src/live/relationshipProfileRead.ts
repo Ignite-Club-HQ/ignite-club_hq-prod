@@ -6,7 +6,7 @@ import { createLivePrivateProfileAuthorityResolver } from './privateProfileAutho
 import { listLiveProfilesByIds } from './features/identityAccessClient';
 import { capturePrivateProfileSession } from './privateProfileSession';
 import { privateClubNameDisplaysEnabled } from './privateClubNameDisplayMode';
-import { createDevCrossGroupTeamNameResolver, devG2SharedClubNamesEnabled } from './devCrossGroupTeamNameRoute';
+import { createDevCrossGroupTeamNameResolver, devG2SharedClubNamesEnabled, sharedClubNameEnforcementEnabled } from './devCrossGroupTeamNameRoute';
 
 export type ProfileRelationship = {
   kind: 'club' | 'team' | 'family' | 'competition' | 'league' | 'direct' | 'broadcast' | 'competition_admin';
@@ -42,8 +42,16 @@ export async function readRelationshipProfiles(
       active();
       if (shared.identity !== identity) throw new Error('Profile reader identity changed.');
       const rehearsal = privateProfileSearchRehearsalEnabled();
+      const enforcedClubNames = sharedClubNameEnforcementEnabled(owner.target);
+      // Never unlock a team's adults with personal/team-scoped keys after
+      // club-key enforcement. Callers must pass the independently resolved
+      // owning club ID, not infer it from the team or a profile reference.
+      if (enforcedClubNames && relationship.kind === 'team') {
+        throw new Error('Team member names require the owning club audience.');
+      }
       const devSharedClub = relationship.kind === 'club' && devG2SharedClubNamesEnabled(owner.target, relationship.resource);
-      const releasedClub = relationship.kind === 'club' && (privateClubNameDisplaysEnabled() || devSharedClub);
+      const releasedClub = relationship.kind === 'club' &&
+        (privateClubNameDisplaysEnabled() || enforcedClubNames || devSharedClub);
       // DEV only: source resolution can serve either the historical exact-team
       // path, or an explicitly operator-released shared CLUB key. The browser
       // does not grant access; original PII, Identity and owning G2 Club must
