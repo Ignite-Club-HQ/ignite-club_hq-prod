@@ -25,7 +25,6 @@ const DEV = Object.freeze({
   originalClub: 'mzzzv-taaaa-aaaal-qxlrq-cai',
   registeredG2Club: 'yfwyv-nyaaa-aaaal-qxpyq-cai',
   registeredG2Pii: 'zt5a6-yiaaa-aaaal-qxp5q-cai',
-  pilotClub: '177f8c01-3617-402a-aedd-5c5c17ccfde1',
 });
 
 function isExactDevG2NameTarget(target: IcpTargetConfig): boolean {
@@ -37,13 +36,24 @@ function isExactDevG2NameTarget(target: IcpTargetConfig): boolean {
     target.canisterIds.pii_access_control === DEV.registeredG2Pii;
 }
 
-/** Operator-gated cutover. The matching G1/G2 PII + Identity release
- * and verified per-club ciphertext copies MUST precede frontend activation.
- * A frontend flag is not an authorization: PII/Identity enforce it separately.
+/** Universal ICP club-name contract: every team inherits its owning
+ * club's shared key (per source PII canister), and no team/person key fallback.
+ * This is a release gate, never a permission; every PII authority still
+ * verifies current viewer and subject membership for the exact club.
+ * PROD and other groups remain unchanged until separately enabled.
+ */
+export function sharedClubNameEnforcementEnabled(target: IcpTargetConfig): boolean {
+  return import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1' &&
+    target.provider === 'icp' && target.status !== 'disabled' &&
+    Boolean(target.canisterIds.club_domain && target.canisterIds.pii_access_control);
+}
+
+/** The legacy G1 -> registered G2 PII route retains its independent pins.
+ * No club ID allowlist: the Group 2 Club validates each exact club membership.
  */
 export function devG2SharedClubNamesEnabled(target: IcpTargetConfig, clubId: string): boolean {
-  return import.meta.env.IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES === '1' &&
-    clubId === DEV.pilotClub && isExactDevG2NameTarget(target);
+  return Boolean(clubId.trim()) && sharedClubNameEnforcementEnabled(target) &&
+    isExactDevG2NameTarget(target);
 }
 
 const signature = (value: unknown) => JSON.stringify(value, (_, v) =>
