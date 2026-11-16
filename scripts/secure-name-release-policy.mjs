@@ -56,7 +56,7 @@ export function secureNameEnvironment(environment, service, scope, {identity, or
   // Never copy DEV-only settings onto another canister or deployment.
   const legacyOnly=environment.filter(row=>[DEV_G1_TEAM_NAME_RELEASE,DEV_G1_OBSERVED_KEY].includes(row.name));
   if(legacyOnly.length && (!exactDevOriginal || service!=='identity_access'))
-    throw Error('DEV legacy source settings belong only to original DEV Identity');
+    throw Error('DEV legacy source settings belong to the original DEV Identity only');
   if(environment.some(row=>row.name===DEV_G2_SHARED_CLUB_RELEASE) &&
       (!exactDevOriginal || !['identity_access','pii_access_control'].includes(service)))
     throw Error('DEV shared-club release belongs only to pinned DEV Identity/PII');
