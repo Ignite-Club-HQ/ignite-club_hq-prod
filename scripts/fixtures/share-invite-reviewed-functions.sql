@@ -298,7 +298,7 @@ BEGIN
     'child_ids', to_jsonb(_child_ids)
   );
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.auto_accept_pending_invites_on_role()
  RETURNS trigger
@@ -400,7 +400,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.claim_pending_invites_on_profile_create()
  RETURNS trigger
@@ -475,7 +475,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.email_signup_invite_allowed(_token text, _email text)
  RETURNS boolean
@@ -509,7 +509,7 @@ BEGIN
      AND EXISTS (SELECT 1 FROM jsonb_array_elements(allowed) a WHERE lower(a->>'id') = ci.club_id::text)
  );
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.enforce_email_signup_invite()
  RETURNS trigger
@@ -524,7 +524,7 @@ BEGIN
  END IF;
  RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.provision_invite_children(_invite_id uuid, _guardian_id uuid)
  RETURNS jsonb
@@ -809,4 +809,4 @@ BEGIN
     'child_ids', to_jsonb(_child_ids)
   );
 END;
-$function$
+$function$;
