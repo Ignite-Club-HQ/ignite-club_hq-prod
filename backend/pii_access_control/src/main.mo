@@ -672,10 +672,14 @@ persistent actor class Main(governorInit : Principal) = this {
   // The original G1 encrypted profiles are legacy. Do not turn a team-name
   // read into a club-wide name grant merely by upgrading a DEV canister.
   transient let devG2SharedClubNames = Runtime.envVar<system>("IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE") == ?"1";
+  // This global release enforces shared club-name ciphertext on EVERY club
+  // served by this PII canister, including each team under its owning club.
+  // It is off until the encrypted-copy inventory is prepared for all clubs.
+  transient let sharedClubNameEnforcement = Runtime.envVar<system>("IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE") == ?"1";
   func devG2SharedClubScope(scope : PrivateNameScope) : Bool {
     let self = Principal.fromActor(this).toText();
     (self == "iui5p-aaaaa-aaaal-qxllq-cai" or self == "zt5a6-yiaaa-aaaal-qxp5q-cai")
-    and scope.kind == "club" and scope.resource == "177f8c01-3617-402a-aedd-5c5c17ccfde1"
+    and scope.kind == "club" and validMediaClub(scope.resource)
     and scope.authority.toText() == "yfwyv-nyaaa-aaaal-qxpyq-cai"
   };
   func devG1SharedClubScope(scope : PrivateNameScope) : Bool {
@@ -694,7 +698,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
   transient let privateNameReleaseFence = PrivateNameReleaseFence.Gate(privateNamesRehearsal, privateNameVerifier(), private_name_release_intents, 4096);
   func canReleasePrivateName(captured : Nat, scope : PrivateNameScope) : Bool {
-    (not devG1SharedClubScope(scope) or devG2SharedClubNames)
+    // Teams inherit their club key, never a team-specific or personal key.
+    (not sharedClubNameEnforcement or scope.kind != "team")
+    and (not devG1SharedClubScope(scope) or devG2SharedClubNames)
     and (privateNamesRehearsal or (privateClubNameDisplays and (scope.kind == "club" or scope.kind == "team")))
     and privateNameVerifier() != null and captured == private_name_release_epoch and not privateNameReleaseFence.blocked()
   };
@@ -758,8 +764,8 @@ persistent actor class Main(governorInit : Principal) = this {
         let r = pii_records.find(func r = r.pii_id == id and r.field_id == "display_name") ?? return #Err("Private name not found");
         let selected = if (scope.kind == "club") {
           let replica = pii_records.find(func row = row.pii_id == id and row.field_id == clubNameField(scope.resource));
-          if (devG2SharedClubNames and devG2SharedClubScope(scope)) {
-            // The purpose of this release is a ONE-key-per-club name read.
+          if (scope.kind == "club" and (sharedClubNameEnforcement or (devG2SharedClubNames and devG2SharedClubScope(scope)))) {
+            // One shared key for all adult name copies in this exact club (per source).
             // Never fall back to the original individual IBE ciphertext.
             let copy = replica ?? return #Err("Club-encrypted name copy missing");
             if (copy.domain_owner.toText() != id or copy.master_key_id != clubNameScheme(scope.resource)) {
@@ -780,7 +786,7 @@ persistent actor class Main(governorInit : Principal) = this {
     // display-name keys to every club member. Only the separate, one-key-per-
     // club relay may issue a key for this exact, opt-in DEV audience.
     // Personal-key reads for other existing restricted audiences are unchanged.
-    if (devG2SharedClubNames and devG2SharedClubScope(scope)) {
+    if ((scope.kind == "club" and sharedClubNameEnforcement) or (devG2SharedClubNames and devG2SharedClubScope(scope))) {
       return #Err("Shared club name audience requires club-key relay");
     };
     if (not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name release fenced or not configured");
