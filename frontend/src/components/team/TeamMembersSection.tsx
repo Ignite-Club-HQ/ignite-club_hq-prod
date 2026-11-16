@@ -85,6 +85,7 @@ interface TeamMembersSectionProps {
   childrenError?: unknown;
   isAdultNamesError?: boolean;
   adultNamesError?: unknown;
+  devEncryptedAdultNameMode?: 'ON' | 'OFF';
   showIcpRosterFailureCode?: boolean;
   refetchMembers: () => unknown;
   refetchChildren: () => unknown;
@@ -134,6 +135,7 @@ export function TeamMembersSection({
   childrenError,
   isAdultNamesError = false,
   adultNamesError,
+  devEncryptedAdultNameMode,
   showIcpRosterFailureCode = false,
   refetchMembers,
   refetchChildren,
@@ -239,6 +241,11 @@ export function TeamMembersSection({
       </div>
       <AccordionContent>
         <div className="space-y-4 pt-2">
+          {showIcpRosterFailureCode && devEncryptedAdultNameMode && (
+            <p className="text-xs text-muted-foreground" role="status">
+              DEV ICP encrypted adult-name frontend gate: {devEncryptedAdultNameMode}
+            </p>
+          )}
           {showIcpRosterFailureCode && isAdultNamesError && (
             <p className="text-xs text-muted-foreground" role="status">
               DEV ICP adult-name diagnostic: {teamRosterReadFailureCode(adultNamesError)}
