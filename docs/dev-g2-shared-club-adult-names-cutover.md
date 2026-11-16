@@ -1,4 +1,4 @@
-# DEV Group 2: restore one club vetKey for adult display names
+# DEV Group 2: restore shared club-name vetKeys (per original PII source)
 
 **Status: code proposal only; release blocked pending exact ciphertext inventory and separate owner approval.** No canister upgrades, env changes, PII writes, key changes or migration are authorised by merging this code.
 
@@ -9,7 +9,7 @@ The user-visible `CIPHERTEXT_TIMEOUT` on the Group 2 / ChatGPT Plugin Test U10 T
 Ignite already has a separate per-club encrypted-name design:
 - Each adult owns one original individual `display_name` ciphertext, retained for restricted audiences.
 - Each club member has a *separate copy of their name ciphertext* encrypted under the shared identity `clubnames:<clubId>\u001fdisplay_name` and recorded as `club_display_name:<clubId>` with scheme `vetkey-club-names-v1:<clubId>`.
-- `get_private_profile_names_batch` with an exact `club` audience selects club copies; `get_private_profile_club_name_vetkey` derives one club key instead of per-person vetKeys.
+- `get_private_profile_names_batch` with an exact `club` audience selects club copies; `get_private_profile_club_name_vetkey` derives one club key **per PII source canister** rather than per-person vetKeys. In a cross-group roster containing both original G1 and modern G2 records, these are distinct keys because the original PII authorities differ.
 - `fetchClubNameVetKey` checks the authorised ciphertext path and reuses the same session / device-held club key; per-person original keys are not the name-sharing architecture.
 
 ## Proposed narrow correction
@@ -34,10 +34,14 @@ Ignite already has a separate per-club encrypted-name design:
 3. Separately approve any required copy preparation and independently verify every saved club replica. No missing copy may be disguised by an original personal read.
 4. Separately approve exact DEV-only G1/G2 PII and Identity upgrades using existing owner-gated check+upgrade workflows, with settings/key/memory/controller/cycles continuity and live negative permission tests. Keep the new release flag OFF until readiness and an independently approved release action.
 5. Enable `IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE=1` on the exact relevant DEV canisters through an approved change and verify release integrity; then explicitly build/deploy DEV frontend with `IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES=1`. **Never** mirror these flags to PROD or Supabase.
-6. Confirm as Test and Test3: all three existing children remain visible, both adult names load repeatedly; outsider names stay inaccessible; no individual-name vetKD derivation on team opens; inspect measured ciphertext latency and charged cycles rather than assuming the timeout is fixed.
+6. Confirm as Test and Test3: all three existing children remain visible, both adult names load repeatedly; outsider names stay inaccessible; no individual-name vetKD derivation on team opens; count derivations **by PII source**, and inspect measured ciphertext latency and charged cycles. Switching to a shared club key alone may not cure the previously observed pre-key CIPHERTEXT_TIMEOUT because the existing inter-canister membership verification still occurs.
 
 ## Rollback and safety
 
 If any check fails, **do not activate the frontend cutover**; keep the old deployed behaviour. If new reads fail after activation, disable the frontend cutover flag and revert only the DEV deployment via the existing controlled process; leave PII originals and saved club copies intact. Disable the DEV backend release flags only through an owner-reviewed protected settings change. Key reuse avoids repeated paid derivations but **does not** retroactively erase keys already delivered to devices; continuing fresh server-side membership and ciphertext checks is mandatory.
 
 This is an architecture correction, not a claim that the missing copies are present or that G1/G2 live canisters have already been upgraded.
+
+## Longer-term single-source consolidation (not in this PR)
+
+If the user wants literally **one derived club-name key for a club regardless of original G1/G2 accounts**, encrypted club replicas must be held under **one canonical PII canister per owning club**, with verified conversion and migration from the other source. Because vetKD keys are bound to the originating PII canister and its context, equal club IDs across G1/G2 do not produce interchangeable keys. Consolidation requires ownership-proof, original-key attestation, ciphertext conversion, copy-lifecycle/revocation tests and a separately approved data move. Do not disguise a two-source key arrangement as a global one-key-per-club design; the current guarded PR is a low-cycle partial restoration, not a cross-source consolidation.
