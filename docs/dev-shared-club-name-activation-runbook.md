@@ -51,6 +51,49 @@ Even if all metadata copies are verified, this audit always records
 readback and outsider/removed-member denial tests remain mandatory. Do not
 enable any G1→G2 or global club-name switch based on this audit alone.
 
+## Staged PII-only metadata reader installation (not authorised by this runbook)
+
+A separate `dev_club_name_coverage_reader` scope has been prepared on the
+protected **[TEST] Upgrade backend (all test groups)** workflow. Its exact
+targets are only the original G1 PII
+`iui5p-aaaaa-aaaal-qxllq-cai` and G2 PII
+`zt5a6-yiaaa-aaaal-qxp5q-cai`. The scope excludes
+`identity_access`, `club_domain`, notification services, PROD and
+Supabase. This **module-only upgrade** preserves the existing PII settings,
+`VETKD_KEY_NAME=key_1`, original vetKey verification fingerprints,
+controllers, cycles and Motoko stable memory. Its journaling and snapshot
+verification are the existing all-group protected release mechanism.
+
+**First run read-only preflight after this PR merges:**
+
+- Workflow: `.github/workflows/upgrade-all-groups.yml`
+- Branch: `main`
+- Action: `check`
+- Scope: `dev_club_name_coverage_reader`
+- Checked plan and confirmation: leave blank
+- Inspect the saved `check.json` plan, exact two target canisters,
+  before/after public key hashes, settings hash, unrelated release flags and
+  previous release journals. No canisters are upgraded in check mode.
+
+**A separate approval is required before any live upgrade**. Only if
+preflight and release safeguards are reviewed may an operator deliberately
+choose `action=upgrade` with the **exact checked plan SHA-256**
+and confirmation `UPGRADE DEV NAME COVERAGE READER ONLY`.
+An absent/guessed plan hash, wrong source branch, wrong canister,
+additional group, or older pending release fails closed. The upgrade runner
+has no settings-activation path for this scope and must not change the
+shared-club release flags. Successful compilation alone is not sufficient.
+
+After an independently approved reader-only PII upgrade, use the existing
+`dev-club-name-coverage-audit.yml` manual check with confirmation
+`AUDIT DEV CLUB NAME COPIES READ ONLY`. It produces count-only results
+for the two previously missing parent name copies; failure or missing copy
+coverage is **not** permission to turn on global club-wide decryption.
+
+**Never** run scope `shared_club_name_enforcement` as a substitute for
+`dev_club_name_coverage_reader`: the former explicitly **sets release
+switches** and is beyond this reader-only stage.
+
 ## Before any activation
 
 1. Protected membership inventory of all active DEV clubs, team-member subject aliases and each subject's original PII authority. No browser-provided or guessed source, no raw plaintext/name/key export.
@@ -62,4 +105,4 @@ enable any G1→G2 or global club-name switch based on this audit alone.
 
 ## Execution status
 
-No installed release runner currently supplies a complete all-club encrypted replica coverage attestation or activates these two **new** backend release switches. Running the generic upgrade now could break name access or leave the new policy inactive. Do not equate a green compile, a green upgrade, or PR #1566 merge with completed live all-club encryption enforcement. This document deliberately captures the fail-closed release boundary.
+The new read-only governor coverage audit is available in source, but full encrypted-copy coverage cannot be attested until the separately approved DEV G1/G2 PII reader modules have been installed and the check has run. A dedicated PII reader-only upgrade scope is prepared and does **not** activate either backend release switch. Running the generic upgrade now could break name access or leave the new policy inactive. Do not equate a green compile, a green upgrade, or PR #1566 merge with completed live all-club encryption enforcement. This document deliberately captures the fail-closed release boundary.
