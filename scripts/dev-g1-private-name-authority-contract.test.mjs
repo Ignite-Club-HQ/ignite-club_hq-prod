@@ -51,3 +51,34 @@ test('no name/PII reads, writes, releases, upgrades or raw management settings a
   assert.doesNotMatch(runner,/JSON\.stringify\(status\)|JSON\.stringify\(environment\)|console\.log\(.*(?:environment|status\.settings|publicKey)\)/);
   assert.doesNotMatch(workflow,/icp deploy|icp canister install|git push|update_settings/);
 });
+
+test('Shared DEV G2 club name scope never derives personal display-name keys',()=>{
+  const pii=read('backend/pii_access_control/src/main.mo');
+  const keyStart=pii.indexOf('public shared ({ caller }) func get_private_profile_name_vetkeys_batch(');
+  const keyEnd=pii.indexOf('// ==================== Rehearsal-only club adult-name replicas',keyStart);
+  assert.ok(keyStart>0 && keyEnd>keyStart,'individual-key method remains identifiable');
+  const individual=pii.slice(keyStart,keyEnd);
+  const denied=individual.indexOf('scope.kind == "club" and sharedClubNameEnforcement');
+  const derive=individual.indexOf('ManagementCanister.vetKdDeriveKey(');
+  assert.ok(denied>=0 && derive>denied,'club audience denied before personal key derivation');
+  assert.ok(individual.includes('return #Err("Shared club name audience requires club-key relay")'));
+  const names=pii.slice(pii.indexOf('func get_private_profile_names_batch('),keyStart);
+  assert.ok(names.includes('sharedClubNameEnforcement or (devG2SharedClubNames and devG2SharedClubScope(scope))'));
+  assert.ok(names.includes('let copy = replica ?? return #Err("Club-encrypted name copy missing")'));
+  assert.ok(names.includes('copy.master_key_id != clubNameScheme(scope.resource)'));
+  const shared=pii.slice(pii.indexOf('func get_private_profile_club_name_vetkey('),pii.indexOf('// ==================== Per-club photo key'));
+  assert.ok(shared.includes('scope.kind != "club"'));
+  assert.ok(shared.includes('ibeIdentity("clubnames:" # scope.resource, "display_name")'));
+  const identity=read('backend/identity_access/src/legacy_g1_private_name.rs');
+  assert.ok(identity.includes('scope.kind=="team" || (scope.kind=="club" && approved_shared_club_names && !scope.resource.is_empty() && scope.resource.len()<=128)'));
+  assert.ok(identity.includes('scope.authority!=group2_club'));
+  assert.ok(pii.includes('scope.kind == "club" and validMediaClub(scope.resource)'));
+  assert.ok(pii.includes('IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE'));
+  assert.ok(pii.includes('not sharedClubNameEnforcement or scope.kind != "team"'));
+  assert.ok(pii.includes('scope.kind == "club" and sharedClubNameEnforcement'));
+  assert.ok(!identity.includes('scope.kind=="club" && approved_shared_club_names)'));
+
+  const release=read('scripts/secure-name-release-policy.mjs');
+  assert.ok(!release.includes('IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE'),
+    'existing release policy cannot automatically widen club audience');
+});

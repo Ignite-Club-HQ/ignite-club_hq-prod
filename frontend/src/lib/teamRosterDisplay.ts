@@ -73,3 +73,25 @@ export function needsAdultNameRetry(
   const names = new Map(profiles.map(p => [p.account_id, p.display_name]));
   return ids.some(id => visibleTeamMemberName(names.get(id)) === 'Name unavailable');
 }
+
+/**
+ * DEV test-club cutover only: use the signed-in member's existing, readable
+ * self profile instead of making an unnecessary cross-canister ciphertext/key
+ * request for that same member. Never infer an ID from display text or omit a
+ * foreign adult. Keeping the legacy batch intact outside the explicit cutover
+ * makes this a latency/cycles optimisation, never a new permission path.
+ */
+export function requestedClubAdultNameIds(
+  ids: readonly string[],
+  signedInAliases: readonly (string | null | undefined)[],
+  selfName: string | null | undefined,
+  enabled: boolean,
+): string[] {
+  const readable = typeof selfName === 'string' &&
+    visibleTeamMemberName(selfName) !== 'Name unavailable' &&
+    !/^(unknown user|private name|loading)$/i.test(selfName.trim());
+  const aliases = new Set(signedInAliases.filter((value): value is string =>
+    typeof value === 'string' && value.trim().length > 0,
+  ));
+  return [...new Set(ids.filter(id => !(enabled && readable && aliases.has(id))))].sort();
+}

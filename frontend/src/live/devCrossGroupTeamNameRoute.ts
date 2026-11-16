@@ -1,4 +1,5 @@
 import type { FeatureBackendContext } from './featureRouter';
+import type { IcpTargetConfig } from './targetRegistry';
 import type { PrivateProfileAuthorityResolver } from './privateProfileAuthority';
 import { capturePrivateProfileSession } from './privateProfileSession';
 import {
@@ -26,6 +27,35 @@ const DEV = Object.freeze({
   registeredG2Pii: 'zt5a6-yiaaa-aaaal-qxp5q-cai',
 });
 
+function isExactDevG2NameTarget(target: IcpTargetConfig): boolean {
+  return target.provider === 'icp' && target.networkKind === 'public_mainnet' &&
+    target.host === 'https://icp-api.io' && target.status !== 'disabled' &&
+    target.canisterIds.identity_access === DEV.identity &&
+    target.canisterIds.shard_router === DEV.router &&
+    target.canisterIds.club_domain === DEV.registeredG2Club &&
+    target.canisterIds.pii_access_control === DEV.registeredG2Pii;
+}
+
+/** Universal ICP club-name contract: every team inherits its owning
+ * club's shared key (per source PII canister), and no team/person key fallback.
+ * This is a release gate, never a permission; every PII authority still
+ * verifies current viewer and subject membership for the exact club.
+ * PROD and other groups remain unchanged until separately enabled.
+ */
+export function sharedClubNameEnforcementEnabled(target: IcpTargetConfig): boolean {
+  return import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1' &&
+    target.provider === 'icp' && target.status !== 'disabled' &&
+    Boolean(target.canisterIds.club_domain && target.canisterIds.pii_access_control);
+}
+
+/** The legacy G1 -> registered G2 PII route retains its independent pins.
+ * No club ID allowlist: the Group 2 Club validates each exact club membership.
+ */
+export function devG2SharedClubNamesEnabled(target: IcpTargetConfig, clubId: string): boolean {
+  return Boolean(clubId.trim()) && sharedClubNameEnforcementEnabled(target) &&
+    isExactDevG2NameTarget(target);
+}
+
 const signature = (value: unknown) => JSON.stringify(value, (_, v) =>
   typeof v === 'bigint' ? v.toString() : v);
 
@@ -34,12 +64,7 @@ export function createDevCrossGroupTeamNameResolver(
   readSnapshot: (ctx: FeatureBackendContext, binding: AccountRegistryBinding) => Promise<AccountRegistrySnapshot> = readLiveAccountAuthoritySnapshot,
 ): PrivateProfileAuthorityResolver | undefined {
   const target = ctx.target;
-  if (target.provider !== 'icp' || target.networkKind !== 'public_mainnet' ||
-      target.host !== 'https://icp-api.io' || target.status === 'disabled' ||
-      target.canisterIds.identity_access !== DEV.identity ||
-      target.canisterIds.shard_router !== DEV.router ||
-      target.canisterIds.club_domain !== DEV.registeredG2Club ||
-      target.canisterIds.pii_access_control !== DEV.registeredG2Pii) return undefined;
+  if (!isExactDevG2NameTarget(target)) return undefined;
 
   const binding: AccountRegistryBinding = {
     targetAlias: target.alias, registryAlias: 'mainnet',

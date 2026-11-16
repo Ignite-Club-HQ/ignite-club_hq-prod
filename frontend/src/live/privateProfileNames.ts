@@ -156,7 +156,11 @@ export async function refreshPrivateOwnClubNames(
   discoverClubs: () => Promise<readonly string[]>,
   assertSaveActive: () => void = () => {},
 ): Promise<void> {
-  if (!privateClubNameDisplaysEnabled()) return;
+  // The universal release also prepares each current club copy when the
+  // account owner saves their own name. A new club join without an existing
+  // copy remains fail-closed until the owner-authorised refresh completes.
+  if (!privateClubNameDisplaysEnabled() &&
+      !(import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1' && ctx.target.provider === 'icp')) return;
   if (privateProfileSearchRehearsalEnabled() && !isLoopbackRehearsalHost(ctx.target.host)) throw new Error('Private name maintenance requires a loopback rehearsal target.');
   const value = name.trim();
   if (!value || new TextEncoder().encode(value).length > 512) throw new Error('A display name of at most 512 bytes is required.');
@@ -224,6 +228,17 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   const clubRows = validRows.filter(row => row.master_key_id?.startsWith('vetkey-club-names-'));
   if (clubRows.length && (!audience || audience.kind !== 'club' || field !== FIELD || clubRows.some(row => row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${audience.resource}`))) throw new Error('Invalid club name key scope.');
   const individualRows = validRows.filter(row => !clubRows.includes(row));
+  const strictSharedClub = import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1'
+    && ctx.target.provider === 'icp' && audience?.kind === 'club';
+  // A team has no independently derived member-name key after cutover.
+  if (import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1'
+    && ctx.target.provider === 'icp' && audience?.kind === 'team') {
+    throw new Error('Team member names must be read under their owning club key.');
+  }
+  // Never obtain paid person-specific keys when the selected reader promises
+  // a shared club key. A member without an encrypted club copy stays unnamed,
+  // pending controlled conversion; this is not permission to decrypt originals.
+  if (strictSharedClub && individualRows.length) throw new Error('Club-encrypted name copy missing; no personal-key fallback.');
   if (individualRows.length || clubRows.length) phase('vetkey');
   const keys = individualRows.length ? await fetchPiiVetKeys(ctx, individualRows.map(row => row.pii_id), field, { fresh: true, assertActive: active, ...(audience ? { audience } : {}), ...(retainOwnKey && !audience ? { retainOwnKey: true } : {}) }) : new Map();
   const clubKey = clubRows.length && audience ? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active) : undefined;
@@ -270,13 +285,16 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
         // audience must report TIMEOUT rather than silently appearing as an
         // unverified empty name set; never disclose ciphertext or IDs.
         // Keep other routes' existing deadlines and neutral failure behavior.
+        const sharedClubName = import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1'
+          && ctx.target.provider === 'icp' && audience?.kind === 'club';
         const devTeam = audience?.kind === 'team' &&
           ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
+        const crossGroupDevName = devTeam || sharedClubName;
         timer = setTimeout(() => {
           retired = true;
-          if (devTeam) reject(new Error(`Private team-name ${phase} timed out.`));
+          if (crossGroupDevName) reject(new Error(`Private team-name ${phase} timed out.`));
           else resolve(new Map());
-        }, audience?.kind === 'team' ? 25_000 : READ_TIMEOUT_MS);
+        }, crossGroupDevName ? 25_000 : READ_TIMEOUT_MS);
       }),
     ]);
   } catch (error) {

@@ -9,6 +9,11 @@ use sha2::{Digest,Sha256};
 use crate::{group_inventory, membership_runtime, private_name_audience};
 
 pub const RELEASE_SWITCH:&str="IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE";
+/// Separately approved, default-OFF extension from DEV team-only readers to
+/// shared per-club encrypted name copies. Not a general profile or PII grant.
+pub const SHARED_CLUB_NAMES_SWITCH:&str="IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE";
+/// Shared-club access is scoped by an independent live membership check,
+/// not by a fixed test-club ID. The G1 source and G2 service remain pinned.
 pub const APPROVED_KEY_SHA256:&str="IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256";
 /// Owner-verified original PII public-key SHA-256 from DEV authority checks
 /// 43785400907 and 43787337237 (16 November 2026). No historical claim.
@@ -33,6 +38,7 @@ pub fn require_exact_origin(
     router:&group_inventory::Snapshot,
     service_allowlist:&[Principal],
     approved_release:bool,
+    approved_shared_club_names:bool,
     approved_observed_sha256:Option<&str>,
 )->Result<String,String>{
     // No caller, browser, email or PROD-supplied pin may relax this scope.
@@ -43,7 +49,8 @@ pub fn require_exact_origin(
     let group2_pii=pinned("zt5a6-yiaaa-aaaal-qxp5q-cai")?;
     let router_id=pinned("jcdfe-vqaaa-aaaal-qxloq-cai")?;
     if !approved_release || self_id!=identity || pii_caller!=original_pii ||
-        scope.kind!="team" || scope.authority!=group2_club ||
+        !(scope.kind=="team" || (scope.kind=="club" && approved_shared_club_names && !scope.resource.is_empty() && scope.resource.len()<=128)) ||
+        scope.authority!=group2_club ||
         !service_allowlist.contains(&pii_caller) {
         return Err("Exact DEV original PII, release, service and team audience required".into());
     }
@@ -124,7 +131,7 @@ mod tests{
     fn verify(c:&membership_runtime::Config,r:&group_inventory::Snapshot,
         caller:Principal,s:&private_name_audience::Scope,allow:&[Principal],released:bool,key:Option<&str>)
         ->Result<String,String>{
-        require_exact_origin(p("mq2sj-fiaaa-aaaal-qxlqa-cai"),caller,s,c,r,allow,released,key)
+        require_exact_origin(p("mq2sj-fiaaa-aaaal-qxlqa-cai"),caller,s,c,r,allow,released,false,key)
     }
     #[test]fn exact_original_pii_and_g2_team_only_with_verified_observed_key(){
         let caller=p("iui5p-aaaaa-aaaal-qxllq-cai");
@@ -142,7 +149,30 @@ mod tests{
         assert!(verify(&config(),&router(),caller,&wrong,&[caller],true,Some(&key)).is_err());
         wrong.kind="team".into();wrong.authority=p("mzzzv-taaaa-aaaal-qxlrq-cai");
         assert!(verify(&config(),&router(),caller,&wrong,&[caller],true,Some(&key)).is_err());
-        assert!(require_exact_origin(p("zt5a6-yiaaa-aaaal-qxp5q-cai"),caller,&scope(),&config(),&router(),&[caller],true,Some(&key)).is_err());
+        assert!(require_exact_origin(p("zt5a6-yiaaa-aaaal-qxp5q-cai"),caller,&scope(),&config(),&router(),&[caller],true,true,Some(&key)).is_err());
+    }
+    #[test]fn optional_shared_club_name_scope_is_pinned_and_default_off() {
+        let caller=p("iui5p-aaaaa-aaaal-qxllq-cai");
+        let key=VERIFIED_DEV_PUBLIC_KEY_SHA256.to_string();
+        let mut scope=scope(); scope.kind="club".into(); scope.resource="club-a".into();
+        assert!(require_exact_origin(p("mq2sj-fiaaa-aaaal-qxlqa-cai"),caller,
+            &scope,&config(),&router(),&[caller],true,false,Some(&key)).is_err());
+        assert!(require_exact_origin(p("mq2sj-fiaaa-aaaal-qxlqa-cai"),caller,
+            &scope,&config(),&router(),&[caller],true,true,Some(&key)).is_ok());
+        let mut other_club=scope.clone(); other_club.resource="club-b".into();
+        // A second club uses its OWN key identity; membership, not this
+        // static origin pin, decides whether the viewer can read it.
+        assert!(require_exact_origin(p("mq2sj-fiaaa-aaaal-qxlqa-cai"),caller,
+            &other_club,&config(),&router(),&[caller],true,true,Some(&key)).is_ok());
+        // Club-key release does not authorise other sources or audiences.
+        let mut wrong=scope.clone();wrong.authority=p("mzzzv-taaaa-aaaal-qxlrq-cai");
+        assert!(require_exact_origin(p("mq2sj-fiaaa-aaaal-qxlqa-cai"),caller,
+            &wrong,&config(),&router(),&[caller],true,true,Some(&key)).is_err());
+        wrong=scope.clone();wrong.kind="family".into();
+        assert!(require_exact_origin(p("mq2sj-fiaaa-aaaal-qxlqa-cai"),caller,
+            &wrong,&config(),&router(),&[caller],true,true,Some(&key)).is_err());
+        assert!(require_exact_origin(p("mq2sj-fiaaa-aaaal-qxlqa-cai"),caller,
+            &scope,&config(),&router(),&[caller],false,true,Some(&key)).is_err());
     }
     #[test]fn stale_directory_foreign_sources_and_invented_legacy_placement_fail(){
         let caller=p("iui5p-aaaaa-aaaal-qxllq-cai");

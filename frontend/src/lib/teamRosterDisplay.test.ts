@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { visibleTeamMemberName, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry, teamRosterHeaderStatus, scopedIcpTeamRosterKey } from './teamRosterDisplay';
+import { visibleTeamMemberName, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry, requestedClubAdultNameIds, teamRosterHeaderStatus, scopedIcpTeamRosterKey } from './teamRosterDisplay';
 
 describe('team-roster privacy and loading', () => {
   it('shows existing public/authorized display names without changing them', () => {
@@ -73,5 +73,24 @@ describe('DEV ICP cross-account adult-name refresh', () => {
       {account_id:'test',display_name:'Test'}, {account_id:'test3',display_name:'Test3'},
     ],false)).toBe(false);
     expect(needsAdultNameRetry([],[],false)).toBe(false);
+  });
+});
+
+describe('fast pinned DEV club-key roster test', () => {
+  const adults=['test3','test','test3'];
+  const signedIn=['test','principal:test','account-test'];
+  it('omits ONLY a verified signed-in self with existing unlocked profile name', () => {
+    expect(requestedClubAdultNameIds(adults,signedIn,'Test',true)).toEqual(['test3']);
+    expect(requestedClubAdultNameIds(['account-test','test3'],signedIn,'Test',true)).toEqual(['test3']);
+    expect(requestedClubAdultNameIds(['test3','test'],['test3'],'Test3',true)).toEqual(['test']);
+  });
+  it('never removes a foreign adult, even when they have an identical displayed name',()=>{
+    expect(requestedClubAdultNameIds(adults,['not-in-this-roster'],'Test',true)).toEqual(['test','test3']);
+  });
+  it('keeps the previous full request unless DEV pilot is explicitly on',()=>{
+    expect(requestedClubAdultNameIds(adults,signedIn,'Test',false)).toEqual(['test','test3']);
+    for(const name of [null,'',' ','Name unavailable','Unknown User','pii-display-name:v1:x:y']){
+      expect(requestedClubAdultNameIds(adults,signedIn,name,true)).toEqual(['test','test3']);
+    }
   });
 });
