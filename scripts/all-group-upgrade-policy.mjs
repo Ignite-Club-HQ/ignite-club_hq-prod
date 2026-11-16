@@ -15,6 +15,9 @@ export const SCOPES = Object.freeze({
   // Only DEV G1+G2 PII and DEV shared Identity; the new release does not
   // install club services, touch PROD or change child/PII ownership.
   shared_club_name_enforcement: ['pii_access_control', 'identity_access'],
+  // Install only the DEV G1/G2 governor-only copy-status reader. This is a
+  // NORMAL PII Wasm upgrade, not a name-release/settings activation.
+  dev_club_name_coverage_reader: ['pii_access_control'],
   team_invites: ['club_domain', 'mini_league_domain'],
   messaging: ['messaging_domain'],
   plugin_member_access: ['events_domain', 'messaging_domain'],
@@ -33,7 +36,7 @@ export const normalizeConfirmation = v => String(v ?? '').replace(/[\u200b-\u200
 export function validateRequest(action, scope, confirmation, checkedPlan) {
   action = String(action ?? '').trim(); scope = String(scope ?? '').trim();
   if (!['check', 'upgrade', 'recover'].includes(action) || !Object.hasOwn(SCOPES, scope)) throw Error('Choose a reviewed scope and check, upgrade or recover');
-  const words = action === 'upgrade' && scope === 'dev_identity_directory' ? 'UPGRADE DEV IDENTITY DIRECTORY ONLY' : action === 'upgrade' && scope === 'plugin_member_access' ? 'UPGRADE DEV MEMBER ACCESS' : action === 'upgrade' && scope === 'rsvp_integrity' ? 'UPGRADE DEV RSVP ONLY' : action === 'upgrade' && scope === 'guardian_rsvp_authority' ? 'UPGRADE DEV GUARDIAN RSVP' : action === 'upgrade' && scope === 'shared_club_name_enforcement' ? 'UPGRADE DEV SHARED CLUB NAMES ONLY' : { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
+  const words = action === 'upgrade' && scope === 'dev_identity_directory' ? 'UPGRADE DEV IDENTITY DIRECTORY ONLY' : action === 'upgrade' && scope === 'plugin_member_access' ? 'UPGRADE DEV MEMBER ACCESS' : action === 'upgrade' && scope === 'rsvp_integrity' ? 'UPGRADE DEV RSVP ONLY' : action === 'upgrade' && scope === 'guardian_rsvp_authority' ? 'UPGRADE DEV GUARDIAN RSVP' : action === 'upgrade' && scope === 'shared_club_name_enforcement' ? 'UPGRADE DEV SHARED CLUB NAMES ONLY' : action === 'upgrade' && scope === 'dev_club_name_coverage_reader' ? 'UPGRADE DEV NAME COVERAGE READER ONLY' : { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
   if (words) {
     const c = normalizeConfirmation(confirmation), plan = normalizePlan(checkedPlan);
     if (c !== words) throw Error(`Confirmation box must say ${words} (received ${c.length} characters${c ? ` starting "${c.slice(0, 12)}"` : ''})`);
@@ -89,6 +92,19 @@ export function planInventory(shared, provisions, registry, scope, hashes) {
       const t = targets[i];
       return !t || t.groupId !== groupId || t.name !== name || t.canisterId !== canisterId;
     })) throw Error('DEV shared-club-name release requires exactly G1/G2 PII and shared DEV Identity');
+  }
+  // Metadata-only reader must never upgrade Identity, Club, notifications,
+  // PROD or a newly registered group. It does not activate global name
+  // release flags or rewrite a member's encrypted copy.
+  if (scope === 'dev_club_name_coverage_reader') {
+    const expected = [
+      ['g1','pii_access_control','iui5p-aaaaa-aaaal-qxllq-cai'],
+      ['g2','pii_access_control','zt5a6-yiaaa-aaaal-qxp5q-cai'],
+    ];
+    if (targets.length !== expected.length || expected.some(([groupId,name,canisterId],i) => {
+      const t = targets[i];
+      return !t || t.groupId !== groupId || t.name !== name || t.canisterId !== canisterId;
+    })) throw Error('DEV club-name coverage reader requires exactly pinned G1/G2 PII');
   }
   // Only the four pinned DEV instances are authorised for this narrow plugin
   // release. Never silently include a third group or an unknown replacement.

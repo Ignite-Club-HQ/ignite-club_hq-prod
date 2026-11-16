@@ -91,6 +91,32 @@ test('DEV universal club-name release pins exactly G1/G2 PII and original Identi
   assert.throws(()=>planInventory(shared,bad.provisions,bad.registry,'shared_club_name_enforcement',bad.hashes),/exactly G1\/G2 PII/);
   assert.equal(plan.targets.some(t=>['club_domain','notification_queue','messaging_domain','events_domain'].includes(t.name)),false);
 });
+test('DEV name coverage reader installs exactly two PII Wasms without activating shared club-name release',()=>{
+  const f=fixture();
+  const plan=planInventory(shared,f.provisions,f.registry,'dev_club_name_coverage_reader',f.hashes);
+  assert.deepEqual(SCOPES.dev_club_name_coverage_reader,['pii_access_control']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g1','pii_access_control','iui5p-aaaaa-aaaal-qxllq-cai'],
+    ['g2','pii_access_control','zt5a6-yiaaa-aaaal-qxp5q-cai'],
+  ]);
+  const hashValue=hash(1);
+  validateRequest('check','dev_club_name_coverage_reader');
+  validateRequest('upgrade','dev_club_name_coverage_reader','UPGRADE DEV NAME COVERAGE READER ONLY',hashValue);
+  assert.throws(()=>validateRequest('upgrade','dev_club_name_coverage_reader','UPGRADE DEV SHARED CLUB NAMES ONLY',hashValue),/NAME COVERAGE READER/);
+  assert.throws(()=>validateRequest('upgrade','dev_club_name_coverage_reader','UPGRADE DEV NAME COVERAGE READER ONLY',''),/Checked plan/);
+  assert.throws(()=>validateRequest('upgrade','dev_club_name_coverage_reader','UPGRADE ALL MAINNET GROUPS',hashValue),/NAME COVERAGE READER/);
+  assert.throws(()=>planInventory(shared,fixture(3).provisions,fixture(3).registry,'dev_club_name_coverage_reader',fixture(3).hashes),/exactly pinned G1\/G2 PII/);
+  const corrupt=fixture();
+  corrupt.provisions[0].canisters.pii_access_control='foreign-pii-cai';
+  corrupt.registry.groups[0].domains.find(d=>d.domain==='pii_access_control').canister=p('foreign-pii-cai');
+  corrupt.registry.placements[0].domains.find(d=>d.domain==='pii_access_control').canister=p('foreign-pii-cai');
+  assert.throws(()=>planInventory(shared,corrupt.provisions,corrupt.registry,'dev_club_name_coverage_reader',corrupt.hashes),/exactly pinned G1\/G2 PII/);
+  for(const target of plan.targets) {
+    assert.equal(target.name,'pii_access_control');
+    assert.ok(installArgs(target,'/tmp/pii').includes('--wasm-memory-persistence'));
+  }
+});
+
 test('DEV RSVP-only release requires exact confirmation and only two pinned events canisters',()=>{
   const f=fixture();
   const plan=planInventory(shared,f.provisions,f.registry,'rsvp_integrity',f.hashes);
@@ -171,7 +197,7 @@ test('collisions, wrong placement, incomplete domain inventory and registry over
   }
 });
 test('every scope uses the same artifact hash across all group instances',()=>{
-  const f=fixture(3);for(const scope of Object.keys(SCOPES)){const selected=['plugin_member_access','rsvp_integrity','guardian_rsvp_authority','shared_club_name_enforcement'].includes(scope)?fixture(2):f;const plan=planInventory(shared,selected.provisions,selected.registry,scope,selected.hashes);for(const t of plan.targets)assert.equal(t.newHash,hash(2));}
+  const f=fixture(3);for(const scope of Object.keys(SCOPES)){const selected=['plugin_member_access','rsvp_integrity','guardian_rsvp_authority','shared_club_name_enforcement','dev_club_name_coverage_reader'].includes(scope)?fixture(2):f;const plan=planInventory(shared,selected.provisions,selected.registry,scope,selected.hashes);for(const t of plan.targets)assert.equal(t.newHash,hash(2));}
   delete f.hashes.notification_queue;assert.throws(()=>planInventory(shared,f.provisions,f.registry,'app_admin',f.hashes));
 });
 test('unexpected or duplicated saved domain names fail before target creation',()=>{
