@@ -675,7 +675,8 @@ persistent actor class Main(governorInit : Principal) = this {
   func devG2SharedClubScope(scope : PrivateNameScope) : Bool {
     let self = Principal.fromActor(this).toText();
     (self == "iui5p-aaaaa-aaaal-qxllq-cai" or self == "zt5a6-yiaaa-aaaal-qxp5q-cai")
-    and scope.kind == "club" and scope.authority.toText() == "yfwyv-nyaaa-aaaal-qxpyq-cai"
+    and scope.kind == "club" and scope.resource == "177f8c01-3617-402a-aedd-5c5c17ccfde1"
+    and scope.authority.toText() == "yfwyv-nyaaa-aaaal-qxpyq-cai"
   };
   func devG1SharedClubScope(scope : PrivateNameScope) : Bool {
     Principal.fromActor(this).toText() == "iui5p-aaaaa-aaaal-qxllq-cai" and devG2SharedClubScope(scope)
