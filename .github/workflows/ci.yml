@@ -68,7 +68,7 @@ jobs:
       - name: Verify DEV invite lookups, authority retry, and Internet Identity handoff
         run: npx vitest run --config vitest.legacy.config.mjs src/live/invitePreview.test.ts src/live/acceptShareableInviteWithRetry.test.ts src/features/membership/createIcpInviteChild.test.ts src/pages/JoinTeamPage.icp.test.tsx
       - name: Verify signed-in principal isolation during session restore
-        run: npx vitest run --config vitest.legacy.config.mjs src/hooks/useAuth.profileSave.test.tsx src/live/identityProfileCache.test.ts
+        run: npx vitest run --config vitest.legacy.config.mjs src/hooks/useAuth.profileSave.test.tsx src/live/identityProfileCache.test.ts src/live/internetIdentitySessionHealth.test.ts
       - run: npm run build
         env:
           IGNITE_LIVE_SUPABASE_ALIAS: dev-ci
