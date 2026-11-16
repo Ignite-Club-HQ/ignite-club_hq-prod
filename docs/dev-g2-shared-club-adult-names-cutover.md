@@ -1,6 +1,6 @@
 # DEV Group 2: restore shared club-name vetKeys (per original PII source)
 
-**Status: code proposal only; release blocked pending exact ciphertext inventory and separate owner approval.** No canister upgrades, env changes, PII writes, key changes or migration are authorised by merging this code.
+**Status: code proposal only; release blocked pending full ciphertext inventory and separate owner approval. Pilot limited to club `177f8c01-3617-402a-aedd-5c5c17ccfde1`, never all G2 clubs.** No canister upgrades, env changes, PII writes, key changes or migration are authorised by merging this code.
 
 ## Why this exists
 
@@ -14,8 +14,8 @@ Ignite already has a separate per-club encrypted-name design:
 
 ## Proposed narrow correction
 
-1. **Frontend (default OFF):** `IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES=1` only after the backend is ready, only for pinned DEV Identity/router/G2 Club/G2 PII. Team roster requests the owning **club ID** through the existing `readRelationshipProfiles(..., {kind:"club",resource:clubId})` and original G1 source resolver. Other screens, other targets and child-name reads retain their existing behaviour. Query keys separate old team-person and new shared-club results.
-2. **Identity original G1 verification (default OFF):** `IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE=1` adds the exact registered G2 Club's **club** audience, independently of the existing team-name release. Identity still requires original G1 PII caller, configured allowlist, pinned key SHA-256, released generation-2 directory and router revision 11, valid original name references and current **club membership of viewer AND every subject** from two matching G2 Club checks.
+1. **Frontend (default OFF):** `IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES=1` only after the backend is ready, only for pinned DEV Identity/router/G2 Club/G2 PII **and exact pilot club 177f8c01-3617-402a-aedd-5c5c17ccfde1**. Team roster requests the owning **club ID** through the existing `readRelationshipProfiles(..., {kind:"club",resource:clubId})` and original G1 source resolver. Other screens, other targets and child-name reads retain their existing behaviour. Query keys separate old team-person and new shared-club results.
+2. **Identity original G1 verification (default OFF):** `IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE=1` adds the exact registered G2 Club's **club** audience **for the one inventoried DEV pilot club only**, independently of the existing team-name release. Identity still requires original G1 PII caller, configured allowlist, pinned key SHA-256, released generation-2 directory and router revision 11, valid original name references and current **club membership of viewer AND every subject** from two matching G2 Club checks.
 3. **Original G1 and registered G2 PII:** The new release flag on the exact DEV PII canisters selects **only** saved `club_display_name:<clubId>` copies for G2 club audiences, rejecting absent, wrong-scheme or wrong-owner copies instead of falling back to original per-person name ciphertext. The original G1 canister additionally refuses the new club scope until the flag is on. Every authorised ciphertext/key read continues to check removal fences, account admission, and membership before/after awaited work.
 4. **Frontend defence in depth:** The activated exact DEV club reader refuses all `vetkey-ibe-v1` adult-name rows **before** calling `fetchPiiVetKeys`. Missing converted copies are not silently repaired by a per-user key, cached personal name or browser-generated data. The existing shared-club-key mechanism remains the only paid key derivation for the roster.
 
@@ -62,3 +62,7 @@ This checkpoint used the **official DFINITY ICP connector as a diagnostic client
 - No live test of `get_private_profile_names_batch` with `club` scope was made because the separate release is not active, and no paid `vetKD` name-key derivations were performed. The pre-existing `CIPHERTEXT_TIMEOUT` may remain because ciphertext retrieval still performs expensive repeated G1 PII → Identity → Group 2 Club authorisation.
 
 **Hold for next approval:** authenticated Test owner-only replica read and Test's own protected club-membership admission proof (Test3 membership is verified), read-only check of default-OFF release flags on both PII and Identity, and isolated negative/held-callback tests specifically for the new club scope. Do not merge or enable this cutover merely because Test3 already has a saved copy or CI is green.
+
+### Pilot blast-radius bound
+
+The first DEV opt-in is **pinned to exactly club `177f8c01-3617-402a-aedd-5c5c17ccfde1`** in the frontend and both server permission gates. Having a different active club in the same Group 2 cannot accidentally enable club-key name cutover. Generalising beyond this test club requires independently inventoried saved copies and a later separately reviewed allowlist/release; a single global flag is insufficient.
