@@ -704,11 +704,13 @@ export default function TeamDetailPage() {
         return withFeatureBackend('membership', {
           supabase: () => { throw new Error('ICP roster required'); },
           icp: async ctx => {
-            // The public vetKey verification-key read is slow on a cold device.
-            // Overlap it with the Club roster-ID read; no name or access grant
-            // is fetched here and any warm-up error is safely ignored.
-            const { prewarmPiiVerificationKey } = await import('@/live/piiVetKeys');
-            prewarmPiiVerificationKey(ctx);
+            // Optional public vetKey prewarm must NEVER block child roster IDs.
+            // On cold phones the dynamic crypto import can be slow or fail;
+            // prewarm asynchronously while starting the authorised Club read
+            // immediately, and keep all PII name unlocks separately gated.
+            void import('@/live/piiVetKeys')
+              .then(({ prewarmPiiVerificationKey }) => prewarmPiiVerificationKey(ctx))
+              .catch(() => undefined);
             return withRosterDeadline(readTeamChildRows(ctx, team.club_id, id), 30_000, 'team player list');
           },
         }, { clubId: team.club_id });
