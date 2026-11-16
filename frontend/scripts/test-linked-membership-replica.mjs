@@ -96,6 +96,17 @@ try {
   assert.ok('Err' in await rosterGroup.actor.read_profile_team_membership_batch(
     otherParent, 'u9', [outsider, coach], [],
   ), 'same-club, different-team viewer may not access U9 names');
+  // A club admin has broad team-management rights, but this is not a
+  // name read grant for a team they do not actually belong to.
+  const adminNotOnU8 = ok(await rosterGroup.actor.read_profile_team_membership_batch(
+    otherParent, 'u8', [otherParent, app], [],
+  ));
+  assert.deepEqual(adminNotOnU8.members, [true, false],
+    'club-only administrator may not read an unrelated team name');
+  assert.ok('Err' in await rosterGroup.actor.read_profile_team_membership_batch(
+    app, 'u8', [otherParent], [],
+  ), 'club administrator not on U8 cannot request U8 parent name');
+
   assert.ok('Err' in await rosterGroup.actor.read_profile_team_membership_batch(
     Principal.anonymous(), 'u9', [outsider], [],
   ), 'anonymous viewer denied');
