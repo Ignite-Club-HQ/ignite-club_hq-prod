@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Users, Share2, Copy } from "lucide-react";
@@ -272,7 +273,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
           if (inviteError) throw inviteError;
 
           // Use the pending invite token for name-restricted link
-          const link = `${window.location.origin}/join/p/${inviteToken}`;
+          const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteToken}`;
           return { link, email: customEmail.trim(), inviteToken };
         },
         icp: async (ctx) => {
@@ -285,7 +286,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
             email: customEmail.trim().toLowerCase(),
             role: selectedRole,
           });
-          const link = `${window.location.origin}/join/p/${invite.id}`;
+          const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${invite.id}`;
           return { link, email: customEmail.trim(), inviteToken: invite.id };
         },
       }, writeOnce({ clubId: clubId! }));

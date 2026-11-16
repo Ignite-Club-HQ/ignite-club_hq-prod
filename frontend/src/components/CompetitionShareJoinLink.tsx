@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { useState, useEffect, useRef } from "react";
 import { QRCodeCanvas } from "qrcode.react";
@@ -14,7 +15,6 @@ import {
   rotateLiveCompetitionJoinLink,
 } from "@/live/features/competitions";
 
-const PUBLIC_BASE = "https://reference.invalid";
 
 export function CompetitionShareJoinLink({
   competitionId,
@@ -74,11 +74,11 @@ export function CompetitionShareJoinLink({
   }, [open, competitionId, token, toast]);
 
   // Direct join URL (used for QR + copy — clean URL users can read)
-  const url = token ? `${PUBLIC_BASE}/competitions/join?token=${token}` : "";
+  const url = token ? `${PUBLIC_INVITE_ORIGIN}/competitions/join?token=${token}` : "";
   // Share URL goes through /share so chat/SMS/socials get rich OG preview.
   // Cache-bust per session so previews don't get stuck on stale previews.
   const shareUrl = token
-    ? `${PUBLIC_BASE}/share?type=competition&id=${token}&cb=${Date.now()}`
+    ? `${PUBLIC_INVITE_ORIGIN}/share?type=competition&id=${token}&cb=${Date.now()}`
     : "";
 
   const copy = async () => {

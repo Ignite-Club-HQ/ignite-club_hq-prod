@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -75,7 +76,7 @@ export function CompetitionOfficialJoinLinksCard({
     }, { competitionId }),
   });
   const activeLink = links.find((link) => link.role === role) ?? null;
-  const joinUrl = activeLink ? `${window.location.origin}/competitions/officials/join?token=${encodeURIComponent(activeLink.token)}` : "";
+  const joinUrl = activeLink ? `${PUBLIC_INVITE_ORIGIN}/competitions/officials/join?token=${encodeURIComponent(activeLink.token)}` : "";
 
   const createLink = useMutation({
     mutationFn: () => {
@@ -149,7 +150,7 @@ export function CompetitionOfficialJoinLinksCard({
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipient)) throw new Error("Enter a valid email address.");
       const roleLabel = roles.find((item) => item.id === role)?.label.toLowerCase() ?? "official";
       const secrets = await createOfficialEmailInviteSecrets(recipient);
-      const emailInviteUrl = `${window.location.origin}/competitions/officials/join?email=1&token=${encodeURIComponent(secrets.token)}`;
+      const emailInviteUrl = `${PUBLIC_INVITE_ORIGIN}/competitions/officials/join?email=1&token=${encodeURIComponent(secrets.token)}`;
       let inviteCreated = false;
       try {
         await withFeatureBackend("competitions", {

@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
@@ -1554,7 +1555,7 @@ function SupabaseJoinTeamPage() {
           }
         }
 
-        const teamLink = `${window.location.origin}${inviteDestination}`;
+        const teamLink = `${PUBLIC_INVITE_ORIGIN}${inviteDestination}`;
         
         console.log("Sending membership email with:", { clubName, clubLogoUrl, teamName: inviteEntityName });
         

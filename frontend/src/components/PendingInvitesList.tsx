@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Mail } from "lucide-react";
@@ -116,7 +117,7 @@ export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = 
       }
 
       try {
-        const inviteLinkForEmail = `${window.location.origin}/join/p/${detail.invite_token}`;
+        const inviteLinkForEmail = `${PUBLIC_INVITE_ORIGIN}/join/p/${detail.invite_token}`;
         const recipientName = invite.invited_label || invite.profiles?.display_name || "Member";
         const meta = detail.metadata as { children?: { name: string }[]; customMessage?: string } | null;
         const childrenNames = invite.role === "parent" && meta?.children
