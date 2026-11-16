@@ -239,6 +239,11 @@ export function TeamMembersSection({
       </div>
       <AccordionContent>
         <div className="space-y-4 pt-2">
+          {showIcpRosterFailureCode && isAdultNamesError && (
+            <p className="text-xs text-muted-foreground" role="status">
+              DEV ICP adult-name diagnostic: {teamRosterReadFailureCode(adultNamesError)}
+            </p>
+          )}
           {isChildrenError && (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -254,11 +259,6 @@ export function TeamMembersSection({
                   {playerRetryPending ? "Retrying players…" : "Retry players"}
                 </Button>
               </div>
-              {showIcpRosterFailureCode && isAdultNamesError && (
-                <p className="text-xs text-muted-foreground" role="status">
-                  DEV ICP adult-name diagnostic: {teamRosterReadFailureCode(adultNamesError)}
-                </p>
-              )}
               {showIcpRosterFailureCode && !playerRetryPending && (
                 <p className="text-xs text-muted-foreground" role="status">
                   DEV ICP player-read diagnostic: {teamRosterReadFailureCode(childrenError)}
