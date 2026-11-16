@@ -873,7 +873,7 @@ export default function TeamDetailPage() {
   })();
   // When the global ICP release is enabled, ALL teams inherit the owning
   // club's name key; no team/person-key fallback is allowed.
-  const devSharedClubNames = devIcpAdultNames && (() => {
+  const devSharedClubNames = isIcpAccount && (() => {
     try { return sharedClubNameEnforcementEnabled(getActiveIcpTarget()) && Boolean(team?.club_id); }
     catch { return false; }
   })();
