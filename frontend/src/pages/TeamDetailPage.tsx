@@ -128,7 +128,7 @@ import { TeamDetailAccordionSections } from "@/components/team/TeamDetailAccordi
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { readIcpTeamPendingInvites } from "@/features/membership/teamPendingInvites";
 import { readTeamChildRows, teamRoleRows } from '@/lib/teamRosterReads';
-import { scopedIcpTeamRosterKey, teamRosterHeaderStatus, visibleChildRosterName, needsChildNameRetry } from '@/lib/teamRosterDisplay';
+import { scopedIcpTeamRosterKey, teamRosterHeaderStatus, visibleChildRosterName, needsChildNameRetry, devU10ParentTestLabel } from '@/lib/teamRosterDisplay';
 
 
 type TeamRole = TeamJoinRole;
@@ -916,11 +916,23 @@ export default function TeamDetailPage() {
     return (rawMembersData as any[]).map(m => {
       const profile = nameMap.get(m.user_id);
       const enriched = profile ? { ...m, profiles: { id: m.user_id, display_name: profile.display_name, avatar_url: profile.avatar_ref?.[0] ?? null } } : m;
-      return selfIds.has(m.user_id) && !enriched.profiles?.display_name && myName
+      const withOwnName = selfIds.has(m.user_id) && !enriched.profiles?.display_name && myName
         ? { ...enriched, profiles: { id: m.user_id, display_name: myName, avatar_url: enriched.profiles?.avatar_url ?? (myProfile as any)?.avatar_url ?? null } }
         : enriched;
+      // DEV disposable Test3 fixture only: never decode or publish the original
+      // G1 encrypted profile reference, and never override a readable name.
+      const testLabel = isIcpAccount ? devU10ParentTestLabel({
+        hostname: window.location.hostname,
+        teamId: id,
+        clubId: team?.club_id,
+        memberId: m.user_id,
+        existingName: withOwnName.profiles?.display_name,
+      }) : null;
+      return testLabel
+        ? { ...withOwnName, profiles: { id: m.user_id, avatar_url: withOwnName.profiles?.avatar_url ?? null, display_name: testLabel } }
+        : withOwnName;
     });
-  }, [rawMembersData, adultNames, myProfile, user?.id]);
+  }, [rawMembersData, adultNames, myProfile, user?.id, isIcpAccount, id, team?.club_id]);
 
   // Group roles by user - use user_id directly since it's always present
   // Memoize to prevent recalculation on every render
