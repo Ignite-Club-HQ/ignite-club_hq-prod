@@ -864,7 +864,7 @@ export default function TeamDetailPage() {
 
   const adultNameIds = useMemo(() => [...new Set(rawMembersData.map(row => row.user_id))].sort(), [rawMembersData]);
   const childNameIds = useMemo(() => teamChildrenData.map(row => row.child_id).sort(), [teamChildrenData]);
-  const { data: adultNames = [] } = useQuery({
+  const { data: adultNames = [], isError: isAdultNamesError, error: adultNamesError } = useQuery({
     queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id, adultNameIds],
     enabled: isIcpAccount && !!id && !!team?.club_id && adultNameIds.length > 0,
     queryFn: () => withFeatureBackend('membership', {
@@ -2062,6 +2062,7 @@ export default function TeamDetailPage() {
             isMembersLoading, isMembersFetching, isChildrenLoading, isChildrenFetching, isMembersError, membersError, isChildrenError, childrenError, refetchMembers, refetchChildren,
             // Only the pinned disposable DEV Identity can expose diagnostic categories;
             // never publish raw errors or profile identifiers to the UI.
+            isAdultNamesError, adultNamesError,
             showIcpRosterFailureCode: isIcpAccount && (() => {
               try { return getActiveIcpTarget().canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'; }
               catch { return false; }
