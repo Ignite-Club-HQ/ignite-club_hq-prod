@@ -943,7 +943,11 @@ export default function TeamDetailPage() {
       
       if (!acc[userId]) {
         // Try to get cached profile data for faster initial render
-        const cachedProfile = getProfileFromCache(userId);
+        // ICP team-member names are relationship-scoped. Never allow an
+        // unscoped/stale global profile cache (including "Unknown User") to
+        // override a refused or pending private team-name read. Supabase keeps
+        // its existing cached-profile behaviour unchanged.
+        const cachedProfile = isIcpAccount ? null : getProfileFromCache(userId);
         acc[userId] = {
           profile: role.profiles || (cachedProfile ? {
             id: userId,
@@ -956,7 +960,7 @@ export default function TeamDetailPage() {
       acc[userId].roles.push({ id: role.id, role: role.role });
       return acc;
     }, {} as Record<string, { profile: any; roles: { id: string; role: string }[] }>);
-  }, [rawMembers, team?.clubs?.bot_user_id]);
+  }, [rawMembers, team?.clubs?.bot_user_id, isIcpAccount]);
 
   /**
    * Adult members whose primary role is "player". Used purely for presentation:
