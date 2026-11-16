@@ -54,7 +54,7 @@ describe('default-off DEV shared-club-name cutover', () => {
       {canisterIds:{...f.ctx.target.canisterIds,club_domain:DEV.originalClub}},
       {canisterIds:{...f.ctx.target.canisterIds,shard_router:p(80).toText()}},
     ]) {
-      expect(devG2SharedClubNamesEnabled({...f.ctx.target,...update})).toBe(false);
+      expect(devG2SharedClubNamesEnabled({...f.ctx.target,...update} as typeof f.ctx.target)).toBe(false);
     }
   });
 });
