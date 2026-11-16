@@ -130,7 +130,7 @@ import { TeamDetailAccordionSections } from "@/components/team/TeamDetailAccordi
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { readIcpTeamPendingInvites } from "@/features/membership/teamPendingInvites";
 import { readTeamChildRows, teamRoleRows } from '@/lib/teamRosterReads';
-import { scopedIcpTeamRosterKey, teamRosterHeaderStatus, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry } from '@/lib/teamRosterDisplay';
+import { scopedIcpTeamRosterKey, teamRosterHeaderStatus, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry, requestedTeamAdultNameIds } from '@/lib/teamRosterDisplay';
 
 
 type TeamRole = TeamJoinRole;
@@ -863,14 +863,20 @@ export default function TeamDetailPage() {
     refetchOnWindowFocus: false,
   });
 
-  const adultNameIds = useMemo(() => [...new Set(rawMembersData.map(row => row.user_id))].sort(), [rawMembersData]);
-  const childNameIds = useMemo(() => teamChildrenData.map(row => row.child_id).sort(), [teamChildrenData]);
-  // Only the pinned disposable DEV Identity receives the extra name-refresh UI.
-  // PROD ICP, Supabase and child-name paths retain their existing behaviour.
+  // Only the pinned DEV ICP target omits a redundant self-name PII read.
+  // Other targets and the separate child-name path remain unchanged.
   const devIcpAdultNames = isIcpAccount && (() => {
     try { return getActiveIcpTarget().canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'; }
     catch { return false; }
   })();
+  // The existing self-name renderer below uses the same already-authorised
+  // myProfile value. No PII reference, guessed or cached name is substituted.
+  const adultNameIds = useMemo(() => requestedTeamAdultNameIds(
+    rawMembersData.map(row => row.user_id),
+    [user?.id, user?.id ? `principal:${user.id}` : null, (myProfile as any)?.id],
+    myProfile?.display_name, devIcpAdultNames,
+  ), [rawMembersData, user?.id, (myProfile as any)?.id, myProfile?.display_name, devIcpAdultNames]);
+  const childNameIds = useMemo(() => teamChildrenData.map(row => row.child_id).sort(), [teamChildrenData]);
   const { data: adultNames = [], isLoading: isAdultNamesLoading, isFetching: isAdultNamesFetching,
     isError: isAdultNamesError, error: adultNamesError, refetch: refetchAdultNames } = useQuery({
     queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id, adultNameIds],
