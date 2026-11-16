@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {secureNameChangedSettings, secureNameEnvironment, SAVE_RELEASE, DISPLAY_RELEASE, SHARED_CLUB_NAME_RELEASE, DEV_G2_SHARED_CLUB_RELEASE} from './secure-name-release-policy.mjs';
 const read=s=>readFileSync(new URL('../'+s,import.meta.url),'utf8');
 const runner=read('frontend/scripts/audit-dev-g1-private-name-authority.ts');
 const workflow=read('.github/workflows/dev-g1-private-name-authority-audit.yml');
@@ -78,7 +79,40 @@ test('Shared DEV G2 club name scope never derives personal display-name keys',()
   assert.ok(pii.includes('scope.kind == "club" and sharedClubNameEnforcement'));
   assert.ok(!identity.includes('scope.kind=="club" && approved_shared_club_names)'));
 
-  const release=read('scripts/secure-name-release-policy.mjs');
-  assert.ok(!release.includes('IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE'),
-    'existing release policy cannot automatically widen club audience');
+  // The new universal DEV shared-club release intentionally declares this
+  // switch. It must NOT be enabled implicitly by the old authority audit,
+  // secure-name saving or the unrelated private-club display release.
+  for (const [scope, service] of [
+    ['secure_name_save','identity_access'],
+    ['secure_name_save','pii_access_control'],
+    ['private_club_name_display','identity_access'],
+    ['private_club_name_display','pii_access_control'],
+  ]) {
+    const settings=secureNameChangedSettings(scope,service);
+    assert.ok(!settings.includes(DEV_G2_SHARED_CLUB_RELEASE),
+      `${scope}/${service} must not automatically widen the G2 club audience`);
+    assert.ok(!settings.includes(SHARED_CLUB_NAME_RELEASE),
+      `${scope}/${service} must not enable the universal club-name gate`);
+  }
+  assert.deepEqual(secureNameChangedSettings('shared_club_name_enforcement','identity_access'),
+    [DEV_G2_SHARED_CLUB_RELEASE]);
+  assert.deepEqual(secureNameChangedSettings('shared_club_name_enforcement','pii_access_control'),
+    [SHARED_CLUB_NAME_RELEASE,DEV_G2_SHARED_CLUB_RELEASE]);
+  assert.throws(()=>secureNameChangedSettings('shared_club_name_enforcement','club_domain'));
+
+  const dev={identity:'mq2sj-fiaaa-aaaal-qxlqa-cai',originalPii:'iui5p-aaaaa-aaaal-qxllq-cai'};
+  const piiEnv=[
+    {name:'VETKD_KEY_NAME',value:'key_1'},
+    {name:SAVE_RELEASE,value:'1'},
+    {name:DISPLAY_RELEASE,value:'1'},
+    {name:'IGNITE_SECURE_ADULT_NAME_IDENTITY',value:dev.identity},
+    {name:'IGNITE_PRIVATE_PROFILE_IDENTITY',value:dev.identity},
+  ];
+  assert.throws(()=>secureNameEnvironment(piiEnv,'pii_access_control','shared_club_name_enforcement',
+    {identity:'foreign-identity',originalPii:'foreign-pii'}), /DEV-only|mismatch/);
+  assert.throws(()=>secureNameEnvironment(piiEnv.filter(r=>r.name!==DISPLAY_RELEASE),
+    'pii_access_control','shared_club_name_enforcement',dev), /IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE/);
+
+  // This audit remains a read-only observation, not an activation approval.
+  assert.match(runner,/readyToReleaseName:false,nameReadAuthorised:false/);
 });
