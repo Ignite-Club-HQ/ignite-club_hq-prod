@@ -2402,6 +2402,15 @@ fn dev_g1_team_name_release_enabled() -> bool {
     #[cfg(not(target_arch = "wasm32"))]
     { false }
 }
+fn dev_g2_shared_club_names_enabled() -> bool {
+    // A separate, explicit operator release: enabling historical team-name
+    // reads must NOT silently widen them to every member of a club.
+    #[cfg(target_arch = "wasm32")]
+    { ic_cdk::api::env_var_name_exists(legacy_g1_private_name::SHARED_CLUB_NAMES_SWITCH)
+        && ic_cdk::api::env_var_value(legacy_g1_private_name::SHARED_CLUB_NAMES_SWITCH) == "1" }
+    #[cfg(not(target_arch = "wasm32"))]
+    { false }
+}
 fn dev_g1_observed_key_sha256() -> Option<String> {
     #[cfg(target_arch = "wasm32")]
     { if ic_cdk::api::env_var_name_exists(legacy_g1_private_name::APPROVED_KEY_SHA256) {
@@ -2464,7 +2473,7 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         let approved_key = dev_g1_observed_key_sha256();
         let digest = legacy_g1_private_name::require_exact_origin(
             ic_cdk::api::canister_self(), service, &scope, &config, &inventory,
-            &allowed_services, release, approved_key.as_deref())?;
+            &allowed_services, release, dev_g2_shared_club_names_enabled(), approved_key.as_deref())?;
         verify_dev_g1_public_key(service, &digest).await?;
         active()?;
         if !dev_g1_team_name_release_enabled()
