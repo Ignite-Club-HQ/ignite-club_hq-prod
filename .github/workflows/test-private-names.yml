@@ -2,6 +2,13 @@ name: "[TEST] Test encrypted personal names (isolated)"
 
 on:
   workflow_dispatch:
+  # Real disposable-canister security regression on source changes. No
+  # governor, production identity or customer data is available in this job.
+  pull_request:
+    paths:
+      - 'backend/pii_access_control/src/main.mo'
+      - 'scripts/dev-g1-private-name-authority-contract.test.mjs'
+      - '.github/workflows/test-private-names.yml'
 
 permissions:
   contents: read

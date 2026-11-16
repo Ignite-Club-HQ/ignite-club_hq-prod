@@ -79,6 +79,49 @@ test('Shared DEV G2 club name scope never derives personal display-name keys',()
   assert.ok(!identity.includes('scope.kind=="club" && approved_shared_club_names)'));
 
   const release=read('scripts/secure-name-release-policy.mjs');
-  assert.ok(!release.includes('IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE'),
-    'existing release policy cannot automatically widen club audience');
+  assert.ok(release.includes("DEV_G2_SHARED_CLUB_RELEASE = 'IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE'"));
+  assert.ok(release.includes("if (scope==='shared_club_name_enforcement')"));
+  assert.ok(release.includes("if(!exactDevOriginal)throw Error('Global shared-club-name release is DEV-only and source pinned')"));
+  assert.ok(release.includes("exact(DEV_G1_OBSERVED_KEY,VERIFIED_DEV_G1_OBSERVED_SHA256,true)"));
+  const protectedFlow=read('.github/workflows/upgrade-all-groups.yml');
+  assert.ok(protectedFlow.includes('UPGRADE DEV SHARED CLUB NAMES ONLY'));
+  assert.ok(protectedFlow.includes('group-2-admin-controls'));
+  assert.ok(protectedFlow.includes("inputs.scope == 'shared_club_name_enforcement'"));
+});
+
+test('DEV original club ciphertext fast path removes only duplicate outer read, never membership or closing key checks',()=>{
+  const pii=read('backend/pii_access_control/src/main.mo');
+  const rust=read('backend/identity_access/src/lib.rs');
+  const helper=pii.slice(pii.indexOf('func devG1SharedClubCiphertextFast('),pii.indexOf('transient let privateNamesIdentity'));
+  assert.ok(helper.includes('sharedClubNameEnforcement and devG2SharedClubNames and devG1SharedClubScope(scope)'));
+  assert.ok(pii.includes('Principal.fromActor(this).toText() == "iui5p-aaaaa-aaaal-qxllq-cai" and devG2SharedClubScope(scope)'));
+  const cipher=pii.slice(pii.indexOf('func get_private_profile_names_batch('),pii.indexOf('func get_private_profile_name_vetkeys_batch('));
+  assert.ok(cipher.includes('let first = await authorizePrivateNames(caller, ids, scope)'));
+  assert.ok(cipher.includes('if (devG1SharedClubCiphertextFast(scope))'));
+  assert.ok(cipher.includes('removalReceiver.denied(caller)'));
+  assert.ok(cipher.includes('not canReleasePrivateName(releaseEpoch, scope)'));
+  assert.ok(cipher.includes('} else {'));
+  assert.ok(cipher.includes('await admitAccount(caller);'));
+  assert.ok(cipher.includes('let final = await authorizePrivateNames(caller, ids, scope);'));
+  assert.ok(cipher.includes('first != final'));
+  assert.ok(cipher.includes('Club-encrypted name copy missing'));
+  const shared=pii.slice(pii.indexOf('func get_private_profile_club_name_vetkey('),pii.indexOf('// ==================== Per-club photo key'));
+  const derive=shared.indexOf('let key = await ManagementCanister.vetKdDeriveKey(');
+  const closing=shared.indexOf('let final = await authorizePrivateNames(caller, ids, scope);');
+  assert.ok(derive>=0 && closing>derive);
+  assert.ok(shared.includes('let first = await authorizePrivateNames(caller, ids, scope);'));
+  assert.ok(shared.includes('first != final'));
+  assert.ok(shared.includes('if (not devG1SharedClubCiphertextFast(scope)) await admitAccount(caller)'));
+  // Identity remains the service-level trust boundary. A single PII
+  // authorization still performs two independently awaited G2 club membership
+  // comparisons with fresh account/registry/profile fences.
+  const identity=rust.slice(rust.indexOf('async fn read_private_profile_name_authorization('),rust.indexOf('async fn read_guardian_profiles('));
+  assert.ok(identity.includes('let viewer = membership_lookup_viewer(viewer_principal)?'));
+  assert.ok(identity.includes('read_registry_pages(&config.binding, active).await?'));
+  assert.ok(identity.includes('for _ in 0..2'));
+  assert.ok(identity.includes('read_profile_membership_batch'));
+  assert.ok(identity.includes('club_profiles::verify_batch'));
+  assert.ok(identity.includes('retained.as_ref().is_some_and(|prior| prior != &batch)'));
+  assert.ok(identity.includes('verify_dev_g1_public_key(service, observed_sha256).await?'));
+  assert.ok(identity.includes('active()?'));
 });
