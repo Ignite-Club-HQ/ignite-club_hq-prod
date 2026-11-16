@@ -12,6 +12,9 @@ export const SCOPES = Object.freeze({
   private_name_cleanup: ['identity_access', 'pii_access_control', 'club_domain'],
   secure_name_save: ['pii_access_control', 'identity_access'],
   private_club_name_display: ['pii_access_control', 'club_domain', 'identity_access'],
+  // Only DEV G1+G2 PII and DEV shared Identity; the new release does not
+  // install club services, touch PROD or change child/PII ownership.
+  shared_club_name_enforcement: ['pii_access_control', 'identity_access'],
   team_invites: ['club_domain', 'mini_league_domain'],
   messaging: ['messaging_domain'],
   plugin_member_access: ['events_domain', 'messaging_domain'],
@@ -30,7 +33,7 @@ export const normalizeConfirmation = v => String(v ?? '').replace(/[\u200b-\u200
 export function validateRequest(action, scope, confirmation, checkedPlan) {
   action = String(action ?? '').trim(); scope = String(scope ?? '').trim();
   if (!['check', 'upgrade', 'recover'].includes(action) || !Object.hasOwn(SCOPES, scope)) throw Error('Choose a reviewed scope and check, upgrade or recover');
-  const words = action === 'upgrade' && scope === 'dev_identity_directory' ? 'UPGRADE DEV IDENTITY DIRECTORY ONLY' : action === 'upgrade' && scope === 'plugin_member_access' ? 'UPGRADE DEV MEMBER ACCESS' : action === 'upgrade' && scope === 'rsvp_integrity' ? 'UPGRADE DEV RSVP ONLY' : action === 'upgrade' && scope === 'guardian_rsvp_authority' ? 'UPGRADE DEV GUARDIAN RSVP' : { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
+  const words = action === 'upgrade' && scope === 'dev_identity_directory' ? 'UPGRADE DEV IDENTITY DIRECTORY ONLY' : action === 'upgrade' && scope === 'plugin_member_access' ? 'UPGRADE DEV MEMBER ACCESS' : action === 'upgrade' && scope === 'rsvp_integrity' ? 'UPGRADE DEV RSVP ONLY' : action === 'upgrade' && scope === 'guardian_rsvp_authority' ? 'UPGRADE DEV GUARDIAN RSVP' : action === 'upgrade' && scope === 'shared_club_name_enforcement' ? 'UPGRADE DEV SHARED CLUB NAMES ONLY' : { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
   if (words) {
     const c = normalizeConfirmation(confirmation), plan = normalizePlan(checkedPlan);
     if (c !== words) throw Error(`Confirmation box must say ${words} (received ${c.length} characters${c ? ` starting "${c.slice(0, 12)}"` : ''})`);
@@ -73,6 +76,20 @@ export function planInventory(shared, provisions, registry, scope, hashes) {
   }
   const targets = names.flatMap(name => SHARED_SERVICES.includes(name) ? [{groupId:'shared',name,canisterId:shared[name],subnetId:PRIMARY_SUBNET,newHash:hashes[name]}] : all.map(g => ({ groupId:g.id, ...g.services.find(s=>s.name===name), newHash:hashes[name] })));
   if (targets.some(t=>!t.name || !validId(t.canisterId) || !/^[a-f0-9]{64}$/.test(t.newHash ?? '')) || new Set(targets.map(t=>t.canisterId)).size!==targets.length) throw Error('Incomplete upgrade artifacts/targets');
+  // Separate universal-club-key release across the TWO existing DEV canister
+  // groups. A newly opened group or unknown PII service blocks this rollout
+  // until a separate source/key/replica audit is reviewed.
+  if (scope === 'shared_club_name_enforcement') {
+    const expected = [
+      ['g1','pii_access_control','iui5p-aaaaa-aaaal-qxllq-cai'],
+      ['g2','pii_access_control','zt5a6-yiaaa-aaaal-qxp5q-cai'],
+      ['shared','identity_access','mq2sj-fiaaa-aaaal-qxlqa-cai'],
+    ];
+    if (targets.length !== expected.length || expected.some(([groupId,name,canisterId],i) => {
+      const t = targets[i];
+      return !t || t.groupId !== groupId || t.name !== name || t.canisterId !== canisterId;
+    })) throw Error('DEV shared-club-name release requires exactly G1/G2 PII and shared DEV Identity');
+  }
   // Only the four pinned DEV instances are authorised for this narrow plugin
   // release. Never silently include a third group or an unknown replacement.
   if (scope === 'plugin_member_access') {
@@ -130,7 +147,7 @@ export function validateJournal(journal, binding) {
     const s=journal.steps.find(s=>s.canisterId===t.canisterId);
     if (!s || ['name','groupId','subnetId','newHash'].some(k=>s[k]!==t[k]) || !/^[a-f0-9]{64}$/.test(s.oldHash ?? '') || !/^[a-f0-9]{64}$/.test(s.settingsHash ?? '') || !['ready','pending','complete'].includes(s.phase)) throw Error('Invalid all-group journal step');
   }
-  if(['private_name_cleanup','secure_name_save','private_club_name_display'].includes(binding.scope)) {
+  if(['private_name_cleanup','secure_name_save','private_club_name_display','shared_club_name_enforcement'].includes(binding.scope)) {
     const plan=binding.cleanupPlan,rows=journal.cleanupActivation;
     if(!Array.isArray(plan)||plan.length!==binding.targets.length||new Set(plan.map(s=>s.canisterId)).size!==plan.length||plan.some(p=>!binding.targets.some(t=>['canisterId','name','groupId','subnetId','newHash'].every(k=>t[k]===p[k]))||!['oldSettingsHash','newSettingsHash'].every(k=>/^[a-f0-9]{64}$/.test(p[k]??''))))throw Error('Invalid checked cleanup activation plan');
     if(rows!==undefined && (!Array.isArray(rows)||rows.length!==plan.length||plan.some(p=>rows.filter(s=>Object.keys(p).every(k=>s[k]===p[k])&&['ready','pending','complete'].includes(s.phase)).length!==1)))throw Error('Foreign cleanup activation journal');
