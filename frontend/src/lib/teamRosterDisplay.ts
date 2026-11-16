@@ -60,3 +60,31 @@ export function needsChildNameRetry(
 ): boolean {
   return ids.length > 0 && !pending && ids.some(id => !names?.get(id)?.trim());
 }
+
+/**
+ * Disposable DEV U10 fixture only. Test3's Identity profile points to its
+ * original Group 1 encrypted name and that cross-group audience is unreleased.
+ * Show the user's known TEST ACCOUNT LABEL (not decrypted private data) so the
+ * U10 invite/roster can be tested without granting any new name permissions.
+ * No other person, team, club, host or Supabase/PROD screen gets an alias.
+ */
+export function devU10ParentTestLabel(input: {
+  hostname: string;
+  teamId: string | undefined;
+  clubId: string | undefined;
+  memberId: string;
+  existingName: string | null | undefined;
+}): string | null {
+  const { hostname, teamId, clubId, existingName } = input;
+  if (![
+    'proe7-kqaaa-aaaas-qg6gq-cai.icp.net',
+    'proe7-kqaaa-aaaas-qg6gq-cai.ic0.app',
+    'ignite-club-launchpad.lovable.app',
+  ].includes(hostname)) return null;
+  if (teamId !== 'a3e9341e-bc61-4e4d-9ebf-2f2c9f347128' ||
+      clubId !== '177f8c01-3617-402a-aedd-5c5c17ccfde1') return null;
+  const principal = input.memberId.replace(/^principal:/, '');
+  if (principal !== 'mfmwy-tuspw-6ikuj-mfaqb-le2p3-ndi4w-a5caq-cwcit-xhnob-lidne-fae') return null;
+  if (existingName?.trim() && !existingName.startsWith('pii-display-name:')) return null;
+  return 'Test3';
+}
