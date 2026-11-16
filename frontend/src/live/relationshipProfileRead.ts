@@ -48,8 +48,12 @@ export async function readRelationshipProfiles(
       // Identity verify the exact-team audience and source on every read.
       const devTeamResolver = relationship.kind === 'team'
         ? createDevCrossGroupTeamNameResolver(owner) : undefined;
-      const releasedTeam = Boolean(devTeamResolver) && relationship.kind === 'team'
-        && privateClubNameDisplaysEnabled();
+      // The original G1 -> registered G2 DEV route is independently pinned and
+      // its Identity/PII/Club audience release is server-gated. Lovable mobile
+      // builds need not inherit the separately provisioned ICP asset-canister
+      // display flag to request this exact team authorization. A missing or
+      // foreign DEV route still fails closed; this grants no private name.
+      const releasedTeam = Boolean(devTeamResolver) && relationship.kind === 'team';
       if (!rehearsal && !releasedClub && !releasedTeam) {
         const rows = await listLiveProfilesByIds(shared, ids);
         active();
