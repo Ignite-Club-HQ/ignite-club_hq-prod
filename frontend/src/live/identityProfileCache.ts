@@ -26,7 +26,12 @@ export function getCachedIcpIdentityProfile(principal: string): IcpIdentityProfi
     const raw = localStorage.getItem(cacheKey(principal));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as IcpIdentityProfile;
-    if (typeof parsed?.accountId !== "string") return null;
+    // A cached profile is never evidence of another authenticated principal.
+    // A malformed/mis-keyed entry must not be rendered during account switching.
+    if (parsed?.accountId !== principal) {
+      localStorage.removeItem(cacheKey(principal));
+      return null;
+    }
     return parsed;
   } catch {
     localStorage.removeItem(cacheKey(principal));
@@ -35,6 +40,7 @@ export function getCachedIcpIdentityProfile(principal: string): IcpIdentityProfi
 }
 
 export function cacheIcpIdentityProfile(principal: string, profile: IcpIdentityProfile): void {
+  if (!principal || profile.accountId !== principal) return;
   try {
     localStorage.setItem(cacheKey(principal), JSON.stringify(profile));
   } catch {
