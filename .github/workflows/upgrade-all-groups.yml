@@ -63,7 +63,7 @@ jobs:
           }else validateRequest(process.env.ACTION,process.env.SCOPE,process.env.CONFIRMATION,process.env.CHECKED_PLAN);
           JS
       - name: Reject any non-DEV release ref for member-access scope
-        if: inputs.scope == 'dev_identity_directory' || inputs.scope == 'plugin_member_access' || inputs.scope == 'rsvp_integrity' || inputs.scope == 'guardian_rsvp_authority'
+        if: inputs.scope == 'dev_identity_directory' || inputs.scope == 'plugin_member_access' || inputs.scope == 'rsvp_integrity' || inputs.scope == 'guardian_rsvp_authority' || inputs.scope == 'shared_club_name_enforcement'
         run: |
           test "$GITHUB_REF" = "refs/heads/main" || { echo "::error::DEV member access and RSVP repairs must run from main"; exit 1; }
       - name: Install pinned tools and existing dependencies
