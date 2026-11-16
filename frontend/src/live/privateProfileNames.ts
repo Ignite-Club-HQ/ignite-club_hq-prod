@@ -281,13 +281,21 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
         // audience must report TIMEOUT rather than silently appearing as an
         // unverified empty name set; never disclose ciphertext or IDs.
         // Keep other routes' existing deadlines and neutral failure behavior.
+        const devPilotClub = import.meta.env.IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES === '1' &&
+          audience?.kind === 'club' &&
+          audience.resource === '177f8c01-3617-402a-aedd-5c5c17ccfde1' &&
+          audience.authority.toText() === 'yfwyv-nyaaa-aaaal-qxpyq-cai' &&
+          ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai' &&
+          ['iui5p-aaaaa-aaaal-qxllq-cai', 'zt5a6-yiaaa-aaaal-qxp5q-cai']
+            .includes(ctx.target.canisterIds.pii_access_control);
         const devTeam = audience?.kind === 'team' &&
           ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
+        const crossGroupDevName = devTeam || devPilotClub;
         timer = setTimeout(() => {
           retired = true;
-          if (devTeam) reject(new Error(`Private team-name ${phase} timed out.`));
+          if (crossGroupDevName) reject(new Error(`Private team-name ${phase} timed out.`));
           else resolve(new Map());
-        }, audience?.kind === 'team' ? 25_000 : READ_TIMEOUT_MS);
+        }, crossGroupDevName ? 25_000 : READ_TIMEOUT_MS);
       }),
     ]);
   } catch (error) {
