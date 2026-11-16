@@ -42,7 +42,7 @@ export async function readRelationshipProfiles(
       active();
       if (shared.identity !== identity) throw new Error('Profile reader identity changed.');
       const rehearsal = privateProfileSearchRehearsalEnabled();
-      const devSharedClub = relationship.kind === 'club' && devG2SharedClubNamesEnabled(owner.target);
+      const devSharedClub = relationship.kind === 'club' && devG2SharedClubNamesEnabled(owner.target, relationship.resource);
       const releasedClub = relationship.kind === 'club' && (privateClubNameDisplaysEnabled() || devSharedClub);
       // DEV only: source resolution can serve either the historical exact-team
       // path, or an explicitly operator-released shared CLUB key. The browser
