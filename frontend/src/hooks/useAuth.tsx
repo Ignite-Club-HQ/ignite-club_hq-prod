@@ -1187,6 +1187,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ...(inviteToken ? { data: { email_signup_invite_token: inviteToken } } : {}),
         },
       });
+      if (error && inviteToken && /database|invitation|signup requires/i.test(error.message)) {
+        // The invitation may have changed between preview and account creation.
+        // Re-read its token-scoped reason instead of showing a database error.
+        const refusal = await supabase.rpc("get_email_signup_invite_refusal", { _token: inviteToken, _email: email });
+        const messages: Record<string, string> = {
+          invite_expired: "This invitation has expired. Please ask your organiser for a new link.",
+          invite_used: "This invitation has already been used. Please ask your organiser for a new link.",
+          invite_email_mismatch: "This invitation is bound to a different email address. Use the invited email or ask your organiser for a new link.",
+          invite_club_not_email_enabled: "This club is not email-enabled. Continue with Internet Identity or contact your organiser.",
+          invite_not_found: "We couldn't find this invitation. Please ask your organiser for a new link.",
+        };
+        return { error: new Error(messages[String(refusal.data)] ?? "We couldn't verify your invitation. Please reopen the link or contact your organiser."), needsEmailConfirmation: false };
+      }
       // When email confirmation is required, signUp resolves with no session.
       // Surface that explicitly so callers can tell the user what happens next
       // instead of silently doing nothing.
