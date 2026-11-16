@@ -1577,6 +1577,46 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
   // click event before our code resumes, causing "Signer window should not
   // be opened outside of click handler". Warming here means `signInWithIcp`
   // below can reach the actual `signIn()` call with zero awaits in front of it.
+  // A different verified Internet Identity can supersede a stale session
+  // restored from this browser. Discard all previous-user in-memory and
+  // persisted reads BEFORE making the new principal visible to the app.
+  const adoptVerifiedIcpSession = useCallback(async (verified: InternetIdentitySession) => {
+    let previousPrincipal: string | null = null;
+    try {
+      const raw = localStorage.getItem("ignite_icp_internet_identity_session");
+      const stored = raw ? JSON.parse(raw) as InternetIdentitySession : null;
+      previousPrincipal = typeof stored?.principal === "string" ? stored.principal : null;
+    } catch { /* malformed stored session is never trusted */ }
+
+    if (previousPrincipal && previousPrincipal !== verified.principal) {
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      clearIcpIdentityProfileCache();
+      const [
+        { clearLiveAgentCache },
+        { clearGroupDispatchCache, wipeGroupOwnerCache },
+        { clearPiiVetKeyCache },
+      ] = await Promise.all([
+        import("@/live/icpAgent"),
+        import("@/live/groupDispatch"),
+        import("@/live/piiVetKeys"),
+      ]);
+      clearLiveAgentCache();
+      clearGroupDispatchCache();
+      wipeGroupOwnerCache();
+      await clearPiiVetKeyCache();
+      if (!isNativePlatform()) {
+        const { clearPersistedIcpQueryCache } = await import("@/lib/icpQueryCachePersist");
+        await clearPersistedIcpQueryCache();
+      }
+      void import("@/live/features/events").then(m => m.clearListedLiveEvents()).catch(() => undefined);
+      void import("@/live/features/messaging").then(m => m.clearWarmLiveLatestPages()).catch(() => undefined);
+    }
+    if (signingOutRef.current) throw new Error("Sign-out in progress; sign in again.");
+    localStorage.setItem("ignite_icp_internet_identity_session", JSON.stringify(verified));
+    setSession(verified);
+  }, [queryClient]);
+
   const internetIdentityModuleRef = useRef<typeof import("@/live/internetIdentityAuth") | null>(null);
   const [iiSignInReady, setIiSignInReady] = useState(false);
   // True until the first silent resume attempt below has completed, so the
@@ -1634,8 +1674,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
         const resumed = await mod.resumeInternetIdentitySession();
         if (resumed && !cancelled) {
           console.info("[Auth] Resumed a completed Internet Identity sign-in.");
-          localStorage.setItem("ignite_icp_internet_identity_session", JSON.stringify(resumed));
-          setSession(resumed);
+          await adoptVerifiedIcpSession(resumed);
         }
       } catch (error) {
         console.warn("[Auth] Could not resume Internet Identity session:", error);
@@ -1658,7 +1697,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       window.removeEventListener("focus", onReturn);
       window.removeEventListener("pageshow", onReturn);
     };
-  }, [iiSignInReady, principal]);
+  }, [iiSignInReady, principal, adoptVerifiedIcpSession]);
   useEffect(() => {
     if (icpProfileResolved && icpProfile) markStage("profile_resolved");
   }, [icpProfileResolved, icpProfile]);
@@ -1676,8 +1715,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       const nextSession = await mod.signInWithInternetIdentity(
         typeof window !== "undefined" ? `${location.pathname}${location.search}${location.hash}` : undefined,
       );
-      localStorage.setItem("ignite_icp_internet_identity_session", JSON.stringify(nextSession));
-      setSession(nextSession);
+      await adoptVerifiedIcpSession(nextSession);
       return { error: null };
     } catch (error) {
       return { error: error instanceof Error ? error : new Error("Internet Identity sign-in failed.") };
