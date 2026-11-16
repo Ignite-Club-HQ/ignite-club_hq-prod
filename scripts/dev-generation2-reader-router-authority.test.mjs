@@ -30,6 +30,12 @@ test('changes to authority configuration or either revision are rejected',()=>{
   // release refuses it outright. Configuration revision drift invalidates it.
   assert.throws(()=>readerRouterAuthorityFingerprint({...fixture(),revision:12n},authority));
   assert.notEqual(readerRouterAuthorityFingerprint({...fixture(),configurationRevision:12n},authority),baseline);
+  // Live DEV evidence from successful membership-lookup read-only run
+  // #43772399289 shows configurationRevision: "0", registry revision: 11.
+  // A valid zero must still be bound into the fingerprint.
+  const zero=readerRouterAuthorityFingerprint({...fixture(),configurationRevision:0n},authority);
+  assert.equal(typeof zero,'string');
+  assert.notEqual(zero,baseline);
   assert.notEqual(readerRouterAuthorityFingerprint(fixture(),authority.replace('yfwyv-','foreign-')),baseline);
   assert.notEqual(readerRouterAuthorityFingerprint(fixture(),authority.replace('"accepting":true','"accepting":false')),baseline);
 });
@@ -38,7 +44,7 @@ test('missing or ambiguous authority evidence is refused, never normalised into 
   for(const bad of [
     {...fixture(),revision:10n},
     {...fixture(),configurationRevision:undefined},
-    {...fixture(),configurationRevision:0n},
+    {...fixture(),configurationRevision:-1n},
     {...fixture(),groups:[]},
     {...fixture(),placements:[]},
     {...fixture(),groups:[fixture().groups[0],fixture().groups[0]]},
