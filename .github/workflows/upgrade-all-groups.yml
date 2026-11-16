@@ -72,7 +72,7 @@ jobs:
           node scripts/ensure-frontend-deps.mjs
           icp canister install --help | grep -q -- --wasm-memory-persistence
       - name: Test inventory and interrupted-release safeguards
-        run: node --test scripts/all-group-upgrade-policy.test.mjs scripts/private-name-cleanup-release-policy.test.mjs scripts/secure-name-release-policy.test.mjs scripts/all-group-wiring-policy.test.mjs scripts/all-group-publication.test.mjs scripts/group2-journal.test.mjs scripts/group2-upgrade-rules.test.mjs scripts/subscription-upgrade-policy.test.mjs scripts/placement-upgrade-evidence.test.mjs
+        run: node --test scripts/all-group-upgrade-policy.test.mjs scripts/dev-name-copy-reader-upgrade-contract.test.mjs scripts/private-name-cleanup-release-policy.test.mjs scripts/secure-name-release-policy.test.mjs scripts/all-group-wiring-policy.test.mjs scripts/all-group-publication.test.mjs scripts/group2-journal.test.mjs scripts/group2-upgrade-rules.test.mjs scripts/subscription-upgrade-policy.test.mjs scripts/placement-upgrade-evidence.test.mjs
       - name: Verify encrypted-name audit is read-only and never enables key release
         if: inputs.scope == 'dev_club_name_coverage_reader'
         run: node --test scripts/dev-club-name-coverage-policy.test.mjs scripts/dev-club-name-coverage-contract.test.mjs
