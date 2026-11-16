@@ -784,6 +784,11 @@ export default function TeamDetailPage() {
       });
     },
     enabled: !!id && !useIcpLab && (!isIcpAccount || !!team?.club_id),
+    // The ICP player-ID read is already bounded. Avoid React Query silently
+    // repeating a failed 30-second request several times; explicit Retry players
+    // owns the next attempt and now shows its progress and outcome.
+    // Leave the existing email/Supabase retry behaviour unchanged.
+    retry: isIcpAccount ? 0 : 3,
     // Keep identity- and club-scoped keys, but always revalidate live
     // membership on mount so a revoked role is never trusted as fresh.
     staleTime: 0,
