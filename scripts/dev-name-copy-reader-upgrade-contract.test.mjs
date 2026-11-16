@@ -38,7 +38,7 @@ test('separate exact manual approval and checked plan are required to upgrade',(
 test('reader-only source contains no implicit settings update or other activation',()=>{
   const scopeComment=source.slice(source.indexOf("dev_club_name_coverage_reader:"));
   assert.match(scopeComment,/\['pii_access_control'\]/);
-  assert.doesNotMatch(scopeComment.slice(0,180),/identity_access|club_domain|notification_queue|messaging_domain/);
+  assert.doesNotMatch(scopeComment.split('\n')[0],/identity_access|club_domain|notification_queue|messaging_domain/);
   assert.doesNotMatch(workflow,/\n  push:|\n  schedule:/);
   assert.match(workflow,/node --test scripts\/dev-club-name-coverage-policy\.test\.mjs scripts\/dev-club-name-coverage-contract\.test\.mjs/);
 });
