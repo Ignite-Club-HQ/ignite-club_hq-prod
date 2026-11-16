@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Principal } from "@icp-sdk/core/principal";
 import type { FeatureBackendContext } from "./featureRouter";
 
@@ -276,6 +276,50 @@ describe("authorized name display", () => {
   });
 });
 
+
+
+afterEach(() => vi.unstubAllEnvs());
+describe('DEV shared-club-key adult names - no individual-key fallback', () => {
+  const g2Club = 'yfwyv-nyaaa-aaaal-qxpyq-cai';
+  const makeCtx = () => ({ ...ctx, target: { ...ctx.target, canisterIds: {
+    ...ctx.target.canisterIds,
+    identity_access: 'mq2sj-fiaaa-aaaal-qxlqa-cai', club_domain: g2Club,
+  } } } as FeatureBackendContext);
+  const clubScope = {kind: 'club' as const,
+    authority: Principal.fromText(g2Club), resource: 'dev-club', profile_revision: 0n};
+  it('decrypts the club ciphertext with one shared club key and no personal key derivations', async () => {
+    vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','1');
+    const row = {pii_id: subject, field_id:'display_name', master_key_id:'vetkey-club-names-v1:dev-club',ciphertext:[9,8]};
+    mocks.scopedRead.mockResolvedValue({Ok:[row]});
+    mocks.clubKey.mockResolvedValue('one-club-key');
+    const result=await hydratePrivateProfileNames(makeCtx(),[{display_name:reference}],{audience:clubScope});
+    expect(result[0].display_name).toBe('Paul Cranwell');
+    expect(mocks.clubKey).toHaveBeenCalledOnce();
+    expect(mocks.keys).not.toHaveBeenCalled();
+    expect(mocks.scopedRead).toHaveBeenCalledTimes(2); // closing current-membership/ciphertext check
+    expect(mocks.decrypt).toHaveBeenCalledWith('one-club-key');
+  });
+  it('refuses a missing club copy without calling person-specific paid vetKD', async () => {
+    vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','1');
+    mocks.scopedRead.mockResolvedValue({Ok:[{
+      pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
+    }]});
+    await expect(hydratePrivateProfileNames(makeCtx(),[{display_name:reference}],
+      {audience:clubScope})).rejects.toThrow('Club-encrypted name copy missing');
+    expect(mocks.keys).not.toHaveBeenCalled();
+    expect(mocks.clubKey).not.toHaveBeenCalled();
+    expect(mocks.decrypt).not.toHaveBeenCalled();
+  });
+  it('keeps the old club reader outside this separately pinned DEV cutover', async () => {
+    vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','0');
+    mocks.scopedRead.mockResolvedValue({Ok:[{
+      pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
+    }]});
+    await hydratePrivateProfileNames(makeCtx(),[{display_name:reference}],{audience:clubScope});
+    expect(mocks.keys).toHaveBeenCalledOnce();
+    expect(mocks.clubKey).not.toHaveBeenCalled();
+  });
+});
 
 describe("original-authority display rehearsal", () => {
   const foreignAuthority = "ryjl3-tyaaa-aaaaa-aaaba-cai";
