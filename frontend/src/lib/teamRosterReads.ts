@@ -43,8 +43,16 @@ export function teamRoleRows(grants: readonly { account_id: string; role: string
   });
 }
 /** Error classifications contain no child IDs, profile data or raw canister replies. */
-export function teamRosterReadFailureCode(error: unknown): 'SESSION' | 'PERMISSION' | 'TIMEOUT' | 'TRANSPORT' | 'ROUTING' | 'OTHER' {
+export function teamRosterReadFailureCode(error: unknown): 'SESSION' | 'PERMISSION' | 'TIMEOUT' | 'TRANSPORT' | 'ROUTING' | 'OTHER' | 'ROUTE_OPEN_TIMEOUT' | 'ROUTE_CLOSE_TIMEOUT' | 'CIPHERTEXT_TIMEOUT' | 'VETKEY_TIMEOUT' | 'ROSTER_TIMEOUT' | 'DECRYPT_TIMEOUT' {
   const message = error instanceof Error ? error.message : String(error ?? '');
+  // Only locally authored, non-sensitive DEV team-name stage errors receive
+  // precise labels; never echo arbitrary backend exception text or IDs.
+  if (message === 'Private team-name route opening timed out.') return 'ROUTE_OPEN_TIMEOUT';
+  if (message === 'Private team-name route closing timed out.') return 'ROUTE_CLOSE_TIMEOUT';
+  if (message === 'Private team-name ciphertext timed out.') return 'CIPHERTEXT_TIMEOUT';
+  if (message === 'Private team-name vetkey timed out.') return 'VETKEY_TIMEOUT';
+  if (message === 'Private team-name decrypt timed out.' || message === 'Private team-name confirm timed out.') return 'DECRYPT_TIMEOUT';
+  if (message === 'The member names took too long to load. Please try again.') return 'ROSTER_TIMEOUT';
   if (/session|identity.*(?:expired|changed|required)|sign.?in|unauthenticated|delegation/i.test(message)) return 'SESSION';
   if (/forbidden|permission|unauthori[sz]ed|membership required|not allowed|access denied/i.test(message)) return 'PERMISSION';
   if (/timed out|timeout|deadline|took too long/i.test(message)) return 'TIMEOUT';
