@@ -481,16 +481,21 @@ const ownClubNameBackfills = new Set<string>();
 /** Best-effort, once per session per account: copy the caller's own unlocked
  * name to every club they belong to. Never blocks or throws. */
 function scheduleOwnClubNameBackfill(ctx: FeatureBackendContext, caller: string, name: string): void {
-  if (!privateClubNameDisplaysEnabled() || ownClubNameBackfills.has(caller)) return;
-  ownClubNameBackfills.add(caller);
+  if (!privateClubNameDisplaysEnabled() &&
+      !(import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1' && ctx.target.provider === 'icp')) return;
+  // In-flight rather than permanent account suppression: a later sign-in may
+  // include a newly joined club. Source-qualified identity prevents Group 1
+  // and Group 2 sessions from suppressing one another.
+  const slot = `${ctx.target.host}|${ctx.target.canisterIds.pii_access_control}|${caller}`;
+  if (ownClubNameBackfills.has(slot)) return;
+  ownClubNameBackfills.add(slot);
   setTimeout(() => {
     void refreshPrivateOwnClubNames(ctx, name, async () => {
       const { getLiveMyRoleGrants } = await import('./features/membership');
       const grants = await getLiveMyRoleGrants(ctx);
       return grants.flatMap(grant => grant.club ?? []);
     }).catch(error => {
-      ownClubNameBackfills.delete(caller);
       console.warn('[profile] club name backfill skipped', error);
-    });
+    }).finally(() => ownClubNameBackfills.delete(slot));
   }, 3000);
 }
