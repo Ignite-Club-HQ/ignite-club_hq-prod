@@ -147,7 +147,7 @@ export function validateJournal(journal, binding) {
     const s=journal.steps.find(s=>s.canisterId===t.canisterId);
     if (!s || ['name','groupId','subnetId','newHash'].some(k=>s[k]!==t[k]) || !/^[a-f0-9]{64}$/.test(s.oldHash ?? '') || !/^[a-f0-9]{64}$/.test(s.settingsHash ?? '') || !['ready','pending','complete'].includes(s.phase)) throw Error('Invalid all-group journal step');
   }
-  if(['private_name_cleanup','secure_name_save','private_club_name_display'].includes(binding.scope)) {
+  if(['private_name_cleanup','secure_name_save','private_club_name_display','shared_club_name_enforcement'].includes(binding.scope)) {
     const plan=binding.cleanupPlan,rows=journal.cleanupActivation;
     if(!Array.isArray(plan)||plan.length!==binding.targets.length||new Set(plan.map(s=>s.canisterId)).size!==plan.length||plan.some(p=>!binding.targets.some(t=>['canisterId','name','groupId','subnetId','newHash'].every(k=>t[k]===p[k]))||!['oldSettingsHash','newSettingsHash'].every(k=>/^[a-f0-9]{64}$/.test(p[k]??''))))throw Error('Invalid checked cleanup activation plan');
     if(rows!==undefined && (!Array.isArray(rows)||rows.length!==plan.length||plan.some(p=>rows.filter(s=>Object.keys(p).every(k=>s[k]===p[k])&&['ready','pending','complete'].includes(s.phase)).length!==1)))throw Error('Foreign cleanup activation journal');
