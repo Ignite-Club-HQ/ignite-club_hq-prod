@@ -12,6 +12,9 @@ pub const RELEASE_SWITCH:&str="IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE";
 /// Separately approved, default-OFF extension from DEV team-only readers to
 /// shared per-club encrypted name copies. Not a general profile or PII grant.
 pub const SHARED_CLUB_NAMES_SWITCH:&str="IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE";
+/// Initial release is one disposable, owner-inventoried DEV club, never all
+/// Group 2 clubs whose name-copy inventory has not been established.
+pub const SHARED_CLUB_PILOT_ID:&str="177f8c01-3617-402a-aedd-5c5c17ccfde1";
 pub const APPROVED_KEY_SHA256:&str="IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256";
 /// Owner-verified original PII public-key SHA-256 from DEV authority checks
 /// 43785400907 and 43787337237 (16 November 2026). No historical claim.
@@ -47,7 +50,7 @@ pub fn require_exact_origin(
     let group2_pii=pinned("zt5a6-yiaaa-aaaal-qxp5q-cai")?;
     let router_id=pinned("jcdfe-vqaaa-aaaal-qxloq-cai")?;
     if !approved_release || self_id!=identity || pii_caller!=original_pii ||
-        !(scope.kind=="team" || (scope.kind=="club" && approved_shared_club_names)) ||
+        !(scope.kind=="team" || (scope.kind=="club" && approved_shared_club_names && scope.resource==SHARED_CLUB_PILOT_ID)) ||
         scope.authority!=group2_club ||
         !service_allowlist.contains(&pii_caller) {
         return Err("Exact DEV original PII, release, service and team audience required".into());
@@ -152,7 +155,7 @@ mod tests{
     #[test]fn optional_shared_club_name_scope_is_pinned_and_default_off() {
         let caller=p("iui5p-aaaaa-aaaal-qxllq-cai");
         let key=VERIFIED_DEV_PUBLIC_KEY_SHA256.to_string();
-        let mut scope=scope(); scope.kind="club".into(); scope.resource="g2-test-club".into();
+        let mut scope=scope(); scope.kind="club".into(); scope.resource=SHARED_CLUB_PILOT_ID.into();
         assert!(require_exact_origin(p("mq2sj-fiaaa-aaaal-qxlqa-cai"),caller,
             &scope,&config(),&router(),&[caller],true,false,Some(&key)).is_err());
         assert!(require_exact_origin(p("mq2sj-fiaaa-aaaal-qxlqa-cai"),caller,
