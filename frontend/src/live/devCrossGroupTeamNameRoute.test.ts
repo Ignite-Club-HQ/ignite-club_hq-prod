@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Principal } from '@icp-sdk/core/principal';
 import { GROUP_DOMAINS } from './groupRouting';
 import type { FeatureBackendContext } from './featureRouter';
 import type { AccountRegistrySnapshot } from './accountAuthorityRegistry';
-import { createDevCrossGroupTeamNameResolver } from './devCrossGroupTeamNameRoute';
+import { createDevCrossGroupTeamNameResolver, devG2SharedClubNamesEnabled } from './devCrossGroupTeamNameRoute';
 
 const DEV = {
   identity: 'mq2sj-fiaaa-aaaal-qxlqa-cai',
@@ -39,6 +39,25 @@ function setup() {
   const read = vi.fn(async () => snapshot);
   return {ctx,snapshot,read,resolver:createDevCrossGroupTeamNameResolver(ctx,read)};
 }
+afterEach(() => vi.unstubAllEnvs());
+describe('default-off DEV shared-club-name cutover', () => {
+  it('requires both frontend operator opt-in and every exact existing DEV target pin', () => {
+    const f=setup();
+    expect(devG2SharedClubNamesEnabled(f.ctx.target)).toBe(false);
+    vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','1');
+    expect(devG2SharedClubNamesEnabled(f.ctx.target)).toBe(true);
+    for (const update of [
+      {provider:'supabase'}, {host:'https://unexpected.invalid'},
+      {networkKind:'cloud_engine'}, {status:'disabled'},
+      {canisterIds:{...f.ctx.target.canisterIds,identity_access:DEV.originalPii}},
+      {canisterIds:{...f.ctx.target.canisterIds,pii_access_control:DEV.originalPii}},
+      {canisterIds:{...f.ctx.target.canisterIds,club_domain:DEV.originalClub}},
+      {canisterIds:{...f.ctx.target.canisterIds,shard_router:p(80).toText()}},
+    ]) {
+      expect(devG2SharedClubNamesEnabled({...f.ctx.target,...update})).toBe(false);
+    }
+  });
+});
 describe('DEV original G1 encrypted teammate names - authoritative cross-group route',()=>{
   it('routes the true G1 PII for any authorised team without guessing from a profile reference',async()=>{
     const f=setup();
