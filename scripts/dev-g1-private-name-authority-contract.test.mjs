@@ -58,12 +58,12 @@ test('Shared DEV G2 club name scope never derives personal display-name keys',()
   const keyEnd=pii.indexOf('// ==================== Rehearsal-only club adult-name replicas',keyStart);
   assert.ok(keyStart>0 && keyEnd>keyStart,'individual-key method remains identifiable');
   const individual=pii.slice(keyStart,keyEnd);
-  const denied=individual.indexOf('if (devG2SharedClubNames and devG2SharedClubScope(scope))');
+  const denied=individual.indexOf('scope.kind == "club" and sharedClubNameEnforcement');
   const derive=individual.indexOf('ManagementCanister.vetKdDeriveKey(');
   assert.ok(denied>=0 && derive>denied,'club audience denied before personal key derivation');
   assert.ok(individual.includes('return #Err("Shared club name audience requires club-key relay")'));
   const names=pii.slice(pii.indexOf('func get_private_profile_names_batch('),keyStart);
-  assert.ok(names.includes('if (devG2SharedClubNames and devG2SharedClubScope(scope))'));
+  assert.ok(names.includes('sharedClubNameEnforcement or (devG2SharedClubNames and devG2SharedClubScope(scope))'));
   assert.ok(names.includes('let copy = replica ?? return #Err("Club-encrypted name copy missing")'));
   assert.ok(names.includes('copy.master_key_id != clubNameScheme(scope.resource)'));
   const shared=pii.slice(pii.indexOf('func get_private_profile_club_name_vetkey('),pii.indexOf('// ==================== Per-club photo key'));
