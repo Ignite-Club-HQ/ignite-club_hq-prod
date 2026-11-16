@@ -286,12 +286,12 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
   const makeCtx = () => ({ ...ctx, target: { ...ctx.target, canisterIds: {
     ...ctx.target.canisterIds,
     identity_access: 'mq2sj-fiaaa-aaaal-qxlqa-cai', club_domain: g2Club,
-    pii_access_control: g1Original,
+    pii_access_control: g1Original, provider: 'icp' as const,
   } } } as FeatureBackendContext);
   const clubScope = {kind: 'club' as const,
     authority: Principal.fromText(g2Club), resource: '177f8c01-3617-402a-aedd-5c5c17ccfde1', profile_revision: 0n};
   it('decrypts the club ciphertext with one shared club key and no personal key derivations', async () => {
-    vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','1');
+    vi.stubEnv('IGNITE_LIVE_SHARED_CLUB_NAMES','1');
     const row = {pii_id: subject, field_id:'display_name', master_key_id:'vetkey-club-names-v1:177f8c01-3617-402a-aedd-5c5c17ccfde1',ciphertext:[9,8]};
     mocks.scopedRead.mockResolvedValue({Ok:[row]});
     mocks.clubKey.mockResolvedValue('one-club-key');
@@ -303,7 +303,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
     expect(mocks.decrypt).toHaveBeenCalledWith('one-club-key');
   });
   it('refuses a missing club copy without calling person-specific paid vetKD', async () => {
-    vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','1');
+    vi.stubEnv('IGNITE_LIVE_SHARED_CLUB_NAMES','1');
     mocks.scopedRead.mockResolvedValue({Ok:[{
       pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
     }]});
@@ -316,7 +316,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
   it('allows the pinned cross-group DEV pilot a 25s ciphertext deadline, not the unrelated club 6s limit', async () => {
     vi.useFakeTimers();
     try {
-      vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','1');
+      vi.stubEnv('IGNITE_LIVE_SHARED_CLUB_NAMES','1');
       mocks.scopedRead.mockImplementation(() => new Promise(() => {}));
       const pending=hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],{audience:clubScope});
       const rejection=expect(pending).rejects.toThrow('Private team-name ciphertext timed out.');
@@ -330,8 +330,28 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
       expect(mocks.keys).not.toHaveBeenCalled();
     } finally { vi.useRealTimers(); }
   });
+  it('refuses original individual ciphertext for a second independent club', async () => {
+    vi.stubEnv('IGNITE_LIVE_SHARED_CLUB_NAMES','1');
+    const alternate={...clubScope,resource:'another-club'};
+    mocks.scopedRead.mockResolvedValue({Ok:[{
+      pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
+    }]});
+    await expect(hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],
+      {audience:alternate})).rejects.toThrow('Club-encrypted name copy missing');
+    expect(mocks.keys).not.toHaveBeenCalled();
+  });
+  it('refuses a team-individual key fallback under universal club-key enforcement', async () => {
+    vi.stubEnv('IGNITE_LIVE_SHARED_CLUB_NAMES','1');
+    mocks.scopedRead.mockResolvedValue({Ok:[{
+      pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
+    }]});
+    await expect(hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],
+      {audience:{...clubScope,kind:'team',resource:'team-from-club'}}))
+      .rejects.toThrow('owning club key');
+    expect(mocks.keys).not.toHaveBeenCalled();
+  });
   it('keeps the old club reader outside this separately pinned DEV cutover', async () => {
-    vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','0');
+    vi.stubEnv('IGNITE_LIVE_SHARED_CLUB_NAMES','0');
     mocks.scopedRead.mockResolvedValue({Ok:[{
       pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
     }]});
