@@ -58,6 +58,7 @@ mod membership_acceptance;
 mod admin_accounts;
 mod guardian_search;
 mod private_name_audience;
+mod legacy_g1_private_name;
 mod private_name_conversion;
 mod private_name_account_inventory;
 mod private_name_cleanup;
@@ -2310,9 +2311,34 @@ async fn read_guardian_profile_candidates(authority: Principal, child: String, c
     Ok(GuardianProfilePage{revision,rows,scanned,next})
 }
 
-/// Service-delegated name permission only. Registry placement authenticates
-/// both the ORIGINAL PII caller and owning audience service; location alone
-/// never admits a human. References must name this precise original PII caller.
+/// Service-delegated name permission only. The modern registry authenticates
+/// registered PII callers. The original DEV G1 PII is an explicit, gated
+/// Identity-directory legacy source; its key and service origin must be
+/// independently checked, NEVER inferred from a browser-supplied reference.
+/// Even a verified source never authorises a human without team membership.
+fn dev_g1_team_name_release_enabled() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    { ic_cdk::api::env_var_name_exists(legacy_g1_private_name::RELEASE_SWITCH)
+        && ic_cdk::api::env_var_value(legacy_g1_private_name::RELEASE_SWITCH) == "1" }
+    #[cfg(not(target_arch = "wasm32"))]
+    { false }
+}
+fn dev_g1_historical_key_sha256() -> Option<String> {
+    #[cfg(target_arch = "wasm32")]
+    { if ic_cdk::api::env_var_name_exists(legacy_g1_private_name::APPROVED_KEY_SHA256) {
+        Some(ic_cdk::api::env_var_value(legacy_g1_private_name::APPROVED_KEY_SHA256))
+    } else { None } }
+    #[cfg(not(target_arch = "wasm32"))]
+    { None }
+}
+async fn verify_dev_g1_public_key(service: Principal, historical_sha256: &str) -> Outcome<()> {
+    // Only public verification-key bytes are requested; no ciphertext,
+    // plaintext profile, derived vetKey, owner change or PII grant.
+    let reply = ic_cdk::call::Call::bounded_wait(service, "pii_vetkey_verification_key")
+        .with_args(&()).await.map_err(|_| "Original G1 public key unavailable")?;
+    let public_key: Vec<u8> = reply.candid().map_err(|_| "Invalid original G1 public-key reply")?;
+    legacy_g1_private_name::verify_current_public_key(&public_key, historical_sha256)
+}
 #[ic_cdk::update]
 async fn read_private_profile_name_authorization(viewer_principal: Principal, subjects: Vec<Principal>, scope: private_name_audience::Scope) -> Outcome<Vec<ProfileSearchResult>> {
     if option_env!("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != Some("1") &&
@@ -2337,9 +2363,26 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
     active()?;
     let registry_clubs = inventory.groups.iter().flat_map(|g| g.domains.iter().filter(|d| d.domain == "club_domain").map(|d| d.canister)).collect::<Vec<_>>();
     group_inventory::validate(&inventory, &config.binding, &registry_clubs, &[])?;
-    if !inventory.groups.iter().any(|g| g.domains.iter().any(|d| d.domain == "pii_access_control" && d.canister == service)) {
-        return Err("Original private-name service is not registered".into());
-    }
+    let modern_pii_registered = inventory.groups.iter().any(|g|
+        g.domains.iter().any(|d| d.domain == "pii_access_control" && d.canister == service));
+    // This fallback is deliberately unavailable until an operator has
+    // separately approved independently archived historical G1 key evidence,
+    // a pinned original PII verifier/allowlist, and an explicit DEV release.
+    // Unregistered service callers get no general club/family/PII audience.
+    let legacy_key_digest = if modern_pii_registered { None } else {
+        let release = dev_g1_team_name_release_enabled();
+        let approved_key = dev_g1_historical_key_sha256();
+        let digest = legacy_g1_private_name::require_exact_origin(
+            ic_cdk::api::canister_self(), service, &scope, &config, &inventory,
+            &service_authorities(), release, approved_key.as_deref())?;
+        verify_dev_g1_public_key(service, &digest).await?;
+        active()?;
+        if !dev_g1_team_name_release_enabled()
+            || dev_g1_historical_key_sha256().as_deref()!=Some(digest.as_str()) {
+            return Err("Original DEV PII release evidence changed".into());
+        }
+        Some(digest)
+    };
     let domain = match scope.kind.as_str() { "competition" => "competition_domain", "league" => "mini_league_domain", "direct" | "broadcast" | "competition_admin" => "messaging_domain", _ => "club_domain" };
     if !inventory.groups.iter().any(|g| g.domains.iter().any(|d| d.domain == domain && d.canister == scope.authority)) {
         return Err("Private-name audience authority is not registered".into());
@@ -2372,6 +2415,16 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
             club_profiles::verify_batch(&batch, viewer_principal, &scope.resource, &subjects, expected.as_ref())?;
             if batch.members.iter().any(|member| !member) || retained.as_ref().is_some_and(|prior| prior != &batch) { return Err("Private-name relationship denied or changed".into()); }
             retained = Some(batch);
+        }
+    }
+    // The original G1 public key and explicit approval cannot drift across
+    // the two *team-only* relationship checks. No private key is derived here.
+    if let Some(historical_sha256) = legacy_key_digest.as_deref() {
+        verify_dev_g1_public_key(service, historical_sha256).await?;
+        active()?;
+        if !dev_g1_team_name_release_enabled()
+            || dev_g1_historical_key_sha256().as_deref()!=Some(historical_sha256) {
+            return Err("Original DEV PII key approval changed".into());
         }
     }
     // No await after these final subject/reference and caller rechecks.
