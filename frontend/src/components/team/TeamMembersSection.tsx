@@ -243,7 +243,7 @@ export function TeamMembersSection({
         <div className="space-y-4 pt-2">
           {showIcpRosterFailureCode && devEncryptedAdultNameMode && (
             <p className="text-xs text-muted-foreground" role="status">
-              DEV ICP encrypted adult-name frontend gate: {devEncryptedAdultNameMode}
+              DEV ICP generic club-name build flag: {devEncryptedAdultNameMode} (exact-team access checked by server)
             </p>
           )}
           {showIcpRosterFailureCode && isAdultNamesError && (
