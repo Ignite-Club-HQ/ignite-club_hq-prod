@@ -18,6 +18,12 @@ fn pinned(id:&str)->Result<Principal,String>{
     Principal::from_text(id).map_err(|_|"Invalid exact DEV private-name authority".into())
 }
 fn good_sha256(s:&str)->bool{s.len()==64 && s.bytes().all(|c|c.is_ascii_digit()||(b'a'..=b'f').contains(&c))}
+/// The exact original DEV service is a static, release-gated source entry.
+pub fn exact_original_dev_pii_caller(self_id:Principal, service:Principal)->bool {
+    self_id==pinned("mq2sj-fiaaa-aaaal-qxlqa-cai").unwrap()
+        && service==pinned("iui5p-aaaaa-aaaal-qxllq-cai").unwrap()
+}
+
 
 pub fn require_exact_origin(
     self_id:Principal,
@@ -157,6 +163,13 @@ mod tests{
         assert!(verify(&baseline,&snapshot,caller,&scope(),&[caller],true,Some(&key)).is_err());
         let mut snapshot=inventory;snapshot.groups[0].domains[0].canister=caller;
         assert!(verify(&baseline,&snapshot,caller,&scope(),&[caller],true,Some(&key)).is_err());
+    }
+    #[test]fn compile_time_source_pin_never_admits_a_foreign_reader(){
+        let id=p("mq2sj-fiaaa-aaaal-qxlqa-cai");
+        let original=p("iui5p-aaaaa-aaaal-qxllq-cai");
+        assert!(exact_original_dev_pii_caller(id,original));
+        assert!(!exact_original_dev_pii_caller(id,p("zt5a6-yiaaa-aaaal-qxp5q-cai")));
+        assert!(!exact_original_dev_pii_caller(original,original));
     }
     #[test]fn mismatched_malformed_or_short_key_refused_even_if_every_other_guard_passes(){
         let key=vec![3u8;96];
