@@ -79,8 +79,14 @@ test('Shared DEV G2 club name scope never derives personal display-name keys',()
   assert.ok(!identity.includes('scope.kind=="club" && approved_shared_club_names)'));
 
   const release=read('scripts/secure-name-release-policy.mjs');
-  assert.ok(!release.includes('IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE'),
-    'existing release policy cannot automatically widen club audience');
+  assert.ok(release.includes("DEV_G2_SHARED_CLUB_RELEASE = 'IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE'"));
+  assert.ok(release.includes("if (scope==='shared_club_name_enforcement')"));
+  assert.ok(release.includes("if(!exactDevOriginal)throw Error('Global shared-club-name release is DEV-only and source pinned')"));
+  assert.ok(release.includes("exact(DEV_G1_OBSERVED_KEY,VERIFIED_DEV_G1_OBSERVED_SHA256,true)"));
+  const protectedFlow=read('.github/workflows/upgrade-all-groups.yml');
+  assert.ok(protectedFlow.includes('UPGRADE DEV SHARED CLUB NAMES ONLY'));
+  assert.ok(protectedFlow.includes('group-2-admin-controls'));
+  assert.ok(protectedFlow.includes("inputs.scope == 'shared_club_name_enforcement'"));
 });
 
 test('DEV original club ciphertext fast path removes only duplicate outer read, never membership or closing key checks',()=>{
