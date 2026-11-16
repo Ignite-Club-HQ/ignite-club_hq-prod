@@ -220,6 +220,12 @@ type Main =
                                                   text;
                                                   text;
                                                 });
+   // Pinned DEV only, governor only. No names/ciphertext/keys/grants.
+   read_dev_private_club_name_replica_coverage: (subjects: vec principal,
+     club: text) -> (variant {
+       Err: text;
+       Ok: vec record { subject: principal; state: text };
+     });
    read_private_club_name_lifecycle: (subject: principal, club: text,
     expectedOriginal: opt vec nat8) ->
     (variant {
