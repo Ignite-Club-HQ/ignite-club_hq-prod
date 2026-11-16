@@ -187,27 +187,74 @@ export async function refreshPrivateOwnClubNames(
   if (originals.length !== 1 || !original || original.pii_id !== subject || original.field_id !== FIELD || original.master_key_id !== 'vetkey-ibe-v1') throw new Error('Exact original private name required.');
   const originalBytes = Uint8Array.from(original.ciphertext);
   if (!originalBytes.length || originalBytes.length > 4096) throw new Error('Bounded original private name required.');
+  // Inspect saved copies FIRST. Re-encrypting a club name is randomized:
+  // sending a new ciphertext for an already saved copy must be rejected by
+  // the receiver's create-only rule. Skipping verified, existing copies also
+  // avoids an unnecessary paid person-key derivation on returning sign-ins.
+  // These are authenticated owner-only reads, NOT a bulk roster disclosure.
+  const current = new Map<string, Uint8Array>();
+  const missing: string[] = [];
+  let cursor = 0;
+  const checkCopy = async () => {
+    while (cursor < clubs.length) {
+      const club = clubs[cursor++];
+      active();
+      const result = await unwrapCandid(
+        actor.read_private_club_name_lifecycle(identity.getPrincipal(), club, [originalBytes]),
+        'Check own encrypted club-name copy',
+      );
+      active();
+      if (result.length > 1) throw new Error('Unexpected club-name copy count.');
+      const row = result[0];
+      if (!row) {
+        missing.push(club);
+        continue;
+      }
+      const ciphertext = Uint8Array.from(row.ciphertext);
+      if (row.pii_id !== subject || row.field_id !== FIELD ||
+        row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${club}` ||
+        ciphertext.length === 0 || ciphertext.length > 4096) {
+        throw new Error('Own club-name copy binding changed.');
+      }
+      current.set(club, ciphertext);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, clubs.length) }, () => checkCopy()));
+  active();
+  // Zero new encryption, zero writes and zero fresh paid vetKD derivations
+  // when all clubs already have a correctly bound encrypted name copy.
+  if (missing.length === 0) return;
+  // The original must decrypt to the exact owner-supplied name BEFORE
+  // creating any missing copies. A saved copy is never a reason to infer
+  // plaintext or forge a personal key for someone else.
   const keys = await fetchPiiVetKeys(ctx, [subject], FIELD, { fresh: true, assertActive: active });
   active();
   const key = keys.get(subject);
   if (!key || new TextDecoder('utf-8', { fatal: true }).decode(IbeCiphertext.deserialize(Uint8Array.from(originalBytes)).decrypt(key)) !== value) throw new Error('Original private name changed.');
-  const saved: Array<{ club: string; ciphertext: Uint8Array }> = [];
-  for (const club of clubs) {
+  for (const club of missing) {
     active();
     const ciphertext = await encryptPiiText(ctx, clubNamePiiId(club), FIELD, value);
     active();
-    // One attempt only. The existing receiver is create-only and compares
-    // the original bytes in the same no-await segment as the commit.
+    // One create-only attempt per missing copy, original bytes pinned in
+    // the canister's synchronous commit. Unknown replies are NEVER replayed.
     await unwrapCandid(actor.refresh_private_club_name_lifecycle(identity.getPrincipal(), club, originalBytes, ciphertext), 'Refresh private club name');
     active();
-    saved.push({ club, ciphertext });
+    current.set(club, ciphertext);
   }
-  for (const { club, ciphertext } of saved) {
+  // Verify both pre-existing and newly written copies still match the
+  // exact expected bytes. Do not expose private names or keys in errors.
+  for (const club of clubs) {
     active();
     const result = await unwrapCandid(actor.read_private_club_name_lifecycle(identity.getPrincipal(), club, [originalBytes]), 'Verify refreshed private name');
     active();
     const row = result[0];
-    if (result.length !== 1 || !row || row.pii_id !== subject || row.field_id !== FIELD || row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${club}` || row.ciphertext.length !== ciphertext.length || ciphertext.some((b, i) => row.ciphertext[i] !== b)) throw new Error('Private name maintenance readback mismatch.');
+    const ciphertext = current.get(club);
+    if (result.length !== 1 || !row || !ciphertext || row.pii_id !== subject ||
+      row.field_id !== FIELD || row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${club}` ||
+      row.ciphertext.length !== ciphertext.length ||
+      ciphertext.some((b, i) => row.ciphertext[i] !== b)) {
+      throw new Error('Private name maintenance readback mismatch.');
+    }
   }
 }
 
