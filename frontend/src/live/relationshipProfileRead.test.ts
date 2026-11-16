@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Principal } from '@icp-sdk/core/principal';
 import type { FeatureBackendContext } from './featureRouter';
-const state = vi.hoisted(() => ({ read: vi.fn(), evidence: vi.fn(), resolver: vi.fn(), devRoute: vi.fn(), rehearsal: true, cutover:false, shared: undefined as unknown }));
+const state = vi.hoisted(() => ({ read: vi.fn(), evidence: vi.fn(), resolver: vi.fn(), devRoute: vi.fn(), rehearsal: true, cutover:false, global:false, shared: undefined as unknown }));
 vi.mock('./featureRouter', () => ({ withFeatureBackend: async (_feature: string, providers: any) => providers.icp(state.shared) }));
 vi.mock('./privateProfileSearchMode', () => ({ privateProfileSearchRehearsalEnabled: () => state.rehearsal }));
 vi.mock('./features/identityAccessClient', () => ({ listLiveProfilesByIds: state.read }));
 vi.mock('./privateProfileEvidence', () => ({ readPrivateProfileEvidence: state.evidence }));
 vi.mock('./privateProfileAuthority', () => ({ createLivePrivateProfileAuthorityResolver: () => state.resolver }));
-vi.mock('./devCrossGroupTeamNameRoute', () => ({ createDevCrossGroupTeamNameResolver: state.devRoute, devG2SharedClubNamesEnabled: () => state.cutover }));
+vi.mock('./devCrossGroupTeamNameRoute', () => ({
+  createDevCrossGroupTeamNameResolver: state.devRoute,
+  devG2SharedClubNamesEnabled: () => state.cutover,
+  sharedClubNameEnforcementEnabled: () => state.global,
+}));
 import { readRelationshipProfiles } from './relationshipProfileRead';
 import { afterEach } from 'vitest';
 afterEach(() => vi.unstubAllEnvs());
@@ -17,7 +21,7 @@ function context() {
     club_domain: 'ryjl3-tyaaa-aaaaa-aaaba-cai', competition_domain: 'r7inp-6aaaa-aaaaa-aaabq-cai', mini_league_domain: 'renrk-eyaaa-aaaaa-aaada-cai', messaging_domain: 'rkp4c-7iaaa-aaaaa-aaaca-cai',
   } } } as unknown as FeatureBackendContext;
 }
-beforeEach(() => { vi.resetAllMocks(); state.rehearsal = true; state.cutover = false; state.shared = context(); state.read.mockResolvedValue([]); state.devRoute.mockReturnValue(undefined); });
+beforeEach(() => { vi.resetAllMocks(); state.rehearsal = true; state.cutover = false; state.global=false; state.shared = context(); state.read.mockResolvedValue([]); state.devRoute.mockReturnValue(undefined); });
 describe('relationship-scoped private display reads', () => {
   it.each(['club', 'team', 'family', 'competition', 'league', 'direct', 'broadcast', 'competition_admin'] as const)('threads exact %s authority without creating grants', async kind => {
     const ctx = context();
@@ -97,6 +101,21 @@ describe('relationship-scoped private display reads', () => {
     state.cutover=false;
     await readRelationshipProfiles(owner,['member-a'],{kind:'club',resource:'my-club'});
     expect(state.read).toHaveBeenCalledWith(state.shared,['member-a']);
+  });
+  it('enforces shared club keys for every ICP club and rejects team-specific audiences', async () => {
+    state.rehearsal=false;state.global=true;state.cutover=false;
+    const owner=context();
+    for (const club of ['club-one','club-two']) {
+      state.read.mockClear();
+      await readRelationshipProfiles(owner,['member'],{kind:'club',resource:club});
+      expect(state.read.mock.calls[0][2].audience).toEqual({
+        kind:'club', resource:club,
+        authority:Principal.fromText(owner.target.canisterIds.club_domain),
+        profile_revision:0n,
+      });
+    }
+    await expect(readRelationshipProfiles(owner,['member'],{kind:'team',resource:'team-a'}))
+      .rejects.toThrow('owning club audience');
   });
   it('production club display uses exact club audience without rehearsal evidence or global search', async () => {
     state.rehearsal = false; vi.stubEnv('IGNITE_LIVE_PRIVATE_CLUB_NAME_DISPLAYS', '1');
