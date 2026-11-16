@@ -1,0 +1,28 @@
+# DEV — all-club shared display-name key release
+
+Status: **not activated**. PR #1566 is merged into main; the source now requests a club-shared encrypted name copy for every ICP club and all its teams only when `IGNITE_LIVE_SHARED_CLUB_NAMES=1`. On the PII side `IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE=1` refuses individual ciphertext on every club-name read, and `IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE=1` separately enables the pinned original Group 1 -> Group 2 source. These server flags are not automatically set by a frontend deployment. PROD and Supabase/email remain unchanged.
+
+## Approval-gated DEV frontend build
+
+The existing `[TEST] Deploy web app (frontend canister)` workflow now compiles `IGNITE_LIVE_SHARED_CLUB_NAMES` from exactly the GitHub repository variable `IGNITE_DEV_SHARED_CLUB_NAMES_RELEASE_READY`, **only** when its source ref is `refs/heads/main` and the variable's literal value is `true`. An unset variable, `false`, or a non-main source compiles **0**. Normal main push and manual builds agree, so a later push will not inadvertently undo an approved cutover.
+
+Never set that variable to true until the exact backend flags are active on the appropriate DEV PII/Identity canisters, with successful complete club-replica readback and outsider/removed-member denial. A frontend build cannot confer server-side membership permissions.
+
+## Required next step — protected read-only preflight (no canister changes)
+
+Open [Upgrade backend (all test groups)](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/workflows/upgrade-all-groups.yml), select **Run workflow**, branch `main`, action **check**, scope **private_club_name_display**; leave confirmation and checked_plan blank. This performs the existing journaled group inventory, PII key continuity and settings/wiring check. It **does not** attest how many member-name copies each club contains, and must not be interpreted as permission to enable the new flag.
+
+Use the separate [DEV original Group 1 PII authority audit](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/workflows/dev-g1-private-name-authority-audit.yml) with action `check`, confirmation `AUDIT DEV ORIGINAL G1 PII AUTHORITY READ ONLY`, if the G1 source pin needs renewed independent attestation.
+
+## Before any activation
+
+1. Protected membership inventory of all active DEV clubs, team-member subject aliases and each subject's original PII authority. No browser-provided or guessed source, no raw plaintext/name/key export.
+2. Owner-authorised encrypted club-name replica coverage for each `(source PII, subject, clubId)`. A copy is valid only when its owner and `vetkey-club-names-v1:<clubId>` scheme match. The one known Test3 copy is present on original G1 PII for club `177f8c01-3617-402a-aedd-5c5c17ccfde1`; Test's copy and all other clubs are **unverified**.
+3. Prepare missing copies only through the existing owner-authorised, original-ciphertext-fenced workflow; no public club roster dumps, plaintext exposure, or guessed re-encryption. A personal `vetkey-ibe-v1` ciphertext is NOT a club-encrypted copy. Where the same club spans multiple PII canisters, each source uses its own reusable shared club key.
+4. The protected all-group upgrade plan must deliberately install the new PII/Identity modules, preserve `VETKD_KEY_NAME=key_1`, controllers/memory/settings, journal pre-/post-hashes, then enable **both** the global and G1->G2 release switches for their intended exact canisters. The current generic `private_club_name_display` scope alone does **not** turn on the new global flags.
+5. Confirm Test can see Test3, all existing child names remain unchanged, all teams in two distinct clubs inherit their respective club keys, and an outsider/revoked member cannot read ciphertext or obtain a club key. Collect cycle and latency comparison; shared vetKeys do not by themselves remove the historical `CIPHERTEXT_TIMEOUT`.
+6. Only then set repository variable `IGNITE_DEV_SHARED_CLUB_NAMES_RELEASE_READY=true` and run the existing DEV frontend deployment. Roll back frontend by setting the variable back to `false` and redeploying DEV if acceptance fails. Backend changes require their own protected restore procedure.
+
+## Execution status
+
+No installed release runner currently supplies a complete all-club encrypted replica coverage attestation or activates these two **new** backend release switches. Running the generic upgrade now could break name access or leave the new policy inactive. Do not equate a green compile, a green upgrade, or PR #1566 merge with completed live all-club encryption enforcement. This document deliberately captures the fail-closed release boundary.
