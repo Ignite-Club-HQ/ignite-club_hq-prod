@@ -775,6 +775,13 @@ persistent actor class Main(governorInit : Principal) = this {
   };
   public shared ({ caller }) func get_private_profile_name_vetkeys_batch(ids : [Text], scope : PrivateNameScope, transport : Blob) : async { #Ok : [?Blob]; #Err : Text } {
     let releaseEpoch = private_name_release_epoch;
+    // A club's shared-name release must NEVER expose individually derived
+    // display-name keys to every club member. Only the separate, one-key-per-
+    // club relay may issue a key for this exact, opt-in DEV audience.
+    // Personal-key reads for other existing restricted audiences are unchanged.
+    if (devG2SharedClubNames and devG2SharedClubScope(scope)) {
+      return #Err("Shared club name audience requires club-key relay");
+    };
     if (not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name release fenced or not configured");
     if (not removalReceiver.enter(caller)) return #Err("Account removal fenced");
     try {
