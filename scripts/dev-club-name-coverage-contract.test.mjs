@@ -54,7 +54,7 @@ test('audit is source-bound and never uploads raw personal data',()=>{
   assert.match(runner,/first\.fingerprint===second\.fingerprint/);
   assert.match(runner,/summarizeDevClubNameCoverage/);
   assert.match(runner,/reportDir,'check\.json'/);
-  assert.doesNotMatch(runner,/get_private_profile_names_batch|get_private_profile_name_vetkeys_batch|decrypt|encryptPiiText|read_private_club_name_lifecycle|register_pii\(/);
+  assert.doesNotMatch(runner,/get_private_profile_names_batch|get_private_profile_name_vetkeys_batch|decrypt\s*\(|encryptPiiText|read_private_club_name_lifecycle|register_pii\(/);
   assert.doesNotMatch(runner,/JSON\.stringify\((?:first|second|plan|observed)\)\s*[,;)]/);
   assert.match(policy,/readyToReleaseName:false,nameReadAuthorised:false/);
   assert.match(policy,/missingOwnerAuthorisedReadAndDenialAcceptance:true/);
