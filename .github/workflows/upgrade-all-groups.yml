@@ -13,13 +13,13 @@ on:
         type: choice
         required: true
         default: full_backend
-        options: [full_backend, dev_identity_directory, club_migration, private_name_cleanup, secure_name_save, private_club_name_display, shared_club_name_enforcement, app_admin, team_invites, messaging, plugin_member_access, rsvp_integrity, guardian_rsvp_authority, browser_push_test, competition, history, subscriptions, events_pitch, gallery_vault]
+        options: [full_backend, dev_identity_directory, club_migration, private_name_cleanup, secure_name_save, private_club_name_display, shared_club_name_enforcement, dev_club_name_coverage_reader, app_admin, team_invites, messaging, plugin_member_access, rsvp_integrity, guardian_rsvp_authority, browser_push_test, competition, history, subscriptions, events_pitch, gallery_vault]
       checked_plan:
         description: "CHECKED PLAN HASH (64 letters/numbers) - required for recover; optional for upgrade"
         required: false
         default: ''
       confirmation:
-        description: "CONFIRMATION WORDS - UPGRADE DEV MEMBER ACCESS for plugin_member_access; UPGRADE DEV RSVP ONLY for rsvp_integrity; UPGRADE DEV GUARDIAN RSVP for guardian_rsvp_authority; UPGRADE DEV IDENTITY DIRECTORY ONLY for dev_identity_directory; UPGRADE DEV SHARED CLUB NAMES ONLY for shared_club_name_enforcement; otherwise UPGRADE ALL MAINNET GROUPS (upgrade) or RECOVER COMPLETED MAINNET RELEASE (recover); empty for check"
+        description: "CONFIRMATION WORDS - UPGRADE DEV MEMBER ACCESS for plugin_member_access; UPGRADE DEV RSVP ONLY for rsvp_integrity; UPGRADE DEV GUARDIAN RSVP for guardian_rsvp_authority; UPGRADE DEV IDENTITY DIRECTORY ONLY for dev_identity_directory; UPGRADE DEV SHARED CLUB NAMES ONLY for shared_club_name_enforcement; UPGRADE DEV NAME COVERAGE READER ONLY for dev_club_name_coverage_reader; otherwise UPGRADE ALL MAINNET GROUPS (upgrade) or RECOVER COMPLETED MAINNET RELEASE (recover); empty for check"
         required: false
         default: ''
 permissions:
@@ -54,16 +54,16 @@ jobs:
         run: |
           node --input-type=module <<'JS'
           import {validateRequest,normalizeConfirmation,normalizePlan} from './scripts/all-group-upgrade-policy.mjs';
-          if(process.env.ACTION==='upgrade'&&['full_backend','dev_identity_directory','club_migration','private_name_cleanup','secure_name_save','private_club_name_display','shared_club_name_enforcement','plugin_member_access','rsvp_integrity','guardian_rsvp_authority'].includes(process.env.SCOPE)&&!normalizePlan(process.env.CHECKED_PLAN)){
+          if(process.env.ACTION==='upgrade'&&['full_backend','dev_identity_directory','club_migration','private_name_cleanup','secure_name_save','private_club_name_display','shared_club_name_enforcement','dev_club_name_coverage_reader','plugin_member_access','rsvp_integrity','guardian_rsvp_authority'].includes(process.env.SCOPE)&&!normalizePlan(process.env.CHECKED_PLAN)){
             const typed=normalizeConfirmation(process.env.CONFIRMATION);
             if(typed.startsWith('RECOVER'))throw Error('Action dropdown is still "upgrade". Change Action to "recover" and paste the original checked plan hash into Checked plan');
-            const needed=process.env.SCOPE==='dev_identity_directory'?'UPGRADE DEV IDENTITY DIRECTORY ONLY':process.env.SCOPE==='plugin_member_access'?'UPGRADE DEV MEMBER ACCESS':process.env.SCOPE==='rsvp_integrity'?'UPGRADE DEV RSVP ONLY':process.env.SCOPE==='guardian_rsvp_authority'?'UPGRADE DEV GUARDIAN RSVP':process.env.SCOPE==='shared_club_name_enforcement'?'UPGRADE DEV SHARED CLUB NAMES ONLY':'UPGRADE ALL MAINNET GROUPS';
+            const needed=process.env.SCOPE==='dev_identity_directory'?'UPGRADE DEV IDENTITY DIRECTORY ONLY':process.env.SCOPE==='plugin_member_access'?'UPGRADE DEV MEMBER ACCESS':process.env.SCOPE==='rsvp_integrity'?'UPGRADE DEV RSVP ONLY':process.env.SCOPE==='guardian_rsvp_authority'?'UPGRADE DEV GUARDIAN RSVP':process.env.SCOPE==='shared_club_name_enforcement'?'UPGRADE DEV SHARED CLUB NAMES ONLY':process.env.SCOPE==='dev_club_name_coverage_reader'?'UPGRADE DEV NAME COVERAGE READER ONLY':'UPGRADE ALL MAINNET GROUPS';
             if(typed!==needed)throw Error('Type '+needed);
             validateRequest('check',process.env.SCOPE);
           }else validateRequest(process.env.ACTION,process.env.SCOPE,process.env.CONFIRMATION,process.env.CHECKED_PLAN);
           JS
       - name: Reject any non-DEV release ref for member-access scope
-        if: inputs.scope == 'dev_identity_directory' || inputs.scope == 'plugin_member_access' || inputs.scope == 'rsvp_integrity' || inputs.scope == 'guardian_rsvp_authority' || inputs.scope == 'shared_club_name_enforcement'
+        if: inputs.scope == 'dev_identity_directory' || inputs.scope == 'plugin_member_access' || inputs.scope == 'rsvp_integrity' || inputs.scope == 'guardian_rsvp_authority' || inputs.scope == 'shared_club_name_enforcement' || inputs.scope == 'dev_club_name_coverage_reader'
         run: |
           test "$GITHUB_REF" = "refs/heads/main" || { echo "::error::DEV member access and RSVP repairs must run from main"; exit 1; }
       - name: Install pinned tools and existing dependencies
@@ -73,6 +73,9 @@ jobs:
           icp canister install --help | grep -q -- --wasm-memory-persistence
       - name: Test inventory and interrupted-release safeguards
         run: node --test scripts/all-group-upgrade-policy.test.mjs scripts/private-name-cleanup-release-policy.test.mjs scripts/secure-name-release-policy.test.mjs scripts/all-group-wiring-policy.test.mjs scripts/all-group-publication.test.mjs scripts/group2-journal.test.mjs scripts/group2-upgrade-rules.test.mjs scripts/subscription-upgrade-policy.test.mjs scripts/placement-upgrade-evidence.test.mjs
+      - name: Verify encrypted-name audit is read-only and never enables key release
+        if: inputs.scope == 'dev_club_name_coverage_reader'
+        run: node --test scripts/dev-club-name-coverage-policy.test.mjs scripts/dev-club-name-coverage-contract.test.mjs
       - name: Verify cleanup-only activation on disposable canisters before governor restoration
         if: (inputs.scope == 'private_name_cleanup' || inputs.scope == 'secure_name_save' || inputs.scope == 'private_club_name_display' || inputs.scope == 'shared_club_name_enforcement') && inputs.action != 'recover'
         run: node scripts/test-private-name-workflow.mjs
