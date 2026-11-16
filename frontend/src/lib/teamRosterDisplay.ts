@@ -73,3 +73,27 @@ export function needsAdultNameRetry(
   const names = new Map(profiles.map(p => [p.account_id, p.display_name]));
   return ids.some(id => visibleTeamMemberName(names.get(id)) === 'Name unavailable');
 }
+
+/**
+ * Only in pinned DEV ICP: omit the signed-in adult from a *remote team-name*
+ * batch when their own already-authorised, readable profile name is available
+ * for the existing self-name renderer. The canister still verifies the viewer
+ * is on the exact team before unlocking ANY other adult's name.
+ *
+ * No global cache, guessed display name, encrypted reference or placeholder
+ * can qualify. PROD and Supabase keep the full existing batch.
+ */
+export function requestedTeamAdultNameIds(
+  ids: readonly string[],
+  ownAliases: readonly (string | null | undefined)[],
+  ownDisplayName: string | null | undefined,
+  devIcp: boolean,
+): string[] {
+  const name = typeof ownDisplayName === 'string' ? ownDisplayName.trim() : '';
+  const ownNameReadable = name !== '' && !name.startsWith('pii-')
+    && !/^(unknown user|name unavailable)$/i.test(name);
+  const aliases = new Set(ownAliases.filter((id): id is string => typeof id === 'string' && id.length > 0));
+  return [...new Set(ids.filter(id =>
+    !(devIcp && ownNameReadable && aliases.has(id)),
+  ))].sort();
+}
