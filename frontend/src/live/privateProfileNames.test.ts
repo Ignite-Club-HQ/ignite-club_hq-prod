@@ -281,9 +281,12 @@ describe("authorized name display", () => {
 afterEach(() => vi.unstubAllEnvs());
 describe('DEV shared-club-key adult names - no individual-key fallback', () => {
   const g2Club = 'yfwyv-nyaaa-aaaal-qxpyq-cai';
+  const g1Original = 'iui5p-aaaaa-aaaal-qxllq-cai';
+  const g1Reference = privateProfileNameReference(g1Original, subject);
   const makeCtx = () => ({ ...ctx, target: { ...ctx.target, canisterIds: {
     ...ctx.target.canisterIds,
     identity_access: 'mq2sj-fiaaa-aaaal-qxlqa-cai', club_domain: g2Club,
+    pii_access_control: g1Original,
   } } } as FeatureBackendContext);
   const clubScope = {kind: 'club' as const,
     authority: Principal.fromText(g2Club), resource: 'dev-club', profile_revision: 0n};
@@ -292,7 +295,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
     const row = {pii_id: subject, field_id:'display_name', master_key_id:'vetkey-club-names-v1:dev-club',ciphertext:[9,8]};
     mocks.scopedRead.mockResolvedValue({Ok:[row]});
     mocks.clubKey.mockResolvedValue('one-club-key');
-    const result=await hydratePrivateProfileNames(makeCtx(),[{display_name:reference}],{audience:clubScope});
+    const result=await hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],{audience:clubScope});
     expect(result[0].display_name).toBe('Paul Cranwell');
     expect(mocks.clubKey).toHaveBeenCalledOnce();
     expect(mocks.keys).not.toHaveBeenCalled();
@@ -304,7 +307,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
     mocks.scopedRead.mockResolvedValue({Ok:[{
       pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
     }]});
-    await expect(hydratePrivateProfileNames(makeCtx(),[{display_name:reference}],
+    await expect(hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],
       {audience:clubScope})).rejects.toThrow('Club-encrypted name copy missing');
     expect(mocks.keys).not.toHaveBeenCalled();
     expect(mocks.clubKey).not.toHaveBeenCalled();
@@ -315,7 +318,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
     mocks.scopedRead.mockResolvedValue({Ok:[{
       pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
     }]});
-    await hydratePrivateProfileNames(makeCtx(),[{display_name:reference}],{audience:clubScope});
+    await hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],{audience:clubScope});
     expect(mocks.keys).toHaveBeenCalledOnce();
     expect(mocks.clubKey).not.toHaveBeenCalled();
   });
