@@ -156,7 +156,11 @@ export async function refreshPrivateOwnClubNames(
   discoverClubs: () => Promise<readonly string[]>,
   assertSaveActive: () => void = () => {},
 ): Promise<void> {
-  if (!privateClubNameDisplaysEnabled()) return;
+  // The universal release also prepares each current club copy when the
+  // account owner saves their own name. A new club join without an existing
+  // copy remains fail-closed until the owner-authorised refresh completes.
+  if (!privateClubNameDisplaysEnabled() &&
+      !(import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1' && ctx.target.provider === 'icp')) return;
   if (privateProfileSearchRehearsalEnabled() && !isLoopbackRehearsalHost(ctx.target.host)) throw new Error('Private name maintenance requires a loopback rehearsal target.');
   const value = name.trim();
   if (!value || new TextEncoder().encode(value).length > 512) throw new Error('A display name of at most 512 bytes is required.');
