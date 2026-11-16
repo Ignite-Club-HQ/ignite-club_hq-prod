@@ -13,7 +13,7 @@ pub fn validate(viewer: Principal, subjects: &[Principal], scope: &Scope) -> Res
     if viewer == Principal::anonymous() || viewer == Principal::management_canister()
         || scope.authority == Principal::anonymous() || scope.authority == Principal::management_canister()
         || scope.resource.trim().is_empty() || scope.resource.trim() != scope.resource || scope.resource.len() > 128
-        || !["club", "family", "competition", "league", "guardian_search", "direct", "broadcast", "competition_admin"].contains(&scope.kind.as_str())
+        || !["club", "team", "family", "competition", "league", "guardian_search", "direct", "broadcast", "competition_admin"].contains(&scope.kind.as_str())
         || (scope.kind == "competition_admin" && subjects.is_empty())
         || (scope.kind == "broadcast" && (!scope.resource.starts_with("msg-broadcast-") || subjects.is_empty()))
         || (scope.kind == "direct" && subjects.len() > 2)
@@ -28,7 +28,7 @@ pub fn validate(viewer: Principal, subjects: &[Principal], scope: &Scope) -> Res
     fn p(n: u8) -> Principal { Principal::from_slice(&[n, 1]) }
     fn scope(kind: &str) -> Scope { Scope { kind: kind.into(), authority: p(1), resource: "child-1".into(), profile_revision: 7 } }
     #[test] fn only_the_five_name_audiences_are_accepted() {
-        for kind in ["club", "family", "competition", "league", "guardian_search"] { assert!(validate(p(2), &[p(3)], &scope(kind)).is_ok()); }
+        for kind in ["club", "team", "family", "competition", "league", "guardian_search"] { assert!(validate(p(2), &[p(3)], &scope(kind)).is_ok()); }
         assert!(validate(p(2), &[p(3)], &scope("email")).is_err());
         assert!(validate(p(2), &[p(3)], &scope("media")).is_err());
     }

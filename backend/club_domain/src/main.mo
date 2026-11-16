@@ -3959,6 +3959,69 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(requester) };
   };
 
+  // Exact team-scoped private adult name audience for the configured Identity
+  // service. Unlike club-wide profile membership, a verified parent must
+  // actually belong to this team (including current child guardianship).
+  // This returns only booleans, never names or a discoverable adult roster.
+  public shared ({ caller }) func read_profile_team_membership_batch(
+    requester : Principal, team_id : Text, subjects : [Principal], expected : ?Nat
+  ) : async { #Ok : ProfileMembership.Batch; #Err : Text } {
+    if (Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != ?"1"
+        and Runtime.envVar<system>("IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE") != ?"1")
+      return #Err("Private team-name membership reads are not released");
+    let authority = identityAccessCanister;
+    if (authority != ?caller or caller.isAnonymous()) return #Err("Configured identity authority required");
+    switch (ProfileMembership.validate(requester, team_id, subjects)) {
+      case (?message) return #Err(message);
+      case null {};
+    };
+    let club_id = switch (liveTeamClub(team_id)) {
+      case (?club) club;
+      case null return #Err("Active team required");
+    };
+    if (not profiles.any(func p = p.id == club_id and p.deleted_at_ms == null))
+      return #Err("Active club required");
+    if (not removalReceiver.enter(requester)) return #Err("Account removal fenced or operation capacity reached");
+    try {
+      let revision = membershipEpoch();
+      switch (expected) {
+        case (?value) { if (value != revision) return #Err("Profile membership revision changed") };
+        case null {};
+      };
+      await admitAccount(requester);
+      func unchanged() : Bool =
+        ProfileMembership.unchanged(revision, membershipEpoch(),
+          identityAccessCanister == authority, removalReceiver.denied(requester)
+            or isTransferFenced(club_id))
+        and liveTeamClub(team_id) == ?club_id;
+      if (not unchanged()) return #Err("Private team authority changed");
+      var eligible : [Bool] = [];
+      for (subject in subjects.values()) {
+        let allowed = try { await admitAccount(subject); true } catch (_) { false };
+        if (not unchanged()) return #Err("Private team authority changed");
+        eligible := eligible.concat([allowed]);
+      };
+      if (not unchanged()) return #Err("Private team authority changed");
+      func onExactTeam(subject : Principal) : Bool {
+        if (subject.isAnonymous() or removalReceiver.denied(subject) or isExcluded(subject, club_id)) return false;
+        let aliases = switch (accountFor(subject)) {
+          case (?account) account.principals;
+          case null [subject];
+        };
+        // A club administrator who is not on THIS team is not an adult
+        // teammate. Do not repurpose broad club-management permission to
+        // unlock the names of parents and coaches on unrelated teams.
+        aliases.any(func p =
+          not removalReceiver.denied(p) and isMember(p, club_id)
+          and isOnTeam(p, team_id)
+        )
+      };
+      if (not onExactTeam(requester)) return #Err("Team membership required");
+      let members = Array.tabulate<Bool>(subjects.size(), func i = eligible[i] and onExactTeam(subjects[i]));
+      #Ok({ revision; requester; club = team_id; subjects; members })
+    } finally { removalReceiver.leave(requester) };
+  };
+
   // Trusted relationship services pin the exact membership generation across
   // ALL their requester/subject checks; boolean replies alone are insufficient.
   public shared ({ caller }) func read_profile_remote_revision(subjects : [Principal], expected : ?Nat) : async { #Ok : Nat; #Err : Text } {

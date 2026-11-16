@@ -1941,6 +1941,12 @@ type Main =
        Err: text;
        Ok: Batch;
      });
+   read_profile_team_membership_batch: (requester: principal, team_id: text,
+    subjects: vec principal, expected: opt nat) ->
+    (variant {
+       Err: text;
+       Ok: Batch;
+     });
    read_profile_membership_batch: (requester: principal, club_id: text,
     subjects: vec principal, expected: opt nat) ->
     (variant {

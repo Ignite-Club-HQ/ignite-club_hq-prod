@@ -261,7 +261,10 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
     return await Promise.race([
       readNames(ctx, subjects, FIELD, guard, audience),
       new Promise<Map<string, string>>(resolve => {
-        timer = setTimeout(() => { retired = true; resolve(new Map()); }, READ_TIMEOUT_MS);
+        // Cross-group team names require PII -> Identity -> Club double
+        // verification and a fresh vetKey; keep the existing 6s deadline for
+        // all non-team scopes but permit a longer cold authorised team read.
+        timer = setTimeout(() => { retired = true; resolve(new Map()); }, audience?.kind === 'team' ? 25_000 : READ_TIMEOUT_MS);
       }),
     ]);
   } catch (error) {
