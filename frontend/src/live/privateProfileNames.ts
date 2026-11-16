@@ -224,6 +224,16 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   const clubRows = validRows.filter(row => row.master_key_id?.startsWith('vetkey-club-names-'));
   if (clubRows.length && (!audience || audience.kind !== 'club' || field !== FIELD || clubRows.some(row => row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${audience.resource}`))) throw new Error('Invalid club name key scope.');
   const individualRows = validRows.filter(row => !clubRows.includes(row));
+  const strictDevClub = import.meta.env.IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES === '1'
+    && audience?.kind === 'club'
+    && audience.authority.toText() === 'yfwyv-nyaaa-aaaal-qxpyq-cai'
+    && ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'
+    && ctx.target.canisterIds.club_domain === 'yfwyv-nyaaa-aaaal-qxpyq-cai'
+    && ['iui5p-aaaaa-aaaal-qxllq-cai', 'zt5a6-yiaaa-aaaal-qxp5q-cai'].includes(ctx.target.canisterIds.pii_access_control);
+  // Never obtain paid person-specific keys when the selected reader promises
+  // a shared club key. A member without an encrypted club copy stays unnamed,
+  // pending controlled conversion; this is not permission to decrypt originals.
+  if (strictDevClub && individualRows.length) throw new Error('Club-encrypted name copy missing; no personal-key fallback.');
   if (individualRows.length || clubRows.length) phase('vetkey');
   const keys = individualRows.length ? await fetchPiiVetKeys(ctx, individualRows.map(row => row.pii_id), field, { fresh: true, assertActive: active, ...(audience ? { audience } : {}), ...(retainOwnKey && !audience ? { retainOwnKey: true } : {}) }) : new Map();
   const clubKey = clubRows.length && audience ? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active) : undefined;
