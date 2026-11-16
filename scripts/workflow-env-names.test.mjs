@@ -121,6 +121,16 @@ test('global ICP club-name rollout is explicit, DEV-only and off without the rea
   assert.doesNotMatch(deploy, /^\s*IGNITE_LIVE_SHARED_CLUB_NAMES:\s*["']?1["']?\s*$/m);
 });
 
+test('reviewed global shared-club-name backend release is DEV-only and never implicit',()=>{
+  const w=workflows.find(x=>x.file==='upgrade-all-groups.yml')?.text??'';
+  assert.match(w,/shared_club_name_enforcement/);
+  assert.match(w,/UPGRADE DEV SHARED CLUB NAMES ONLY/);
+  assert.match(w,/group-2-admin-controls/);
+  assert.match(w,/inputs\.scope == 'shared_club_name_enforcement'/);
+  assert.match(w,/inputs\.action == 'upgrade'/);
+  assert.match(w,/require release from main|Require release from main/i);
+  assert.doesNotMatch(w,/deploy\/prod|deploy\/frontend-prod|IGNITE_ICP_ENV=prod/);
+});
 test('approved DEV Group 2 PII discovery does not depend on an unset repo variable', () => {
   const text = workflows.find(w => w.file === 'deploy-frontend-canister.yml')?.text ?? '';
   assert.match(text, /enable_dev_g2_child_pii:/);
