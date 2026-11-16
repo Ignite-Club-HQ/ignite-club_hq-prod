@@ -106,6 +106,21 @@ test('tags match what the workflow actually deploys', () => {
   }
 });
 
+test('global ICP club-name rollout is explicit, DEV-only and off without the readiness approval', () => {
+  const deploy = workflows.find(w => w.file === 'deploy-frontend-canister.yml')?.text ?? '';
+  assert.match(deploy, /IGNITE_LIVE_SHARED_CLUB_NAMES:/);
+  assert.match(deploy, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(deploy, /vars\.IGNITE_DEV_SHARED_CLUB_NAMES_RELEASE_READY == 'true'/);
+  assert.match(deploy, /&& '1' \|\| '0'/);
+  assert.match(deploy, /Invalid DEV shared-club-name activation state/);
+  assert.match(deploy, /Shared-club-name release attempted outside main/);
+  assert.match(deploy, /export IGNITE_ICP_ENV=dev/);
+  assert.doesNotMatch(deploy, /IGNITE_ICP_ENV=prod|deploy\/frontend-prod/);
+  // The PR can be merged without enabling client-side decryption for clubs
+  // whose encrypted club copies have not yet been established.
+  assert.doesNotMatch(deploy, /^\s*IGNITE_LIVE_SHARED_CLUB_NAMES:\s*["']?1["']?\s*$/m);
+});
+
 test('approved DEV Group 2 PII discovery does not depend on an unset repo variable', () => {
   const text = workflows.find(w => w.file === 'deploy-frontend-canister.yml')?.text ?? '';
   assert.match(text, /enable_dev_g2_child_pii:/);
