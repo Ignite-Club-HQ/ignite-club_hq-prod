@@ -207,7 +207,7 @@ export async function refreshPrivateOwnClubNames(
   }
 }
 
-async function readNames(ctx: FeatureBackendContext, subjects: string[], field = FIELD, active: () => void = () => {}, audience?: PrivateProfileAudience, retainOwnKey = false): Promise<Map<string, string>> {
+async function readNames(ctx: FeatureBackendContext, subjects: string[], field = FIELD, active: () => void = () => {}, audience?: PrivateProfileAudience, retainOwnKey = false, phase: (value: 'ciphertext' | 'vetkey' | 'decrypt' | 'confirm') => void = () => {}): Promise<Map<string, string>> {
   active();
   const { actor } = await connectLivePiiAccessControl(ctx.target, ctx.identity);
   active();
@@ -224,10 +224,12 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   const clubRows = validRows.filter(row => row.master_key_id?.startsWith('vetkey-club-names-'));
   if (clubRows.length && (!audience || audience.kind !== 'club' || field !== FIELD || clubRows.some(row => row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${audience.resource}`))) throw new Error('Invalid club name key scope.');
   const individualRows = validRows.filter(row => !clubRows.includes(row));
+  if (individualRows.length || clubRows.length) phase('vetkey');
   const keys = individualRows.length ? await fetchPiiVetKeys(ctx, individualRows.map(row => row.pii_id), field, { fresh: true, assertActive: active, ...(audience ? { audience } : {}), ...(retainOwnKey && !audience ? { retainOwnKey: true } : {}) }) : new Map();
   const clubKey = clubRows.length && audience ? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active) : undefined;
   if (audience && keys.size + (clubKey ? clubRows.length : 0) !== validRows.length) throw new Error('Private-name keys were not authorized.');
   active();
+  phase('decrypt');
   const out = new Map<string, string>();
   const decoder = new TextDecoder("utf-8", { fatal: true });
   for (const row of validRows) {
@@ -243,6 +245,7 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   // Even a cached shared key is used only under a fresh exact-subject read.
   // Repeat after decryption so revoked membership never publishes labels.
   if (clubRows.length && audience) {
+    phase('confirm');
     const closing = await unwrapCandid(actor.get_private_profile_names_batch(subjects, audience), 'Confirm club name audience');
     active();
     if (closing.length !== rows.length || closing.some((row, i) => row.pii_id !== rows[i].pii_id || row.field_id !== field || row.master_key_id !== rows[i].master_key_id || row.ciphertext.length !== rows[i].ciphertext.length || row.ciphertext.some((b, j) => b !== rows[i].ciphertext[j]))) throw new Error('Club name audience or ciphertext changed.');
@@ -253,13 +256,14 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
 async function boundedRead(ctx: FeatureBackendContext, subjects: string[], active: () => void, audience?: PrivateProfileAudience): Promise<Map<string, string>> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let retired = false;
+  let phase: 'ciphertext' | 'vetkey' | 'decrypt' | 'confirm' = 'ciphertext';
   const guard = () => {
     if (retired) throw new Error("Private profile read retired.");
     active();
   };
   try {
     return await Promise.race([
-      readNames(ctx, subjects, FIELD, guard, audience),
+      readNames(ctx, subjects, FIELD, guard, audience, false, next => { if (!retired) phase = next; }),
       new Promise<Map<string, string>>((resolve, reject) => {
         // Cross-group team names require PII -> Identity -> Club double
         // verification and a fresh vetKey. A timed-out *pinned DEV team*
@@ -270,7 +274,7 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
           ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
         timer = setTimeout(() => {
           retired = true;
-          if (devTeam) reject(new Error('Private team-name read timed out.'));
+          if (devTeam) reject(new Error(`Private team-name ${phase} timed out.`));
           else resolve(new Map());
         }, audience?.kind === 'team' ? 25_000 : READ_TIMEOUT_MS);
       }),
@@ -284,12 +288,12 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
   }
 }
 
-async function boundedAuthorityCheck<T>(read: () => Promise<T>): Promise<T> {
+async function boundedAuthorityCheck<T>(read: () => Promise<T>, timeoutLabel = 'Private profile authority check timed out.'): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       read(),
-      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Private profile authority check timed out.")), READ_TIMEOUT_MS); }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(timeoutLabel)), READ_TIMEOUT_MS); }),
     ]);
   } finally { clearTimeout(timer); }
 }
@@ -335,6 +339,8 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     byAuthority.set(ref.authority, subjects);
   }
   const names = new Map<string, Map<string, string>>();
+  const devTeam = options.audience?.kind === 'team' &&
+    ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
   const batchSize = options.audience ? 25 : BATCH_SIZE;
   const jobs = [...byAuthority].flatMap(([authority, ids]) => {
     const subjects = [...ids];
@@ -351,7 +357,8 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
       if (!pendingLease) {
         const resolve = options.resolveAuthority;
         pendingLease = (async () => {
-          const lease = resolve ? await boundedAuthorityCheck(() => resolve(authority)) : { context: ctx, confirm: async () => {} };
+          const lease = resolve ? await boundedAuthorityCheck(() => resolve(authority),
+            devTeam ? 'Private team-name route opening timed out.' : undefined) : { context: ctx, confirm: async () => {} };
           active();
           if (lease.context.identity !== identity || lease.context.target.host !== ctx.target.host || lease.context.target.networkKind !== ctx.target.networkKind || lease.context.target.canisterIds.pii_access_control !== authority) throw new Error("Invalid original private profile route.");
           const routeTarget = JSON.stringify(lease.context.target);
@@ -383,7 +390,8 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
       try {
         const lease = await pendingLease;
         active(); routeGuards.get(authority)?.();
-        await boundedAuthorityCheck(lease.confirm);
+        await boundedAuthorityCheck(lease.confirm,
+          devTeam ? 'Private team-name route closing timed out.' : undefined);
         active(); routeGuards.get(authority)?.();
       } catch (error) { if (options.audience) throw error; names.delete(authority); }
     }
