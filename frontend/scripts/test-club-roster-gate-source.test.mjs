@@ -49,3 +49,15 @@ test("notification club switching uses scoped boolean membership, never full fam
   assert.match(hook, /\}, \{ clubId \}\)/);
   assert.match(feature, /actor\.read_account_is_club_member\(ctx\.identity\.getPrincipal\(\), clubId\)/);
 });
+
+
+test("ICP team player roster starts canonical canister read before optional vetKey prewarm", () => {
+  const page = readFileSync(new URL("../src/pages/TeamDetailPage.tsx", import.meta.url), "utf8");
+  assert.match(page, /void import\('@\/live\/piiVetKeys'\)/);
+  assert.match(page, /\.then\(\(\{ prewarmPiiVerificationKey \}\) => prewarmPiiVerificationKey\(ctx\)\)/);
+  assert.match(page, /\.catch\(\(\) => undefined\)/);
+  assert.doesNotMatch(page, /const \{ prewarmPiiVerificationKey \} = await import/);
+  assert.match(page, /return withRosterDeadline\(readTeamChildRows\(ctx, team\.club_id, id\), 30_000/);
+  assert.match(page, /retry: isIcpAccount \? 0 : 3/);
+  assert.match(page, /enabled: !!id && !useIcpLab && \(!isIcpAccount \|\| !!team\?\.club_id\)/);
+});
