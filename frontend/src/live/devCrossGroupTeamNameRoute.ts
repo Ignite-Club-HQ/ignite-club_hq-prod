@@ -25,6 +25,7 @@ const DEV = Object.freeze({
   originalClub: 'mzzzv-taaaa-aaaal-qxlrq-cai',
   registeredG2Club: 'yfwyv-nyaaa-aaaal-qxpyq-cai',
   registeredG2Pii: 'zt5a6-yiaaa-aaaal-qxp5q-cai',
+  pilotClub: '177f8c01-3617-402a-aedd-5c5c17ccfde1',
 });
 
 function isExactDevG2NameTarget(target: IcpTargetConfig): boolean {
@@ -40,9 +41,9 @@ function isExactDevG2NameTarget(target: IcpTargetConfig): boolean {
  * and verified per-club ciphertext copies MUST precede frontend activation.
  * A frontend flag is not an authorization: PII/Identity enforce it separately.
  */
-export function devG2SharedClubNamesEnabled(target: IcpTargetConfig): boolean {
+export function devG2SharedClubNamesEnabled(target: IcpTargetConfig, clubId: string): boolean {
   return import.meta.env.IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES === '1' &&
-    isExactDevG2NameTarget(target);
+    clubId === DEV.pilotClub && isExactDevG2NameTarget(target);
 }
 
 const signature = (value: unknown) => JSON.stringify(value, (_, v) =>
