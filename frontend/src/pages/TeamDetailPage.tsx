@@ -101,6 +101,7 @@ import {
 } from "@/live/features/membership";
 import { getLiveTeam, getLiveClubProfile, getLiveClubSubscription, getLiveTeamSubscription, saveLiveTeamSubscription, saveLiveTeamPitchSettings } from "@/live/features/club";
 import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
+import { devG2SharedClubNamesEnabled } from "@/live/devCrossGroupTeamNameRoute";
 import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { Principal } from "@icp-sdk/core/principal";
@@ -871,15 +872,25 @@ export default function TeamDetailPage() {
     try { return getActiveIcpTarget().canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'; }
     catch { return false; }
   })();
+  // Rollout is independent of the historical team-person-key reader.
+  // Shared club names use one club vetKey for every opted-in adult in this club;
+  // never derive personal name keys as a fallback after cutover.
+  const devSharedClubNames = devIcpAdultNames && (() => {
+    try { return devG2SharedClubNamesEnabled(getActiveIcpTarget()); }
+    catch { return false; }
+  })();
   const { data: adultNames = [], isLoading: isAdultNamesLoading, isFetching: isAdultNamesFetching,
     isError: isAdultNamesError, error: adultNamesError, refetch: refetchAdultNames } = useQuery({
-    queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id, adultNameIds],
+    queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id,
+      devSharedClubNames ? 'shared-club-vetkey' : 'legacy-team-individual', adultNameIds],
     enabled: isIcpAccount && !!id && !!team?.club_id && adultNameIds.length > 0,
     queryFn: () => withFeatureBackend('membership', {
       supabase: () => { throw new Error('ICP names required'); },
       icp: ctx => {
         if (!team?.club_id) throw new Error('Team club required for member names');
-        return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds, { kind: 'team', resource: id! }), 40_000, 'member names');
+        return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds,
+          devSharedClubNames ? { kind: 'club', resource: team.club_id } : { kind: 'team', resource: id! },
+        ), 40_000, 'member names');
       },
     }, { clubId: team?.club_id ?? '' }),
     staleTime: devIcpAdultNames ? 0 : 60_000,
