@@ -83,6 +83,8 @@ interface TeamMembersSectionProps {
   membersError: unknown;
   isChildrenError?: boolean;
   childrenError?: unknown;
+  isAdultNamesError?: boolean;
+  adultNamesError?: unknown;
   showIcpRosterFailureCode?: boolean;
   refetchMembers: () => unknown;
   refetchChildren: () => unknown;
@@ -130,6 +132,8 @@ export function TeamMembersSection({
   membersError,
   isChildrenError,
   childrenError,
+  isAdultNamesError = false,
+  adultNamesError,
   showIcpRosterFailureCode = false,
   refetchMembers,
   refetchChildren,
@@ -250,6 +254,11 @@ export function TeamMembersSection({
                   {playerRetryPending ? "Retrying players…" : "Retry players"}
                 </Button>
               </div>
+              {showIcpRosterFailureCode && isAdultNamesError && (
+                <p className="text-xs text-muted-foreground" role="status">
+                  DEV ICP adult-name diagnostic: {teamRosterReadFailureCode(adultNamesError)}
+                </p>
+              )}
               {showIcpRosterFailureCode && !playerRetryPending && (
                 <p className="text-xs text-muted-foreground" role="status">
                   DEV ICP player-read diagnostic: {teamRosterReadFailureCode(childrenError)}
