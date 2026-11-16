@@ -474,10 +474,22 @@ async function provisionWithRevokedDevRecovery(
 
     // Fail closed: do not call account link/rekey/revoke APIs. Drop only this
     // browser's rejected signer session, then re-warm before the next tap.
+    const rejectedClient = activeClient;
+    let delegationCleared = false;
     try {
       await signOutInternetIdentity();
+      delegationCleared = true;
     } catch (signOutError) {
-      console.warn("[InternetIdentity] Could not fully clear rejected DEV delegation.", signOutError);
+      console.warn("[InternetIdentity] DEV sign-out cleanup failed; retrying delegation disposal directly.", signOutError);
+      // Local agent/PII cleanup may fail when a network chunk is unavailable.
+      // Still remove the rejected AuthClient delegation; never re-use it.
+      try {
+        await rejectedClient?.signOut();
+        rejectedClient?.dispose?.();
+        delegationCleared = true;
+      } catch (fallbackError) {
+        console.warn("[InternetIdentity] Could not clear rejected DEV delegation.", fallbackError);
+      }
     }
     try {
       const raw = localStorage.getItem("ignite_icp_internet_identity_session");
@@ -494,7 +506,9 @@ async function provisionWithRevokedDevRecovery(
     }
     throw new Error(
       `Ignite DEV rejected Internet Identity principal ${principal} because that identity is revoked. ` +
-      "The saved sign-in was cleared on this device. Tap Continue securely again and select a DIFFERENT " +
+      (delegationCleared
+        ? "The saved sign-in was cleared on this device. Tap Continue securely again and select a DIFFERENT "
+        : "The browser could not clear that sign-in. Open Ignite in a fresh private browser window and select a DIFFERENT ") +
       "Internet Identity account (not just another passkey for the same account). " +
       "Existing account data and permissions were not changed.",
     );
