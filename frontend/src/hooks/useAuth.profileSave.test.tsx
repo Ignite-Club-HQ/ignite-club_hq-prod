@@ -3,11 +3,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { IcpIdentityProfile } from '@/live/identityProfileCache';
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), confirmed: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), confirmed: vi.fn(), resume: vi.fn() }));
 vi.mock('@/live/internetIdentityAuth', () => ({
   warmInternetIdentityAuthClient: async () => undefined,
   isInternetIdentitySignInReady: () => true,
   getCurrentInternetIdentityConfirmed: mocks.confirmed,
+  resumeInternetIdentitySession: mocks.resume,
   clearExpiredInternetIdentitySession: () => false,
 }));
 vi.mock('@/live/identityProfile', () => ({ fetchIcpIdentityProfile: mocks.fetch }));
@@ -17,6 +18,7 @@ beforeEach(() => {
   localStorage.clear(); vi.clearAllMocks();
   localStorage.setItem('ignite_icp_internet_identity_session', JSON.stringify({ provider: 'internet-identity', principal: 'account-a' }));
   mocks.confirmed.mockResolvedValue({});
+  mocks.resume.mockResolvedValue({ provider: 'internet-identity', principal: 'account-a' });
 });
 
 it('adopts an acknowledged save without a second fetch and rejects an older missing-profile reply', async () => {
