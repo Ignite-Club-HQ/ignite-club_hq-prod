@@ -19,7 +19,7 @@ try {
   identity.actor.setPrincipal(governor); ok(await identity.actor.register_account());
   const groups = [];
   for (const name of ['giddy-goat', 'group-2-test']) {
-    const group = await pic.setupCanister({ idlFactory: clubIdl, wasm: process.env.CLUB_DOMAIN_WASM, sender: governor, controllers: [governor], environmentVariables: [{ name: 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL', value: '1' }, { name: 'IGNITE_ACCOUNT_SERVICE_IDENTITY', value: identity.canisterId.toText() }], arg: IDL.encode([IDL.Principal], [governor]) });
+    const group = await pic.setupCanister({ idlFactory: clubIdl, wasm: process.env.CLUB_DOMAIN_WASM, sender: governor, controllers: [governor], environmentVariables: [{ name: 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL', value: '1' }, { name: 'IGNITE_ACCOUNT_SERVICE_IDENTITY', value: identity.canisterId.toText() }, { name: 'IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE', value: '1' }], arg: IDL.encode([IDL.Principal], [governor]) });
     groups.push({ ...group, name });
     identity.actor.setPrincipal(governor); ok(await identity.actor.set_service_authorities(groups.map(g => g.canisterId)));
     group.actor.setPrincipal(governor); ok(await group.actor.create_club(name, name, name, [], []));
@@ -79,6 +79,34 @@ try {
   for (const key of ['age_group', 'deleted_at_ms', 'description', 'division', 'folder_id', 'gender', 'logo_url', 'playhq_competition_id', 'playhq_team_id', 'shell_claim_token', 'shell_claimed_at_ms', 'shell_claimed_by', 'shell_contact_email', 'shell_contact_name', 'shell_invited_by', 'team_type']) otherTeam[key] = [];
   ok(await rosterGroup.actor.save_team(otherTeam));
   ok(await rosterGroup.actor.add_role_grant(otherParent, rosterGroup.name, 'parent', ['u8']));
+
+  // Identity-only team-name proof: both viewer and each returned subject
+  // must actually belong to the exact team. Never return a name or sibling
+  // team members in this result. A club-level relationship is insufficient.
+  rosterGroup.actor.setPrincipal(identity.canisterId);
+  const sameTeam = ok(await rosterGroup.actor.read_profile_team_membership_batch(
+    outsider, 'u9', [outsider, coach, otherParent], [],
+  ));
+  assert.equal(sameTeam.club, 'u9');
+  assert.deepEqual(sameTeam.members, [true, true, false], 'U8 parent is excluded from U9 names');
+  const otherTeamOnly = ok(await rosterGroup.actor.read_profile_team_membership_batch(
+    otherParent, 'u8', [otherParent, outsider, coach], [],
+  ));
+  assert.deepEqual(otherTeamOnly.members, [true, false, false], 'U8 parent sees only U8 teammates');
+  assert.ok('Err' in await rosterGroup.actor.read_profile_team_membership_batch(
+    otherParent, 'u9', [outsider, coach], [],
+  ), 'same-club, different-team viewer may not access U9 names');
+  assert.ok('Err' in await rosterGroup.actor.read_profile_team_membership_batch(
+    Principal.anonymous(), 'u9', [outsider], [],
+  ), 'anonymous viewer denied');
+  assert.ok('Err' in await rosterGroup.actor.read_profile_team_membership_batch(
+    outsider, 'missing-team', [coach], [],
+  ), 'unknown team denied');
+  rosterGroup.actor.setPrincipal(outsider);
+  assert.ok('Err' in await rosterGroup.actor.read_profile_team_membership_batch(
+    outsider, 'u9', [coach], [],
+  ), 'browser cannot impersonate the configured Identity canister');
+
   rosterGroup.actor.setPrincipal(outsider);
   assert.deepEqual(ok(await rosterGroup.actor.read_account_list_team_child_ids(rosterGroup.name, 'u9')), [ownChild.id]);
   assert.deepEqual(await rosterGroup.actor.read_can_team_child_name_visibility(outsider, [ownChild.id]), [], 'browser cannot impersonate the PII service');

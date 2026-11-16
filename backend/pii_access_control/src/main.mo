@@ -682,7 +682,7 @@ persistent actor class Main(governorInit : Principal) = this {
   };
   transient let privateNameReleaseFence = PrivateNameReleaseFence.Gate(privateNamesRehearsal, privateNameVerifier(), private_name_release_intents, 4096);
   func canReleasePrivateName(captured : Nat, scope : PrivateNameScope) : Bool {
-    (privateNamesRehearsal or (privateClubNameDisplays and scope.kind == "club")) and privateNameVerifier() != null and captured == private_name_release_epoch and not privateNameReleaseFence.blocked()
+    (privateNamesRehearsal or (privateClubNameDisplays and (scope.kind == "club" or scope.kind == "team"))) and privateNameVerifier() != null and captured == private_name_release_epoch and not privateNameReleaseFence.blocked()
   };
   // Sink acknowledgements certify only this receiver. The coordinator must
   // fence the COMPLETE original-PII inventory before acknowledging revocation.

@@ -1751,6 +1751,11 @@ export interface Main {
     { 'Ok' : Batch } |
       { 'Err' : string }
   >,
+  'read_profile_team_membership_batch' : ActorMethod<
+    [Principal, string, Array<Principal>, [] | [bigint]],
+    { 'Ok' : Batch } |
+      { 'Err' : string }
+  >,
   'read_profile_membership_batch' : ActorMethod<
     [Principal, string, Array<Principal>, [] | [bigint]],
     { 'Ok' : Batch } |
