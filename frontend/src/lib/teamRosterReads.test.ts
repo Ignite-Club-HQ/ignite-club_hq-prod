@@ -65,6 +65,12 @@ describe('authorized team roster reads', () => {
   it('categorises player failures without exposing IDs or encrypted details', () => {
     expect(teamRosterReadFailureCode(new Error('Team membership required'))).toBe('PERMISSION');
     expect(teamRosterReadFailureCode(new Error('The team player list took too long to load.'))).toBe('TIMEOUT');
+    expect(teamRosterReadFailureCode(new Error('Private team-name route opening timed out.'))).toBe('ROUTE_OPEN_TIMEOUT');
+    expect(teamRosterReadFailureCode(new Error('Private team-name route closing timed out.'))).toBe('ROUTE_CLOSE_TIMEOUT');
+    expect(teamRosterReadFailureCode(new Error('Private team-name ciphertext timed out.'))).toBe('CIPHERTEXT_TIMEOUT');
+    expect(teamRosterReadFailureCode(new Error('Private team-name vetkey timed out.'))).toBe('VETKEY_TIMEOUT');
+    expect(teamRosterReadFailureCode(new Error('The member names took too long to load. Please try again.'))).toBe('ROSTER_TIMEOUT');
+    expect(teamRosterReadFailureCode(new Error('Some unknown canister-name ciphertext 1234 timed out.'))).toBe('TIMEOUT');
     expect(teamRosterReadFailureCode(new Error('Failed to fetch'))).toBe('TRANSPORT');
     expect(teamRosterReadFailureCode(new Error('Identity session changed'))).toBe('SESSION');
     expect(teamRosterReadFailureCode(new Error('Routing snapshot changed'))).toBe('ROUTING');
