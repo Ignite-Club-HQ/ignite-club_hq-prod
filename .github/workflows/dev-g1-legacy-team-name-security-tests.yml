@@ -1,0 +1,23 @@
+name: "[TEST] DEV original G1 PII team-name authority security (offline)"
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dev-g1-legacy-team-name-security-tests.yml"
+      - "backend/identity_access/src/lib.rs"
+      - "backend/identity_access/src/legacy_g1_private_name.rs"
+      - "backend/club_domain/src/main.mo"
+      - "frontend/scripts/test-linked-membership-replica.mjs"
+permissions:
+  contents: read
+jobs:
+  offline-rust-authority:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run exact DEV origin/foreign-caller/directory/key negative tests
+        run: cargo test --locked -p identity_access --lib legacy_g1_private_name::tests
