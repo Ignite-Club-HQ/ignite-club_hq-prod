@@ -70,8 +70,11 @@ test('Shared DEV G2 club name scope never derives personal display-name keys',()
   assert.ok(shared.includes('scope.kind != "club"'));
   assert.ok(shared.includes('ibeIdentity("clubnames:" # scope.resource, "display_name")'));
   const identity=read('backend/identity_access/src/legacy_g1_private_name.rs');
-  assert.ok(identity.includes('scope.kind=="team" || (scope.kind=="club" && approved_shared_club_names)'));
+  assert.ok(identity.includes('scope.kind=="team" || (scope.kind=="club" && approved_shared_club_names && scope.resource==SHARED_CLUB_PILOT_ID)'));
   assert.ok(identity.includes('scope.authority!=group2_club'));
+  assert.ok(pii.includes('scope.resource == "177f8c01-3617-402a-aedd-5c5c17ccfde1"'));
+  assert.ok(!identity.includes('scope.kind=="club" && approved_shared_club_names)'));
+
   const release=read('scripts/secure-name-release-policy.mjs');
   assert.ok(!release.includes('IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE'),
     'existing release policy cannot automatically widen club audience');
