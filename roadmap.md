@@ -2,7 +2,7 @@
 
 ## Invitation share addresses — 16 November
 - [x] Replace device-local and placeholder origins across all invitation links with the Ignite public address; preserve tokens and invitation behavior. DEV code only.
-- [ ] Run focused invitation-link and existing invitation regressions; no production publication.
+- [x] Focused invitation regressions pass: 87 email-mode and 66 Internet Identity checks; preview builds clean. No production publication. Signed-in physical-phone share verification unavailable.
 
 ## Share-link invitation-only email signup — 16 November
 - [x] DEV: allow unclaimed email-less pending invitations only at email-enabled clubs; preserve named-email matching and other invitation branches.
