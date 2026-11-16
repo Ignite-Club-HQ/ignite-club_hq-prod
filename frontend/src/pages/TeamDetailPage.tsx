@@ -131,7 +131,7 @@ import { TeamDetailAccordionSections } from "@/components/team/TeamDetailAccordi
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { readIcpTeamPendingInvites } from "@/features/membership/teamPendingInvites";
 import { readTeamChildRows, teamRoleRows } from '@/lib/teamRosterReads';
-import { scopedIcpTeamRosterKey, teamRosterHeaderStatus, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry } from '@/lib/teamRosterDisplay';
+import { scopedIcpTeamRosterKey, teamRosterHeaderStatus, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry , requestedClubAdultNameIds } from '@/lib/teamRosterDisplay';
 
 
 type TeamRole = TeamJoinRole;
@@ -864,7 +864,6 @@ export default function TeamDetailPage() {
     refetchOnWindowFocus: false,
   });
 
-  const adultNameIds = useMemo(() => [...new Set(rawMembersData.map(row => row.user_id))].sort(), [rawMembersData]);
   const childNameIds = useMemo(() => teamChildrenData.map(row => row.child_id).sort(), [teamChildrenData]);
   // Only the pinned disposable DEV Identity receives the extra name-refresh UI.
   // PROD ICP, Supabase and child-name paths retain their existing behaviour.
@@ -879,6 +878,12 @@ export default function TeamDetailPage() {
     try { return devG2SharedClubNamesEnabled(getActiveIcpTarget(), team?.club_id ?? ''); }
     catch { return false; }
   })();
+  const adultNameIds = useMemo(() => requestedClubAdultNameIds(
+    rawMembersData.map(row => row.user_id),
+    [user?.id, user?.id ? `principal:${user.id}` : null, (myProfile as any)?.id],
+    myProfile?.display_name,
+    devSharedClubNames,
+  ), [rawMembersData, user?.id, (myProfile as any)?.id, myProfile?.display_name, devSharedClubNames]);
   const { data: adultNames = [], isLoading: isAdultNamesLoading, isFetching: isAdultNamesFetching,
     isError: isAdultNamesError, error: adultNamesError, refetch: refetchAdultNames } = useQuery({
     queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id,
