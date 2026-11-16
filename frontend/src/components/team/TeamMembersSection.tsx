@@ -85,6 +85,9 @@ interface TeamMembersSectionProps {
   childrenError?: unknown;
   isAdultNamesError?: boolean;
   adultNamesError?: unknown;
+  isAdultNamesFetching?: boolean;
+  hasUnresolvedAdultNames?: boolean;
+  refetchAdultNames?: () => unknown;
   devEncryptedAdultNameMode?: 'ON' | 'OFF';
   showIcpRosterFailureCode?: boolean;
   refetchMembers: () => unknown;
@@ -135,6 +138,9 @@ export function TeamMembersSection({
   childrenError,
   isAdultNamesError = false,
   adultNamesError,
+  isAdultNamesFetching = false,
+  hasUnresolvedAdultNames = false,
+  refetchAdultNames,
   devEncryptedAdultNameMode,
   showIcpRosterFailureCode = false,
   refetchMembers,
@@ -156,6 +162,8 @@ export function TeamMembersSection({
 }: TeamMembersSectionProps) {
   const [retryingPlayers, setRetryingPlayers] = useState(false);
   const [retryFailed, setRetryFailed] = useState(false);
+  const [retryingNames, setRetryingNames] = useState(false);
+  const adultNameRetryPending = retryingNames || isAdultNamesFetching;
   const playerRetryPending = retryingPlayers || isChildrenFetching;
 
   // React Query keeps the previous isError visible during a manual refetch.
@@ -175,6 +183,13 @@ export function TeamMembersSection({
     } finally {
       setRetryingPlayers(false);
     }
+  };
+
+  const retryTeamNames = async () => {
+    if (adultNameRetryPending || !refetchAdultNames) return;
+    setRetryingNames(true);
+    try { await Promise.resolve(refetchAdultNames()); }
+    finally { setRetryingNames(false); }
   };
 
   return (
@@ -245,6 +260,19 @@ export function TeamMembersSection({
             <p className="text-xs text-muted-foreground" role="status">
               DEV ICP generic club-name build flag: {devEncryptedAdultNameMode} (exact-team access checked by server)
             </p>
+          )}
+          {showIcpRosterFailureCode && (hasUnresolvedAdultNames || isAdultNamesError) && (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                {isAdultNamesError ? 'Some parent names could not be loaded.' : 'Some parent names are not available yet.'}
+              </p>
+              <Button type="button" size="sm" variant="outline"
+                disabled={adultNameRetryPending || !refetchAdultNames}
+                onClick={() => { void retryTeamNames(); }}>
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${adultNameRetryPending ? 'animate-spin' : ''}`} />
+                {adultNameRetryPending ? 'Refreshing names…' : 'Retry names'}
+              </Button>
+            </div>
           )}
           {showIcpRosterFailureCode && isAdultNamesError && (
             <p className="text-xs text-muted-foreground" role="status">
