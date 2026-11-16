@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AccordionContent,
   AccordionItem,
@@ -145,6 +145,29 @@ export function TeamMembersSection({
   onOpenPositionSheet,
   onRemoveMember,
 }: TeamMembersSectionProps) {
+  const [retryingPlayers, setRetryingPlayers] = useState(false);
+  const [retryFailed, setRetryFailed] = useState(false);
+  const playerRetryPending = retryingPlayers || isChildrenFetching;
+
+  // React Query keeps the previous isError visible during a manual refetch.
+  // Give immediate feedback and distinguish a second failure from an idle UI.
+  // This only repeats the already-authorized roster read; no child writes.
+  const retryPlayerRoster = async () => {
+    if (playerRetryPending) return;
+    setRetryingPlayers(true);
+    setRetryFailed(false);
+    try {
+      const outcome = await Promise.resolve(refetchChildren());
+      if (outcome && typeof outcome === "object" && "isError" in outcome && outcome.isError) {
+        setRetryFailed(true);
+      }
+    } catch {
+      setRetryFailed(true);
+    } finally {
+      setRetryingPlayers(false);
+    }
+  };
+
   return (
     <AccordionItem value="members" className="border rounded-lg px-4">
       {/* Refresh button is a SIBLING of the trigger — never nested inside it,
@@ -209,10 +232,33 @@ export function TeamMembersSection({
       </div>
       <AccordionContent>
         <div className="space-y-4 pt-2">
-          {isChildrenError && <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">{friendlyQueryErrorMessage(childrenError, 'the team player list')}</p>
-            <Button variant="outline" size="sm" onClick={() => refetchChildren()}><RefreshCw className="h-4 w-4 mr-1.5" />Retry players</Button>
-          </div>}
+          {isChildrenError && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground">{friendlyQueryErrorMessage(childrenError, 'the team player list')}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={playerRetryPending}
+                  onClick={() => { void retryPlayerRoster(); }}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-1.5 ${playerRetryPending ? "animate-spin" : ""}`} />
+                  {playerRetryPending ? "Retrying players…" : "Retry players"}
+                </Button>
+              </div>
+              {playerRetryPending && (
+                <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+                  Checking the player list again…
+                </p>
+              )}
+              {retryFailed && !playerRetryPending && (
+                <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+                  The retry finished, but the player list is still unavailable. Your child records have not been changed.
+                </p>
+              )}
+            </div>
+          )}
           {isMembersError && Object.keys(members).length === 0 ? (
             <div className="flex flex-col items-center py-6 text-center gap-3">
               <p className="text-sm text-muted-foreground max-w-xs">
