@@ -6,9 +6,10 @@ import { createLivePrivateProfileAuthorityResolver } from './privateProfileAutho
 import { listLiveProfilesByIds } from './features/identityAccessClient';
 import { capturePrivateProfileSession } from './privateProfileSession';
 import { privateClubNameDisplaysEnabled } from './privateClubNameDisplayMode';
+import { createDevCrossGroupTeamNameResolver } from './devCrossGroupTeamNameRoute';
 
 export type ProfileRelationship = {
-  kind: 'club' | 'family' | 'competition' | 'league' | 'direct' | 'broadcast' | 'competition_admin';
+  kind: 'club' | 'team' | 'family' | 'competition' | 'league' | 'direct' | 'broadcast' | 'competition_admin';
   resource: string;
 };
 
@@ -42,7 +43,14 @@ export async function readRelationshipProfiles(
       if (shared.identity !== identity) throw new Error('Profile reader identity changed.');
       const rehearsal = privateProfileSearchRehearsalEnabled();
       const releasedClub = relationship.kind === 'club' && privateClubNameDisplaysEnabled();
-      if (!rehearsal && !releasedClub) {
+      // DEV only: original Group-1 PII may serve a person on any registered
+      // Group-2 team. Frontend routing does not grant decryption; both PII and
+      // Identity verify the exact-team audience and source on every read.
+      const devTeamResolver = relationship.kind === 'team'
+        ? createDevCrossGroupTeamNameResolver(owner) : undefined;
+      const releasedTeam = Boolean(devTeamResolver) && relationship.kind === 'team'
+        && privateClubNameDisplaysEnabled();
+      if (!rehearsal && !releasedClub && !releasedTeam) {
         const rows = await listLiveProfilesByIds(shared, ids);
         active();
         return rows;
@@ -56,7 +64,9 @@ export async function readRelationshipProfiles(
       const rows = await listLiveProfilesByIds(shared, ids, {
         signal,
         audience: { ...relationship, authority, profile_revision: 0n },
-        ...(rehearsal ? { resolveAuthority: async (original: string) => {
+        ...(releasedTeam && !rehearsal && devTeamResolver
+          ? { resolveAuthority: devTeamResolver }
+          : rehearsal ? { resolveAuthority: async (original: string) => {
           active();
           if (!resolver) {
             const evidence = await readPrivateProfileEvidence(shared);
@@ -81,6 +91,7 @@ export async function selectRelationshipProfiles(ids: readonly string[], relatio
   if (relationship.kind === 'family') throw new Error('Family profiles require an explicit owning child context.');
   const scope = relationship.kind === 'league' ? { miniLeagueId: relationship.resource }
     : relationship.kind === 'competition' ? { competitionId: relationship.resource }
+    : relationship.kind === 'team' ? { teamId: relationship.resource }
     : { clubId: relationship.resource };
   const feature = relationship.kind === 'league' ? 'mini_leagues'
     : relationship.kind === 'competition' ? 'competitions' : 'membership';
