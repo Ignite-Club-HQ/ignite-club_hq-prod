@@ -88,6 +88,7 @@ import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
+import { getActiveIcpTarget } from "@/live/targetRegistry";
 import { writeOnce } from "@/live/clubScope";
 import {
   softDeleteLiveTeam,
@@ -2059,6 +2060,12 @@ export default function TeamDetailPage() {
           membersSectionProps={{
             members, teamChildren, pendingInvites, memberRoleFilter, adultPlayerCount, isAdmin, isClubAdmin, currentUserId: user?.id,
             isMembersLoading, isMembersFetching, isChildrenLoading, isChildrenFetching, isMembersError, membersError, isChildrenError, childrenError, refetchMembers, refetchChildren,
+            // Only the pinned disposable DEV Identity can expose diagnostic categories;
+            // never publish raw errors or profile identifiers to the UI.
+            showIcpRosterFailureCode: isIcpAccount && (() => {
+              try { return getActiveIcpTarget().canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'; }
+              catch { return false; }
+            })(),
     isChildNamesLoading: childNamesPending, hasUnresolvedChildNames, refetchChildNames,
             isSoccerClub: !!isSoccerClub, onOpenHeaderInvite: () => setHeaderInviteOpen(true), onOpenAddPlayer: () => setAddPlayerOpen(true),
             onSelectChild: setSelectedChild, onLinkChildToParent: setLinkChildToParent, onMoveToTeam: setMoveToTeam, onAddRoleMember: setAddRoleMember,
