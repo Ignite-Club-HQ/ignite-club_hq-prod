@@ -49,6 +49,8 @@ jobs:
       - run: npx vitest run --config vitest.legacy.config.mjs src/live/localRuntimeMode.test.ts src/live/disabledLabRuntime.test.ts
       - name: Verify club roster privacy and parent-child inclusion source gates
         run: node --test scripts/test-club-roster-gate-source.test.mjs
+      - name: Verify interactive player roster retry feedback
+        run: npx vitest run --config vitest.legacy.config.mjs src/components/team/TeamMembersSection.test.tsx
       - name: Verify DEV Ted-U10 transfer read-only preflight contract
         run: node --test scripts/test-dev-ted-transfer-preflight.mjs
       - name: Test DEV Ted-U10 source/target preflight and transfer refusal
