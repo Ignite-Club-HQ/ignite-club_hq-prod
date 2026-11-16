@@ -46,7 +46,6 @@ const identity=Actor.createActor<IdentityService>(identityIdl,{agent,canisterId:
 
 const readClubSource=async(actor:ClubService)=>{
   const edges:unknown[]=[];
-  let cursor:Awaited<ReturnType<ClubService['read_membership_source_page']>> extends {Ok:infer R}?R:unknown;
   let next:unknown=[];let priorRevision:bigint|null=null;
   const visited=new Set<string>();
   for(let n=0;n<1500;n++){
