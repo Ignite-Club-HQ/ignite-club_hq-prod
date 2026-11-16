@@ -2347,7 +2347,17 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
     }
     private_name_audience::validate(viewer_principal, &subjects, &scope)?;
     let service = ic_cdk::api::msg_caller();
-    if !service_authorities().contains(&service) { return Err("Configured private-name service required".into()); }
+    let mut allowed_services = service_authorities();
+    // The legacy G1 PII is absent from the modern router by design. Include
+    // exactly this compiled DEV principal only when the owner has separately
+    // enabled the original-name release switch. This does not mutate the
+    // persisted service allowlist or open a browser-readable endpoint.
+    if dev_g1_team_name_release_enabled()
+        && legacy_g1_private_name::exact_original_dev_pii_caller(ic_cdk::api::canister_self(), service)
+        && !allowed_services.contains(&service) {
+        allowed_services.push(service);
+    }
+    if !allowed_services.contains(&service) { return Err("Configured private-name service required".into()); }
     let viewer = membership_lookup_viewer(viewer_principal)?;
     let config = directory_config()?;
     let history = removal_history_revision();
@@ -2375,7 +2385,7 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         let approved_key = dev_g1_observed_key_sha256();
         let digest = legacy_g1_private_name::require_exact_origin(
             ic_cdk::api::canister_self(), service, &scope, &config, &inventory,
-            &service_authorities(), release, approved_key.as_deref())?;
+            &allowed_services, release, approved_key.as_deref())?;
         verify_dev_g1_public_key(service, &digest).await?;
         active()?;
         if !dev_g1_team_name_release_enabled()
