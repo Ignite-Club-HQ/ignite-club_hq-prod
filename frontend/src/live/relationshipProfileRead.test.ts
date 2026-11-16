@@ -62,17 +62,23 @@ describe('relationship-scoped private display reads', () => {
     expect(state.evidence).not.toHaveBeenCalled();
   });
 
-  it('foreign targets and disabled team release cannot use DEV cross-group PII', async () => {
-    state.rehearsal=false; vi.stubEnv('IGNITE_LIVE_PRIVATE_CLUB_NAME_DISPLAYS','1');
+  it('foreign routes remain unscoped while exact pinned DEV team reads require server authorization, not an asset-build flag', async () => {
+    state.rehearsal = false; vi.stubEnv('IGNITE_LIVE_PRIVATE_CLUB_NAME_DISPLAYS', '0');
     state.devRoute.mockReturnValue(undefined);
     const owner=context();
     await readRelationshipProfiles(owner,['someone'],{kind:'team',resource:'u10'});
     expect(state.read).toHaveBeenCalledWith(state.shared,['someone']);
-    state.devRoute.mockReturnValue(state.resolver);
-    vi.stubEnv('IGNITE_LIVE_PRIVATE_CLUB_NAME_DISPLAYS','0');
     state.read.mockClear();
-    await readRelationshipProfiles(owner,['someone'],{kind:'team',resource:'u10'});
-    expect(state.read).toHaveBeenCalledWith(state.shared,['someone']);
+    state.devRoute.mockReturnValue(state.resolver);
+    // A pinned DEV route may request the verified server-only team audience.
+    // The actual canisters, not the frontend flag, must deny an unreleased read.
+    state.read.mockRejectedValueOnce(new Error('Private team-name membership reads are not released'));
+    await expect(readRelationshipProfiles(owner,['someone'],{kind:'team',resource:'u10'}))
+      .rejects.toThrow('not released');
+    const options = state.read.mock.calls[0][2];
+    expect(options.audience).toEqual({kind:'team', resource:'u10',
+      authority: Principal.fromText(owner.target.canisterIds.club_domain), profile_revision:0n});
+    expect(options.resolveAuthority).toBe(state.resolver);
   });
   it('production club display uses exact club audience without rehearsal evidence or global search', async () => {
     state.rehearsal = false; vi.stubEnv('IGNITE_LIVE_PRIVATE_CLUB_NAME_DISPLAYS', '1');
