@@ -1,7 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Invitation share addresses — 16 November
-- [ ] Replace device-local and placeholder origins across all invitation links with the Ignite public address; preserve tokens and invitation behavior. DEV code only.
+- [x] Replace device-local and placeholder origins across all invitation links with the Ignite public address; preserve tokens and invitation behavior. DEV code only.
 - [ ] Run focused invitation-link and existing invitation regressions; no production publication.
 
 ## Share-link invitation-only email signup — 16 November

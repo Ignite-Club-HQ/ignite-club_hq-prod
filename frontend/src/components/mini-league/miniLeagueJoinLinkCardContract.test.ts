@@ -29,7 +29,7 @@ describe("mini-league join-link role contract", () => {
 
   it("preserves link generation and QR filename conventions", () => {
     expect(buildMiniLeagueJoinLinkUrl("token-123")).toBe(
-      "https://reference.invalid/join/p/token-123",
+      "https://igniteclubhq.app/join/p/token-123",
     );
     expect(buildMiniLeagueJoinLinkQrFilename("parent-join", "Summer League!")).toBe(
       "parent-join-summer-league-.png",
