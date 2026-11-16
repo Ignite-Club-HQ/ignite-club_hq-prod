@@ -382,12 +382,70 @@ describe("original-authority display rehearsal", () => {
       let reply: (value: unknown) => void = () => {};
       mocks.scopedRead.mockImplementation(() => new Promise(resolve => { reply = resolve; }));
       const pending = hydratePrivateProfileNames(devCtx, [{ display_name: reference }], { audience: team });
-      const denied = expect(pending).rejects.toThrow('Private team-name read timed out.');
+      const denied = expect(pending).rejects.toThrow('Private team-name ciphertext timed out.');
       await vi.advanceTimersByTimeAsync(25_000);
       await denied;
       reply({ Ok: [{ pii_id: subject, field_id: 'display_name', ciphertext: [9] }] });
       await vi.advanceTimersByTimeAsync(0);
       expect(mocks.keys).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+  it('identifies a slow pinned DEV authority opening without requesting PII', async () => {
+    vi.useFakeTimers();
+    try {
+      const devCtx = { ...ctx, target: { ...ctx.target, canisterIds: {
+        ...ctx.target.canisterIds, identity_access: 'mq2sj-fiaaa-aaaal-qxlqa-cai',
+      } } } as FeatureBackendContext;
+      const team = { kind: 'team' as const, authority: Principal.fromText(authority),
+        resource: 'exact-u10', profile_revision: 0n };
+      const pending = hydratePrivateProfileNames(devCtx, [{ display_name: reference }], {
+        audience: team, resolveAuthority: () => new Promise(() => {}),
+      });
+      const denied = expect(pending).rejects.toThrow('Private team-name route opening timed out.');
+      await vi.advanceTimersByTimeAsync(6_000);
+      await denied;
+      expect(mocks.scopedRead).not.toHaveBeenCalled();
+      expect(mocks.keys).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+  it('identifies a slow DEV vetKey read only after authorised ciphertext arrives', async () => {
+    vi.useFakeTimers();
+    try {
+      const devCtx = { ...ctx, target: { ...ctx.target, canisterIds: {
+        ...ctx.target.canisterIds, identity_access: 'mq2sj-fiaaa-aaaal-qxlqa-cai',
+      } } } as FeatureBackendContext;
+      const team = { kind: 'team' as const, authority: Principal.fromText(authority),
+        resource: 'exact-u10', profile_revision: 0n };
+      mocks.scopedRead.mockResolvedValue({ Ok: [{ pii_id: subject, field_id: 'display_name', ciphertext: [9], master_key_id: 'vetkey-ibe-v1' }] });
+      mocks.keys.mockImplementation(() => new Promise(() => {}));
+      const pending = hydratePrivateProfileNames(devCtx, [{ display_name: reference }], { audience: team });
+      const denied = expect(pending).rejects.toThrow('Private team-name vetkey timed out.');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mocks.keys).toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(25_000);
+      await denied;
+      expect(mocks.decrypt).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+  it('identifies a slow pinned DEV authority closing after decryption', async () => {
+    vi.useFakeTimers();
+    try {
+      const devCtx = { ...ctx, target: { ...ctx.target, canisterIds: {
+        ...ctx.target.canisterIds, identity_access: 'mq2sj-fiaaa-aaaal-qxlqa-cai',
+      } } } as FeatureBackendContext;
+      const team = { kind: 'team' as const, authority: Principal.fromText(authority),
+        resource: 'exact-u10', profile_revision: 0n };
+      mocks.scopedRead.mockResolvedValue({ Ok: [{ pii_id: subject, field_id: 'display_name', ciphertext: [9], master_key_id: 'vetkey-ibe-v1' }] });
+      const confirm = vi.fn(() => new Promise<void>(() => {}));
+      const pending = hydratePrivateProfileNames(devCtx, [{ display_name: reference }], {
+        audience: team, resolveAuthority: async () => ({ context: devCtx, confirm }),
+      });
+      const denied = expect(pending).rejects.toThrow('Private team-name route closing timed out.');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(confirm).toHaveBeenCalledOnce();
+      expect(mocks.decrypt).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(6_000);
+      await denied;
     } finally { vi.useRealTimers(); }
   });
   it('does not change ordinary private-name timeout handling', async () => {
