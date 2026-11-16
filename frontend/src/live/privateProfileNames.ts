@@ -224,17 +224,17 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   const clubRows = validRows.filter(row => row.master_key_id?.startsWith('vetkey-club-names-'));
   if (clubRows.length && (!audience || audience.kind !== 'club' || field !== FIELD || clubRows.some(row => row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${audience.resource}`))) throw new Error('Invalid club name key scope.');
   const individualRows = validRows.filter(row => !clubRows.includes(row));
-  const strictDevClub = import.meta.env.IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES === '1'
-    && audience?.kind === 'club'
-    && audience.authority.toText() === 'yfwyv-nyaaa-aaaal-qxpyq-cai'
-    && audience.resource === '177f8c01-3617-402a-aedd-5c5c17ccfde1'
-    && ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'
-    && ctx.target.canisterIds.club_domain === 'yfwyv-nyaaa-aaaal-qxpyq-cai'
-    && ['iui5p-aaaaa-aaaal-qxllq-cai', 'zt5a6-yiaaa-aaaal-qxp5q-cai'].includes(ctx.target.canisterIds.pii_access_control);
+  const strictSharedClub = import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1'
+    && ctx.target.provider === 'icp' && audience?.kind === 'club';
+  // A team has no independently derived member-name key after cutover.
+  if (import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1'
+    && ctx.target.provider === 'icp' && audience?.kind === 'team') {
+    throw new Error('Team member names must be read under their owning club key.');
+  }
   // Never obtain paid person-specific keys when the selected reader promises
   // a shared club key. A member without an encrypted club copy stays unnamed,
   // pending controlled conversion; this is not permission to decrypt originals.
-  if (strictDevClub && individualRows.length) throw new Error('Club-encrypted name copy missing; no personal-key fallback.');
+  if (strictSharedClub && individualRows.length) throw new Error('Club-encrypted name copy missing; no personal-key fallback.');
   if (individualRows.length || clubRows.length) phase('vetkey');
   const keys = individualRows.length ? await fetchPiiVetKeys(ctx, individualRows.map(row => row.pii_id), field, { fresh: true, assertActive: active, ...(audience ? { audience } : {}), ...(retainOwnKey && !audience ? { retainOwnKey: true } : {}) }) : new Map();
   const clubKey = clubRows.length && audience ? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active) : undefined;
@@ -281,16 +281,11 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
         // audience must report TIMEOUT rather than silently appearing as an
         // unverified empty name set; never disclose ciphertext or IDs.
         // Keep other routes' existing deadlines and neutral failure behavior.
-        const devPilotClub = import.meta.env.IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES === '1' &&
-          audience?.kind === 'club' &&
-          audience.resource === '177f8c01-3617-402a-aedd-5c5c17ccfde1' &&
-          audience.authority.toText() === 'yfwyv-nyaaa-aaaal-qxpyq-cai' &&
-          ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai' &&
-          ['iui5p-aaaaa-aaaal-qxllq-cai', 'zt5a6-yiaaa-aaaal-qxp5q-cai']
-            .includes(ctx.target.canisterIds.pii_access_control);
+        const sharedClubName = import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1'
+          && ctx.target.provider === 'icp' && audience?.kind === 'club';
         const devTeam = audience?.kind === 'team' &&
           ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
-        const crossGroupDevName = devTeam || devPilotClub;
+        const crossGroupDevName = devTeam || sharedClubName;
         timer = setTimeout(() => {
           retired = true;
           if (crossGroupDevName) reject(new Error(`Private team-name ${phase} timed out.`));
