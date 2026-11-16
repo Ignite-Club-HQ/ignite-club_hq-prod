@@ -876,7 +876,7 @@ export default function TeamDetailPage() {
   // Shared club names use one club vetKey for every opted-in adult in this club;
   // never derive personal name keys as a fallback after cutover.
   const devSharedClubNames = devIcpAdultNames && (() => {
-    try { return devG2SharedClubNamesEnabled(getActiveIcpTarget()); }
+    try { return devG2SharedClubNamesEnabled(getActiveIcpTarget(), team?.club_id ?? ''); }
     catch { return false; }
   })();
   const { data: adultNames = [], isLoading: isAdultNamesLoading, isFetching: isAdultNamesFetching,
