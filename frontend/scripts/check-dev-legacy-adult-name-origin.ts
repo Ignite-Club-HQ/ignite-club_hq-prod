@@ -138,7 +138,7 @@ writeFileSync(resolve(reportDir,'check.json'),JSON.stringify({
     {group:'g2',clubCanister:pins.targetClubDomain,registration:'modern router placement'},
   ]:[],
   originalPiiCanister:pins.originalPiiCanister,
-  originalPublicKeyFingerprint,
+  originalPublicKeyFingerprint:originalKeyFingerprint,
   originalKeyMatchesHistoricalBaseline:false,
   originalPiiIdentityAllowlistVerified:false,
   teamOnlyNamePermissionVerified:false,

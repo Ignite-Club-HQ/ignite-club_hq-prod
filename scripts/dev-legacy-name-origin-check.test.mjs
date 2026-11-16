@@ -21,6 +21,19 @@ test('live check explicitly pins original G1, registered G2 and original governo
   assert.match(script,/readyToReleaseName:false/);
   assert.match(script,/nameReadAuthorised:false/);
 });
+test('successful DEV G1 audit report uses the computed public-key SHA-256 digest without disclosing keys or names', () => {
+  // Regression: the previous audit passed its live source and public-key
+  // checks, then crashed when writing an undeclared shorthand property.
+  assert.match(script, /const originalKeyFingerprint = createHash\('sha256'\)\.update\(publicKey\)\.digest\('hex'\)/);
+  assert.match(script, /originalPublicKeyFingerprint:originalKeyFingerprint,/);
+  assert.doesNotMatch(script, /\n\s+originalPublicKeyFingerprint\s*,/);
+  assert.match(script, /originalKeyMatchesHistoricalBaseline:false/);
+  assert.match(script, /originalPiiIdentityAllowlistVerified:false/);
+  assert.match(script, /teamOnlyNamePermissionVerified:false/);
+  assert.match(script, /readyToReleaseName:false/);
+  assert.match(script, /nameReadAuthorised:false/);
+});
+
 test('workflow is read-only, owner protected and never uses a deployment token', () => {
   assert.match(workflow,/workflow_dispatch:/);
   assert.match(workflow,/pull_request:/);
