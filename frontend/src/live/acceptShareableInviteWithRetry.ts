@@ -7,6 +7,13 @@
  * Never retry other rejects or a changed signed-in principal, and never
  * replace the canister's authorisation, exclusion or membership checks.
  */
+/** A shareable invitation may only be redeemed for the principal in the UI's verified session. */
+export function assertShareableInvitePrincipal(authenticatedPrincipal: string, sessionPrincipal: string): void {
+  if (!authenticatedPrincipal || !sessionPrincipal || authenticatedPrincipal !== sessionPrincipal) {
+    throw new Error("Your Internet Identity changed during joining. Sign out, sign in with the intended identity, and review this invitation.");
+  }
+}
+
 export function isTransientAccountAuthorityError(error: unknown): boolean {
   return /Account authority changed; retry/.test(
     error instanceof Error ? error.message : String(error),
