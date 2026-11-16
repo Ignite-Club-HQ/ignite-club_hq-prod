@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { Accordion } from "@/components/ui/accordion";
 import { TeamMembersSection, type TeamMembersRecord } from "./TeamMembersSection";
@@ -73,6 +73,38 @@ describe("TeamMembersSection", () => {
     expect(props.onSelectMember).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "user-2", displayName: "Jane Coach" }),
     );
+  });
+
+  it("shows an immediate, single in-flight player retry and reports a failed retry", async () => {
+    let complete!: (value: { isError: boolean }) => void;
+    const refetchChildren = vi.fn(() => new Promise<{ isError: boolean }>(resolve => { complete = resolve; }));
+    renderSection({
+      members: { parent: { profile: { id: "parent", display_name: "Test", avatar_url: null }, roles: [{ id: "role", role: "parent" }] } },
+      isChildrenError: true,
+      childrenError: new Error("Group 2 lookup unavailable"),
+      refetchChildren,
+    });
+    const retry = screen.getByRole("button", { name: "Retry players" });
+    fireEvent.click(retry);
+    expect(refetchChildren).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Retrying players…" })).toBeDisabled();
+    expect(screen.getByText("Checking the player list again…")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retrying players…" }));
+    expect(refetchChildren).toHaveBeenCalledTimes(1);
+    await act(async () => { complete({ isError: true }); });
+    expect(screen.getByRole("button", { name: "Retry players" })).toBeEnabled();
+    expect(screen.getByText(/The retry finished, but the player list is still unavailable/)).toBeInTheDocument();
+    expect(screen.getByText("Test")).toBeInTheDocument();
+  });
+
+  it("does not display a false failed-retry message if the request succeeds", async () => {
+    const refetchChildren = vi.fn().mockResolvedValue({ isError: false });
+    renderSection({ isChildrenError: true, childrenError: new Error("old failure"), refetchChildren });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Retry players" }));
+    });
+    expect(refetchChildren).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/The retry finished, but/)).not.toBeInTheDocument();
   });
 
   it("refreshes members and children from the refresh button", () => {
