@@ -1,12 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   acceptShareableInviteWithRetry,
+  assertShareableInvitePrincipal,
   isTransientAccountAuthorityError,
   shareableInviteJoinErrorMessage,
 } from "./acceptShareableInviteWithRetry";
 
 describe("ICP shareable-invitation authority retry boundary", () => {
   const principal = "test-principal";
+
+  it("refuses a Test2 session trying to redeem a Test principal's invitation", () => {
+    expect(() => assertShareableInvitePrincipal("test-principal", "test-principal")).not.toThrow();
+    expect(() => assertShareableInvitePrincipal("test-principal", "test2-principal"))
+      .toThrow("Internet Identity changed during joining");
+    expect(() => assertShareableInvitePrincipal("", "test2-principal")).toThrow();
+    expect(() => assertShareableInvitePrincipal("test-principal", "")).toThrow();
+  });
 
   it("retries exactly once after the specific account-epoch rejection", async () => {
     const submit = vi.fn()
