@@ -858,12 +858,12 @@ export default function TeamDetailPage() {
   const childNameIds = useMemo(() => teamChildrenData.map(row => row.child_id).sort(), [teamChildrenData]);
   const { data: adultNames = [] } = useQuery({
     queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id, adultNameIds],
-    enabled: isIcpAccount && adultNameIds.length > 0,
+    enabled: isIcpAccount && !!id && !!team?.club_id && adultNameIds.length > 0,
     queryFn: () => withFeatureBackend('membership', {
       supabase: () => { throw new Error('ICP names required'); },
       icp: ctx => {
         if (!team?.club_id) throw new Error('Team club required for member names');
-        return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds, { kind: 'club', resource: team.club_id }), 8_000, 'member names');
+        return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds, { kind: 'team', resource: id! }), 20_000, 'member names');
       },
     }, { clubId: team?.club_id ?? '' }),
     staleTime: 60_000,
