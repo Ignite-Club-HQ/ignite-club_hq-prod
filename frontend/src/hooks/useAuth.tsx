@@ -1394,17 +1394,22 @@ function withIcpTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 export function IcpAuthProvider({ children, persona = "member" }: { children: ReactNode; persona?: string }) {
   markMountedAuthProvider("icp");
   const queryClient = useQueryClient();
-  const [session, setSession] = useState<InternetIdentitySession | null>(() => {
+  // A localStorage principal is only a resume hint, NOT an authenticated
+  // session. Trusting it immediately lets a previous Test2 profile render
+  // while Internet Identity is restoring a different principal.
+  const [hadStoredIcpSession] = useState(() => {
     try {
       const raw = localStorage.getItem("ignite_icp_internet_identity_session");
-      if (!raw) return null;
+      if (!raw) return false;
       const parsed = JSON.parse(raw) as InternetIdentitySession;
-      return parsed?.provider === "internet-identity" && typeof parsed.principal === "string" ? parsed : null;
+      if (parsed?.provider === "internet-identity" && typeof parsed.principal === "string" && parsed.principal.length > 0) return true;
+      localStorage.removeItem("ignite_icp_internet_identity_session");
     } catch {
       localStorage.removeItem("ignite_icp_internet_identity_session");
-      return null;
     }
+    return false;
   });
+  const [session, setSession] = useState<InternetIdentitySession | null>(null);
   const principal = session?.principal ?? null;
   const [signingOut, setSigningOut] = useState(false);
   const signingOutRef = useRef(false);
@@ -1413,18 +1418,17 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
   // localStorage cache for instant render, then refreshes from the canister.
   // Null means "not resolved yet"; a resolved profile with displayName=null
   // means the canister has no profile and the user must complete one.
-  const [icpProfile, setIcpProfile] = useState<IcpIdentityProfile | null>(() =>
-    principal ? getCachedIcpIdentityProfile(principal) : null,
-  );
+  const [icpProfile, setIcpProfile] = useState<IcpIdentityProfile | null>(null);
+  // The previous principal's React profile state must never be shown, even
+  // for one render, after Internet Identity changes.
+  const [icpProfileOwner, setIcpProfileOwner] = useState<string | null>(null);
   // Only a cached profile WITH a name counts as resolved: a cached "no profile
   // yet" can be stale (saved elsewhere since) and would bounce an existing
   // member to profile setup before the canister answers.
   // A cached existing profile whose name is encrypted (the decrypted name is
   // never stored) also counts: resuming the app must not block on the
   // network name unlock. A cached "no profile yet" still waits.
-  const [icpProfileResolved, setIcpProfileResolved] = useState(() =>
-    Boolean(principal && knownCachedIcpProfile(getCachedIcpIdentityProfile(principal))),
-  );
+  const [icpProfileResolved, setIcpProfileResolved] = useState(false);
   const [icpNamePending, setIcpNamePending] = useState(false);
   // True when the profile could not be loaded AND there is no cache to render
   // from. Drives the "unable to load / retry" screen instead of an endless
@@ -1454,12 +1458,15 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
   useEffect(() => {
     if (!principal) {
       setIcpProfile(null);
+      setIcpProfileOwner(null);
       setIcpProfileResolved(false);
       setIcpProfileError(false);
       return;
     }
     const cached = getCachedIcpIdentityProfile(principal);
+    setIcpProfileOwner(principal);
     setIcpProfile(cached);
+    setIcpProfileResolved(Boolean(knownCachedIcpProfile(cached)));
     // Warm the in-memory own-name store from the device cache so the
     // member's own rows (events, chats, posts) show their name before the
     // background unlock completes.
@@ -1506,6 +1513,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
         const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal), 45000);
         if (!cancelled && icpProfileRequestRef.current === requestId) {
           setIcpProfile(fetched);
+          setIcpProfileOwner(principal);
           setIcpNamePending(false);
           setIcpProfileResolved(true);
           setIcpProfileError(false);
@@ -1532,8 +1540,10 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
   }, [principal, clearDeadIcpSession]);
   // Memoized: a fresh object every render re-fired every effect keyed on
   // `user`/`profile` across the app (refetch + reconnect cascades).
-  const icpDisplayName = icpProfile?.displayName ?? null;
-  const icpAvatarRef = icpProfile?.avatarRef ?? null;
+  const currentIcpProfile = icpProfileOwner === principal && icpProfile?.accountId === principal ? icpProfile : null;
+  const icpDisplayName = currentIcpProfile?.displayName ?? null;
+  const icpAvatarRef = currentIcpProfile?.avatarRef ?? null;
+  const resolvedCurrentIcpProfile = Boolean(principal && icpProfileOwner === principal && icpProfileResolved);
   const user = useMemo(() => principal ? {
     id: principal,
     aud: "authenticated",
@@ -1549,11 +1559,11 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
   // AppLayout shows its retry screen — a non-null profile with a null
   // display_name would be misread as "new user" and bounce an existing
   // member to /complete-profile.
-  const profileHidden = icpProfileError && !icpProfile?.displayName;
+  const profileHidden = icpProfileError && !currentIcpProfile?.displayName;
   const profile = useMemo(() => principal && !profileHidden ? {
     id: principal,
     // Placeholder only while a known existing profile's private name unlocks.
-    display_name: icpDisplayName ?? (icpNamePending ? "…" : null),
+    display_name: icpDisplayName ?? (icpProfileOwner === principal && icpNamePending ? "…" : null),
     avatar_url: icpAvatarRef,
     ignite_points: 0,
     theme_preference: null,
@@ -1567,6 +1577,46 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
   // click event before our code resumes, causing "Signer window should not
   // be opened outside of click handler". Warming here means `signInWithIcp`
   // below can reach the actual `signIn()` call with zero awaits in front of it.
+  // A different verified Internet Identity can supersede a stale session
+  // restored from this browser. Discard all previous-user in-memory and
+  // persisted reads BEFORE making the new principal visible to the app.
+  const adoptVerifiedIcpSession = useCallback(async (verified: InternetIdentitySession) => {
+    let previousPrincipal: string | null = null;
+    try {
+      const raw = localStorage.getItem("ignite_icp_internet_identity_session");
+      const stored = raw ? JSON.parse(raw) as InternetIdentitySession : null;
+      previousPrincipal = typeof stored?.principal === "string" ? stored.principal : null;
+    } catch { /* malformed stored session is never trusted */ }
+
+    if (previousPrincipal && previousPrincipal !== verified.principal) {
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      clearIcpIdentityProfileCache();
+      const [
+        { clearLiveAgentCache },
+        { clearGroupDispatchCache, wipeGroupOwnerCache },
+        { clearPiiVetKeyCache },
+      ] = await Promise.all([
+        import("@/live/icpAgent"),
+        import("@/live/groupDispatch"),
+        import("@/live/piiVetKeys"),
+      ]);
+      clearLiveAgentCache();
+      clearGroupDispatchCache();
+      wipeGroupOwnerCache();
+      await clearPiiVetKeyCache();
+      if (!isNativePlatform()) {
+        const { clearPersistedIcpQueryCache } = await import("@/lib/icpQueryCachePersist");
+        await clearPersistedIcpQueryCache();
+      }
+      void import("@/live/features/events").then(m => m.clearListedLiveEvents()).catch(() => undefined);
+      void import("@/live/features/messaging").then(m => m.clearWarmLiveLatestPages()).catch(() => undefined);
+    }
+    if (signingOutRef.current) throw new Error("Sign-out in progress; sign in again.");
+    localStorage.setItem("ignite_icp_internet_identity_session", JSON.stringify(verified));
+    setSession(verified);
+  }, [queryClient]);
+
   const internetIdentityModuleRef = useRef<typeof import("@/live/internetIdentityAuth") | null>(null);
   const [iiSignInReady, setIiSignInReady] = useState(false);
   // True until the first silent resume attempt below has completed, so the
@@ -1624,8 +1674,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
         const resumed = await mod.resumeInternetIdentitySession();
         if (resumed && !cancelled) {
           console.info("[Auth] Resumed a completed Internet Identity sign-in.");
-          localStorage.setItem("ignite_icp_internet_identity_session", JSON.stringify(resumed));
-          setSession(resumed);
+          await adoptVerifiedIcpSession(resumed);
         }
       } catch (error) {
         console.warn("[Auth] Could not resume Internet Identity session:", error);
@@ -1648,7 +1697,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       window.removeEventListener("focus", onReturn);
       window.removeEventListener("pageshow", onReturn);
     };
-  }, [iiSignInReady, principal]);
+  }, [iiSignInReady, principal, adoptVerifiedIcpSession]);
   useEffect(() => {
     if (icpProfileResolved && icpProfile) markStage("profile_resolved");
   }, [icpProfileResolved, icpProfile]);
@@ -1666,8 +1715,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       const nextSession = await mod.signInWithInternetIdentity(
         typeof window !== "undefined" ? `${location.pathname}${location.search}${location.hash}` : undefined,
       );
-      localStorage.setItem("ignite_icp_internet_identity_session", JSON.stringify(nextSession));
-      setSession(nextSession);
+      await adoptVerifiedIcpSession(nextSession);
       return { error: null };
     } catch (error) {
       return { error: error instanceof Error ? error : new Error("Internet Identity sign-in failed.") };
@@ -1678,12 +1726,12 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     session: null as Session | null,
     profile,
     loading: false,
-    profileLoading: Boolean(principal) && !icpProfileResolved,
+    profileLoading: Boolean(principal) && !resolvedCurrentIcpProfile,
     profileError: icpProfileError,
     initialized: true,
-    sessionRestoration: principal ? "authenticated" as const : "signed_out" as const,
-    profileResolved: !principal || icpProfileResolved,
-    profileNamePending: Boolean(principal) && icpNamePending && !icpDisplayName,
+    sessionRestoration: principal ? "authenticated" as const : hadStoredIcpSession && iiResumePending ? "restoring" as const : "signed_out" as const,
+    profileResolved: !principal || resolvedCurrentIcpProfile,
+    profileNamePending: Boolean(principal) && icpProfileOwner === principal && icpNamePending && !icpDisplayName,
     unreadCount: 0,
     unreadMessagesCount: 0,
     signUp: async () => ({ error: (await signInWithIcp()).error, needsEmailConfirmation: false }),
@@ -1764,6 +1812,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
         if (savedIcpProfile.accountId !== principal || savedIcpProfile.profileMissing) throw Error('Saved profile does not match the signed-in account.');
         ++icpProfileRequestRef.current;
         setIcpProfile(savedIcpProfile);
+        setIcpProfileOwner(principal);
         setIcpProfileResolved(true);
         setIcpProfileError(false);
         return;
@@ -1787,6 +1836,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
         const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal), 45000);
         if (signingOutRef.current || requestId !== icpProfileRequestRef.current) return;
         setIcpProfile(fetched);
+        setIcpProfileOwner(principal);
         setIcpProfileResolved(true);
         setIcpProfileError(false);
       } catch (error) {

@@ -36,10 +36,11 @@ vi.mock("@/live/features/miniLeagues", () => ({
 }));
 
 let membershipRoutedToIcp = false;
+let currentIcpPrincipal = "principal-abc";
 vi.mock("@/live/invitePreview", () => ({
   readInvitePreview: async (_token: string, providers: any, options?: { forceIcp?: boolean }) =>
     membershipRoutedToIcp || options?.forceIcp
-      ? providers.icp({ identity: {}, target: {} })
+      ? providers.icp({ identity: { getPrincipal: () => ({ toText: () => currentIcpPrincipal }) }, target: {} })
       : providers.supabase(),
 }));
 vi.mock("@/live/loadBackendRouting", () => ({
@@ -49,7 +50,7 @@ vi.mock("@/live/loadBackendRouting", () => ({
 vi.mock("@/live/featureRouter", () => ({
   withFeatureBackend: async (_feature: string, providers: any) =>
     membershipRoutedToIcp
-      ? providers.icp({ identity: {}, target: {} })
+      ? providers.icp({ identity: { getPrincipal: () => ({ toText: () => currentIcpPrincipal }) }, target: {} })
       : providers.supabase(),
 }));
 
@@ -143,6 +144,7 @@ const regularInviteRow = {
 beforeEach(() => {
   sessionStorage.clear();
   membershipRoutedToIcp = false;
+  currentIcpPrincipal = "principal-abc";
   rpcMock.mockReset();
   getLiveTeamInviteMock.mockReset();
   acceptLiveTeamInviteMock.mockReset();
@@ -222,6 +224,26 @@ describe("JoinTeamPage team-invite acceptance routing", () => {
     await waitFor(() => expect(acceptLiveTeamInviteLinkMock).toHaveBeenCalledWith(expect.anything(), "share-token"));
     expect(acceptLiveTeamInviteMock).not.toHaveBeenCalled();
     expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses shareable invite redemption when the signer and displayed account differ", async () => {
+    membershipRoutedToIcp = true;
+    currentIcpPrincipal = "different-principal";
+    getLiveTeamInviteLinkByTokenMock.mockResolvedValue({
+      id: "link-1", team_id: "team-1", club_id: "club-1", role: "coach",
+      revoked: false, created_at_ms: 1000n,
+    });
+    renderAt("/join/share-token");
+    const joinButton = await screen.findByRole("button", { name: /join/i });
+    await waitFor(() => expect(joinButton).toBeEnabled());
+    fireEvent.click(joinButton);
+    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Couldn't complete your join",
+        description: expect.stringContaining("Internet Identity changed during joining"),
+      }),
+    ));
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
   });
 
   it("ICP tok-hex parent invites are previewed even when signed-out routing defaults to email", async () => {

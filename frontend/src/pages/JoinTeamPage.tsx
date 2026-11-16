@@ -39,7 +39,7 @@ import { getLivePlayerInvitePreview, claimLiveInvite, getLiveJoinLinkByToken, ge
 import { getLivePendingInvite, getLiveTeamInviteLinkByToken, acceptLiveTeamInviteLink, getLiveClubProfile, getLiveTeam } from "@/live/features/club";
 import { acceptIcpInviteAndWelcome } from "@/features/membership/acceptIcpInviteAndWelcome";
 import { needsInviteChildEntry } from "@/features/membership/inviteFlowRules";
-import { shareableInviteJoinErrorMessage } from "@/live/acceptShareableInviteWithRetry";
+import { assertShareableInvitePrincipal, shareableInviteJoinErrorMessage } from "@/live/acceptShareableInviteWithRetry";
 import { createIcpInviteChild } from "@/features/membership/createIcpInviteChild";
 import { verifyIcpChildNameAcrossGroups } from "@/features/membership/verifyIcpChildNameAcrossGroups";
 
@@ -1235,6 +1235,9 @@ function SupabaseJoinTeamPage() {
             // TeamInviteLink tokens are redeemed by token (grants the link's
             // role idempotently); legacy TeamInvite records are accepted by id.
             if ((invite as { metadata?: { icp_invite_link?: boolean } | null } | null)?.metadata?.icp_invite_link) {
+              // Never let an old Ignite session accept a link for a newly
+              // authenticated Internet Identity (or the reverse).
+              assertShareableInvitePrincipal(ctx.identity.getPrincipal().toText(), user.id);
               await acceptLiveTeamInviteLink(ctx, token!);
               return;
             }
