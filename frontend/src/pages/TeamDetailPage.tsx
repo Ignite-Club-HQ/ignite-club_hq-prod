@@ -101,7 +101,7 @@ import {
 } from "@/live/features/membership";
 import { getLiveTeam, getLiveClubProfile, getLiveClubSubscription, getLiveTeamSubscription, saveLiveTeamSubscription, saveLiveTeamPitchSettings } from "@/live/features/club";
 import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
-import { devG2SharedClubNamesEnabled } from "@/live/devCrossGroupTeamNameRoute";
+import { sharedClubNameEnforcementEnabled } from "@/live/devCrossGroupTeamNameRoute";
 import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { Principal } from "@icp-sdk/core/principal";
@@ -871,11 +871,10 @@ export default function TeamDetailPage() {
     try { return getActiveIcpTarget().canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'; }
     catch { return false; }
   })();
-  // Rollout is independent of the historical team-person-key reader.
-  // Shared club names use one club vetKey for every opted-in adult in this club;
-  // never derive personal name keys as a fallback after cutover.
+  // When the global ICP release is enabled, ALL teams inherit the owning
+  // club's name key; no team/person-key fallback is allowed.
   const devSharedClubNames = devIcpAdultNames && (() => {
-    try { return devG2SharedClubNamesEnabled(getActiveIcpTarget(), team?.club_id ?? ''); }
+    try { return sharedClubNameEnforcementEnabled(getActiveIcpTarget()) && Boolean(team?.club_id); }
     catch { return false; }
   })();
   const adultNameIds = useMemo(() => requestedClubAdultNameIds(
