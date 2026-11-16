@@ -6,7 +6,7 @@ import { createLivePrivateProfileAuthorityResolver } from './privateProfileAutho
 import { listLiveProfilesByIds } from './features/identityAccessClient';
 import { capturePrivateProfileSession } from './privateProfileSession';
 import { privateClubNameDisplaysEnabled } from './privateClubNameDisplayMode';
-import { createDevCrossGroupTeamNameResolver } from './devCrossGroupTeamNameRoute';
+import { createDevCrossGroupTeamNameResolver, devG2SharedClubNamesEnabled } from './devCrossGroupTeamNameRoute';
 
 export type ProfileRelationship = {
   kind: 'club' | 'team' | 'family' | 'competition' | 'league' | 'direct' | 'broadcast' | 'competition_admin';
@@ -42,11 +42,13 @@ export async function readRelationshipProfiles(
       active();
       if (shared.identity !== identity) throw new Error('Profile reader identity changed.');
       const rehearsal = privateProfileSearchRehearsalEnabled();
-      const releasedClub = relationship.kind === 'club' && privateClubNameDisplaysEnabled();
-      // DEV only: original Group-1 PII may serve a person on any registered
-      // Group-2 team. Frontend routing does not grant decryption; both PII and
-      // Identity verify the exact-team audience and source on every read.
-      const devTeamResolver = relationship.kind === 'team'
+      const devSharedClub = relationship.kind === 'club' && devG2SharedClubNamesEnabled(owner.target);
+      const releasedClub = relationship.kind === 'club' && (privateClubNameDisplaysEnabled() || devSharedClub);
+      // DEV only: source resolution can serve either the historical exact-team
+      // path, or an explicitly operator-released shared CLUB key. The browser
+      // does not grant access; original PII, Identity and owning G2 Club must
+      // independently authorise every name against the selected audience.
+      const devTeamResolver = (relationship.kind === 'team' || devSharedClub)
         ? createDevCrossGroupTeamNameResolver(owner) : undefined;
       // The original G1 -> registered G2 DEV route is independently pinned and
       // its Identity/PII/Club audience release is server-gated. Lovable mobile
@@ -68,7 +70,7 @@ export async function readRelationshipProfiles(
       const rows = await listLiveProfilesByIds(shared, ids, {
         signal,
         audience: { ...relationship, authority, profile_revision: 0n },
-        ...(releasedTeam && !rehearsal && devTeamResolver
+        ...(devTeamResolver && !rehearsal
           ? { resolveAuthority: devTeamResolver }
           : rehearsal ? { resolveAuthority: async (original: string) => {
           active();
