@@ -892,6 +892,53 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
 
+  // DEV-only, governor-only encrypted-copy METADATA audit. Unlike the
+  // owner-only lifecycle read, this returns no ciphertext, names, derived
+  // keys, saved original bytes, readers or grants. A valid copy must match
+  // the exact original owner and the reusable per-club key scheme. Never
+  // infer an active membership or approved release from this response.
+  public shared ({ caller }) func read_dev_private_club_name_replica_coverage(
+    subjects : [Principal], club : Text,
+  ) : async { #Ok : [{ subject : Principal; state : Text }]; #Err : Text } {
+    let self = Principal.fromActor(this).toText();
+    if (self != "iui5p-aaaaa-aaaal-qxllq-cai" and
+        self != "zt5a6-yiaaa-aaaal-qxp5q-cai") return #Err("Only pinned DEV name authorities permitted");
+    if (not isGovernor(caller)) return #Err("Governor required");
+    if (not validMediaClub(club) or subjects.size() == 0 or subjects.size() > 25)
+      return #Err("Bounded exact DEV club-name coverage required");
+    var seen : [Principal] = [];
+    for (subject in subjects.vals()) {
+      if (subject.isAnonymous() or subject.toText() == "aaaaa-aa" or
+          seen.any(func (p : Principal) : Bool { p == subject }))
+        return #Err("Distinct nonanonymous subjects required");
+      seen := seen.concat([subject]);
+    };
+    let rows = subjects.map(func (subject : Principal) : { subject : Principal; state : Text } {
+      let id = subject.toText();
+      let originals = pii_records.filter(func (r) : Bool {
+        r.pii_id == id and r.field_id == "display_name"
+      });
+      let copies = pii_records.filter(func (r) : Bool {
+        r.pii_id == id and r.field_id == clubNameField(club)
+      });
+      let state =
+        if (originals.size() > 1 or copies.size() > 1) "ambiguous"
+        else if (originals.size() == 0) "original_missing"
+        else if (originals[0].domain_owner != subject or
+                 originals[0].master_key_id != vetkeySchemeId() or
+                 originals[0].ciphertext.size() == 0 or
+                 originals[0].ciphertext.size() > 4096) "original_invalid"
+        else if (copies.size() == 0) "copy_missing"
+        else if (copies[0].domain_owner != subject or
+                 copies[0].master_key_id != clubNameScheme(club) or
+                 copies[0].ciphertext.size() == 0 or
+                 copies[0].ciphertext.size() > 4096) "copy_invalid"
+        else "copy_verified";
+      { subject; state }
+    });
+    #Ok(rows)
+  };
+
   // Create-only refresh pins the ORIGINAL saved bytes, not just a subject or
   // sampled timestamp. Check and commit have no await boundary.
   public shared ({ caller }) func refresh_private_club_name_lifecycle(subject : Principal, club : Text, originalCiphertext : [Nat8], ciphertext : [Nat8]) : async { #Ok; #Err : Text } {
