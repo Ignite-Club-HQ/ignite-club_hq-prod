@@ -260,11 +260,19 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
   try {
     return await Promise.race([
       readNames(ctx, subjects, FIELD, guard, audience),
-      new Promise<Map<string, string>>(resolve => {
+      new Promise<Map<string, string>>((resolve, reject) => {
         // Cross-group team names require PII -> Identity -> Club double
-        // verification and a fresh vetKey; keep the existing 6s deadline for
-        // all non-team scopes but permit a longer cold authorised team read.
-        timer = setTimeout(() => { retired = true; resolve(new Map()); }, audience?.kind === 'team' ? 25_000 : READ_TIMEOUT_MS);
+        // verification and a fresh vetKey. A timed-out *pinned DEV team*
+        // audience must report TIMEOUT rather than silently appearing as an
+        // unverified empty name set; never disclose ciphertext or IDs.
+        // Keep other routes' existing deadlines and neutral failure behavior.
+        const devTeam = audience?.kind === 'team' &&
+          ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
+        timer = setTimeout(() => {
+          retired = true;
+          if (devTeam) reject(new Error('Private team-name read timed out.'));
+          else resolve(new Map());
+        }, audience?.kind === 'team' ? 25_000 : READ_TIMEOUT_MS);
       }),
     ]);
   } catch (error) {
