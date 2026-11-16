@@ -43,9 +43,10 @@ afterEach(() => vi.unstubAllEnvs());
 describe('default-off DEV shared-club-name cutover', () => {
   it('requires both frontend operator opt-in and every exact existing DEV target pin', () => {
     const f=setup();
-    expect(devG2SharedClubNamesEnabled(f.ctx.target)).toBe(false);
+    expect(devG2SharedClubNamesEnabled(f.ctx.target, '177f8c01-3617-402a-aedd-5c5c17ccfde1')).toBe(false);
     vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','1');
-    expect(devG2SharedClubNamesEnabled(f.ctx.target)).toBe(true);
+    expect(devG2SharedClubNamesEnabled(f.ctx.target, '177f8c01-3617-402a-aedd-5c5c17ccfde1')).toBe(true);
+    expect(devG2SharedClubNamesEnabled(f.ctx.target, 'another-dev-club')).toBe(false);
     for (const update of [
       {provider:'supabase'}, {host:'https://unexpected.invalid'},
       {networkKind:'cloud_engine'}, {status:'disabled'},
@@ -54,7 +55,7 @@ describe('default-off DEV shared-club-name cutover', () => {
       {canisterIds:{...f.ctx.target.canisterIds,club_domain:DEV.originalClub}},
       {canisterIds:{...f.ctx.target.canisterIds,shard_router:p(80).toText()}},
     ]) {
-      expect(devG2SharedClubNamesEnabled({...f.ctx.target,...update} as typeof f.ctx.target)).toBe(false);
+      expect(devG2SharedClubNamesEnabled({...f.ctx.target,...update} as typeof f.ctx.target, '177f8c01-3617-402a-aedd-5c5c17ccfde1')).toBe(false);
     }
   });
 });
