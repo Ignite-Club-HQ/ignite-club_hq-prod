@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Invitation share addresses — 16 November
+- [ ] Replace device-local and placeholder origins across all invitation links with the Ignite public address; preserve tokens and invitation behavior. DEV code only.
+- [ ] Run focused invitation-link and existing invitation regressions; no production publication.
+
 ## Share-link invitation-only email signup — 16 November
 - [x] DEV: allow unclaimed email-less pending invitations only at email-enabled clubs; preserve named-email matching and other invitation branches.
 - [x] Authorize child/parent acceptance by the exact share token with atomic, idempotent acceptance; show specific refusal reasons. Token-bearing accounts cannot automatically claim unrelated email-matched invites.
