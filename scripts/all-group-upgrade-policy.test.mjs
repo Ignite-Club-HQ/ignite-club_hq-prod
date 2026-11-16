@@ -70,6 +70,27 @@ test('DEV plugin member access can upgrade only the four pinned events and chat 
   changed.registry.placements[0].domains.find(d=>d.domain==='events_domain').canister=p('other-canister-cai');
   assert.throws(()=>planInventory(shared,changed.provisions,changed.registry,'plugin_member_access',changed.hashes),/exactly four pinned/);
 });
+test('DEV universal club-name release pins exactly G1/G2 PII and original Identity with a distinct confirmation',()=>{
+  const f=fixture();
+  const plan=planInventory(shared,f.provisions,f.registry,'shared_club_name_enforcement',f.hashes);
+  assert.deepEqual(SCOPES.shared_club_name_enforcement,['pii_access_control','identity_access']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g1','pii_access_control','iui5p-aaaaa-aaaal-qxllq-cai'],
+    ['g2','pii_access_control','zt5a6-yiaaa-aaaal-qxp5q-cai'],
+    ['shared','identity_access','mq2sj-fiaaa-aaaal-qxlqa-cai'],
+  ]);
+  validateRequest('check','shared_club_name_enforcement');
+  validateRequest('upgrade','shared_club_name_enforcement','UPGRADE DEV SHARED CLUB NAMES ONLY',hash(1));
+  assert.throws(()=>validateRequest('upgrade','shared_club_name_enforcement','UPGRADE ALL MAINNET GROUPS',hash(1)),/UPGRADE DEV SHARED CLUB NAMES ONLY/);
+  assert.throws(()=>validateRequest('upgrade','shared_club_name_enforcement','UPGRADE DEV SHARED CLUB NAMES ONLY',''),/Checked plan/);
+  assert.throws(()=>planInventory(shared,fixture(3).provisions,fixture(3).registry,'shared_club_name_enforcement',fixture(3).hashes),/exactly G1\/G2 PII/);
+  const bad=fixture();
+  bad.provisions[0].canisters.pii_access_control='foreign-pii-cai';
+  bad.registry.groups[0].domains.find(d=>d.domain==='pii_access_control').canister=p('foreign-pii-cai');
+  bad.registry.placements[0].domains.find(d=>d.domain==='pii_access_control').canister=p('foreign-pii-cai');
+  assert.throws(()=>planInventory(shared,bad.provisions,bad.registry,'shared_club_name_enforcement',bad.hashes),/exactly G1\/G2 PII/);
+  assert.equal(plan.targets.some(t=>['club_domain','notification_queue','messaging_domain','events_domain'].includes(t.name)),false);
+});
 test('DEV RSVP-only release requires exact confirmation and only two pinned events canisters',()=>{
   const f=fixture();
   const plan=planInventory(shared,f.provisions,f.registry,'rsvp_integrity',f.hashes);
