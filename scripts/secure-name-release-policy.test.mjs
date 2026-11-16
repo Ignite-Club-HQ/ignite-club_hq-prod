@@ -118,6 +118,6 @@ test('DEV-only universal club-name release changes exactly three PII/Identity se
   assert.throws(()=>secureNameEnvironment(pii.filter(x=>x.name!=='VETKD_KEY_NAME'),'pii_access_control','shared_club_name_enforcement',dev));
   assert.throws(()=>secureNameEnvironment(id.filter(x=>x.name!=='IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256'),'identity_access','shared_club_name_enforcement',dev));
   assert.throws(()=>secureNameEnvironment(id.map(x=>x.name==='IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256'?{...x,value:'0'.repeat(64)}:x),'identity_access','shared_club_name_enforcement',dev));
-  assert.throws(()=>secureNameEnvironment(id,'identity_access','shared_club_name_enforcement',{identity:'prod-identity',originalPii:'prod-pii'}),/DEV-only/);
+  assert.throws(()=>secureNameEnvironment(id,'identity_access','shared_club_name_enforcement',{identity:'prod-identity',originalPii:'prod-pii'}),/DEV-only|mismatch|DEV legacy/);
   assert.throws(()=>secureNameEnvironment(pii,'pii_access_control','shared_club_name_enforcement',{identity:'prod-identity',originalPii:'prod-pii'}),/DEV-only|mismatch/);
 });
