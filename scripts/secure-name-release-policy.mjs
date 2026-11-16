@@ -46,9 +46,13 @@ export function secureNameEnvironment(environment, service, scope, {identity, or
   }
   if(scope==='private_club_name_display'&&service!=='club_domain')exact(SAVE_RELEASE,'1',true);
   const exactDevOriginal = identity===EXACT_DEV_IDENTITY && originalPii===EXACT_DEV_G1_PII;
-  // Never carry DEV-only release settings onto a foreign/PROD Identity.
-  if(!exactDevOriginal && environment.some(row=>[DEV_G1_TEAM_NAME_RELEASE,DEV_G1_OBSERVED_KEY].includes(row.name)))
+  // Never copy DEV-only settings onto another canister or deployment.
+  const existingDevSettings=environment.filter(row=>[DEV_G1_TEAM_NAME_RELEASE,DEV_G1_OBSERVED_KEY].includes(row.name));
+  if(existingDevSettings.length && (!exactDevOriginal || service!=='identity_access'))
     throw Error('DEV cross-group name settings belong to the original DEV Identity only');
+  const existingObserved=environment.find(row=>row.name===DEV_G1_OBSERVED_KEY);
+  if(existingObserved && existingObserved.value!==VERIFIED_DEV_G1_OBSERVED_SHA256)
+    throw Error('Original DEV G1 observed PII fingerprint differs; cannot reconfigure');
   // This existing protected DEV-only scope already journals setting changes
   // before Identity and original PII upgrades. No new deployment workflow,
   // data migration, new grants or insecure broad name-read switch is needed.
