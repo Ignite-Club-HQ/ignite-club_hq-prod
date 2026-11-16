@@ -449,6 +449,58 @@ async function signInWithStoredSessionRecovery(
  */
 let signOutRequested = false;
 
+/**
+ * DEV-only recovery for a delegation that Ignite's account registry has
+ * revoked. Never reauthorizes a denied principal or changes server state.
+ * A second press must reach the Internet Identity chooser rather than
+ * reusing the same rejected browser delegation indefinitely.
+ */
+export function shouldClearRevokedDevInternetIdentitySession(origin: string, error: unknown): boolean {
+  const reason = error instanceof Error ? error.message : String(error);
+  if (!reason.includes("Identity revoked; surviving-account relink required")) return false;
+  return origin === DEV_FRONTEND_II_ORIGIN ||
+    DEV_LOVABLE_ORIGIN_SET.has(origin) ||
+    resolveDerivationOriginFor(origin) === DEV_FRONTEND_II_ORIGIN;
+}
+
+async function provisionWithRevokedDevRecovery(
+  identity: Identity, principal: string, target: IcpTargetConfig,
+): Promise<void> {
+  try {
+    await provisionInternetIdentityAccount(identity, principal, target);
+  } catch (error) {
+    if (typeof window === "undefined" ||
+        !shouldClearRevokedDevInternetIdentitySession(window.location.origin, error)) throw error;
+
+    // Fail closed: do not call account link/rekey/revoke APIs. Drop only this
+    // browser's rejected signer session, then re-warm before the next tap.
+    try {
+      await signOutInternetIdentity();
+    } catch (signOutError) {
+      console.warn("[InternetIdentity] Could not fully clear rejected DEV delegation.", signOutError);
+    }
+    try {
+      const raw = localStorage.getItem("ignite_icp_internet_identity_session");
+      if (raw && (JSON.parse(raw) as InternetIdentitySession).principal === principal) {
+        localStorage.removeItem("ignite_icp_internet_identity_session");
+      }
+    } catch {
+      localStorage.removeItem("ignite_icp_internet_identity_session");
+    }
+    try {
+      await warmInternetIdentityAuthClient();
+    } catch (warmError) {
+      console.warn("[InternetIdentity] Could not pre-warm the next sign-in after clearing the rejected delegation.", warmError);
+    }
+    throw new Error(
+      `Ignite DEV rejected Internet Identity principal ${principal} because that identity is revoked. ` +
+      "The saved sign-in was cleared on this device. Tap Continue securely again and select a DIFFERENT " +
+      "Internet Identity account (not just another passkey for the same account). " +
+      "Existing account data and permissions were not changed.",
+    );
+  }
+}
+
 export async function signInWithInternetIdentity(returnTo?: string): Promise<InternetIdentitySession> {
   // An explicit tap always re-arms the silent resume path.
   signOutRequested = false;
@@ -465,7 +517,7 @@ export async function signInWithInternetIdentity(returnTo?: string): Promise<Int
   }
   const principalText = principal.toText();
   markStage("identity_complete");
-  await provisionInternetIdentityAccount(identity, principalText, target);
+  await provisionWithRevokedDevRecovery(identity, principalText, target);
   markStage("account_ready");
   observePrivateProfilePrincipal(principalText);
   return { principal: principalText, provider: "internet-identity" };
@@ -494,7 +546,7 @@ export async function resumeInternetIdentitySession(): Promise<InternetIdentityS
   if (principal.isAnonymous() || principal.toText() === "2vxsx-fae") return null;
   const principalText = principal.toText();
   markStage("identity_complete");
-  await provisionInternetIdentityAccount(identity, principalText, target);
+  await provisionWithRevokedDevRecovery(identity, principalText, target);
   markStage("account_ready");
   observePrivateProfilePrincipal(principalText);
   return { principal: principalText, provider: "internet-identity" };
