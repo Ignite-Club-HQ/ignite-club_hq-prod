@@ -19,7 +19,7 @@ export function secureNameChangedSettings(scope, service) {
   if (!isSecureNameScope(scope) || !['identity_access','pii_access_control','club_domain'].includes(service)
     || (scope!=='private_club_name_display' && service==='club_domain')) throw Error('Exact secure-name target required');
   if (scope==='shared_club_name_enforcement') {
-    return [service==='identity_access' ? DEV_G2_SHARED_CLUB_RELEASE : SHARED_CLUB_NAME_RELEASE];
+    return service==='identity_access' ? [DEV_G2_SHARED_CLUB_RELEASE] : [SHARED_CLUB_NAME_RELEASE,DEV_G2_SHARED_CLUB_RELEASE];
   }
   return scope==='secure_name_save'
     ? [SAVE_RELEASE,service==='identity_access'?'IGNITE_SECURE_ADULT_NAME_PII':'IGNITE_SECURE_ADULT_NAME_IDENTITY']
