@@ -74,6 +74,29 @@ describe('essential own-name copy maintenance', () => {
     expect(mocks.encrypt).not.toHaveBeenCalled();
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
+  it('derives one personal key on first owner repair, then zero on the next sign-in', async () => {
+    enable();
+    const saved = new Map<string, number[]>();
+    mocks.refresh.mockImplementation(async (_owner, club, _original, bytes) => {
+      saved.set(club, Array.from(bytes));
+      return { Ok: null };
+    });
+    mocks.lifecycleRead.mockImplementation(async (_owner, club) => {
+      const bytes = saved.get(club);
+      return { Ok: bytes ? [{
+        pii_id: subject, field_id:'display_name',
+        master_key_id:`vetkey-club-names-v1:${club}`,
+        ciphertext: bytes,
+      }] : [] };
+    });
+    await refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover);
+    await refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover);
+    expect(saved.size).toBe(2);
+    expect(mocks.keys).toHaveBeenCalledOnce();
+    expect(mocks.refresh).toHaveBeenCalledTimes(2);
+    expect(mocks.encrypt).toHaveBeenCalledTimes(2);
+    expect(mocks.lifecycleRead).toHaveBeenCalledTimes(6);
+  });
   it('fills only the missing club while retaining an existing random ciphertext', async () => {
     enable();
     mocks.lifecycleRead.mockImplementation(async (_, club) => ({ Ok:
