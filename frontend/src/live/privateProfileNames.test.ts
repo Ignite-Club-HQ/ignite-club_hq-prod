@@ -26,7 +26,16 @@ beforeEach(() => {
   mocks.decrypt.mockReturnValue(new TextEncoder().encode("Paul Cranwell"));
   mocks.rehearsal.mockReturnValue(false);
   mocks.refresh.mockResolvedValue({ Ok: null });
-  mocks.lifecycleRead.mockImplementation(async (_, club) => ({ Ok: [{ pii_id: subject, field_id: 'display_name', master_key_id: `vetkey-club-names-v1:${club}`, ciphertext: [9, 8] }] }));
+  // The owner has no copy until a create-only refresh succeeds. A returning
+  // session can therefore distinguish existing from missing without replay.
+  mocks.lifecycleRead.mockImplementation(async (_, club) => {
+    const refresh = mocks.refresh.mock.calls.find(call => call[1] === club);
+    return { Ok: refresh ? [{
+      pii_id: subject, field_id: 'display_name',
+      master_key_id: `vetkey-club-names-v1:${club}`,
+      ciphertext: Array.from(refresh[3]),
+    }] : [] };
+  });
 });
 
 describe('essential own-name copy maintenance', () => {
@@ -48,9 +57,79 @@ describe('essential own-name copy maintenance', () => {
       [Principal.fromText(subject), 'club-1', new Uint8Array([9, 8]), new Uint8Array([9, 8])],
       [Principal.fromText(subject), 'club-2', new Uint8Array([9, 8]), new Uint8Array([9, 8])],
     ]);
-    expect(mocks.lifecycleRead).toHaveBeenCalledTimes(2);
+    expect(mocks.lifecycleRead).toHaveBeenCalledTimes(4); // discovery and closing readback
     expect(mocks.lifecycleRead).toHaveBeenCalledWith(Principal.fromText(subject), 'club-1', [new Uint8Array([9, 8])]);
+    expect(mocks.keys).toHaveBeenCalledOnce();
     expect(mocks.register).not.toHaveBeenCalled();
+  });
+  it('does not re-encrypt existing copies or derive a paid personal key on repeat logins', async () => {
+    enable();
+    mocks.lifecycleRead.mockImplementation(async (_, club) => ({ Ok: [{
+      pii_id: subject, field_id:'display_name',
+      master_key_id:`vetkey-club-names-v1:${club}`, ciphertext:[12,34,56],
+    }] }));
+    await refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover);
+    expect(mocks.lifecycleRead).toHaveBeenCalledTimes(2);
+    expect(mocks.keys).not.toHaveBeenCalled();
+    expect(mocks.encrypt).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+  it('derives one personal key on first owner repair, then zero on the next sign-in', async () => {
+    enable();
+    const saved = new Map<string, number[]>();
+    mocks.refresh.mockImplementation(async (_owner, club, _original, bytes) => {
+      saved.set(club, Array.from(bytes));
+      return { Ok: null };
+    });
+    mocks.lifecycleRead.mockImplementation(async (_owner, club) => {
+      const bytes = saved.get(club);
+      return { Ok: bytes ? [{
+        pii_id: subject, field_id:'display_name',
+        master_key_id:`vetkey-club-names-v1:${club}`,
+        ciphertext: bytes,
+      }] : [] };
+    });
+    await refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover);
+    await refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover);
+    expect(saved.size).toBe(2);
+    expect(mocks.keys).toHaveBeenCalledOnce();
+    expect(mocks.refresh).toHaveBeenCalledTimes(2);
+    expect(mocks.encrypt).toHaveBeenCalledTimes(2);
+    expect(mocks.lifecycleRead).toHaveBeenCalledTimes(6);
+  });
+  it('fills only the missing club while retaining an existing random ciphertext', async () => {
+    enable();
+    mocks.lifecycleRead.mockImplementation(async (_, club) => ({ Ok:
+      club === 'club-1' ? [{
+        pii_id: subject, field_id:'display_name',
+        master_key_id:'vetkey-club-names-v1:club-1', ciphertext:[22,33,44],
+      }] : mocks.refresh.mock.calls.some(call => call[1] === 'club-2')
+        ? [{pii_id:subject,field_id:'display_name',master_key_id:'vetkey-club-names-v1:club-2',ciphertext:[9,8]}]
+        : [],
+    }));
+    await refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover);
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(mocks.refresh.mock.calls[0][1]).toBe('club-2');
+    expect(mocks.keys).toHaveBeenCalledOnce();
+    expect(mocks.encrypt).toHaveBeenCalledOnce();
+    expect(mocks.lifecycleRead).toHaveBeenCalledTimes(4);
+  });
+  it('fails closed on an existing club copy with wrong owner/scheme', async () => {
+    enable();
+    mocks.lifecycleRead.mockResolvedValue({Ok:[{
+      pii_id:subject,field_id:'display_name',
+      master_key_id:'vetkey-ibe-v1',ciphertext:[9,8],
+    }]});
+    await expect(refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover)).rejects.toThrow('binding changed');
+    expect(mocks.keys).not.toHaveBeenCalled();
+    expect(mocks.encrypt).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+  it('does not interpret denied owner read as an absent copy to overwrite', async () => {
+    enable();mocks.lifecycleRead.mockResolvedValue({Err:'Name owner required'});
+    await expect(refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover)).rejects.toThrow('Name owner required');
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(mocks.keys).not.toHaveBeenCalled();
   });
   it('stops before replica writes when original plaintext differs', async () => {
     enable();mocks.decrypt.mockReturnValue(new TextEncoder().encode('Newer name'));
@@ -67,10 +146,12 @@ describe('essential own-name copy maintenance', () => {
     enable();await expect(refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', async () => { retirePrivateProfileSession();return ['club-1']; })).rejects.toThrow('session retired');expect(mocks.refresh).not.toHaveBeenCalled();
   });
   it.each(['Unknown commit', 'Original name changed', 'Names not released'])('does not replay or continue after %s', async message => {
-    enable();mocks.refresh.mockRejectedValueOnce(Error(message));await expect(refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover)).rejects.toThrow(message);expect(mocks.refresh).toHaveBeenCalledOnce();expect(mocks.lifecycleRead).not.toHaveBeenCalled();
+    enable();mocks.refresh.mockRejectedValueOnce(Error(message));await expect(refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover)).rejects.toThrow(message);expect(mocks.refresh).toHaveBeenCalledOnce();expect(mocks.lifecycleRead).toHaveBeenCalledTimes(2);
   });
   it('refuses missing or changed closing readback after writes', async () => {
-    enable();mocks.lifecycleRead.mockResolvedValueOnce({ Ok: [] });await expect(refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover)).rejects.toThrow('readback mismatch');expect(mocks.refresh).toHaveBeenCalledTimes(2);
+    enable();mocks.lifecycleRead.mockImplementation(async (_, club) => ({
+      Ok: mocks.refresh.mock.calls.some(call => call[1] === club) ? [] : [],
+    }));await expect(refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover)).rejects.toThrow('readback mismatch');expect(mocks.refresh).toHaveBeenCalledTimes(2);
   });
   it('bounds destinations before any crypto or replica mutation', async () => {
     enable();await expect(refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', async () => Array(101).fill('club'))).rejects.toThrow('Bounded exact');expect(mocks.encrypt).not.toHaveBeenCalled();expect(mocks.refresh).not.toHaveBeenCalled();
@@ -84,7 +165,7 @@ describe('essential own-name copy maintenance', () => {
     await expect(refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', discover, saveActive)).rejects.toThrow('session retired');expect(discover).not.toHaveBeenCalled();expect(mocks.refresh).not.toHaveBeenCalled();
   });
   it('stops before verification when session retires during final write', async () => {
-    enable();mocks.refresh.mockImplementationOnce(async () => { retirePrivateProfileSession();return { Ok: null }; });await expect(refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', async () => ['club-1'])).rejects.toThrow('session retired');expect(mocks.lifecycleRead).not.toHaveBeenCalled();
+    enable();mocks.refresh.mockImplementationOnce(async () => { retirePrivateProfileSession();return { Ok: null }; });await expect(refreshPrivateOwnClubNames(ctx, 'Paul Cranwell', async () => ['club-1'])).rejects.toThrow('session retired');expect(mocks.lifecycleRead).toHaveBeenCalledOnce();
   });
 });
 
