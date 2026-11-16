@@ -291,17 +291,20 @@ export default function TeamDetailPage() {
 
   const isClassMode = !!team?.clubs?.class_mode_enabled;
 
-  // Default to "child" filter only when arriving from an invite link for junior teams
+  // Preserve the existing email/Supabase invite preference, but never hide
+  // adult Parent/Coach role grants in an ICP team's default roster. After an
+  // ICP parent invitation the page has ?from=invite, and child-only mode hides
+  // parents despite the canister returning legitimate team-scoped grants.
   useEffect(() => {
     if (team && !hasSetInitialFilter) {
       const tType = (team as any).team_type || "mixed";
       const fromInvite = new URLSearchParams(window.location.search).get("from") === "invite";
-      if (tType === "junior" && fromInvite) {
+      if (!isIcpAccount && tType === "junior" && fromInvite) {
         setMemberRoleFilter("child");
       }
       setHasSetInitialFilter(true);
     }
-  }, [team, hasSetInitialFilter]);
+  }, [team, hasSetInitialFilter, isIcpAccount]);
 
   // Auto-open the game board when arriving from a "Resume game" tap
   // (CourtBoardResumeCard / GameTimerWidget on the home screen).
