@@ -66,3 +66,15 @@ This checkpoint used the **official DFINITY ICP connector as a diagnostic client
 ### Pilot blast-radius bound
 
 The first DEV opt-in is **pinned to exactly club `177f8c01-3617-402a-aedd-5c5c17ccfde1`** in the frontend and both server permission gates. Having a different active club in the same Group 2 cannot accidentally enable club-key name cutover. Generalising beyond this test club requires independently inventoried saved copies and a later separately reviewed allowlist/release; a single global flag is insufficient.
+
+
+## Fast-track for disposable U10 DEV data (requested by owner)
+
+The first acceptance target is **Test viewing Test3** in U10, not a general all-club rollout. Both accounts' authenticated memberships and future access policies remain server-checked. The known *present* and owner/scheme-validated G1 encrypted club name copy belongs to Test3. Therefore:
+1. The pinned DEV frontend first reuses **Test's own already readable signed-in profile** locally for Test's roster label, and sends **only Test3's account ID** in the remote club-encrypted name request. It does not infer or impersonate Test from display text, issue a new grant, or use any global name cache. If the self profile is unavailable, the original full request remains, with no invented name.
+2. **Test's expired ChatGPT connector is not a gate to this first DEV acceptance.** ChatGPT is a debugging client only, not a runtime dependency. Do not re-create either parent's records merely to finish an inventory. A complete inventory remains required before generalising to broader club-name displays.
+3. Run protected existing DEV upgrade checks for the exact G1 PII + Identity and exact G2 PII only **after independent approval**; preserve original canister ID, immutable vetKD key name and verified SHA. The `IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE` backend flag and `IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES` frontend build flag remain OFF until explicit gated activation.
+4. Test the single U10 view as Test after release. Show both Test and Test3 adult names, plus the three unchanged children. A failed server-authorised G1 ciphertext read remains a failure; never fall back to individually derived club-wide name keys or relax membership checks. Roll back the build flag on failure.
+5. **No separate trial data copying or migration is necessary for Test3's existing club replica**. The G1 ciphertext read must still be performance-tested end-to-end; a shared key reduces paid derivations but does not itself remove the double cross-canister membership verification.
+
+This fast-track skips redundant test-data bureaucracy, *not* the required release/owner/security boundaries. It does not imply PR merge, backend upgrade or live flag activation is already approved.
