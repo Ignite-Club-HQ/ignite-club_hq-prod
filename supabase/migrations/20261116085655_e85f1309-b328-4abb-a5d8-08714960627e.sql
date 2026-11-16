@@ -1,0 +1,4 @@
+INSERT INTO public.pending_invites (id, invite_token, invited_by_user_id, club_id, team_id, role, status, invited_email, metadata)
+VALUES
+('e21f8700-0000-4000-8000-000000000001','dev-share-signup-20261116-e21f8700','f51dd664-b0d5-4956-b2d5-cec9222ae3dc','966bdaec-ebf1-46da-b2b3-cc53bf05c422','21d78a5b-4923-4634-acfe-8d38ae4dbf01','parent','pending',NULL,'{"children":[{"name":"DEV Share Link Check 20261116","yearOfBirth":2016}],"test_purpose":"share-link signup DEV acceptance"}'),
+('e21f8700-0000-4000-8000-000000000002','dev-unrelated-signup-20261116-e21f8700','f51dd664-b0d5-4956-b2d5-cec9222ae3dc','966bdaec-ebf1-46da-b2b3-cc53bf05c422','21d78a5b-4923-4634-acfe-8d38ae4dbf01','parent','pending',NULL,'{"children":[{"name":"DEV Unrelated Check 20261116","yearOfBirth":2017}],"test_purpose":"must remain unclaimed"}');

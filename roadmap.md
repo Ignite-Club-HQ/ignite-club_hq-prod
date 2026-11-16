@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Share-link invitation-only email signup — 16 November
+- [ ] DEV: allow unclaimed email-less pending invitations only at email-enabled clubs; preserve named-email matching and other invitation branches.
+- [ ] Authorize child/parent acceptance by the exact share token with atomic, idempotent acceptance; show specific refusal reasons.
+- [ ] Run focused policy/acceptance tests and verify a real DEV share-link signup before any promotion; PROD remains untouched.
+
 ## Mixed mainnet / Cloud Engine membership — 12 November
 - [x] Composed independently verified destination sessions for one Internet Identity; each club's roles and chat calls stay at its own authority, with single-attempt writes and no cross-destination replay.
 - [x] Prepared explicit commissioning and feature dispatch; membership role filtering, message/reaction/pin/poll caches and sequence/method state are account/destination separated. 142 focused checks pass in both sign-in configurations; no PROD operations or engine connection.
