@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, UserCheck, Send, Trash2, Pencil, Mail, Loader2, Copy, Share2, ArrowRightLeft, MoreVertical } from "lucide-react";
@@ -187,9 +188,9 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const inviteMetadata = pendingInviteData?.metadata as { children?: { name: string }[]; customMessage?: string } | null;
 
   // Use short URL for sharing, full URL for emails/internal
-  const inviteLink = pendingInviteToken ? `${window.location.origin}/join/p/${encodeURIComponent(pendingInviteToken)}` : null;
+  const inviteLink = pendingInviteToken ? `${PUBLIC_INVITE_ORIGIN}/join/p/${encodeURIComponent(pendingInviteToken)}` : null;
   const shareLink = pendingShortCode 
-    ? `${window.location.origin}/j/${encodeURIComponent(pendingShortCode)}` 
+    ? `${PUBLIC_INVITE_ORIGIN}/j/${encodeURIComponent(pendingShortCode)}` 
     : inviteLink;
 
   // Fetch teams in the club for "Move to Team" (only when teamId is set)
@@ -434,7 +435,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           .eq("id", invite.id);
       }
 
-      const inviteLinkForEmail = `${window.location.origin}/join/p/${pendingInviteToken}`;
+      const inviteLinkForEmail = `${PUBLIC_INVITE_ORIGIN}/join/p/${pendingInviteToken}`;
       const recipientName = invite.invited_label || invite.profiles?.display_name || "Member";
       const teamName = teamData?.name || clubData?.name || "the team";
       const clubName = teamData?.clubs?.name || clubData?.name || "The Club";

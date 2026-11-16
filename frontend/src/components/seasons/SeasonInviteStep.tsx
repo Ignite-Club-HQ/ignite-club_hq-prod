@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -142,7 +143,7 @@ export function SeasonInviteStep({ clubId, targetSeasonId, seasonName }: Props) 
           } as never);
           if (insErr) throw insErr;
 
-          const inviteLink = `${window.location.origin}/join/p/${inviteToken}`;
+          const inviteLink = `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteToken}`;
 
           if (row.email.trim()) {
             try {
@@ -195,7 +196,7 @@ export function SeasonInviteStep({ clubId, targetSeasonId, seasonName }: Props) 
             role: row.role,
           })) as { invite?: { id?: string } };
           const inviteId = result.invite?.id;
-          const inviteLink = inviteId ? `${window.location.origin}/join/p/${inviteId}` : "";
+          const inviteLink = inviteId ? `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteId}` : "";
           if (!inviteId) throw new Error("Invite was not acknowledged");
           return { link: inviteLink, emailFailed: false, emailErrorMsg: undefined as string | undefined };
         },

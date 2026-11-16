@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { useMutation } from "@tanstack/react-query";
 import type { Dispatch, SetStateAction } from "react";
@@ -97,7 +98,7 @@ export function useAddBulkTeamMembersMutation({
           teamId,
           role: member.role,
         });
-        const link = invite?.id ? `${window.location.origin}/join/p/${invite.id}` : "";
+        const link = invite?.id ? `${PUBLIC_INVITE_ORIGIN}/join/p/${invite.id}` : "";
         results.push({
           name: member.name.trim(),
           email: member.email.trim(),
@@ -417,7 +418,7 @@ export function useAddBulkTeamMembersMutation({
         await handleSecondParent(member, validChildren, [], inviteToken);
 
 
-        const link = `${window.location.origin}/join/p/${inviteToken}`;
+        const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteToken}`;
         let sent = false;
 
         // Send email if provided - with verification and tracking

@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { useRef } from "react";
@@ -136,7 +137,7 @@ export function useAddPendingTeamMemberMutation({
       role: selectedRole,
       }));
     }
-    const link = `${window.location.origin}/join/p/${invite.id}`;
+    const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${invite.id}`;
     if (emailDelivery && typeof emailDelivery === "object" && "failed" in emailDelivery) {
       const { toast } = await import("sonner");
       toast.warning(`Invite created, but the email didn't send: ${(emailDelivery as { failed: string }).failed}`);
@@ -147,12 +148,12 @@ export function useAddPendingTeamMemberMutation({
     let shareLink = link;
     try {
       const shortCode = await createLiveInviteShortCode(ctx, invite.id);
-      shareLink = `${window.location.origin}/j/${shortCode}`;
+      shareLink = `${PUBLIC_INVITE_ORIGIN}/j/${shortCode}`;
     } catch (err) {
       console.warn("[ICP invite] short code creation failed:", err);
     }
 
-    const secondParentLink = secondaryId ? `${window.location.origin}/join/p/${secondaryId}` : null;
+    const secondParentLink = secondaryId ? `${PUBLIC_INVITE_ORIGIN}/join/p/${secondaryId}` : null;
     const secondParentStatus = secondaryId ? "invited" as const : "skipped" as const;
     const secondParentFailure = null;
     const secondParentEmailTrimmed = secondParentEmail.trim().toLowerCase();
@@ -329,7 +330,7 @@ export function useAddPendingTeamMemberMutation({
         );
       }
 
-      const link = `${window.location.origin}/join/p/${inviteToken}`;
+      const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteToken}`;
 
       // Handle second parent through the one shared helper.
       let secondParent: SecondParentResult = { status: "skipped", label: null };
@@ -669,7 +670,7 @@ export function useAddPendingTeamMemberMutation({
                 roleName: "Parent",
                 clubLogoUrl: clubBranding?.logo_url || undefined,
                 customMessage: customMessage.trim() || undefined,
-                inviteLink: `${window.location.origin}/teams/${teamId}`,
+                inviteLink: `${PUBLIC_INVITE_ORIGIN}/teams/${teamId}`,
               },
             },
           });

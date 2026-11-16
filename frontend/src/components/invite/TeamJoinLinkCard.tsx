@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
@@ -27,7 +28,6 @@ import { writeOnce } from "@/live/clubScope";
 import { allowedInviteRole } from "@/features/membership/inviteFlowRules";
 import { createLiveTeamInviteLink, listLiveTeamInviteLinks, listLivePendingInvitesByClub, rotateLiveTeamInviteLink, revokeLiveTeamInviteLink, getLiveTeam } from "@/live/features/club";
 
-const APP_URL = "https://ignite-canister-connect.lovable.app";
 const DEFAULT_EXPIRY_DAYS = 30;
 const TOKEN_METADATA_KIND = "team_join_link";
 
@@ -326,7 +326,7 @@ export default function TeamJoinLinkCard({
     },
   });
 
-  const fullUrl = useMemo(() => (link ? `${APP_URL}/join/${link.token}` : ""), [link]);
+  const fullUrl = useMemo(() => (link ? `${PUBLIC_INVITE_ORIGIN}/join/${link.token}` : ""), [link]);
   const isSensitive = SENSITIVE_ROLES.includes(activeRole);
   const activeRoleLabel = ALL_ROLE_OPTIONS.find((r) => r.value === activeRole)?.label ?? "";
 

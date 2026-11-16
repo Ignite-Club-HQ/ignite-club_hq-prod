@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -50,7 +51,7 @@ async function notifySecondParent(
           teamName: (teamInfo as any).name,
           clubName: club?.name || "The Club",
           clubLogoUrl: club?.logo_url || undefined,
-          inviteLink: `${window.location.origin}/teams/${teamId}`,
+          inviteLink: `${PUBLIC_INVITE_ORIGIN}/teams/${teamId}`,
         },
       },
     });
@@ -318,7 +319,7 @@ export function PendingInviteWelcomeDialog() {
                         recipientName: user.user_metadata?.display_name || "there",
                         teamName: (teamInfo as any).name,
                         clubName: club?.name || "The Club",
-                        inviteLink: `${window.location.origin}/teams/${firstTeamId}`,
+                        inviteLink: `${PUBLIC_INVITE_ORIGIN}/teams/${firstTeamId}`,
                         clubLogoUrl: club?.logo_url || undefined,
                         childrenNames: [childName],
                       },
@@ -524,7 +525,7 @@ export function PendingInviteWelcomeDialog() {
 
                     if (leagueInfo) {
                       const club = leagueInfo.clubs as any;
-                      const inviteLink = `${window.location.origin}/mini-leagues/${miniLeagueId}`;
+                      const inviteLink = `${PUBLIC_INVITE_ORIGIN}/mini-leagues/${miniLeagueId}`;
 
                       await supabase.functions.invoke("send-email", {
                         body: {
@@ -665,7 +666,7 @@ export function PendingInviteWelcomeDialog() {
                             teamName: teamInfo.name,
                             clubName: club?.name || "The Club",
                             clubLogoUrl: club?.logo_url || undefined,
-                            inviteLink: `${window.location.origin}/teams/${firstTeamId}`,
+                            inviteLink: `${PUBLIC_INVITE_ORIGIN}/teams/${firstTeamId}`,
                           },
                         },
                       });

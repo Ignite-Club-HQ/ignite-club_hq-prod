@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { useMutation } from "@tanstack/react-query";
 import { sendCompetitionWelcomeEmail } from "@/lib/sendCompetitionWelcomeEmail";
 import type { BulkChild } from "@/components/members/ChildAndSecondGuardianFields";
@@ -408,7 +409,7 @@ export function useAddExistingTeamMemberMutation({
               const inviteId = created?.invite?.id;
               secondParentInviteEmail = trimmedSecondParentEmail;
               secondParentInviteLink = inviteId
-                ? `${window.location.origin}/join/p/${inviteId}`
+                ? `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteId}`
                 : null;
               secondParentStatus = "invited";
               succeeded.push("second parent invited");
@@ -544,7 +545,7 @@ export function useAddExistingTeamMemberMutation({
                 roleName: "Parent",
                 clubLogoUrl: clubBranding?.logo_url || undefined,
                 customMessage: customMessage.trim() || undefined,
-                inviteLink: `${window.location.origin}/teams/${teamId}`,
+                inviteLink: `${PUBLIC_INVITE_ORIGIN}/teams/${teamId}`,
               },
             },
           });
@@ -576,7 +577,7 @@ export function useAddExistingTeamMemberMutation({
                 roleName: selectedRoleLabel,
                 clubLogoUrl: clubBranding?.logo_url || undefined,
                 customMessage: customMessage.trim() || undefined,
-                inviteLink: `${window.location.origin}/teams/${teamId}`,
+                inviteLink: `${PUBLIC_INVITE_ORIGIN}/teams/${teamId}`,
               },
             },
           });
@@ -609,7 +610,7 @@ export function useAddExistingTeamMemberMutation({
                 clubName: clubBranding?.name || "The Club",
                 roleName: "Parent",
                 clubLogoUrl: clubBranding?.logo_url || undefined,
-                inviteLink: `${window.location.origin}/teams/${teamId}`,
+                inviteLink: `${PUBLIC_INVITE_ORIGIN}/teams/${teamId}`,
               },
             },
           });

@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { supabase } from "@/integrations/supabase/client";
 import { withFeatureBackend } from "@/live/featureRouter";
 
@@ -37,7 +38,7 @@ export async function sendCompetitionWelcomeEmail(opts: {
           teamName: opts.teamName,
           clubName,
           roleName: opts.roleName,
-          inviteLink: `${window.location.origin}/teams/${opts.teamId}`,
+          inviteLink: `${PUBLIC_INVITE_ORIGIN}/teams/${opts.teamId}`,
           onlyIfCompetitionWelcome: true,
         },
       },
