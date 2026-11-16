@@ -2,14 +2,17 @@
  //! Group 1 is an original Identity-owned directory source; no modern router
  //! placement exists for its PII canister. Only team audience requests using
  //! the exact original DEV PII may take this explicitly disabled-by-default path.
- //! The original key digest MUST be provided from independently approved
- //! historical key evidence, not copied from a fresh live readback.
+ //! DEV disposable test data may use the owner-verified public-key observation
+ //! as its release pin. This is key-identity continuity, NOT historical provenance.
 use candid::Principal;
 use sha2::{Digest,Sha256};
 use crate::{group_inventory, membership_runtime, private_name_audience};
 
 pub const RELEASE_SWITCH:&str="IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE";
-pub const APPROVED_KEY_SHA256:&str="IGNITE_DEV_LEGACY_G1_HISTORICAL_KEY_SHA256";
+pub const APPROVED_KEY_SHA256:&str="IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256";
+/// Owner-verified original PII public-key SHA-256 from DEV authority checks
+/// 43785400907 and 43787337237 (16 November 2026). No historical claim.
+pub const VERIFIED_DEV_PUBLIC_KEY_SHA256:&str="f80ed20bc0d8a244f40b31fdbd0024ff469d24254197dce9242dce669fa1f34d";
 
 fn pinned(id:&str)->Result<Principal,String>{
     Principal::from_text(id).map_err(|_|"Invalid exact DEV private-name authority".into())
@@ -24,7 +27,7 @@ pub fn require_exact_origin(
     router:&group_inventory::Snapshot,
     service_allowlist:&[Principal],
     approved_release:bool,
-    independent_historical_sha256:Option<&str>,
+    approved_observed_sha256:Option<&str>,
 )->Result<String,String>{
     // No caller, browser, email or PROD-supplied pin may relax this scope.
     let identity=pinned("mq2sj-fiaaa-aaaal-qxlqa-cai")?;
@@ -56,10 +59,10 @@ pub fn require_exact_origin(
         router.groups.iter().flat_map(|g|&g.domains).any(|d|d.canister==original_pii) {
         return Err("Registered G2 or original legacy PII inventory changed".into());
     }
-    let historical_sha256=independent_historical_sha256
-        .filter(|hash|good_sha256(hash))
-        .ok_or("Independent historical original-PII key approval missing")?;
-    Ok(historical_sha256.into())
+    let observed_sha256=approved_observed_sha256
+        .filter(|hash|good_sha256(hash) && *hash==VERIFIED_DEV_PUBLIC_KEY_SHA256)
+        .ok_or("Exact independently read DEV original PII public-key pin required")?;
+    Ok(observed_sha256.into())
 }
 
 pub fn verify_current_public_key(key:&[u8],historical_sha256:&str)->Result<(),String>{
@@ -117,14 +120,14 @@ mod tests{
         ->Result<String,String>{
         require_exact_origin(p("mq2sj-fiaaa-aaaal-qxlqa-cai"),caller,s,c,r,allow,released,key)
     }
-    #[test]fn exact_original_pii_and_g2_team_only_with_independent_key(){
+    #[test]fn exact_original_pii_and_g2_team_only_with_verified_observed_key(){
         let caller=p("iui5p-aaaaa-aaaal-qxllq-cai");
-        let key="b".repeat(64);
+        let key=VERIFIED_DEV_PUBLIC_KEY_SHA256.to_string();
         assert_eq!(verify(&config(),&router(),caller,&scope(),&[caller],true,Some(&key)),Ok(key));
     }
     #[test]fn foreign_service_browser_and_other_scope_fail_closed(){
         let caller=p("iui5p-aaaaa-aaaal-qxllq-cai");
-        let key="b".repeat(64);
+        let key=VERIFIED_DEV_PUBLIC_KEY_SHA256.to_string();
         assert!(verify(&config(),&router(),p("zt5a6-yiaaa-aaaal-qxp5q-cai"),&scope(),&[caller],true,Some(&key)).is_err());
         assert!(verify(&config(),&router(),caller,&scope(),&[],true,Some(&key)).is_err());
         assert!(verify(&config(),&router(),caller,&scope(),&[caller],false,Some(&key)).is_err());
@@ -137,7 +140,7 @@ mod tests{
     }
     #[test]fn stale_directory_foreign_sources_and_invented_legacy_placement_fail(){
         let caller=p("iui5p-aaaaa-aaaal-qxllq-cai");
-        let key="c".repeat(64);
+        let key=VERIFIED_DEV_PUBLIC_KEY_SHA256.to_string();
         let baseline=config();let inventory=router();
         let mut v=baseline.clone();v.binding.registry_revision=7;
         assert!(verify(&v,&inventory,caller,&scope(),&[caller],true,Some(&key)).is_err());
