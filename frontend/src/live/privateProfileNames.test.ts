@@ -289,10 +289,10 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
     pii_access_control: g1Original,
   } } } as FeatureBackendContext);
   const clubScope = {kind: 'club' as const,
-    authority: Principal.fromText(g2Club), resource: 'dev-club', profile_revision: 0n};
+    authority: Principal.fromText(g2Club), resource: '177f8c01-3617-402a-aedd-5c5c17ccfde1', profile_revision: 0n};
   it('decrypts the club ciphertext with one shared club key and no personal key derivations', async () => {
     vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','1');
-    const row = {pii_id: subject, field_id:'display_name', master_key_id:'vetkey-club-names-v1:dev-club',ciphertext:[9,8]};
+    const row = {pii_id: subject, field_id:'display_name', master_key_id:'vetkey-club-names-v1:177f8c01-3617-402a-aedd-5c5c17ccfde1',ciphertext:[9,8]};
     mocks.scopedRead.mockResolvedValue({Ok:[row]});
     mocks.clubKey.mockResolvedValue('one-club-key');
     const result=await hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],{audience:clubScope});
