@@ -669,6 +669,17 @@ persistent actor class Main(governorInit : Principal) = this {
   // choose the trusted identity verifier; no new permanent reader grants.
   transient let privateNamesRehearsal = Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") == ?"1";
   transient let privateClubNameDisplays = Runtime.envVar<system>("IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE") == ?"1";
+  // The original G1 encrypted profiles are legacy. Do not turn a team-name
+  // read into a club-wide name grant merely by upgrading a DEV canister.
+  transient let devG2SharedClubNames = Runtime.envVar<system>("IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE") == ?"1";
+  func devG2SharedClubScope(scope : PrivateNameScope) : Bool {
+    let self = Principal.fromActor(this).toText();
+    (self == "iui5p-aaaaa-aaaal-qxllq-cai" or self == "zt5a6-yiaaa-aaaal-qxp5q-cai")
+    and scope.kind == "club" and scope.authority.toText() == "yfwyv-nyaaa-aaaal-qxpyq-cai"
+  };
+  func devG1SharedClubScope(scope : PrivateNameScope) : Bool {
+    Principal.fromActor(this).toText() == "iui5p-aaaaa-aaaal-qxllq-cai" and devG2SharedClubScope(scope)
+  };
   transient let privateNamesIdentity = Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_IDENTITY");
   var private_name_release_intents : Map.Map<Text, PrivateNameReleaseFence.Intent>;
   var private_name_release_epoch : Nat;
@@ -682,7 +693,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
   transient let privateNameReleaseFence = PrivateNameReleaseFence.Gate(privateNamesRehearsal, privateNameVerifier(), private_name_release_intents, 4096);
   func canReleasePrivateName(captured : Nat, scope : PrivateNameScope) : Bool {
-    (privateNamesRehearsal or (privateClubNameDisplays and (scope.kind == "club" or scope.kind == "team"))) and privateNameVerifier() != null and captured == private_name_release_epoch and not privateNameReleaseFence.blocked()
+    (not devG1SharedClubScope(scope) or devG2SharedClubNames)
+    and (privateNamesRehearsal or (privateClubNameDisplays and (scope.kind == "club" or scope.kind == "team")))
+    and privateNameVerifier() != null and captured == private_name_release_epoch and not privateNameReleaseFence.blocked()
   };
   // Sink acknowledgements certify only this receiver. The coordinator must
   // fence the COMPLETE original-PII inventory before acknowledging revocation.
@@ -743,7 +756,16 @@ persistent actor class Main(governorInit : Principal) = this {
       for (id in ids.values()) {
         let r = pii_records.find(func r = r.pii_id == id and r.field_id == "display_name") ?? return #Err("Private name not found");
         let selected = if (scope.kind == "club") {
-          pii_records.find(func row = row.pii_id == id and row.field_id == clubNameField(scope.resource)) ?? r
+          let replica = pii_records.find(func row = row.pii_id == id and row.field_id == clubNameField(scope.resource));
+          if (devG2SharedClubNames and devG2SharedClubScope(scope)) {
+            // The purpose of this release is a ONE-key-per-club name read.
+            // Never fall back to the original individual IBE ciphertext.
+            let copy = replica ?? return #Err("Club-encrypted name copy missing");
+            if (copy.domain_owner.toText() != id or copy.master_key_id != clubNameScheme(scope.resource)) {
+              return #Err("Invalid club-encrypted name copy");
+            };
+            copy
+          } else replica ?? r
         } else r;
         log_audit(caller, id, "display_name", "private_name_read", true, scope.kind);
         out := out.concat([{ pii_id = id; field_id = "display_name"; ciphertext = selected.ciphertext; nonce = selected.nonce; master_key_id = selected.master_key_id }]);
