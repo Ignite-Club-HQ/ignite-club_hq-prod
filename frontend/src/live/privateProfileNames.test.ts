@@ -371,6 +371,34 @@ describe("original-authority display rehearsal", () => {
       expect(mocks.decrypt).toHaveBeenCalled();
     } finally { vi.useRealTimers(); }
   });
+  it('reports a timed-out pinned DEV team-name read instead of an incomplete private name', async () => {
+    vi.useFakeTimers();
+    try {
+      const devCtx = { ...ctx, target: { ...ctx.target, canisterIds: {
+        ...ctx.target.canisterIds, identity_access: 'mq2sj-fiaaa-aaaal-qxlqa-cai',
+      } } } as FeatureBackendContext;
+      const team = { kind: 'team' as const, authority: Principal.fromText(authority),
+        resource: 'exact-u10', profile_revision: 0n };
+      let reply: (value: unknown) => void = () => {};
+      mocks.scopedRead.mockImplementation(() => new Promise(resolve => { reply = resolve; }));
+      const pending = hydratePrivateProfileNames(devCtx, [{ display_name: reference }], { audience: team });
+      const denied = expect(pending).rejects.toThrow('Private team-name read timed out.');
+      await vi.advanceTimersByTimeAsync(25_000);
+      await denied;
+      reply({ Ok: [{ pii_id: subject, field_id: 'display_name', ciphertext: [9] }] });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mocks.keys).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+  it('does not change ordinary private-name timeout handling', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.read.mockImplementation(() => new Promise(() => {}));
+      const pending = hydratePrivateProfileNames(ctx, [{ display_name: reference }]);
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(await pending).toEqual([{ display_name: null }]);
+    } finally { vi.useRealTimers(); }
+  });
   it("does not fetch keys after a timed-out ciphertext read eventually returns", async () => {
     vi.useFakeTimers();
     try {
