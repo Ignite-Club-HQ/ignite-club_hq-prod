@@ -4008,9 +4008,12 @@ persistent actor class Main(governorInit : Principal) = this {
           case (?account) account.principals;
           case null [subject];
         };
+        // A club administrator who is not on THIS team is not an adult
+        // teammate. Do not repurpose broad club-management permission to
+        // unlock the names of parents and coaches on unrelated teams.
         aliases.any(func p =
           not removalReceiver.denied(p) and isMember(p, club_id)
-          and (isOnTeam(p, team_id) or canManageTeam(p, club_id, ?team_id))
+          and isOnTeam(p, team_id)
         )
       };
       if (not onExactTeam(requester)) return #Err("Team membership required");
