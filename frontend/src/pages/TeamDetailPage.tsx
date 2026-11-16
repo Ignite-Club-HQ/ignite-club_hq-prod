@@ -101,6 +101,7 @@ import {
 } from "@/live/features/membership";
 import { getLiveTeam, getLiveClubProfile, getLiveClubSubscription, getLiveTeamSubscription, saveLiveTeamSubscription, saveLiveTeamPitchSettings } from "@/live/features/club";
 import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
+import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { Principal } from "@icp-sdk/core/principal";
 import * as fixtureData from "@/lab/fixtureDataLayer";
@@ -2063,6 +2064,7 @@ export default function TeamDetailPage() {
             // Only the pinned disposable DEV Identity can expose diagnostic categories;
             // never publish raw errors or profile identifiers to the UI.
             isAdultNamesError, adultNamesError,
+            devEncryptedAdultNameMode: privateClubNameDisplaysEnabled() ? 'ON' : 'OFF',
             showIcpRosterFailureCode: isIcpAccount && (() => {
               try { return getActiveIcpTarget().canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'; }
               catch { return false; }
