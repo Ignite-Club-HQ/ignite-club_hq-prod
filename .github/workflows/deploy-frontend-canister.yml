@@ -59,6 +59,13 @@ jobs:
           # the app silently defaults to Supabase and II users load nothing.
           IGNITE_LIVE_BACKEND_ROUTING_JSON: ${{ vars.IGNITE_LIVE_BACKEND_ROUTING_JSON || '{"defaultBackend":"icp","countryRules":{},"targets":[{"id":"icp/main/v1","backend":"icp","kind":"icp-mainnet","alias":"main","version":"v1","enabled":true}],"countryTargets":{},"clubBackendOverrides":{}}' }}
           IGNITE_LIVE_PRIVATE_CLUB_NAME_DISPLAYS: "1"
+          # Global club-name key cutover is intentionally OFF until the
+          # protected DEV all-club PII/Identity release has completed AND
+          # encrypted club-name replicas are verified for every active club.
+          # A repository variable is an explicit operator sign-off, never a
+          # guessed default. Push and manual builds share this one setting.
+          # PROD frontend workflow uses a separate recipe and is untouched.
+          IGNITE_LIVE_SHARED_CLUB_NAMES: ${{ github.ref == 'refs/heads/main' && vars.IGNITE_DEV_SHARED_CLUB_NAMES_RELEASE_READY == 'true' && '1' || '0' }}
           IGNITE_LIVE_DEV_FIREBASE_WEB_API_KEY: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_WEB_API_KEY }}
           IGNITE_LIVE_DEV_FIREBASE_PROJECT_ID: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_PROJECT_ID }}
           IGNITE_LIVE_DEV_FIREBASE_APP_ID: ${{ vars.IGNITE_LIVE_DEV_FIREBASE_APP_ID }}
@@ -81,6 +88,19 @@ jobs:
             echo "::error::Approved DEV Group 2 PII discovery unexpectedly disabled on main push"
             exit 1
           fi
+          # No automatic or guessed rollout: this must be the exact DEV
+          # frontend target on main, backed by an explicit repository readiness
+          # variable set after the canister/copy checks. If not approved,
+          # always compile with global club-name mode disabled.
+          if [[ "${IGNITE_LIVE_SHARED_CLUB_NAMES:-}" != "0" && "${IGNITE_LIVE_SHARED_CLUB_NAMES:-}" != "1" ]]; then
+            echo "::error::Invalid DEV shared-club-name activation state"
+            exit 1
+          fi
+          if [[ "${IGNITE_LIVE_SHARED_CLUB_NAMES:-}" == "1" && "${GITHUB_REF:-}" != "refs/heads/main" ]]; then
+            echo "::error::Shared-club-name release attempted outside main"
+            exit 1
+          fi
+          echo "DEV club-name shared-key mode: $([[ "${IGNITE_LIVE_SHARED_CLUB_NAMES:-}" == "1" ]] && echo APPROVED || echo DISABLED)"
           # DEV/test canisters only; refuses any PROD canister in the table.
           export IGNITE_ICP_ENV=dev
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids dev)"
