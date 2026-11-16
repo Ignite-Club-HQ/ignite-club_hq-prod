@@ -1,9 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
 ## Share-link invitation-only email signup — 16 November
-- [ ] DEV: allow unclaimed email-less pending invitations only at email-enabled clubs; preserve named-email matching and other invitation branches.
-- [ ] Authorize child/parent acceptance by the exact share token with atomic, idempotent acceptance; show specific refusal reasons.
-- [ ] Run focused policy/acceptance tests and verify a real DEV share-link signup before any promotion; PROD remains untouched.
+- [x] DEV: allow unclaimed email-less pending invitations only at email-enabled clubs; preserve named-email matching and other invitation branches.
+- [x] Authorize child/parent acceptance by the exact share token with atomic, idempotent acceptance; show specific refusal reasons. Token-bearing accounts cannot automatically claim unrelated email-matched invites.
+- [x] Real DEV share-link created an unconfirmed email account through the browser. Socket-only SQL verifies child/parent linking, refusals, retry deduplication and unrelated-invite isolation; frontend regressions pass.
+- [ ] Complete authenticated DEV confirmation → acceptance → UI readback: test email confirmation unavailable and user-managed Supabase refuses session minting. No promotion or PROD changes; physical Android unavailable.
 
 ## Mixed mainnet / Cloud Engine membership — 12 November
 - [x] Composed independently verified destination sessions for one Internet Identity; each club's roles and chat calls stay at its own authority, with single-attempt writes and no cross-destination replay.

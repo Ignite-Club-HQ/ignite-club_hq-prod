@@ -815,6 +815,12 @@ function SupabaseJoinTeamPage() {
   // New signups (no display_name yet) are allowed - their name will be auto-set during join
   // A matching email always wins over a name difference.
   useEffect(() => {
+    if (isPendingInvite && pendingInviteData?.role === "parent"
+      && !pendingInviteData.invited_email?.trim()
+      && (pendingInviteData.metadata as InviteChildMetadata | null)?.children?.length) {
+      setNameValidationError(null);
+      return;
+    }
     if (isPendingInvite && pendingInviteData?.invited_label && user && userProfile !== undefined && (pendingInviteData.metadata as { kind?: string } | null)?.kind !== "mini_league_named_player_invite") {
       // Skip under Internet Identity: `user.email` is always undefined for
       // principal-based II accounts, so this never matches — that's
@@ -1658,7 +1664,9 @@ function SupabaseJoinTeamPage() {
       // Filter out roles user already has
       const rolesToAdd = selectedRoles.filter(role => !existingRoles?.includes(role));
 
-      if (rolesToAdd.length === 0) {
+      const tokenParentInvite = isPendingInvite && pendingInviteData?.role === "parent"
+        && !!(pendingInviteData.metadata as InviteChildMetadata | null)?.children?.length;
+      if (rolesToAdd.length === 0 && !tokenParentInvite) {
         throw new Error("You already have all selected roles in this team");
       }
 
@@ -1767,7 +1775,9 @@ function SupabaseJoinTeamPage() {
       const inviteRole = invite.role as AppRole;
       const hasInviteRole = existingRoles?.includes(inviteRole);
       
-      if (hasInviteRole) {
+      const pendingParentChildren = isPendingInvite && pendingInviteData?.status === "pending"
+        && inviteRole === "parent" && !!(pendingInviteData.metadata as InviteChildMetadata | null)?.children?.length;
+      if (hasInviteRole && !pendingParentChildren) {
         // User already has this role - just navigate to the relevant destination
         autoJoinAttempted.current = true;
         safeSessionRemove("autoJoinAfterAuth");
