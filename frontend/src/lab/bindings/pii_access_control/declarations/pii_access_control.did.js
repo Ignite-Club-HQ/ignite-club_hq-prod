@@ -283,6 +283,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
         [],
       ),
+    'read_dev_private_club_name_replica_coverage' : IDL.Func(
+        [IDL.Vec(IDL.Principal), IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Vec(IDL.Record({ 'subject' : IDL.Principal, 'state' : IDL.Text })), 'Err' : IDL.Text })],
+        [],
+      ),
     'read_private_club_name_lifecycle' : IDL.Func(
         [IDL.Principal, IDL.Text, IDL.Opt(IDL.Vec(IDL.Nat8))],
         [IDL.Variant({ 'Ok' : IDL.Opt(EncryptedPii), 'Err' : IDL.Text })],

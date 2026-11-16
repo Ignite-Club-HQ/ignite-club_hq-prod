@@ -278,6 +278,13 @@ export interface MainInterface {
         Err: string;
     }>;
     read_group_opening_configuration(): Promise<Array<[string, string]>>;
+    read_dev_private_club_name_replica_coverage(subjects: Array<Principal>, club: string): Promise<{
+        __kind__: "Ok";
+        Ok: Array<{ subject: Principal; state: string }>;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     read_private_club_name_lifecycle(subject: Principal, club: string, expectedOriginal: Uint8Array | null): Promise<{
         __kind__: "Ok";
         Ok: EncryptedPii | null;

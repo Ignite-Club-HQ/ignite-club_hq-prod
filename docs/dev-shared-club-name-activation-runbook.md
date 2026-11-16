@@ -14,6 +14,43 @@ Open [Upgrade backend (all test groups)](https://github.com/Ignite-Club-HQ/ignit
 
 Use the separate [DEV original Group 1 PII authority audit](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/workflows/dev-g1-private-name-authority-audit.yml) with action `check`, confirmation `AUDIT DEV ORIGINAL G1 PII AUTHORITY READ ONLY`, if the G1 source pin needs renewed independent attestation.
 
+## Protected all-club metadata coverage audit (new; does not activate encryption)
+
+This branch adds `[TEST] DEV all-club encrypted-name copy coverage (read-only)`
+(`.github/workflows/dev-club-name-coverage-audit.yml`), with a manual
+`action=check` and confirmation
+`AUDIT DEV CLUB NAME COPIES READ ONLY`. Pull requests only run unit and
+contract tests; private DEV governor credentials are never exposed to PR jobs.
+
+The runner inventories **both** G1 and G2 governor-authorized membership
+source pages, and the complete governor-only Identity account pages.
+It validates active club/source ownership, account aliases, encrypted-name
+reference authority and per-club membership. It does NOT use ordinary club
+member access, infer membership from UI names, export a roster, or decrypt PII.
+It checks that source snapshots are identical before and after the audit.
+
+**A new backend reader is required for actual copy counts.** The exact G1/G2
+PII canisters do not currently support the metadata-only
+`read_dev_private_club_name_replica_coverage` method; this code-only addition
+must be reviewed and deployed in a **separately approved, journaled DEV-only
+canister upgrade**. Until then the manual workflow may report
+`unverified`, not `copy_missing` or `copy_verified`. The runner will
+never treat an unsupported reader as proof of no missing copies. Its artifact
+contains only bounded counts and gate statuses. No names, principal IDs,
+account IDs, plaintext, ciphertext or key material are written.
+
+The new governor-only method checks only the subject's original
+`vetkey-ibe-v1` record and exact saved `vetkey-club-names-v1:<clubId>`
+metadata. It returns `copy_verified`, `copy_missing`, `copy_invalid`,
+`original_missing`, `original_invalid` or `ambiguous`, **not** the
+record or a vetKey. It does not alter the existing owner-only copy lifecycle
+read/refresh, or grant a member access to a club's names.
+
+Even if all metadata copies are verified, this audit always records
+`readyToReleaseName=false`: independent original-key provenance, owner
+readback and outsider/removed-member denial tests remain mandatory. Do not
+enable any G1→G2 or global club-name switch based on this audit alone.
+
 ## Before any activation
 
 1. Protected membership inventory of all active DEV clubs, team-member subject aliases and each subject's original PII authority. No browser-provided or guessed source, no raw plaintext/name/key export.

@@ -1,0 +1,93 @@
+name: "[TEST] DEV all-club encrypted-name copy coverage (read-only)"
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dev-club-name-coverage-audit.yml"
+      - "frontend/scripts/audit-dev-club-name-coverage.ts"
+      - "scripts/dev-club-name-coverage-policy.mjs"
+      - "scripts/dev-club-name-coverage-policy.test.mjs"
+      - "scripts/dev-club-name-coverage-contract.test.mjs"
+      - "backend/pii_access_control/src/main.mo"
+      - "backend/pii_access_control/pii_access_control.did"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Protected metadata only: never decrypt, prepare, upgrade or release"
+        type: choice
+        required: true
+        options: [check]
+      confirmation:
+        description: "Type AUDIT DEV CLUB NAME COPIES READ ONLY"
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+jobs:
+  contract-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Verify no privileged reads in pull requests and metadata-only release rules
+        run: node --test scripts/dev-club-name-coverage-policy.test.mjs scripts/dev-club-name-coverage-contract.test.mjs
+      - name: Parse protected auditor without executing any canister calls
+        run: npx --yes esbuild@0.25.12 frontend/scripts/audit-dev-club-name-coverage.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/dev-name-coverage-syntax.mjs"
+  operator-read-only:
+    if: github.event_name == 'workflow_dispatch'
+    needs: contract-only
+    environment: group-2-admin-controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Check exact original DEV repo, branch and manually approved check action
+        env:
+          AUDIT_ACTION: ${{ inputs.action }}
+          AUDIT_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY,,}" = "ignite-club-hq/ignite-club_hq-prod"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$AUDIT_ACTION" = "check"
+          test "$AUDIT_CONFIRMATION" = "AUDIT DEV CLUB NAME COPIES READ ONLY"
+      - name: Install existing pinned frontend dependencies
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Restore only pinned DEV governor credential without printing it
+        env:
+          GOVERNOR_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "${GOVERNOR_PEM:-}" || { echo "::error::Pinned DEV governor secret required"; exit 1; }
+          umask 077
+          PEM_IN="$GOVERNOR_PEM" node scripts/normalize-pem.mjs > "$RUNNER_TEMP/dev-club-name-audit.pem"
+          test -s "$RUNNER_TEMP/dev-club-name-audit.pem"
+      - name: Inventory active DEV club names and protected encrypted replica metadata only
+        working-directory: frontend
+        env:
+          DEV_CLUB_NAME_COVERAGE_ACTION: ${{ inputs.action }}
+          DEV_CLUB_NAME_COVERAGE_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          npx --yes tsx@4 scripts/audit-dev-club-name-coverage.ts \
+            "$RUNNER_TEMP/dev-club-name-audit.pem" "$RUNNER_TEMP/dev-club-name-coverage-report"
+      - name: Delete temporary governor credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/dev-club-name-audit.pem"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dev-club-name-copy-coverage-summary
+          path: ${{ runner.temp }}/dev-club-name-coverage-report
+          if-no-files-found: ignore
