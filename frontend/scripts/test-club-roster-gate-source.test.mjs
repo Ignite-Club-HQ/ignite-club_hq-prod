@@ -49,3 +49,19 @@ test("notification club switching uses scoped boolean membership, never full fam
   assert.match(hook, /\}, \{ clubId \}\)/);
   assert.match(feature, /actor\.read_account_is_club_member\(ctx\.identity\.getPrincipal\(\), clubId\)/);
 });
+
+
+test("ICP junior invite landing preserves legitimate Parent/Coach roster entries", () => {
+  const teamPage = readFileSync(new URL("../src/pages/TeamDetailPage.tsx", import.meta.url), "utf8");
+  const memberSection = readFileSync(new URL("../src/components/team/TeamMembersSection.tsx", import.meta.url), "utf8");
+  // Parent invitations land on /teams/:id?from=invite. Never switch
+  // ICP to a hidden child-only filter: child players AND scoped adult role
+  // grants must remain visible. Supabase's existing behavior is unchanged.
+  assert.match(teamPage, /const \[memberRoleFilter, setMemberRoleFilter\] = useState<string>\("all"\)/);
+  assert.match(teamPage, /if \(!isIcpAccount && tType === "junior" && fromInvite\) \{\s*setMemberRoleFilter\("child"\)/);
+  assert.match(teamPage, /\[team, hasSetInitialFilter, isIcpAccount\]/);
+  assert.match(teamPage, /listLiveTeamRoleGrants\(ctx, id \?\? ""\)/);
+  assert.match(memberSection, /parent:\s*"Parents & Coaches"/);
+  assert.match(memberSection, /const filteredMembers = Object\.entries\(members\)\.filter/);
+  assert.match(memberSection, /memberRoleFilter === "all"/);
+});
