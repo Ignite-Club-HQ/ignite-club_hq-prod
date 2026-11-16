@@ -227,6 +227,7 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   const strictDevClub = import.meta.env.IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES === '1'
     && audience?.kind === 'club'
     && audience.authority.toText() === 'yfwyv-nyaaa-aaaal-qxpyq-cai'
+    && audience.resource === '177f8c01-3617-402a-aedd-5c5c17ccfde1'
     && ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'
     && ctx.target.canisterIds.club_domain === 'yfwyv-nyaaa-aaaal-qxpyq-cai'
     && ['iui5p-aaaaa-aaaal-qxllq-cai', 'zt5a6-yiaaa-aaaal-qxp5q-cai'].includes(ctx.target.canisterIds.pii_access_control);
