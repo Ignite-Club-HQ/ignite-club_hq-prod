@@ -283,10 +283,10 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
   const g2Club = 'yfwyv-nyaaa-aaaal-qxpyq-cai';
   const g1Original = 'iui5p-aaaaa-aaaal-qxllq-cai';
   const g1Reference = privateProfileNameReference(g1Original, subject);
-  const makeCtx = () => ({ ...ctx, target: { ...ctx.target, canisterIds: {
+  const makeCtx = () => ({ ...ctx, target: { ...ctx.target, provider: 'icp' as const, canisterIds: {
     ...ctx.target.canisterIds,
     identity_access: 'mq2sj-fiaaa-aaaal-qxlqa-cai', club_domain: g2Club,
-    pii_access_control: g1Original, provider: 'icp' as const,
+    pii_access_control: g1Original,
   } } } as FeatureBackendContext);
   const clubScope = {kind: 'club' as const,
     authority: Principal.fromText(g2Club), resource: '177f8c01-3617-402a-aedd-5c5c17ccfde1', profile_revision: 0n};
@@ -313,7 +313,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
     expect(mocks.clubKey).not.toHaveBeenCalled();
     expect(mocks.decrypt).not.toHaveBeenCalled();
   });
-  it('allows the pinned cross-group DEV pilot a 25s ciphertext deadline, not the unrelated club 6s limit', async () => {
+  it('allows any enforced ICP club a 25s ciphertext deadline, not the legacy 6s limit', async () => {
     vi.useFakeTimers();
     try {
       vi.stubEnv('IGNITE_LIVE_SHARED_CLUB_NAMES','1');
