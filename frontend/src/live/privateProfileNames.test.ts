@@ -313,6 +313,23 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
     expect(mocks.clubKey).not.toHaveBeenCalled();
     expect(mocks.decrypt).not.toHaveBeenCalled();
   });
+  it('allows the pinned cross-group DEV pilot a 25s ciphertext deadline, not the unrelated club 6s limit', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','1');
+      mocks.scopedRead.mockImplementation(() => new Promise(() => {}));
+      const pending=hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],{audience:clubScope});
+      const rejection=expect(pending).rejects.toThrow('Private team-name ciphertext timed out.');
+      await vi.advanceTimersByTimeAsync(6_000);
+      // The reader is still waiting at 6s; no keys are ever derived from a
+      // stalled ciphertext read.
+      expect(mocks.keys).not.toHaveBeenCalled();
+      expect(mocks.clubKey).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(19_000);
+      await rejection;
+      expect(mocks.keys).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
   it('keeps the old club reader outside this separately pinned DEV cutover', async () => {
     vi.stubEnv('IGNITE_LIVE_DEV_G2_SHARED_CLUB_NAMES','0');
     mocks.scopedRead.mockResolvedValue({Ok:[{
