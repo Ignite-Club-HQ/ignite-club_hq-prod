@@ -208,6 +208,11 @@ export interface Main {
       { 'Err' : string }
   >,
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
+  'read_dev_private_club_name_replica_coverage' : ActorMethod<
+    [Array<Principal>, string],
+    { 'Ok' : Array<{ 'subject' : Principal, 'state' : string }> } |
+      { 'Err' : string }
+  >,
   'read_private_club_name_lifecycle' : ActorMethod<
     [Principal, string, [] | [Uint8Array]],
     { 'Ok' : [] | [EncryptedPii] } |
