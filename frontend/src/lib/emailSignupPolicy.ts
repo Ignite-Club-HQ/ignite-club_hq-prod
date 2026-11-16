@@ -8,7 +8,7 @@ export function readEmailSignupInviteToken(search: string): string | null {
   if (intent.invite) return intent.invite;
   const next = intent.next ?? safeSessionGet("redirectAfterAuth");
   if (!next) return null;
-  const match = /^\/(?:join|join-team|join-club)\/([^/?#]+)(?:[?#]|$)/.exec(next);
+  const match = /^\/(?:join\/p|join|join-team|join-club)\/([^/?#]+)(?:[?#]|$)/.exec(next);
   if (!match) return null;
   try { return decodeURIComponent(match[1]); } catch { return null; }
 }
@@ -37,12 +37,34 @@ export async function validateEmailSignupInvite(
   const valid = results.some((result, index) => (result.data ?? []).some((row: any) => {
     if (!row || typeof row !== "object" || Array.isArray(row)) return false;
     if (!allowed.has(String(row.club_id ?? "").toLowerCase())) return false;
-    if (index === 0) return row.status === "pending" && typeof row.invited_email === "string"
-      && row.invited_email.trim().toLowerCase() === email.trim().toLowerCase();
+    if (index === 0) return row.status === "pending" && row.invited_user_id == null
+      && (row.invited_email == null || (typeof row.invited_email === "string"
+        && (!row.invited_email.trim() || row.invited_email.trim().toLowerCase() === email.trim().toLowerCase())));
     if (row.expires_at != null && !(Date.parse(row.expires_at) > now)) return false;
     if (row.uses_count != null && (!Number.isSafeInteger(row.uses_count) || row.uses_count < 0)) return false;
     return row.max_uses == null || (Number.isSafeInteger(row.max_uses) && row.max_uses > 0
       && Number.isSafeInteger(row.uses_count) && row.uses_count >= 0 && row.uses_count < row.max_uses);
   }));
-  if (!valid) throw new Error(EMAIL_SIGNUP_INVITE_REQUIRED);
+  if (!valid) {
+    const rows = results.flatMap((result, index) => (result.data ?? []).map((row: any) => ({ row, index })));
+    const entry = rows.find(({ row }: any) => row && typeof row === "object" && !Array.isArray(row));
+    if (entry) {
+      const { row, index } = entry;
+      if (row.status === "expired" || (row.expires_at != null && !(Date.parse(row.expires_at) > now))) {
+        throw new Error("This invitation has expired. Please ask your organiser for a new link.");
+      }
+      if ((index === 0 && (row.status !== "pending" || row.invited_user_id != null))
+        || (row.max_uses != null && row.uses_count >= row.max_uses)) {
+        throw new Error("This invitation has already been used. Please ask your organiser for a new link.");
+      }
+      if (index === 0 && typeof row.invited_email === "string" && row.invited_email.trim()
+        && row.invited_email.trim().toLowerCase() !== email.trim().toLowerCase()) {
+        throw new Error("This invitation is bound to a different email address. Use the invited email or ask your organiser for a new link.");
+      }
+      if (!allowed.has(String(row.club_id ?? "").toLowerCase())) {
+        throw new Error("This club is not email-enabled. Continue with Internet Identity or contact your organiser.");
+      }
+    }
+    throw new Error(EMAIL_SIGNUP_INVITE_REQUIRED);
+  }
 }

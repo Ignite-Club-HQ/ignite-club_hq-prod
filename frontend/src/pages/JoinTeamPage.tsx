@@ -970,7 +970,7 @@ function SupabaseJoinTeamPage() {
       console.log("[JoinTeam] Accepting parent invite via transactional RPC");
       try {
         if (inviteStatus === "pending") {
-          const result = await acceptParentTeamInvite({ inviteId });
+          const result = await acceptParentTeamInvite(claimToken ? { inviteToken: claimToken } : { inviteId });
           console.log("[JoinTeam] Parent invite accepted:", {
             children: result.childIds.length,
             alreadyAccepted: result.alreadyAccepted,
@@ -1017,6 +1017,26 @@ function SupabaseJoinTeamPage() {
   // Execute the actual join mutation
   const executeJoin = async (rolesToAdd: AppRole[]) => {
     if (!invite || !user) throw new Error("Missing data");
+
+    // Standard child-carrying token invitations commit their entire membership
+    // server-side; do not fall through to name checks or browser role inserts.
+    const parentMetadata = pendingInviteData?.metadata as InviteChildMetadata | null;
+    if (isPendingInvite && pendingInviteData?.role === "parent"
+      && parentMetadata?.children?.length && !parentMetadata.mini_league_id) {
+      if (!token) throw new Error("Please reopen your invitation link.");
+      try {
+        const result = await acceptParentTeamInvite({ inviteToken: token });
+        provisionedChildIdsRef.current = result.childIds;
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["children"] }),
+          queryClient.invalidateQueries({ queryKey: membershipKeys.userRoles() }),
+        ]);
+        await applyInviteClubFilter();
+        return ["parent" as AppRole];
+      } catch (error) {
+        throw new Error(getParentInviteErrorMessage(error));
+      }
+    }
 
     // The most recent named pending invite reconciled by a shareable-link join.
     let reconciledInvite: ReconciledInvite | null = null;
