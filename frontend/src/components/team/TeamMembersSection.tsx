@@ -23,6 +23,7 @@ import PendingInvitesList from "@/components/PendingInvitesList";
 import { friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
 import { cn } from "@/lib/utils";
 import { visibleTeamMemberName } from "@/lib/teamRosterDisplay";
+import { teamRosterReadFailureCode } from "@/lib/teamRosterReads";
 
 export type TeamMemberEntry = {
   profile: any;
@@ -82,6 +83,10 @@ interface TeamMembersSectionProps {
   membersError: unknown;
   isChildrenError?: boolean;
   childrenError?: unknown;
+  isAdultNamesError?: boolean;
+  adultNamesError?: unknown;
+  devEncryptedAdultNameMode?: 'ON' | 'OFF';
+  showIcpRosterFailureCode?: boolean;
   refetchMembers: () => unknown;
   refetchChildren: () => unknown;
   isChildNamesLoading?: boolean;
@@ -128,6 +133,10 @@ export function TeamMembersSection({
   membersError,
   isChildrenError,
   childrenError,
+  isAdultNamesError = false,
+  adultNamesError,
+  devEncryptedAdultNameMode,
+  showIcpRosterFailureCode = false,
   refetchMembers,
   refetchChildren,
   isChildNamesLoading = false,
@@ -232,6 +241,16 @@ export function TeamMembersSection({
       </div>
       <AccordionContent>
         <div className="space-y-4 pt-2">
+          {showIcpRosterFailureCode && devEncryptedAdultNameMode && (
+            <p className="text-xs text-muted-foreground" role="status">
+              DEV ICP generic club-name build flag: {devEncryptedAdultNameMode} (exact-team access checked by server)
+            </p>
+          )}
+          {showIcpRosterFailureCode && isAdultNamesError && (
+            <p className="text-xs text-muted-foreground" role="status">
+              DEV ICP adult-name diagnostic: {teamRosterReadFailureCode(adultNamesError)}
+            </p>
+          )}
           {isChildrenError && (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -247,6 +266,11 @@ export function TeamMembersSection({
                   {playerRetryPending ? "Retrying players…" : "Retry players"}
                 </Button>
               </div>
+              {showIcpRosterFailureCode && !playerRetryPending && (
+                <p className="text-xs text-muted-foreground" role="status">
+                  DEV ICP player-read diagnostic: {teamRosterReadFailureCode(childrenError)}
+                </p>
+              )}
               {playerRetryPending && (
                 <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
                   Checking the player list again…

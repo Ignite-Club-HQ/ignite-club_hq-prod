@@ -88,6 +88,7 @@ import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
+import { getActiveIcpTarget } from "@/live/targetRegistry";
 import { writeOnce } from "@/live/clubScope";
 import {
   softDeleteLiveTeam,
@@ -100,6 +101,7 @@ import {
 } from "@/live/features/membership";
 import { getLiveTeam, getLiveClubProfile, getLiveClubSubscription, getLiveTeamSubscription, saveLiveTeamSubscription, saveLiveTeamPitchSettings } from "@/live/features/club";
 import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
+import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { Principal } from "@icp-sdk/core/principal";
 import * as fixtureData from "@/lab/fixtureDataLayer";
@@ -863,7 +865,7 @@ export default function TeamDetailPage() {
 
   const adultNameIds = useMemo(() => [...new Set(rawMembersData.map(row => row.user_id))].sort(), [rawMembersData]);
   const childNameIds = useMemo(() => teamChildrenData.map(row => row.child_id).sort(), [teamChildrenData]);
-  const { data: adultNames = [] } = useQuery({
+  const { data: adultNames = [], isError: isAdultNamesError, error: adultNamesError } = useQuery({
     queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id, adultNameIds],
     enabled: isIcpAccount && !!id && !!team?.club_id && adultNameIds.length > 0,
     queryFn: () => withFeatureBackend('membership', {
@@ -941,7 +943,11 @@ export default function TeamDetailPage() {
       
       if (!acc[userId]) {
         // Try to get cached profile data for faster initial render
-        const cachedProfile = getProfileFromCache(userId);
+        // ICP team-member names are relationship-scoped. Never allow an
+        // unscoped/stale global profile cache (including "Unknown User") to
+        // override a refused or pending private team-name read. Supabase keeps
+        // its existing cached-profile behaviour unchanged.
+        const cachedProfile = isIcpAccount ? null : getProfileFromCache(userId);
         acc[userId] = {
           profile: role.profiles || (cachedProfile ? {
             id: userId,
@@ -954,7 +960,7 @@ export default function TeamDetailPage() {
       acc[userId].roles.push({ id: role.id, role: role.role });
       return acc;
     }, {} as Record<string, { profile: any; roles: { id: string; role: string }[] }>);
-  }, [rawMembers, team?.clubs?.bot_user_id]);
+  }, [rawMembers, team?.clubs?.bot_user_id, isIcpAccount]);
 
   /**
    * Adult members whose primary role is "player". Used purely for presentation:
@@ -2059,6 +2065,14 @@ export default function TeamDetailPage() {
           membersSectionProps={{
             members, teamChildren, pendingInvites, memberRoleFilter, adultPlayerCount, isAdmin, isClubAdmin, currentUserId: user?.id,
             isMembersLoading, isMembersFetching, isChildrenLoading, isChildrenFetching, isMembersError, membersError, isChildrenError, childrenError, refetchMembers, refetchChildren,
+            // Only the pinned disposable DEV Identity can expose diagnostic categories;
+            // never publish raw errors or profile identifiers to the UI.
+            isAdultNamesError, adultNamesError,
+            devEncryptedAdultNameMode: privateClubNameDisplaysEnabled() ? 'ON' : 'OFF',
+            showIcpRosterFailureCode: isIcpAccount && (() => {
+              try { return getActiveIcpTarget().canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'; }
+              catch { return false; }
+            })(),
     isChildNamesLoading: childNamesPending, hasUnresolvedChildNames, refetchChildNames,
             isSoccerClub: !!isSoccerClub, onOpenHeaderInvite: () => setHeaderInviteOpen(true), onOpenAddPlayer: () => setAddPlayerOpen(true),
             onSelectChild: setSelectedChild, onLinkChildToParent: setLinkChildToParent, onMoveToTeam: setMoveToTeam, onAddRoleMember: setAddRoleMember,
