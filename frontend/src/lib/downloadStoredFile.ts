@@ -19,7 +19,6 @@ export async function downloadResolvedFile(url: string, fileName: string, mimeTy
 }
 
 export async function downloadStoredFile(url: string, fileName: string, mimeType?: string): Promise<void> {
-  const { resolveSignedUrl } = await import("@/hooks/useSignedPhotoUrl");
-  const resolvedUrl = await resolveSignedUrl(url);
-  await downloadResolvedFile(resolvedUrl, fileName, mimeType);
+  const { runFileAction } = await import("./safeOpenFile");
+  await runFileAction("download", url, { fileName, mimeType });
 }

@@ -124,14 +124,14 @@ function extractPrivateStoragePath(url: string): { bucket: PrivateBucket; path: 
   return null;
 }
 
-async function createSignedUrlDirect(url: string): Promise<string | null> {
+async function createSignedUrlDirect(url: string, expiresIn = SIGNED_URL_EXPIRES_IN_SECONDS): Promise<string | null> {
   const privatePath = extractPrivateStoragePath(url);
   if (!privatePath) return null;
 
   const { bucket, path } = privatePath;
   // icp-guard: allow media bytes stay in Supabase storage by design; ICP blob-store objects resolve via resolveIcpBlobObjectUrl instead
   const { data, error } = await withTimeout(
-    supabase.storage.from(bucket).createSignedUrl(path, SIGNED_URL_EXPIRES_IN_SECONDS),
+    supabase.storage.from(bucket).createSignedUrl(path, expiresIn),
     REQUEST_TIMEOUT_MS,
     "createSignedUrl timed out"
   );
@@ -144,13 +144,13 @@ async function createSignedUrlDirect(url: string): Promise<string | null> {
   return data.signedUrl;
 }
 
-async function createSignedUrlViaFunction(url: string): Promise<string | null> {
+async function createSignedUrlViaFunction(url: string, expiresIn = SIGNED_URL_EXPIRES_IN_SECONDS): Promise<string | null> {
   const privatePath = extractPrivateStoragePath(url);
   if (!privatePath) return null;
 
   const { data, error } = await withTimeout(
     supabase.functions.invoke("get-signed-photo-url", {
-      body: { paths: [url], expiresIn: SIGNED_URL_EXPIRES_IN_SECONDS },
+      body: { paths: [url], expiresIn },
     }),
     REQUEST_TIMEOUT_MS,
     "get-signed-photo-url timed out"
@@ -166,7 +166,7 @@ async function createSignedUrlViaFunction(url: string): Promise<string | null> {
 }
 
 
-export async function resolveSignedUrl(url: string): Promise<string> {
+export async function resolveSignedUrl(url: string, options: { expiresIn?: number } = {}): Promise<string> {
   const localPreview = localUploadPreviews.get(url);
   if (localPreview) return localPreview;
   // ICP blob-store URLs serve IBE ciphertext: fetch + decrypt in-browser
@@ -183,10 +183,10 @@ export async function resolveSignedUrl(url: string): Promise<string> {
   // bucket objects. Those are often stored as `/object/public/...` legacy URLs
   // even though the bucket is private, and loading them directly returns a 400
   // "Bucket not found" placeholder instead of the image.
-  const directSignedUrl = await createSignedUrlDirect(url);
+  const directSignedUrl = await createSignedUrlDirect(url, options.expiresIn);
   if (directSignedUrl) return directSignedUrl;
 
-  const functionSignedUrl = await createSignedUrlViaFunction(url);
+  const functionSignedUrl = await createSignedUrlViaFunction(url, options.expiresIn);
   if (functionSignedUrl) return functionSignedUrl;
 
   throw new Error("Unable to create signed URL for private storage object");

@@ -1,6 +1,41 @@
 import { Capacitor } from "@capacitor/core";
 import { safeOpenUrl } from "./safeOpenUrl";
-import { loadOptionalNativeModule } from "./loadOptionalNativeModule";
+import { FileOpener } from "@capacitor-community/file-opener";
+import { toast } from "sonner";
+
+export type FileOptions = { fileName?: string; mimeType?: string };
+type FileAction = "open" | "download" | "share";
+const operations = new Map<string, Promise<void>>();
+
+export function safeOpenFile(url: string, opts: FileOptions = {}): Promise<void> {
+  return runFileAction("open", url, opts);
+}
+
+export function runFileAction(action: FileAction, url: string, opts: FileOptions = {}): Promise<void> {
+  const current = operations.get(url);
+  if (current) return current;
+  // Reserve the web viewing tab inside the original tap, before authorization awaits.
+  const tab = action === "open" && !Capacitor.isNativePlatform() ? window.open("", "_blank") : null;
+  const promise = performFileAction(action, url, opts, tab).finally(() => operations.delete(url));
+  operations.set(url, promise);
+  return promise;
+}
+
+/** Shared visible dispatch used by chat and Vault, including explicit recovery commands. */
+export async function presentFileAction(action: FileAction, url: string, opts: FileOptions = {}): Promise<void> {
+  if (operations.has(url)) return;
+  const progress = toast.loading(action === "open" ? "Preparing file to open…" : action === "download" ? "Preparing file to save…" : "Preparing file to share…");
+  try {
+    await runFileAction(action, url, opts);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "We couldn't prepare this file. Please try again.";
+    toast.error(message, {
+      action: { label: "Download", onClick: () => { void presentFileAction("download", url, opts); } },
+      cancel: { label: "Share", onClick: () => { void presentFileAction("share", url, opts); } },
+      duration: 12000,
+    });
+  } finally { toast.dismiss(progress); }
+}
 
 type LocalCopy = {
   /** file:// URI (or native path) of the cached copy. */
@@ -18,19 +53,20 @@ type LocalCopy = {
  *      shows "Club policy.pdf" rather than a storage host name. We try the
  *      native downloader first and fall back to fetch + write, because
  *      Filesystem.downloadFile is known to fail on some devices / signed URLs.
- *   3. Hand the local copy to the OS viewer (specific MIME, then generic).
- *   4. If no viewer can take it, offer the OS share sheet (still shows the
- *      real file name, lets the user pick Drive / Files / another app).
- *   5. Only as a last resort open the signed URL in the browser.
+ *   3. Hand the local copy to the OS viewer with its real MIME type.
+ *   4. Never substitute sharing for opening. PDF-only browser fallback is authorized.
+ * Download exports a separate accessible copy; Share is explicitly selected.
  *
  * Security: for recognized Supabase storage URLs we resolve to an authorized
  * signed URL BEFORE any download or browser operation. If signing fails we
  * fail closed — the raw private URL is never downloaded, opened, or passed to
  * the browser fallback, and no tokens or private URLs are included in errors.
  */
-export async function safeOpenFile(
+async function performFileAction(
+  action: FileAction,
   url: string,
-  opts: { fileName?: string; mimeType?: string } = {},
+  opts: FileOptions,
+  tab: Window | null,
 ): Promise<void> {
   const isNative = Capacitor.isNativePlatform();
   // Resolve authorization AND ICP decryption before any viewer/download.
@@ -39,6 +75,7 @@ export async function safeOpenFile(
   if (url.startsWith("storage://")) {
     const rest = url.slice("storage://".length);
     const slash = rest.indexOf("/");
+    if (slash < 1) { tab?.close(); throw new Error("This file link is incomplete. Ask the organiser to upload it again."); }
     const { supabase } = await import("@/integrations/supabase/client");
     // icp-guard: allow getPublicUrl only builds a URL string locally for legacy storage:// links; no network call
     url = supabase.storage.from(rest.slice(0, slash)).getPublicUrl(rest.slice(slash + 1)).data.publicUrl;
@@ -47,12 +84,13 @@ export async function safeOpenFile(
   {
     try {
       const { resolveSignedUrl } = await import("@/hooks/useSignedPhotoUrl");
-      resolvedUrl = await resolveSignedUrl(url);
+      resolvedUrl = await resolveSignedUrl(url, { expiresIn: 120 });
     } catch {
       // Do not include the raw URL, tokens, or the underlying error message
       // (which may contain sensitive query params) in the thrown error.
       console.warn("[safeOpenFile] authorization/unlock failed; refusing to open stored file");
-      throw new Error("This file could not be authorized for viewing. Please try again.");
+      tab?.close();
+      throw new Error("You couldn't access this file. Sign in again or ask the organiser to check your access.");
     }
   }
 
@@ -62,55 +100,69 @@ export async function safeOpenFile(
   const documentType = normalizeMimeType(opts.mimeType) || normalizeMimeType(nameType);
 
   if (!isNative) {
-    if (resolvedUrl.startsWith("blob:")) {
+    if (action === "download") {
       const { downloadResolvedFile } = await import("./downloadStoredFile");
       await downloadResolvedFile(resolvedUrl, displayName, documentType || undefined);
+    } else if (action === "share") {
+      const response = await fetch(resolvedUrl);
+      if (!response.ok) throw fileFetchError(response.status);
+      const file = new File([await response.blob()], displayName, { type: documentType || "application/octet-stream" });
+      if (!navigator.canShare?.({ files: [file] })) throw new Error("File sharing isn't available in this browser. Choose Download instead.");
+      try { await navigator.share({ files: [file], title: displayName }); }
+      catch (error) { if (!isUserCancel(error)) throw new Error("We couldn't share this file. Try Download instead."); }
     } else {
-      await safeOpenUrl(resolvedUrl);
+      if (!tab) throw new Error("Your browser blocked the file window. Allow pop-ups for Ignite and try Open again.");
+      tab.opener = null;
+      tab.location.href = resolvedUrl;
     }
     return;
   }
 
   // Build a safe filename in a unique cache sub-directory so the viewer
   // shows the real document name (not a timestamped/mangled one).
-  const relativePath = `ignite-files/${Date.now()}/${displayName}`;
+  const relativePath = `ignite-files/${crypto.randomUUID()}/${displayName}`;
 
   let local: LocalCopy | null = null;
   try {
     local = await downloadToCache(resolvedUrl, relativePath, displayName);
   } catch (err) {
-    console.warn("[safeOpenFile] could not cache file locally:", describeError(err));
+    throw err instanceof DocumentFileError ? err : new Error("This file could not be saved for viewing. Check your connection and try again.");
   }
 
   if (!local) {
-    if (resolvedUrl.startsWith("blob:")) {
-      throw new Error("This file could not be saved for viewing. Please try again.");
-    }
-    // Nothing on disk to hand to a viewer — browser is the only option left.
-    console.warn("[safeOpenFile] no local copy; falling back to browser");
-    await safeOpenUrl(resolvedUrl);
-    return;
+    throw new Error("This file could not be saved for viewing. Please try again.");
   }
 
   const primaryType =
-    normalizeMimeType(opts.mimeType) ||
-    normalizeMimeType(local.serverContentType) ||
-    guessMimeFromName(displayName);
+    documentType || normalizeMimeType(local.serverContentType) || "application/octet-stream";
+
+  if (action === "download") {
+    const { NativeFileExport } = await import("./nativeFileExport");
+    try {
+      const result = await NativeFileExport.save({ filePath: local.uri, fileName: displayName, mimeType: primaryType });
+      toast.success(result.saved ? "File saved to your selected location" : "Save cancelled");
+    } catch { throw new Error("We couldn't save this file. Choose a writable location and try again."); }
+    return;
+  }
+  if (action === "share") {
+    if (!(await shareLocalFile(local.uri, displayName))) throw new Error("We couldn't share this file. Please try again.");
+    return;
+  }
 
   if (await openWithViewer(local.uri, primaryType)) return;
 
-  // No viewer accepted the file. The share sheet still surfaces the real file
-  // name and lets the user pick Files / Drive / another app — far better than
-  // a browser tab showing the storage host name.
-  if (await shareLocalFile(local.uri, displayName)) return;
-
-  // Fall back to browser using the RESOLVED URL only — never the raw
-  // private URL.
-  console.warn("[safeOpenFile] viewer and share unavailable, falling back to browser");
-  if (resolvedUrl.startsWith("blob:")) {
-    throw new Error("No app could open this file. Please install a compatible document viewer.");
+  if (primaryType === "application/pdf" && /^https?:\/\//.test(resolvedUrl)) {
+    try { await safeOpenUrl(resolvedUrl); return; } catch { /* Explicit recovery below. */ }
   }
-  await safeOpenUrl(resolvedUrl);
+  throw new Error("No compatible viewer could open this file. Install a document viewer, or choose Download or Share.");
+}
+
+class DocumentFileError extends Error {}
+function fileFetchError(status: number): Error {
+  return new DocumentFileError(status === 401 || status === 403
+    ? "Access to this file was refused or the link expired. Sign in again and retry."
+    : status === 404 ? "This file is missing. Ask the organiser to upload it again."
+    : "We couldn't download this file. Check your connection and try again.");
 }
 
 /**
@@ -159,8 +211,9 @@ async function downloadToCache(
 
   // Strategy 2: fetch the bytes in the WebView and write them ourselves.
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Failed to fetch file (${response.status})`);
+  if (!response.ok) throw fileFetchError(response.status);
   const blob = await response.blob();
+  if (blob.size === 0) throw new DocumentFileError("This file is empty. Ask the organiser to upload it again.");
   const serverContentType =
     (blob.type || response.headers.get("content-type") || "").split(";")[0].trim() || null;
   const base64 = await blobToBase64(blob);
@@ -189,36 +242,12 @@ async function downloadToCache(
   return { uri, serverContentType };
 }
 
-/** Try the OS viewer with the specific type, then generically. */
+/** Android ACTION_VIEW chooser; iOS native document preview. Never ACTION_SEND. */
 async function openWithViewer(localPath: string, primaryType: string): Promise<boolean> {
-  let FileOpener: { open: (o: { filePath: string; contentType?: string; openWithDefault?: boolean }) => Promise<void> };
   try {
-    ({ FileOpener } = await loadOptionalNativeModule("@capacitor-community/file-opener"));
-  } catch (err) {
-    console.warn("[safeOpenFile] FileOpener unavailable:", describeError(err));
-    return false;
-  }
-
-  try {
-    await FileOpener.open({ filePath: localPath, contentType: primaryType, openWithDefault: true });
+    await FileOpener.open({ filePath: localPath, contentType: primaryType, openWithDefault: Capacitor.getPlatform() !== "android" });
     return true;
-  } catch (openErr) {
-    // Some devices reject a specific content type but happily open the file
-    // when asked generically.
-    console.warn("[safeOpenFile] viewer rejected content type, retrying generically:", describeError(openErr));
-  }
-
-  try {
-    await FileOpener.open({
-      filePath: localPath,
-      contentType: "application/octet-stream",
-      openWithDefault: true,
-    });
-    return true;
-  } catch (err) {
-    console.warn("[safeOpenFile] generic viewer open failed:", describeError(err));
-    return false;
-  }
+  } catch { return false; }
 }
 
 /** Offer the OS share sheet for the cached copy (keeps the real file name). */
@@ -287,7 +316,7 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80) || "file";
 }
 
-function guessMimeFromName(name: string): string {
+export function guessMimeFromName(name: string): string {
   const ext = (name.split(".").pop() || "").toLowerCase();
   switch (ext) {
     case "pdf":
@@ -327,6 +356,16 @@ function guessMimeFromName(name: string): string {
       return "audio/mpeg";
     case "zip":
       return "application/zip";
+    case "rtf": return "application/rtf";
+    case "odt": return "application/vnd.oasis.opendocument.text";
+    case "ods": return "application/vnd.oasis.opendocument.spreadsheet";
+    case "odp": return "application/vnd.oasis.opendocument.presentation";
+    case "json": return "application/json";
+    case "html": return "text/html";
+    case "ics": return "text/calendar";
+    case "wav": return "audio/wav";
+    case "m4a": return "audio/mp4";
+    case "ogg": return "audio/ogg";
     default:
       return "application/octet-stream";
   }
