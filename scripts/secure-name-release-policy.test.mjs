@@ -105,13 +105,14 @@ test('DEV-only universal club-name release changes exactly three PII/Identity se
   const piiResult=secureNameEnvironment(pii,'pii_access_control','shared_club_name_enforcement',dev);
   const idResult=secureNameEnvironment(id,'identity_access','shared_club_name_enforcement',dev);
   assert.equal(piiResult.find(x=>x.name===SHARED_CLUB_NAME_RELEASE)?.value,'1');
+  assert.equal(piiResult.find(x=>x.name===DEV_G2_SHARED_CLUB_RELEASE)?.value,'1');
   assert.equal(idResult.find(x=>x.name===DEV_G2_SHARED_CLUB_RELEASE)?.value,'1');
   for(const original of pii)assert.deepEqual(piiResult.find(x=>x.name===original.name),original);
   for(const original of id)assert.deepEqual(idResult.find(x=>x.name===original.name),original);
   assert.deepEqual(secureNameEnvironment(piiResult,'pii_access_control','shared_club_name_enforcement',dev),piiResult);
   assert.deepEqual(secureNameEnvironment(idResult,'identity_access','shared_club_name_enforcement',dev),idResult);
   assert.deepEqual(secureNameChangedSettings('shared_club_name_enforcement','identity_access'),[DEV_G2_SHARED_CLUB_RELEASE]);
-  assert.deepEqual(secureNameChangedSettings('shared_club_name_enforcement','pii_access_control'),[SHARED_CLUB_NAME_RELEASE]);
+  assert.deepEqual(secureNameChangedSettings('shared_club_name_enforcement','pii_access_control'),[SHARED_CLUB_NAME_RELEASE,DEV_G2_SHARED_CLUB_RELEASE]);
   assert.throws(()=>secureNameChangedSettings('shared_club_name_enforcement','club_domain'));
   assert.throws(()=>secureNameEnvironment(pii.filter(x=>x.name!==DISPLAY_RELEASE),'pii_access_control','shared_club_name_enforcement',dev));
   assert.throws(()=>secureNameEnvironment(pii.filter(x=>x.name!=='VETKD_KEY_NAME'),'pii_access_control','shared_club_name_enforcement',dev));
