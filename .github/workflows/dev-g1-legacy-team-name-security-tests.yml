@@ -7,6 +7,12 @@ on:
       - "backend/identity_access/src/legacy_g1_private_name.rs"
       - "backend/club_domain/src/main.mo"
       - "frontend/scripts/test-linked-membership-replica.mjs"
+      - "frontend/src/live/privateProfileAudience.ts"
+      - "frontend/src/live/devCrossGroupTeamNameRoute.ts"
+      - "frontend/src/live/devCrossGroupTeamNameRoute.test.ts"
+      - "frontend/src/live/relationshipProfileRead.ts"
+      - "frontend/src/live/relationshipProfileRead.test.ts"
+      - "frontend/src/pages/TeamDetailPage.tsx"
 permissions:
   contents: read
 jobs:
@@ -21,3 +27,23 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run exact DEV origin/foreign-caller/directory/key negative tests
         run: cargo test --locked -p identity_access --lib legacy_g1_private_name::tests
+  offline-dev-team-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --ignore-scripts --no-fund --no-audit
+      - name: Test protected G1/G2 private-name routing and exact team audience
+        run: npx vitest run --config vitest.legacy.config.mjs src/live/devCrossGroupTeamNameRoute.test.ts src/live/relationshipProfileRead.test.ts src/live/privateProfileNames.test.ts
+      - name: Typecheck typed names, canister routing and team roster
+        run: npm run typecheck:product
