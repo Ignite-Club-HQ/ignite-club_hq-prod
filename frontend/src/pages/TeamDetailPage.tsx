@@ -130,7 +130,7 @@ import { TeamDetailAccordionSections } from "@/components/team/TeamDetailAccordi
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { readIcpTeamPendingInvites } from "@/features/membership/teamPendingInvites";
 import { readTeamChildRows, teamRoleRows } from '@/lib/teamRosterReads';
-import { scopedIcpTeamRosterKey, teamRosterHeaderStatus, visibleChildRosterName, needsChildNameRetry } from '@/lib/teamRosterDisplay';
+import { scopedIcpTeamRosterKey, teamRosterHeaderStatus, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry } from '@/lib/teamRosterDisplay';
 
 
 type TeamRole = TeamJoinRole;
@@ -865,7 +865,14 @@ export default function TeamDetailPage() {
 
   const adultNameIds = useMemo(() => [...new Set(rawMembersData.map(row => row.user_id))].sort(), [rawMembersData]);
   const childNameIds = useMemo(() => teamChildrenData.map(row => row.child_id).sort(), [teamChildrenData]);
-  const { data: adultNames = [], isError: isAdultNamesError, error: adultNamesError } = useQuery({
+  // Only the pinned disposable DEV Identity receives the extra name-refresh UI.
+  // PROD ICP, Supabase and child-name paths retain their existing behaviour.
+  const devIcpAdultNames = isIcpAccount && (() => {
+    try { return getActiveIcpTarget().canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'; }
+    catch { return false; }
+  })();
+  const { data: adultNames = [], isLoading: isAdultNamesLoading, isFetching: isAdultNamesFetching,
+    isError: isAdultNamesError, error: adultNamesError, refetch: refetchAdultNames } = useQuery({
     queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id, adultNameIds],
     enabled: isIcpAccount && !!id && !!team?.club_id && adultNameIds.length > 0,
     queryFn: () => withFeatureBackend('membership', {
@@ -875,9 +882,11 @@ export default function TeamDetailPage() {
         return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds, { kind: 'team', resource: id! }), 40_000, 'member names');
       },
     }, { clubId: team?.club_id ?? '' }),
-    staleTime: 60_000,
-    // A bounded team-name audience already does repeated fresh server-side
-    // permission checks. Do not trigger a second invisible cold-key lookup.
+    staleTime: devIcpAdultNames ? 0 : 60_000,
+    refetchOnMount: devIcpAdultNames ? 'always' : undefined,
+    refetchOnWindowFocus: devIcpAdultNames,
+    // Authorization is checked on each read. Never automatically repeat a
+    // denied or timed-out private-name call; permit explicit user retry only.
     retry: 0,
   });
   const { data: childNames, isLoading: isChildNamesLoading, isFetching: isChildNamesFetching, refetch: refetchChildNames } = useQuery({
@@ -895,6 +904,10 @@ export default function TeamDetailPage() {
     // cold-key unlock can be retried explicitly without silently waiting 40s.
     retry: 0,
   });
+  const adultNamesPending = isAdultNamesLoading || isAdultNamesFetching;
+  const hasUnresolvedAdultNames = devIcpAdultNames && needsAdultNameRetry(
+    adultNameIds, adultNames, adultNamesPending,
+  );
   const childNamesPending = isIcpAccount && (isChildNamesLoading || (isChildNamesFetching && !childNames));
   const teamChildren = useMemo(() => !isIcpAccount ? teamChildrenData : teamChildrenData.map(row => {
     const unlocked = childNames?.get(row.child_id);
@@ -2068,11 +2081,9 @@ export default function TeamDetailPage() {
             // Only the pinned disposable DEV Identity can expose diagnostic categories;
             // never publish raw errors or profile identifiers to the UI.
             isAdultNamesError, adultNamesError,
+            isAdultNamesFetching: adultNamesPending, hasUnresolvedAdultNames, refetchAdultNames,
             devEncryptedAdultNameMode: privateClubNameDisplaysEnabled() ? 'ON' : 'OFF',
-            showIcpRosterFailureCode: isIcpAccount && (() => {
-              try { return getActiveIcpTarget().canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'; }
-              catch { return false; }
-            })(),
+            showIcpRosterFailureCode: devIcpAdultNames,
     isChildNamesLoading: childNamesPending, hasUnresolvedChildNames, refetchChildNames,
             isSoccerClub: !!isSoccerClub, onOpenHeaderInvite: () => setHeaderInviteOpen(true), onOpenAddPlayer: () => setAddPlayerOpen(true),
             onSelectChild: setSelectedChild, onLinkChildToParent: setLinkChildToParent, onMoveToTeam: setMoveToTeam, onAddRoleMember: setAddRoleMember,

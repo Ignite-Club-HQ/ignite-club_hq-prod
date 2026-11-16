@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { visibleTeamMemberName, visibleChildRosterName, needsChildNameRetry, teamRosterHeaderStatus, scopedIcpTeamRosterKey } from './teamRosterDisplay';
+import { visibleTeamMemberName, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry, teamRosterHeaderStatus, scopedIcpTeamRosterKey } from './teamRosterDisplay';
 
 describe('team-roster privacy and loading', () => {
   it('shows existing public/authorized display names without changing them', () => {
@@ -52,5 +52,26 @@ describe('authorized child-name read states', () => {
     expect(needsChildNameRetry(ids, new Map([['child-1','Ted']]), false)).toBe(true);
     expect(needsChildNameRetry(ids, new Map([['child-1','Ted'], ['child-2','QA']]), false)).toBe(false);
     expect(needsChildNameRetry([], undefined, false)).toBe(false);
+  });
+});
+
+describe('DEV ICP cross-account adult-name refresh', () => {
+  const ids = ['test', 'test3'];
+  it('reports unresolved profiles after a successful but incomplete read', () => {
+    expect(needsAdultNameRetry(ids, [{account_id:'test',display_name:'Test'}], false)).toBe(true);
+    expect(needsAdultNameRetry(ids, [
+      {account_id:'test',display_name:'Test'},
+      {account_id:'test3',display_name:'pii-display-name:v1:authority:subject'},
+    ],false)).toBe(true);
+    expect(needsAdultNameRetry(ids, [
+      {account_id:'test',display_name:'Test'}, {account_id:'test3',display_name:null},
+    ],false)).toBe(true);
+  });
+  it('does not propose a second read while loading or after both names resolve', () => {
+    expect(needsAdultNameRetry(ids,[],true)).toBe(false);
+    expect(needsAdultNameRetry(ids,[
+      {account_id:'test',display_name:'Test'}, {account_id:'test3',display_name:'Test3'},
+    ],false)).toBe(false);
+    expect(needsAdultNameRetry([],[],false)).toBe(false);
   });
 });

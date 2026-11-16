@@ -60,3 +60,16 @@ export function needsChildNameRetry(
 ): boolean {
   return ids.length > 0 && !pending && ids.some(id => !names?.get(id)?.trim());
 }
+
+/** Only offer a fresh, exact-team adult-name read after the current read settles.
+ * No unscoped profile cache, inferred membership or private reference qualifies.
+ */
+export function needsAdultNameRetry(
+  ids: readonly string[],
+  profiles: readonly { account_id: string; display_name: string | null }[],
+  pending: boolean,
+): boolean {
+  if (!ids.length || pending) return false;
+  const names = new Map(profiles.map(p => [p.account_id, p.display_name]));
+  return ids.some(id => visibleTeamMemberName(names.get(id)) === 'Name unavailable');
+}
