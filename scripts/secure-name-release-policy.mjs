@@ -54,9 +54,12 @@ export function secureNameEnvironment(environment, service, scope, {identity, or
   if(scope==='shared_club_name_enforcement')exact(DISPLAY_RELEASE,'1',true);
   const exactDevOriginal = identity===EXACT_DEV_IDENTITY && originalPii===EXACT_DEV_G1_PII;
   // Never copy DEV-only settings onto another canister or deployment.
-  const existingDevSettings=environment.filter(row=>[DEV_G1_TEAM_NAME_RELEASE,DEV_G1_OBSERVED_KEY,DEV_G2_SHARED_CLUB_RELEASE].includes(row.name));
-  if(existingDevSettings.length && (!exactDevOriginal || service!=='identity_access'))
-    throw Error('DEV cross-group name settings belong to the original DEV Identity only');
+  const legacyOnly=environment.filter(row=>[DEV_G1_TEAM_NAME_RELEASE,DEV_G1_OBSERVED_KEY].includes(row.name));
+  if(legacyOnly.length && (!exactDevOriginal || service!=='identity_access'))
+    throw Error('DEV legacy source settings belong only to original DEV Identity');
+  if(environment.some(row=>row.name===DEV_G2_SHARED_CLUB_RELEASE) &&
+      (!exactDevOriginal || !['identity_access','pii_access_control'].includes(service)))
+    throw Error('DEV shared-club release belongs only to pinned DEV Identity/PII');
   const existingObserved=environment.find(row=>row.name===DEV_G1_OBSERVED_KEY);
   if(existingObserved && existingObserved.value!==VERIFIED_DEV_G1_OBSERVED_SHA256)
     throw Error('Original DEV G1 observed PII fingerprint differs; cannot reconfigure');
