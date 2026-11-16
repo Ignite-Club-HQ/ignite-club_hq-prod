@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { visibleTeamMemberName, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry, teamRosterHeaderStatus, scopedIcpTeamRosterKey } from './teamRosterDisplay';
+import { visibleTeamMemberName, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry, requestedTeamAdultNameIds, teamRosterHeaderStatus, scopedIcpTeamRosterKey } from './teamRosterDisplay';
 
 describe('team-roster privacy and loading', () => {
   it('shows existing public/authorized display names without changing them', () => {
@@ -73,5 +73,28 @@ describe('DEV ICP cross-account adult-name refresh', () => {
       {account_id:'test',display_name:'Test'}, {account_id:'test3',display_name:'Test3'},
     ],false)).toBe(false);
     expect(needsAdultNameRetry([],[],false)).toBe(false);
+  });
+});
+
+describe('DEV-only self-name omission for encrypted team roster reads', () => {
+  const ids = ['test3', 'test', 'test3'];
+  const aliases = ['test', 'principal:test', 'own-account-id'];
+  it('requests only other adults when the signed-in self already has a readable authorised profile name', () => {
+    expect(requestedTeamAdultNameIds(ids, aliases, ' Test ', true)).toEqual(['test3']);
+    expect(requestedTeamAdultNameIds(['principal:test','test3'], aliases, 'Test', true)).toEqual(['test3']);
+    expect(requestedTeamAdultNameIds(['own-account-id','test3'], aliases, 'Test', true)).toEqual(['test3']);
+  });
+  it('keeps all adults if the own name is unavailable, encrypted or a placeholder', () => {
+    for (const value of [null, '', ' ', 'pii-display-name:v1:source:self', 'Unknown User', 'Name unavailable']) {
+      expect(requestedTeamAdultNameIds(ids, aliases, value, true)).toEqual(['test','test3']);
+    }
+  });
+  it('keeps PROD, Supabase and other target queries unchanged', () => {
+    expect(requestedTeamAdultNameIds(ids, aliases, 'Test', false)).toEqual(['test','test3']);
+  });
+  it('never treats another adult as signed-in self or invents a display name', () => {
+    const subjects = requestedTeamAdultNameIds(['test','test3'], ['test'], 'Test', true);
+    expect(subjects).toEqual(['test3']);
+    expect(requestedTeamAdultNameIds(['test','test3'], [], 'Test', true)).toEqual(['test','test3']);
   });
 });
