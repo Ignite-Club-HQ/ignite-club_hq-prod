@@ -70,7 +70,14 @@ test('exact disposable DEV private display release prepares original G1 team-nam
   const repeated=secureNameEnvironment(rows,'identity_access','private_club_name_display',dev);
   assert.deepEqual(repeated,rows,'replaying a vetted release plan does not change the release');
   assert.throws(()=>secureNameEnvironment([...baseline,{name:'IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256',value:'0'.repeat(64)}],'identity_access','private_club_name_display',dev),/fingerprint differs/);
-  assert.throws(()=>secureNameEnvironment([...baseline,{name:'IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE',value:'1'}],'pii_access_control','private_club_name_display',dev),/original DEV Identity only/);
+  const completePii=[
+    {name:'VETKD_KEY_NAME',value:'key_1'},
+    {name:SAVE_RELEASE,value:'1'},
+    {name:'IGNITE_SECURE_ADULT_NAME_IDENTITY',value:dev.identity},
+    {name:'IGNITE_PRIVATE_PROFILE_IDENTITY',value:dev.identity},
+    {name:'IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE',value:'1'},
+  ];
+  assert.throws(()=>secureNameEnvironment(completePii,'pii_access_control','private_club_name_display',dev),/original DEV Identity only/);
 });
 
 test('foreign and PROD authority inventories never auto-release DEV original team names',()=>{
