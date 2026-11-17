@@ -42,7 +42,9 @@ import { acceptIcpInviteAndWelcome } from "@/features/membership/acceptIcpInvite
 import { needsInviteChildEntry } from "@/features/membership/inviteFlowRules";
 import { assertShareableInvitePrincipal, shareableInviteJoinErrorMessage } from "@/live/acceptShareableInviteWithRetry";
 import { createIcpInviteChild } from "@/features/membership/createIcpInviteChild";
-import { verifyIcpChildNameAcrossGroups } from "@/features/membership/verifyIcpChildNameAcrossGroups";
+import { verifyIcpChildNameInOtherGroups } from "@/features/membership/verifyIcpChildNameAcrossGroups";
+import { planIcpInviteChild } from "@/features/membership/createIcpInviteChild";
+import { readInviteChildJournal, writeInviteChildJournal, clearInviteChildJournal } from "@/features/membership/inviteChildJournal";
 import { lastConfirmedDevOwnerNameReadiness, reconcileConfirmedDevOwnerClubName, type DevClubNameReadiness } from "@/live/devOwnerClubNameReadiness";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -2265,26 +2267,37 @@ function SupabaseJoinTeamPage() {
           // referenced team belongs to that club before any child creation.
           const verifiedClubId = invite.teams?.club_id;
           if (!verifiedClubId) throw new Error("Invitation has no verified club");
-          if (icpChildCreateAttempted.current) {
+          const parentPrincipal = user.id;
+          const journal = readInviteChildJournal(parentPrincipal);
+          if (icpChildCreateAttempted.current && !journal) {
             throw new Error("A previous child creation may have succeeded. Check My Children before trying to add another.");
           }
-          // Do not lock out a parent's next attempt when a READ-ONLY
-          // duplicate check fails. The one-write guard is set immediately
-          // before create_own_child below, never before canister routing or
-          // membership verification. Concurrent submits still cannot create
-          // two children because the guard is set synchronously before call.
-          await verifyIcpChildNameAcrossGroups(addedLabel);
           const result = await withFeatureBackend("membership", {
             supabase: async () => { throw new Error("Internet Identity invitation cannot use the email database"); },
             icp: async (ctx) => {
-              const [club, vault] = await Promise.all([
+              const [club, vault, safety] = await Promise.all([
                 import("@/live/features/club"),
                 import("@/live/features/vault"),
+                import("@/features/membership/icpChildrenGroupSafety"),
               ]);
               const clubId = verifiedClubId;
               const teamId = invite.team_id!;
               const parent = ctx.identity.getPrincipal();
-              return createIcpInviteChild({ clubId, teamId, name: addedLabel }, {
+              const sourceClubCanisterId = safety.requireSourceClubCanisterId(ctx.target);
+              // Strict check in the group where the child will live. A failed
+              // list is a read failure (nothing created), never "duplicate".
+              let own: Awaited<ReturnType<typeof club.listMyLiveOwnChildren>>;
+              try { own = await club.listMyLiveOwnChildren(ctx); }
+              catch { throw new Error("We couldn't check your existing children for this club. Nothing was created — please try again."); }
+              const ownNames = own.length
+                ? await vault.resolveLivePiiTextBatch(ctx, own.map(c => c.id), "name", "read", "child_duplicate_check").catch(() => new Map<string, string>())
+                : new Map<string, string>();
+              const plan = planIcpInviteChild({ clubId, teamId, name: addedLabel }, own.map(c => ({
+                id: c.id, teams: c.teams, name: ownNames.get(c.id) ?? null,
+              })), journal);
+              // Other groups: only a confirmed readable same-name child blocks.
+              if (plan.kind === "create") await verifyIcpChildNameInOtherGroups(addedLabel, sourceClubCanisterId);
+              const outcome = await createIcpInviteChild({ clubId, teamId, name: addedLabel, ...(plan.kind === "recover" ? { recover: plan } : {}) }, {
                 readTeam: async () => {
                   if (!(await club.isMyLiveClubMember(ctx, clubId))) {
                     throw new Error("You are no longer a member of this club. No child was created.");
@@ -2303,25 +2316,30 @@ function SupabaseJoinTeamPage() {
                 saveName: (id) => vault.registerLiveChildNamePiiOrThrow(ctx, id, addedLabel, parent, clubId),
                 assignOwnChildToTeam: (id) => club.setMyLiveChildTeam(ctx, id, teamId, true),
               });
+              if (outcome.status === "linked") clearInviteChildJournal(parentPrincipal);
+              else writeInviteChildJournal(parentPrincipal, {
+                childId: outcome.childId, teamId, clubId, name: addedLabel,
+                nameSaved: outcome.status === "linked_without_name" ? false : outcome.nameSaved || (journal?.childId === outcome.childId && journal.nameSaved),
+              });
+              return outcome;
             },
           }, writeOnce({ clubId: verifiedClubId }));
           if (result.status !== "linked") {
             // A child exists. Do not repeat creation or claim successful
-            // onboarding when encrypted name or team assignment failed.
-            // The actual child ID is retained by the result for recovery.
+            // onboarding when encrypted name or team assignment failed. The
+            // exact child is journaled, so "Add" again resumes it.
+            icpChildCreateAttempted.current = true;
             const teamLinked = result.status === "linked_without_name";
             const nameSaved = result.status === "created_unlinked" && result.nameSaved;
             const problem = teamLinked
               ? "Name needs attention"
               : nameSaved ? "Not yet linked to team" : "Name and team need attention";
             setAddedChildren(prev => [...prev, addedLabel + " (" + problem + ")"]);
-            setChildName("");
-            setChildYearOfBirth("");
             toast({
-              title: "Child created — setup incomplete",
+              title: teamLinked ? "Child added — name not saved yet" : "Child created — team link failed",
               description: teamLinked
-                ? "Your child is on the team, but their encrypted name could not be saved. Check My Children or contact the team admin; don't create a duplicate."
-                : "Your child exists, but the team link was not confirmed. Check My Children or contact the team admin; don't create a duplicate.",
+                ? "Your child is on the team, but their name could not be saved. Tap Add again with the same name to finish; no duplicate will be created."
+                : "Your child was created but not linked to the team. Tap Add again with the same name to finish linking; no duplicate will be created.",
               variant: "destructive",
             });
             return;
