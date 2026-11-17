@@ -34,6 +34,12 @@ try{
   // A team-only Parent grant must cease authorizing the club on deletion.
   ok(await a.add_role_grant(parent,'club-a','parent',['team-a']));
   ok(await a.add_role_grant(separateMember,'club-b','player',['team-b']));
+  // Local fixture: the governor impersonates the explicitly trusted PII service
+  // to test the boolean audience boundary; no vetKeys or PII records exist.
+  ok(await a.set_pii_canister(governor));
+  assert.equal(await a.read_has_pii_audience(parent,'clubchildren','club-a'),true);
+  assert.equal(await a.read_has_pii_audience(parent,'teamnames','team-a'),true);
+  assert.equal(await a.read_has_pii_audience(parent,'vaultrole','club-a|team-a|parent'),true);
   assert.equal(await a.read_has_club_membership(parent,'club-a'),true);
   assert.equal(await a.read_has_club_staff_role(parent,'club-a'),true);
   assert.equal(await a.read_has_club_membership(outsider,'club-a'),false);
@@ -57,6 +63,9 @@ try{
     'Deleted team-only role cannot grant club private-name access');
   assert.equal(await a.read_has_club_membership(guardian,'club-a'),false,
     'Deleted child-team link cannot grant family club access');
+  assert.equal(await a.read_has_pii_audience(parent,'clubchildren','club-a'),false);
+  assert.equal(await a.read_has_pii_audience(parent,'teamnames','team-a'),false);
+  assert.equal(await a.read_has_pii_audience(parent,'vaultrole','club-a|team-a|parent'),false);
   assert.equal(await a.read_has_club_membership(separateMember,'club-b'),true,
     'Active membership in another club remains intact');
   a.setPrincipal(parent);
@@ -66,11 +75,14 @@ try{
   ok(await a.restore_team('team-a'));
   assert.equal(await a.read_has_club_membership(parent,'club-a'),true);
   assert.equal(await a.read_has_club_membership(guardian,'club-a'),true);
+  assert.equal(await a.read_has_pii_audience(parent,'teamnames','team-a'),true);
   // An independent direct club role is unaffected by a team soft-delete.
   ok(await a.add_role_grant(parent,'club-a','member',[]));
   ok(await a.soft_delete_team('team-a'));
   assert.equal(await a.read_has_club_membership(parent,'club-a'),true);
   assert.equal(await a.read_has_club_membership(guardian,'club-a'),false);
+  assert.equal(await a.read_has_pii_audience(parent,'clubchildren','club-a'),true);
+  assert.equal(await a.read_has_pii_audience(parent,'teamnames','team-a'),false);
   console.log('PASS: deleted team grants and family links denied, legacy shadow cannot revive, restore and independent roles remain valid');
 }finally{
   if(pic)await pic.tearDown();
