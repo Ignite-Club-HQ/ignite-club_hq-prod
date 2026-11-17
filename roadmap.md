@@ -490,6 +490,7 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] 11 Nov: g2 alert coverage built on TEST (g2 queue accepts LIVE sender, sender drains base+g2, phones also register on g2, switch links and enables g2). Needs merge to prod, g2 queue upgrade, new Android build, then switch enable.
 
 ## DEV Cloud Engine connection — resumed 17 November
+- [ ] 17 November 02:11 UTC request: produce full encryption-enabled upload-ready bundle and run real-engine installation acceptance. Console access probe reaches passkey sign-in, not the engine applications page; no owner session or working ICP MCP is available here. Do not install via unrelated CI identity or treat isolated encryption success as engine authorization. Full archive/configuration acceptance remains required before upload-ready handover.
 - [x] Paul has provisioned a DEV engine: https://opencloud.org/console/engines/engine-789969b4-e8ba-41b0-90a2-47b4dab699df/apps.
 - [x] Paul confirms existing DEV canisters are not hosted on the engine; pointing to them has not deployed Ignite there.
 - [x] Settings screenshot identifies ignite-dev (General-purpose Nano, 2 vCPU / 8 GiB RAM / 100 GB SSD, 4/4 nodes online); subnet nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae; engine domain ignite-dev--0k3.opencloud.me. Deployment access and application readiness remain unverified.
