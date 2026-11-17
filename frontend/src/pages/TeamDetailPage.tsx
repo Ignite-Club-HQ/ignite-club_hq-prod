@@ -101,7 +101,7 @@ import {
 } from "@/live/features/membership";
 import { getLiveTeam, getLiveClubProfile, getLiveClubSubscription, getLiveTeamSubscription, saveLiveTeamSubscription, saveLiveTeamPitchSettings } from "@/live/features/club";
 import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
-import { sharedClubNameEnforcementEnabled } from "@/live/devCrossGroupTeamNameRoute";
+import { clubNameDisplaysActive } from "@/live/devCrossGroupTeamNameRoute";
 import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { Principal } from "@icp-sdk/core/principal";
@@ -874,7 +874,7 @@ export default function TeamDetailPage() {
   // When the global ICP release is enabled, ALL teams inherit the owning
   // club's name key; no team/person-key fallback is allowed.
   const devSharedClubNames = isIcpAccount && (() => {
-    try { return sharedClubNameEnforcementEnabled(getActiveIcpTarget()) && Boolean(team?.club_id); }
+    try { return clubNameDisplaysActive(getActiveIcpTarget()) && Boolean(team?.club_id); }
     catch { return false; }
   })();
   const adultNameIds = useMemo(() => requestedClubAdultNameIds(
@@ -894,6 +894,7 @@ export default function TeamDetailPage() {
         if (!team?.club_id) throw new Error('Team club required for member names');
         return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds,
           devSharedClubNames ? { kind: 'club', resource: team.club_id } : { kind: 'team', resource: id! },
+          undefined, devSharedClubNames ? { partialNames: true } : {},
         ), 40_000, 'member names');
       },
     }, { clubId: team?.club_id ?? '' }),
@@ -920,6 +921,9 @@ export default function TeamDetailPage() {
     retry: 0,
   });
   const adultNamesPending = isAdultNamesLoading || isAdultNamesFetching;
+  // Per-person reasons from the club-key read (never raw IDs or names).
+  const adultNameIssues = useMemo(() => (adultNames as Array<{ name_error?: string }>)
+    .map(row => row.name_error).filter((value): value is string => Boolean(value)), [adultNames]);
   const hasUnresolvedAdultNames = devIcpAdultNames && needsAdultNameRetry(
     adultNameIds, adultNames, adultNamesPending,
   );
@@ -2097,7 +2101,8 @@ export default function TeamDetailPage() {
             // never publish raw errors or profile identifiers to the UI.
             isAdultNamesError, adultNamesError,
             isAdultNamesFetching: adultNamesPending, hasUnresolvedAdultNames, refetchAdultNames,
-            devEncryptedAdultNameMode: privateClubNameDisplaysEnabled() ? 'ON' : 'OFF',
+            devEncryptedAdultNameMode: privateClubNameDisplaysEnabled() || devSharedClubNames ? 'ON' : 'OFF',
+            adultNameIssues,
             showIcpRosterFailureCode: devIcpAdultNames,
     isChildNamesLoading: childNamesPending, hasUnresolvedChildNames, refetchChildNames,
             isSoccerClub: !!isSoccerClub, onOpenHeaderInvite: () => setHeaderInviteOpen(true), onOpenAddPlayer: () => setAddPlayerOpen(true),
