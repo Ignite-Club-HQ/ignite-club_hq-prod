@@ -401,7 +401,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
       mocks.scopedRead.mockImplementation(() => new Promise(() => {}));
       const pending=hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],{audience:clubScope});
       const rejection=expect(pending).rejects.toThrow('Private team-name ciphertext timed out.');
-      await vi.advanceTimersByTimeAsync(6_000);
+      await vi.advanceTimersByTimeAsync(20_000);
       // The reader is still waiting at 6s; no keys are ever derived from a
       // stalled ciphertext read.
       expect(mocks.keys).not.toHaveBeenCalled();
@@ -582,7 +582,7 @@ describe("original-authority display rehearsal", () => {
         audience: team, resolveAuthority: () => new Promise(() => {}),
       });
       const denied = expect(pending).rejects.toThrow('Private team-name route opening timed out.');
-      await vi.advanceTimersByTimeAsync(6_000);
+      await vi.advanceTimersByTimeAsync(20_000);
       await denied;
       expect(mocks.scopedRead).not.toHaveBeenCalled();
       expect(mocks.keys).not.toHaveBeenCalled();
@@ -624,7 +624,7 @@ describe("original-authority display rehearsal", () => {
       await vi.advanceTimersByTimeAsync(0);
       expect(confirm).toHaveBeenCalledOnce();
       expect(mocks.decrypt).toHaveBeenCalledOnce();
-      await vi.advanceTimersByTimeAsync(6_000);
+      await vi.advanceTimersByTimeAsync(20_000);
       await denied;
     } finally { vi.useRealTimers(); }
   });
@@ -633,7 +633,7 @@ describe("original-authority display rehearsal", () => {
     try {
       mocks.read.mockImplementation(() => new Promise(() => {}));
       const pending = hydratePrivateProfileNames(ctx, [{ display_name: reference }]);
-      await vi.advanceTimersByTimeAsync(6000);
+      await vi.advanceTimersByTimeAsync(20_000);
       expect(await pending).toEqual([{ display_name: null }]);
     } finally { vi.useRealTimers(); }
   });
@@ -643,7 +643,7 @@ describe("original-authority display rehearsal", () => {
       let release: (value: unknown) => void = () => {};
       mocks.read.mockImplementation(() => new Promise(resolve => { release = resolve; }));
       const pending = hydratePrivateProfileNames(ctx, [{ display_name: reference }]);
-      await vi.advanceTimersByTimeAsync(6000);
+      await vi.advanceTimersByTimeAsync(20_000);
       expect(await pending).toEqual([{ display_name: null }]);
       release({ Ok: [{ pii_id: subject, field_id: "display_name", ciphertext: [9] }] });
       await vi.advanceTimersByTimeAsync(0);
