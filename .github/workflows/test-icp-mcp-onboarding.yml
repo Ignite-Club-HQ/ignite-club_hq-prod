@@ -7,6 +7,7 @@ on:
       - "backend/club_domain/src/main.mo"
       - "backend/pii_access_control/src/main.mo"
       - "frontend/scripts/test-linked-membership-replica.mjs"
+      - "frontend/scripts/test-soft-deleted-team-membership-replica.mjs"
       - "docs/integrations/icp-mcp-ignite-onboarding.md"
       - "scripts/icp-mcp-onboarding-doc.test.mjs"
       - "frontend/scripts/test-icp-mcp-onboarding-replica.mjs"
@@ -114,3 +115,10 @@ jobs:
           IDENTITY_ACCESS_WASM="$R/target/wasm32-unknown-unknown/release/identity_access.wasm" \
           CLUB_DOMAIN_WASM="$R/backend/club_domain/.mops/.build/club_domain.wasm" \
           node scripts/test-linked-membership-replica.mjs
+      - name: Deny soft-deleted team membership and private-name audiences on disposable PocketIC
+        working-directory: frontend
+        run: |
+          POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic" \
+          CLUB_DOMAIN_WASM="$GITHUB_WORKSPACE/backend/club_domain/.mops/.build/club_domain.wasm" \
+          node scripts/test-soft-deleted-team-membership-replica.mjs
+
