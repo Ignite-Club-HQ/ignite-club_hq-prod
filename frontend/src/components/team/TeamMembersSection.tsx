@@ -1014,7 +1014,7 @@ export function TeamMembersSection({
                                   onAddRoleMember({
                                     userId,
                                     userName:
-                                      visibleTeamMemberName(member.profile?.display_name),
+                                      visibleTeamMemberName(member.profile?.display_name, adultNameRetryPending),
                                     existingRoles:
                                       member.roles?.map((r) => r.role) || [],
                                   }),
@@ -1030,7 +1030,7 @@ export function TeamMembersSection({
                                     type: "adult",
                                     id: userId,
                                     name:
-                                      visibleTeamMemberName(member.profile?.display_name),
+                                      visibleTeamMemberName(member.profile?.display_name, adultNameRetryPending),
                                     roles:
                                       member.roles?.map((r) => r.role) || [],
                                   }),
@@ -1045,7 +1045,7 @@ export function TeamMembersSection({
                                   onRemoveMember({
                                     userId,
                                     name:
-                                      visibleTeamMemberName(member.profile?.display_name),
+                                      visibleTeamMemberName(member.profile?.display_name, adultNameRetryPending),
                                   }),
                                 className: "bg-destructive",
                               });
@@ -1064,7 +1064,7 @@ export function TeamMembersSection({
                                     onSelectMember({
                                       userId,
                                       displayName:
-                                        visibleTeamMemberName(member.profile?.display_name),
+                                        visibleTeamMemberName(member.profile?.display_name, adultNameRetryPending),
                                       avatarUrl: member.profile?.avatar_url,
                                       roles: member.roles || [],
                                     })
@@ -1084,7 +1084,7 @@ export function TeamMembersSection({
                                   </Avatar>
                                   <div className="flex-1 min-w-0">
                                     <p className="font-medium text-sm truncate">
-                                      {visibleTeamMemberName(member.profile?.display_name)}
+                                      {visibleTeamMemberName(member.profile?.display_name, adultNameRetryPending)}
                                     </p>
                                   </div>
                                   <div className="flex flex-wrap gap-1">

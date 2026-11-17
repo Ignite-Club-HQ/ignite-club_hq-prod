@@ -3,9 +3,9 @@
  * and must not be shown, cached as readable names, or treated as authorization.
  * The owning PII canister must separately approve any future real-name reveal.
  */
-export function visibleTeamMemberName(displayName: string | null | undefined): string {
+export function visibleTeamMemberName(displayName: string | null | undefined, pending = false): string {
   const name = typeof displayName === 'string' ? displayName.trim() : '';
-  if (!name || name.startsWith('pii-display-name:')) return 'Name unavailable';
+  if (!name || name.startsWith('pii-display-name:')) return pending ? 'Unlocking name…' : 'Name unavailable';
   return name;
 }
 
