@@ -1066,6 +1066,7 @@ export interface identity_accessInterface {
     configure_membership_directory(arg0: Binding, arg1: Array<Principal>, arg2: bigint): Promise<Result_16>;
     convert_profile_name(arg0: string, arg1: string): Promise<Result_17>;
     cycles_balance(): Promise<bigint>;
+    dev_reopen_moved_principal(arg0: Principal, arg1: boolean): Promise<Result_8>;
     disable_group2_admission(): Promise<Result_2>;
     disable_membership_directory(): Promise<Result_2>;
     disable_production_account_readers(): Promise<Result_8>;
@@ -1106,7 +1107,6 @@ export interface identity_accessInterface {
     read_guardian_profile_candidates(arg0: Principal, arg1: string, arg2: Cursor | null): Promise<Result_31>;
     read_guardian_profiles(arg0: Principal, arg1: string, arg2: Array<Principal>, arg3: bigint): Promise<Result_28>;
     read_linked_account(arg0: Principal): Promise<Result>;
-    reset_disposable_dev_membership_directory(arg0: bigint, arg1: bigint, arg2: string): Promise<Result_2>;
     read_membership_directory_configuration(): Promise<Result_32>;
     read_my_membership_directory(arg0: bigint, arg1: Token | null): Promise<Result_33>;
     read_my_membership_directory_diagnostic(arg0: bigint, arg1: Token | null): Promise<Result_34>;
@@ -1140,6 +1140,7 @@ export interface identity_accessInterface {
     register_account(): Promise<Result>;
     rekey_principal(arg0: Principal, arg1: Principal, arg2: boolean): Promise<Result_8>;
     remove_verifier(arg0: Principal): Promise<Result_2>;
+    reset_disposable_dev_membership_directory(arg0: bigint, arg1: bigint, arg2: string): Promise<Result_2>;
     review_production_account_inventory(arg0: Expectation, arg1: bigint): Promise<Result_27>;
     review_production_account_protection(arg0: Expectation, arg1: bigint): Promise<Result_27>;
     revoke(arg0: Principal, arg1: bigint): Promise<Result>;
@@ -1303,6 +1304,10 @@ export class Identity_access implements identity_accessInterface {
     async cycles_balance(): Promise<bigint> {
         const result = await this.actor.cycles_balance();
         return result;
+    }
+    async dev_reopen_moved_principal(arg0: Principal, arg1: boolean): Promise<Result_8> {
+        const result = await this.actor.dev_reopen_moved_principal(arg0, arg1);
+        return from_candid_Result_8_n39(result);
     }
     async disable_group2_admission(): Promise<Result_2> {
         const result = await this.actor.disable_group2_admission();
@@ -1594,6 +1599,10 @@ export class Identity_access implements identity_accessInterface {
     }
     async remove_verifier(arg0: Principal): Promise<Result_2> {
         const result = await this.actor.remove_verifier(arg0);
+        return from_candid_Result_2_n10(result);
+    }
+    async reset_disposable_dev_membership_directory(arg0: bigint, arg1: bigint, arg2: string): Promise<Result_2> {
+        const result = await this.actor.reset_disposable_dev_membership_directory(arg0, arg1, arg2);
         return from_candid_Result_2_n10(result);
     }
     async review_production_account_inventory(arg0: Expectation, arg1: bigint): Promise<Result_27> {

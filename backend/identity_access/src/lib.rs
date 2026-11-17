@@ -333,6 +333,10 @@ pub struct CoreState {
     #[serde(default)]
     pub attestation_secret: Vec<u8>,
     pub next_challenge: u64,
+    /// DEV only: closed (moved) sign-in IDs reopened as their own separate
+    /// account; never reattached to the account they were moved away from.
+    #[serde(default)]
+    pub dev_separate_principals: Vec<Principal>,
 }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Init {
@@ -2701,6 +2705,7 @@ fn reclaimable_original_account(principal: Principal) -> Option<Account> {
     let derived = account_id(principal);
     let existing = get_account(&derived)?;
     if existing.principals.contains(&principal) { return Some(existing); }
+    if state().dev_separate_principals.contains(&principal) { return None; }
     if principal_denial(principal).is_some() || account_is_erased(&derived) || removal_intent(&derived).is_some()
         || link_lifecycle().pending.iter().any(|job| job.account_id == derived)
         || DELETION_TICKETS.with(|m| m.borrow().contains_key(&derived))
@@ -2910,6 +2915,7 @@ fn init(init: Init) {
         verifiers: vec![],
         attestation_secret: vec![],
         next_challenge: 0,
+        dev_separate_principals: vec![],
     };
     store(&state);
     arm_directory_timer();
@@ -2951,6 +2957,7 @@ fn migrate_legacy_state(legacy: State) -> CoreState {
         verifiers: legacy.verifiers,
         attestation_secret: legacy.attestation_secret,
         next_challenge: legacy.next_challenge,
+        dev_separate_principals: vec![],
     }
 }
 
@@ -3780,6 +3787,71 @@ fn dev_rekey_reversal_allowed(old: Principal, new: Principal) -> bool {
         ic_cdk::api::canister_self().to_text() == DEV_IDENTITY_ACCESS_CANISTER &&
         !account_is_erased(&denial.account_id) &&
         find_account_by_principal(old).is_some_and(|a| a.id == denial.account_id && a.principals.contains(&old))
+}
+
+/// DEV only: reopen a sign-in ID that an account move closed, as its OWN new
+/// empty account. The account it was moved to keeps everything and is not
+/// touched; the reopened ID is never reattached to it. Returns 1 when it
+/// reopens (or would reopen when `dry_run`), 0 when already reopened.
+#[ic_cdk::update]
+fn dev_reopen_moved_principal(principal: Principal, dry_run: bool) -> Outcome<u64> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+    let caller = ic_cdk::api::msg_caller();
+    let mut state = state();
+    require_governor(&state, caller)?;
+    if ic_cdk::api::canister_self().to_text() != DEV_IDENTITY_ACCESS_CANISTER {
+        return Err("Reopening a moved sign-in ID is DEV only".into());
+    }
+    if !link_lifecycle().pending.is_empty() { return Err("Unlink recovery pending".into()); }
+    let changed = dev_reopen_moved_principal_core(&mut state, principal, dry_run)?;
+    if !dry_run && changed > 0 { store(&state); }
+    Ok(changed)
+}
+
+fn dev_reopen_moved_principal_core(state: &mut CoreState, principal: Principal, dry_run: bool) -> Outcome<u64> {
+    if principal == Principal::anonymous() || principal == Principal::management_canister() || principal == state.governor {
+        return Err("This sign-in ID cannot be reopened".into());
+    }
+    if state.dev_separate_principals.contains(&principal) && principal_denial(principal).is_none() &&
+        find_account_by_principal(principal).is_some_and(|a| a.principals == vec![principal]) {
+        return Ok(0);
+    }
+    let Some(denial) = principal_denial(principal) else { return Err("That sign-in ID is not closed".into()) };
+    if denial.reason != DenialReason::Rekeyed || denial.rekey_destination.is_none() {
+        return Err("Only a sign-in ID closed by an account move can be reopened".into());
+    }
+    if removal_subject_fenced(principal) { return Err("Removal barrier pending".into()); }
+    if find_account_by_principal(principal).is_some() || ACCOUNTS.with(|m| m.borrow().iter().any(|e| {
+        let a: Account = decode(&e.value()); a.principals.contains(&principal)
+    })) {
+        return Err("That sign-in ID is still attached to an account".into());
+    }
+    let id = fresh_separate_account_id(principal)?;
+    if account_count() >= MAX_ACCOUNTS as u64 { return Err("Account quota reached".into()); }
+    if dry_run { return Ok(1); }
+    bump_removal_history();
+    PRINCIPAL_DENIALS.with(|m| m.borrow_mut().remove(&principal.to_text()));
+    if !state.dev_separate_principals.contains(&principal) { state.dev_separate_principals.push(principal); }
+    put_account(&Account { id: id.clone(), principals: vec![principal], version: 0, status: AccountStatus::Active });
+    index_principal(principal, &id);
+    Ok(1)
+}
+
+/// Salted id never equal to the derived id (that slot belongs to the
+/// account the sign-in ID was moved away from).
+fn fresh_separate_account_id(principal: Principal) -> Outcome<String> {
+    for n in 1u8..=16 {
+        let mut hasher = Sha256::new();
+        hasher.update(b"ignite-account-salt");
+        hasher.update([n]);
+        hasher.update(principal.as_slice());
+        let digest = hasher.finalize();
+        let hex: String = digest[..16].iter().map(|b| format!("{b:02x}")).collect();
+        let candidate = format!("{}-{}-{}-{}-{}", &hex[..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..]);
+        if get_account(&candidate).is_some() || account_is_erased(&candidate) { continue; }
+        return Ok(candidate);
+    }
+    Err("Account ID collision".into())
 }
 
 fn rekey_principal_core(
@@ -4880,6 +4952,7 @@ mod tests {
             verifiers: vec![],
             attestation_secret: vec![],
             next_challenge: 0,
+            dev_separate_principals: vec![],
         }
     }
     #[test]
@@ -4905,6 +4978,44 @@ mod tests {
         assert!(rekey_principal_core(&mut core, old, alias, false).is_err());
         ERASED_ACCOUNTS.with(|m| m.borrow_mut().insert(account.id.clone(), 5));
         assert!(rekey_principal_core(&mut core, old, target, false).is_err());
+    }
+    #[test]
+    fn dev_reopen_gives_moved_sign_in_its_own_empty_account() {
+        let governor = principal(1);
+        let old = principal(50);
+        let new = principal(51);
+        let old_id = account_id(old);
+        put_account(&Account { id: old_id.clone(), principals: vec![old], version: 3, status: AccountStatus::Active });
+        index_principal(old, &old_id);
+        put_profile_entry(&Profile { account_id: old_id.clone(), display_name: "Paul".into(), avatar_ref: None,
+            updated_at_ns: 1, theme_preference: None, club_switcher_hint_seen_at: None });
+        let mut state = empty_core_state(governor);
+        state.roles.push(RoleGrant { account_id: old_id.clone(), role: "app_admin".into(), site_id: None, club: None, team: None });
+        rekey_principal_core(&mut state, old, new, false).unwrap();
+        assert!(ensure_account(old).is_err());
+
+        // Not closed / not a move: refused.
+        assert!(dev_reopen_moved_principal_core(&mut state, principal(52), false).is_err());
+        // Dry run changes nothing.
+        assert_eq!(dev_reopen_moved_principal_core(&mut state, old, true), Ok(1));
+        assert!(principal_denial(old).is_some());
+
+        assert_eq!(dev_reopen_moved_principal_core(&mut state, old, false), Ok(1));
+        store(&state);
+        let reopened = ensure_account(old).expect("reopened sign-in works");
+        assert_ne!(reopened, old_id);
+        assert!(get_profile_entry(&reopened).is_none());
+        assert!(!state.roles.iter().any(|g| g.account_id == reopened));
+        // The moved-to account keeps its profile, admin role and sole sign-in.
+        let kept = find_account_by_principal(new).unwrap();
+        assert_eq!(kept.id, old_id);
+        assert_eq!(kept.principals, vec![new]);
+        assert_eq!(get_profile_entry(&old_id).map(|p| p.display_name), Some("Paul".into()));
+        // Signing in again never merges it back into the original account.
+        assert_eq!(ensure_account(old), Ok(reopened.clone()));
+        assert_eq!(find_account_by_principal(new).unwrap().principals, vec![new]);
+        assert_eq!(dev_reopen_moved_principal_core(&mut state, old, false), Ok(0));
+        assert!(dev_reopen_moved_principal_core(&mut state, governor, false).is_err());
     }
     #[test]
     fn rekey_moves_account_to_new_principal_and_drops_bare_account() {

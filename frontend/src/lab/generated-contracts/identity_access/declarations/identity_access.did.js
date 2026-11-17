@@ -762,6 +762,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'convert_profile_name' : IDL.Func([IDL.Text, IDL.Text], [Result_17], []),
     'cycles_balance' : IDL.Func([], [IDL.Nat], ['query']),
+    'dev_reopen_moved_principal' : IDL.Func(
+        [IDL.Principal, IDL.Bool],
+        [Result_8],
+        [],
+      ),
     'disable_group2_admission' : IDL.Func([], [Result_2], []),
     'disable_membership_directory' : IDL.Func([], [Result_2], []),
     'disable_production_account_readers' : IDL.Func([], [Result_8], []),
@@ -872,8 +877,6 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'read_linked_account' : IDL.Func([IDL.Principal], [Result], []),
-    'reset_disposable_dev_membership_directory' : IDL.Func(
-        [IDL.Nat64, IDL.Nat64, IDL.Text], [Result_2], []),
     'read_membership_directory_configuration' : IDL.Func([], [Result_32], []),
     'read_my_membership_directory' : IDL.Func(
         [IDL.Nat64, IDL.Opt(Token)],
@@ -959,6 +962,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'remove_verifier' : IDL.Func([IDL.Principal], [Result_2], []),
+    'reset_disposable_dev_membership_directory' : IDL.Func(
+        [IDL.Nat64, IDL.Nat64, IDL.Text],
+        [Result_2],
+        [],
+      ),
     'review_production_account_inventory' : IDL.Func(
         [Expectation, IDL.Nat64],
         [Result_27],

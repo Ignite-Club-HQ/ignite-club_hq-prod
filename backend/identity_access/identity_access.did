@@ -809,6 +809,11 @@ service : (Init) -> {
   // number of records changed (or that would change when `dry_run`).
   // Any NEW stored principal / principal-text field must be added here.
   rekey_principal : (principal, principal, bool) -> (Result_8);
+  // DEV identity_access only, governor-only: reopens a sign-in ID that an
+  // account move closed, as its own new empty account. The account it was
+  // moved to is untouched and the two are never merged. Returns 1 when it
+  // reopens (or would when dry_run), 0 when already reopened.
+  dev_reopen_moved_principal : (principal, bool) -> (Result_8);
   // Governor-only: revokes a verifier principal.
   remove_verifier : (principal) -> (Result_2);
   // No-write bootstrap review: authenticate candidate receiver configuration and

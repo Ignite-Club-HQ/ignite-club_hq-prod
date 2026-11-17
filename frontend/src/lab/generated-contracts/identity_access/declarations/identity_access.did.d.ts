@@ -821,6 +821,13 @@ export interface _SERVICE {
    * Public: remaining cycles (shown in admin settings).
    */
   'cycles_balance' : ActorMethod<[], bigint>,
+  /**
+   * DEV identity_access only, governor-only: reopens a sign-in ID that an
+   * account move closed, as its own new empty account. The account it was
+   * moved to is untouched and the two are never merged. Returns 1 when it
+   * reopens (or would when dry_run), 0 when already reopened.
+   */
+  'dev_reopen_moved_principal' : ActorMethod<[Principal, boolean], Result_8>,
   'disable_group2_admission' : ActorMethod<[], Result_2>,
   'disable_membership_directory' : ActorMethod<[], Result_2>,
   'disable_production_account_readers' : ActorMethod<[], Result_8>,
@@ -971,7 +978,6 @@ export interface _SERVICE {
    * supplies an account id or a principal list; the index is authoritative.
    */
   'read_linked_account' : ActorMethod<[Principal], Result>,
-  'reset_disposable_dev_membership_directory' : ActorMethod<[bigint, bigint, string], Result_2>,
   'read_membership_directory_configuration' : ActorMethod<[], Result_32>,
   'read_my_membership_directory' : ActorMethod<
     [bigint, [] | [Token]],
@@ -1084,6 +1090,14 @@ export interface _SERVICE {
    * Governor-only: revokes a verifier principal.
    */
   'remove_verifier' : ActorMethod<[Principal], Result_2>,
+  /**
+   * One-off exact original DEV Identity directory disposal (not account/PII reset).
+   * Owner must verify the subsequent fresh generation/ownership separately.
+   */
+  'reset_disposable_dev_membership_directory' : ActorMethod<
+    [bigint, bigint, string],
+    Result_2
+  >,
   /**
    * No-write bootstrap review: authenticate candidate receiver configuration and
    * collect management lifecycle evidence before the first inventory signature.
