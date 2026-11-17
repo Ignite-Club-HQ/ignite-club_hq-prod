@@ -1,2 +1,3 @@
 - Build browser setup as an official sync-plugin component in isolated staging; direct owner-signed calls configure only the new manifest inventory. Why: proxy ingress cannot represent the governor and setup must not target live IDs.
 - Keep lifecycle registration, group admission, push worker grants and repointing out of browser installation. Why: successful installation does not authorize release or data migration.
+- Encrypted-media acceptance pins candidate service bytes and uses an owned local proxy fixture only; reports must deny real-console/browser/full-bundle acceptance. Why: real cryptography in an emulator cannot prove engine authorization or console installation.
