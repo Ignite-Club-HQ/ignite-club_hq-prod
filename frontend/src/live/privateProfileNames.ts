@@ -290,11 +290,7 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   if (strictSharedClub && !clubRows.length) return new Map();
   if ((individualRows.length && !strictSharedClub) || clubRows.length) phase('vetkey');
   const keys = individualRows.length && !strictSharedClub ? await fetchPiiVetKeys(ctx, individualRows.map(row => row.pii_id), field, { fresh: true, assertActive: active, ...(audience ? { audience } : {}), ...(retainOwnKey && !audience ? { retainOwnKey: true } : {}) }) : new Map();
-  // A key fetched over the network is slow, so membership may change while it
-  // runs: those reads are confirmed again below. A key already on this device
-  // adds no wait between the fresh authorized read and decryption.
-  let clubKeyFromNetwork = false;
-  const clubKey = clubRows.length && audience ? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active, () => { clubKeyFromNetwork = true; }) : undefined;
+  const clubKey = clubRows.length && audience ? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active) : undefined;
   if (audience && keys.size + (clubKey ? clubRows.length : 0) !== (strictSharedClub ? clubRows.length : validRows.length)) throw new Error('Private-name keys were not authorized.');
   active();
   phase('decrypt');
@@ -312,7 +308,7 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   }
   // Even a cached shared key is used only under a fresh exact-subject read.
   // Repeat after decryption so revoked membership never publishes labels.
-  if (clubRows.length && audience && (clubKeyFromNetwork || keys.size > 0)) {
+  if (clubRows.length && audience) {
     phase('confirm');
     const closing = await unwrapCandid(actor.get_private_profile_names_batch(subjects, audience), 'Confirm club name audience');
     active();

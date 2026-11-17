@@ -86,7 +86,6 @@ export function clubNamePiiId(club: string): string {
  * Retained keys cannot be withdrawn from a previously authorized device. */
 export async function fetchClubNameVetKey(
   ctx: FeatureBackendContext, ids: string[], audience: PrivateProfileAudience, assertActive: () => void,
-  onNetworkFetch?: () => void,
 ): Promise<VetKey> {
   if (audience.kind !== 'club' || !ids.length || ids.length > 25 || new Set(ids).size !== ids.length) throw new Error('Exact bounded club name audience required.');
   const piiId = clubNamePiiId(audience.resource);
@@ -113,7 +112,6 @@ export async function fetchClubNameVetKey(
       if (stored) {
         try { return VetKey.deserialize(stored); } catch { forgetStoredClubKey(cid, principal, slot); }
       }
-      onNetworkFetch?.();
       const { key: verification } = await getPiiVerificationKey(ctx);
       active();
       const transport = TransportSecretKey.random();
