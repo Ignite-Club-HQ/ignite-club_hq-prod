@@ -164,7 +164,9 @@ export async function rejectLiveRoleRequest(ctx: FeatureBackendContext, id: stri
  */
 export async function acceptLiveMembershipPendingInvite(ctx: FeatureBackendContext, inviteId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return afterMembershipAcknowledgement(unwrapCandid(actor.accept_pending_invite(inviteId), "Accept pending invite"));
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_pending_invite(inviteId), "Accept pending invite"));
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
+  return accepted;
 }
 
 /**
