@@ -68,7 +68,7 @@ function parseReference(value: string): { authority: string; subject: string } |
  * Preserve the original owner/authority and give key derivation time to
  * finish on a device without a saved key copy; never turn a denied read into
  * an absent profile. */
-export async function readPrivateOwnProfileName(ctx: FeatureBackendContext, reference: string): Promise<string> {
+export async function readPrivateOwnProfileName(ctx: FeatureBackendContext, reference: string, options: { scheduleBackfill?: boolean } = {}): Promise<string> {
   const ref = reference.startsWith(PREFIX) ? parseReference(reference) : null;
   if (!ref || ref.authority !== ctx.target.canisterIds.pii_access_control) throw new Error('Saved private-name authority does not match the configured original authority.');
   const activeSession = capturePrivateProfileSession();
