@@ -41,3 +41,13 @@ Paul created the DEV console proxy. No Ignite deployment, settings write, club m
 - https://skills.internetcomputer.org/.well-known/skills/cloud-engine-canisters/SKILL.md
 - `frontend/src/live/engineClosedInstall.ts`
 - `docs/cloud-engine-future-switch.md`
+
+## Candidate built 17 November 2026
+
+The official CLI 1.7.0 generated a backend-only 9.1 MiB `.tar.gz` candidate (18 services, one official v0.2 setup plugin, and its 39-operation links input). All 18 module pins and plugin pin match, all modules/component validate with wasm-tools 1.249.0, owner principal checksum passes, and 35 existing/focused engine policy tests pass.
+
+Owner: `4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae`. PII uses `key_1` and proxy `ynolw-eyaaa-aaaaj-qspkq-cai`; only staged fresh-engine source enables proxy route initialization. Normal source preserves direct mainnet keys. HTTPS invite/wake calls omit cycle attachments when the fresh installation sets IGNITE_CLOUD_ENGINE=1; mainnet retains its original attachment behavior.
+
+The plugin verifies the signing owner, resolves fresh named service IDs, configures reciprocal links with checked Candid results, reads available owner configuration, and checks the proxy public key. It does not link unreleased club account lifecycle, register/open groups, grant workers or repoint the app. Not all link fields have readbacks.
+
+**Not upload-ready yet:** native runtime installation and encrypted round-trip acceptance cannot execute in this sandbox (write-fault preflight fails). Browser plugin execution, actual controller ownership, complete link readback and real proxy round-trip remain unverified. Successful archive creation/compilation is not runtime acceptance. No upload or live change occurred. Candidate SHA-256: `4a01a2154fcf72f9a80968e9462f8884e6b7a93abfcb0f9b122108243231e0df`.
