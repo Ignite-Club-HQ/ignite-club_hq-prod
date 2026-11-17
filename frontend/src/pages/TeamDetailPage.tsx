@@ -101,6 +101,7 @@ import {
 } from "@/live/features/membership";
 import { getLiveTeam, getLiveClubProfile, getLiveClubSubscription, getLiveTeamSubscription, saveLiveTeamSubscription, saveLiveTeamPitchSettings } from "@/live/features/club";
 import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
+import { loadSavedRosterNames, saveRosterNames } from "@/lib/savedRosterNames";
 import { clubNameDisplaysActive } from "@/live/devCrossGroupTeamNameRoute";
 import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
@@ -895,9 +896,16 @@ export default function TeamDetailPage() {
         return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds,
           devSharedClubNames ? { kind: 'club', resource: team.club_id } : { kind: 'team', resource: id! },
           undefined, devSharedClubNames ? { partialNames: true } : {},
-        ), 60_000, 'member names');
+        ), 60_000, 'member names').then(rows => {
+          if (user?.id) saveRosterNames(user.id, team.club_id!, id!, rows as any);
+          return rows;
+        });
       },
     }, { clubId: team?.club_id ?? '' }),
+    // Names unlocked on an earlier visit show at once; the fresh read replaces
+    // them (or clears them if access was withdrawn).
+    placeholderData: () => (user?.id && team?.club_id && id
+      ? loadSavedRosterNames(user.id, team.club_id, id) as any : undefined),
     staleTime: devIcpAdultNames ? 0 : 60_000,
     refetchOnMount: devIcpAdultNames ? 'always' : undefined,
     refetchOnWindowFocus: devIcpAdultNames,

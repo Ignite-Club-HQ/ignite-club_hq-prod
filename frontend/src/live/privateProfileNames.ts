@@ -290,7 +290,11 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   if (strictSharedClub && !clubRows.length) return new Map();
   if ((individualRows.length && !strictSharedClub) || clubRows.length) phase('vetkey');
   const keys = individualRows.length && !strictSharedClub ? await fetchPiiVetKeys(ctx, individualRows.map(row => row.pii_id), field, { fresh: true, assertActive: active, ...(audience ? { audience } : {}), ...(retainOwnKey && !audience ? { retainOwnKey: true } : {}) }) : new Map();
-  const clubKey = clubRows.length && audience ? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active) : undefined;
+  // A key fetched over the network is slow, so membership may change while it
+  // runs: those reads are confirmed again below. A key already on this device
+  // adds no wait between the fresh authorized read and decryption.
+  let clubKeyFromNetwork = false;
+  const clubKey = clubRows.length && audience ? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active, () => { clubKeyFromNetwork = true; }) : undefined;
   if (audience && keys.size + (clubKey ? clubRows.length : 0) !== (strictSharedClub ? clubRows.length : validRows.length)) throw new Error('Private-name keys were not authorized.');
   active();
   phase('decrypt');
@@ -308,7 +312,7 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   }
   // Even a cached shared key is used only under a fresh exact-subject read.
   // Repeat after decryption so revoked membership never publishes labels.
-  if (clubRows.length && audience) {
+  if (clubRows.length && audience && (clubKeyFromNetwork || keys.size > 0)) {
     phase('confirm');
     const closing = await unwrapCandid(actor.get_private_profile_names_batch(subjects, audience), 'Confirm club name audience');
     active();
@@ -420,7 +424,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     const subjects = [...ids];
     return Array.from({ length: Math.ceil(subjects.length / batchSize) }, (_, index) => ({ authority, subjects: subjects.slice(index * batchSize, (index + 1) * batchSize) }));
   });
-  // A global two-request ceiling, not two requests per group. Original-key
+  // A global four-request ceiling, not four requests per group. Original-key
   // routes are checked again after all encryption/service awaits.
   const leases = new Map<string, Promise<Awaited<ReturnType<PrivateProfileAuthorityResolver>>>>();
   const routeGuards = new Map<string, () => void>();
@@ -462,7 +466,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     }
   };
   try {
-    for (let start = 0; start < jobs.length; start += 2) await Promise.all(jobs.slice(start, start + 2).map(readJob));
+    for (let start = 0; start < jobs.length; start += 4) await Promise.all(jobs.slice(start, start + 4).map(readJob));
     for (const [authority, pendingLease] of leases) {
       try {
         const lease = await pendingLease;
