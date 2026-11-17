@@ -5026,7 +5026,7 @@ persistent actor class Main(governorInit : Principal) = this {
     for (item in series.values()) {
       if ((club_id == null or club_id == ?item.club_id) and
           (team_id == null or team_id == item.team_id) and
-          await freshSeriesVisible(caller, item)) visible := visible.concat([item]);
+          (await freshSeriesVisible(caller, item))) visible := visible.concat([item]);
     };
     visible
   
