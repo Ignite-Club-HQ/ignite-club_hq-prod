@@ -52,6 +52,7 @@ import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
+import EngineVetKd "EngineVetKd";
 
 persistent actor class Main(governorInit : Principal) = this {
   // Opt-in local rehearsal only; production deploy scripts must never set these.
@@ -270,12 +271,37 @@ persistent actor class Main(governorInit : Principal) = this {
   var clubMediaAuthorities : Map.Map<Text, ClubMediaAuthority>;
   var mediaAuthEpoch : Nat;
   var establishedVetkdKeyName : ?Text;
+  var establishedVetkdRoute : ?{ #Direct; #Proxy : Principal };
   var privateMediaAuthorities : Map.Map<Text, { competition : ?Principal; revision : Nat; move_id : Text }>;
   // A legacy upgrade captures its existing environment key, so the operator
   // must attest it matches the original deployment BEFORE that first upgrade.
   // All subsequent upgrades ignore environment changes and preserve the key.
   if (establishedVetkdKeyName == null) {
     establishedVetkdKeyName := ?(Runtime.envVar<system>("VETKD_KEY_NAME") ?? "test_key_1");
+  };
+  if (establishedVetkdRoute == null) {
+    // Only an offline fresh-engine candidate includes this compile sentinel.
+    // Ordinary mainnet upgrades cannot adopt a proxy from environment drift.
+    let freshEngineBuild = false; // IGNITE_FRESH_ENGINE_BUILD
+    establishedVetkdRoute := ?(if (freshEngineBuild) {
+      let id = Runtime.envVar<system>("PROXY_CANISTER_ID") ?? Runtime.trap("Engine encryption proxy required");
+      #Proxy(Principal.fromText(id))
+    } else #Direct);
+  };
+  func encryptionProxy<system>() : ?Principal {
+    EngineVetKd.select(establishedVetkdRoute ?? Runtime.trap("Encryption authority unset"), Runtime.envVar<system>("PROXY_CANISTER_ID"))
+  };
+  func encryptionPublicKey<system>(canister : ?Principal, context : Blob, key : ManagementCanister.VetKdKeyid) : async Blob {
+    switch (encryptionProxy<system>()) {
+      case null await ManagementCanister.vetKdPublicKey(canister, context, key);
+      case (?p) await EngineVetKd.publicKey(p, context, key)
+    }
+  };
+  func encryptionDeriveKey<system>(input : Blob, context : Blob, key : ManagementCanister.VetKdKeyid, transport : Blob) : async Blob {
+    switch (encryptionProxy<system>()) {
+      case null await ManagementCanister.vetKdDeriveKey(input, context, key, transport);
+      case (?p) await EngineVetKd.derive(p, input, context, key, transport)
+    }
   };
 
   // ==================== Helper Functions ====================
@@ -509,7 +535,7 @@ persistent actor class Main(governorInit : Principal) = this {
           get_vault_access : shared (Text, Principal) -> async { #Ok : { club_id : Text; is_member : Bool; can_manage : Bool }; #Err : Text };
         } = actor (Principal.toText(canister));
           let result = try {
-            await competitionDomain.get_vault_access(competitionId, caller)
+            await (with timeout = 10) competitionDomain.get_vault_access(competitionId, caller)
           } catch (_) {
             continue;
           };
@@ -595,7 +621,7 @@ persistent actor class Main(governorInit : Principal) = this {
   // authorization is required. Writers use it to encrypt new records without
   // any canister call; readers use it to verify derived vetKeys.
   public shared func pii_vetkey_verification_key() : async Blob {
-    await ManagementCanister.vetKdPublicKey(null, vetkdContext(), vetkdKeyId<system>());
+    await encryptionPublicKey<system>(null, vetkdContext(), vetkdKeyId<system>());
   };
 
   // Relays the caller's vetKeys for the requested records, each encrypted
@@ -631,7 +657,7 @@ persistent actor class Main(governorInit : Principal) = this {
           let allowed = direct or canReadViaClub(r, allowedClubs) or canReadViaCompetition(r, allowedCompetitions) or teamChildNames.any(func(id) = id == pii_id);
           log_audit(caller, pii_id, field_id, "vetkey_derive", allowed, "PII vetKey derivation");
           if (allowed) {
-            let encryptedKey = await ManagementCanister.vetKdDeriveKey(
+            let encryptedKey = await encryptionDeriveKey<system>(
               ibeIdentity(pii_id, field_id), vetkdContext(), vetkdKeyId<system>(), transport_public_key
             );
             // Never return a key authorized by a revoked record, stale club
@@ -798,7 +824,7 @@ persistent actor class Main(governorInit : Principal) = this {
       let first = await authorizePrivateNames(caller, ids, scope);
       var out : [?Blob] = [];
       for (id in ids.values()) {
-        let key = await ManagementCanister.vetKdDeriveKey(ibeIdentity(id, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
+        let key = await encryptionDeriveKey<system>(ibeIdentity(id, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
         if (epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
         out := out.concat([?key]);
       };
@@ -1057,7 +1083,7 @@ persistent actor class Main(governorInit : Principal) = this {
         let r = pii_records.find(func r = r.pii_id == id and r.field_id == clubNameField(scope.resource)) ?? return #Err("Club name replica not found");
         if (r.master_key_id != clubNameScheme(scope.resource) or r.domain_owner.toText() != id) return #Err("Invalid club name replica");
       };
-      let key = await ManagementCanister.vetKdDeriveKey(ibeIdentity("clubnames:" # scope.resource, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
+      let key = await encryptionDeriveKey<system>(ibeIdentity("clubnames:" # scope.resource, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
       await admitAccount(caller);
       let final = await authorizePrivateNames(caller, ids, scope);
       if (first != final or epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
@@ -1161,14 +1187,14 @@ persistent actor class Main(governorInit : Principal) = this {
     let pii_id = "clubmedia:" # club_id;
     log_audit(caller, pii_id, "blob", "vetkey_derive", allowed, "Club media vetKey derivation");
     if (not allowed) return #Err("Not a member of this club");
-    let encryptedKey = await ManagementCanister.vetKdDeriveKey(
+    let encryptedKey = await encryptionDeriveKey<system>(
       ibeIdentity(pii_id, "blob"), vetkdContext(), vetkdKeyId<system>(), transport_public_key
     );
     await admitAccount(caller);
     if (not isGovernor(caller)) {
       let cid = switch (authority) { case null return #Err("Club authority unavailable"); case (?id) id };
       let clubDomain : actor { read_has_club_membership : shared (Principal, Text) -> async Bool } = actor(cid.toText());
-      let member = try { await clubDomain.read_has_club_membership(caller, club_id) } catch (_) { false };
+      let member = try { await (with timeout = 10) clubDomain.read_has_club_membership(caller, club_id) } catch (_) { false };
       if (not member) return #Err("Club membership changed");
     };
     await admitAccount(caller);
@@ -1202,7 +1228,7 @@ persistent actor class Main(governorInit : Principal) = this {
     let allowed = await ask();
     log_audit(caller, pii_id, "shared", "vetkey_derive", allowed, "Shared audience vetKey derivation");
     if (not allowed or club_domain_canister != configured) return #Err("Not in this audience");
-    let encryptedKey = await ManagementCanister.vetKdDeriveKey(
+    let encryptedKey = await encryptionDeriveKey<system>(
       ibeIdentity(pii_id, "shared"), vetkdContext(), vetkdKeyId<system>(), transport_public_key
     );
     await admitAccount(caller);
