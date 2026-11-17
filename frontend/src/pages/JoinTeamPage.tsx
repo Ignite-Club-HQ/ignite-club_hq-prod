@@ -2538,7 +2538,7 @@ function SupabaseJoinTeamPage() {
                         const result = await reconcileConfirmedDevOwnerClubName(ctx,inviteClubId,{explicitOwnerRetry:true});
                         setDevClubNameReadiness(result);
                       },
-                    }, {clubId:inviteClubId})}>Recheck secure name</Button>
+                    }, {clubId:inviteClubId}).catch(() => setDevClubNameReadiness('pending-owner-check'))}>Recheck secure name</Button>
                   )}
                 </div>
               )}
