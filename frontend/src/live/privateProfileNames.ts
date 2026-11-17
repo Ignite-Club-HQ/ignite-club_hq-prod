@@ -265,6 +265,13 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   active();
   const { actor } = await connectLivePiiAccessControl(ctx.target, ctx.identity);
   active();
+  // Speed: the club name key is the same for every member of the club, so
+  // fetch it at the same time as the locked names instead of afterwards.
+  // The server still checks membership on both requests; a refused early
+  // fetch falls back to the normal ordered fetch below.
+  const earlyClubKey = audience?.kind === 'club' && field === FIELD && clubNameDisplaysActive(ctx.target) && subjects.length > 0 && subjects.length <= 25 && new Set(subjects).size === subjects.length
+    ? Promise.resolve().then(() => fetchClubNameVetKey(ctx, subjects, audience, active)).catch(() => undefined)
+    : undefined;
   const rows = await unwrapCandid(
     audience ? actor.get_private_profile_names_batch(subjects, audience) : actor.get_encrypted_pii_batch(subjects, field, "profile_display", "Read authorized personal details"),
     "Read private display names",
@@ -290,7 +297,7 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   if (strictSharedClub && !clubRows.length) return new Map();
   if ((individualRows.length && !strictSharedClub) || clubRows.length) phase('vetkey');
   const keys = individualRows.length && !strictSharedClub ? await fetchPiiVetKeys(ctx, individualRows.map(row => row.pii_id), field, { fresh: true, assertActive: active, ...(audience ? { audience } : {}), ...(retainOwnKey && !audience ? { retainOwnKey: true } : {}) }) : new Map();
-  const clubKey = clubRows.length && audience ? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active) : undefined;
+  const clubKey = clubRows.length && audience ? ((await earlyClubKey) ?? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active)) : undefined;
   if (audience && keys.size + (clubKey ? clubRows.length : 0) !== (strictSharedClub ? clubRows.length : validRows.length)) throw new Error('Private-name keys were not authorized.');
   active();
   phase('decrypt');
