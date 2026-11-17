@@ -20,6 +20,16 @@ Ignite's existing `engineClosedInstall.ts` is an adapter-injected protocol, not 
 
 Consequently, no upload-ready bundle is produced yet, and no application is repointed.
 
+## Proxy encryption implementation — 17 November
+
+- All six PII public/derived-key sites now use the shared EngineVetKd adapter. Fresh engine candidates select `ynolw-eyaaa-aaaaj-qspkq-cai` via `PROXY_CANISTER_ID`; ordinary mainnet builds preserve direct derivation. The separately staged fresh-engine source changes only the explicit compile sentinel, not deployment mappings or existing data.
+- An additive migration after the previous newest migration pins the direct/proxy route. Proxy removal/replacement and mainnet-to-proxy environment repointing refuse. Original contexts are sent unchanged: the console proxy itself isolates them by the calling canister. The outer call is bounded to 30 seconds and attaches no cycles; only the proxy's request contains the 30 billion-cycle derivation budget. Existing authorization and post-await checks remain in place.
+- Both default and fresh-engine PII Wasms compile with Motoko 1.16.1. Stable-layout comparison against a reconstructed pre-adapter source passes; this is local structural evidence, not a comparison against an attested deployed mainnet binary.
+- Direct/proxy selection policy tests pass. Candid request tests compile but cannot execute in this sandbox: the native write-fault preflight fails, so the disposable runtime test explicitly skips rather than claiming acceptance. The manual TEST encryption workflow runs this test on native Linux without deployment credentials.
+- Pinned CLI 1.7.0 now runs with isolated system libraries. The official sync-plugin ABI supplies installer identity and named service mappings/calls; supported plugin capability is established, but Ignite's owner initialization and configuration plugin is not yet implemented or verified.
+
+**Bundle remains held:** two existing HTTPS cycle attachments, full backend compilation/engine-call acceptance, correct browser governor initialization, complete setup-plugin wiring/readback, and real proxy encrypted round-trip remain outstanding. No `.icp`/`.tar.gz` is presented as upload-ready and no upload occurred.
+
 ## Ordered next work
 
 1. **Completed by the owner:** DEV console proxy `ynolw-eyaaa-aaaaj-qspkq-cai` is shown deployed. Future automatic proxy refills draw from the engine balance. Do not create another proxy; Caffeine need not be enabled.
