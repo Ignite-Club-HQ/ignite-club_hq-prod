@@ -306,14 +306,10 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
       // A malformed/wrong-key record is never displayed as ciphertext or a ref.
     }
   }
-  // Even a cached shared key is used only under a fresh exact-subject read.
-  // Repeat after decryption so revoked membership never publishes labels.
-  if (clubRows.length && audience) {
-    phase('confirm');
-    const closing = await unwrapCandid(actor.get_private_profile_names_batch(subjects, audience), 'Confirm club name audience');
-    active();
-    if (closing.length !== rows.length || closing.some((row, i) => row.pii_id !== rows[i].pii_id || row.field_id !== field || row.master_key_id !== rows[i].master_key_id || row.ciphertext.length !== rows[i].ciphertext.length || row.ciphertext.some((b, j) => b !== rows[i].ciphertext[j]))) throw new Error('Club name audience or ciphertext changed.');
-  }
+  // Paul 2026-11-17: removal must be prompt, not immediate. The ciphertext
+  // read and key derivation above are each membership-checked by the server,
+  // so we no longer pay for a second full re-read after decryption; a removed
+  // member loses names on their next unlock.
   return out;
 }
 

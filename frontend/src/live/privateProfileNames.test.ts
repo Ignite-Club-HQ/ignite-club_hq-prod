@@ -230,20 +230,21 @@ describe("authorized name display", () => {
       expect(mocks.keys).not.toHaveBeenCalled();
     } finally { vi.useRealTimers(); }
   });
-  it('uses one shared key for club rows and rechecks the exact ciphertext after decryption', async () => {
+  it('uses one shared key for club rows with a single membership-checked read', async () => {
     const audience = { kind: 'club' as const, authority: Principal.fromText(authority), resource: 'club-1', profile_revision: 0n };
     mocks.scopedRead.mockResolvedValue({ Ok: [{ pii_id: subject, field_id: 'display_name', ciphertext: [9], master_key_id: 'vetkey-club-names-v1:club-1' }] });
     mocks.clubKey.mockResolvedValue('club-key');
     expect((await hydratePrivateProfileNames(ctx, [{ display_name: reference }], { audience }))[0].display_name).toBe('Paul Cranwell');
     expect(mocks.keys).not.toHaveBeenCalled();
     expect(mocks.clubKey).toHaveBeenCalledWith(ctx, [subject], audience, expect.any(Function));
-    expect(mocks.scopedRead).toHaveBeenCalledTimes(2);
+    expect(mocks.scopedRead).toHaveBeenCalledTimes(1);
   });
-  it('withholds a cached-key name when closing club membership is denied', async () => {
+  it('refuses a removed member on their next unlock even with a saved club key', async () => {
     const audience = { kind: 'club' as const, authority: Principal.fromText(authority), resource: 'club-1', profile_revision: 0n };
-    mocks.scopedRead.mockResolvedValueOnce({ Ok: [{ pii_id: subject, field_id: 'display_name', ciphertext: [9], master_key_id: 'vetkey-club-names-v1:club-1' }] }).mockResolvedValueOnce({ Err: 'Membership removed' });
+    mocks.scopedRead.mockResolvedValueOnce({ Err: 'Membership removed' });
     mocks.clubKey.mockResolvedValue('cached-club-key');
     await expect(hydratePrivateProfileNames(ctx, [{ display_name: reference }], { audience })).rejects.toThrow('Membership removed');
+    expect(mocks.decrypt).not.toHaveBeenCalled();
   });
   it.each(['family', 'competition', 'guardian_search'] as const)('rejects a shared club ciphertext in a %s audience', async kind => {
     mocks.scopedRead.mockResolvedValue({ Ok: [{ pii_id: subject, field_id: 'display_name', ciphertext: [9], master_key_id: 'vetkey-club-names-v1:club-1' }] });
@@ -380,7 +381,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
     expect(result[0].display_name).toBe('Paul Cranwell');
     expect(mocks.clubKey).toHaveBeenCalledOnce();
     expect(mocks.keys).not.toHaveBeenCalled();
-    expect(mocks.scopedRead).toHaveBeenCalledTimes(2); // closing current-membership/ciphertext check
+    expect(mocks.scopedRead).toHaveBeenCalledTimes(1); // one membership-checked read
     expect(mocks.decrypt).toHaveBeenCalledWith('one-club-key');
   });
   it('refuses a missing club copy without calling person-specific paid vetKD', async () => {
