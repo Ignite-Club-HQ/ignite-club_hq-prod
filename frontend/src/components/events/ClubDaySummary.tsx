@@ -48,6 +48,23 @@ interface ClubDayEvent {
   is_cancelled: boolean;
 }
 
+/**
+ * A competition match appears once per side (home team's event and away
+ * team's event). Collapse those mirror copies into one row: same day, same
+ * start time and the same two team names in either order.
+ */
+export function dedupeMirroredGames<T extends Pick<ClubDayEvent, "type" | "event_date" | "start_time" | "team_name" | "opponent">>(list: T[]): T[] {
+  const seen = new Set<string>();
+  return list.filter((e) => {
+    if (e.type !== "game" || !e.team_name || !e.opponent) return true;
+    const pair = [e.team_name.trim().toLowerCase(), e.opponent.trim().toLowerCase()].sort().join("|");
+    const key = `${e.event_date}|${e.start_time ?? ""}|${pair}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 const dayKey = (d: Date) => format(d, "yyyy-MM-dd");
 
 /**
@@ -202,17 +219,17 @@ export function ClubDaySummary({
   }, [myDayEvents, myTeamSet]);
 
   const visible = useMemo(() => {
-    if (scope === "club") return events || [];
+    if (scope === "club") return dedupeMirroredGames(events || []);
     // "My teams" = events for any team the user belongs to + club-wide events (no team_id)
     const fromMyDay = myVisibleEvents.map(fromEventCardEvent);
     const fromRpc = (events || []).filter((e) => !e.team_id || myTeamSet.has(e.team_id));
     // De-dupe by id, preferring myDayEvents (richer EventCard data)
     const seen = new Set(fromMyDay.map((e) => e.id));
-    return [...fromMyDay, ...fromRpc.filter((e) => !seen.has(e.id))].sort((a, b) => {
+    return dedupeMirroredGames([...fromMyDay, ...fromRpc.filter((e) => !seen.has(e.id))].sort((a, b) => {
       const at = a.start_time || a.event_date;
       const bt = b.start_time || b.event_date;
       return at.localeCompare(bt);
-    });
+    }));
   }, [events, scope, myTeamSet, myVisibleEvents]);
 
   const games = visible.filter((e) => e.type === "game");
