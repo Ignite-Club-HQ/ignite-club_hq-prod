@@ -208,7 +208,9 @@ export async function getLiveTeamInvite(ctx: FeatureBackendContext, id: string) 
 
 export async function acceptLiveTeamInvite(ctx: FeatureBackendContext, id: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return afterMembershipAcknowledgement(unwrapCandid(actor.accept_team_invite(id), "Accept team invite"));
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_team_invite(id), "Accept team invite"));
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
+  return accepted;
 }
 
 export async function revokeLiveTeamInvite(ctx: FeatureBackendContext, id: string) {
