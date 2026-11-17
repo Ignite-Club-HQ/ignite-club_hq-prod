@@ -3,10 +3,11 @@
 ## Combined DEV engine upload — 17 November
 - [x] Prepared a lighter single-app v2 retry: all nineteen gzip programs recompressed losslessly, reducing their transfer bytes by 4.4%; archive reduced from 20.40 MB to 19.85 MB. All decoded programs, plugin/setup bytes, website scripts and settings preserved; all 722 file entries inspected, pins/readback and seven focused tests pass. Console concurrency remains outside bundle control; real-engine success awaits owner upload. Existing installations and PROD untouched.
 - [x] Prepared nineteen-canister single-app replacement, retaining the exact compressed eighteen backend programs and frontend program; all manifest/plugin hashes checked. Setup replaces frontend entry-script backend IDs and discovery/sign-in metadata with the newly allocated same-app inventory. Owner/refused-ID tests and four existing policy tests pass.
-- [ ] Owner uploads combined replacement and supplies its frontend ID; real-engine setup, login and encrypted photo/file acceptance remain unverified. Current installations and PROD untouched. Automatic updates remain paused pending replacement target and owner-authorized update access.
+- [x] Combined v2 installed as one app: all 19 module hashes match the bundle, sole owner controller, website and sign-in settings serve, entry script carries all 18 new same-app backend IDs and none of the old ones (docs/dev-engine-combined-installation-observation.json).
+- [ ] Signed-in login and encrypted photo/file acceptance on the combined app remain unverified; old two apps kept until owner retires them.
 
 ## DEV engine frontend updates from Lovable — 17 November
-- [ ] Connect ongoing frontend updates to the final DEV engine frontend, preserving PROD workflows. Preliminary separate-frontend workflow is superseded by the combined replacement; deployment remains blocked on its new frontend ID and owner-authorized update access.
+- [ ] Connect ongoing frontend updates to the final DEV engine frontend, preserving PROD workflows. Preliminary separate-frontend workflow is superseded by the combined replacement; Workflow now targets combined frontend 7pfcq-raaaa-aaac5-aabia-cai; runs remain blocked until the existing DEV deploy identity is added as a controller by the owner.
 - [x] Confirmed Lovable Publish deploys Lovable hosting, not an external engine. Existing GitHub main-push frontend deployment targets the old DEV canister; automatic source-sync updates are a separate trigger, not publish-only updates. Do not add external network writes to preview/build scripts or claim the new engine is already wired.
 
 ## Document opening and saving — DEV only

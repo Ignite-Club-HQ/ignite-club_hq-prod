@@ -23,7 +23,7 @@ jobs:
       ICP_CLI_PLUGIN_COMPUTE_LIMIT_SECS: '1800'
       IGNITE_ICP_ENV: dev
       IGNITE_FRONTEND_ENV: dev
-      FRONTEND_CANISTER_ID: wfnv2-piaaa-aaac5-aaazq-cai
+      FRONTEND_CANISTER_ID: 7pfcq-raaaa-aaac5-aabia-cai
       IGNITE_LIVE_BUILD: '1'
       IGNITE_LIVE_SUPABASE_URL: https://ecsdwrarzfexssxtrymj.supabase.co
       IGNITE_LIVE_SUPABASE_ANON_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY }}

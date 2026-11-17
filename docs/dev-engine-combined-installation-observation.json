@@ -1,0 +1,154 @@
+{
+ "club_domain": {
+  "id": "4krz3-miaaa-aaac5-aabdq-cai",
+  "hash": "62c69b5ddc67a3157fafae3e2ebb8a720c3d66003d8f48097323873a0991252a",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "media_blob_store": {
+  "id": "5h75v-daaaa-aaac5-aabea-cai",
+  "hash": "b4c71dc9d4e65d8c9d18230884109baa156e6a445382b67971e963d32033d2bb",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "pii_access_control": {
+  "id": "5a63b-oyaaa-aaac5-aabeq-cai",
+  "hash": "55d91231f066540c00be57de9a051ec37836504f00a62135c2f2df743956d65e",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "identity_access": {
+  "id": "5j5q5-yqaaa-aaac5-aabfa-cai",
+  "hash": "e6b12cb63590845b178d3a3f301209b73ed72d66ef41c784074a4ddd7c094684",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "media_metadata": {
+  "id": "5o4wj-viaaa-aaac5-aabfq-cai",
+  "hash": "ed0576b4e27cf3baedfd715e39c3553edc220c938e4fff919a4cbe6f80f09041",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "events_domain": {
+  "id": "533he-uaaaa-aaac5-aabga-cai",
+  "hash": "3ebf981c36347cf476f63ce7c710af35dc67fc652f7ad0fae406cb68f4bdf5eb",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "timer_jobs": {
+  "id": "542bq-zyaaa-aaac5-aabgq-cai",
+  "hash": "b8f8fc89b873775efae8e764f5032998aa0a401237e7fe324e138db664b43b5b",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "placement_registry": {
+  "id": "5vzkm-pqaaa-aaac5-aabha-cai",
+  "hash": "6156d62d3b03bfba125abe1f2e72de88e12f0d7f279892a4244a950b3add18ad",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "competition_domain": {
+  "id": "5symy-ciaaa-aaac5-aabhq-cai",
+  "hash": "70bbc593e2e35b142a9f0fec75611f7f7306579485628db4cc646e9d0d785375",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "frontend": {
+  "id": "7pfcq-raaaa-aaac5-aabia-cai",
+  "hash": "5de5f1e90fcfa9dc26b8b06bec02e75680ab6798de836cfbe081d2465cdd35c9",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "migration_coordinator": {
+  "id": "7ieee-4yaaa-aaac5-aabiq-cai",
+  "hash": "d6dfb37a2c28e3d453f19586e5cde34d53484a97251f55cba2167b18f4c1d5f4",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "insights_domain": {
+  "id": "7bhpy-kqaaa-aaac5-aabja-cai",
+  "hash": "6a2298ea4b65c2e718e5c3211fd4dbf52b9bb5f9f13520d86472d30591184843",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "mini_league_domain": {
+  "id": "7ggjm-hiaaa-aaac5-aabjq-cai",
+  "hash": "da27610f66882bfc369b3c105eaba8e873473cef65bcab217d2c3d68a80aeea2",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "vault_domain": {
+  "id": "7tbyb-gaaaa-aaac5-aabka-cai",
+  "hash": "ee81879190e69216dc16624b772e40f806c663a577d73e25dd5736a46dbdc89c",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "messaging_domain": {
+  "id": "7ua6v-lyaaa-aaac5-aabkq-cai",
+  "hash": "79c1e901247fd88fb6e6e6f1d672780beee249c212204e321445ed305b2713fb",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "shard_router": {
+  "id": "75dvj-5qaaa-aaac5-aabla-cai",
+  "hash": "18607caa9ad1f0a3e50c3f236538d54da72341d652cba0b46ec1fe7e23ed1e42",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "club_points_domain": {
+  "id": "72ct5-qiaaa-aaac5-aablq-cai",
+  "hash": "808e2d039ccc4b771b66aa4ed529d501a096c2567c7fa816d6aeb297afee57d3",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "notification_queue": {
+  "id": "6xmxt-7aaaa-aaac5-aabma-cai",
+  "hash": "b259aa2ba7cf0a849fbab91ad6e2143afabb357422153a18a999db32ec725e86",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ },
+ "secret_workload_identity": {
+  "id": "6qnrh-syaaa-aaac5-aabmq-cai",
+  "hash": "4e1d82cd200a36e404f7e4cc0dee7de0ad2be926ae5ae57919b0e5ebf69fa49d",
+  "match": true,
+  "controllers": [
+   "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+  ]
+ }
+}

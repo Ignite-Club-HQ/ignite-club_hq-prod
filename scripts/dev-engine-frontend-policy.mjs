@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-export const ENGINE_FRONTEND = 'wfnv2-piaaa-aaac5-aaazq-cai';
+export const ENGINE_FRONTEND = '7pfcq-raaaa-aaac5-aabia-cai';
 export function assertEngineFrontendContext({ branch, frontend, database, ids }) {
   if (branch !== 'main') throw new Error('DEV engine frontend updates require main');
   if (frontend !== ENGINE_FRONTEND) throw new Error('Unexpected engine frontend target');
