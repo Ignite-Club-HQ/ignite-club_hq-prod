@@ -471,7 +471,9 @@ export async function getLiveParentInvite(ctx: FeatureBackendContext, token: str
 
 export async function acceptLiveParentInvite(ctx: FeatureBackendContext, token: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return afterMembershipAcknowledgement(unwrapCandid(actor.accept_parent_invite(token), "Accept parent invite"));
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_parent_invite(token), "Accept parent invite"));
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
+  return accepted;
 }
 
 export async function liveClubWhoami(ctx: FeatureBackendContext) {
