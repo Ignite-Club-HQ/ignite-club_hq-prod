@@ -1072,6 +1072,7 @@ export async function createLiveClub(
     }
   }
   syncAvatarClubGrantsBestEffort(ctx);
+  await afterConfirmedDevMembershipNameReadiness(ctx,created.id);
   return created;
 }
 
