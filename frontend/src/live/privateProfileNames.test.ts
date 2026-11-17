@@ -8,7 +8,7 @@ vi.mock("./domains", () => ({ connectLivePiiAccessControl: vi.fn(async () => ({ 
 vi.mock("./piiVetKeys", () => ({ encryptPiiText: mocks.encrypt, fetchPiiVetKeys: mocks.keys, fetchClubNameVetKey: mocks.clubKey, clubNamePiiId: (id: string) => `clubnames:${id}`, CLUB_NAME_SCHEME_PREFIX: 'vetkey-club-names-v1:' }));
 vi.mock("@icp-sdk/vetkeys", () => ({ IbeCiphertext: { deserialize: () => ({ decrypt: mocks.decrypt }) } }));
 
-import { hydratePrivateProfileNames, readPrivateOwnProfileName, preparePrivateOwnProfileName, privateProfileNameReference, refreshPrivateOwnClubNames } from "./privateProfileNames";
+import { hydratePrivateProfileNames, readPrivateOwnProfileName, preparePrivateOwnProfileName, privateProfileNameReference, refreshPrivateOwnClubNames, NAME_NOT_SHARED_YET } from "./privateProfileNames";
 import { retirePrivateProfileSession } from './privateProfileSession';
 
 const subject = "mbrvi-lvde7-gdspi-hamp3-nxj43-p4tt6-at6q5-jlbit-eehve-7xqwc-wqe";
