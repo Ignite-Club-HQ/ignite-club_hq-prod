@@ -75,3 +75,21 @@ test('a failed metadata read produces only a blocked, count-only report before f
   assert.match(policy,/transport_deadline/);
   assert.match(policy,/readyToReleaseName:false,nameReadAuthorised:false/);
 });
+
+test('G2 test-parent diagnostic uses ONLY already-governed metadata and cannot enable names',()=>{
+  const marker=runner.indexOf('const parentFocus=stable');
+  const end=runner.indexOf('const report=',marker);
+  assert.ok(marker>0&&end>marker);
+  const focus=runner.slice(marker,end);
+  assert.match(focus,/assessDevG2TestParentNameCopies\(first,plan,observed/);
+  assert.match(focus,/dev-g2-test-u10-other-parents/);
+  assert.match(focus,/state:'snapshot_unverified'/);
+  assert.match(focus,/readyToReleaseName:false/);
+  assert.match(focus,/nameReadAuthorised:false/);
+  assert.match(runner,/parentFocus,/);
+  assert.match(policy,/export function assessDevG2TestParentNameCopies/);
+  assert.match(policy,/crossGroupNameAccessStillRequiresVerification:true/);
+  assert.doesNotMatch(focus,/await|Actor\.create|update|refresh|register|decrypt|encrypt/);
+  assert.doesNotMatch(policy.slice(policy.indexOf('export function assessDevG2TestParentNameCopies')),
+    /get_private_profile_names_batch|vetKdDeriveKey|read_private_club_name_lifecycle|register_pii/);
+});
