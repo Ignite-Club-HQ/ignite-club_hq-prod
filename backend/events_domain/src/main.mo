@@ -5280,7 +5280,7 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?current) current.any(func((role, team)) =
         (role == "club_admin" or role == "team_admin" or role == "coach" or
          role == "parent" or role == "player") and
-        (team == null or team == item.team_id))
+        (item.team_id == null or team == null or team == item.team_id))
     }
   };
 
