@@ -508,3 +508,4 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] Remaining upload acceptance: complete 18-service archive installation and official setup-plugin/controller/service-link verification; actual engine proxy and signed-in UI/phone acceptance require owner-authorized engine transport. The successful three-service emulator report explicitly keeps uploadReady=false; no bundle handover or upload authorized by this result.
 - [ ] Then: real-engine commissioning, engine admission/boot registration, cross-subnet calls, encryption, group push, and signed-in phone acceptance.
 - [ ] No existing clubs move and no live hosting changes without Paul's explicit approval.
+- [ ] 17 Nov 02:25 UTC: Paul chose to upload the full encrypted DEV bundle himself (Files: ignite-dev-engine-bundle.tar.gz, sha256 308bfd95…cdcfa) to the empty ignite-dev engine. Awaiting his install result/screenshot; repoint DEV app only after the setup step succeeds.
