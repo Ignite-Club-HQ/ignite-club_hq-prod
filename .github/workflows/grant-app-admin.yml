@@ -26,6 +26,7 @@ jobs:
   grant:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: group-2-admin-controls
     env:
       ICP_HOME: ${{ github.workspace }}/.icp-home
     steps:
@@ -38,39 +39,29 @@ jobs:
       - name: Install icp CLI
         run: npm install -g @icp-sdk/icp-cli --no-fund --no-audit
 
-      - name: Restore deployer identity
+      - name: Restore existing governor
         env:
-          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+          # Same key source as the working [TEST] Upgrade backend workflow.
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
         run: |
           set -euo pipefail
-          if [ -z "$DEPLOYER_PEM" ]; then
-            echo "::error::The DEPLOYER_PEM repository secret is not set."
-            echo "Use the same key as the deploy workflow (the 'deployer-key' artifact"
-            echo "from the first deploy run): Settings → Secrets and variables → Actions."
-            exit 1
-          fi
-          mkdir -p "$ICP_HOME/identity/keys"
-          PEM_FILE="$ICP_HOME/identity/keys/ignite-governor.pem"
-          printf '%s' "$DEPLOYER_PEM" \
-            | tr -d '\r' \
-            | sed 's/\\\\n/\n/g' \
-            | sed 's/\\n/\n/g' \
-            | sed -n '/-----BEGIN/,/-----END/p' \
-            | sed 's/^.*-----BEGIN/-----BEGIN/' \
-            | sed 's/\(-----END [A-Z ]*KEY-----\).*$/\1/' \
-            > "$PEM_FILE"
-          if ! grep -q -- '-----BEGIN' "$PEM_FILE" || ! grep -q -- '-----END' "$PEM_FILE"; then
-            echo "::error::The DEPLOYER_PEM secret does not contain a valid key file."
-            exit 1
-          fi
-          ALGO="$(openssl asn1parse -in "$PEM_FILE" 2>/dev/null | grep -m1 'OBJECT' || true)"
-          if printf '%s' "$ALGO" | grep -qi 'rsa'; then
-            echo "::error::The DEPLOYER_PEM secret holds an RSA key, which the Internet Computer does not accept."
-            exit 1
-          fi
-          icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor
+          test -n "$DEPLOYER_PEM" || { echo "::error::No governor key secret is available."; exit 1; }
+          umask 077
+          # Rebuild a clean PEM even when the secret was pasted on one line.
+          PEM_IN="$DEPLOYER_PEM" node -e '
+            const s=process.env.PEM_IN.replace(/\r/g,"").replace(/\\n/g,"\n");
+            const m=s.match(/-----BEGIN ([A-Z0-9 ]*PRIVATE KEY)-----([\s\S]*?)-----END \1-----/);
+            if(!m){console.error("Governor key secret has no BEGIN/END block");process.exit(1);}
+            const body=m[2].replace(/\s+/g,"").match(/.{1,64}/g).join("\n");
+            process.stdout.write(`-----BEGIN ${m[1]}-----\n${body}\n-----END ${m[1]}-----\n`);
+          ' > "$RUNNER_TEMP/governor.pem"
+          icp identity import --from-pem "$RUNNER_TEMP/governor.pem" --storage plaintext ignite-governor
+          rm -f "$RUNNER_TEMP/governor.pem"
           icp identity default ignite-governor
-          echo "==> Governor principal: $(icp identity principal)"
+          if [ "$(icp identity principal --identity ignite-governor 2>/dev/null)" != vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae ]; then
+            echo "::error::The key is not the TEST governor. Nothing changed."
+            exit 1
+          fi
 
       - name: Grant app admin
         env:
