@@ -47,18 +47,37 @@ jobs:
           icp canister install --help | grep -q -- --wasm-memory-persistence
       - name: Test upgrade safeguards
         run: node --test scripts/group2-journal.test.mjs scripts/group2-upgrade-rules.test.mjs scripts/group2-upgrade-workflow.test.mjs scripts/stage-group-wasm.test.mjs frontend/scripts/media-key-deploy-rules.test.mjs frontend/scripts/media-key-mainnet.test.mjs
-      - name: Restore existing deploy identity (never create a replacement)
+      - name: Restore existing Group 2 governor only (never create a replacement)
         env:
-          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+          # DEV governor may differ from the frontend deployment key.
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
         run: |
           set -euo pipefail
-          test -n "$DEPLOYER_PEM" || { echo "::error::Existing DEPLOYER_PEM required"; exit 1; }
+          test -n "${DEPLOYER_PEM:-}" || { echo "::error::Existing DEV Group 2 governor secret required; no canisters touched."; exit 1; }
           umask 077
-          printf '%s' "$DEPLOYER_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$RUNNER_TEMP/g2-operator.pem"
+          PEM_FILE="$RUNNER_TEMP/g2-operator.pem"
+          # Same supported secret normalizer as the current DEV member-access
+          # workflows; do not print or regenerate the existing private key.
+          if ! PEM_IN="$DEPLOYER_PEM" node scripts/normalize-pem.mjs > "$PEM_FILE"; then
+            echo "::error::Group 2 governor secret cannot be normalized. Check GOVERNOR_PEM and protected environment overrides. Do not paste keys into logs."
+            exit 1
+          fi
+          test -s "$PEM_FILE" || { echo "::error::Normalized Group 2 governor PEM is empty."; exit 1; }
           mkdir -p "$ICP_HOME/identity/keys"
-          icp identity import --from-pem "$RUNNER_TEMP/g2-operator.pem" --storage plaintext ignite-governor
-          icp identity default ignite-governor
-          test "$(icp identity principal)" = vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae
+          if ! icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor >/dev/null 2>&1; then
+            echo "::error::ICP CLI rejected the existing Group 2 governor PEM format. Check the protected secret; no canisters touched."
+            exit 1
+          fi
+          icp identity default ignite-governor >/dev/null
+          if ! governor_principal="$(icp identity principal --identity ignite-governor 2>/dev/null)"; then
+            echo "::error::Failed to derive existing Group 2 governor principal; no canisters touched."
+            exit 1
+          fi
+          if [ "$governor_principal" != "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae" ]; then
+            echo "::error::Wrong key: expected the existing DEV Group 2 governor. Check GOVERNOR_PEM precedence; no canisters touched."
+            exit 1
+          fi
+          unset governor_principal
       - name: Build and stage the thirteen recipe artifacts
         working-directory: deploy/mainnet
         run: |
