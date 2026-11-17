@@ -705,7 +705,9 @@ export default function TeamDetailPage() {
     queryFn: async () => {
       if (isIcpAccount) {
         if (!id || !team?.club_id) return [];
-        return withFeatureBackend('membership', {
+        // The deadline covers club lookup too: a stalled group lookup
+        // must end in a retryable error, never an endless spinner.
+        return withRosterDeadline(withFeatureBackend('membership', {
           supabase: () => { throw new Error('ICP roster required'); },
           icp: async ctx => {
             // Optional public vetKey prewarm must NEVER block child roster IDs.
@@ -715,9 +717,9 @@ export default function TeamDetailPage() {
             void import('@/live/piiVetKeys')
               .then(({ prewarmPiiVerificationKey }) => prewarmPiiVerificationKey(ctx))
               .catch(() => undefined);
-            return withRosterDeadline(readTeamChildRows(ctx, team.club_id, id), 30_000, 'team player list');
+            return readTeamChildRows(ctx, team.club_id, id);
           },
-        }, { clubId: team.club_id });
+        }, { clubId: team.club_id }), 35_000, 'team player list');
       }
       const { data: rpcChildren, error: rpcError } = await supabase.rpc("get_team_children_for_pitch_board", {
         p_team_id: id!,
@@ -889,7 +891,7 @@ export default function TeamDetailPage() {
     queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id,
       devSharedClubNames ? 'shared-club-vetkey' : 'legacy-team-individual', adultNameIds],
     enabled: isIcpAccount && !!id && !!team?.club_id && adultNameIds.length > 0,
-    queryFn: () => withFeatureBackend('membership', {
+    queryFn: () => withRosterDeadline(withFeatureBackend('membership', {
       supabase: () => { throw new Error('ICP names required'); },
       icp: ctx => {
         if (!team?.club_id) throw new Error('Team club required for member names');
@@ -901,7 +903,7 @@ export default function TeamDetailPage() {
           return rows;
         });
       },
-    }, { clubId: team?.club_id ?? '' }),
+    }, { clubId: team?.club_id ?? '' }), 65_000, 'member names'),
     // Names unlocked on an earlier visit show at once; the fresh read replaces
     // them (or clears them if access was withdrawn).
     placeholderData: () => (user?.id && team?.club_id && id
@@ -916,13 +918,13 @@ export default function TeamDetailPage() {
   const { data: childNames, isLoading: isChildNamesLoading, isFetching: isChildNamesFetching, refetch: refetchChildNames } = useQuery({
     queryKey: ['team-roster-child-names', user?.id, id, team?.club_id, childNameIds],
     enabled: isIcpAccount && !!team?.club_id && childNameIds.length > 0,
-    queryFn: () => withFeatureBackend('membership', {
+    queryFn: () => withRosterDeadline(withFeatureBackend('membership', {
       supabase: () => { throw new Error('ICP names required'); },
       icp: async ctx => {
         const { resolveLivePiiTextBatch } = await import('@/live/features/vault');
-        return withRosterDeadline(resolveLivePiiTextBatch(ctx, childNameIds, 'name', 'Read team roster', 'Team player names'), 20_000, 'player names');
+        return resolveLivePiiTextBatch(ctx, childNameIds, 'name', 'Read team roster', 'Team player names');
       },
-    }, { clubId: team?.club_id ?? '' }),
+    }, { clubId: team?.club_id ?? '' }), 25_000, 'player names'),
     staleTime: 60_000,
     // The PII helper already treats denied/unknown reads as missing. A failed
     // cold-key unlock can be retried explicitly without silently waiting 40s.
