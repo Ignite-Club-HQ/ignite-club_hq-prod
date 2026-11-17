@@ -44,11 +44,13 @@ export function teamRoleRows(grants: readonly { account_id: string; role: string
 }
 /** Error classifications contain no child IDs, profile data or raw canister replies. */
 export type TeamRosterFailureCode = 'SESSION' | 'PERMISSION' | 'TIMEOUT' | 'TRANSPORT' | 'ROUTING' | 'OTHER' | 'ROUTE_OPEN_TIMEOUT' | 'ROUTE_CLOSE_TIMEOUT' | 'CIPHERTEXT_TIMEOUT' | 'VETKEY_TIMEOUT' | 'ROSTER_TIMEOUT' | 'DECRYPT_TIMEOUT'
-  | 'NOT_SHARED_YET' | 'SERVICE_NOT_ADMITTED' | 'PROFILE_LINK_MISMATCH' | 'RELEASE_NOT_CONFIGURED' | 'SOURCE_ROUTE_CHANGED';
+  | 'NOT_SHARED_YET' | 'SERVICE_NOT_ADMITTED' | 'PROFILE_LINK_MISMATCH' | 'RELEASE_NOT_CONFIGURED' | 'SOURCE_ROUTE_CHANGED' | 'NO_PROFILE' | 'NO_NAME_SAVED';
 
 /** Fixed, non-sensitive server/client refusal texts for parent names. */
 const KNOWN_NAME_FAILURES: ReadonlyArray<[RegExp, TeamRosterFailureCode]> = [
   [/^Club name copy not saved yet\.$/, 'NOT_SHARED_YET'],
+  [/^No sign-in profile found\.$/, 'NO_PROFILE'],
+  [/^No name saved on profile\.$/, 'NO_NAME_SAVED'],
   [/Configured private-name service required|DEV G2 private-name service authority changed/, 'SERVICE_NOT_ADMITTED'],
   [/Original private-name binding changed|Private-name reference does not match this member/, 'PROFILE_LINK_MISMATCH'],
   [/Private-name release fenced or not configured|Private name audiences are not released/, 'RELEASE_NOT_CONFIGURED'],
@@ -88,6 +90,8 @@ const ADULT_NAME_ISSUE_LABELS: Partial<Record<TeamRosterFailureCode, string>> = 
   TIMEOUT: 'took too long to load — try Retry names',
   TRANSPORT: 'network problem — try Retry names',
   PERMISSION: 'access refused by the club',
+  NO_PROFILE: 'no profile exists for their sign-in yet — they need to finish profile setup in the app',
+  NO_NAME_SAVED: 'their profile has no name saved — they need to enter their name in Edit Profile',
 };
 
 export function adultNameIssueLabel(code: TeamRosterFailureCode): string {

@@ -922,8 +922,20 @@ export default function TeamDetailPage() {
   });
   const adultNamesPending = isAdultNamesLoading || isAdultNamesFetching;
   // Per-person reasons from the club-key read (never raw IDs or names).
-  const adultNameIssues = useMemo(() => (adultNames as Array<{ name_error?: string }>)
-    .map(row => row.name_error).filter((value): value is string => Boolean(value)), [adultNames]);
+  const adultNameIssues = useMemo(() => {
+    if (adultNamesPending) return [];
+    const rows = new Map((adultNames as Array<{ account_id: string; display_name: string | null; name_error?: string }>)
+      .map(row => [String(row.account_id).replace(/^principal:/, ''), row]));
+    // Diagnose every requested parent, including silent blanks: missing profile
+    // rows and profiles that never saved any name previously showed no reason.
+    return adultNameIds.map(id => {
+      const row = rows.get(String(id).replace(/^principal:/, ''));
+      if (!row) return 'No sign-in profile found.';
+      if (row.name_error) return row.name_error;
+      if (!row.display_name?.trim()) return 'No name saved on profile.';
+      return '';
+    }).filter(Boolean);
+  }, [adultNames, adultNameIds, adultNamesPending]);
   const hasUnresolvedAdultNames = devIcpAdultNames && needsAdultNameRetry(
     adultNameIds, adultNames, adultNamesPending,
   );
