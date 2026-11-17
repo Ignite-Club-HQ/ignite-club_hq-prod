@@ -82,3 +82,17 @@ jobs:
           else
             echo "### Reopened $PRINCIPAL as a separate new DEV account." >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Release old name records for the reopened sign-in ID
+        env:
+          PRINCIPAL: ${{ inputs.principal }}
+          CONFIRM: ${{ inputs.confirm }}
+        working-directory: deploy/mainnet
+        run: |
+          set -euo pipefail
+          DRY=true; [ "$CONFIRM" = "yes" ] && DRY=false
+          # DEV pii_access_control only; the canister also refuses on any other ID.
+          OUT="$(icp canister call iui5p-aaaaa-aaaal-qxllq-cai dev_release_reopened_sign_in_records "(principal \"$PRINCIPAL\", $DRY)" -e ic 2>&1)" || { echo "$OUT"; echo "::error::The call failed. If it says the method does not exist, run [TEST] Upgrade backend with scope private_club_name_display first."; exit 1; }
+          echo "$OUT"
+          if echo "$OUT" | grep -q "err"; then echo "::error::DEV refused. Nothing changed."; exit 1; fi
+          echo "### Old name records for $PRINCIPAL: $OUT (dry run: $DRY)" >> "$GITHUB_STEP_SUMMARY"

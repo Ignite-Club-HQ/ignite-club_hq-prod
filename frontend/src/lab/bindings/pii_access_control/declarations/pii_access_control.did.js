@@ -115,6 +115,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : PiiDeleteResult, 'Err' : IDL.Text })],
         [],
       ),
+    'dev_release_reopened_sign_in_records' : IDL.Func(
+        [IDL.Principal, IDL.Bool],
+        [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
+        [],
+      ),
     'emergency_shutdown' : IDL.Func(
         [],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
@@ -278,14 +283,21 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : ClubMediaAuthority, 'Err' : IDL.Text })],
         [],
       ),
+    'read_dev_private_club_name_replica_coverage' : IDL.Func(
+        [IDL.Vec(IDL.Principal), IDL.Text],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Vec(
+              IDL.Record({ 'subject' : IDL.Principal, 'state' : IDL.Text })
+            ),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
     'read_group_opening_configuration' : IDL.Func(
         [],
         [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
-        [],
-      ),
-    'read_dev_private_club_name_replica_coverage' : IDL.Func(
-        [IDL.Vec(IDL.Principal), IDL.Text],
-        [IDL.Variant({ 'Ok' : IDL.Vec(IDL.Record({ 'subject' : IDL.Principal, 'state' : IDL.Text })), 'Err' : IDL.Text })],
         [],
       ),
     'read_private_club_name_lifecycle' : IDL.Func(

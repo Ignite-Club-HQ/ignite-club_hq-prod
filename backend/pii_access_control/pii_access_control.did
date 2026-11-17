@@ -78,6 +78,15 @@ type Main =
        Err: text;
        Ok: PiiDeleteResult;
      });
+   /// DEV only: a sign-in ID reopened as its own new account (identity_access
+   /// dev_reopen_moved_principal) cannot save its own name while records keyed by
+   /// that ID still belong to the account it was moved to. Remove only those
+   /// records (pii_id == subject, owner != subject). Returns the count removed.
+   dev_release_reopened_sign_in_records: (subject: principal, dry_run:
+    bool) -> (variant {
+                err: text;
+                ok: nat;
+              });
    emergency_shutdown: () -> (variant {
                                 Err: text;
                                 Ok;
@@ -216,16 +225,19 @@ type Main =
        Err: text;
        Ok: ClubMediaAuthority;
      });
+   read_dev_private_club_name_replica_coverage: (subjects: vec principal,
+    club: text) ->
+    (variant {
+       Err: text;
+       Ok: vec record {
+                 state: text;
+                 subject: principal;
+               };
+     });
    read_group_opening_configuration: () -> (vec record {
                                                   text;
                                                   text;
                                                 });
-   // Pinned DEV only, governor only. No names/ciphertext/keys/grants.
-   read_dev_private_club_name_replica_coverage: (subjects: vec principal,
-     club: text) -> (variant {
-       Err: text;
-       Ok: vec record { subject: principal; state: text };
-     });
    read_private_club_name_lifecycle: (subject: principal, club: text,
     expectedOriginal: opt vec nat8) ->
     (variant {

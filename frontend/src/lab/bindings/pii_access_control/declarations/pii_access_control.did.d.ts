@@ -73,6 +73,17 @@ export interface Main {
     { 'Ok' : PiiDeleteResult } |
       { 'Err' : string }
   >,
+  /**
+   * / DEV only: a sign-in ID reopened as its own new account (identity_access
+   * / dev_reopen_moved_principal) cannot save its own name while records keyed by
+   * / that ID still belong to the account it was moved to. Remove only those
+   * / records (pii_id == subject, owner != subject). Returns the count removed.
+   */
+  'dev_release_reopened_sign_in_records' : ActorMethod<
+    [Principal, boolean],
+    { 'ok' : bigint } |
+      { 'err' : string }
+  >,
   'emergency_shutdown' : ActorMethod<[], { 'Ok' : null } | { 'Err' : string }>,
   'export_club_snapshot' : ActorMethod<
     [string],
@@ -207,12 +218,12 @@ export interface Main {
     { 'Ok' : ClubMediaAuthority } |
       { 'Err' : string }
   >,
-  'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
   'read_dev_private_club_name_replica_coverage' : ActorMethod<
     [Array<Principal>, string],
     { 'Ok' : Array<{ 'subject' : Principal, 'state' : string }> } |
       { 'Err' : string }
   >,
+  'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
   'read_private_club_name_lifecycle' : ActorMethod<
     [Principal, string, [] | [Uint8Array]],
     { 'Ok' : [] | [EncryptedPii] } |
