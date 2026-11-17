@@ -106,3 +106,29 @@ export function summarizeDevClubNameCoverage(plan,observations,{snapshotStable=f
     missingOwnerAuthorisedReadAndDenialAcceptance:true,
   };
 }
+
+// Return strictly allowlisted technical codes: the original rejection and
+// transport error strings never leave the governor-only runner. In particular,
+// unknown exception text can include a request URL, principal or account ID.
+const backendRejections=Object.freeze({
+  'Governor required':'governor_denied',
+  'Only pinned DEV name authorities permitted':'dev_authority_mismatch',
+  'Bounded exact DEV club-name coverage required':'invalid_batch_or_club',
+  'Distinct nonanonymous subjects required':'invalid_batch_subject',
+});
+export function classifyDevNameCoverageFailure(error,{backend=false}={}) {
+  const reason=typeof error==='string'?error:error instanceof Error?error.message:'';
+  if(backend)return Object.hasOwn(backendRejections,reason)
+    ? backendRejections[reason]:'backend_refused_other';
+  if(/not found|unknown method|has no (?:update )?method|no such method|does not have a method/i.test(reason))
+    return 'reader_method_unavailable';
+  if(/deadline|timed? ?out|timeout|aborted/i.test(reason))
+    return 'transport_deadline';
+  if(/out of instructions|instruction limit|exceeded.*instruction|out of cycles|resource exhausted/i.test(reason))
+    return 'canister_resource_limit';
+  if(/candid|idl|decode|encode|unexpected (?:variant|reply|response)/i.test(reason))
+    return 'candid_response_failure';
+  if(/network|fetch|gateway|unavailable|503|502|reject|replica/i.test(reason))
+    return 'transport_rejected';
+  return 'transport_unclassified';
+}

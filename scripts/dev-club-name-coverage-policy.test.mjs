@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PII,planDevClubNameCoverage as plan,summarizeDevClubNameCoverage as summarize} from './dev-club-name-coverage-policy.mjs';
+import {PII,planDevClubNameCoverage as plan,summarizeDevClubNameCoverage as summarize,classifyDevNameCoverageFailure as classify} from './dev-club-name-coverage-policy.mjs';
 
 const g1='club-one',g2='club-two',a='person-a',b='person-b',c='person-c';
 const club=(id,deleted=false)=>({Club:{id,deleted}});
@@ -96,4 +96,35 @@ test('incomplete source inventory, duplicate club owners and cross-group roles a
   assert.equal(x.issues.ambiguous_membership,1);
   assert.equal(summarize(x,x.targets.map(observe),{snapshotStable:true,backendReaderInstalled:true}).status,
     'incomplete-release-blocked');
+});
+
+test('only allowlisted backend denial categories are reported, never raw principal or PII',()=>{
+  const known=[
+    ['Governor required','governor_denied'],
+    ['Only pinned DEV name authorities permitted','dev_authority_mismatch'],
+    ['Bounded exact DEV club-name coverage required','invalid_batch_or_club'],
+    ['Distinct nonanonymous subjects required','invalid_batch_subject'],
+  ];
+  for(const [raw,expected] of known)assert.equal(classify(raw,{backend:true}),expected);
+  const malicious='Secret display_name of pfslb-rpozk-543m5-zll3a-a3ay4-rdg3b-elojg-ukmfs-e624l-6rjyp-jae';
+  assert.equal(classify(malicious,{backend:true}),'backend_refused_other');
+  assert.equal(classify(new Error(malicious)),'transport_unclassified');
+  assert.ok(!JSON.stringify(known.map(([raw])=>classify(raw,{backend:true}))).includes('pfslb-'));
+});
+
+test('transient, method, decoder and resource errors remain distinct from absent copies',()=>{
+  for(const [raw,kind] of [
+    ['Call deadline has expired','transport_deadline'],
+    ['Timed out waiting for response','transport_deadline'],
+    ['canister has no update method read_dev_private_club_name_replica_coverage','reader_method_unavailable'],
+    ['Candid decode error in private response','candid_response_failure'],
+    ['Canister exceeded instruction limit','canister_resource_limit'],
+    ['Gateway 503 unavailable','transport_rejected'],
+    ['unrelated issue','transport_unclassified'],
+  ])assert.equal(classify(new Error(raw)),kind);
+  const planData=plan(fixture());
+  const report=summarize(planData,[],{snapshotStable:false,backendReaderInstalled:false});
+  assert.equal(report.copyCounts.copy_missing,0);
+  assert.equal(report.copyCounts.unverified,planData.targets.length);
+  assert.equal(report.readyToReleaseName,false);
 });

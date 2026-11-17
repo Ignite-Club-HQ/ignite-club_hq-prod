@@ -16,7 +16,7 @@ import type {_SERVICE as ClubService} from '../src/lab/bindings/club_domain/decl
 import {idlFactory as identityIdl} from '../src/lab/bindings/identity_access/declarations/identity_access.did.js';
 import type {_SERVICE as IdentityService} from '../src/lab/bindings/identity_access/declarations/identity_access.did';
 import {GROUP2_GOVERNOR} from '../../scripts/group2-upgrade-rules.mjs';
-import {PII,planDevClubNameCoverage,summarizeDevClubNameCoverage} from '../../scripts/dev-club-name-coverage-policy.mjs';
+import {PII,planDevClubNameCoverage,summarizeDevClubNameCoverage,classifyDevNameCoverageFailure} from '../../scripts/dev-club-name-coverage-policy.mjs';
 
 const [pemPath,reportDir]=process.argv.slice(2);
 if(!pemPath||!reportDir||
@@ -105,38 +105,68 @@ type Reader={read_dev_private_club_name_replica_coverage:(subjects:Principal[],c
 const readers=new Map(Object.values(PII).map(id=>[id,
   Actor.createActor<Reader>(readerIdl,{agent,canisterId:id})]));
 const observed:{source:string;subject:string;club:string;state:string}[]=[];
-let readerInstalled=true;let readUnavailable=false;
+type ReadFailure={sourceGroup:'g1'|'g2';reason:string;batchSize:number};
+let readFailure:ReadFailure|null=null;
 const groups=new Map<string,{source:string;club:string;subjects:string[]}>();
 for(const t of plan.targets){
   const key=JSON.stringify([t.source,t.club]);
   if(!groups.has(key))groups.set(key,{source:t.source,club:t.club,subjects:[]});
   groups.get(key)!.subjects.push(t.subject);
 }
+// A failed update-shaped but READ-ONLY call is never replayed automatically.
+// Store only a pinned G1/G2 label, bounded batch size and allowlisted error
+// class. Do not log the original error, rejected principal, club or ciphertext.
+groupLoop:
 for(const group of groups.values()){
+  const sourceGroup=group.source===PII.g1?'g1':'g2';
   for(let start=0;start<group.subjects.length;start+=25){
     const batch=group.subjects.slice(start,start+25);
-    try{
+    let subjects:Principal[];
+    try {
+      subjects=batch.map(subject=>Principal.fromText(subject));
+    } catch {
+      readFailure={sourceGroup,reason:'invalid_candidate_principal',batchSize:batch.length};
+      break groupLoop;
+    }
+    try {
       const reply=await readers.get(group.source)!.read_dev_private_club_name_replica_coverage(
-        batch.map(Principal.fromText),group.club);
-      if('Err'in reply)throw Error('Protected DEV copy status refused');
-      if(reply.Ok.length!==batch.length||
-         reply.Ok.some((r,i)=>r.subject.toText()!==batch[i]))throw Error('DEV replica reply mismatch');
-      for(const r of reply.Ok)observed.push({
-        source:group.source,club:group.club,subject:r.subject.toText(),state:r.state});
-    }catch(error){
-      const message=error instanceof Error?error.message:String(error);
-      if(/has no update method|method not found|unknown method|did not find method|has no method/i.test(message)){
-        readerInstalled=false;readUnavailable=true;break;
+        subjects,group.club);
+      if('Err' in reply){
+        readFailure={sourceGroup,
+          reason:classifyDevNameCoverageFailure(reply.Err,{backend:true}),batchSize:batch.length};
+        break groupLoop;
       }
-      throw Error('Protected DEV replica metadata read failed; no coverage was inferred');
+      if(!Array.isArray(reply.Ok)||reply.Ok.length!==batch.length||
+         reply.Ok.some((row,i)=>!row||!row.subject||typeof row.state!=='string'||
+           row.subject.toText()!==batch[i])){
+        readFailure={sourceGroup,reason:'metadata_reply_mismatch',batchSize:batch.length};
+        break groupLoop;
+      }
+      for(const row of reply.Ok)observed.push({
+        source:group.source,club:group.club,subject:row.subject.toText(),state:row.state});
+    } catch(error) {
+      readFailure={sourceGroup,
+        reason:classifyDevNameCoverageFailure(error),batchSize:batch.length};
+      break groupLoop;
     }
   }
-  if(readUnavailable)break;
 }
-const second=await getSnapshot();
-const stable=first.fingerprint===second.fingerprint;
-const report=summarizeDevClubNameCoverage(plan,observed,
- {snapshotStable:stable,backendReaderInstalled:readerInstalled&&!readUnavailable});
+// A failed first-batch read previously threw before writing any artifact.
+// Always record a privacy-safe blocked report, even for a transport error.
+// A second full source snapshot still tests whether the membership set moved.
+let stable=false,sourceReadbackFailed=false;
+try {
+  const second=await getSnapshot();
+  stable=first.fingerprint===second.fingerprint;
+} catch {
+  sourceReadbackFailed=true;
+}
+const report={
+  ...summarizeDevClubNameCoverage(plan,observed,
+    {snapshotStable:stable,backendReaderInstalled:readFailure===null}),
+  ...(readFailure?{readFailure}:{ }),
+  sourceReadbackFailed,
+};
 mkdirSync(resolve(reportDir),{recursive:true});
 writeFileSync(resolve(reportDir,'check.json'),JSON.stringify(report,null,2)+'\n');
 console.log('DEV club-name copy coverage: '+report.status+
@@ -144,6 +174,12 @@ console.log('DEV club-name copy coverage: '+report.status+
   '; verified='+report.copyCounts.copy_verified+
   '; unknown='+report.copyCounts.unverified+
   '; READY_TO_RELEASE=false. No names, ciphertext or keys were exported.');
-if(!stable)throw Error('DEV membership/account snapshots changed; no coverage attested');
+if(readFailure){
+  console.error('Protected DEV copy metadata read blocked: '+readFailure.sourceGroup+
+    ' / '+readFailure.reason+'; sanitized count-only report saved');
+  throw Error('Protected DEV replica metadata read failed: '+readFailure.reason+
+    ' in '+readFailure.sourceGroup+'; no coverage was inferred for missing results');
+}
+if(!stable)throw Error('DEV membership/account snapshots changed or could not be read; no coverage attested');
 // Do NOT enable keys, upgrades or frontend releases. The protected audit
 // can complete with an explicit blocked report while old reader modules run.
