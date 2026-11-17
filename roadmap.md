@@ -1,6 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Combined DEV engine upload — 17 November
+- [x] Prepared a lighter single-app v2 retry: all nineteen gzip programs recompressed losslessly, reducing their transfer bytes by 4.4%; archive reduced from 20.40 MB to 19.85 MB. All decoded programs, plugin/setup bytes, website scripts and settings preserved; all 722 file entries inspected, pins/readback and seven focused tests pass. Console concurrency remains outside bundle control; real-engine success awaits owner upload. Existing installations and PROD untouched.
 - [x] Prepared nineteen-canister single-app replacement, retaining the exact compressed eighteen backend programs and frontend program; all manifest/plugin hashes checked. Setup replaces frontend entry-script backend IDs and discovery/sign-in metadata with the newly allocated same-app inventory. Owner/refused-ID tests and four existing policy tests pass.
 - [ ] Owner uploads combined replacement and supplies its frontend ID; real-engine setup, login and encrypted photo/file acceptance remain unverified. Current installations and PROD untouched. Automatic updates remain paused pending replacement target and owner-authorized update access.
 
