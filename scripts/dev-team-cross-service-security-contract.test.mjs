@@ -56,3 +56,32 @@ test('chat first-page composite query cannot bypass deleted-team authority',()=>
   assert.match(proof,/trustedCompetition\(caller\) or \(switch \(messagingDomainCanister\)/);
   assert.match(proof,/switch \(liveTeamClub\(team_id\)\)/);
 });
+
+test('event team-settings and active-game endpoints revoke access when team is deleted',()=>{
+  const helper=section(events,'func freshTeamOnlyReadAllowed(','func freshVisibleEvent(');
+  assert.match(helper,/cd.get_team\(team\)/);
+  assert.match(helper,/t.deleted_at_ms != null/);
+  assert.match(helper,/freshTeamReadAllowed\(subject, t.club_id, team\)/);
+  for(const [start,end] of [
+    ['func read_account_get_pitch_board_settings(','func read_account_get_game_summary('],
+    ['func read_account_get_active_game(','func read_account_list_event_views('],
+    ['func read_account_get_playhq_team_sync(','func read_account_get_event_duty_team('],
+  ]){
+    const body=section(events,start,end);
+    assert.match(body,/await freshTeamOnlyReadAllowed\(caller,/);
+  }
+  const viewed=section(events,'func read_account_list_my_viewed_event_ids(','func read_account_check_event_membership(');
+  assert.match(viewed,/event_ids.size\(\) > 300/);
+  assert.match(viewed,/await freshVisibleEventIds\(caller, event_ids\)/);
+});
+
+test('event search, recurring schedules and duty-team events require current club authority',()=>{
+  const search=section(events,'func read_account_execute(','func read_account_list_association_events(');
+  assert.match(search,/await freshOqlVisibleEvents\(caller\)/);
+  assert.doesNotMatch(search,/canView\(caller, event\)/);
+  const recurring=section(events,'func read_account_list_series(','func read_account_get_lineup_snapshot(');
+  assert.match(recurring,/await freshSeriesVisible\(caller, item\)/);
+  const duties=section(events,'func read_account_list_events_for_duty_teams(','func read_account_get_event_rosters(');
+  assert.match(duties,/await freshVisibleEventIds\(caller, candidates.map/);
+  assert.doesNotMatch(duties,/canView\(caller, event\)/);
+});
