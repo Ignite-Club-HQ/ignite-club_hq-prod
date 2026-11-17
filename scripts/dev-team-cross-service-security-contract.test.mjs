@@ -46,3 +46,13 @@ test('protected event feeds do not trust stale local roles or include soft-delet
   assert.match(body,/await canViewListedEvent\(caller, event, freshRoles\)/);
  }
 });
+
+test('chat first-page composite query cannot bypass deleted-team authority',()=>{
+  const query=section(chat,'func open_conversation_query(','// Call only after the opening endpoint');
+  assert.match(query,/read_competition_team_access\(team, caller\)/);
+  assert.match(query,/proof.club_id != \?c.club_id or not proof.is_member/);
+  assert.match(query,/clubDomainCanister != \?cd/);
+  const proof=section(club,'func read_competition_team_access(','func is_user_on_any_team(');
+  assert.match(proof,/trustedCompetition\(caller\) or \(switch \(messagingDomainCanister\)/);
+  assert.match(proof,/switch \(liveTeamClub\(team_id\)\)/);
+});
