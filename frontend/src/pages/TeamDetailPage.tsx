@@ -895,7 +895,7 @@ export default function TeamDetailPage() {
         return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds,
           devSharedClubNames ? { kind: 'club', resource: team.club_id } : { kind: 'team', resource: id! },
           undefined, devSharedClubNames ? { partialNames: true } : {},
-        ), 40_000, 'member names');
+        ), 60_000, 'member names');
       },
     }, { clubId: team?.club_id ?? '' }),
     staleTime: devIcpAdultNames ? 0 : 60_000,

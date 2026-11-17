@@ -354,12 +354,12 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
   }
 }
 
-async function boundedAuthorityCheck<T>(read: () => Promise<T>, timeoutLabel = 'Private profile authority check timed out.'): Promise<T> {
+async function boundedAuthorityCheck<T>(read: () => Promise<T>, timeoutLabel = 'Private profile authority check timed out.', timeoutMs = READ_TIMEOUT_MS): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       read(),
-      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(timeoutLabel)), READ_TIMEOUT_MS); }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(timeoutLabel)), timeoutMs); }),
     ]);
   } finally { clearTimeout(timer); }
 }
@@ -410,8 +410,11 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
   // carries a diagnostic instead of a silent placeholder.
   const partial = Boolean(options.audience && options.partialNames);
   const failures = new Map<string, unknown>();
-  const devTeam = options.audience?.kind === 'team' &&
-    ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
+  // Cross-group routes (pinned DEV team, or the club-key release) do several
+  // consensus checks across groups; 6s is too short for a cold route.
+  const devTeam = (options.audience?.kind === 'team' &&
+    ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai')
+    || (options.audience?.kind === 'club' && clubNameDisplaysActive(ctx.target));
   const batchSize = options.audience ? 25 : BATCH_SIZE;
   const jobs = [...byAuthority].flatMap(([authority, ids]) => {
     const subjects = [...ids];
@@ -429,7 +432,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
         const resolve = options.resolveAuthority;
         pendingLease = (async () => {
           const lease = resolve ? await boundedAuthorityCheck(() => resolve(authority),
-            devTeam ? 'Private team-name route opening timed out.' : undefined) : { context: ctx, confirm: async () => {} };
+            devTeam ? 'Private team-name route opening timed out.' : undefined, devTeam ? 20_000 : undefined) : { context: ctx, confirm: async () => {} };
           active();
           if (lease.context.identity !== identity || lease.context.target.host !== ctx.target.host || lease.context.target.networkKind !== ctx.target.networkKind || lease.context.target.canisterIds.pii_access_control !== authority) throw new Error("Invalid original private profile route.");
           const routeTarget = JSON.stringify(lease.context.target);
@@ -465,7 +468,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
         const lease = await pendingLease;
         active(); routeGuards.get(authority)?.();
         await boundedAuthorityCheck(lease.confirm,
-          devTeam ? 'Private team-name route closing timed out.' : undefined);
+          devTeam ? 'Private team-name route closing timed out.' : undefined, devTeam ? 20_000 : undefined);
         active(); routeGuards.get(authority)?.();
       } catch (error) {
         if (partial) failures.set(authority, error);
