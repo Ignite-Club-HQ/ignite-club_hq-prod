@@ -19,6 +19,7 @@ const resolveSignedUrlMock = vi.hoisted(() => vi.fn());
 vi.mock("@capacitor/core", () => ({
   Capacitor: {
     isNativePlatform: () => capacitorMock.isNativePlatform(),
+    getPlatform: () => "android",
   },
 }));
 vi.mock("@capacitor/filesystem", () => ({
@@ -139,15 +140,15 @@ describe("safeOpenFile — successful signing", () => {
     expect(fileOpenerMock.open).toHaveBeenCalledTimes(1);
   });
 
-  it("retries generically when the viewer rejects the content type", async () => {
+  it("PDF viewer failure uses only the authorized browser fallback, never sharing", async () => {
     resolveSignedUrlMock.mockResolvedValue(SIGNED);
     fileOpenerMock.open.mockRejectedValueOnce(new Error("bad content type"));
 
     await safeOpenFile(RAW_PRIVATE);
 
-    expect(fileOpenerMock.open).toHaveBeenCalledTimes(2);
-    expect(fileOpenerMock.open.mock.calls[1][0].contentType).toBe("application/octet-stream");
-    expect(safeOpenUrlMock).not.toHaveBeenCalled();
+    expect(fileOpenerMock.open).toHaveBeenCalledTimes(1);
+    expect(safeOpenUrlMock).toHaveBeenCalledWith(SIGNED);
+    expect(shareMock.share).not.toHaveBeenCalled();
   });
 
   it("only falls back to the browser with the signed URL when viewer AND share both fail", async () => {
@@ -157,23 +158,21 @@ describe("safeOpenFile — successful signing", () => {
 
     await safeOpenFile(RAW_PRIVATE);
 
-    expect(shareMock.share).toHaveBeenCalledTimes(1);
+    expect(shareMock.share).not.toHaveBeenCalled();
     expect(safeOpenUrlMock).toHaveBeenCalledTimes(1);
     expect(safeOpenUrlMock).toHaveBeenCalledWith(SIGNED);
     expect(safeOpenUrlMock).not.toHaveBeenCalledWith(RAW_PRIVATE);
   });
 
-  it("offers the share sheet (real file name) instead of the browser when no viewer accepts the file", async () => {
+  it("a successful share plugin never becomes the implicit Open fallback", async () => {
     resolveSignedUrlMock.mockResolvedValue(SIGNED);
     fileOpenerMock.open.mockRejectedValue(new Error("no viewer"));
     shareMock.share.mockResolvedValue({ activityType: "x" });
 
     await safeOpenFile(RAW_PRIVATE, { fileName: "Club policy.pdf" });
 
-    expect(shareMock.share).toHaveBeenCalledTimes(1);
-    expect(shareMock.share.mock.calls[0][0].title).toBe("Club_policy.pdf");
-    expect(shareMock.share.mock.calls[0][0].files[0]).toBe("file:///cache/x");
-    expect(safeOpenUrlMock).not.toHaveBeenCalled();
+    expect(shareMock.share).not.toHaveBeenCalled();
+    expect(safeOpenUrlMock).toHaveBeenCalledWith(SIGNED);
   });
 
   it("treats a dismissed share sheet as handled (no browser tab)", async () => {
@@ -183,7 +182,7 @@ describe("safeOpenFile — successful signing", () => {
 
     await safeOpenFile(RAW_PRIVATE);
 
-    expect(safeOpenUrlMock).not.toHaveBeenCalled();
+    expect(safeOpenUrlMock).toHaveBeenCalledWith(SIGNED);
   });
 
   it("passes a bare extension file_type through the MIME guesser", async () => {
@@ -260,11 +259,11 @@ describe("safeOpenFile — download resilience (native)", () => {
     filesystemMock.downloadFile.mockRejectedValue(new Error("nope"));
     fetchMock.mockResolvedValue({ ok: false, status: 403 } as unknown as Response);
 
-    await safeOpenFile(RAW_PRIVATE);
+    await expect(safeOpenFile(RAW_PRIVATE)).rejects.toThrow("refused");
 
     expect(fileOpenerMock.open).not.toHaveBeenCalled();
     expect(shareMock.share).not.toHaveBeenCalled();
-    expect(safeOpenUrlMock).toHaveBeenCalledWith(SIGNED);
+    expect(safeOpenUrlMock).not.toHaveBeenCalled();
   });
 
 });
@@ -275,18 +274,20 @@ describe("safeOpenFile — external / public non-storage URLs", () => {
     filesystemMock.downloadFile.mockRejectedValueOnce(new Error("download failed"));
     fetchMock.mockRejectedValue(new Error("network"));
 
-    await safeOpenFile(externalUrl);
+    await expect(safeOpenFile(externalUrl)).rejects.toThrow("saved for viewing");
 
     expect(resolveSignedUrlMock).toHaveBeenCalledWith(externalUrl);
-    expect(safeOpenUrlMock).toHaveBeenCalledWith(externalUrl);
+    expect(safeOpenUrlMock).not.toHaveBeenCalled();
   });
 
   it("does not call the signer for external URLs on web", async () => {
     capacitorMock.isNativePlatform.mockReturnValue(false);
+    const tab = { opener: null, location: { href: "" }, close: vi.fn() };
+    vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
     const externalUrl = "https://reference.invalid";
     await safeOpenFile(externalUrl);
     expect(resolveSignedUrlMock).toHaveBeenCalledWith(externalUrl);
-    expect(safeOpenUrlMock).toHaveBeenCalledWith(externalUrl);
+    expect(tab.location.href).toBe(externalUrl);
   });
 });
 
@@ -309,7 +310,7 @@ describe("safeOpenFile — encrypted spreadsheets", () => {
 
   it("does not expose ciphertext if spreadsheet decryption fails", async () => {
     resolveSignedUrlMock.mockRejectedValue(new Error("unlock failed"));
-    await expect(safeOpenFile(stored)).rejects.toThrow("authorized");
+    await expect(safeOpenFile(stored)).rejects.toThrow("access");
     expect(fetchMock).not.toHaveBeenCalled();
     expect(filesystemMock.downloadFile).not.toHaveBeenCalled();
     expect(safeOpenUrlMock).not.toHaveBeenCalled();
