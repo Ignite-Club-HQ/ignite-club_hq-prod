@@ -104,7 +104,6 @@ import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
 import { createNameUnlockTracker } from "@/lib/nameUnlockProgress";
 import { loadSavedRosterNames, saveRosterNames } from "@/lib/savedRosterNames";
 import { clubNameDisplaysActive } from "@/live/devCrossGroupTeamNameRoute";
-import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { Principal } from "@icp-sdk/core/principal";
 import * as fixtureData from "@/lab/fixtureDataLayer";
@@ -889,7 +888,7 @@ export default function TeamDetailPage() {
     devSharedClubNames,
   ), [rawMembersData, user?.id, (myProfile as any)?.id, myProfile?.display_name, devSharedClubNames]);
   const { data: adultNames = [], isLoading: isAdultNamesLoading, isFetching: isAdultNamesFetching,
-    isError: isAdultNamesError, error: adultNamesError, refetch: refetchAdultNames } = useQuery({
+    isError: isAdultNamesError, refetch: refetchAdultNames } = useQuery({
     queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id,
       devSharedClubNames ? 'shared-club-vetkey' : 'legacy-team-individual', adultNameIds],
     enabled: isIcpAccount && !!id && !!team?.club_id && adultNameIds.length > 0,
@@ -2126,9 +2125,8 @@ export default function TeamDetailPage() {
             isMembersLoading, isMembersFetching, isChildrenLoading, isChildrenFetching, isMembersError, membersError, isChildrenError, childrenError, refetchMembers, refetchChildren,
             // Only the pinned disposable DEV Identity can expose diagnostic categories;
             // never publish raw errors or profile identifiers to the UI.
-            isAdultNamesError, adultNamesError,
+            isAdultNamesError,
             isAdultNamesFetching: adultNamesPending, hasUnresolvedAdultNames, refetchAdultNames,
-            devEncryptedAdultNameMode: privateClubNameDisplaysEnabled() || devSharedClubNames ? 'ON' : 'OFF',
             adultNameIssues, nameUnlockProgress,
             showIcpRosterFailureCode: devIcpAdultNames,
     isChildNamesLoading: childNamesPending, hasUnresolvedChildNames, refetchChildNames,
