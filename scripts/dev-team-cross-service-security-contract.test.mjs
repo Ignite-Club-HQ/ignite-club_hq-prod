@@ -43,7 +43,8 @@ test('protected event feeds do not trust stale local roles or include soft-delet
   const body=section(events,start,end);
   assert.match(body,/await freshMemberRolesForList\(caller, event.club_id\)/);
   assert.doesNotMatch(body,/if \(canView\(caller, event\)\) null else/);
-  assert.match(body,/await canViewListedEvent\(caller, event, freshRoles\)/);
+  assert.match(body,/await canViewListedEvent\(caller, event, freshRoles, \?teamVerified\)/);
+  assert.match(body,/teamStatus\.find\(/,'Team live proof must be cached per request');
  }
 });
 
@@ -100,4 +101,14 @@ test('secondary event reads reject stale team roles and unauthorized membership 
   assert.match(stats,/await freshMemberRolesForList\(caller, club_id\)/);
   assert.match(stats,/await freshEventTeamLive\(e\)/);
   assert.doesNotMatch(stats,/managesTeam\(caller, club_id/);
+});
+
+test('protected batch event and roster readers reuse canonical live team status',()=>{
+  const guard=section(events,'func canViewListedEvent(','func freshOqlVisibleEvents(');
+  assert.match(guard,/case \(\?verified\) verified/);
+  assert.match(guard,/await freshEventTeamLive\(event\)/);
+  const batched=section(events,'func freshVisibleEventIds(','func freshManageEvent(');
+  assert.match(batched,/var teamStatus : \[\(Text, Text, Bool\)\]/);
+  assert.match(batched,/await freshEventTeamLive\(event\)/);
+  assert.match(batched,/canViewListedEvent\(subject, event, roles, \?teamVerified\)/);
 });
