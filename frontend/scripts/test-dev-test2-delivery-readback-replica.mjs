@@ -217,6 +217,35 @@ try {
   c.setPrincipal(test2);
   assert.equal(option(await c.read_account_my_dev_test2_event_delivery(eventId))[0].status, 'pending');
 
+  // Cross-service deleted-team regression (disposable, in-memory replica):
+  // the same real-looking parent principal retains membership in a different
+  // active team, but loses deleted U10 event access and related role grants.
+  c.setPrincipal(governor);
+  ok(await c.add_role_grant(test2, clubId, 'parent', [otherTeamId]));
+  events.actor.setPrincipal(test2);
+  assert.ok((await events.actor.read_account_list_events([clubId], [teamId]))
+    .some(e => e.id === eventId), 'live-team parent must see the event before deletion');
+  ok(await events.actor.read_account_get_event_roster(eventId));
+  c.setPrincipal(governor);
+  ok(await c.soft_delete_team(teamId));
+  const survivingRoles = await c.read_account_list_user_club_roles(test2, clubId);
+  assert.deepEqual(survivingRoles, [['parent', [otherTeamId]]],
+    'delete revokes only the old team; independent memberships survive');
+  events.actor.setPrincipal(test2);
+  assert.deepEqual(await events.actor.read_account_list_events([clubId], [teamId]), [],
+    'parent with a surviving sibling team cannot read deleted team events');
+  denied(await events.actor.read_account_get_event_roster(eventId));
+  c.setPrincipal(governor);
+  ok(await c.restore_team(teamId));
+  events.actor.setPrincipal(test2);
+  assert.deepEqual(await events.actor.read_account_list_events([clubId], [teamId]), [],
+    'restoration does not resurrect the old Parent role');
+  c.setPrincipal(governor);
+  ok(await c.add_role_grant(test2, clubId, 'parent', [teamId]));
+  events.actor.setPrincipal(test2);
+  assert.ok((await events.actor.read_account_list_events([clubId], [teamId]))
+    .some(e => e.id === eventId), 'new explicit role grants work on a restored team');
+
   // The test never registers devices, marks delivery, or calls a live endpoint.
   console.log('PASS: disposable G2 IDs, signed Test2 Parent success/null, caller/event/queue/role/fence denials, canonical receipt-key matching, bounded response. Zero real pushes and zero deployment.');
 } finally {
