@@ -1,0 +1,3625 @@
+{
+  "sourceSha256": "9594e89a287749117865d0d3b4dc17099a440e48ca68795b6b32e453f42a4c5a",
+  "outputSha256": "f4050cdc2cd4decf041161ffc27a12213a5d820d4b87e401388dbcb2309fb762",
+  "sourceExpandedBytes": 31710345,
+  "outputExpandedBytes": 31302369,
+  "sourceArchiveBytes": 20401561,
+  "outputArchiveBytes": 19850226,
+  "fileCount": 722,
+  "programCount": 19,
+  "decodedProgramsUnchanged": true,
+  "pluginsAndSetupUnchanged": true,
+  "engineInstallationVerified": false,
+  "files": [
+    {
+      "path": "canisters/club_domain.wasm",
+      "bytes": 1286845,
+      "sha256": "62c69b5ddc67a3157fafae3e2ebb8a720c3d66003d8f48097323873a0991252a"
+    },
+    {
+      "path": "canisters/club_points_domain.wasm",
+      "bytes": 258936,
+      "sha256": "808e2d039ccc4b771b66aa4ed529d501a096c2567c7fa816d6aeb297afee57d3"
+    },
+    {
+      "path": "canisters/competition_domain.wasm",
+      "bytes": 667425,
+      "sha256": "70bbc593e2e35b142a9f0fec75611f7f7306579485628db4cc646e9d0d785375"
+    },
+    {
+      "path": "canisters/events_domain.wasm",
+      "bytes": 890469,
+      "sha256": "3ebf981c36347cf476f63ce7c710af35dc67fc652f7ad0fae406cb68f4bdf5eb"
+    },
+    {
+      "path": "canisters/frontend.wasm",
+      "bytes": 336425,
+      "sha256": "5de5f1e90fcfa9dc26b8b06bec02e75680ab6798de836cfbe081d2465cdd35c9"
+    },
+    {
+      "path": "canisters/identity_access.wasm",
+      "bytes": 934152,
+      "sha256": "e6b12cb63590845b178d3a3f301209b73ed72d66ef41c784074a4ddd7c094684"
+    },
+    {
+      "path": "canisters/insights_domain.wasm",
+      "bytes": 311150,
+      "sha256": "6a2298ea4b65c2e718e5c3211fd4dbf52b9bb5f9f13520d86472d30591184843"
+    },
+    {
+      "path": "canisters/media_blob_store.wasm",
+      "bytes": 332749,
+      "sha256": "b4c71dc9d4e65d8c9d18230884109baa156e6a445382b67971e963d32033d2bb"
+    },
+    {
+      "path": "canisters/media_metadata.wasm",
+      "bytes": 253633,
+      "sha256": "ed0576b4e27cf3baedfd715e39c3553edc220c938e4fff919a4cbe6f80f09041"
+    },
+    {
+      "path": "canisters/messaging_domain.wasm",
+      "bytes": 824686,
+      "sha256": "79c1e901247fd88fb6e6e6f1d672780beee249c212204e321445ed305b2713fb"
+    },
+    {
+      "path": "canisters/migration_coordinator.wasm",
+      "bytes": 113030,
+      "sha256": "d6dfb37a2c28e3d453f19586e5cde34d53484a97251f55cba2167b18f4c1d5f4"
+    },
+    {
+      "path": "canisters/mini_league_domain.wasm",
+      "bytes": 424350,
+      "sha256": "da27610f66882bfc369b3c105eaba8e873473cef65bcab217d2c3d68a80aeea2"
+    },
+    {
+      "path": "canisters/notification_queue.wasm",
+      "bytes": 392437,
+      "sha256": "b259aa2ba7cf0a849fbab91ad6e2143afabb357422153a18a999db32ec725e86"
+    },
+    {
+      "path": "canisters/pii_access_control.wasm",
+      "bytes": 329477,
+      "sha256": "55d91231f066540c00be57de9a051ec37836504f00a62135c2f2df743956d65e"
+    },
+    {
+      "path": "canisters/placement_registry.wasm",
+      "bytes": 337640,
+      "sha256": "6156d62d3b03bfba125abe1f2e72de88e12f0d7f279892a4244a950b3add18ad"
+    },
+    {
+      "path": "canisters/secret_workload_identity.wasm",
+      "bytes": 130429,
+      "sha256": "4e1d82cd200a36e404f7e4cc0dee7de0ad2be926ae5ae57919b0e5ebf69fa49d"
+    },
+    {
+      "path": "canisters/shard_router.wasm",
+      "bytes": 455047,
+      "sha256": "18607caa9ad1f0a3e50c3f236538d54da72341d652cba0b46ec1fe7e23ed1e42"
+    },
+    {
+      "path": "canisters/timer_jobs.wasm",
+      "bytes": 321902,
+      "sha256": "b8f8fc89b873775efae8e764f5032998aa0a401237e7fe324e138db664b43b5b"
+    },
+    {
+      "path": "canisters/vault_domain.wasm",
+      "bytes": 379445,
+      "sha256": "ee81879190e69216dc16624b772e40f806c663a577d73e25dd5736a46dbdc89c"
+    },
+    {
+      "path": "icp.yaml",
+      "bytes": 17816,
+      "sha256": "739758df89d2c46b55b317c42ccf9071911e5e8717ca53fbec3e3246b25c041b"
+    },
+    {
+      "path": "plugins/frontend/0.wasm",
+      "bytes": 2676713,
+      "sha256": "194a5653632a7298375978875e3d3cf89dbb50f983e1016a730bf6e663fcc6b1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/.well-known/assetlinks.json",
+      "bytes": 397,
+      "sha256": "5253d225a259d3fbd1036184437e0bc95e62a89ad93393385e686916fa847dcd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/_headers",
+      "bytes": 1346,
+      "sha256": "a4a6434701a54785b746d18bfff69ee524f8b1b8ec4a29acb916c97eddae3e46"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/_redirects",
+      "bytes": 58,
+      "sha256": "c1a525dce5c32d0f3fb81848e80b9f1b20339daef2992f77cf598e49e13fb6e7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/ads/upgrade-pro-v3.png",
+      "bytes": 44358,
+      "sha256": "8aadb087a170ab5dff43658e0d3890dc6adb1e56f4fde413ca60561fbd550fab"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/ads/upgrade-pro.png",
+      "bytes": 26425,
+      "sha256": "12ecaa6c18a8b79d36bed9c0adcb073e0c5534273dfc3f6635e849f3d2864120"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/asset-not-found.txt",
+      "bytes": 10,
+      "sha256": "493fda53120050f85836032324409be6c6484f90a0755ae0c6a673ba7626818b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AccessibilitySettingsPage-Cl1SQWWF.js",
+      "bytes": 4117,
+      "sha256": "2b3fc7a067489ad4f861bb129b1f44510049192af6cabbad3b20863a65c7c01d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AccountPage-C3iYiFKF.js",
+      "bytes": 9768,
+      "sha256": "293d888feba131c0cf173eca069bc08a524fbbc11d7b8a6be0c8673208320894"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AccountRecoveryBanner-HEbbDPWY.js",
+      "bytes": 2023,
+      "sha256": "1e3d256e5b95a4cf011871cc3b55fb14abed2831aa69ebabc6b6aab2abdede6b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdMobSettingsPage-enEAcJBu.js",
+      "bytes": 4830,
+      "sha256": "d7abe39110c7155696d8cef77ef9af6e73d833008f4c3275b3bda8bb4ba6128c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AddClubAdminSheet-CPii2ayS.js",
+      "bytes": 15685,
+      "sha256": "31c03eaf042357ea26d31b0be4987ecb233683f49ba6cde6aa8fdc3452f98faa"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AddFillInPlayerDialog-DAVzPhMM.js",
+      "bytes": 3112,
+      "sha256": "78293292bbf4ffac7ba448f08c75ed692dd6a3a92d2b91db440fcf4456c3e0a1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AddGroupMembersDialog-Bbp5h6Qz.js",
+      "bytes": 8667,
+      "sha256": "ae1cdf073839598eb6bef39b64d5417e4ca2d6acbfb70478aaf6df5a75526235"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AddLinkDialog-BTyWJoj8.js",
+      "bytes": 6663,
+      "sha256": "352fb22fa2c51e09d809cf6d525c3f7c15933d8078457d427885976590f4a38a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AddMiniLeagueMemberSheet-Cklz5hDG.js",
+      "bytes": 24690,
+      "sha256": "c199301e0f7c8d14b20fcc03685130f41095af5e7d781057f2e5f5b42ef72794"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AddPlayerToParentSheet-BJ-g7Kk3.js",
+      "bytes": 10573,
+      "sha256": "fcb57dcacf4895615563c2d651e0b587e713d2810a44188ffbff5a182dfd7425"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AddSecondParentDialog-DCiOJz2w.js",
+      "bytes": 11250,
+      "sha256": "d56d7f56f6e0581f8de69b3f8b20e0ad15b996ea7d951992f5d80fa57cb0e1b3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AddTeamMemberSheet-DQNcaOvI.js",
+      "bytes": 107255,
+      "sha256": "6910dd0e13cb5fbe5ccb1d7191ffb36b3fd0bb04767ef92e7924749e84db8263"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AddressAutocomplete-_2ANVwhL.js",
+      "bytes": 13677,
+      "sha256": "70c90b796f6c4ebb81d9c54e19c3b860c1270fc241014ef35add37f535727d81"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminAICatchUpPage-BL4W1L6B.js",
+      "bytes": 14668,
+      "sha256": "7b5846fd688b49a2abd943d95f11974ea63191689eb7d9fb526c8b53f002d839"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminActiveGamesPage-CuIqaCR_.js",
+      "bytes": 9693,
+      "sha256": "88577ba0ae3f080cd843158d480003c93c17a2d5c0b78d0a72e011a0e14cb574"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminChatPhotoRemindersPage-Ds38-bUW.js",
+      "bytes": 8589,
+      "sha256": "beef25f871bf4be3f8d7c98fb2d604b4afd2c4846e06cd9588fa197a16959f0a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminChatVirtDebugPage-CcQJme3A.js",
+      "bytes": 16122,
+      "sha256": "22bd1dfad5f649269ffd6932af31a473fa7e5f35962b6ae8d9bae341a3d85d32"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminClubMigrationPage-BsRryrmE.js",
+      "bytes": 3707,
+      "sha256": "d36e631dbb267127f4e604fb86acd9205dcefa9b7ea47c27573278b8d3c93afe"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminDeletedChatsPage-KjGUAhyQ.js",
+      "bytes": 7973,
+      "sha256": "93363efe0aea4093fe8ae142898ebe72fc4e4b8943c7bc4cf2103a3923366a1d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminDmAttachmentsPage-DI4e9-_i.js",
+      "bytes": 10934,
+      "sha256": "c1fa0cb064c2f1977b69969440be493cadb979bb7ba6e7367c7d7beb831bca0b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminEngagementPage-DRYGupY3.js",
+      "bytes": 1371,
+      "sha256": "8de9c1b90bff22d427c849dfe4deec3dec5d8774cd35e83cec52d2e8a7d75b44"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminGroupInfrastructurePage-CIbujt2g.js",
+      "bytes": 24350,
+      "sha256": "d6af6da43e478ea8bb997e9dd82642c219992fffa955fd1feb497ad79c0f4186"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminIcpDataPage-T9WOHDyu.js",
+      "bytes": 5344,
+      "sha256": "0e0ad03a2afedee39d0492e3f1fa88adb92803e6ee81b58448cefbb0c8a0c72c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminIcpHealthPage-Du6soNMi.js",
+      "bytes": 150,
+      "sha256": "a447996bbd3b5a07e34414a836e2dfbae7f86cf16a7e235f5c48d74ada1d7431"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminIcpLlmTestPage-DxK_43KT.js",
+      "bytes": 7785,
+      "sha256": "5f2101c3a2701b894f0e08e3d1fb317d3eec3b8a700130503a98a2c8a74113e5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminPage-CdHGWw_Q.js",
+      "bytes": 10316,
+      "sha256": "c59d37c42d01b89885154a61c33e00260d84f30275e44e5980730687fbcf853a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AdminTempPasswordPage-Bkj5ZjqL.js",
+      "bytes": 5315,
+      "sha256": "5fd3c4baff2f2fc6a1858be1260cc58fca52ec58866f780aa36e8d6a88607c8c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AppSettingsPage-B92UWNhA.js",
+      "bytes": 31178,
+      "sha256": "452b237b37ff89aa8666b0296dde49186df4ab593c92ea8be27d8551f5a2cc37"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AppStripeSettingsPage-DaGJ2kwY.js",
+      "bytes": 7634,
+      "sha256": "4a5c372a6237b1ae58a68a275e44155da39d633051d9617880d1ebd4edaf51aa"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AssignDutySheet-DieeUhud.js",
+      "bytes": 8383,
+      "sha256": "a663c7deed7d17762a01aaa204ed932226051720d1ba458403c3ce6021db4acf"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AssociationDetailPage-DGIZwywf.js",
+      "bytes": 27602,
+      "sha256": "89a5eb7e33e664b0f429a93518bfcd121611c8ffb06a185a9ee412a6fdb1fb0b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AssociationsPage-sThEyNeo.js",
+      "bytes": 3151,
+      "sha256": "d7d6410b8b379336f92e451082cca53beee67eb3e4d20686d8022e847e0171b3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AttendanceStatsPage-2cAJP7rB.js",
+      "bytes": 17611,
+      "sha256": "7aa04efe1e48d23d819693b83eedf32e081a9ee922f5dd7287a66d6fbba03681"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AuthPage-BbKPWJ7s.js",
+      "bytes": 33302,
+      "sha256": "bdb2d09b32c1ca0448ce8f92098a2e2c964d9cdc536c7289633d18dd77f64f72"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AutoSubControlPanel-DZaN7UVD.js",
+      "bytes": 8348,
+      "sha256": "097ec7c275d116e6238cf689a6b7ee6cbdd9452956a8ad98b3c53ec44c076ac0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AutoSubManager-CUmzOLv0.js",
+      "bytes": 7631,
+      "sha256": "2b5b2753033c389d5aeb9d1f13bd27daaae3a3c799ae60a9031859a049424d1d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/AutoSubPlanDialog-D6kjQhSh.js",
+      "bytes": 79079,
+      "sha256": "5f9a5552355a1d9c94aa21607427b8f64bec60e31ac3ea1464a14958bc446245"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/BarChart-631IfVNf.js",
+      "bytes": 7263,
+      "sha256": "a72aebedf80e0a1fa5b42d08ec0e0e6e29d2239747f4b0a304b0b3beb00f7b52"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/BenchToSubDialog-BzzeSZ6-.js",
+      "bytes": 3176,
+      "sha256": "6642a1fbbb86435dc45f6db901bfd4309d21765bc7c3d89568224129ce2b4a9a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/BoardPickerSheet-Dk0ikpHY.js",
+      "bytes": 4021,
+      "sha256": "1194ad0ff55a28f60514bc7bd26205f884012e6e29091d2cda156dac07909dae"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/BroadcastChatPage-BSOQijEG.js",
+      "bytes": 35522,
+      "sha256": "eddb0561d9cd7393c21ec54491c18ab7668c3aff923ffa40994e427c9d804d2a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CancellationPolicyPage-CnVE0exo.js",
+      "bytes": 218,
+      "sha256": "07a2625eef286c027d2e0d26d4597a630a8edc77a74c490229064f76124c3e1e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ChangePasswordDialog-h3iJaK83.js",
+      "bytes": 4252,
+      "sha256": "fce8205423a6e308136cd0d5904426f2ba683c022493e573a9a2d5407a9d7d4a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ChatCatchUp-CQqEDgXb.js",
+      "bytes": 24982,
+      "sha256": "7b4ed1882857b3388ba7ad24c769cd450bd68457c26014bebe16f9b1b7e957f4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ChatThreadSponsorStrip-WQ8B5_Ua.js",
+      "bytes": 3982,
+      "sha256": "c5a14bb9bd106d0290e7908ef56d35e029a787c1cb0073e5197be1b2d415f75a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ChatUnreachable-BQHbKnlV.js",
+      "bytes": 1003,
+      "sha256": "77447df5c4e5ece9c035d5229c126c1bb048f9dea8b1bde6c514fe17ef62d586"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ChildrenPage-CLEJ2KPP.js",
+      "bytes": 16329,
+      "sha256": "51ecdfc06beeee84d7732630d8b1e446d9b0e729081973c321c6096589e6138b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClaimAccountPage-B2cKYhfl.js",
+      "bytes": 3686,
+      "sha256": "fbc16b1e5c7ea246b5db7bcd920765837edf1cdef1784ed2b8c2d9692925076b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClaimTeamPage-PggEDltt.js",
+      "bytes": 2890,
+      "sha256": "8d0ab145976360f8d3bb5915aea6503b4472c9d1b42fd93db792450a133d4ec4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClassEnrolmentPage-4BBn7Msk.js",
+      "bytes": 20879,
+      "sha256": "fa933edc1b67f46d5b1fd91d22bc32dd5f326a7f4ec8007da3174fac43674dd2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubAdminChatPage-Caeg9cQY.js",
+      "bytes": 39952,
+      "sha256": "7d3b10736360640c956e12d9eb2b59fb6c4a51899a399d6f69b9111e3147dff3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubChatPage-BKgXjl4_.js",
+      "bytes": 49065,
+      "sha256": "299225fe31df6130656995dd0ae8963d1014519e024cdc87c332669175ac18a3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubDetailPage-Cc6OPzAU.js",
+      "bytes": 165097,
+      "sha256": "195f0f8fc39bb19cb83e00cf405deef882d0f0f5b5a679f785d1119a4def3d19"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubEngagementAnalyticsPage-DR0WMZPM.js",
+      "bytes": 58562,
+      "sha256": "dcd2a102baae19bf4eb6824f7d33e69fb1c2e88b3fc63b2b8f5bee000f99493b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubLinkEmbedPage-CGpJzV7E.js",
+      "bytes": 1232,
+      "sha256": "f96d210031ab8ca1d294ef731ae310f1654a8c20d68633e9794d93a5cd9ea1b0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubNewsComposer-BC4Lp_FS.js",
+      "bytes": 14452,
+      "sha256": "417676553774710843234031290a922e9eb541d5e40080272c96e943e20d4f30"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubNewsPage-BFy6adPN.js",
+      "bytes": 4233,
+      "sha256": "29667cef45e6b4a822ea2e2cb9fd163a1f1110bcd96a60af26c05293ed82de0f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubNewsPostPage-CBk4qoKU.js",
+      "bytes": 6446,
+      "sha256": "c71273772ef8fa4fb8f5aa1771cb9c062523a0633413dea3f385feea14ee55b6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubRewardsManager-ut4jMEQW.js",
+      "bytes": 31317,
+      "sha256": "1315cc63b77bf23332869da1f51cec10f7126e3ab91466ebbbccb639cf722c0e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubRewardsPage-DxYtSeEP.js",
+      "bytes": 4142,
+      "sha256": "20cdc459b2539156e2450e2899718c2992cbf2bb4ae76c9f9863152e4214be9a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubRewardsReportPage-D8OdBqTH.js",
+      "bytes": 17196,
+      "sha256": "64c8691a173e960caa7fc406ae6503be1c9c9202c9313a44450aa41e42d89238"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubSetupWizardPage-CbM2Sm-k.js",
+      "bytes": 39052,
+      "sha256": "2960eb97658516fedc026b07923202de92dd30f418f3498f5013915dd0e085a5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubTeamFilter-B7ajLsKU.js",
+      "bytes": 7452,
+      "sha256": "6616b78c92937f591bc56b985b5f1bafbf4e8598e3cf3de69a1c558d69ade6a7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubUpgradePage-55ZcUHK5.js",
+      "bytes": 30729,
+      "sha256": "2164cab6efadb6ab0cb207fbea5cf378f69fda7c2928618c71e6a88f1fed54bb"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ClubsPage-Bbi-M2Gq.js",
+      "bytes": 14763,
+      "sha256": "b7d45d1a960712f6e268d38cec68220b3cb8ef9172ca101a4b02d8578e4fbf61"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CompetitionAdminChatPage-_1sdRsQ6.js",
+      "bytes": 4660,
+      "sha256": "976b996b919a4bf73dfeb37eee479611ff43b910b1b6803e4c99e34fa46cd4ff"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CompetitionDetailPage-BfaomuJh.js",
+      "bytes": 88167,
+      "sha256": "ec20f375838e074221b38160ca3791906429837b1c78bef1defd63bd7a07be33"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CompetitionFixturesPanel-CW13LaN9.js",
+      "bytes": 106801,
+      "sha256": "034321f15a7749bb6c4b26aa4d48ceba7dbddda05420561efbfaf0ff71680497"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CompetitionJoinPage-CCYVO_A3.js",
+      "bytes": 10654,
+      "sha256": "574af8b36b65a85f04ef06e4ec7304efd7ddae33e1660e99fc48d7ac48378b06"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CompetitionOfficialJoinPage-BgRwPwIu.js",
+      "bytes": 6738,
+      "sha256": "78f5d02813a3b6431e5322beb67f85d689199fd6b6904dcf73afd98f1224c479"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CompetitionSettingsPage-Cakzr1BD.js",
+      "bytes": 75196,
+      "sha256": "7357359cb1a7cb75f944b4c83f16e02a5090d5fe55dcd76f0a6f50619837c767"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CompetitionsPage-CDGBAnd3.js",
+      "bytes": 7499,
+      "sha256": "72994468064e35a9678c5c9484a00d2efad5fe94e75fb0a29a18577c3dd978e9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CompleteProfilePage-CMRiPNJb.js",
+      "bytes": 29193,
+      "sha256": "7afee74728186d125dc260ed49932b4f23eaacc68b9a7c312e47792266f987d6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ContactCompetitionAdminsButton-Cso0Q8p-.js",
+      "bytes": 7734,
+      "sha256": "10b91c03c766998cd21d8d2ed21bdefabe4b16ded00bf67e9b846ca29d819f0c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ConversationAvatar-CPO5V78C.js",
+      "bytes": 69340,
+      "sha256": "4b147768162ee27e2d9760d1d5f0d953b46d8f4c54b138c4b2055ad9952e6212"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CreateActionButton-DZ7RJREn.js",
+      "bytes": 507,
+      "sha256": "84af5c7171bed0b884d13e047a838456ef4925ed6ea96604346a107a4052653a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CreateAssociationPage-CBBNZftH.js",
+      "bytes": 6071,
+      "sha256": "45d0fd5c9a0bf4bd9d290e600fc452f73cb95d779ee3c29f7aee7ef44da4ba48"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CreateClubPage-BHMRyyjN.js",
+      "bytes": 14081,
+      "sha256": "23105f3f6c760b32f2d0a1f24cf0e7e045362c333f0825f2bc2f44831cc6bf16"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CreateCompetitionPage-BxHMftPI.js",
+      "bytes": 8871,
+      "sha256": "5d1c358cbd502c57ef95677df1bfa09a4b4880aa3992d9c872f0134f5f9b6cca"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CreateEventPage-NPcGgc1K.js",
+      "bytes": 38487,
+      "sha256": "55d0cf73d6298e0c0d86c8fdb577e991e5a927adf85857c1e33c5f812251a2d4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CreateGroupDialog-BYsDQyTQ.js",
+      "bytes": 23700,
+      "sha256": "9bb10faea30f945c8ffe52e8389b3a2f3a2e736efe80b380c7b8905703029561"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CreatePollDialog-DOpONWxi.js",
+      "bytes": 11239,
+      "sha256": "de70ae0f7a6207289c99cd5ff8fe15f367baf1482ff7679058a29a5543e309c7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CreateTeamPage-CHmWYROV.js",
+      "bytes": 28380,
+      "sha256": "3ec18d1f753c95102c50d80b984ae7b743e12c1088066766b7c26ac698ff2cdc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/CsvImportPresentation-OYn_Jb3a.js",
+      "bytes": 4736,
+      "sha256": "0ff9c1ed3a48497ab7ae280937a6b64c023741ab5fba2b77364a612027a195e0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/DeepLinkGate-DluKcTPn.js",
+      "bytes": 2057,
+      "sha256": "c08d146aa036406021984586043efc126a66b1325752025952fcdd03a1b7dcb3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/DemoLoginSection-DbBPYh-A.js",
+      "bytes": 4058,
+      "sha256": "cac4a021be82c2ecb68c63784521daa45560655021e11021267b1acf7dcb3ecf"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/DirectMessagePage-COs_Sm00.js",
+      "bytes": 41447,
+      "sha256": "fbedb6ff882efc4df130268760da2c3fd34bb58fa080729eff2608ebe2ed56b7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/DutyTeamPicker-CE6KOjun.js",
+      "bytes": 6112,
+      "sha256": "878676ee508fb16fd244add9599e9844ff0a7515c62402821dc099ae6bc60e30"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EditClubPage-DT4rxZZx.js",
+      "bytes": 11998,
+      "sha256": "13325e2d457a2f6c0be6512be04cf764dda5bcbce4268261cd33a33e376d0f08"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EditEventPage-Berq2kAC.js",
+      "bytes": 50471,
+      "sha256": "44f90567b511670e655a7a78db7851455bc2a6379b01b50464ad4a583951e9b6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EditProfilePage-CyRrdkXx.js",
+      "bytes": 12709,
+      "sha256": "c01634719d4a0f1c5351e6b6b38de8f7df7b4eee1090fc3ed14d79b787dac638"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EditTeamPage-Cq4oKGpT.js",
+      "bytes": 22027,
+      "sha256": "9df0cd2dba3a14322fb31cd6cd92f4a4699a7b8a30094e725a1999f112f08afb"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EditingBanner-BUasXOFU.js",
+      "bytes": 25355,
+      "sha256": "1927a033d08b71e7c5ae1bd059e561f475709035b257dfaea0cffc21945b151c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EmbeddedEoiFormPage-xwLu12nD.js",
+      "bytes": 1479,
+      "sha256": "163bd4a87f6a643510c3a247f0a3d2651d81ebea80e9f98d7c3d1d78611fd9de"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EoiAdminPage-B3SK84XU.js",
+      "bytes": 18421,
+      "sha256": "79b003c5c35cf0ebc1e05372dd51e489dd3a2c2ef78c05b19d0c008931689f82"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EoiCompletePage-CTQSnkh-.js",
+      "bytes": 8743,
+      "sha256": "6bf6fa8e8e6b450edf56a352bd32e7f2150891047c1986892ed60f81165230ba"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EventDetailPage-CvVtT4P9.js",
+      "bytes": 274672,
+      "sha256": "6b9f07ea1164c9f948f1fbbdcb70df1a5b4a926b56921777337ac815bd624ee2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EventFormShared-BlTLKepb.js",
+      "bytes": 23230,
+      "sha256": "95a4c77f6b31e484955f59f28d02f6ab8cc9a4000c9d232de5d1ded9c307ff6e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EventGroupPitchPage-2FcJ5sjX.js",
+      "bytes": 19574,
+      "sha256": "e4f146cb969dbbd724f8a565a8047c4e6e879de7009316157b935f99196e78fe"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EventPickerSheet-BfTaR9jZ.js",
+      "bytes": 7786,
+      "sha256": "19ff2aa5e4f95b769a861437c087f3c39aab5d0c07a0c74f5f980dd773262f48"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/EventsPage-fnZEcIrL.js",
+      "bytes": 82067,
+      "sha256": "2d770e277a94f8ad7832f476545f06f21c09b8d7f49280c8af7df370d4c073ef"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/FeedbackDialog-BJ1uKefz.js",
+      "bytes": 3163,
+      "sha256": "f32fbc7d8f7fa5d4113701efcdb2c4e5e76d178e70ebe4fd4bd16999a6f599d2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/FindOrCreateClubWizard-BXgHFii5.js",
+      "bytes": 12887,
+      "sha256": "4de60d35632f162b87fa1b0a95c75bc6d2f0db0627a598f78b43fa333991338a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ForgotPasswordDialog-BvWFitOl.js",
+      "bytes": 6593,
+      "sha256": "16b236bcc57e2923ac99dbf306e27d1beacf3e92466b9f181cec1b26e3e090e8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/FormationChangeDialog-DEX0dq4n.js",
+      "bytes": 4310,
+      "sha256": "8d3c791800adfe0df436ba64549811d8d4581b0be837e36678a8d42cd0c9e4e8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/GameFinishedDialog-7WNn3Jpp.js",
+      "bytes": 17896,
+      "sha256": "9da5c1e989d32d152870b87f64efaff0b6bd2db4a77fe2088f5ab027ea44e4ac"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/GameSummaryDialog-DOXwOrEr.js",
+      "bytes": 7649,
+      "sha256": "90717c06a18386fbbb67c7dbe1da84889764cbbe234e5fdf4f5f1d7aa2846f29"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/GameTimerWidget-Dqfm_x8E.js",
+      "bytes": 23036,
+      "sha256": "c4a1490c0264b1fce044d217d9dc98d58ec3440927352463034089242c228f1a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/GlobalChatRecapSheet-rITJLMnS.js",
+      "bytes": 16648,
+      "sha256": "9b14d67ef1eb484851be36ba1da91d7aaf52fcf122d5f171b64909454b768aea"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/GlobalSubMonitor-DcMH1nYN.js",
+      "bytes": 29176,
+      "sha256": "7a2f5766cb1902e4e0c125871a84ef0b0636e46adedc5d62b377ed72c5048ac3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/GlobalSubMonitorGate-Bz6QCoCx.js",
+      "bytes": 2168,
+      "sha256": "6fe32d7ac12df0e0e2dee160f84d30f7e03e5c60f4495475c0a63116bf9387a7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/GoogleDriveImportDialog-6AsUHzgf.js",
+      "bytes": 19347,
+      "sha256": "dc47614054c4ad0de462fb5bbc5c02262b0a92220b9fb467e0083a7d8dc3b2d7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/GroupChatPage-CB8boC05.js",
+      "bytes": 101336,
+      "sha256": "e8f72447c9f147f00c18177168d2a6be1702e12d423261d51e909093f2b4e9bd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/HighlightedText-CoLCaI3k.js",
+      "bytes": 543,
+      "sha256": "a819a0eeb25d415a505acb975def3599a35814189fd1170508cc92ff55f20d9e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/HomeInviteFlow-CStuMcsq.js",
+      "bytes": 14859,
+      "sha256": "702fef3d9b1a059c759afb878f445379407d6400522ddfe298dd7d18b1da549e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/HomePage-jnWCIR-w.js",
+      "bytes": 154543,
+      "sha256": "c18e31e7dd7128079c1816557021a6e71e7aa3f24f8a644895f5ab906bd971f4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/IcpChildrenPage-CxkbWBCH.js",
+      "bytes": 25698,
+      "sha256": "dbfee9e8b9922513dfc49cee6558adbd5280ff576c7d02d8a936eca3a76885b1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/IcpGapFeedback-483os1PC.js",
+      "bytes": 672,
+      "sha256": "c0503afa312cca0e509c65ee60455bd22b39f2e395ca9b669d42fde28e3e379f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ImportFixturesPage-BuVv2tF-.js",
+      "bytes": 56409,
+      "sha256": "afc4286c4bfda0cdbc15b0ece53197efb62f335c4108bab90de59162c263ee2e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/InviteOtherParentSheet-DKTGk3AD.js",
+      "bytes": 13528,
+      "sha256": "79934b1fd60fc46b0da3e7a95742c272d438f271f13a3e5a6eae0b3f4aebe7a4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/JoinClubPage-Djk6EJAP.js",
+      "bytes": 7813,
+      "sha256": "4ef2a752911ba34baa47da611475a1dc39bd2337b5cabf576fcccf189a9dd2a4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/JoinTeamPage-pECUziI6.js",
+      "bytes": 56338,
+      "sha256": "273cb3f0143bef72b160efcd323c4c50e6bed2cb25a6c2e19482eb1a97cae437"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/LeaderboardPage-DTFQw_pC.js",
+      "bytes": 8430,
+      "sha256": "1e9098cbee856f78c67b57128e382196dc6175acc31ee5753ecd2d95d856afcf"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/LegalPageEmbed-CE6UFTZV.js",
+      "bytes": 1191,
+      "sha256": "f04e731de246067d526e7804ef09b23d8be0be2fbb0c9b856aa2e0a9f1ef9592"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/LegalReacceptanceGate-Couv5gBn.js",
+      "bytes": 2813,
+      "sha256": "35139a6905bd9b19b5fef4151c84babadcdddc2f7340a9cfc0c3bb7adc5ce829"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/LevelAgeCombobox-BC9DVU5_.js",
+      "bytes": 19608,
+      "sha256": "8ae5ce86757b92ea16f2eb1e696586ba667efd9cb7dd551bd9f0f8789a4c8f49"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/LineChart-ClEf-buj.js",
+      "bytes": 11171,
+      "sha256": "dc02671db62ba3b792c6d743a7859d4a0a0079f36277b2e89cae62f96f4d6898"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/LinkDriveFolderDialog-dXoPtmzO.js",
+      "bytes": 21069,
+      "sha256": "c552a02617af4d0bcaef7be80ce6f5f7621bd63a684ee1da90f4b7fa1ea811a5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManageAdsPage-CgpWunh6.js",
+      "bytes": 24138,
+      "sha256": "14f47e9067b02185fc14a2f25718f980a3d7d60d7584f3c65f3f19bcf98ba792"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManageBackupsPage-D2Gew-v2.js",
+      "bytes": 24298,
+      "sha256": "4faf48c9735cae7662786f25b0b5ddf7ccec0a6ec578e295bd642a1dfd2d4c5c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManageFeedbackPage-CmJNYKSY.js",
+      "bytes": 7733,
+      "sha256": "ad6355f3456e3f616b14ee5e8066e1a0463db677aee9f6ba932a5a8cb4551dc5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManageGuardiansDialog-D26Ix9cj.js",
+      "bytes": 8054,
+      "sha256": "1c4725eb26ba88299a0bb1111a9a0732d9fe7e9467d60f4542c4b7b7f06493e8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManageMiniLeagueAdminsSheet-CBTsri1f.js",
+      "bytes": 20669,
+      "sha256": "0d186d8563fdc4426c61a4842a00935584d0fc7a3c3b4360d8ba0725768b05e4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManagePlayersDialog-DDnnrQ1b.js",
+      "bytes": 23351,
+      "sha256": "07de04b32136990bb6ce53b9d5431720af08fb26ba13fb34bf481740c34ac5ea"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManagePromoCodesPage-WYyVD935.js",
+      "bytes": 14516,
+      "sha256": "70cbbc23711796070466286f1bb136dc5b52d7291eee688d94633e12fab690cc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManageRolesDialog-q3kYqaU_.js",
+      "bytes": 7407,
+      "sha256": "34dd40824736d8f56fd4b8cf21396cc8cd7aa110515ecd22af364ccbeccb2417"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManageRolesPage-B9Sdetn6.js",
+      "bytes": 12225,
+      "sha256": "eda209ed3f7698814278cb9cca1134e0f3aea9090d5668a12a0992bedc6e62c9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManageTeamRolesPage-DSyuHt2g.js",
+      "bytes": 7017,
+      "sha256": "525a0e01ffd8ff3f54ca2567176bd33fefc84c2d995e4dcb8e077bc6090a549d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManageUsersPage-DBlj6MJ1.js",
+      "bytes": 77258,
+      "sha256": "fcaf346b2509ca9b1e6968c2c50423e400cb0a818d4b864f4f3e2c85e166747b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ManualSubConfirmDialog-CsUfcLdk.js",
+      "bytes": 3315,
+      "sha256": "c47074ca9973eb5b7af4a8c213fa4f3f04f84abd73c10667691d188044c08692"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MatchDutiesDialog-1BoEAWth.js",
+      "bytes": 9334,
+      "sha256": "55e6514232ad23d47d0ca5e9eaea40357b6c9f6d1b527a7194e5c02609209f0e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MatchStatsPanel-stLBwmDK.js",
+      "bytes": 6049,
+      "sha256": "51913aa6fe1d1ecfd19c43faf01861b1560d4c22aded905b84a502cb0e18e908"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MediaPage-BCHdTC3s.js",
+      "bytes": 133753,
+      "sha256": "9b5f5c8b6f5315a3a86f52b34db8a299583cd0fd90b46ffe4799e4805b8e5afe"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MemberCSVImportDialog-r5m4kPBY.js",
+      "bytes": 8530,
+      "sha256": "c9de67c36b5956b13b17c593da75cc474d664d44e43eff24a3a34867c1b214c0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MemberDetailSheet-DGPurcdt.js",
+      "bytes": 7748,
+      "sha256": "46669b6f23bda5495a445be12d8e0c08d8d009788386801832f63220a1eee432"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MessageReactions-ZGED5c3H.js",
+      "bytes": 40246,
+      "sha256": "0739696b0dbb686b2f05694d27411de528b4a4af1aea1d8163d636f101f49b46"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MessagesPage-BNJFmMLZ.js",
+      "bytes": 133337,
+      "sha256": "351b60ec5314a987955a22d84ef63eb4f4ea280d6c975b5ba1dead327920571a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MiniLeagueDetailPage-5mT7JXFI.js",
+      "bytes": 33018,
+      "sha256": "11ed460751872a1f2ea9ca29e3b685073744e3ada4015968b9b06c8825cb804d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MiniLeagueMemberCSVImportDialog-Cztmeuzz.js",
+      "bytes": 7575,
+      "sha256": "c05d5f04d52341ea6ca455825bd91e61b20e4cebce56acf4863bd4e21e16c0bc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MiniLeagueSettingsDialog-DYyp2XB2.js",
+      "bytes": 16945,
+      "sha256": "3bab7e98e1a4f410554fea1ae4d1e00088dcc379d60b288af6fdc1a9e0a41128"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MiniLeaguesPage-DZUU5mMn.js",
+      "bytes": 11070,
+      "sha256": "d3d9238d64be54dd1ad446a90633ce94423ba7545a5441b608297bc99ee33692"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MobileCardSelect-B6nBp_Bj.js",
+      "bytes": 3721,
+      "sha256": "a53d9ebddfefec831d89aa0a482eb3ea7069a6b36ef7cadb02ee8ed767e875b5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MoveFileDialog-DimCGOEH.js",
+      "bytes": 6634,
+      "sha256": "411eaf01cbb1c2fabf39c0c5cd1d2da94552769a8153568eda05ffc7a21326fa"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MyRolesPage-B7DkBAeC.js",
+      "bytes": 6208,
+      "sha256": "c17f4237429d5b86db50c7fffd885ed96d34f8929e56bbb1121156b5151b7345"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/MyTeamsPremiumCarousel-DO8stf53.js",
+      "bytes": 31802,
+      "sha256": "23655f649b3d66ce8f2e52bd0884fec4f6bf768086c7360e12e3d0165dc35d5b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/NativeAppDownloadBanner-De9afyeH.js",
+      "bytes": 1616,
+      "sha256": "730a075c0c53c662b3d4c24a2f4f4b1d1f7200d285158c45eda42e2ad91f7c1c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/NativePushCard-CcFNVdy_.js",
+      "bytes": 10777,
+      "sha256": "2fef8df2ed3455fda3b193860478c8b9ef512dce5ddd804929e3cbb33b311120"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/NewMessageSheet-4e0KXAPn.js",
+      "bytes": 3732,
+      "sha256": "738dc589855834f03fbe46b382e577834f55fd405880d33b00751fd45a2e0f9b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/NewsPickerSheet-DrwboKGS.js",
+      "bytes": 3119,
+      "sha256": "311e200977446a075ce12d31a1e6e11e9463c7d490bcd4013263951eb5904263"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/NotFound-BbyonyXU.js",
+      "bytes": 635,
+      "sha256": "e5ba9e7f037af0067053b964ccbb403cbffdb2aa122eeb451d46bd8a57bb993d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/NotificationNudgeBanner-BofaF2Lm.js",
+      "bytes": 1960,
+      "sha256": "0e36d68adf928514d13ffbfdc18d8acffb7f67c84af984557ba413adc4cb60ce"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/NotificationPreferencesPage-CwfY2V2Q.js",
+      "bytes": 10635,
+      "sha256": "acaf2a3e8cbe393a3a97bba181dbc06fe6f493aedc5988ba943b35f3f20a8df2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/NotificationsPage-AbWNnVws.js",
+      "bytes": 29066,
+      "sha256": "25a2d66244ca48bc18630cda7984b8e5425f5a36886c5929963687d207fa6b3e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/OnlineUsersPage-CZ8B2QX8.js",
+      "bytes": 9824,
+      "sha256": "963ee10fc3690124048f7233450b9c9ba9d59bea48081e594320ba40a8d6e5ae"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ParentInviteFields-DYYLICq_.js",
+      "bytes": 2727,
+      "sha256": "a588392e8c99b5ddd0e62cd40f54b31b8d81788ca6b6b8e109ca13c8b9a316ad"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PasskeyManagementDialog-Bkkgr7j-.js",
+      "bytes": 7573,
+      "sha256": "f5d80bc2a0c805f5b4496164da23ce84cd54dcd6cecb12b290c3c0bc286f2eb6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PayFeesPage-BwohwrVR.js",
+      "bytes": 9488,
+      "sha256": "272b3ae9741afecb5c8ca61ab465ad54a7ef006ff3d9f8e6c30402defd363792"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PendingInviteCard-DussdxjZ.js",
+      "bytes": 21013,
+      "sha256": "ab400d3976f4305d95ce1fba8170ca2ec6940e7d7329ac47be0280d31f2ede0b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PendingInviteWelcomeDialog-DAykHw2y.js",
+      "bytes": 12542,
+      "sha256": "2beafe451007d7e81e848db69520bd3f8129478306773a774121cd1a59403d33"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PendingInvitesList-DpOTmUjH.js",
+      "bytes": 6465,
+      "sha256": "fe8b233ccbb044fd77a10df3a2a545fdccf2c407188355568a49bf848731e2ba"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PhotoLightbox-BeFgvERM.js",
+      "bytes": 15971,
+      "sha256": "d64f4a289fa6de0164b8e5fc5272c7183c87b317ac10c283b617672b6d3069df"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PieChart-DXnSd0Md.js",
+      "bytes": 26042,
+      "sha256": "fe4ce1213ca70855d6d46d5e5b82ca5ee0be681fd0c812ee2fd12136d234c936"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PinVaultSheet-B6YP8ZKQ.js",
+      "bytes": 13226,
+      "sha256": "cd2bfe95c41cf350109feabe3a8e20c8336bd1d84197061a0260141de466405d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PitchBoard-L9u4Jztk.js",
+      "bytes": 160015,
+      "sha256": "a815801c5721a3d7170b5f84f4ff188fa6d716baa26f430f420e8bc0b5954792"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PitchBoardLandscapeLayout-C-tRFpN3.js",
+      "bytes": 45310,
+      "sha256": "6dd768f599391fcc154fd5479c43e12eee3f7fe3ee11b6a7df15f828a15db247"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PitchBoardPortraitLayout-DsskBQ4q.js",
+      "bytes": 39782,
+      "sha256": "ad559be7d3a57a6b06079fc2e02ee15462fd2a06230c99a82fff225e92246ac3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PitchBoardPositionDialogs-B4ryzjyT.js",
+      "bytes": 68447,
+      "sha256": "cae48da22df118c6538f58dff17a58a37387de7eb068a93d47d64b6b40893627"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PitchPlayerActionMenu-BA-Hyxt_.js",
+      "bytes": 3235,
+      "sha256": "7669b8a2c16fe63bf08731515a63104ed6c23215c7bfa7c5f329c990a5804df5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PitchSwapConfirmDialog-BwPG_NAP.js",
+      "bytes": 5139,
+      "sha256": "93cce3799feb995044fcce8be5f38f6fe1bc57faea9ea968572322246f000ded"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PlacementAdminSettingsPage-CF19fVIs.js",
+      "bytes": 55809,
+      "sha256": "eaf768eb6b8d78b359a301536f7384da1c402e0b3f4a5b63a374f9827b64808a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PlayerPositionEditor-khZigZZ5.js",
+      "bytes": 3051,
+      "sha256": "15dc07e6ccc4afe3b7c3c55bf2a79a671fadf0085d09a5586ba6c24883cdbd66"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PlayerStatsReportPage-DQSbhBX-.js",
+      "bytes": 48572,
+      "sha256": "57679324cd090e1424137ef8c28529b1f666d21d133c2e55f7bfb9493e1ce11b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PollAttachmentPreview-Cv4B19_0.js",
+      "bytes": 1876,
+      "sha256": "a10a8190f0bd70b78403f337592f466f6ad195ed78a249179d585487facdc420"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PositionBadge-JjeH9IRk.js",
+      "bytes": 943,
+      "sha256": "02949939c650139a4935befd48f7f739e12bf9350a8ab03d7b49b40da38a00cd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PositionSwapDialog-BLr8Bq9B.js",
+      "bytes": 3014,
+      "sha256": "f66914f6495786bb55077843e6015ce0fd42ea29cda2b3e9158b1bd22222c459"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PreGameLineupScreen-CklBUNun.js",
+      "bytes": 21860,
+      "sha256": "2b21db2aca805b2bff1d899bc7ceda3e15bd7ca0d0cde454a14d955951e19d91"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PrimarySponsorDisplay-D4fstWwl.js",
+      "bytes": 3305,
+      "sha256": "86fd69b3899e34f3b2abf2751791040809c2284a46f8516b2c465b1919fed4a8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PrivacyPolicyPage-BRwuB2Qj.js",
+      "bytes": 199,
+      "sha256": "a77c75c9e1e79c101b13059f0edbc2d330ae53aafe162b29da25f13a8fa77bc8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ProFeatureLock-Dw9NznPs.js",
+      "bytes": 812,
+      "sha256": "a819c5a246209e9a31adb1ac30dd0b07a492d17db406e01a3023ca4fb769215c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ProfilePage-BPoOEPgt.js",
+      "bytes": 60926,
+      "sha256": "5c4b4948e1669652e39182e2db00e9518bed639e97258a64a8cadeeab8429202"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PublicCompetitionPage-BxSCL6o3.js",
+      "bytes": 14682,
+      "sha256": "fac52acedb404761a035b3c40085e5d85a05a5e22215aef70c350754ed156985"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PublicEoiFormPage-DKgSWsGW.js",
+      "bytes": 12750,
+      "sha256": "66494075b7217085ee2ed7a4515b91adc9bda98989b63985fa5d721891b4d9d9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PublishChatPhotosPage-CTgXawx2.js",
+      "bytes": 8220,
+      "sha256": "176a4013ce97198f65f2fd7162596c6f908a6fd88456ed7ac564bf24371cba64"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PushAnalyticsPage-BHZqWtWe.js",
+      "bytes": 27437,
+      "sha256": "767033bf22b0c007b7760707f4387a422dc10f6b5d06fec4f4590cb0cc306412"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/PushDiagnosticsCard-lHjIdrfZ.js",
+      "bytes": 8066,
+      "sha256": "35f1625867dbf5dc62ea97d85adfaf7872a816f63bf2a4eb364bfd333b3eee14"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/QueryErrorBanner-DWgpPNF_.js",
+      "bytes": 2481,
+      "sha256": "661a8b91ea43c9493722a6157768ad1cd02c071241bc1c5c36c269baa764c35c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/QuickRSVPDialog-Co-YZnzb.js",
+      "bytes": 10193,
+      "sha256": "e326e12118393774a323597965f43c3b8053499cb3d58f48a73e969b4628ba7e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/RealtimeHealthPage-DzGQyx-g.js",
+      "bytes": 10176,
+      "sha256": "a2c82583f9c7d1224d85201d0498695978464069bc64c98f0cf472f6d0b7a53a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ResetPasswordPage-DBb9DN-Z.js",
+      "bytes": 15544,
+      "sha256": "015490b69f9ef2f14cecbf41abde2ca639a29dd7d7ed08a96766b39399d40d9e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/RewardClaimQRDialog-XG1ot5jy.js",
+      "bytes": 3561,
+      "sha256": "d8e8a835db2fc793a5cedab9955bde91ca4e6806f1f64a63202bf23b59bd4f9c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/RoleSelectionList-Kb1mIVXW.js",
+      "bytes": 1072,
+      "sha256": "dbc20d4a1b2601894fd9a463b774c3361ca46f83f34a16ae6281be3ef7d77dc1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/RsvpNoteSheet-DS5ffat5.js",
+      "bytes": 1352,
+      "sha256": "b49f1864a0b79e624431500def59badca613bf0b9abb689c50d0d9dba9c1e28d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ScheduleMessageDialog-TK_UMm40.js",
+      "bytes": 15769,
+      "sha256": "265720a91d85685ed4347da9290ccf21390d15f360db793e0f69067b42a274c8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ScheduledMessagesPage-Ctbqjd05.js",
+      "bytes": 17378,
+      "sha256": "39c23da785899d2a3a7899a3d38c442836b4964236fcbf71c50c2b57077b3bde"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ScoreHistoryReviewPage-DD7NUJ37.js",
+      "bytes": 8605,
+      "sha256": "a271a87640eb0342e04479cbce2d3d6778cf6a8eca59bc8e142cd01839528c9e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SeasonComparePage-Br3B2u9N.js",
+      "bytes": 6656,
+      "sha256": "3f16951387a63aa22c9b251bddbb52de619c1009bdcb4ab7c183a4ea8ae30edd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SeasonDetailPage-BgR8lwng.js",
+      "bytes": 43707,
+      "sha256": "5862f4142b2baafc584415a2b47fd29cf0ee8b7bb1563f77f6090d227379eed7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SeasonsPage-CwWN5SN3.js",
+      "bytes": 12727,
+      "sha256": "fe67ace546bbc2b9e1fd151c7f31ee44557b74dabc7bb282fdd15a4ffcb1ca92"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SecureImage--ImXwb9x.js",
+      "bytes": 553,
+      "sha256": "195d67094d7140aef79c43c936707687f28c3a298176a53f4e360509ff3ef245"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SendUpdateReminderPage-Cp-hBdQu.js",
+      "bytes": 22572,
+      "sha256": "a0db06d4ed7413e5819955786d87fd02a475928e28d84ae828b3034ccf83df3b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SettingsPage-D8M-z_WH.js",
+      "bytes": 29527,
+      "sha256": "3540b478e0ad09d5f428334f9bd16755465b8221b68aa4e46fcdc4871ee50349"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ShortInviteRedirect-CcNo9MDl.js",
+      "bytes": 2142,
+      "sha256": "a89f03c1d0d2e8086f2b77a23b14716576ca313903322af76bc91e8e62eaf460"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SignupProPage-CeYcyPK5.js",
+      "bytes": 19454,
+      "sha256": "f2e413385753ca88bbb946be21139e61b75e1a7b023e47b0cfd59944bcf198a4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SoccerBall-Bt4wH1oh.js",
+      "bytes": 788,
+      "sha256": "68270a7e137abe85d259cbcfeb23e0d99071073bf1c139acd658c95da8e124f4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SponsorAnalyticsPage-BVQ2zsxZ.js",
+      "bytes": 14476,
+      "sha256": "04d4cbf2de9f46c5e4b7631e76176e0b7d40abfdb68c0c89202c0e80f8b43b2d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SponsorOrAdCarousel-aPTrtrOw.js",
+      "bytes": 35191,
+      "sha256": "80b6abe9b69ed7c300d928d37092fc20ec72032839e1c1af7c7bf8e779819224"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SponsorSlotPresentation-2-mSYUcD.js",
+      "bytes": 2370,
+      "sha256": "352d79595c784d7a0746db634fcdf27c4e5e16a29f248e1e329cb2db4fae7cd9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SponsorsManager-tT4Kkl8N.js",
+      "bytes": 28501,
+      "sha256": "a6e91a24b9fc57a4639841e7e26fcaa28002279f10e1633d4d0e7f443ef3d594"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/StartDMDialog-B6yh2sGT.js",
+      "bytes": 24621,
+      "sha256": "1f207a17b42d2a7e6cb6ae1126e35b3de46212944461d3d2eefad0a8e7e282d3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/StartNewSeasonWizard-ddjlIpoG.js",
+      "bytes": 23769,
+      "sha256": "4ad080a9cb4dba62fe4586b296b2452a6fdcb778e3a25f6a87dbf7e4aaaabf5f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/StartPage-8FShPvDM.js",
+      "bytes": 2837,
+      "sha256": "1a338cf2f8c40639b0087f4ec9fbd52e32178ac480c32a71568624b1b7dfab01"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/StartTeamPage-D9eTkN6q.js",
+      "bytes": 5012,
+      "sha256": "4abbd92e9f85c0559064458606c72e83a8f1d59ee066cc0410b470136591f908"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/StoragePurchaseDialog-C9IOSmjS.js",
+      "bytes": 16320,
+      "sha256": "53e9841638f2ff56aa74fa14284a0a0d631fef2ab5caa82fbf88f57032cffa3e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/StripeSettingsPage-ErK6RwuE.js",
+      "bytes": 4422,
+      "sha256": "a8f87edc9499f599499dfccdfeeab6a3e7082e388e5cc969660e755b358d5385"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SubConfirmDialog-BZ-6Z-3w.js",
+      "bytes": 7416,
+      "sha256": "7e8d8c759dddc82f77f7def3bb6adf7acbe91b8a9ffba6fc74766a2da3cd933a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SubscriptionLegalLinks-DqppjadF.js",
+      "bytes": 2404,
+      "sha256": "41fddb6c8df1ff45f75af2a011a2cda64247d7f83ddd884c7ccf599abf2deee3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/SubstitutionPreviewDialog-BxZm9vNL.js",
+      "bytes": 4825,
+      "sha256": "626796bc7e0b823eff4c150c26578a81f77dfa829750c12547f14f317467f2ac"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/TeamChatPage-BSJ2DkWv.js",
+      "bytes": 59322,
+      "sha256": "030e2c127475b64026292fd7bec33c36261004771864e1e12ea9bae28fd4e034"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/TeamDetailPage-OlxT14o5.js",
+      "bytes": 175881,
+      "sha256": "96d8cf51a4ee7f4c4fe4bafb10aa83216e74318ead432a6f52cdfd87c43c4ac6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/TeamFoldersManager-B-W7PZH9.js",
+      "bytes": 916,
+      "sha256": "e144a684e3583c877459e366ab53725221854d41f0b8ad00518efd93829dded8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/TeamGameHistoryTab-DmGM7ghh.js",
+      "bytes": 6180,
+      "sha256": "eb6ea178e8945dc9963b9edda07d689872e5e61b632691f5dc10173299b34108"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/TeamJoinLinkCard-BMJNX5jr.js",
+      "bytes": 13043,
+      "sha256": "245edfa63b6049f191d3f3b789001cbbe35bca44e47996f3dee0879bac849b24"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/TermsOfServicePage-DDXVZ8Zt.js",
+      "bytes": 199,
+      "sha256": "80abb51f00992ab1a16fc7d4ad0ddb5069b21f3c74bd96968e2c011cc23622b0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/UpgradeProPage-Cz8zKY13.js",
+      "bytes": 22548,
+      "sha256": "6f4d6f4f6d2abdd4f0c417bf97390b1f7a3693e42eff0297044f7a9f00c2bb80"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/UploadFilesDialog-CeR7-NQn.js",
+      "bytes": 7179,
+      "sha256": "9055ac019f89a474a5dd63df1de0b83b273f157e7b9f59093dbd2896261a89a5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/UploadPhotoSheet-Cpw6FbU9.js",
+      "bytes": 33167,
+      "sha256": "d233d42ccbc83b65d9581ac5c7d3189ef501bf13a8d66bd61a91e5007271e5f8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/VaultPage-TS_00G-M.js",
+      "bytes": 158085,
+      "sha256": "d8f550ff1dee2003aa3912be296e5dfd3df5b3ae2fc4e87fbbaafdf5a0b1ae01"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/VaultStorageBreakdown-pTW3JWjY.js",
+      "bytes": 1606,
+      "sha256": "7b706375931f21d97ee2aa447f74271e8a4c421dc08f080c176fbe8a36ec7fab"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/VerifyResetCodePage-BYPSUezz.js",
+      "bytes": 4753,
+      "sha256": "c31d20acb7b8640fd340eb6e2c7f7f10d12c7a8e7488641b4186ae61818e1d80"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/VideoGuideDownloadPage-OaqxBaco.js",
+      "bytes": 426176,
+      "sha256": "729494e703a1ef2d8186bb333bc243cbda10f3c5514bd5a80e4eba7795ac3a9e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/WelcomeEmailSettingsCard-CcYR9OJw.js",
+      "bytes": 5117,
+      "sha256": "c4e5bc63bf1ae9a218d98d657b7a5fcf318d9f487a1563ceaee5717c0bb30c3b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/WelcomeMessagePage-CGEZJ_WJ.js",
+      "bytes": 3191,
+      "sha256": "cec685f42dc6b832bde2e8e1024ecfad1aa2a4d92e98e544cecb4d0ea114f9af"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/YAxis-BSh9VftV.js",
+      "bytes": 17746,
+      "sha256": "7307c1df13c48e210efc9c7a2314acf1731edf1f508c9492c8253d0b3cfc0854"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/_commonjs-dynamic-modules-TDtrdbi3.js",
+      "bytes": 239,
+      "sha256": "590ab8057bc032c3e14f9f1a76aaeffd01da609413fb12888819ca0433c1fae9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/acceptParentInvite-BjCgstMZ.js",
+      "bytes": 6619,
+      "sha256": "12c09efa941c5d8501fbc37e4fe7b2e269cd0b4d7c3866f7befe3b26859f1199"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/accountAuthorityRegistry-A32_YI2V.js",
+      "bytes": 3679,
+      "sha256": "e90067cff21315832995243e280138fb86e708ad278e4937484d4399063943ac"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/accountData-NDCng34K.js",
+      "bytes": 4478,
+      "sha256": "756ec24e1cd92926b11fe5965d8492de44777b09f1ef3d736a0bf515a4dea8ab"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/accountDeletionInventory-D0YVuz-S.js",
+      "bytes": 1994,
+      "sha256": "821bfa189fb396bc75bfc84bf76217aee8ebe57cc4b66c181f2aae6987ee1c21"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/accountDiscovery-Bx_Io8RC.js",
+      "bytes": 1482,
+      "sha256": "c7ede3570ab09150ec2f1a1b567837522b4c3fe4f10b185ea266b229a1a45ed2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/activeBoardPicker-B9btzM6u.js",
+      "bytes": 2426,
+      "sha256": "f51d1f2500d7e48fec0ee7cb8bd263398b3aee4c1692b224cf189194f2bde4e2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/activity-lqpXA-pA.js",
+      "bytes": 237,
+      "sha256": "eee223f25078a5194c74068f4421545d257db1d2e35923544f8074135e6b0601"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/adLinkNavigation-Dt_j2pEm.js",
+      "bytes": 1459,
+      "sha256": "15166ad96c664f0eeeb1afa35f7d5f02d236579f63b769e1a0c0516abd1794fd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/adTierHint-CVrUglls.js",
+      "bytes": 500,
+      "sha256": "c56a8b5818cc612dd93992fe6e1e980f027f78ecfdfc89ae299ea88a5872263f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/addDays-BW1hoaaL.js",
+      "bytes": 156,
+      "sha256": "ba8e66fca8f0f4cafa5d791dff39ead3ff30547e3c8515bbf388fb3a68064e42"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/addHours-5WvV646B.js",
+      "bytes": 156,
+      "sha256": "6805b867b54c1125aa30aa99df79e84ca1015bdab14cb3297d1e2d2c553927d8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/addMonths-CrbSzuhY.js",
+      "bytes": 296,
+      "sha256": "02d951673c02acc518ffb7ab9ea14fe829e5406a1b06fef423feecf0ce61d187"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/addYears-B1xmeo_m.js",
+      "bytes": 93,
+      "sha256": "12707068d421779bcc9082055f4ef4226a2b5a80d2f90f4a5f427be44b5b3907"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/adminPaging-DCm4CddY.js",
+      "bytes": 649,
+      "sha256": "410e3480f5bdace255ce644acf8258a492f2dc9826cb65d13e394df2aa697bd1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/adminQueueOperations-Bds-etCw.js",
+      "bytes": 4524,
+      "sha256": "10a62d0af8cf5049863447dfd49dc34d06d68829df6e3652d022ad4ba67c1912"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/adminUserDirectory-BO_LwkFE.js",
+      "bytes": 1007,
+      "sha256": "6d07f979db0a375a6814a80dca6242d509d14fb6703df5d95d4d95b3870d0ba9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/alert-BabWeym1.js",
+      "bytes": 914,
+      "sha256": "78d8ac74bea957a649eea2ed0a65fde37db136f074ab4f7c9cfdb84df26921ba"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/appSettingSource-BPrlootX.js",
+      "bytes": 232,
+      "sha256": "f08ba3135b460d798b5d0d71a929f744e88709143850b732d62998976778f6db"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/appSettings-zDrpO7t8.js",
+      "bytes": 985,
+      "sha256": "bf675e5df63a92bc75fe825fc4ee9451e73bbf86de0010efa18f36c0a7acb705"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/archive-dmWH4wn_.js",
+      "bytes": 256,
+      "sha256": "21fa4f9ee5ecef667c9f6bfb121a541f0fd70ce5aad1e7aa0aa02a249df4139c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/arrow-left-right-CNgHCnJE.js",
+      "bytes": 249,
+      "sha256": "06962f1b3b6d2e048f142cac05570595e3a80f24a001e07223ce42b35dc2e193"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/arrow-right-DxOJXJ37.js",
+      "bytes": 167,
+      "sha256": "36d59a5f6ff8901ec2096eec40823cf1aea9664b3fa7231856ae45f2bb0de666"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/arrow-right-left-BD7yCFYL.js",
+      "bytes": 249,
+      "sha256": "6de5b74c6b073918b7dd7ff50d684ef12738e1cd7588525e6236763f43e0e0ae"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/associationPlayhqRepository-BF6Q8XfR.js",
+      "bytes": 1250,
+      "sha256": "8877e0a7c0dccc41812188fcb5291a9b4cf5ca362d716c5604408870cabca805"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/authProviderFlags-C_fSrHjT.js",
+      "bytes": 66,
+      "sha256": "1c7ca49ae69f11b9ccb23e105b4b274d6e32ed87d944462b3b2f8263bc9f859e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/avatarUpload-CdpDZQlX.js",
+      "bytes": 2335,
+      "sha256": "2ac7badaa12fb5b6178d5c2115d75c14231f563519565acb19f8eca4ec4e4f8c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/award-CwzmovoM.js",
+      "bytes": 277,
+      "sha256": "fce4ce1d27feb40f08e6d1822961a69bae6fc2a91535870a10e1914cb5df2a01"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/baby-Rv5iaQUw.js",
+      "bytes": 393,
+      "sha256": "ebbfae99d600afa5a2f8e25d21ce302f7bafcb99050cac0e26931a64a02b5173"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/badge-0fmxInsM.js",
+      "bytes": 716,
+      "sha256": "286d689e047f8cffcabd62fe2c3cbfcfd11af7df27a615ff94e028ad649955b4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/batching-fGJFeOTg.js",
+      "bytes": 1188,
+      "sha256": "14b02e7b2de331cb373b2012a4968652eb0a64a4a3462f2ec0e6ed5e67b5cc8f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/bell-off-w-9scAc2.js",
+      "bytes": 322,
+      "sha256": "4bfccf86221d8d5e44c1c052e890f9d876dd38afac2e2c748f070e4d6a97b09a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/bell-ring-C6eBY4F7.js",
+      "bytes": 317,
+      "sha256": "4c9d4bf1bf1513ccd1649ab4c88930aabf0f29e967067cc800a81be0a83b1cf7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/binaryUtils-CXI6_JQA.js",
+      "bytes": 3533,
+      "sha256": "d4105ca52d18aaa054e077aa7aed5abf616e656be20841623159c63c7633e9c3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/blobStoreProtocol-DtYIjhn4.js",
+      "bytes": 481,
+      "sha256": "9c00688a292cc23680ef35e15f3e85a3eee135e6a1ab1394a3da3e8e60cead76"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/blobStoreUpload-jvnLlglo.js",
+      "bytes": 9615,
+      "sha256": "cfe911f6823ed8fa6665a768edb05579ff19dcd3c78c9c1e0e33ee014e5484b1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/broadcastNotificationMatch-BKiNQoqx.js",
+      "bytes": 192,
+      "sha256": "9a8b05ecc7c216a2f27c34f5c1abbcd4a533183aefe705702f9a39db21c41570"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/bug-DLAmDIC9.js",
+      "bytes": 669,
+      "sha256": "a485aa858315135dda6859e33842450a8e40717848c81fb53fd5aa8f33051779"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/calendar-XQfTJml9.js",
+      "bytes": 34094,
+      "sha256": "247de5b923e3fe440c5a8ecba4eafd347c8c6e0c93afd318cb50bc935252aa34"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/calendar-check-ChiHBQqw.js",
+      "bytes": 307,
+      "sha256": "dee7bf95d0ebe940143b8932ac4c98a55fce398b25d850bf5a4c1a71855b4d88"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/calendar-clock-BUjM0hWx.js",
+      "bytes": 385,
+      "sha256": "1a2bd896e0dc13b88f09b95038468e58582b032262b105a0b1990f8d44828d19"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/calendar-days-DbK5RbqP.js",
+      "bytes": 496,
+      "sha256": "c1619d846519fdaac1af9e662ece78c47f5a237edc7de8ff05010601e241bd4a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/calendar-plus-COthLlhQ.js",
+      "bytes": 358,
+      "sha256": "4c834c7336017cecd0541fc2f51370233274ac521ea51cd479ae846fd7ba5edb"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/camera-DvyO5EcQ.js",
+      "bytes": 251,
+      "sha256": "e47da01dc9abe2ada0a6b53b29d0b4a51b61aa04a92fb532a71b955e7ff5fcee"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chart-column-Tq3n4UhG.js",
+      "bytes": 253,
+      "sha256": "9efec998aff06b5b62a32ec516ca1c1464b5856116300960a8b05b5f18ba7c5f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chatDocumentUpload-B-rUvSdB.js",
+      "bytes": 7220,
+      "sha256": "6866812dd44d3b177ce0cd927ec493b8941f2c785f193dcf3f5f04449d9af65e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chatEagerInvalidate-BVlsiWCO.js",
+      "bytes": 37542,
+      "sha256": "c5df32ab09fac81c631e71e22e3221f2718123a7ea517ee7f87cf4197e3eae58"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chatOpenLatency-Ci7UYu7f.js",
+      "bytes": 16474,
+      "sha256": "6e05eea832f6afc8bf5b47243257b58c17712b8b6d0cbb2c8e07fede67bf5312"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chatPageLimits-DH7sv2tI.js",
+      "bytes": 22,
+      "sha256": "247d34536e2848ea9821d3f3636ad82726e308ea41acb3d2fdfaf843f62ad4d4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chatPerfDiagnostics-Bfr9S9Vv.js",
+      "bytes": 9145,
+      "sha256": "4a3c953260e114c51ba7857b2f46cf7821d81edf78cf28692f341d33d5e2879b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chatScope-ISdcHbJ-.js",
+      "bytes": 914,
+      "sha256": "ba3ea5c7877cc9eb33cec787377e75b8b6f17564f6b06a2a46ce9ed0047a92dd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chatStuckWatchdog-Baa1y1Xf.js",
+      "bytes": 515,
+      "sha256": "b17e48208aa2b6bb8c35666a034df8103c4997bac3c58fd85ba1ff26b5fa2db7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chatThreadCacheHydration-aw8HeYfU.js",
+      "bytes": 169,
+      "sha256": "f2440c406fbb91e8490febda10b2d4ffb246e78d59bcfa6571c9c16f8084f442"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chatVaultCardRead-BSVK5sz5.js",
+      "bytes": 2319,
+      "sha256": "7c134d1bcba40734013bacf28ef85a6286e02c859fea87daa3ebc730da326c55"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chatVaultSync-D9pO40eD.js",
+      "bytes": 8546,
+      "sha256": "0a189254e674ca525563c0809966d4d2410467343317f149fed46e9abb7b6084"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/checkbox-D_cr2iWf.js",
+      "bytes": 3957,
+      "sha256": "2965e5b9e1580067cb0d2da6f621c546fb0262af101c85fdc7666d7f99412085"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chevron-left-CEC461dm.js",
+      "bytes": 132,
+      "sha256": "1b556e1b902d1d8620923cf19ba33a19b9c1aa785e622db45922cbc01500e78f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/chevrons-up-down-CtV4F6iX.js",
+      "bytes": 175,
+      "sha256": "8204c964a5ab379850ac01e8646c2211515a6193c5093a69295d3704aeb10d26"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/childDedup-CvgR5aG8.js",
+      "bytes": 1283,
+      "sha256": "9c78197401bc9f412e3d7c8dce962f95c08a63b2253b642635f3c4ef0b773814"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/circle-check-WrBrGaq2.js",
+      "bytes": 180,
+      "sha256": "5b6594aeb334ade25e7a13eea08b8e5e5fddc9230f67ce0c5b5f330c0955f370"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/circle-help-DQapaY2S.js",
+      "bytes": 241,
+      "sha256": "bc445918e5f13ee04f09bfb3e5157edb4665beae9d4b11bf62cf6cf6b99a0148"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/clipboard-check-OXqWxcrM.js",
+      "bytes": 306,
+      "sha256": "0304d763aca2edfca21efbf344eedf37caf5a1ce6bdee83fe9db1ae2dc83c8ec"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/clock-BPfJIlrw.js",
+      "bytes": 186,
+      "sha256": "7f4bd3b457122da37c5e5c13c085da07ab9ff0bc9f8ba44894bf15eda8dcf4d1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/club-gvx1txDl.js",
+      "bytes": 38399,
+      "sha256": "97677d65bd25221cd51887b76584b1b8c0a7b899da724443812f2122d6876017"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/clubAccessCheck-DAcbOTSa.js",
+      "bytes": 3621,
+      "sha256": "5e9f96bdb22ecf5be6cc47adf29add60c64e164bf11416d6e353d519dca07fc4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/clubHomeCountry-Cfga8_Tr.js",
+      "bytes": 155,
+      "sha256": "1a3abdf2b6798dbfa39f0fec24dcb030b68dd3f8cf1e22ce91435cd6e4772724"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/clubLinksService-RqQz46Oy.js",
+      "bytes": 3658,
+      "sha256": "b7896eb29b430b64043e247ee517d0cf05b3d035fbe078c2fa5a7242768969bb"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/clubMediaAllowance-DL6MLO2I.js",
+      "bytes": 4071,
+      "sha256": "398d6237457e1af690e29e000a152e0257603361360dee9d32312db68639ff63"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/clubScopedNames-hqNL7RVf.js",
+      "bytes": 3243,
+      "sha256": "95a00583e15a10e27e3a21017136a07cc388226cad30fae13fc1def712fe7754"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/clubSetupLocalState-yU8Y7-vx.js",
+      "bytes": 182,
+      "sha256": "315a6faa8642f4aebc437d11c8b9a29d7e7b80c289fef4033f601639c9200a8e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/collapsible-Ca1njP8W.js",
+      "bytes": 2203,
+      "sha256": "1678da8cbfe2826c48e355e47aa14457ab2bae6b9791495b355806a0fe22127e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/competitionContactError-D3ClHDcN.js",
+      "bytes": 2370,
+      "sha256": "565e39175e2b1556fe2f44d475ed82f4c0fd1b63a5c2ea9da1446e7734ba1ab9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/competitions-C9wSHCNU.js",
+      "bytes": 21444,
+      "sha256": "e8d89d5858e18f2ebfe0e3331a482462e1a3a98cdb9d8c67bb04ec7f8546b545"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/contentRouting-CMKVlT6Q.js",
+      "bytes": 632,
+      "sha256": "75eb7ab9efa6383a22845923d6d0f5dcf9c77b50fe13a4c20543e0c3e42feea5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/core.esm-DI1N1woG.js",
+      "bytes": 42748,
+      "sha256": "d103b4cbe5e1e2587a8c5138b206128aa777e569234b656967e45bc92ff49e66"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/creationClubChoices-BjYkMmiX.js",
+      "bytes": 66,
+      "sha256": "e869ae42181c325f51f71c33f68a6d3bcfac4a7cee29843aa74b434c884c3b65"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/credit-card-a6jiFW-r.js",
+      "bytes": 209,
+      "sha256": "aa3404ce3487d3c930045f2f5da789eb24c12682aff410c50ad078e54665be1f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/crossGroupClubs-CwE187k8.js",
+      "bytes": 1630,
+      "sha256": "190355f1ea887fcd1d3bf80f3390f8fc3e02748850c9d93b8db039bf11fd0ef5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/crown-DNFAGg7T.png",
+      "bytes": 146843,
+      "sha256": "4427e511f418f743ba1aebb55bf05294fffb38b11e4ed43395c014ed5ff03847"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/csv-tE9qkZs3.js",
+      "bytes": 216,
+      "sha256": "187f9d02e977f284a97660eff62518c0a8ebc2809be4903bc4ca26e151366016"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/defaultClubChats-BnM_OJWb.js",
+      "bytes": 1956,
+      "sha256": "bf29461bec4b6817fc5d6fbfc7259eaf8d11682b54d6f7f3d04a4bf7c2cbb280"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/delegation-zhQcBSMP.js",
+      "bytes": 5318,
+      "sha256": "c40b34bddbf6d4fa132935c409178efdf82f899a4294368aa2699a83d13456c4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/devCrossGroupTeamNameRoute-Dvl4uouh.js",
+      "bytes": 2645,
+      "sha256": "09adef4d083df04977dd2ecfd1ae362e531efacde9d2cbab70bca798806e417b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/deviceMediaCache-DwtbMiOw.js",
+      "bytes": 4429,
+      "sha256": "b7161daf7c2203244c98f37de811f659c2a1b72c432b0cf6d192352b5794188f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/diamond-Do3Jc6_o.png",
+      "bytes": 88992,
+      "sha256": "dba153e186e23b82cbac355959973a1fef2b6fb49c2e0f989aad714ec06e47e5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/differenceInDays-1TguA6Vl.js",
+      "bytes": 504,
+      "sha256": "dbacf17142dc3e6cc2701f82c958930a9573651a87f61f15388da4822d293b9f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/disabledLabRuntime-DUL12fgi.js",
+      "bytes": 149,
+      "sha256": "f850514f4240437983bc956426e81e7584e49e3dac747a30290307c50f171249"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/dmBlockReason-9ZfMllgt.js",
+      "bytes": 967,
+      "sha256": "f22c96c051ccc1268e06b7948a1730e5568eefe951d600e6ebb50ad643eb37ac"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/dollar-sign-CCgULk7x.js",
+      "bytes": 221,
+      "sha256": "5d7c336951065e8c52f6a5661ca560f9a8770d95b7bcee96e6171fcd15241509"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/downloadImage-vQrK0Mx7.js",
+      "bytes": 21311,
+      "sha256": "98279a6827ab2d3c7628b2d53d0ce6017d2dd4d844140aeb81a889003a5e4c2b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/downloadStoredFile-BjvFXv26.js",
+      "bytes": 1549,
+      "sha256": "98f3d8765f5a772716e9619300be09bed856cc3fb8074ae59f20dfca45bc557d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/drawer-8Pu7lcvf.js",
+      "bytes": 29513,
+      "sha256": "2dc6c2c49e4b0402445bc1b09b199a15db4355c27d2ab0ecb39f983c3da94110"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/dumbbell-BAH-Osv4.js",
+      "bytes": 562,
+      "sha256": "4f5536d1399768203bb48299b28bf0290251ed9eef2af68a9004dc9fc2eead3d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/eagle-DAZjYewV.png",
+      "bytes": 77526,
+      "sha256": "439a3a1de0fb2a53442c436a505b80eae4c1339d4d1763a4fe3fb4e602320a4b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/earth-CWilaYYr.js",
+      "bytes": 396,
+      "sha256": "20936b4f4c476366ac4190d2d08e5dd847e665643c9286b41500a12a7e836fb7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ellipsis-DQEHJvHu.js",
+      "bytes": 229,
+      "sha256": "9fa212e9fffbf661606fc7a4d946904e05575f9ee45907ddfb1cb9caf603ecd4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ellipsis-vertical-By4DcXG-.js",
+      "bytes": 237,
+      "sha256": "9c7b20d54b973faf76cad33ac51e2ec45e414a6dacfa598b4cdfc4f200dcd1c5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/emailPayload-DVXDVLiq.js",
+      "bytes": 1180,
+      "sha256": "d77fca0e7968324e2dcec6f481b743361f922a828b3e556eb0cc188f7a6931a2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/endGameRequest-FUxDck-4.js",
+      "bytes": 163,
+      "sha256": "d0408fa924dc126701615a8b3a5117419c74c8ae389701a5468bbaff69a56859"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/engagementPoints-iPtGIcBr.js",
+      "bytes": 5927,
+      "sha256": "0644481f6cbf3f262d3b88e23f2d398e6e2ac4247a6d54f85adb2e37caaad7c6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ensureFreshSession-Bkfp7Sui.js",
+      "bytes": 673,
+      "sha256": "fb5c24c8826d06591e7a15f02fd14018a277ac01437b0427be07f999e23e991a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/eoiUtils-B3z17Uxv.js",
+      "bytes": 869,
+      "sha256": "0a1b846d24a7ce0d80ed01052017fd9e8e05d084214b5ed4ecae7cfb4bd9bb63"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/eraser-Dn9pSsPc.js",
+      "bytes": 272,
+      "sha256": "ac8cc61137ce830a8185b57a4393d5dc01a774ad0bb54af5ac4a545a9db781a5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/eventDetailRepository-KNo79roM.js",
+      "bytes": 2678,
+      "sha256": "53e5fe0f723c55a38b4d9f7078da1095119a29870334eb9c0e057f637d17fcd4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/eventDisplay-DgIOCor_.js",
+      "bytes": 6282,
+      "sha256": "6983258bedac8a63bd7569ad46ffcca23b666bfda8169c7c5820ac6cb7447ae6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/eventQueryKeys-D51IzwBr.js",
+      "bytes": 763,
+      "sha256": "74e4c4bc207907a82e2967522ebb5040ce707f71b184112da6ca549bcd6f3211"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/eventTitle--g3i2A9O.js",
+      "bytes": 692,
+      "sha256": "6fcbd8e095887b305219bb56a6a6f87e799dfe9242a11924cf6dceefefadc62d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/eventTypeIcon-C8wPm3bv.js",
+      "bytes": 3001,
+      "sha256": "0d98275dcadc26452841393aa7b7c5b957b8b49e83c0995c405a3da602b9e503"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/eventTypeLabel-2DhKSBug.js",
+      "bytes": 222,
+      "sha256": "2e3bcd56e16c3fa5136e3d6c8ad126c2fcadaef760a456dd8e20e030a76df795"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/events-Dbgvh2YO.js",
+      "bytes": 36340,
+      "sha256": "f647e0d30052df1ea63fb8ad3c1221fde9d46142e5b47f2e1be44e2a14144fca"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/exceljs.min-DUpOFOcO.js",
+      "bytes": 941342,
+      "sha256": "4527aa0a0fa1873d8222adaa79e19aa4f24d9e7ddc809e470fbe08a432841d75"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/eye-CvGGVpfR.js",
+      "bytes": 259,
+      "sha256": "f8812c842e75e83558c91acca5f88a7ffbfa96cdcc04a4cc391e83d35b196843"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/eye-off-xiZhvDid.js",
+      "bytes": 432,
+      "sha256": "cf1f7586a242e9cdedbd341c35b7e3fbc1caed6791f9e7ef9b64244e016389e2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/feedbackFields-DGbRUJDI.js",
+      "bytes": 383,
+      "sha256": "1b50bcfe9579f9917d42ac13de21171049661dd91b02d7cfb155a74ce4f8a440"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/file-Cku-OPwA.js",
+      "bytes": 221,
+      "sha256": "f132b6e6ff7e0df59defda94497d3de1de72826bfd85cfd414dda7698223d663"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/file-archive-De7pFIIp.js",
+      "bytes": 401,
+      "sha256": "8fffe22ce5d9beb110d7b411967da29420b8f1fe05e7bd5d7c15859861069fd5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/file-spreadsheet-G99nNUsS.js",
+      "bytes": 378,
+      "sha256": "7623967a0b4f0c392f41505bb73c977b04b31843c2a91c239504f967b0f02dd8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/file-text-CIWzAlyh.js",
+      "bytes": 335,
+      "sha256": "05894fb8da6534d482f1cf8ec87d210171d3285ce1c2250d1980f274010e4c15"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/filter-Dcqez5En.js",
+      "bytes": 164,
+      "sha256": "bdf806d3271118d33318e6e62aa38685484210866390bfe602d277419d2ad452"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/filterRecurringEvents-CxyYyLnY.js",
+      "bytes": 648,
+      "sha256": "7e25d2c505bdc8a2e8d85bebaac327518582256d2e46f803a7168d325c53eb12"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/fingerprint-Do98YN2h.js",
+      "bytes": 606,
+      "sha256": "82db12ce99793ce16faa1ff93b5f751826dee12a2cb0d78b9a9b6d6bb50eafe0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/flag-B8_fydH3.js",
+      "bytes": 222,
+      "sha256": "3dfb070b817c427d1dce8a036b40c12ab4b87bdad055c80862f5c75defc994b4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/flame-Ca4FfGjy.png",
+      "bytes": 38616,
+      "sha256": "b9f3ed30385a660becaba1b3151d8f2e7733b10277f491eafe61c6a3381d8eed"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/folder-open-BrEhjH58.js",
+      "bytes": 294,
+      "sha256": "32f505503a84a9a741dbe8ea10e237ebb1c7f33a9e7d4755318c517286fd9310"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/format-B4buI6WI.js",
+      "bytes": 12168,
+      "sha256": "14e2a501447195e01ae946f2c3b1c13a3002942eb4107b5f489caf54d4acf3ca"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/formatTimeShort-Bk00yh-b.js",
+      "bytes": 1326,
+      "sha256": "d958eeb157e61ef5d5be62c730470060774cb0ddbd5ad0c47da708ee61ab4e02"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/freeUpgradeMessages-CD0KoTiZ.js",
+      "bytes": 2043,
+      "sha256": "e7c819bc4d93ed96e9726c81565a7d6e642e48e7ec5c474a4b2064eba688d7fd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/friendlyMutationError-BicAoEc_.js",
+      "bytes": 554,
+      "sha256": "87ed10c02c9e3e38f02bff6656fade7a461cc5fbdf0e2c3e5e45b633473ad6fc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/friendlyQueryError-rM4VxwbN.js",
+      "bytes": 14690,
+      "sha256": "d8ca4f17bb17e0214b38f5d7f30a3f87a10a44e5bd6417362fa3ad76e272b6d2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/galleryVaultCopy-DfTUkSQs.js",
+      "bytes": 1202,
+      "sha256": "9cb7a32f1cf9d573a6831ff77b93c7a795223380f86cbe17f91fd410429cb5f2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/gameEventReads-DKYnhWmu.js",
+      "bytes": 3221,
+      "sha256": "09e8f5bf8a24061996adf60192d394e52ac9c73bb6f102e8bca9669cfda5dcfd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/gamificationNotify-CSltkNQ9.js",
+      "bytes": 919,
+      "sha256": "d1e71c5bbf368e9b13d8c16f6cce4c3c3d9f525ecf659dd719e9cc2c7bc75d80"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/generateCategoricalChart-6Ut2EFJl.js",
+      "bytes": 358710,
+      "sha256": "7e8f98e79512f917b42c32c727f6d2881bf7f28cff9681e818a1ed48528d095e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/getDay-BvzyoJPl.js",
+      "bytes": 97,
+      "sha256": "1295aa4805fd092a008371b9e6d38eab9f543a29f7060ad00cb938d328c22be9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/gift-BzDXAghG.js",
+      "bytes": 359,
+      "sha256": "86d7aea9da4fe73fdb0c2da716295c3387d45a860eb897987b149322c200ce9a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/git-compare-BbINNXXH.js",
+      "bytes": 287,
+      "sha256": "e30b1ccec391f8d16c7b4714c61aeec05d911d8a25b58a9e09376e405f9a7e08"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/globe-nkyxQPQk.js",
+      "bytes": 245,
+      "sha256": "7068fcab1f6773dc2aa457a3166e62a1bbd42889573f74d3a58be3011da423b9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/grip-vertical-DEr4-agB.js",
+      "bytes": 373,
+      "sha256": "9f403d69d021cb2cd4193f073a1d8a0d5671717edfb9375b71714a9445c81ccf"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/groupChatScope-9vHHukpF.js",
+      "bytes": 206,
+      "sha256": "9113bf856c16f4f8425fe27ba329f8f819fb14b902fbafd41f46b3b021fe59c1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/groupRegistryPager-DybfcxkL.js",
+      "bytes": 1176,
+      "sha256": "f145e6f9f2ff838f6c5827e6a7a589330c77c5bb42b425a13a835bfcc1199a33"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/groupSessionLive-BU-cFOgn.js",
+      "bytes": 27888,
+      "sha256": "d79ea008d01d29c8a5a2986ae6520b91ac30583eea7a794d6a50e473299bff9a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/groupUtilization-CAYa4K9F.js",
+      "bytes": 2096,
+      "sha256": "39d2b5b954e974e144613cf96751755a9905d5ac440983e42efc83d8dc66f75b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/haptics-CEEcH0yx.js",
+      "bytes": 1430,
+      "sha256": "7c0c4f85121e16abba9b6e2c00395c86b98f884b750531127c107b40ae1b787a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/heart-handshake-Jfayn2Ib.js",
+      "bytes": 465,
+      "sha256": "2d990c47dad46fdca45e7d3345bb728b844f75e609d1ee71fb058e0bdd8e1f98"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/hexToHsl-CsqH1eZP.js",
+      "bytes": 445,
+      "sha256": "2150647cbfbb57f4aee1084ec2f8f4e6d30d216d6d67f256fd9d26a0a59a6051"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/history-Bwnm-ETM.js",
+      "bytes": 240,
+      "sha256": "65ce815c54971e0d524ec103dbd69f650e945c564021f47d8754edc23c541e50"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/historyRepository-CGj4DynB.js",
+      "bytes": 4219,
+      "sha256": "36873b53dd8af8eeee044202a8b4ff62609fa604b6ee1f74209b45ed9833507e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/homeEventSelection-DovMmHmt.js",
+      "bytes": 1498,
+      "sha256": "768d8fb993c0e39e1aeaeb31c16281130c9687c164a3e29dcd94c41b2b70643b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/homeFeed-_UKFEwqk.js",
+      "bytes": 5305,
+      "sha256": "5dad56f47db2d5aa344360d68cbd3f09ec6baa8c6e3162c6772dadd9a21f6787"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/homeSectionSnapshot-l_CLLtx7.js",
+      "bytes": 659,
+      "sha256": "225020873b8995f5468554493826cfd851da8eba7332421ad1fb9638c06ea2b7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/html2canvas.esm-DXEQVQnt.js",
+      "bytes": 201041,
+      "sha256": "7b07a9ca175c614e8e7de447198d35b0d161dd50db2c63b5f7fd6ea0e1e876f2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/iapAccountToken-qQmW5Ylt.js",
+      "bytes": 369,
+      "sha256": "165f4949874f74b6fefdd474730327e00b711df202e49461b3ee7d8e685fc1bc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpCarouselItems-BFXRXN6n.js",
+      "bytes": 2860,
+      "sha256": "b7653ec8edeeca67c661d146f636943c77f767da452b11174d0152a7e68af409"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpChatAdmin-BbX0IzFS.js",
+      "bytes": 1169,
+      "sha256": "8ae8e6bc19e4ebdb30e6880870a71e9fd330f42e0f2e47bfe2f6778b1cf37060"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpConversationWarm-Bd9U9iNR.js",
+      "bytes": 819,
+      "sha256": "f5387fff3b9d5d333a50c14cba8dce44310791d4f18d65489a51c86b312289f8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpEventCancellation-DV113_-d.js",
+      "bytes": 1607,
+      "sha256": "10a2b7120e64e8f7a72fe5071588e39cea4f79f5855ce7dc6ae70cd806e57a98"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpNativePush-CUEAPRWN.js",
+      "bytes": 6140,
+      "sha256": "4ed117e7379a1638d768f0b512d0545a01500f0fb1bf9956f53b47886559229f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpNotificationRoute-E1eQrlUT.js",
+      "bytes": 2936,
+      "sha256": "4e02ef7eb8d10ada1c9e53cbd19a7bc336680bb8f82f5011ded474691893374a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpPointsPro-DNlhytrK.js",
+      "bytes": 910,
+      "sha256": "906d801b65c309bd09b99c206f6680aae58312515840ad388c69a189762f90fd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpPushTap-B08sByCy.js",
+      "bytes": 1684,
+      "sha256": "b7dfeec47d3e3c9b5a619bb6dae3a4973094170ae1c3820e3c2ccf78505c5a1e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpQueryCachePersist-Vk992-Xi.js",
+      "bytes": 5265,
+      "sha256": "3f78c8cb8ffbc21d2bb272f6eee81b204a53faa5fb9096143e671e631ec1bd5d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpRewardsReads-DMfmgqQQ.js",
+      "bytes": 4782,
+      "sha256": "1e5cbbed1cd632fe4d75615b3216c7687059d4959388ee4b29227f26ba19baa2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpTeamMemberRoles-C8r6KIFQ.js",
+      "bytes": 1506,
+      "sha256": "fd94ac98ecad027c3cf3d352b704c7b99591331204ec1a3321146ca5a4988f04"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpTeamThreadPage-B_iXPNJP.js",
+      "bytes": 3863,
+      "sha256": "616a08ca8850dc3f02bb44b4dae04db29e94aae98e5a81ef9bcf664c9fbe1d3f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/icpThreadRead-Cu8W17gW.js",
+      "bytes": 514,
+      "sha256": "f3a6433f6f8ac4345da6b2801248f6cfb7fe728b63fbfd125664cb0a17d28920"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/identityAccess-Cguy01l4.js",
+      "bytes": 2853,
+      "sha256": "a2012a72e50943e41803393b01c334940e63ff19c8e9f5bfb646ba4103f7c6a7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/identityAccessClient-DQAb4jq1.js",
+      "bytes": 6387,
+      "sha256": "d2822c05c800d089065f93679181a7f08edbc17aea1ea64184ff3150a80021aa"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/identityEntitlements-DhQxeFZn.js",
+      "bytes": 1185,
+      "sha256": "694245bbe0e1d4dc6dba244d3aebf854d382a46fc0720a54237b8dca933a81b1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/identityProfile-CbubMvYi.js",
+      "bytes": 5566,
+      "sha256": "342cc497cb95258da9a0eaf9035957942148dff215497fd72e76a52bd27e395c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/identity_access.did-BJL63TaJ.js",
+      "bytes": 18774,
+      "sha256": "26e452fa7869d2da42a48cc7ac0502065d347e516cad2be8673f58e6db581058"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ignite-icon-D5LaXudf.png",
+      "bytes": 779920,
+      "sha256": "f3ef5659894f9689cf5f53da23d5a50a24adc7b8ce23bf076419afb9fad50b1d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/image-plus-i138Hv-B.js",
+      "bytes": 365,
+      "sha256": "282f94e90911ed7592b89b46799bf6d752da46c7cd2b255085061690c0e391ee"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/imageCompression-CShgBHH4.js",
+      "bytes": 1512,
+      "sha256": "d224a007250f13a6832573846b25292d039c46a91b763f530ed012a035bc8dee"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/images-qrkyldgE.js",
+      "bytes": 327,
+      "sha256": "dfc9b35fb50f05e5df859fc3bf5c48b6a8182bf878cedbc539ea2ce8d5878a63"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/inbox-DlNmeUwt.js",
+      "bytes": 289,
+      "sha256": "fcfe9bbb47d1d728eed92f7762e1e51f7d6f51a8730f8728afebe805f4d0ceea"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-7LkMUAcc.js",
+      "bytes": 5061,
+      "sha256": "38e22bcefb3e859e293e6ad6b043c4026c1d17037b71c2c32565c4f2a5de1584"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-B61shTxT.js",
+      "bytes": 569,
+      "sha256": "e5adc624337d5af11c12670f84cf350ae591679b11b80a92376fe8da90cb212a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-BNuMeYJH.js",
+      "bytes": 86,
+      "sha256": "a6b9143bc74c830fc452a96634e09d6f592e0d6e779fab0e7358d9f92b1c9cb9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-BQBv5wJS.js",
+      "bytes": 360,
+      "sha256": "7ea4597c87049d1c3e61459cb68cb9debf77d6390b7ef22374b5e311ea264d5c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-BdQq_4o_.js",
+      "bytes": 64,
+      "sha256": "302541c92aa7e2402be57fa8241a0d67e3b17496cdf3645c716ff3b239f03e28"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-Bn1DMRyg.js",
+      "bytes": 3198,
+      "sha256": "bb9e44b2fedcdb23bd6848db8970b4518d05316de6d5d74ea156648c3f27bec8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-C06P8PkF.js",
+      "bytes": 1920,
+      "sha256": "b5de1bcb5fc34e22acb3f4ba203f75cf72a0ff03f9d2ccd5365a2579e8187cd4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-CH-C41-W.js",
+      "bytes": 1424,
+      "sha256": "3fc973f99d06f8b8b1cad03432dc64020cf0acdb2e28109fca02f75d62e4f410"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-CZ5C1W32.js",
+      "bytes": 237,
+      "sha256": "d47df10c9b47e33f440e0758b5fa65c1c4828e5f916946307bfa9c145a0b33e6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-Cc2OHRNS.js",
+      "bytes": 360,
+      "sha256": "d39ab67136c8832c5645d738beb1e07774fde102a883e495e8711de26da7ddf3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-CguXI-e6.js",
+      "bytes": 46732,
+      "sha256": "fc237e5e4901f237141b417099f62dc26cbb2e445769498907340ed6c5473317"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-DPITl0sb.js",
+      "bytes": 354,
+      "sha256": "6db3b68e7fc2380129632a53237a86a58b8beb21721288b06e929d96cd05340c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-DSK75FOd.js",
+      "bytes": 372,
+      "sha256": "7dbf10bc853f401f9d9d7120b7924c590b7115752c3687e4050143d0dc137e44"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-DTGw1xwd.js",
+      "bytes": 7499,
+      "sha256": "59a22ddf1927ac7e6f4a0da14d8f47e01171fbb62c64e82d165800c4b684a625"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-DeDibQzf.js",
+      "bytes": 682,
+      "sha256": "ef016e24a2e0619521be90d04cbe9ec47bb1822a50f79033d33b79dff4f8a936"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-DjAxvcOy.js",
+      "bytes": 6509,
+      "sha256": "d6cfbec3f2b6022bae473f8bc00ec09dcf4271ebc9deec7969b582d7eb33eab6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-DoLiZPBX.js",
+      "bytes": 12928,
+      "sha256": "8c45c7cbf4569746c27cc0247e7faf310f9c977a558bb21b57d1ebafdc1837e7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index-ETYRKf0y.js",
+      "bytes": 16448,
+      "sha256": "e9a8c4ecafe7b5ad456f28636cd96b69fbe576fc77c04a0de7c71934f653dc1a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index.es-Bm5ZLw2w.js",
+      "bytes": 158697,
+      "sha256": "0afd45ea5fd8e8028430cb0e6b43290c3a480061c8fa7086c5d72d1dd9c95f2e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/index.min-LcwUDEMP.js",
+      "bytes": 299039,
+      "sha256": "29bf28c11ae7cfa9c4d07ca0ad28ac6fa680f8e190808263e40766fbb1641ee3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/input--7MDzCG1.js",
+      "bytes": 596,
+      "sha256": "125f7cb11bd08dec33f35ebf4cc124878ce20f4a3e45c967c97dfc8a1c8eb6b2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/insights-BmJH_qw0.js",
+      "bytes": 9608,
+      "sha256": "173c763681281d482ff740bff73342a1060c89568eeffe0355e5240c603a8d32"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/invalidateProAccess-mpl0kesq.js",
+      "bytes": 514,
+      "sha256": "414b4c33ad984cd4ec8d53b180c7577bb008e618962a160f41ac50f8649874d2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/invalidateTeamLists-vdu1PahB.js",
+      "bytes": 1077,
+      "sha256": "5a54857164543e257217f3c1ffaca2ca429a16e688f52651f7384c62e50fc925"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/inviteEmailDedupe-CoVSqutc.js",
+      "bytes": 2547,
+      "sha256": "7c66c9ad8bd7b2b3586dc9b849ad5bb34b7ceb311ee16b996ff64e8b193dd10d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/inviteFlowRules-DsGtR-EB.js",
+      "bytes": 155,
+      "sha256": "19784f4120082e6c2947f4624e2da5d71b6a06d317016ace5275f220913bab03"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/inviteLinks-CVf7LmN_.js",
+      "bytes": 51,
+      "sha256": "12c501e99109c3e9e73431201616ea42cc0a5b0e6768696274f263abe7b00358"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/invitePhotoConsent-BjDiI43v.js",
+      "bytes": 898,
+      "sha256": "99aac07623be84369763d06222696c581842ca46609224dffc3168872a2d6aa0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/invitePreview-Cco-eFj1.js",
+      "bytes": 1015,
+      "sha256": "4dfb57ee0cc671849252468aeaf3bf2b9a20b4c56656d5f43716b4ec9cd37f56"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/invitePublicRead-DsSjrQQF.js",
+      "bytes": 1125,
+      "sha256": "68e6ffc22ca4b0b46849f2357af321301b1c5ebb73e3ef119311a79385168862"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/inviteThemeFallback-BLgoccLE.js",
+      "bytes": 899,
+      "sha256": "774d64fe826b1b76d46016a9f2870857f5cab56ab94a671aa6e82da99fb0c956"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/isAfter-Bar38KZi.js",
+      "bytes": 129,
+      "sha256": "64b223e806f55d25c84bf8c4054fac3a2767b1cc461d8d46bc9fce1e867f4787"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/isPast-zr93y9Xp.js",
+      "bytes": 99,
+      "sha256": "3fb77ba521571fa014109c40c4dbf4443328e468a1e05538df8373fbed0d24a9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/isSameDay-DNqfA9Kj.js",
+      "bytes": 110,
+      "sha256": "6d0486eb5d7fb99f942e905ad3e803d83a41af96e1d39c5987db1c81acb2948b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/isToday-7wc5YNa1.js",
+      "bytes": 132,
+      "sha256": "7859a5b4e3f8a2f56e9649f91edbac630cc4e82d91c7676bd31475e4dc7a94e2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/isTomorrow-B52lV42r.js",
+      "bytes": 179,
+      "sha256": "21789535619d2bc6ee22279153da16291b287ad0eedac24f953724913dc7ecb7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/jszip.min-DLhzMe5M.js",
+      "bytes": 96987,
+      "sha256": "8ed1858c06432c8cb87710debd0dd80646486d7ffea05296f4478a89a1d14b58"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/key-round-C3Y7rK9E.js",
+      "bytes": 357,
+      "sha256": "b5e7c096dd3d0005d3bd2f1d3ea373b254ed8f9a35dafbde93baffd4ce5be215"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/label-BCr_qLtB.js",
+      "bytes": 532,
+      "sha256": "6c29d4a633fd9374aedbf7f205b9d577fbc099b2a30c6a8961d574d64ce4345f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/layers-CvAJ5b78.js",
+      "bytes": 367,
+      "sha256": "ca69e91f3ecb40b889506a1f71c9879366de1a97f3b67c3b659ff6f7f84243fb"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/layout-grid-DlRKFQAl.js",
+      "bytes": 348,
+      "sha256": "4caf7787432176a3a1d52ff8bee2c6b7fb302da37cf427c0f850026294d05413"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/leagueInviteTargets-B_Sy6l54.js",
+      "bytes": 3339,
+      "sha256": "fd61a3bccbaa4d3d9e3c0c59884670476f5db2b7583812d8b915e2e47d56beeb"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/leagueReads-BoeQUsdW.js",
+      "bytes": 7054,
+      "sha256": "db80c84301f69c4a755314b22e89609032cc070a18045ddc6d88118bf69e8e40"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/legalTerms-9cSrcGke.js",
+      "bytes": 871,
+      "sha256": "37aabcb3299db802cf857c67df663ec43423df6bb9750ceeeee63a61283039ff"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/lightning-B0TAKnW7.png",
+      "bytes": 35695,
+      "sha256": "595740bb6e8b0efae598ae6222eaa5c1a995074d4a0bee03ba5c1e83f24ff2a5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/link-2-B8Vr1ls_.js",
+      "bytes": 244,
+      "sha256": "87e6626a5e83c2bbbc62dd187b97db75bc09cc767d4c5e11dee48dbe994ed2ef"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/link-DLUNb-mE.js",
+      "bytes": 259,
+      "sha256": "80167924fcb760fff6f5b820b89d2fdaa75905c90d15a80705923c5fbbbbcec0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/lion-CkRs77RW.png",
+      "bytes": 245291,
+      "sha256": "eef80db2bafd9e8a0d95014ece7a41ed47ac77ca12cc6d0970501bb405adefe7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/list-qv4bjynr.js",
+      "bytes": 305,
+      "sha256": "1489ee620282a9029071d9f226a26bf58e6d0b3aaea12b97af943ccb112fa5e4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/live-index-tpLp4Liv.css",
+      "bytes": 170371,
+      "sha256": "ab0df79f790e26b728c5f574f1d9718097eb1eaf0518b2a7d40841b3e46ea5d7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/liveMessageRow-CNTk1ajL.js",
+      "bytes": 372,
+      "sha256": "0d1b7226fbf69c33889f9bab95fc76dbcad4fa57d9dd6903a445fa09c41bd9f8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/loadIcpAdminOverrides-yZqCDOAE.js",
+      "bytes": 481,
+      "sha256": "5933211535b243d592acf8b7a9a3013eea43a1b46a52dfa7aadbfc7bb3a2064e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/localRuntimeMode-BQq3EVgR.js",
+      "bytes": 39,
+      "sha256": "1aaae49caba9ccd0349b8aec0ffa1e82eadaaf46e565fc9865101c7c3d6b9636"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/lock-open-C__z0cwy.js",
+      "bytes": 212,
+      "sha256": "9b39b884c9a5c2aa9d5988196c8eaa34f39b8b7727643be4c951ccdfed50f8c2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/log-in-NnUsLZxH.js",
+      "bytes": 262,
+      "sha256": "17ddb9290258448d3563fd7dcc6b6fba50e4bcb602375cdfac3a2ac41c284cbc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/mail-WtyxmzqF.js",
+      "bytes": 218,
+      "sha256": "2b373315345e04cbcf83d89cf5efb6e2a63e5cc5399c2af517531e4064b2babb"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/map-pin-DYF4do4M.js",
+      "bytes": 261,
+      "sha256": "9524251bdec30a34f0a50703ce7236127326c98ff61084a614539c5135ca39e5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/markChatScopeRead-Bsz22MQJ.js",
+      "bytes": 3098,
+      "sha256": "f06744dae1274f30f77f1201e58fd10ae787973c3b869f96a0334969f78ddc47"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/matchArrivalTime-CKvd0Njp.js",
+      "bytes": 568,
+      "sha256": "39e045eba134238302b938227036dca37648c28672a7070e438fe57a9fbdda19"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/media-JwJFwQJ8.js",
+      "bytes": 5313,
+      "sha256": "623d4cd3a3d9f2aa655e89a92074d73f42eb3ab5c9682fa9866188cc9d53e63b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/mediaDecrypt-CPM0kOHB.js",
+      "bytes": 4128,
+      "sha256": "e24cc65171ebe73f5a6e8c678250e89c47232ed1f4b554791096e1b45aeafdef"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/mediaPhotoDeletion-ZkoL5Gxl.js",
+      "bytes": 2034,
+      "sha256": "998569847e80229526e3803d3d425d047cda08cdc337be5d2ba8dd438f59ccbe"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/mediaReadRepository-CMEhq8iO.js",
+      "bytes": 5902,
+      "sha256": "ff82d1d2ab609cb517aa63a3002444d6089ead099dcd14826c2da715b4b32b2b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/mediaUpload-Dyz6Ms7R.js",
+      "bytes": 3053,
+      "sha256": "684bef98b86e9a2f60222ec814a53410b395f0b0cc40584e6731c356aa22c244"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/memberCheckout-DAPWVr7W.js",
+      "bytes": 1830,
+      "sha256": "aaefaecd3e62dfa6f78e828561b4f84ad4d737f8f89389fb90c048bbba502737"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/memberIdentity-CH0YDlXo.js",
+      "bytes": 2396,
+      "sha256": "88d8737fe08b8f454d596084d9100069784b832f18ad602280ca1a9107b8d3e5"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/membership-BDI5QgIY.js",
+      "bytes": 4258,
+      "sha256": "804fd4b23cfa31ccd825055978ff8faa58cb1ed9a2d1a4b8da85163975270ff4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/membershipQueryKeys-B2h4EoDG.js",
+      "bytes": 661,
+      "sha256": "486e4c867826e1b8b6ac686b936d972b40fb023fb2ddf9d87d0af9bcdf1c7612"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/messaging-pMCoV9bv.js",
+      "bytes": 26490,
+      "sha256": "4c548c05159257f72343ede544b8cf40a50d09b56cd6a0418efacaefcffd9228"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/messagingCandidates-DVGIfRv1.js",
+      "bytes": 1649,
+      "sha256": "0205e66bc337f77a8b333a4b866459e8b846d1e92d69d3ff1382e500d4992853"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/miniLeagueJoinLinkCardContract-BT57xpbd.js",
+      "bytes": 5992,
+      "sha256": "25b3fa050fa4d519bf1741ff131911cd9fcecfd22440cbac2dbf40fc0dcfbe9f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/miniLeagueOwner-8fh3HyaR.js",
+      "bytes": 608,
+      "sha256": "ce0d1c55d769be956b8c2fbcab7d67ec1556f43485e40458798a1dbd4fefbd29"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/miniLeagueRouting-VLLzmDKl.js",
+      "bytes": 468,
+      "sha256": "cd596143551ba2ce59df5dc8a70ac5b5017ae66829fb23fb9403cc8c9f31ea0f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/miniLeagues-DBa5v6ic.js",
+      "bytes": 8425,
+      "sha256": "2baaf5c0bcc401f85e5a35c276e68c1eef265d0c611c7b8343f94ad1b7978000"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/minus-CFty4FuO.js",
+      "bytes": 120,
+      "sha256": "1c3cbf117990b0b8d3fbff7649d27ff2732f70b644f8406a469ba3c559a65a8a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/mobile-select-EX334OHw.js",
+      "bytes": 1729,
+      "sha256": "376804812c3998e21655920f8a2985ef25454df64e5059b86728de50ab5a14cb"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/monitor-1h-nSFIy.js",
+      "bytes": 262,
+      "sha256": "2c832ebcdf8f37036ddab90c8afaef96be13de8530430be43aeb7d7d085f5222"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/mouse-pointer-ncFf8w35.js",
+      "bytes": 308,
+      "sha256": "70cb434c3b689ae08661b14bbdd79f1f192ea2236b8db176e371e6eec14f5234"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/myRoleGrants-Co5v9vkn.js",
+      "bytes": 1723,
+      "sha256": "e6991b5dc7f5dee87e5f836d3f0b510efa88ae2d97551d80568bc1620cf10b87"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/nativeFileExport-Bxs2cKtm.js",
+      "bytes": 107,
+      "sha256": "d00af1621e17616234eea647ddf5bb69ee35dd8f160e854c183ba962a018e2b1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/nativeInternetIdentity-DUy8o7GM.js",
+      "bytes": 4356,
+      "sha256": "da3d2009bfadd43543d072cc29352056b6dda1cfd811dba115473170a952288d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/nativePhotoPicker-NhsFKIY5.js",
+      "bytes": 12680,
+      "sha256": "e4507d4effc675f19ea9b3a0d5b2882471767bfab613d584ff940aa9c1d90e17"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/network-B8_QqKZ9.js",
+      "bytes": 387,
+      "sha256": "0343b13a10f6f0796d699573356d7bdba052140d616e4ab8b1ce3450366e3b79"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/newsAttachments-BYxPT7XV.js",
+      "bytes": 7412,
+      "sha256": "34ae8f7f701c1bfa8dd2043336e3f19b9de617d0b55fe134d01964f7f8fec1b4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/nextDay-DgvuOZ13.js",
+      "bytes": 155,
+      "sha256": "42c8cf60f33aa2e77a830327b836c3002b8c5b242de5e37f50f71ee20f19dc81"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/nextUpEventsCache-B3j-73s9.js",
+      "bytes": 645,
+      "sha256": "7ce6942a60b7a67f18e616a3ccc3cf382465f6213dcec82b867104ff14cdb8c3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/officialEmailInvite-DKc39rdX.js",
+      "bytes": 710,
+      "sha256": "5d18ff8be801e6292a720d2893c5812b66e829481c9b013777f602636272f49e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ownPrivateName-jWadlBb-.js",
+      "bytes": 1173,
+      "sha256": "3c23016c103ce4324f6f65538fb5e919af3c9b267e8b3a394ecd7c16f41a1cfc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ownSendBump-Cf-3ARv8.js",
+      "bytes": 1428,
+      "sha256": "e43d12d0b0ecc3aeb14db3c78b9d4127e053f0ca13defc2abdaff870537876e1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/page-loading-CmSXHp_g.js",
+      "bytes": 867,
+      "sha256": "7c8121af0d6e63d707e3d604389b142ef8dd96bc588b37186565b4c32bedbce6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/paperclip-g1VSyxpP.js",
+      "bytes": 227,
+      "sha256": "b9dd33f803d9423ea32011e0ed80b891ed50961f232916a7d0e51c5906016f22"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/parseISO-CvJWUm7d.js",
+      "bytes": 2680,
+      "sha256": "dd5b7b01fbd9c167340da95e1a834b2fa1a14cd33717389a7fdb2061ff2cea33"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/party-popper-CaWsb0DT.js",
+      "bytes": 732,
+      "sha256": "929ad8afca1e2bcc1611c36e287167a5c9a02aef5d94039914de997d45ec8b18"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/passwordResetRedirect-ClaQis8x.js",
+      "bytes": 10921,
+      "sha256": "c1463b7f7ea0c3f51d804c16d87e5707fa51b17983cacf4fa84b5a8ba94543d8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/pause-CzJbZe53.js",
+      "bytes": 214,
+      "sha256": "1a8febff97141af2b82a75210045532aded2d362fcb0af68ec64c5fbf8a8f580"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/paw-rNOCr7He.png",
+      "bytes": 58815,
+      "sha256": "f8077632b349803a84e2a7533cfdfb44e456c2d0f4e5e54a2f5fc4b1e3ac5b5b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/pencil-Byfs5SzS.js",
+      "bytes": 279,
+      "sha256": "6d60604eeb33bd1398a6487d67feadc26f8f9666051ebb6df5542cec664e191d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/persistedFilter-DhQrt2th.js",
+      "bytes": 303,
+      "sha256": "b4e596867f7e49b485f137523b2e9d56f6630180720cfcab8d232e900573c66f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/piiVetKeys-MChpm2nQ.js",
+      "bytes": 22412,
+      "sha256": "ef3a9448bd72516e4dd258878f274e9750b0fdce0a41ad4ee972d5412fe8ea05"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/pin-DcF-GHqT.js",
+      "bytes": 349,
+      "sha256": "f6a5db65d16a4478a6079bd983718a6d8e0a478391c4b43a95b8fe692acfae2c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/pitchStateUtils-dzFtYSm9.js",
+      "bytes": 8042,
+      "sha256": "9c7ca68224cbc26a658f8af8d181c24678e3ddb6840d82dc16de775de5bc5ecd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/play-XN3AxZLu.js",
+      "bytes": 137,
+      "sha256": "cb6e34bd1a0df58e9bd8a2ee6a1d2a792921468061083f459cf352dbf0ce1577"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/plus-BjJtsJXY.js",
+      "bytes": 156,
+      "sha256": "adb886b60ee91e451f521bb72057b82c9a24bbe4945f10505eaeca2f5da7886d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/points-Cd7KGP9j.js",
+      "bytes": 5465,
+      "sha256": "d7d660a44e1cb2b38267f824ef11b9ba833bca16c99bc351962e6ee24e47d523"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/pointsHistory-CDTqXyMf.js",
+      "bytes": 633,
+      "sha256": "032930a63d80ad008a887381048f9f55560dacced7969430e6da5869b119e6d8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/pollReadRepository-DXdTKp57.js",
+      "bytes": 2031,
+      "sha256": "e405c20e7d55325a573dafbd9dc28237cf93839494182d0509866a01e7616369"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/popover-6UoVmnVv.js",
+      "bytes": 5199,
+      "sha256": "3f68c608923d03ae7f091169e85e462f212328c34631ff69db62d49df37e6503"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/privateClubNameDisplayMode-Bbj4QLkN.js",
+      "bytes": 67,
+      "sha256": "273edd8c9f55d4f92ac16db082fa6ae3763793a1c4f9d260a93f9adc19b0d8a3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/privateProfileAuthority-BGhGO8bb.js",
+      "bytes": 1682,
+      "sha256": "1b988d95ab9bf8d53ebb1055ce94b820f1dc0a13efafceffe51197eefb5429d0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/privateProfileEvidence-Pyj-z2Di.js",
+      "bytes": 919,
+      "sha256": "9342f17b12998687eb4daff79eb7aaebf1c09f476a509d9f3a8a1a3961aef9f3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/privateProfileNames-Buuu_Oru.js",
+      "bytes": 9132,
+      "sha256": "16e140903e09419f247307a2372744dfdaea803e264f815bb340c2af93d924ba"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/privateProfileSearchMode-DoPdnr41.js",
+      "bytes": 38,
+      "sha256": "80cb5cf8739b9413b5f40dead0a6fea08fd2fdb529a376331758f24481db956e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/proAccess-DVK5rvIn.js",
+      "bytes": 3040,
+      "sha256": "698ccb55dac6347475d5be836519623b88cc9bd913d3ebf8a03276bf534bca5e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/proShareGate-k0TLbUzf.js",
+      "bytes": 2376,
+      "sha256": "a4d57391a3a17728346582e747a2903da1fce6d534f61a3859aa05acec173c13"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/progress-2P7Gc8TL.js",
+      "bytes": 1947,
+      "sha256": "c67aa85c6e1dfe3e787289c96b28743146ac0a57b1a55b1fbbcca0da509b8f1b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/promoCodes-DYwdF_QZ.js",
+      "bytes": 1657,
+      "sha256": "8879a0373caef8e13ba1550c2b41c80f3a5ffe7cdca50abb5108d404c88715d6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/publicGroupReads-BAS57KgX.js",
+      "bytes": 2444,
+      "sha256": "8ce053faf875a973292d92ad15bc1edf9714ed5fa0944992e839bf92a8e181c9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/publishChatImageToGallery-DULQBq-4.js",
+      "bytes": 5748,
+      "sha256": "12e1bd53b4e68d7a1f41896e1b71bc11f98f04ce12c415e469f4f63fd87f1e66"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/purify.es-Cz4mVeUR.js",
+      "bytes": 28978,
+      "sha256": "736b26c1df94e185a993935728dba8b54186e4c3ec5e7ab330adfec5f3d4cb64"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/qr-code-CHrIupi_.js",
+      "bytes": 652,
+      "sha256": "fd85d785bf8ef65d4dc2899a6367bb3510dde6e4136c4adc82d8461dad3863d9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/queryOptions-C9woPjwX.js",
+      "bytes": 39,
+      "sha256": "768e9fc711768bd416a0b8ac7c3b71690719cf428189ffcd94a198a35faececf"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/radio-COj8jDSG.js",
+      "bytes": 372,
+      "sha256": "88b96bb566bcd7426fe9085958fd404653ffd439c3234a139d099c73d9724015"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/radio-group-VV55Dv3w.js",
+      "bytes": 3962,
+      "sha256": "1647b47284473e679d66e787b059cef8b2b4e27fdf32ec0ce6cb5d11657bb326"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/recapFormat-fx9LR74X.js",
+      "bytes": 13844,
+      "sha256": "8ff6c0c403688f84e1e121ff421250e488608be648d91f12ccd565aa6b3fc32e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/recipientParser-CEjeawmy.js",
+      "bytes": 1182,
+      "sha256": "7d806ebeffee04dbac64d81feae3f877b6c4855aa70663fee125b95d99728586"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/relationshipProfileRead-B2Ehyb7s.js",
+      "bytes": 2739,
+      "sha256": "c3b6471a88dba91f71d6ed01daa911be218c2fae1c6573282a17d6c3cb27dd3f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/repeat-BeI3aMvV.js",
+      "bytes": 275,
+      "sha256": "236a99e27b453afba5fe7ed3e137ba13531a1f18c35932a4a2b0d7aedcd748da"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/reportExport-CVcKVcLT.js",
+      "bytes": 2032,
+      "sha256": "7c4092b059b922d04fdae5f139e8cd459a083d6336d445b53b5d50d3f66b721f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/requireAccessToken-CzjCCPW9.js",
+      "bytes": 684,
+      "sha256": "c9a2cc57047ea6dd8d13096ab5de6ff0ff25c14049ad84ff03eb0e98a2b82b36"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/resolveEventChildScope-DsNj3bR6.js",
+      "bytes": 2953,
+      "sha256": "e48ca3c2f476357632ee65ba58d216f119bcae0516be60672959e885a02fe5ea"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/responsive-dialog-BWi1EgXE.js",
+      "bytes": 2792,
+      "sha256": "3e1a4767eb11aa00635b7590d17a57e5cd48629366c13828a6f172cd65ae8eb8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/resultVisibility-T6DIGg6_.js",
+      "bytes": 301,
+      "sha256": "0847be4f35d2e01bb72c3bab5618e1e3f1fa3f93938feab81182c1c728687837"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/rewardThresholdCheck-Bdt0jP7y.js",
+      "bytes": 1624,
+      "sha256": "3ba9f4b19de9c8e506150ef2bf6add9942b0ba784e72883879327f1b7b7328dc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/rocket-CR1dIGCL.js",
+      "bytes": 460,
+      "sha256": "a43afc368451f0ff5feb76720743f173205b17f8346fb3c1eb347ea59d144543"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/roleMutationFeedback-P-M4NqnY.js",
+      "bytes": 7055,
+      "sha256": "1979f4c609ad25b24650d1db9e363a22ac97b98d31ca20be0817cd1a1692fe15"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/roleRequestOwner-Dt229071.js",
+      "bytes": 1430,
+      "sha256": "282ad99425c036f58651b843c7e9967b0e5b65d8ab795e8324126297c1d50422"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/rotate-ccw-CXtIsnHX.js",
+      "bytes": 202,
+      "sha256": "e35bbff4792039c06bd113fcfe228c1b510a908b1db8ef166e06dd4ec15a9d80"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/rotate-cw-BgA21HSt.js",
+      "bytes": 203,
+      "sha256": "888210af6304c9defce74175afd329b1aad1043c678ac2d3d2b9c5a8b91a2784"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/rsvpAudience-B0LVNXvO.js",
+      "bytes": 744,
+      "sha256": "1f5a5e8ffb6cb421893b51eb2f3583d56bc2824b743eaeb6cfbd07818b6f25c6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/safeOpenFile-B3LqO377.js",
+      "bytes": 9003,
+      "sha256": "2e66871e1e367298364e78bbe319fb5c073984f01ae92c59149fd701bf87c68d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/safeOpenUrl-B87zIrmO.js",
+      "bytes": 2062,
+      "sha256": "bdd6fdec361335fddcfa8d097c06ff6c6d9f618a14f49d714558e5d9c22d9693"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/save-CjN0BGOx.js",
+      "bytes": 330,
+      "sha256": "ee83b61c22f15c49c6d3a255a86c473cf334fc70be692736b2eca2a02fa4cb37"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/scale-Ko91ohFb.js",
+      "bytes": 371,
+      "sha256": "f46c89330066c7c942931d2020d002bb712e54a6e6457c4bc35120b20905671d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/scheduleCache-DQvxMpfo.js",
+      "bytes": 1674,
+      "sha256": "95100edc5f4af5092fc691eb8e0b706db9079973d959c76e6c5d04801060bf9f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/scroll-area-CcK0WRBP.js",
+      "bytes": 12429,
+      "sha256": "104fe51cddf2db80e40809289191086f1b8bd5c6f976356eabaafa8bd1222bd0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/seedIcpTestData-DZFJAzqP.js",
+      "bytes": 12740,
+      "sha256": "a992c187b2d0d6b27d92e2e0e4eb74830080865bd3f0cafed98953c1936cc156"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/select-Bh60xpGx.js",
+      "bytes": 21032,
+      "sha256": "5c45f4f850466ffa459385caa7271e03560a31a9d8b21adb96f60b5d9ce9db58"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/send-blJk8G8j.js",
+      "bytes": 293,
+      "sha256": "74d9ba28901292b3928cf8ba48480f0ca97c91b5ec75f4c0de0bdeb3c6b63d21"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/sendCompetitionWelcomeEmail-Bx_d3mFo.js",
+      "bytes": 722,
+      "sha256": "593d532222e8277b12b9c4203478c9ded50b9a4d68c16234e35a5e0e7c83b95c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/separator-DvB9qOv5.js",
+      "bytes": 675,
+      "sha256": "3f3aabb935293e41234672e590500baada9fa4ed06d53d60add33516054ef587"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/serverTimer-B6QIF9qo.js",
+      "bytes": 6771,
+      "sha256": "f3e565d9fc48bb4665437bda8390386994eace9f51bcc753c326dd175e89c9ad"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/settings-2-DPesfn8y.js",
+      "bytes": 255,
+      "sha256": "755240b568c49ae64db2825eed621d92027e62573bc12e65e6743030abe1e231"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/share-2-ziMFvx6J.js",
+      "bytes": 359,
+      "sha256": "5d960ce62cf1e6ffcfd9d0b8c09d874c7e27fc7267463407bd1e54c2cea5662b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/shareUtils-CS81KPO2.js",
+      "bytes": 194,
+      "sha256": "4da6aa40c09461bca7c377790155fc95cae01e2ee0d4ef961cb6a9ce53c075eb"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/sharedPitchBoard-D13PbLtI.js",
+      "bytes": 1709,
+      "sha256": "c1e00f159364647e925967586db683a25a0375874a018437c0d1dcd82d039e9f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/sheet-B5gVS5jH.js",
+      "bytes": 3931,
+      "sha256": "522b19267d5e6cebb2c43446dc0ff1e0c20e25a17a17403fd1b59213d8030fd9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/shield-Dk4OFmLt.js",
+      "bytes": 275,
+      "sha256": "4fab7662dc738b29c82cdd6c4c1777d7316055ec54bf3c4521b9af7d47bc5b84"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/shield-DwwdbRmv.png",
+      "bytes": 56848,
+      "sha256": "fed12ee0e0b76c1aafb913619ce7b0c472f9340f747e395602104c36bab515cb"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/shield-alert-Pc_w-00b.js",
+      "bytes": 355,
+      "sha256": "b18d2fcf8ef437a0a9bff9255dc59e75f3f21fbedc8c41886e0fce88e0510072"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/shield-check-B4Qeb8AI.js",
+      "bytes": 322,
+      "sha256": "5a10518b21c7d02b391663892f1c9722b858dfb6f42c40f438a5d54daa6ba4e0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/shirt-dNyHnNOo.js",
+      "bytes": 289,
+      "sha256": "de0e9e90b6dae6b6077de117cc9631434901bd399d7f102d84c4c11cd78b7f63"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/shopping-bag-DIeT0c67.js",
+      "bytes": 253,
+      "sha256": "882cad6de5d9953a6cf94252e46e11743a6486fd47f267943cba4ec9275408b1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/shuffle-BuRYRQ7q.js",
+      "bytes": 386,
+      "sha256": "e611c007ef49f59c3957e8b7931164c1bfeebcd7979d18c4dc4dc6e2f19789d7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/skeleton-DwUcR1GE.js",
+      "bytes": 178,
+      "sha256": "ca7c4349949c485725efc0679f992e0197e28e016e0cf20cd2fafa36412f9526"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/skip-forward-De3orciN.js",
+      "bytes": 199,
+      "sha256": "f7f2b45728516de75513e47030069f72b4d99f3d5a24f11242fda1f2a7395de4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/sliders-horizontal-Ca8SQ3IC.js",
+      "bytes": 587,
+      "sha256": "a4cded289082d333166c27ebaed5e5cc8428742b9bd529f5b7f46d85a03478bc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/soccer-DdFlK08x.png",
+      "bytes": 126512,
+      "sha256": "840b669d94287e25c43a632151ce0f4ab7168643b8132b88f4da4a5a6e711e8a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/sponsorTiers-BRAMNo2x.js",
+      "bytes": 911,
+      "sha256": "ed360a6cf4a2266fba4156ab0c7097b337523ffee45851c9599dd754686d8652"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/sportEmojis-CwUqX8wQ.js",
+      "bytes": 1422,
+      "sha256": "9fea877aea823636c6c51567ffb6cdec5fb382f6612eeebf413e3215ea60edf9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/square-AF7kCEog.js",
+      "bytes": 150,
+      "sha256": "9e98dbce48c4f79f1e2a942c6f9dee1f39a62e456471f72e9b96eb312081d508"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/square-check-big-CASJv1CH.js",
+      "bytes": 226,
+      "sha256": "981a7093172c8b4080ad4f86ba695553bc47f0c7113b07d654ca70c65294eb9d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/star-5_mhDJ6R.js",
+      "bytes": 475,
+      "sha256": "45880b9672d173d293a3a2037ca820ab9259a787738a18a157b20895a7445160"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/star-coin-BWauaCzC.png",
+      "bytes": 66495,
+      "sha256": "2499953221a667567bb7b3490b5f2100e6e1a70843c73d31e814e1ba481553d3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/startOfDay-J9gcX9Ld.js",
+      "bytes": 113,
+      "sha256": "2a38b2ee4aa294f86861f38821596afdec2208d5e96e01ad47e76922b8895af0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/stethoscope-CVF1QEp6.js",
+      "bytes": 345,
+      "sha256": "c3074aaeaf7f057165470c75a5a7ee8080f77474c9f638e2d7b7505eea962f39"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/stripContentHint-CwzvGHbR.js",
+      "bytes": 560,
+      "sha256": "900cd3c2850e4e2045776e91abc99cc92d4fa0b1772bf862429940c718634eea"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/subDays-Bz3g9MRx.js",
+      "bytes": 89,
+      "sha256": "989311abc990e7859045f3278eb66b18223e4695192e8e9e7efedb56814154de"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/subMonths-CMx6V-FT.js",
+      "bytes": 91,
+      "sha256": "4ef2cca3996b08bd4f4e94ac3afa94cbfcb8abc1a0a1dce28cb4441c97e0e71b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/switch-B7AxZYSw.js",
+      "bytes": 2487,
+      "sha256": "c124dafa0f11bd686c25700fc311f10209d7dbd1ac1e8693d9f107dd7147e985"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/systemMessagePatterns-D49bubUW.js",
+      "bytes": 4008,
+      "sha256": "e2d81433c737748ab867197620c9b00b9af476b5d33dc87090d0f9813badecb0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/table-DG1SXqxe.js",
+      "bytes": 1492,
+      "sha256": "56dd7bb7c54549f26001a040fe6c936584cd7fee4b20b464ba1d61100bf4b3ad"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/tabs-CuZmLKPo.js",
+      "bytes": 3202,
+      "sha256": "c4a1c98200da9064314ab5bd09e25644d3c476ebc18f42eaa90b39c30e404144"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/target-V5VBuend.js",
+      "bytes": 229,
+      "sha256": "ad0aac5139c6c3d5ba59459e7aa2cf69b4bdae8894bd1cd0c1f6da54d7041f6d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/teamAgeDefaults-nC1gdriY.js",
+      "bytes": 535,
+      "sha256": "848e2dd485a9788c5a080521e566a6a2f98870f65cc2989793cc97f3de42b6e2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/teamColor-C70bQO4z.js",
+      "bytes": 1649,
+      "sha256": "4b2583ddda004330f5941c06f434e87bb1103105d7872bee27b7b94d0dfcf729"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/teamMembershipCacheCompletion-DhVPRINz.js",
+      "bytes": 761,
+      "sha256": "b69c369c9764b5777bb780419b0668f7df48fa3b8610cf8fd9839edfda37a81f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/ticket-D0P0SlTe.js",
+      "bytes": 324,
+      "sha256": "4145a28f0b82eddc2d2dac7b6183abca753f9c7861d4c030780859b1f28ad6b9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/timer-BnzURhEk.js",
+      "bytes": 241,
+      "sha256": "801f8c6b62bae1c57914f87cd42b48921148f80c2e74c32b8a6d8c3b68495ee1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/timerUtils-CyorZetv.js",
+      "bytes": 264,
+      "sha256": "1e0ceb8619d5e274b2f77f66b92b4428db87516abaed2c2101d1b8b6d8a78e0f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/toggle-group-D0l7MFQF.js",
+      "bytes": 3842,
+      "sha256": "11b6fde8b1fa3b73011ac6926173ddc2c72954ffbc0cd975ac1f33852a1292e0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/trash-2-B85Fy-t-.js",
+      "bytes": 360,
+      "sha256": "ae4198b9e0881705ffff0415fbf98226ab086964b445723100d9a20e5e7eb5ca"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/trending-up-Dy2qsWnP.js",
+      "bytes": 207,
+      "sha256": "00892f99b522c1bccb97a1ce739b18acbebb62dd395fbe9d9399209c08d70f3e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/trophy-Dm1-8Aiz.js",
+      "bytes": 468,
+      "sha256": "4b17dcfd2d24e35e6f15bbd9aa3614196c31db1c3efd60c249bb91a0b93ec10b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/trophy-Lze0v6o3.png",
+      "bytes": 78619,
+      "sha256": "bff5d9a1eb9995eeade32e292afa19d9d32219e969792fc0c1c9f7c110765b56"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/types-ClefRyBo.js",
+      "bytes": 52931,
+      "sha256": "ad3d5ecfdfd8952552257030037c8e674dff70f121d8da96893acbebc346e98e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/upload-BU5oYZWy.js",
+      "bytes": 260,
+      "sha256": "7440bab57ff7c40e724f897f55f24067d5b440302e7e0b956b62474453ff396b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/uploadErrorUtils-CMU0V3zk.js",
+      "bytes": 1403,
+      "sha256": "b222850411b872c709de84cab29ff79154ab21169356f2735a7a6dd4de49ce43"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/use-mobile-BPvP4Y9N.js",
+      "bytes": 361,
+      "sha256": "f0c761421a20133c70d0173fc09661bdf01a3effcb413ff9c19925e8d1cad61a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useChatPinnedVault-Bn6kmNKS.js",
+      "bytes": 15841,
+      "sha256": "931d96b00eb7829c2aee361fb3d641c9bf95c2fa7357b0214f64cadff3bd9d96"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useChatProfileWorkset-CxK5QHSw.js",
+      "bytes": 2230,
+      "sha256": "69f708371363320b04e467ac8c29a10c2f451d94e28eeb2142b69a6b6de3af41"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useChatRecapGloballyEnabled-VUZaaAKy.js",
+      "bytes": 1422,
+      "sha256": "a1945aae0f2931001d0df199688e3ac65a4cc11d31d09b3ca3e0c5473d58d4f0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useClubFreeUsage-0sx_gJ83.js",
+      "bytes": 3171,
+      "sha256": "048e6baea6eadd395aa4245bf36803ebc1955b6fc8e7740e19edbe9269ad91d8"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useClubPoints-4ybiXNYg.js",
+      "bytes": 3855,
+      "sha256": "5e17d220ea7357465f674d9e8cc29613e174ce0de7965f0e7cd0766e084d85cc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useClubRealtimeMode-Cf7CRO98.js",
+      "bytes": 1922,
+      "sha256": "37f11c5bea1aded2bb23547310dba3095edac04c5d9b541caacb9eef4564f7c9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useClubSeasons-t8-t-ulW.js",
+      "bytes": 810,
+      "sha256": "7471e1c9aae5efbd18f7da30589b2e07f65a4169d0728aa6cc2f0c6dadf98dca"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useDebounce-BLTquqT8.js",
+      "bytes": 201,
+      "sha256": "d64d50d3babcaca4b707b52179534580c15f2e2e02e94ea56a645018bae647fc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useDesktopUpgradeGate-Be74Btmn.js",
+      "bytes": 6975,
+      "sha256": "151ca582fa93e35a5323812a46fc7441a48614adbb781b941aab87a6b762dbf6"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useEventMembership-L5KXWbGP.js",
+      "bytes": 4725,
+      "sha256": "158e8767d4e17eb4811ef12f0661e40f5d5f00981566de4f4bd4018ef58c034f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useEventViews-DOsoST-0.js",
+      "bytes": 26873,
+      "sha256": "c24060c8c517026ee99a8d7fb3f19b14d017eb1942897ca4612cf4fda7cc6850"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useInAppPurchase-C0V4rLAa.js",
+      "bytes": 4679,
+      "sha256": "3018043537974bb92635b05d3528a2c4e8f8c8fff938025595e43e43c8a8a60e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useInfiniteQuery-g2yRJatH.js",
+      "bytes": 1128,
+      "sha256": "9dd1f8188735d1d9b40cfd03aa313260b31dca4b9c6bb41286f38df6e8b3d70c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useLegalReacceptance-BB1jjf9N.js",
+      "bytes": 3935,
+      "sha256": "7fbaf978a1621315ba5e64207f40cd1bfc00ed6d9330994acb89740bac645d1d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useNativeKeyboardBottomInset-0fZLJvVE.js",
+      "bytes": 1060,
+      "sha256": "66de360744d58ddaa80d721153c219d259afbad9ae49df97b9c387ad2df161b7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useNearbyGameEvent-CMBl5i0P.js",
+      "bytes": 2051,
+      "sha256": "e16117ddd9326acbbd97b575d2c6a4ea9cbf7eebd50789e8dbded18e8efbd2bd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useNotificationNudge-DlO_xGJo.js",
+      "bytes": 1956,
+      "sha256": "fea0c45d78796c2fa70ef647261ad3db285ae64c0744236bd16be603a924e576"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/usePWAInstall--4m4LVsy.js",
+      "bytes": 2474,
+      "sha256": "5ba54c3480375decd2a959a71565a3f6c990fac02dd357c7de9e9f47ea3d7c21"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/usePageTitle-BxARzERF.js",
+      "bytes": 193,
+      "sha256": "594178f937c1c4eb96fc563dc5ea667831f27685f0828f2e89dd0ff96f99814d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/usePitchBoardNotifications-CroOkaVK.js",
+      "bytes": 22097,
+      "sha256": "798d9277e8c13689ab08386694e0112384bc33426a05f1cf3c9cef30c858352b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useProfiles-z8qJplF8.js",
+      "bytes": 1424,
+      "sha256": "7ae25a5f0e980f559272c2e0142606c15798bc489028fe789ab66ba398a4ed50"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useRecentMatchWindow-pgYlJT1V.js",
+      "bytes": 954,
+      "sha256": "c7f1119b08c8824cb11f6458c217a187c6a729152541c4c95ed17bd02df8dea9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useScheduledMessages-BK9HO3Kd.js",
+      "bytes": 6438,
+      "sha256": "a3c2971b5c529d7d886ac9d579459abce31af7f6bf1e4e70e25e855c32f4eb1e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useSeasonAnalytics-BZeOPfic.js",
+      "bytes": 1126,
+      "sha256": "9907dcf2bb9b94eec6f8397acb960bae6129d57136dfa02b0b7a84e2b61343d3"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useSignedPhotoUrl-CvKObr20.js",
+      "bytes": 3739,
+      "sha256": "910f29e0bdc550345092ed6efdeb9caf47fb32be345cea6514970ea64de23ef0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useSponsorAnalytics-CtkAbSwM.js",
+      "bytes": 884,
+      "sha256": "be06d02b01e65520e2696be25edd83624280bb299cba45d4735523ac95a87d14"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useSwipeGesture-CStL9yNc.js",
+      "bytes": 953,
+      "sha256": "7eaa75c0536c986c726ebb74845404ede3ee7a93cb13936a751434005cb7b2da"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useSyncActiveClubToChat-xYKMQ7nI.js",
+      "bytes": 31,
+      "sha256": "08d2e853e567c1d36973e878258ea2c4794b1ce64359fbac2f3e9e72aa65e98e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useTypingIndicator-B1ZSVTEy.js",
+      "bytes": 270571,
+      "sha256": "bd0a8b6f15b4ec9ab7e7dd37ba11d890bd4484989818fc5d0bbf88dfd0699981"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useUserHasAnyAICatchUpClub-j2nQT8Nb.js",
+      "bytes": 3964,
+      "sha256": "babdeaf652db64e439ca62cd72f24a44003e4070387a58c95bc1f884e0ebc378"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/useViewerIsAdultPlayer-CsTrIC0J.js",
+      "bytes": 839,
+      "sha256": "9668374c2c6f015521a3d5c1993e469dd80e3382ac4f415f08cf6989d5a2bc42"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/user-check-CQgS4i6Y.js",
+      "bytes": 256,
+      "sha256": "69e4e7022bbb5773d58f41c56c9da7da08c3c73fb7902f80cd083bda4af719c2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/user-round-check-DYHM6jcU.js",
+      "bytes": 235,
+      "sha256": "fa44d1ae781c85a319fe74839b5cd5d14e1a6755edea4a471d3047379e945e09"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/user-x-CSYKkvm5.js",
+      "bytes": 308,
+      "sha256": "7371874c3b4a8fdecce8117c1c3c0a6ece1061333ec623b19e0c2905cac88cfc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/users-round-Ba12E9m3.js",
+      "bytes": 255,
+      "sha256": "9bf7420aa3ff5ec32092b49e20af070474b980d8f2be799d57ec60c5571016b4"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/utensils-CQBb-thP.js",
+      "bytes": 264,
+      "sha256": "7eb39a1452a572861b35994514124a468f1a88093ad3aa7ad4f3f8e2182a53ba"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/vault-CjjLjzWf.js",
+      "bytes": 15617,
+      "sha256": "0947d1f852b5d3343b37c939d8949a78e09a88cbd30251b9f66f445c84c43f0f"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/vaultBackupWriter-DjM3Da08.js",
+      "bytes": 298,
+      "sha256": "c0d1b4825e33a07db76e9b569b02afa22982708a809a47ebf5c5d6abf5257379"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/vaultReadRepository-Dqe7xtdN.js",
+      "bytes": 11447,
+      "sha256": "2bfd49ac78039c45ae26c0965c5294443cfc10811986c3aca58fdb7aca058e1a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/verifyIcpChildNameAcrossGroups-DBr2TL-h.js",
+      "bytes": 3826,
+      "sha256": "b72ce97a6e32fcb61feebf15d5b78d40076ca14466b91f4e03201c50998fb642"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/wand-sparkles-B4ojGv3G.js",
+      "bytes": 515,
+      "sha256": "fbe50513cc59ec87852dc07ea95b0391851357fc9531fbcf1004ee17c3d9f4d0"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/web-BDqqwldY.js",
+      "bytes": 960,
+      "sha256": "3458a23641b680a802fc1569a28f0ee69b100093070b43190b01d307a0615bd9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/web-BG5t8W-j.js",
+      "bytes": 8724,
+      "sha256": "a9e6d5c2afe03bec73b3dc930418c766241a289fabbcf3d858ea8df10a373807"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/web-C5s-f1jJ.js",
+      "bytes": 1159,
+      "sha256": "74ca031b559e0b19f64e2783060cc9f93e5ad3a3a194767af41db7c13f81b5f7"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/web-C7vQdV00.js",
+      "bytes": 385,
+      "sha256": "5ec7e63ee29a0925f2498b5463bf31ad003affe34d72f44d21c239f1a6bfee74"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/web-CMfQPVHV.js",
+      "bytes": 49753,
+      "sha256": "522dfc53126e858c202decddddca5d57539c3c23013a1144602c1afbc881fb2e"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/web-Dp3vocVw.js",
+      "bytes": 848,
+      "sha256": "a8403289ab3634e7d4dc442f2d306a5e6a9e1a1ba72abefa160ff58a2d394048"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/web-ltJg-vaV.js",
+      "bytes": 2352,
+      "sha256": "fd2ce1c96f5aee55eaee52080ca7efb90b121c752ccaaa3aa5f782038083567a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/web-n4cmIeUc.js",
+      "bytes": 367,
+      "sha256": "79c0deec6ed7f25db81239c43f84dec796fee0c6a1a5493db0bf9bc1b37a1b6c"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/web-utlHX6bh.js",
+      "bytes": 198,
+      "sha256": "bfdcd79f4983ced72eda2e5fd5feb0b2a7b6a2f9a251f59637bae4225a7b5d99"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/web-zQcD6q2U.js",
+      "bytes": 1640,
+      "sha256": "0ed204215275cd477f02aa7a5806be457d43f8e1f09a680e099329c318c7e744"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/welcomeMessage-C0GXRF59.js",
+      "bytes": 1157,
+      "sha256": "1851ae1250866d9db7e0a098e220e5cc92f6f4f7c3025aae1debe718182cc5c2"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/wolf-aOF1lGeN.png",
+      "bytes": 246519,
+      "sha256": "0b1826bc45b502e4635b4caf123aa017daa160dc2a97a08e427832cc4227b4ec"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/wsRealtime-BLZgCRqo.js",
+      "bytes": 380684,
+      "sha256": "c058e01e58833599d3ef7cdcdcdcc5af4affee48f513ce69367a54e8756673e9"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/assets/zap-0suJWZnY.js",
+      "bytes": 265,
+      "sha256": "f9b7321b59c8431a3fd41805df2aa45f203a63571d3fa6c7916d4feec33fcf52"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/badge-96.png",
+      "bytes": 33854,
+      "sha256": "7329fd3469d147b44ef769dec4aba6652882540c1f63333530d5537a8b1ffcdc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/badge-mono.svg",
+      "bytes": 274,
+      "sha256": "6850aa5d64305780cb037eb0d82040a80ffc1d7d2e35a2b64bc7ac05772319cd"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/favicon.ico",
+      "bytes": 779920,
+      "sha256": "f3ef5659894f9689cf5f53da23d5a50a24adc7b8ce23bf076419afb9fad50b1d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/icon-192.png",
+      "bytes": 779920,
+      "sha256": "f3ef5659894f9689cf5f53da23d5a50a24adc7b8ce23bf076419afb9fad50b1d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/icon-512.png",
+      "bytes": 779920,
+      "sha256": "f3ef5659894f9689cf5f53da23d5a50a24adc7b8ce23bf076419afb9fad50b1d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/icp-dev-firebase-messaging-sw.js",
+      "bytes": 626,
+      "sha256": "ddafba038c8a44c4fa0204fcdb61a9327b81bb4dfc59fafb4940967dcca168c1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/ignite-email-icon.png",
+      "bytes": 33854,
+      "sha256": "7329fd3469d147b44ef769dec4aba6652882540c1f63333530d5537a8b1ffcdc"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/ignite-email-logo.png",
+      "bytes": 19678,
+      "sha256": "eb26bca6852630e6ea610b7ebe6dc8a4bddddcbdb933cbe7b8b7fb277b769db1"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/ignite-email-logo.svg",
+      "bytes": 603,
+      "sha256": "bd8c05b6d13c90f8115017716c8d1fedfd331349013567dc974ea13da3c44e03"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/ignite-icon.png",
+      "bytes": 779920,
+      "sha256": "f3ef5659894f9689cf5f53da23d5a50a24adc7b8ce23bf076419afb9fad50b1d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/ignite-logo.png",
+      "bytes": 779920,
+      "sha256": "f3ef5659894f9689cf5f53da23d5a50a24adc7b8ce23bf076419afb9fad50b1d"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/index.html",
+      "bytes": 489,
+      "sha256": "8edbcd39ac66798ea03fe280f82c7fe6f66d900262dd735dc0360e1cb8103b18"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/live-index.html",
+      "bytes": 489,
+      "sha256": "8edbcd39ac66798ea03fe280f82c7fe6f66d900262dd735dc0360e1cb8103b18"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/native-sign-in.html",
+      "bytes": 2477,
+      "sha256": "be03999673a645e5cc2139a60f3c5a4ae367e6ccfbb7c07ae4dfe6b543d71bac"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/native-sign-in.js",
+      "bytes": 12592,
+      "sha256": "f57bc52b6c844871c7a4651acc0af5315c70c0388ee8ec1ab3cc070b6330d36a"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/placeholder.svg",
+      "bytes": 3253,
+      "sha256": "64badf7aabda0b9630b87020ffb6095cb858ccbcf66b355c2aa08b1063954d3b"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/riverside-fc-logo.png",
+      "bytes": 15213,
+      "sha256": "5f459c18350af7fe4ec3577c71c98fe8f222b64e3b46b23dfbb013290a1245bb"
+    },
+    {
+      "path": "plugins/frontend/0/dirs/plugins/frontend/0/dirs/dist/splash-logo.png",
+      "bytes": 20850,
+      "sha256": "8fb5a33005c127e0ce37c63097292fd4b7054bd3b37dfa9fcc546e4a5b009b8d"
+    },
+    {
+      "path": "plugins/frontend/1.wasm",
+      "bytes": 944590,
+      "sha256": "958e8bbe7cf768c3d191a78172089203c284e29fded40dc87f86b341e78cf0b2"
+    },
+    {
+      "path": "plugins/frontend/1/files/plugins/frontend/1/files/architecture.json",
+      "bytes": 3418,
+      "sha256": "44392202b3ef16d911f87695236a5cd591ceba2b859d1f9778772fc3aa7baede"
+    },
+    {
+      "path": "plugins/frontend/1/files/plugins/frontend/1/files/backend-ids.json",
+      "bytes": 955,
+      "sha256": "a23298255a02a6c6f916a4c8afed7b3a74daf61e5feabe15161cd623a5e5ce11"
+    },
+    {
+      "path": "plugins/frontend/1/files/plugins/frontend/1/files/entry.js",
+      "bytes": 1664793,
+      "sha256": "3cfb6355a49a96a4dba66284dc2abf5c87bc5b8a3936168a0baff74250e8f049"
+    },
+    {
+      "path": "plugins/vault_domain/0.wasm",
+      "bytes": 805689,
+      "sha256": "28df673b731031943f8abf0fdbd85886b94764050b9df56f0ab6a96e91962cbe"
+    },
+    {
+      "path": "plugins/vault_domain/0/files/plugins/vault_domain/0/files/links.txt",
+      "bytes": 2428,
+      "sha256": "2f2f9fbe6671aa9f51426bc3081814e3e94da5aeb7b3c506ed36c71933d9471a"
+    }
+  ]
+}
