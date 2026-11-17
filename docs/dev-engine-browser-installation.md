@@ -7,7 +7,7 @@
 - Console apps: https://opencloud.org/console/engines/engine-789969b4-e8ba-41b0-90a2-47b4dab699df/apps
 - Subnet: `nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae`.
 - Reported domain: `ignite-dev--0k3.opencloud.me`; API/certificate trust remains unverified.
-- Existing Ignite canisters are not on this engine. The supplied Integrations screenshot shows no console proxy deployed.
+- Existing Ignite canisters are not on this engine. Paul's 17 November 00:55 UTC Integrations screenshot shows one deployed console proxy: `ynolw-eyaaa-aaaaj-qspkq-cai`, with a displayed balance of 2.49 T cycles. This is owner-supplied console evidence, not verified deployment access or a successful encryption call.
 - Paul cannot run local computer software. The failed MCP connection is not treated as working access.
 
 ## Browser-only route and current limits
@@ -22,7 +22,7 @@ Consequently, no upload-ready bundle is produced yet, and no application is repo
 
 ## Ordered next work
 
-1. Owner creates the **DEV console proxy** under Integrations → Proxy canisters → Deploy a proxy and returns its public canister ID. The official guide says creation consumes the engine balance and future automatic proxy refills also draw from it. This is a paid setup action, not a free connectivity probe. Caffeine need not be enabled.
+1. **Completed by the owner:** DEV console proxy `ynolw-eyaaa-aaaaj-qspkq-cai` is shown deployed. Future automatic proxy refills draw from the engine balance. Do not create another proxy; Caffeine need not be enabled.
 2. Complete caller-isolated proxy-backed VetKeys in the backend and the remaining bounded, cycle-free cross-subnet call families. A `PROXY_CANISTER_ID` setting alone does not implement encryption. Preserve the existing mainnet path.
 3. Verify the browser upload dialog's supported init/configuration mechanism and controller ownership. Implement the missing configuration transport through an officially supported path; do not assume the console can execute arbitrary scripts or use the mainnet CI key without a verified DEV engine grant.
 4. Produce the official backend-only bundle using pinned tooling, inspect its complete manifest/Wasms/init inputs and exclude keys, existing ID mappings and data. Include exact source/module provenance. No frontend relocation is required by this route.
@@ -32,7 +32,7 @@ Consequently, no upload-ready bundle is produced yet, and no application is repo
 
 ## Not authorized or completed
 
-No deployment, proxy creation, settings write, club migration, scheduler activation, production workflow change or live hosting change occurred. Real engine encryption, browser installation/configuration and phone acceptance remain unverified.
+Paul created the DEV console proxy. No Ignite deployment, settings write, club migration, scheduler activation, production workflow change or live hosting change was performed here. Real engine encryption, browser installation/configuration and phone acceptance remain unverified.
 
 ## Sources checked
 
