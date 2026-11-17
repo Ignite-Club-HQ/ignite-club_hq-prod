@@ -75,6 +75,15 @@ describe("getSignedPhotoUrls — batch fail-closed behaviour", () => {
     expect(invokeMock).not.toHaveBeenCalled();
   });
 
+  it("document signing uses fresh two-minute URLs without persisting them", async () => {
+    createSignedUrlMock.mockResolvedValue({ data: { signedUrl: SIGNED_A }, error: null });
+    await resolveSignedUrl(PRIVATE_COMPETITION_URL, { expiresIn: 120 });
+    await resolveSignedUrl(PRIVATE_COMPETITION_URL, { expiresIn: 120 });
+    expect(createSignedUrlMock).toHaveBeenCalledTimes(2);
+    expect(createSignedUrlMock).toHaveBeenCalledWith("clubs/club-a/competitions/comp-a/rules.pdf", 120);
+    expect(localStorage.getItem("signed-url-cache-v1")).toBeNull();
+  });
+
   it("returns signed URLs for successfully signed private entries", async () => {
     createSignedUrlMock.mockResolvedValueOnce({
       data: { signedUrl: SIGNED_A },

@@ -165,7 +165,11 @@ async function performFileAction(
   if (await openWithViewer(local.uri, primaryType)) return;
 
   if (primaryType === "application/pdf" && /^https?:\/\//.test(resolvedUrl)) {
-    try { await safeOpenUrl(resolvedUrl); return; } catch { /* Explicit recovery below. */ }
+    try {
+      const { Browser } = await import("@capacitor/browser");
+      await Browser.open({ url: resolvedUrl });
+      return;
+    } catch { /* Explicit recovery below; browser launch is not proof of PDF rendering. */ }
   }
   throw new Error("No compatible viewer could open this file. Install a document viewer, or choose Download or Share.");
 }
