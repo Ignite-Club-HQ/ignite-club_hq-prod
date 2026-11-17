@@ -18,6 +18,7 @@ import type {_SERVICE as IdentityService} from '../src/lab/bindings/identity_acc
 import {GROUP2_GOVERNOR} from '../../scripts/group2-upgrade-rules.mjs';
 import {PII,planDevClubNameCoverage,summarizeDevClubNameCoverage,classifyDevNameCoverageFailure,assessDevG2TestParentNameCopies} from '../../scripts/dev-club-name-coverage-policy.mjs';
 import {triageDevNameBlockers} from '../../scripts/dev-name-cleanup-triage.mjs';
+import {buildDevNameCleanupPreflight} from '../../scripts/dev-name-cleanup-exact-preflight.mjs';
 
 const [pemPath,reportDir]=process.argv.slice(2);
 if(!pemPath||!reportDir||
@@ -181,6 +182,7 @@ const report={
     {snapshotStable:stable,backendReaderInstalled:readFailure===null}),
   parentFocus,
   cleanupTriage: stable ? triageDevNameBlockers(first,plan.issues) : {status:'snapshot_unverified',authorisedDeletion:false},
+  cleanupExactPreflight: stable ? buildDevNameCleanupPreflight(first,plan.issues) : {status:'snapshot_unverified',approvedForDeletion:false},
   ...(readFailure?{readFailure}:{ }),
   sourceReadbackFailed,
 };
