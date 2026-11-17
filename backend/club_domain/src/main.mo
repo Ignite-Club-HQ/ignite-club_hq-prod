@@ -1564,7 +1564,8 @@ persistent actor class Main(governorInit : Principal) = this {
   };
   public shared query ({ caller }) func read_competition_team_access(team_id : Text, user : Principal) : async { club_id : ?Text; is_member : Bool; can_manage : Bool } {
     denyLegacyAccountQuery();
-    if (not trustedCompetition(caller) or user.equal(Principal.anonymous()) or team_id.size() > 128) return { club_id = null; is_member = false; can_manage = false };
+    let trusted = trustedCompetition(caller) or (switch (messagingDomainCanister) { case (?p) p.equal(caller); case null false });
+    if (not trusted or user.equal(Principal.anonymous()) or team_id.size() > 128) return { club_id = null; is_member = false; can_manage = false };
     switch (liveTeamClub(team_id)) {
       case null ({ club_id = null; is_member = false; can_manage = false });
       case (?club) {
@@ -8919,7 +8920,10 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(user);
-    if (not trustedCompetition(caller) or user.equal(Principal.anonymous()) or team_id.size() > 128) return { club_id = null; is_member = false; can_manage = false };
+    // Messaging uses the same exact live-team authority for club chat checks.
+    // Only configured first-party canisters are admitted, never browser callers.
+    let trusted = trustedCompetition(caller) or (switch (messagingDomainCanister) { case (?p) p.equal(caller); case null false });
+    if (not trusted or user.equal(Principal.anonymous()) or team_id.size() > 128) return { club_id = null; is_member = false; can_manage = false };
     switch (liveTeamClub(team_id)) {
       case null ({ club_id = null; is_member = false; can_manage = false });
       case (?club) {

@@ -581,6 +581,25 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not member) throw Error.reject("Club chat access forbidden");
   };
 
+  // Club membership alone cannot authorize an old team conversation: a user
+  // may legitimately belong to another team in the same club. Ask the current
+  // club authority for this exact team's effective membership and owner.
+  func requireChatTeamMember(subject : Principal, club : Text, team : Text) : async* () {
+    let configured = clubDomainCanister;
+    let cd = configured ?? throw Error.reject("Team chat authority unavailable");
+    let authority : actor {
+      read_account_read_competition_team_access : shared (Text, Principal) -> async {
+        club_id : ?Text; is_member : Bool; can_manage : Bool
+      }
+    } = actor(cd.toText());
+    let proof = try {
+      await (with timeout = 10) authority.read_account_read_competition_team_access(team, subject)
+    } catch (_) { throw Error.reject("Team chat authority unavailable") };
+    if (configured != clubDomainCanister or isFenced(club) or removalReceiver.denied(subject) or
+        proof.club_id != ?club or not proof.is_member)
+      throw Error.reject("Team chat membership revoked or team deleted");
+  };
+
   func requireChatAccess(subject : Principal, conversation_id : Text) : async* () {
     if (removalReceiver.denied(subject)) throw Error.reject("Account removal fenced");
     let captured = conversations.find(func(c) = c.id == conversation_id);
@@ -589,6 +608,10 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?c) {
         if (requiresClubMembership(c)) {
           await* requireChatClubMember(subject, c.club_id);
+          switch (c.team_id) {
+            case (?team) { await* requireChatTeamMember(subject, c.club_id, team) };
+            case null {};
+          };
           let fresh = conversations.find(func(item) = item.id == conversation_id);
           switch (fresh) {
             case (?current) {
@@ -2008,7 +2031,24 @@ persistent actor class Main(governorInit : Principal) = this {
           if (isFenced(c.club_id)) return #Err("Club chat authorization changed");
           let authority : actor { is_club_member : shared query (Principal, Text) -> async Bool } = actor(cd.toText());
           let member = try { await authority.is_club_member(caller, c.club_id) } catch (_) { return #Err("Club chat authority unavailable") };
-          if (not member) return #Err("Club chat access forbidden");
+          if (not member or clubDomainCanister != ?cd or isFenced(c.club_id)) return #Err("Club chat access forbidden");
+          switch (c.team_id) {
+            case (?team) {
+              // Fast-path query must meet the exact-team permission boundary
+              // of the protected update path, including deleted-team tombstones.
+              let scoped : actor {
+                read_competition_team_access : shared query (Text, Principal) -> async {
+                  club_id : ?Text; is_member : Bool; can_manage : Bool
+                }
+              } = actor(cd.toText());
+              let proof = try { await scoped.read_competition_team_access(team, caller) }
+                catch (_) { return #Err("Team chat authority unavailable") };
+              if (clubDomainCanister != ?cd or isFenced(c.club_id) or
+                  proof.club_id != ?c.club_id or not proof.is_member)
+                return #Err("Team chat membership revoked or team deleted");
+            };
+            case null {};
+          };
         };
       };
     };

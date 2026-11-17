@@ -10,6 +10,7 @@ import { IDL } from '@icp-sdk/core/candid';
 import { idlFactory as clubIdl } from '../src/lab/bindings/club_domain/declarations/club_domain.did.js';
 import { idlFactory as queueIdl } from '../src/lab/bindings/notification_queue/declarations/notification_queue.did.js';
 import { idlFactory as eventsIdl } from '../src/lab/bindings/events_domain/declarations/events_domain.did.js';
+import { idlFactory as messagingIdl } from '../src/lab/bindings/messaging_domain/declarations/messaging_domain.did.js';
 
 const principal = n => Principal.fromUint8Array(Uint8Array.of(n, 1));
 const governor = principal(1), outsider = principal(2), otherAdmin = principal(3);
@@ -42,7 +43,8 @@ const teamInput = () => {
   return row;
 };
 
-assert.ok(process.env.CLUB_DOMAIN_WASM && process.env.NOTIFICATION_QUEUE_WASM && process.env.EVENTS_DOMAIN_WASM,
+assert.ok(process.env.CLUB_DOMAIN_WASM && process.env.NOTIFICATION_QUEUE_WASM &&
+  process.env.EVENTS_DOMAIN_WASM && process.env.MESSAGING_DOMAIN_WASM,
   'Two locally built canister WASM files are required; never fetch remote WASM');
 const server = await PocketIcServer.start();
 let pic;
@@ -61,6 +63,10 @@ try {
   });
   const events = await pic.setupCanister({
     idlFactory: eventsIdl, wasm: process.env.EVENTS_DOMAIN_WASM,
+    sender: governor, controllers: [governor], arg
+  });
+  const messaging = await pic.setupCanister({
+    idlFactory: messagingIdl, wasm: process.env.MESSAGING_DOMAIN_WASM,
     sender: governor, controllers: [governor], arg
   });
   assert.equal(club.canisterId.toText(), clubCanisterId.toText());
@@ -92,6 +98,9 @@ try {
   c.setPrincipal(governor);
   ok(await c.set_notification_queue_canister(queueCanisterId));
   ok(await c.set_events_domain_canister(events.canisterId));
+  ok(await c.set_messaging_domain_canister(messaging.canisterId));
+  messaging.actor.setPrincipal(governor);
+  ok(await messaging.actor.set_club_domain_canister(clubCanisterId));
   events.actor.setPrincipal(governor);
   ok(await events.actor.set_club_domain_canister(clubCanisterId));
   q.setPrincipal(governor);
@@ -102,6 +111,10 @@ try {
   ok(await c.save_team(teamInput()));
   ok(await c.add_role_grant(test2, clubId, 'parent', [teamId]));
   assert.deepEqual(await c.read_account_list_user_club_roles(test2, clubId), [['parent', [teamId]]]);
+  messaging.actor.setPrincipal(governor);
+  const teamChat = ok(await messaging.actor.ensure_conversation(clubId, [teamId], [test2, governor]));
+  messaging.actor.setPrincipal(test2);
+  ok(await messaging.actor.read_account_open_conversation(teamChat.id, 20));
 
   // Create the exact test event through the real event domain, rather than
   // writing a fake invitation row into the queue. This is local PocketIC only.
@@ -216,6 +229,52 @@ try {
     'Competing fake invite', 'pocketic-other-invite', [eventId]));
   c.setPrincipal(test2);
   assert.equal(option(await c.read_account_my_dev_test2_event_delivery(eventId))[0].status, 'pending');
+
+  // Cross-service deleted-team regression (disposable, in-memory replica):
+  // the same real-looking parent principal retains membership in a different
+  // active team, but loses deleted U10 event access and related role grants.
+  c.setPrincipal(governor);
+  ok(await c.add_role_grant(test2, clubId, 'parent', [otherTeamId]));
+  events.actor.setPrincipal(test2);
+  assert.ok((await events.actor.read_account_list_events([clubId], [teamId]))
+    .some(e => e.id === eventId), 'live-team parent must see the event before deletion');
+  messaging.actor.setPrincipal(test2);
+  ok(await messaging.actor.read_account_open_conversation(teamChat.id, 20));
+  ok(await events.actor.read_account_get_event_roster(eventId));
+  c.setPrincipal(governor);
+  ok(await c.soft_delete_team(teamId));
+  const survivingRoles = await c.read_account_list_user_club_roles(test2, clubId);
+  assert.deepEqual(survivingRoles, [['parent', [otherTeamId]]],
+    'delete revokes only the old team; independent memberships survive');
+  messaging.actor.setPrincipal(test2);
+  let deniedChat = false;
+  try {
+    const result = await messaging.actor.read_account_open_conversation(teamChat.id, 20);
+    deniedChat = 'Err' in result;
+  } catch { deniedChat = true; }
+  assert.ok(deniedChat, 'same-club user from other team must not retain deleted-team chat access');
+  deniedChat = false;
+  try {
+    const result = await messaging.actor.open_conversation_query(teamChat.id, 20);
+    deniedChat = 'Err' in result;
+  } catch { deniedChat = true; }
+  assert.ok(deniedChat, 'fast chat query must reject deleted team too');
+  events.actor.setPrincipal(test2);
+  assert.deepEqual(await events.actor.read_account_list_events([clubId], [teamId]), [],
+    'parent with a surviving sibling team cannot read deleted team events');
+  denied(await events.actor.read_account_get_event_roster(eventId));
+  c.setPrincipal(governor);
+  ok(await c.restore_team(teamId));
+  events.actor.setPrincipal(test2);
+  assert.deepEqual(await events.actor.read_account_list_events([clubId], [teamId]), [],
+    'restoration does not resurrect the old Parent role');
+  c.setPrincipal(governor);
+  ok(await c.add_role_grant(test2, clubId, 'parent', [teamId]));
+  events.actor.setPrincipal(test2);
+  assert.ok((await events.actor.read_account_list_events([clubId], [teamId]))
+    .some(e => e.id === eventId), 'new explicit role grants work on a restored team');
+  messaging.actor.setPrincipal(test2);
+  ok(await messaging.actor.read_account_open_conversation(teamChat.id, 20));
 
   // The test never registers devices, marks delivery, or calls a live endpoint.
   console.log('PASS: disposable G2 IDs, signed Test2 Parent success/null, caller/event/queue/role/fence denials, canonical receipt-key matching, bounded response. Zero real pushes and zero deployment.');

@@ -3189,7 +3189,8 @@ persistent actor class Main(governorInit : Principal) = this {
     let current = switch (events.find(func(e) = e.id == event_id and not e.deleted)) {
       case null return #Err("Event no longer available"); case (?e) e
     };
-    if (current.revision != event.revision or not canView(caller,current)) return #Err("Event access changed");
+    if (current.revision != event.revision or
+        not (await freshVisibleEvent(caller, current))) return #Err("Event access changed");
     var canonical: ?{home:?Nat16;away:?Nat16;hidden:Bool}=null;
     switch(competitionMatchLinks.find(func(l)=l.event_id==event_id)){
       case null {};
@@ -4977,7 +4978,10 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
     let request = Oql.parse(input, [OqlEvents.entity]);
-    Oql.run<Types.Event>(request, events, func(event) = not event.deleted and canView(caller, event), OqlEvents.row)
+    let permitted = await freshOqlVisibleEvents(caller);
+    if (removalReceiver.denied(caller)) throw Error.reject("Event access changed");
+    Oql.run<Types.Event>(request, events,
+      func(event) = permitted.any(func(approved) = approved == event), OqlEvents.row)
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -4988,8 +4992,12 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
-    let allowed = isGovernor(caller) or hasBulkAccess(caller) or hasRole(caller, "club_admin", association_id, null);
-    if (not allowed) return #Err("Association admin required");
+    let currentRoles = await freshMemberRolesForList(caller, association_id);
+    let allowed = isGovernor(caller) or hasBulkAccess(caller) or (switch (currentRoles) {
+      case null false;
+      case (?grants) grants.any(func((role, team)) = role == "club_admin" and team == null);
+    });
+    if (not allowed or removalReceiver.denied(caller)) return #Err("Association admin required");
     #Ok(associationEvents.filter(func(a) = a.association_id == association_id and not a.deleted))
   
     } finally { removalReceiver.leave(caller) };
@@ -5001,7 +5009,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
-    switch (requireManage(caller, event_id)) {
+    switch (await freshManageEvent(caller, event_id)) {
       case (#Err(err)) { #Err(err) };
       case (#Ok(_)) {
         switch (children.find(func(c) = c.id == child_id)) {
@@ -5019,12 +5027,13 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    series.filter(func(item) =
-      not item.deleted
-        and canViewSeries(caller, item)
-        and (club_id == null or club_id == ?item.club_id)
-        and (team_id == null or team_id == item.team_id)
-    )
+    var visible : [Types.EventSeries] = [];
+    for (item in series.values()) {
+      if ((club_id == null or club_id == ?item.club_id) and
+          (team_id == null or team_id == item.team_id) and
+          (await freshSeriesVisible(caller, item))) visible := visible.concat([item]);
+    };
+    visible
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -5037,7 +5046,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (series.find(func(item) = item.id == series_id)) {
       case null { #Err("Series not found") };
       case (?item) {
-        if (not canViewSeries(caller, item)) return #Err("Forbidden");
+        if (not (await freshSeriesVisible(caller, item))) return #Err("Forbidden");
         let occurrences = events.filter(func(e) = e.series_id == ?series_id);
         let sorted = occurrences.sort(func(a, b) = Nat64.compare(a.starts_at_ms, b.starts_at_ms));
         #Ok(sorted.map(func(e) = { id = e.id; starts_at_ms = e.starts_at_ms; ends_at_ms = e.ends_at_ms; deleted = e.deleted }));
@@ -5055,7 +5064,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Err("Event not found") };
       case (?event) {
-        if (not canView(caller, event)) return #Err("Forbidden");
+        if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
         #Ok(lineupSnapshots.find(func(item) = item.event_id == event_id and item.team_id == team_id))
       };
     }
@@ -5069,6 +5078,8 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
+    let event = events.find(func(e) = e.id == event_id) ?? return #Err("Event not found");
+    if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
     switch (eventSponsors.find(func((id, _)) = id == event_id)) { case (?(_, ids)) #Ok(ids); case null #Ok([]) };
   
     } finally { removalReceiver.leave(caller) };
@@ -5083,7 +5094,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Err("Event not found") };
       case (?event) {
-        if (not canView(caller, event)) return #Err("Forbidden");
+        if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
         #Ok(eventTimers.find(func(item) = item.event_id == event_id))
       };
     };
@@ -5099,7 +5110,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Err("Event not found") };
       case (?event) {
-        if (not canView(caller, event)) return #Err("Forbidden");
+        if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
         #Ok(roster.filter(func(item) = item.event_id == event_id))
       };
     }
@@ -5124,9 +5135,38 @@ persistent actor class Main(governorInit : Principal) = this {
     ?grants
   };
 
-  func canViewListedEvent(subject : Principal, event : Types.Event, freshRoles : ?[(Text, ?Text)]) : async Bool {
+  // Do not let cached event-side roles resurrect a soft-deleted team.
+  // The canonical team tombstone remains in club_domain for reversible deletion.
+  func freshEventTeamLive(event : Types.Event) : async Bool {
+    switch (event.team_id) {
+      case null true;
+      case (?teamId) {
+        let configured = clubDomainCanister ?? return false;
+        let club : actor {
+          get_team : shared query (Text) -> async {
+            #Ok : ?{ club_id : Text; deleted_at_ms : ?Nat64 }; #Err : Text
+          };
+        } = actor(configured.toText());
+        let result = try { await (with timeout = 10) club.get_team(teamId) } catch (_) { return false };
+        if (clubDomainCanister != ?configured or isFenced(event.club_id)) return false;
+        switch (result) {
+          case (#Ok(?t)) t.club_id == event.club_id and t.deleted_at_ms == null;
+          case (_) false;
+        }
+      };
+    }
+  };
+
+  func canViewListedEvent(subject : Principal, event : Types.Event, freshRoles : ?[(Text, ?Text)], teamChecked : ?Bool) : async Bool {
     if (Principal.isAnonymous(subject) or event.deleted) return false;
-    if (canView(subject, event)) return true;
+    let liveTeam = switch (teamChecked) {
+      case (?verified) verified;
+      case null await freshEventTeamLive(event);
+    };
+    if (not liveTeam) return false;
+    // The governor may inspect live events for support. Ordinary users must
+    // be re-authorized by club_domain, never events_domain's cached role mirror.
+    if (isGovernor(subject)) return true;
     switch (freshRoles) {
       case (?grants) {
         // Recheck snapshot after authority reads and do not cross team scope.
@@ -5158,6 +5198,201 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
 
+  // Build a single current-authority snapshot for OQL. Source events are
+  // read without names or PII. Team tombstones are fetched in bounded batches;
+  // per-club roles are fetched once, never from the cached event mirror.
+  func freshOqlVisibleEvents(subject : Principal) : async [Types.Event] {
+    if (Principal.isAnonymous(subject) or removalReceiver.denied(subject)) return [];
+    let configured = clubDomainCanister ?? return [];
+    let cd : actor { get_teams : shared query ([Text]) -> async {
+      #Ok : [{ id : Text; club_id : Text; deleted_at_ms : ?Nat64 }]; #Err : Text
+    } } = actor(configured.toText());
+    var ids : [Text] = [];
+    for (e in events.values()) {
+      if (not e.deleted) switch (e.team_id) {
+        case (?id) if (not ids.any(func(x) = x == id)) ids := ids.concat([id]);
+        case null {};
+      };
+    };
+    var currentTeams : [{ id : Text; club_id : Text; deleted_at_ms : ?Nat64 }] = [];
+    var offset : Nat = 0;
+    while (offset < ids.size()) {
+      let last = if (offset + 500 < ids.size()) offset + 500 else ids.size();
+      let chunk = Array.tabulate<Text>(last - offset, func(i) = ids[offset + i]);
+      let answer = try { await (with timeout = 10) cd.get_teams(chunk) } catch (_) { return [] };
+      switch (answer) {
+        case (#Ok(rows)) currentTeams := currentTeams.concat(rows);
+        case (#Err(_)) return [];
+      };
+      if (configured != clubDomainCanister or removalReceiver.denied(subject)) return [];
+      offset := last;
+    };
+    var cache : [(Text, ?[(Text, ?Text)])] = [];
+    var approved : [Types.Event] = [];
+    for (e in events.values()) {
+      if (not e.deleted and not isFenced(e.club_id) and
+          (switch (e.team_id) {
+            case null true;
+            case (?id) currentTeams.any(func(t) =
+              t.id == id and t.club_id == e.club_id and t.deleted_at_ms == null);
+          })) {
+        let roles = if (isGovernor(subject)) null else
+          switch (cache.find(func((club, _)) = club == e.club_id)) {
+            case (?(_, cached)) cached;
+            case null {
+              let fetched = await freshMemberRolesForList(subject, e.club_id);
+              cache := cache.concat([(e.club_id, fetched)]);
+              fetched
+            };
+          };
+        if (isGovernor(subject) or (switch (roles) {
+          case null false;
+          case (?grants) grants.any(func((role, team)) =
+            (role == "club_admin" or role == "team_admin" or role == "coach" or
+             role == "player" or role == "parent") and teamInEventScope(e, team));
+        })) approved := approved.concat([e]);
+      };
+    };
+    if (configured != clubDomainCanister or removalReceiver.denied(subject)) return [];
+    approved
+  };
+
+  // Recheck a series' owning team in the canonical club registry.
+  func freshSeriesVisible(subject : Principal, item : Types.EventSeries) : async Bool {
+    if (Principal.isAnonymous(subject) or item.deleted or removalReceiver.denied(subject)) return false;
+    switch (item.team_id) {
+      case null {};
+      case (?id) {
+        let configured = clubDomainCanister ?? return false;
+        let cd : actor { get_team : shared query (Text) -> async {
+          #Ok : ?{ club_id : Text; deleted_at_ms : ?Nat64 }; #Err : Text
+        } } = actor(configured.toText());
+        let status = try { await (with timeout = 10) cd.get_team(id) } catch (_) { return false };
+        if (clubDomainCanister != ?configured or isFenced(item.club_id)) return false;
+        switch (status) {
+          case (#Ok(?team)) {
+            if (team.club_id != item.club_id or team.deleted_at_ms != null) return false;
+          };
+          case (_) return false;
+        };
+      };
+    };
+    if (isGovernor(subject)) return true;
+    let grants = await freshMemberRolesForList(subject, item.club_id);
+    switch (grants) {
+      case null false;
+      case (?current) current.any(func((role, team)) =
+        (role == "club_admin" or role == "team_admin" or role == "coach" or
+         role == "parent" or role == "player") and
+        (item.team_id == null or team == null or team == item.team_id))
+    }
+  };
+
+  // Revoked or deleted team roles must not authorize protected calendar metadata.
+  func freshTeamReadAllowed(subject : Principal, club : Text, team : Text) : async Bool {
+    let configured = clubDomainCanister ?? return false;
+    let authority : actor { get_team : shared query (Text) -> async {
+      #Ok : ?{ club_id : Text; deleted_at_ms : ?Nat64 }; #Err : Text
+    } } = actor(configured.toText());
+    let found = try { await (with timeout = 10) authority.get_team(team) } catch (_) { return false };
+    if (configured != clubDomainCanister or isFenced(club) or removalReceiver.denied(subject)) return false;
+    switch (found) {
+      case (#Ok(?row)) { if (row.club_id != club or row.deleted_at_ms != null) return false };
+      case (_) return false;
+    };
+    if (isGovernor(subject)) return true;
+    let roles = await freshMemberRolesForList(subject, club);
+    switch (roles) {
+      case null false;
+      case (?grants) grants.any(func((role, scope)) =
+        (role == "club_admin" and scope == null) or
+        (scope == ?team and (role == "parent" or role == "player" or
+          role == "coach" or role == "team_admin" or role == "committee_member")));
+    }
+  };
+
+  // Every protected detail, roster and duty read must use the current
+  // club-domain membership and canonical team tombstone, never local roles.
+  // Team-only detail endpoints have no club parameter. Resolve it from
+  // the canonical team, rejecting soft-deleted teams before checking grants.
+  func freshTeamOnlyReadAllowed(subject : Principal, team : Text) : async Bool {
+    let configured = clubDomainCanister ?? return false;
+    let cd : actor { get_team : shared query (Text) -> async {
+      #Ok : ?{ club_id : Text; deleted_at_ms : ?Nat64 }; #Err : Text
+    } } = actor(configured.toText());
+    let result = try { await (with timeout = 10) cd.get_team(team) } catch (_) { return false };
+    if (clubDomainCanister != ?configured or removalReceiver.denied(subject)) return false;
+    switch (result) {
+      case (#Ok(?t)) {
+        if (t.deleted_at_ms != null) return false;
+        await freshTeamReadAllowed(subject, t.club_id, team)
+      };
+      case (_) false;
+    }
+  };
+
+  func freshVisibleEvent(subject : Principal, event : Types.Event) : async Bool {
+    if (Principal.isAnonymous(subject) or event.deleted or removalReceiver.denied(subject)) return false;
+    if (isGovernor(subject)) return await freshEventTeamLive(event);
+    let freshRoles = await freshMemberRolesForList(subject, event.club_id);
+    await canViewListedEvent(subject, event, freshRoles, null)
+  };
+
+  // Bound multi-event readers and preserve the requested ordering, without
+  // treating a stale local mirror as permission for one event in the batch.
+  func freshVisibleEventIds(subject : Principal, eventIds : [Text]) : async [Text] {
+    if (eventIds.size() > 300) return [];
+    var permitted : [Text] = [];
+    var roleCache : [(Text, ?[(Text, ?Text)])] = [];
+    var teamStatus : [(Text, Text, Bool)] = [];
+    for (id in eventIds.values()) {
+      switch (events.find(func(e) = e.id == id and not e.deleted)) {
+        case null {};
+        case (?event) {
+          let roles = switch (roleCache.find(func((club, _)) = club == event.club_id)) {
+            case (?(_, cached)) cached;
+            case null {
+              let fetched = await freshMemberRolesForList(subject, event.club_id);
+              roleCache := roleCache.concat([(event.club_id, fetched)]);
+              fetched
+            };
+          };
+          let teamVerified = switch (event.team_id) {
+            case null true;
+            case (?team) switch (teamStatus.find(func((club, id, _)) =
+              club == event.club_id and id == team)) {
+              case (?(_, _, known)) known;
+              case null {
+                let known = await freshEventTeamLive(event);
+                teamStatus := teamStatus.concat([(event.club_id, team, known)]);
+                known
+              };
+            };
+          };
+          if (await canViewListedEvent(subject, event, roles, ?teamVerified)) {
+            permitted := permitted.concat([id]);
+          };
+        };
+      };
+    };
+    permitted
+  };
+
+  // Management reads must also fail closed after a role revocation or delete;
+  // this helper is deliberately not used for mutations without an independent
+  // review of their transaction/revalidation boundaries.
+  func freshManageEvent(subject : Principal, eventId : Text) : async { #Ok : Types.Event; #Err : Text } {
+    let event = switch (events.find(func(e) = e.id == eventId and not e.deleted)) {
+      case null return #Err("Event not found");
+      case (?e) e;
+    };
+    if (not (await freshEventTeamLive(event))) return #Err("Event team unavailable");
+    if (not (await freshEventManager(subject, event))) return #Err("Event management forbidden");
+    if (removalReceiver.denied(subject) or isFenced(event.club_id) or
+        not events.any(func(e) = e == event)) return #Err("Event authorization changed");
+    #Ok(event)
+  };
+
   public shared ({ caller }) func read_account_list_events(club_id : ?Text, team_id : ?Text) : async [Types.Event] {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
@@ -5165,9 +5400,10 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     var visible : [Types.Event] = [];
     var memberRoleCache : [(Text, ?[(Text, ?Text)])] = [];
+    var teamStatus : [(Text, Text, Bool)] = [];
     for (event in events.values()) {
       if (not event.deleted and (club_id == null or club_id == ?event.club_id) and (team_id == null or team_id == event.team_id)) {
-        let freshRoles = if (canView(caller, event)) null else switch (memberRoleCache.find(func((id, _)) = id == event.club_id)) {
+        let freshRoles = switch (memberRoleCache.find(func((id, _)) = id == event.club_id)) {
           case (?(_, cached)) cached;
           case null {
             let verified = await freshMemberRolesForList(caller, event.club_id);
@@ -5175,7 +5411,20 @@ persistent actor class Main(governorInit : Principal) = this {
             verified
           };
         };
-        if (await canViewListedEvent(caller, event, freshRoles)) visible := visible.concat([event]);
+        let teamVerified = switch (event.team_id) {
+          case null true;
+          case (?team) switch (teamStatus.find(func((club, id, _)) =
+            club == event.club_id and id == team)) {
+            case (?(_, _, known)) known;
+            case null {
+              let known = await freshEventTeamLive(event);
+              teamStatus := teamStatus.concat([(event.club_id, team, known)]);
+              known
+            };
+          };
+        };
+        if (await canViewListedEvent(caller, event, freshRoles, ?teamVerified))
+          visible := visible.concat([event]);
       };
     };
     visible
@@ -5191,9 +5440,10 @@ persistent actor class Main(governorInit : Principal) = this {
     if (club_ids.size() + team_ids.size() > 300) return #Err("Too many ids");
     var visible : [Types.Event] = [];
     var memberRoleCache : [(Text, ?[(Text, ?Text)])] = [];
+    var teamStatus : [(Text, Text, Bool)] = [];
     for (event in events.values()) {
       if (not event.deleted and (club_ids.any(func(c) = c == event.club_id) or (switch (event.team_id) { case (?t) team_ids.any(func(id) = id == t); case null false }))) {
-        let freshRoles = if (canView(caller, event)) null else switch (memberRoleCache.find(func((id, _)) = id == event.club_id)) {
+        let freshRoles = switch (memberRoleCache.find(func((id, _)) = id == event.club_id)) {
           case (?(_, cached)) cached;
           case null {
             let verified = await freshMemberRolesForList(caller, event.club_id);
@@ -5201,7 +5451,20 @@ persistent actor class Main(governorInit : Principal) = this {
             verified
           };
         };
-        if (await canViewListedEvent(caller, event, freshRoles)) visible := visible.concat([event]);
+        let teamVerified = switch (event.team_id) {
+          case null true;
+          case (?team) switch (teamStatus.find(func((club, id, _)) =
+            club == event.club_id and id == team)) {
+            case (?(_, _, known)) known;
+            case null {
+              let known = await freshEventTeamLive(event);
+              teamStatus := teamStatus.concat([(event.club_id, team, known)]);
+              known
+            };
+          };
+        };
+        if (await canViewListedEvent(caller, event, freshRoles, ?teamVerified))
+          visible := visible.concat([event]);
       };
     };
     #Ok(visible)
@@ -5215,10 +5478,13 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (team_ids.size() > 100) return #Err("Too many duty teams");
-    #Ok(events.filter(func(event) =
-      not event.deleted and canView(caller, event) and
-      eventDutyTeams.any(func(assignment) = assignment.event_id == event.id and team_ids.any(func(id) = id == assignment.team_id))
-    ))
+    let candidates = events.filter(func(event) =
+      not event.deleted and eventDutyTeams.any(func(assignment) =
+        assignment.event_id == event.id and team_ids.any(func(id) = id == assignment.team_id))
+    );
+    if (candidates.size() > 300) return #Err("Too many matching events");
+    let permitted = await freshVisibleEventIds(caller, candidates.map(func(event) = event.id));
+    #Ok(candidates.filter(func(event) = permitted.any(func(id) = id == event.id)))
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -5229,7 +5495,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (event_ids.size() > 300) return #Err("Too many ids");
-    let ok = visibleEventIds(caller, event_ids);
+    let ok = await freshVisibleEventIds(caller, event_ids);
     #Ok(roster.filter(func(item) = ok.any(func(i) = i == item.event_id)))
   
     } finally { removalReceiver.leave(caller) };
@@ -5241,7 +5507,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (event_ids.size() > 300) return #Err("Too many ids");
-    let ok = visibleEventIds(caller, event_ids);
+    let ok = await freshVisibleEventIds(caller, event_ids);
     #Ok(duties.filter(func(item) = ok.any(func(i) = i == item.event_id)))
   
     } finally { removalReceiver.leave(caller) };
@@ -5264,7 +5530,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    switch (requireManage(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(_)) {} };
+    switch (await freshManageEvent(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(_)) {} };
     #Ok(eventAttendance.filter(func(item) = item.event_id == event_id))
   
     } finally { removalReceiver.leave(caller) };
@@ -5290,7 +5556,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Err("Event not found") };
       case (?event) {
-        if (not canView(caller, event)) return #Err("Forbidden");
+        if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
         let enriched = rsvps.filter(func(item) = item.event_id == event_id).map(func(item) : Types.RsvpWithChild {
           let child = switch (item.child_id) { case (?cid) children.find(func(c) = c.id == cid); case null null };
           { rsvp = item; child }
@@ -5360,7 +5626,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (events.find(func(e) = e.id == event_id)) {
       case null { #Err("Event not found") };
       case (?event) {
-        if (not canView(caller, event)) return #Err("Forbidden");
+        if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
         let hasRsvp = rsvps.any(func(r) = r.event_id == event_id and r.child_id == ?child_id);
         let guardianIsMember = childGuardians.any(func(g) = g.child_id == child_id and isClubMemberText(g.guardian_id, event.club_id));
         #Ok(hasRsvp or guardianIsMember)
@@ -5429,7 +5695,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    switch (requireManage(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(_)) {} };
+    switch (await freshManageEvent(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(_)) {} };
     #Ok(coachNotes.find(func(item) = item.event_id == event_id))
   
     } finally { removalReceiver.leave(caller) };
@@ -5443,13 +5709,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (Principal.isAnonymous(caller)) return #Err("Sign in required");
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Ok(null) };
-      case (?event) { if (not (if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
-      case (?leagueId, ?authority) {
-        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
-        try { do { let removalReply = await ml.can_read_league_matches(caller, leagueId, event.club_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { false }
-      };
-      case _ false;
-    })) #Err("Forbidden") else #Ok(?event.club_id) };
+      case (?event) { if (not (await freshVisibleEvent(caller, event))) #Err("Forbidden") else #Ok(?event.club_id) };
     }
   
     } finally { removalReceiver.leave(caller) };
@@ -5463,7 +5723,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Err("Event not found") };
       case (?event) {
-        if (not canView(caller, event)) return #Err("Forbidden");
+        if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
         #Ok(Nat.toNat32(eventViews.filter(func(item) = item.event_id == event_id).size()))
       };
     }
@@ -5476,7 +5736,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    switch (requireManage(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(_)) {} };
+    switch (await freshManageEvent(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(_)) {} };
     #Ok(reminderLogs.filter(func(item) = item.event_id == event_id))
   
     } finally { removalReceiver.leave(caller) };
@@ -5501,7 +5761,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Err("Event not found") };
       case (?event) {
-        if (not canView(caller, event)) return #Err("Forbidden");
+        if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
         let logs = reminderLogs.filter(func(item) = item.event_id == event_id);
         if (logs.size() == 0) return #Ok({ sent_at_ms = null; recipients_count = 0 });
         var latest : Nat64 = 0;
@@ -5532,13 +5792,7 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Err("Event not found") };
-      case (?event) { if (not (if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
-      case (?leagueId, ?authority) {
-        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
-        try { do { let removalReply = await ml.can_read_league_matches(caller, leagueId, event.club_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { false }
-      };
-      case _ false;
-    })) return #Err("Forbidden"); #Ok(eventGroups.filter(func(item) = item.event_id == event_id)) };
+      case (?event) { if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden"); #Ok(eventGroups.filter(func(item) = item.event_id == event_id)) };
     }
   
     } finally { removalReceiver.leave(caller) };
@@ -5554,13 +5808,7 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?group) {
         switch (events.find(func(item) = item.id == group.event_id)) {
           case null { #Err("Event not found") };
-          case (?event) { if (not (if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
-      case (?leagueId, ?authority) {
-        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
-        try { do { let removalReply = await ml.can_read_league_matches(caller, leagueId, event.club_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { false }
-      };
-      case _ false;
-    })) return #Err("Forbidden"); #Ok(eventGroupPlayers.filter(func(item) = item.group_id == group_id)) };
+          case (?event) { if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden"); #Ok(eventGroupPlayers.filter(func(item) = item.group_id == group_id)) };
         };
       };
     }
@@ -5575,13 +5823,7 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     let group = switch (eventGroups.find(func(g) = g.id == group_id)) { case null return #Ok(null); case (?g) g };
     let event = switch (events.find(func(e) = e.id == group.event_id)) { case null return #Ok(null); case (?e) e };
-    if (not (if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
-      case (?leagueId, ?authority) {
-        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
-        try { do { let removalReply = await ml.can_read_league_matches(caller, leagueId, event.club_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { false }
-      };
-      case _ false;
-    })) return #Err("Forbidden");
+    if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
     #Ok(?group)
   
     } finally { removalReceiver.leave(caller) };
@@ -5594,13 +5836,7 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     let group = switch (eventGroups.find(func(g) = g.id == group_id)) { case null return #Ok(null); case (?g) g };
     let event = switch (events.find(func(e) = e.id == group.event_id)) { case null return #Ok(null); case (?e) e };
-    #Ok(if ((if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
-      case (?leagueId, ?authority) {
-        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
-        try { do { let removalReply = await ml.can_read_league_matches(caller, leagueId, event.club_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { false }
-      };
-      case _ false;
-    })) ?event.club_id else null)
+    #Ok(if ((await freshVisibleEvent(caller, event))) ?event.club_id else null)
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -5612,13 +5848,7 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     let group = switch (eventGroups.find(func(g) = g.id == group_id)) { case null return #Err("Group not found"); case (?g) g };
     let event = switch (events.find(func(e) = e.id == group.event_id)) { case null return #Err("Event not found"); case (?e) e };
-    #Ok((if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
-      case (?leagueId, ?authority) {
-        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
-        try { do { let removalReply = await ml.can_read_league_matches(caller, leagueId, event.club_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { false }
-      };
-      case _ false;
-    }) and canEditGroupState(caller, group))
+    #Ok((await freshVisibleEvent(caller, event)) and canEditGroupState(caller, group))
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -5633,13 +5863,7 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?group) {
         switch (events.find(func(item) = item.id == group.event_id)) {
           case null { #Err("Event not found") };
-          case (?event) { if (not (if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
-      case (?leagueId, ?authority) {
-        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
-        try { do { let removalReply = await ml.can_read_league_matches(caller, leagueId, event.club_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { false }
-      };
-      case _ false;
-    })) return #Err("Forbidden"); #Ok(eventGroupDuties.filter(func(item) = item.group_id == group_id)) };
+          case (?event) { if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden"); #Ok(eventGroupDuties.filter(func(item) = item.group_id == group_id)) };
         };
       };
     }
@@ -5652,7 +5876,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    if (not isClubMember(caller, club_id) and not managesTeam(caller, club_id, team_id)) return #Err("Forbidden");
+    if (not (await freshTeamReadAllowed(caller, club_id, team_id))) return #Err("Forbidden");
     #Ok(teamTrainingPauses.filter(func(item) = item.club_id == club_id and item.team_id == team_id))
   
     } finally { removalReceiver.leave(caller) };
@@ -5663,7 +5887,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    if (not isClubMember(caller, club_id) and not managesTeam(caller, club_id, team_id)) return #Err("Forbidden");
+    if (not (await freshTeamReadAllowed(caller, club_id, team_id))) return #Err("Forbidden");
     #Ok(teamTrainingPauses.any(func(item) = item.club_id == club_id and item.team_id == team_id and item.starts_at_ms <= at_ms and at_ms <= item.ends_at_ms))
   
     } finally { removalReceiver.leave(caller) };
@@ -5674,7 +5898,17 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    roles.any(func(grant) = grant.user.equal(principal) and grant.club_id == club_id and (grant.team_id == ?team_id or grant.team_id == null))
+    if (not (await freshTeamReadAllowed(caller, club_id, team_id))) return false;
+    // The target's effective roles are resolved from club_domain. This can
+    // never resurrect a stored grant for an already deleted team.
+    let grants = await freshMemberRolesForList(principal, club_id);
+    switch (grants) {
+      case null false;
+      case (?current) current.any(func((role, scope)) =
+        (scope == ?team_id or (scope == null and role == "club_admin")) and
+        (role == "club_admin" or role == "team_admin" or role == "coach" or
+          role == "player" or role == "parent" or role == "committee_member"));
+    }
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -5684,7 +5918,13 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    childGuardians.any(func(item) = item.child_id == child_id and item.guardian_id == Principal.toText(principal))
+    // Caller-scoped check against the canonical club guardians, rather
+    // than the now-stale events_domain child/guardian mirror.
+    if (caller != principal) return false;
+    let configured = clubDomainCanister ?? return false;
+    let cd : actor { read_account_has_child_guardian : shared (Principal, Text) -> async Bool } = actor(configured.toText());
+    let current = try { await (with timeout = 10) cd.read_account_has_child_guardian(principal, child_id) } catch (_) { return false };
+    configured == clubDomainCanister and not removalReceiver.denied(caller) and current
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -5696,7 +5936,7 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Err("Event not found") };
-      case (?event) { if (not canView(caller, event)) return #Err("Forbidden"); #Ok(openDuties.filter(func(item) = item.event_id == event_id)) };
+      case (?event) { if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden"); #Ok(openDuties.filter(func(item) = item.event_id == event_id)) };
     }
   
     } finally { removalReceiver.leave(caller) };
@@ -5709,7 +5949,7 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Err("Event not found") };
-      case (?event) { if (not canView(caller, event)) return #Err("Forbidden"); #Ok(duties.filter(func(item) = item.event_id == event_id)) };
+      case (?event) { if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden"); #Ok(duties.filter(func(item) = item.event_id == event_id)) };
     }
   
     } finally { removalReceiver.leave(caller) };
@@ -5763,7 +6003,7 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Err("Event not found") };
-      case (?event) { if (not canView(caller, event)) return #Err("Forbidden"); #Ok(miniLeagueRsvps.filter(func(item) = item.event_id == event_id)) };
+      case (?event) { if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden"); #Ok(miniLeagueRsvps.filter(func(item) = item.event_id == event_id)) };
     }
   
     } finally { removalReceiver.leave(caller) };
@@ -5775,6 +6015,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
+    if (not (await freshTeamOnlyReadAllowed(caller, team_id))) return #Err("Forbidden");
     #Ok(pitchBoardSettings.find(func(item) = item.team_id == team_id))
   
     } finally { removalReceiver.leave(caller) };
@@ -5788,7 +6029,9 @@ persistent actor class Main(governorInit : Principal) = this {
     auth(caller);
     let event=switch(events.find(func(e)=e.id==event_id and not e.deleted)){case null return #Err("Event not found");case(?e)e};
     do { let removalReply = await syncRolesFromClubDomain(caller,event.club_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    if(not (do { let removalReply = await* canViewMatch(caller,event); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply }) or eventFenced(event_id)) return #Err("Event access forbidden");
+    if(not (do { let removalReply = await* canViewMatch(caller,event); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply }) or
+       eventFenced(event_id) or not (await freshVisibleEvent(caller, event)))
+      return #Err("Event access forbidden");
     #Ok(gameSummaries.find(func(item) = item.event_id == event_id))
   
     } finally { removalReceiver.leave(caller) };
@@ -5808,6 +6051,8 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
+    let event = events.find(func(e) = e.id == event_id) ?? return #Err("Event not found");
+    if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
     #Ok(matchCaptainAssignments.filter(func(item) = item.event_id == event_id))
   
     } finally { removalReceiver.leave(caller) };
@@ -5819,6 +6064,8 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
+    let event = events.find(func(e) = e.id == event_id) ?? return #Err("Event not found");
+    if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
     #Ok(matchGoalkeeperAssignments.filter(func(item) = item.event_id == event_id))
   
     } finally { removalReceiver.leave(caller) };
@@ -5831,10 +6078,24 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
     if (not valid(club_id)) return #Err("Invalid club");
-    let teamAllowed = switch (team_id) { case (?t) managesTeam(caller, club_id, t); case null false };
-    if (not isGovernor(caller) and not hasRole(caller, "club_admin", club_id, null) and not teamAllowed) return #Err("Team staff required");
-    let matchingEvents = events.filter(func(e) = e.club_id == club_id and not e.deleted and e.starts_at_ms >= from_ms and e.starts_at_ms <= to_ms and (switch (team_id) { case (?t) e.team_id == ?t; case null true }));
-    let eventIds = matchingEvents.map(func(e) = e.id);
+    let currentRoles = await freshMemberRolesForList(caller, club_id);
+    let allowed = isGovernor(caller) or (switch (currentRoles) {
+      case null false;
+      case (?grants) grants.any(func((role, scope)) =
+        (role == "club_admin" and scope == null) or
+        (team_id != null and scope == team_id and (role == "coach" or role == "team_admin")));
+    });
+    if (not allowed) return #Err("Team staff required");
+    var eventIds : [Text] = [];
+    for (e in events.values()) {
+      if (e.club_id == club_id and not e.deleted and
+          e.starts_at_ms >= from_ms and e.starts_at_ms <= to_ms and
+          (switch (team_id) { case (?t) e.team_id == ?t; case null true }) and
+          (await freshEventTeamLive(e))) {
+        eventIds := eventIds.concat([e.id]);
+      };
+    };
+    if (removalReceiver.denied(caller)) return #Err("Team staff authority changed");
     var rows : [Types.PlayerStatRow] = [];
     for (cap in matchCaptainAssignments.values()) {
       if (eventIds.any(func(id) = id == cap.event_id)) {
@@ -5871,6 +6132,10 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
+    switch (team_id) {
+      case (?t) { if (not (await freshTeamOnlyReadAllowed(caller, t))) return #Err("Forbidden") };
+      case null {};
+    };
     #Ok(activeGames.find(func(item) = item.is_active and (switch (team_id) { case (?t) item.team_id == ?t; case null item.user_id.equal(caller) and item.team_id == null })))
   
     } finally { removalReceiver.leave(caller) };
@@ -5881,7 +6146,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    switch (requireManage(caller, event_id)) {
+    switch (await freshManageEvent(caller, event_id)) {
       case (#Err(e)) #Err(e);
       case (#Ok(_)) #Ok(eventViews.filter(func(item) = item.event_id == event_id));
     }
@@ -5895,7 +6160,9 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
-    #Ok(event_ids.filter(func(id) = eventViews.any(func(item) = item.event_id == id and item.viewer.equal(caller))))
+    if (event_ids.size() > 300) return #Err("Too many event IDs");
+    let visible = await freshVisibleEventIds(caller, event_ids);
+    #Ok(visible.filter(func(id) = eventViews.any(func(item) = item.event_id == id and item.viewer.equal(caller))))
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -5906,6 +6173,8 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (not valid(user_id) or not valid(event_id)) return false;
+    let event = events.find(func(e) = e.id == event_id and not e.deleted) ?? return false;
+    if (not (await freshVisibleEvent(caller, event))) return false;
     let onRoster = roster.any(func(item) = item.event_id == event_id and item.account_id == user_id);
     if (onRoster) return true;
     let hasRsvp = rsvps.any(func(item) = item.event_id == event_id and item.account_id == user_id);
@@ -5941,6 +6210,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
+    if (not (await freshTeamOnlyReadAllowed(caller, team_id))) return #Err("Forbidden");
     #Ok(playhqTeamSyncs.find(func(s) = s.team_id == team_id))
   
     } finally { removalReceiver.leave(caller) };
@@ -5954,7 +6224,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (events.find(func(item) = item.id == event_id)) {
       case null { #Err("Event not found") };
       case (?event) {
-        if (not canView(caller, event)) return #Err("Forbidden");
+        if (not (await freshVisibleEvent(caller, event))) return #Err("Forbidden");
         #Ok(eventDutyTeams.find(func(item) = item.event_id == event_id))
       };
     }
@@ -5968,7 +6238,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (event_ids.size() > 300) return #Err("Too many event ids");
-    let visibleIds = visibleEventIds(caller, event_ids);
+    let visibleIds = await freshVisibleEventIds(caller, event_ids);
     #Ok(eventDutyTeams.filter(func(item) = visibleIds.any(func(id) = id == item.event_id)))
   
     } finally { removalReceiver.leave(caller) };
@@ -5982,7 +6252,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (events.find(func(e) = e.id == event_id)) {
       case null null;
       case (?event) {
-        if (not canView(caller, event)) return null;
+        if (not (await freshVisibleEvent(caller, event))) return null;
         switch (autoReminders.find(func(r) = r.event_id == event_id)) {
           case null null;
           case (?r) ?{ hours_before = r.hours_before; sent = r.sent };
