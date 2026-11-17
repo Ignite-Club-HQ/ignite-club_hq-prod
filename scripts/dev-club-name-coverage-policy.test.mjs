@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PII,planDevClubNameCoverage as plan,summarizeDevClubNameCoverage as summarize,classifyDevNameCoverageFailure as classify} from './dev-club-name-coverage-policy.mjs';
+import {PII,planDevClubNameCoverage as plan,summarizeDevClubNameCoverage as summarize,classifyDevNameCoverageFailure as classify,assessDevG2TestParentNameCopies as focusTestParents} from './dev-club-name-coverage-policy.mjs';
 
 const g1='club-one',g2='club-two',a='person-a',b='person-b',c='person-c';
 const club=(id,deleted=false)=>({Club:{id,deleted}});
@@ -127,4 +127,61 @@ test('transient, method, decoder and resource errors remain distinct from absent
   assert.equal(report.copyCounts.copy_missing,0);
   assert.equal(report.copyCounts.unverified,planData.targets.length);
   assert.equal(report.readyToReleaseName,false);
+});
+
+test('signed G2 test-parent focus reports only two fixed labels and verified metadata states',()=>{
+  const f=fixture();
+  f.accounts[2].profile=[{display_name:`pii-display-name:v1:${PII.g1}:${c}`}];
+  const planned=plan(f);
+  const observed=planned.targets.map(target=>({
+    ...target,state:target.club===g2&&target.subject===c?'copy_missing':'copy_verified',
+  }));
+  const report=focusTestParents(f,planned,observed,{club:g2,test2:a,otherParent:c});
+  assert.equal(report.clubVerified,true);
+  assert.deepEqual(report.parents,[
+    {label:'Test2',state:'copy_verified'},
+    {label:'Other parent',state:'copy_missing'},
+  ]);
+  assert.equal(report.readyToReleaseName,false);
+  assert.equal(report.nameReadAuthorised,false);
+  assert.equal(report.crossGroupNameAccessStillRequiresVerification,true);
+  const safe=JSON.stringify(report);
+  assert.ok(!safe.includes('person-a')&&!safe.includes('person-c'));
+  assert.ok(!safe.includes('club-two')&&!safe.includes(PII.g1));
+  assert.ok(!safe.includes('pii-display-name:'));
+});
+
+test('focused parent read never confuses missing source, profile, or membership with absent ciphertext',()=>{
+  const f=fixture();
+  const planned=plan(f);
+  const first=focusTestParents(f,planned,planned.targets.map(t=>({...t,state:'copy_verified'})),
+    {club:g2,test2:a,otherParent:c});
+  assert.equal(first.parents[1].state,'source_not_original_g1');
+  f.accounts[2].profile=[{display_name:`pii-display-name:v1:${PII.g1}:${c}`}];
+  const replanned=plan(f);
+  const unverified=focusTestParents(f,replanned,[],{club:g2,test2:a,otherParent:c});
+  assert.deepEqual(unverified.parents.map(x=>x.state),['copy_unverified','copy_unverified']);
+  f.accounts[0].profile=[{display_name:'Test display name'}];
+  const withLegacy=focusTestParents(f,plan(f),[],{club:g2,test2:a,otherParent:c});
+  assert.equal(withLegacy.parents[0].state,'legacy_name_reference');
+  f.accounts[0].profile=[];
+  assert.equal(focusTestParents(f,plan(f),[],{club:g2,test2:a,otherParent:c})
+    .parents[0].state,'profile_reference_missing');
+  f.g2=f.g2.filter(x=>!(x.Role&&x.Role.subject===c));
+  assert.equal(focusTestParents(f,plan(f),[],{club:g2,test2:a,otherParent:c})
+    .parents[1].state,'membership_not_verified');
+  f.g2=[...f.g2.filter(x=>!(x.Club?.id===g2)),club(g2,true)];
+  assert.equal(focusTestParents(f,plan(f),[],{club:g2,test2:a,otherParent:c})
+    .parents[0].state,'club_not_verified');
+});
+
+test('focus rejects ambiguous subjects, and unknown or duplicate metadata is never described as missing',()=>{
+  const f=fixture(),p=plan(f);
+  assert.throws(()=>focusTestParents(f,p,[],{club:g2,test2:a,otherParent:a}),/Pinned DEV/);
+  const report=focusTestParents(f,p,[],{club:g2,test2:a,otherParent:c});
+  assert.equal(report.parents[0].state,'copy_unverified');
+  assert.equal(report.parents[1].state,'source_not_original_g1');
+  f.accounts.push({...f.accounts[0],account_id:'second-alias-account'});
+  assert.equal(focusTestParents(f,p,[],{club:g2,test2:a,otherParent:c})
+    .parents[0].state,'account_mapping_not_verified');
 });

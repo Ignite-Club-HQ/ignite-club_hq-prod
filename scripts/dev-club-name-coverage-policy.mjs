@@ -132,3 +132,64 @@ export function classifyDevNameCoverageFailure(error,{backend=false}={}) {
     return 'transport_rejected';
   return 'transport_unclassified';
 }
+
+
+/**
+ * Inspect two explicitly pinned disposable DEV parent identities using the
+ * SAME governor-collected membership, Identity and PII metadata already read
+ * by the aggregate audit. No extra canister calls and no owner/ciphertext or
+ * principal is copied into the report.
+ *
+ * The roster's displayed "Name unavailable" is not proof of absent replicas:
+ * callers must also independently resolve the G1->G2 authorisation timeout.
+ */
+export function assessDevG2TestParentNameCopies(snapshot,plan,observations,focus) {
+  if(!snapshot||!Array.isArray(snapshot.g2)||!Array.isArray(snapshot.accounts)||
+     !plan||!Array.isArray(plan.targets)||!Array.isArray(observations)||
+     !focus||!text(focus.club)||!text(focus.test2)||!text(focus.otherParent)||
+     focus.test2===focus.otherParent)
+    throw Error('Pinned DEV test-parent focus and complete metadata inventories required');
+
+  const activeClubs=snapshot.g2.filter(edge=>
+    edge.Club?.id===focus.club&&edge.Club?.deleted===false);
+  const validClub=activeClubs.length===1;
+  const report=(principal)=>{
+    if(!validClub)return 'club_not_verified';
+    const roles=snapshot.g2.filter(edge=>
+      edge.Role?.club?.[0]===focus.club&&p(edge.Role?.subject)===principal);
+    if(roles.length===0)return 'membership_not_verified';
+    const matching=snapshot.accounts.filter(a=>Array.isArray(a.principals)&&
+      a.principals.some(item=>p(item)===principal));
+    if(matching.length!==1)return 'account_mapping_not_verified';
+    const account=matching[0];
+    if(!account.status || (!Object.hasOwn(account.status,'Active')&&account.status!=='Active'))
+      return 'account_not_active';
+    const profile=account.profile?.[0]??(Array.isArray(account.profile)?null:account.profile);
+    if(!profile||!text(profile.display_name))return 'profile_reference_missing';
+    if(!profile.display_name.startsWith('pii-display-name:'))return 'legacy_name_reference';
+    const m=refRE.exec(profile.display_name);
+    if(!m||!account.principals.some(item=>p(item)===m[2]))
+      return 'invalid_name_reference';
+    if(m[1]!==PII.g1)return 'source_not_original_g1';
+    if(!plan.targets.some(t=>t.source===m[1]&&t.subject===m[2]&&t.club===focus.club))
+      return 'not_in_coverage_plan';
+    const values=observations.filter(o=>
+      o.source===m[1]&&o.subject===m[2]&&o.club===focus.club);
+    if(values.length!==1)return 'copy_unverified';
+    return statuses.includes(values[0].state)?values[0].state:'copy_unverified';
+  };
+  // The only reported identifiers are fixed nonpersonal test labels.
+  // A later auditor cannot infer the live principal IDs from this artifact.
+  return {
+    focus:'dev-g2-test-u10-other-parents',
+    clubVerified:validClub,
+    parents:[
+      {label:'Test2',state:report(focus.test2)},
+      {label:'Other parent',state:report(focus.otherParent)},
+    ],
+    noNamesOrKeysExported:true,
+    readyToReleaseName:false,
+    nameReadAuthorised:false,
+    crossGroupNameAccessStillRequiresVerification:true,
+  };
+}

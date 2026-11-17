@@ -94,6 +94,34 @@ coverage is **not** permission to turn on global club-wide decryption.
 `dev_club_name_coverage_reader`: the former explicitly **sets release
 switches** and is beyond this reader-only stage.
 
+## Focused G2 U10 Parent-name metadata check
+
+The protected `[TEST] DEV all-club encrypted-name copy coverage (read-only)`
+audit now also reports `parentFocus` for the **two confirmed, disposable
+Group 2 U10 parents** currently displaying `Name unavailable`.
+It reuses the signed original Group 1/Group 2 membership and account
+inventory, plus the same governor-only PII metadata reads already performed
+by the all-club audit. It does **not** make a new name-read call, derive a
+key, add member access, create encrypted copies or change either PII canister.
+
+In the `dev-club-name-copy-coverage-summary/check.json` artifact, inspect
+`parentFocus.parents`. The labels `Test2` and `Other parent` identify
+the previously verified DEV fixture identities only; no principal IDs, club
+IDs, personal names, ciphertext or vetKeys appear in the artifact.
+`copy_missing` means that a candidate in a verified membership with a
+valid original reference has no saved replica for this club. By contrast
+`copy_unverified`, `membership_not_verified`,
+`account_mapping_not_verified`, `profile_reference_missing`,
+`legacy_name_reference` and `source_not_original_g1` do **not**
+establish an absent replica. An unstable source snapshot blocks the focus.
+
+Even `copy_verified` does **not** prove the G1→G2 authorisation path works:
+the live name read previously timed out independently. **No blanket
+migration or governor-written name refresh is authorised by this check.**
+For genuinely missing copies, prepare a separate existing **owner-signed,
+create-only, original-ciphertext-pinned** refresh with explicit approval;
+never fabricate a user name or use individual display-name keys.
+
 ## Before any activation
 
 1. Protected membership inventory of all active DEV clubs, team-member subject aliases and each subject's original PII authority. No browser-provided or guessed source, no raw plaintext/name/key export.
