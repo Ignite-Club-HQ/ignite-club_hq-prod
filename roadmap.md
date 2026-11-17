@@ -1,6 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Combined DEV engine upload — 17 November
+- [ ] Prepare a lighter single-app retry using lossless packaging optimizations; preserve all nineteen decoded programs, setup wiring, encryption and existing installations. Engine installation success remains an owner-upload check.
 - [x] Prepared nineteen-canister single-app replacement, retaining the exact compressed eighteen backend programs and frontend program; all manifest/plugin hashes checked. Setup replaces frontend entry-script backend IDs and discovery/sign-in metadata with the newly allocated same-app inventory. Owner/refused-ID tests and four existing policy tests pass.
 - [ ] Owner uploads combined replacement and supplies its frontend ID; real-engine setup, login and encrypted photo/file acceptance remain unverified. Current installations and PROD untouched. Automatic updates remain paused pending replacement target and owner-authorized update access.
 
