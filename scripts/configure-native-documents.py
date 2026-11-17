@@ -22,6 +22,21 @@ def configure(frontend: Path, platform: str):
         plugins = (frontend / 'android/app/src/main/assets/capacitor.plugins.json').read_text()
         if 'FileOpenerPlugin' not in plugins:
             raise RuntimeError('FileOpener was not synced for Android')
+        # A chooser itself can launch with zero viewers. Detect that before launching it.
+        plugin = frontend / 'node_modules/@capacitor-community/file-opener/android/src/main/java/com/ryltsov/alex/plugins/file/opener/FileOpenerPlugin.java'
+        source = plugin.read_text()
+        anchor = 'if (openWithDefault) {'
+        guard = 'if (intent.resolveActivity(getContext().getPackageManager()) == null) { call.reject("No compatible viewer", "8"); return; }'
+        if guard not in source:
+            if anchor not in source:
+                raise RuntimeError('Unexpected FileOpener implementation')
+            plugin.write_text(source.replace(anchor, guard + '\n                    ' + anchor))
+        manifest = frontend / 'android/app/src/main/AndroidManifest.xml'
+        source = manifest.read_text()
+        query = '<queries><intent><action android:name="android.intent.action.VIEW"/><data android:mimeType="*/*"/></intent></queries>'
+        if query not in source:
+            source = source.replace('<application', query + '\n    <application', 1)
+            manifest.write_text(source)
     elif platform == 'ios':
         app = frontend / 'ios/App/App'
         delegate = app / 'AppDelegate.swift'

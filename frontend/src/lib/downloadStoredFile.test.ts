@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const resolveUrl = vi.hoisted(() => vi.fn());
+vi.mock("@capacitor/core", () => ({ Capacitor: { isNativePlatform: () => false }, registerPlugin: vi.fn() }));
 vi.mock("@/hooks/useSignedPhotoUrl", () => ({ resolveSignedUrl: resolveUrl }));
 import { downloadStoredFile } from "./downloadStoredFile";
 
@@ -35,7 +36,7 @@ describe("stored spreadsheet downloads", () => {
     resolveUrl.mockRejectedValue(new Error("denied"));
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    await expect(downloadStoredFile("https://store.raw.icp0.io/encrypted.xlsx", "Budget.xlsx")).rejects.toThrow("denied");
+    await expect(downloadStoredFile("https://store.raw.icp0.io/encrypted.xlsx", "Budget.xlsx")).rejects.toThrow("access");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

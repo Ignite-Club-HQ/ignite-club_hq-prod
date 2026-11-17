@@ -48,7 +48,7 @@ vi.mock("./loadOptionalNativeModule", () => ({
   }),
 }));
 
-import { safeOpenFile } from "./safeOpenFile";
+import { safeOpenFile, runFileAction, guessMimeFromName } from "./safeOpenFile";
 
 const RAW_PRIVATE =
   "https://reference.invalid/storage/v1/object/public/photos/private-doc.pdf";
@@ -233,7 +233,7 @@ describe("safeOpenFile — download resilience (native)", () => {
     filesystemMock.downloadFile.mockRejectedValue(new Error("nope"));
     fetchMock.mockResolvedValue(okResponse("application/msword"));
 
-    await safeOpenFile(RAW_PRIVATE, { fileName: "letter" });
+    await safeOpenFile("https://reference.invalid/letter", { fileName: "letter" });
 
     expect(fileOpenerMock.open.mock.calls[0][0].contentType).toBe("application/msword");
   });
@@ -276,7 +276,7 @@ describe("safeOpenFile — external / public non-storage URLs", () => {
 
     await expect(safeOpenFile(externalUrl)).rejects.toThrow("saved for viewing");
 
-    expect(resolveSignedUrlMock).toHaveBeenCalledWith(externalUrl);
+    expect(resolveSignedUrlMock).toHaveBeenCalledWith(externalUrl, { expiresIn: 120 });
     expect(safeOpenUrlMock).not.toHaveBeenCalled();
   });
 
@@ -286,8 +286,55 @@ describe("safeOpenFile — external / public non-storage URLs", () => {
     vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
     const externalUrl = "https://reference.invalid";
     await safeOpenFile(externalUrl);
-    expect(resolveSignedUrlMock).toHaveBeenCalledWith(externalUrl);
+    expect(resolveSignedUrlMock).toHaveBeenCalledWith(externalUrl, { expiresIn: 120 });
     expect(tab.location.href).toBe(externalUrl);
+  });
+});
+
+describe("document intent separation", () => {
+  it.each([
+    ["pdf", "application/pdf"], ["doc", "application/msword"],
+    ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    ["xls", "application/vnd.ms-excel"],
+    ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+    ["ppt", "application/vnd.ms-powerpoint"], ["csv", "text/csv"],
+  ])("resolves %s to the exact native MIME", (extension, type) => {
+    expect(guessMimeFromName(`document.${extension}`)).toBe(type);
+  });
+  it("Android opens DOCX using its VIEW chooser, never Share", async () => {
+    await safeOpenFile("https://example.org/rules.docx", { fileName: "Rules.docx" });
+    expect(fileOpenerMock.open).toHaveBeenCalledWith({ filePath: "file:///cache/x", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", openWithDefault: false });
+    expect(shareMock.share).not.toHaveBeenCalled();
+  });
+  it("no DOCX viewer reports recovery without opening Share or browser", async () => {
+    fileOpenerMock.open.mockRejectedValue(new Error("no viewer"));
+    await expect(safeOpenFile("https://example.org/rules.docx")).rejects.toThrow("No compatible viewer");
+    expect(shareMock.share).not.toHaveBeenCalled();
+    expect(safeOpenUrlMock).not.toHaveBeenCalled();
+  });
+  it("explicit Share alone opens the share sheet", async () => {
+    shareMock.share.mockResolvedValue({ activityType: "docs" });
+    await runFileAction("share", "https://example.org/rules.docx");
+    expect(shareMock.share).toHaveBeenCalledWith({ title: "rules.docx", files: ["file:///cache/x"] });
+    expect(fileOpenerMock.open).not.toHaveBeenCalled();
+  });
+  it("duplicate taps share one download and viewer operation", async () => {
+    let finish: ((url: string) => void) | undefined;
+    resolveSignedUrlMock.mockImplementation(() => new Promise<string>(resolve => { finish = resolve; }));
+    const first = safeOpenFile("https://example.org/once.docx");
+    const second = safeOpenFile("https://example.org/once.docx");
+    await Promise.resolve();
+    finish?.("https://example.org/once.docx");
+    await Promise.all([first, second]);
+    expect(filesystemMock.downloadFile).toHaveBeenCalledTimes(1);
+    expect(fileOpenerMock.open).toHaveBeenCalledTimes(1);
+  });
+  it("a missing file never opens a viewer or Share", async () => {
+    filesystemMock.downloadFile.mockRejectedValue(new Error("missing"));
+    fetchMock.mockResolvedValue({ ok: false, status: 404 });
+    await expect(safeOpenFile("https://example.org/missing.docx")).rejects.toThrow("missing");
+    expect(fileOpenerMock.open).not.toHaveBeenCalled();
+    expect(shareMock.share).not.toHaveBeenCalled();
   });
 });
 
