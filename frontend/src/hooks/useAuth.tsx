@@ -81,11 +81,26 @@ interface AuthContextType {
    * before the app appears. Undefined for the Supabase provider.
    */
   resumingSignIn?: boolean;
+  /**
+   * Internet Identity only: plain-English reason the last automatic sign-in
+   * pickup failed, so the sign-in screen never silently reappears.
+   */
+  signInProblem?: string | null;
   signOut: () => Promise<void>;
   refreshProfile: (savedIcpProfile?: IcpIdentityProfile) => Promise<void>;
   refreshUnreadCount: () => Promise<void>;
   clearUnreadCount: () => void;
   decrementUnreadCount: (n: number) => void;
+}
+
+
+/** Plain-English reason for a failed automatic Internet Identity sign-in. */
+export function internetIdentitySignInProblem(error: unknown): string {
+  const reason = error instanceof Error ? error.message : String(error ?? "");
+  if (reason.includes("revoked")) {
+    return "That Internet Identity account was removed from Ignite. Tap Continue securely and choose a different Internet Identity account.";
+  }
+  return "We couldn't finish signing you in. Check your connection and tap Continue securely to try again.";
 }
 
 // Kept on globalThis so a hot reload of this module reuses the same context
@@ -1624,6 +1639,9 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
   // the sign-in dialog while a finished Internet Identity sign-in is being
   // picked up.
   const [iiResumePending, setIiResumePending] = useState(true);
+  const [iiSignInProblem, setIiSignInProblem] = useState<string | null>(() => {
+    try { return sessionStorage.getItem("ignite_ii_redirect_failed") ? "We couldn't finish signing you in. Tap Continue securely to try again." : null; } catch { return null; }
+  });
   // Bumped after sign-out (which disposes the auth client) so the warm-up
   // below runs again and the button is only "ready" once a fresh client
   // exists — otherwise the first tap after sign-out loses its click.
@@ -1675,9 +1693,12 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
         if (resumed && !cancelled) {
           console.info("[Auth] Resumed a completed Internet Identity sign-in.");
           await adoptVerifiedIcpSession(resumed);
+          setIiSignInProblem(null);
+          try { sessionStorage.removeItem("ignite_ii_redirect_failed"); } catch { /* ignore */ }
         }
       } catch (error) {
         console.warn("[Auth] Could not resume Internet Identity session:", error);
+        if (!cancelled) setIiSignInProblem(internetIdentitySignInProblem(error));
       } finally {
         resuming = false;
         if (!cancelled) setIiResumePending(false);
@@ -1705,6 +1726,8 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     // Must stay synchronous before signIn() (iOS/popup gesture rules).
     restartSignInStages();
     markStage("sign_in_click");
+    setIiSignInProblem(null);
+    try { sessionStorage.removeItem("ignite_ii_redirect_failed"); } catch { /* ignore */ }
     try {
       // Use the already-preloaded module reference when available so this
       // call chain reaches `signInWithInternetIdentity()` (and, inside it,
@@ -1743,6 +1766,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     // "Getting sign-in ready…" state, so a flaky connection never strands
     // the member on a spinner with no way forward.
     resumingSignIn: iiResumePending && iiSignInReady,
+    signInProblem: principal ? null : iiSignInProblem,
     signOut: async () => {
       if (signingOutRef.current) return;
       signingOutRef.current = true;

@@ -309,6 +309,7 @@ export default function AuthPage() {
     signInWithGoogle,
     signInReady,
     resumingSignIn,
+    signInProblem,
     loading: authLoading,
   } = useAuth();
   const iiPreparing = useIcpLab && signInReady === false;
@@ -865,7 +866,7 @@ export default function AuthPage() {
         preparing={iiPreparing}
         native={isNativePlatform}
         online={isOnline}
-        error={authError}
+        error={authError ?? signInProblem ?? null}
         methodTabs={methodTabs}
         onUseEmail={() => {
           // With both paths offered, forget the pick and show the picker

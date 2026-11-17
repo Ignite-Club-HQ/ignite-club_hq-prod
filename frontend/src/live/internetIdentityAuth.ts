@@ -238,6 +238,7 @@ export async function completeInternetIdentityRedirect(): Promise<void> {
     await activeClient.signIn({ returnTo: II_REDIRECT_CALLBACK_PATH });
   } catch (error) {
     console.warn("[InternetIdentity] Could not finish the phone sign-in:", error);
+    try { sessionStorage.setItem("ignite_ii_redirect_failed", "1"); } catch { /* ignore */ }
   }
 }
 
