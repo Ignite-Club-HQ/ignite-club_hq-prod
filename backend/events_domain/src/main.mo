@@ -5157,9 +5157,13 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
 
-  func canViewListedEvent(subject : Principal, event : Types.Event, freshRoles : ?[(Text, ?Text)]) : async Bool {
+  func canViewListedEvent(subject : Principal, event : Types.Event, freshRoles : ?[(Text, ?Text)], teamChecked : ?Bool) : async Bool {
     if (Principal.isAnonymous(subject) or event.deleted) return false;
-    if (not (await freshEventTeamLive(event))) return false;
+    let liveTeam = switch (teamChecked) {
+      case (?verified) verified;
+      case null await freshEventTeamLive(event);
+    };
+    if (not liveTeam) return false;
     // The governor may inspect live events for support. Ordinary users must
     // be re-authorized by club_domain, never events_domain's cached role mirror.
     if (isGovernor(subject)) return true;
@@ -5331,7 +5335,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (Principal.isAnonymous(subject) or event.deleted or removalReceiver.denied(subject)) return false;
     if (isGovernor(subject)) return await freshEventTeamLive(event);
     let freshRoles = await freshMemberRolesForList(subject, event.club_id);
-    await canViewListedEvent(subject, event, freshRoles)
+    await canViewListedEvent(subject, event, freshRoles, null)
   };
 
   // Bound multi-event readers and preserve the requested ordering, without
@@ -5340,6 +5344,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (eventIds.size() > 300) return [];
     var permitted : [Text] = [];
     var roleCache : [(Text, ?[(Text, ?Text)])] = [];
+    var teamStatus : [(Text, Text, Bool)] = [];
     for (id in eventIds.values()) {
       switch (events.find(func(e) = e.id == id and not e.deleted)) {
         case null {};
@@ -5352,7 +5357,19 @@ persistent actor class Main(governorInit : Principal) = this {
               fetched
             };
           };
-          if (await canViewListedEvent(subject, event, roles)) {
+          let teamVerified = switch (event.team_id) {
+            case null true;
+            case (?team) switch (teamStatus.find(func((club, id, _)) =
+              club == event.club_id and id == team)) {
+              case (?(_, _, known)) known;
+              case null {
+                let known = await freshEventTeamLive(event);
+                teamStatus := teamStatus.concat([(event.club_id, team, known)]);
+                known
+              };
+            };
+          };
+          if (await canViewListedEvent(subject, event, roles, ?teamVerified)) {
             permitted := permitted.concat([id]);
           };
         };
@@ -5383,6 +5400,7 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     var visible : [Types.Event] = [];
     var memberRoleCache : [(Text, ?[(Text, ?Text)])] = [];
+    var teamStatus : [(Text, Text, Bool)] = [];
     for (event in events.values()) {
       if (not event.deleted and (club_id == null or club_id == ?event.club_id) and (team_id == null or team_id == event.team_id)) {
         let freshRoles = switch (memberRoleCache.find(func((id, _)) = id == event.club_id)) {
@@ -5393,7 +5411,20 @@ persistent actor class Main(governorInit : Principal) = this {
             verified
           };
         };
-        if (await canViewListedEvent(caller, event, freshRoles)) visible := visible.concat([event]);
+        let teamVerified = switch (event.team_id) {
+          case null true;
+          case (?team) switch (teamStatus.find(func((club, id, _)) =
+            club == event.club_id and id == team)) {
+            case (?(_, _, known)) known;
+            case null {
+              let known = await freshEventTeamLive(event);
+              teamStatus := teamStatus.concat([(event.club_id, team, known)]);
+              known
+            };
+          };
+        };
+        if (await canViewListedEvent(caller, event, freshRoles, ?teamVerified))
+          visible := visible.concat([event]);
       };
     };
     visible
@@ -5409,6 +5440,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (club_ids.size() + team_ids.size() > 300) return #Err("Too many ids");
     var visible : [Types.Event] = [];
     var memberRoleCache : [(Text, ?[(Text, ?Text)])] = [];
+    var teamStatus : [(Text, Text, Bool)] = [];
     for (event in events.values()) {
       if (not event.deleted and (club_ids.any(func(c) = c == event.club_id) or (switch (event.team_id) { case (?t) team_ids.any(func(id) = id == t); case null false }))) {
         let freshRoles = switch (memberRoleCache.find(func((id, _)) = id == event.club_id)) {
@@ -5419,7 +5451,20 @@ persistent actor class Main(governorInit : Principal) = this {
             verified
           };
         };
-        if (await canViewListedEvent(caller, event, freshRoles)) visible := visible.concat([event]);
+        let teamVerified = switch (event.team_id) {
+          case null true;
+          case (?team) switch (teamStatus.find(func((club, id, _)) =
+            club == event.club_id and id == team)) {
+            case (?(_, _, known)) known;
+            case null {
+              let known = await freshEventTeamLive(event);
+              teamStatus := teamStatus.concat([(event.club_id, team, known)]);
+              known
+            };
+          };
+        };
+        if (await canViewListedEvent(caller, event, freshRoles, ?teamVerified))
+          visible := visible.concat([event]);
       };
     };
     #Ok(visible)
