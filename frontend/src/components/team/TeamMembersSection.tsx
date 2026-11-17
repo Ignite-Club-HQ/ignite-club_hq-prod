@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   AccordionContent,
   AccordionItem,
@@ -271,6 +271,18 @@ export function TeamMembersSection({
       </div>
       <AccordionContent>
         <div className="space-y-4 pt-2">
+          {unlockRunning && nameUnlockProgress && (
+            <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+              Unlocking parent names: {NAME_UNLOCK_STEP_LABELS[nameUnlockProgress.step]}
+              {' '}({Math.max(0, Math.round((Date.now() - nameUnlockProgress.stepStartedAt) / 1000))}s,
+              {' '}{Math.max(0, Math.round((Date.now() - nameUnlockProgress.startedAt) / 1000))}s total). Please keep this page open.
+            </p>
+          )}
+          {showIcpRosterFailureCode && !unlockRunning && unlockTimings && (
+            <p className="text-xs text-muted-foreground" role="status">
+              Last name unlock ({nameUnlockProgress?.step === 'done' ? 'finished' : 'stopped'}): {unlockTimings}
+            </p>
+          )}
           {showIcpRosterFailureCode && devEncryptedAdultNameMode && (
             <p className="text-xs text-muted-foreground" role="status">
               DEV ICP club-key parent names: {devEncryptedAdultNameMode} (club membership checked by server)
