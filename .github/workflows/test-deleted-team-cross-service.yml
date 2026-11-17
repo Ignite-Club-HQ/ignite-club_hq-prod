@@ -1,0 +1,49 @@
+name: "[TEST] Deleted team cross-service access (disposable PocketIC)"
+
+on:
+  pull_request:
+    paths:
+      - "backend/club_domain/src/main.mo"
+      - "backend/events_domain/src/main.mo"
+      - "backend/messaging_domain/src/main.mo"
+      - "frontend/scripts/test-deleted-team-cross-service-replica.mjs"
+      - ".github/workflows/test-deleted-team-cross-service.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-revocation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+      - name: Install pinned test dependencies
+        run: |
+          node scripts/ensure-frontend-deps.mjs
+          bun add -g ic-mops@3.5.1
+          mops toolchain use moc 1.16.1
+          (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
+      - name: Compile only disposable club, chat and event services
+        run: |
+          set -euo pipefail
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          for d in club_domain messaging_domain events_domain; do
+            (cd backend/$d && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/$d.wasm src/main.mo)
+          done
+      - name: Verify deleted U10 team cannot grant chat or event access
+        working-directory: frontend
+        env:
+          POCKET_IC_BIN: ${{ github.workspace }}/frontend/node_modules/@dfinity/pic/pocket-ic
+          CLUB_DOMAIN_WASM: ${{ github.workspace }}/backend/club_domain/.mops/.build/club_domain.wasm
+          MESSAGING_DOMAIN_WASM: ${{ github.workspace }}/backend/messaging_domain/.mops/.build/messaging_domain.wasm
+          EVENTS_DOMAIN_WASM: ${{ github.workspace }}/backend/events_domain/.mops/.build/events_domain.wasm
+        run: node scripts/test-deleted-team-cross-service-replica.mjs
