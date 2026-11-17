@@ -8,4 +8,4 @@ test('updates exactly the uploaded DEV engine frontend', () => assert.equal(asse
 test('never updates from prod', () => assert.throws(() => assertEngineFrontendContext({ ...valid, branch: 'prod' })));
 test('never targets a different frontend', () => assert.throws(() => assertEngineFrontendContext({ ...valid, frontend: 'u3mrq-uiaaa-aaaac-bgioq-cai' })));
 test('never uses the production database', () => assert.throws(() => assertEngineFrontendContext({ ...valid, database: 'https://yabcfiuntwqjwvschnji.supabase.co' })));
-test('never substitutes another service inventory', () => assert.throws(() => assertEngineFrontendContext({ ...valid, ids: { ...valid.ids, club_domain: 'mzzzv-taaaa-aaaal-qxlrq-cai' } })));
+test('never substitutes another service inventory', () => assert.throws(() => assertEngineFrontendContext({ ...valid, ids: { ...valid.ids, club_domain: '4krz3-miaaa-aaac5-aabdq-cai' } })));
