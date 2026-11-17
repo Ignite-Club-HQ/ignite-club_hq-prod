@@ -98,7 +98,9 @@ interface AuthContextType {
 export function internetIdentitySignInProblem(error: unknown): string {
   const reason = error instanceof Error ? error.message : String(error ?? "");
   if (reason.includes("revoked")) {
-    return "That Internet Identity account was removed from Ignite. Tap Continue securely and choose a different Internet Identity account.";
+    const id = reason.match(/principal ([a-z0-9-]{20,})/)?.[1];
+    return "That Internet Identity account was removed from Ignite. Tap Continue securely and choose a different Internet Identity account." +
+      (id ? ` (Sign-in ID: ${id})` : "");
   }
   return "We couldn't finish signing you in. Check your connection and tap Continue securely to try again.";
 }
