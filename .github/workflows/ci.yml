@@ -48,7 +48,9 @@ jobs:
       - run: node --test scripts/generated-contract-syntax.test.mjs
       - run: npm run lint
       - name: Verify idempotent ICP club-name copy repair and key-cycle limits
-        run: npx vitest run --config vitest.legacy.config.mjs src/live/privateProfileNames.test.ts
+        run: npx vitest run --config vitest.legacy.config.mjs src/live/privateProfileNames.test.ts src/live/devOwnerClubNameReadiness.test.ts
+      - name: Verify DEV membership receipt/name-copy lifecycle source boundaries
+        run: node --test ../scripts/dev-owner-name-lifecycle-contract.test.mjs
       - run: npm run typecheck:product
       - run: npx vitest run --config vitest.legacy.config.mjs src/live/localRuntimeMode.test.ts src/live/disabledLabRuntime.test.ts
       - name: Verify club roster privacy and parent-child inclusion source gates

@@ -27,7 +27,7 @@ const DEV = Object.freeze({
   registeredG2Pii: 'zt5a6-yiaaa-aaaal-qxp5q-cai',
 });
 
-function isExactDevG2NameTarget(target: IcpTargetConfig): boolean {
+export function isExactDevG2NameTarget(target: IcpTargetConfig): boolean {
   return target.provider === 'icp' && target.networkKind === 'public_mainnet' &&
     target.host === 'https://icp-api.io' && target.status !== 'disabled' &&
     target.canisterIds.identity_access === DEV.identity &&

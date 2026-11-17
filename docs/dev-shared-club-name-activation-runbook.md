@@ -122,6 +122,39 @@ For genuinely missing copies, prepare a separate existing **owner-signed,
 create-only, original-ciphertext-pinned** refresh with explicit approval;
 never fabricate a user name or use individual display-name keys.
 
+## New-member recurrence prevention — DEV G2 staged lifecycle (code only)
+
+A DEV G2-only owner-name readiness reconciliation is invoked **after** confirmed
+club creation, parent/pending/team/shareable invitation acceptance and direct
+self role grants. It uses the acknowledged member's **current** G2 Club
+membership, a signed Identity profile reference and the pinned original PII
+source. It never trusts an invite token or browser-selected club to grant
+access, and it retains one existing `vetkey-club-names-v1:<clubId>` key
+per source rather than introducing team/personal display keys.
+
+The explicit `IGNITE_LIVE_SHARED_CLUB_NAMES=1` frontend gate must be
+enabled separately before any owner-signed club-name check/create occurs;
+**this PR does not change that flag or any canister setting**. If the
+release is disabled, source routing cannot be verified, the original
+encrypted name is absent, the caller's club membership is missing or a
+network/write response is unknown, the membership remains successful and
+the name is marked **pending**, not `ready`. No retries of invitation
+acceptance or ambiguous encrypted writes occur automatically. The DEV
+join success page exposes the owner-only **Recheck secure name** action;
+it must independently recheck current membership and the saved original
+before the existing create-only, original-ciphertext-pinned operation can
+write. This is not an account recovery or access grant.
+
+**Important:** This is stage one of recurrence prevention, not a global
+security release or proof that new registrations are fully covered. It
+does not generate an original encrypted name for an unconverted profile,
+install a durable background retry queue, or prepare names on behalf of
+third-party members added by an administrator. Other canister groups,
+PROD and email/Supabase remain unchanged. Independent cross-group
+authorisation, owner/outsider negative tests, historical replica coverage
+and fresh signup → join → new team acceptance are still release blockers.
+Do not enable `shared_club_name_enforcement` based on this PR.
+
 ## Before any activation
 
 1. Protected membership inventory of all active DEV clubs, team-member subject aliases and each subject's original PII authority. No browser-provided or guessed source, no raw plaintext/name/key export.

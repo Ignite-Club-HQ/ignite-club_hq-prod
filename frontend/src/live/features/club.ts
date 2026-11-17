@@ -1,4 +1,5 @@
 import { afterMembershipAcknowledgement } from "../roleGrantsMemo";
+import { afterConfirmedDevMembershipNameReadiness } from "../devOwnerClubNameReadiness";
 import type { Principal } from "@icp-sdk/core/principal";
 import { connectLiveClubDomain } from "../domains";
 import { fetchMyRoleGrantsEverywhere } from "./myRoleGrants";
@@ -470,7 +471,9 @@ export async function getLiveParentInvite(ctx: FeatureBackendContext, token: str
 
 export async function acceptLiveParentInvite(ctx: FeatureBackendContext, token: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return afterMembershipAcknowledgement(unwrapCandid(actor.accept_parent_invite(token), "Accept parent invite"));
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_parent_invite(token), "Accept parent invite"));
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
+  return accepted;
 }
 
 export async function liveClubWhoami(ctx: FeatureBackendContext) {
@@ -1069,6 +1072,7 @@ export async function createLiveClub(
     }
   }
   syncAvatarClubGrantsBestEffort(ctx);
+  await afterConfirmedDevMembershipNameReadiness(ctx,created.id);
   return created;
 }
 
@@ -1234,6 +1238,7 @@ export async function acceptPendingLiveInvite(ctx: FeatureBackendContext, invite
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
   const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_pending_invite(inviteId), "Accept pending invite"));
   syncAvatarClubGrantsBestEffort(ctx);
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
   return accepted;
 }
 
@@ -1262,6 +1267,7 @@ export async function acceptLiveTeamInviteLink(ctx: FeatureBackendContext, token
     "Accept team invite link",
   ));
   syncAvatarClubGrantsBestEffort(ctx);
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
   return accepted;
 }
 

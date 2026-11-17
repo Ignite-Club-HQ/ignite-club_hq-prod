@@ -1,4 +1,5 @@
 import { afterMembershipAcknowledgement } from "../roleGrantsMemo";
+import { afterConfirmedDevMembershipNameReadiness } from "../devOwnerClubNameReadiness";
 import type { Principal } from "@icp-sdk/core/principal";
 import { connectLiveClubDomain } from "../domains";
 import { fetchMyRoleGrantsEverywhere } from "./myRoleGrants";
@@ -91,10 +92,16 @@ export async function addLiveRoleGrant(
   team?: string | null,
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return afterMembershipAcknowledgement(unwrapCandid(
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(
     actor.add_role_grant(user, club, role, candidOpt(team)),
     "Add role grant",
   ));
+  // An administrator adding somebody ELSE cannot sign for that person's
+  // encrypted name. Only reconcile when the recipient is the actual caller.
+  if (user.toText() === ctx.identity.getPrincipal().toText()) {
+    await afterConfirmedDevMembershipNameReadiness(ctx,club);
+  }
+  return accepted;
 }
 
 export async function removeLiveRoleGrant(
@@ -163,7 +170,9 @@ export async function rejectLiveRoleRequest(ctx: FeatureBackendContext, id: stri
  */
 export async function acceptLiveMembershipPendingInvite(ctx: FeatureBackendContext, inviteId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return afterMembershipAcknowledgement(unwrapCandid(actor.accept_pending_invite(inviteId), "Accept pending invite"));
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_pending_invite(inviteId), "Accept pending invite"));
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
+  return accepted;
 }
 
 /**
@@ -205,7 +214,9 @@ export async function getLiveTeamInvite(ctx: FeatureBackendContext, id: string) 
 
 export async function acceptLiveTeamInvite(ctx: FeatureBackendContext, id: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return afterMembershipAcknowledgement(unwrapCandid(actor.accept_team_invite(id), "Accept team invite"));
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_team_invite(id), "Accept team invite"));
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
+  return accepted;
 }
 
 export async function revokeLiveTeamInvite(ctx: FeatureBackendContext, id: string) {

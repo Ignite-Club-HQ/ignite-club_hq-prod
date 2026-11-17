@@ -43,6 +43,7 @@ import { needsInviteChildEntry } from "@/features/membership/inviteFlowRules";
 import { assertShareableInvitePrincipal, shareableInviteJoinErrorMessage } from "@/live/acceptShareableInviteWithRetry";
 import { createIcpInviteChild } from "@/features/membership/createIcpInviteChild";
 import { verifyIcpChildNameAcrossGroups } from "@/features/membership/verifyIcpChildNameAcrossGroups";
+import { lastConfirmedDevOwnerNameReadiness, reconcileConfirmedDevOwnerClubName, type DevClubNameReadiness } from "@/live/devOwnerClubNameReadiness";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -140,6 +141,7 @@ function SupabaseJoinTeamPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [joined, setJoined] = useState(false);
+  const [devClubNameReadiness, setDevClubNameReadiness] = useState<DevClubNameReadiness | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [showPhotoConsent, setShowPhotoConsent] = useState(false);
   const [pendingJoinRoles, setPendingJoinRoles] = useState<AppRole[]>([]);
@@ -1246,11 +1248,13 @@ function SupabaseJoinTeamPage() {
               // authenticated Internet Identity (or the reverse).
               assertShareableInvitePrincipal(ctx.identity.getPrincipal().toText(), user.id);
               await acceptLiveTeamInviteLink(ctx, token!);
+              if (inviteClubId) setDevClubNameReadiness(lastConfirmedDevOwnerNameReadiness(ctx,inviteClubId));
               return;
             }
             // Confirm the invite is still resolvable, then accept it.
             await getLiveTeamInvite(ctx, invite.id);
             await acceptLiveTeamInvite(ctx, invite.id);
+            if (inviteClubId) setDevClubNameReadiness(lastConfirmedDevOwnerNameReadiness(ctx,inviteClubId));
           },
         }, { inviteToken: token! });
         // Provisional: II users are identified by principal, not a Supabase
@@ -1647,8 +1651,9 @@ function SupabaseJoinTeamPage() {
         if ((pendingInviteData?.metadata as { icp_pending_invite?: boolean } | null)?.icp_pending_invite) {
           return withFeatureBackend("membership", {
             supabase: async () => [] as AppRole[],
-            icp: async () => {
+            icp: async (ctx) => {
               const receipt = await acceptIcpInviteAndWelcome(token ?? "");
+              if (inviteClubId) setDevClubNameReadiness(lastConfirmedDevOwnerNameReadiness(ctx,inviteClubId));
               provisionedChildIdsRef.current = receipt.child_ids;
               return [(pendingInviteData?.role ?? "player") as AppRole];
             },
@@ -2517,6 +2522,25 @@ function SupabaseJoinTeamPage() {
                 <p className="text-sm text-muted-foreground mt-2">
                   We've switched you to {clubSwitchName}.
                 </p>
+              )}
+              {isIcpAccount && devClubNameReadiness &&
+                !['ready','not-applicable'].includes(devClubNameReadiness) && (
+                <div className="mt-4 rounded-md border p-3 text-left space-y-2" role="status">
+                  <p className="text-sm font-medium">Secure club-name setup is pending</p>
+                  <p className="text-sm text-muted-foreground">
+                    Your membership is active. Other members may not see your name until its club-encrypted copy has been verified.
+                    {devClubNameReadiness === 'pending-release' ? ' Secure club-name sharing is not enabled yet.' : ''}
+                  </p>
+                  {devClubNameReadiness !== 'pending-release' && inviteClubId && (
+                    <Button variant="outline" size="sm" onClick={() => void withFeatureBackend('membership', {
+                      supabase: async () => {},
+                      icp: async ctx => {
+                        const result = await reconcileConfirmedDevOwnerClubName(ctx,inviteClubId,{explicitOwnerRetry:true});
+                        setDevClubNameReadiness(result);
+                      },
+                    }, {clubId:inviteClubId}).catch(() => setDevClubNameReadiness('pending-owner-check'))}>Recheck secure name</Button>
+                  )}
+                </div>
               )}
             </div>
 
