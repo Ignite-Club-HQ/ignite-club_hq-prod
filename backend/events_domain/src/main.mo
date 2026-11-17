@@ -5124,9 +5124,34 @@ persistent actor class Main(governorInit : Principal) = this {
     ?grants
   };
 
+  // Do not let cached event-side roles resurrect a soft-deleted team.
+  // The canonical team tombstone remains in club_domain for reversible deletion.
+  func freshEventTeamLive(event : Types.Event) : async Bool {
+    switch (event.team_id) {
+      case null true;
+      case (?teamId) {
+        let configured = clubDomainCanister ?? return false;
+        let club : actor {
+          get_team : shared query (Text) -> async {
+            #Ok : ?{ club_id : Text; deleted_at_ms : ?Nat64 }; #Err : Text
+          };
+        } = actor(configured.toText());
+        let result = try { await (with timeout = 10) club.get_team(teamId) } catch (_) { return false };
+        if (clubDomainCanister != ?configured or isFenced(event.club_id)) return false;
+        switch (result) {
+          case (#Ok(?t)) t.club_id == event.club_id and t.deleted_at_ms == null;
+          case (_) false;
+        }
+      };
+    }
+  };
+
   func canViewListedEvent(subject : Principal, event : Types.Event, freshRoles : ?[(Text, ?Text)]) : async Bool {
     if (Principal.isAnonymous(subject) or event.deleted) return false;
-    if (canView(subject, event)) return true;
+    if (not (await freshEventTeamLive(event))) return false;
+    // The governor may inspect live events for support. Ordinary users must
+    // be re-authorized by club_domain, never events_domain's cached role mirror.
+    if (isGovernor(subject)) return true;
     switch (freshRoles) {
       case (?grants) {
         // Recheck snapshot after authority reads and do not cross team scope.
@@ -5167,7 +5192,7 @@ persistent actor class Main(governorInit : Principal) = this {
     var memberRoleCache : [(Text, ?[(Text, ?Text)])] = [];
     for (event in events.values()) {
       if (not event.deleted and (club_id == null or club_id == ?event.club_id) and (team_id == null or team_id == event.team_id)) {
-        let freshRoles = if (canView(caller, event)) null else switch (memberRoleCache.find(func((id, _)) = id == event.club_id)) {
+        let freshRoles = switch (memberRoleCache.find(func((id, _)) = id == event.club_id)) {
           case (?(_, cached)) cached;
           case null {
             let verified = await freshMemberRolesForList(caller, event.club_id);
@@ -5193,7 +5218,7 @@ persistent actor class Main(governorInit : Principal) = this {
     var memberRoleCache : [(Text, ?[(Text, ?Text)])] = [];
     for (event in events.values()) {
       if (not event.deleted and (club_ids.any(func(c) = c == event.club_id) or (switch (event.team_id) { case (?t) team_ids.any(func(id) = id == t); case null false }))) {
-        let freshRoles = if (canView(caller, event)) null else switch (memberRoleCache.find(func((id, _)) = id == event.club_id)) {
+        let freshRoles = switch (memberRoleCache.find(func((id, _)) = id == event.club_id)) {
           case (?(_, cached)) cached;
           case null {
             let verified = await freshMemberRolesForList(caller, event.club_id);
