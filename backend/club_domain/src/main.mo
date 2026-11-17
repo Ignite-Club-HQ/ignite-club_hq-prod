@@ -4656,7 +4656,7 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Team not found") };
       case (?team) {
         if (not isAdmin(caller, team.club_id)) return #Err("Club admin required");
-        let updated : Types.ClubTeam = if (team.deleted_at_ms == null) { team with deleted_at_ms = ?nowMs() } else team;
+        let updated : Types.ClubTeam = { team with deleted_at_ms = if (team.deleted_at_ms == null) ?nowMs() else team.deleted_at_ms };
         bumpMembershipDiscovery();
         teams := teams.map(func(t) = if (t.id == id) updated else t);
         // Revoke only this team's grants; keep real account, family records,
