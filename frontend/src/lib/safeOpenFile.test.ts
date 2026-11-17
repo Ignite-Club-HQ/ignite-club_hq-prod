@@ -271,7 +271,6 @@ describe("safeOpenFile — download resilience (native)", () => {
 describe("safeOpenFile — external / public non-storage URLs", () => {
   it("does not call the signer for external URLs and retains browser fallback", async () => {
     const externalUrl = "https://reference.invalid";
-    fetchMock.mockResolvedValue({ ok: true, body: null });
     filesystemMock.downloadFile.mockRejectedValueOnce(new Error("download failed"));
     fetchMock.mockRejectedValue(new Error("network"));
 
@@ -286,6 +285,7 @@ describe("safeOpenFile — external / public non-storage URLs", () => {
     const tab = { opener: null, location: { href: "" }, close: vi.fn() };
     vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
     const externalUrl = "https://reference.invalid";
+    fetchMock.mockResolvedValue({ ok: true, body: null });
     await safeOpenFile(externalUrl);
     expect(resolveSignedUrlMock).toHaveBeenCalledWith(externalUrl, { expiresIn: 120 });
     expect(tab.location.href).toBe(externalUrl);
