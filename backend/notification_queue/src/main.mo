@@ -1723,7 +1723,7 @@ persistent actor class Main(governorInit : Principal) = this {
       try {
         let request = {
           url;
-          max_response_bytes = ?1024; method = #post; headers = []; body = null;
+          max_response_bytes = ?(1024 : Nat64); method = #post; headers = []; body = null;
           transform = null; is_replicated = ?false;
         };
         let response = if (Runtime.envVar<system>("IGNITE_CLOUD_ENGINE") == ?"1") {
