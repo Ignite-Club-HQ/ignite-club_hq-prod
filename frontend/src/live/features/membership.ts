@@ -1,4 +1,5 @@
 import { afterMembershipAcknowledgement } from "../roleGrantsMemo";
+import { afterConfirmedDevMembershipNameReadiness } from "../devOwnerClubNameReadiness";
 import type { Principal } from "@icp-sdk/core/principal";
 import { connectLiveClubDomain } from "../domains";
 import { fetchMyRoleGrantsEverywhere } from "./myRoleGrants";
