@@ -535,3 +535,5 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] 17 Nov 07:36 UTC DEV parent names: club-key reads on pinned DEV regardless of build flag, per-member diagnostics, PR #1586 G2 PII admission applied in identity_access (2 Rust tests pass).
 - [ ] Live verification of parent names waits on running `[TEST] Upgrade backend (all test groups)` for identity_access and the env switches IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE=1 / IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE=1; then signed-in checks by each parent.
 - [x] Invite child flow: strict same-group check, resume half-created child via journal/confirmed name, no duplicate on retry.
+
+- [ ] Repoint DEV backend upgrade workflows to the 18 OpenCloud canisters — blocked: update account must be a controller on all 19 engine canisters (Paul, OpenCloud)
