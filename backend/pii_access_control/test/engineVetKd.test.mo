@@ -2,6 +2,8 @@ import VetKd "../src/EngineVetKd";
 import Principal "mo:core/Principal";
 import Text "mo:core/Text";
 
+persistent actor {
+public query func run() : async Bool {
 let proxy = Principal.fromText("ynolw-eyaaa-aaaaj-qspkq-cai");
 let key = { curve = #bls12_381_g2; name = "key_1" };
 let context = Text.encodeUtf8("ignite-pii-v1");
@@ -19,3 +21,14 @@ let deriveArgs : ?{ input : Blob; context : Blob; key_id : { curve : { #bls12_38
 switch (deriveArgs) { case (?a) { assert a.input == identity; assert a.context == context; assert a.transport_public_key == transport }; case null assert false };
 assert VetKd.select(#Direct, null) == null;
 assert VetKd.select(#Proxy proxy, ?"ynolw-eyaaa-aaaaj-qspkq-cai") == ?proxy;
+true
+};
+public query func refuseRouteChange() : async Bool {
+  ignore VetKd.select(#Proxy(Principal.fromText("ynolw-eyaaa-aaaaj-qspkq-cai")), null);
+  false
+};
+public query func refuseMainnetRepoint() : async Bool {
+  ignore VetKd.select(#Direct, ?"ynolw-eyaaa-aaaaj-qspkq-cai");
+  false
+};
+}
