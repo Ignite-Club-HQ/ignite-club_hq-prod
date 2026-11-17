@@ -2873,7 +2873,7 @@ persistent actor class Main(governorInit : Principal) = this {
     await admitAccount(caller);
     if (isTransferFenced(club_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
-    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id)) return #Err("Club staff required");
+    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id and roleEffective(grant.club, grant.team))) return #Err("Club staff required");
     let updated : Types.ClubGeneralSettings = { club_id; class_mode_enabled; allow_guests_default; max_guests_per_member_default; events_sponsor_strip_enabled };
     clubGeneralSettings := clubGeneralSettings.filter(func(s) = s.club_id != club_id).concat([updated]);
     #Ok(updated)
@@ -3586,9 +3586,9 @@ persistent actor class Main(governorInit : Principal) = this {
     denyLegacyAccountQuery();
     // Members see their own club's roster (account ids + roles, no names) so
     // they can message people; app-wide grants stay admin-only.
-    if (isAdmin(caller, club)) return #Ok(accountRoles.filter(func(grant) = grant.club == ?club or grant.club == null));
+    if (isAdmin(caller, club)) return #Ok(accountRoles.filter(func(grant) = roleEffective(grant.club, grant.team) and (grant.club == ?club or grant.club == null)));
     if (not isMember(caller, club)) return #Err("Club membership required");
-    #Ok(accountRoles.filter(func(grant) = grant.club == ?club))
+    #Ok(accountRoles.filter(func(grant) = roleEffective(grant.club, grant.team) and grant.club == ?club))
   };
 
   // Team-scoped roster read for the team page member list: any member of the
@@ -3597,20 +3597,12 @@ persistent actor class Main(governorInit : Principal) = this {
   public query ({ caller }) func list_team_role_grants(team : Text) : async { #Ok : [Types.AccountRole]; #Err : Text } {
     denyLegacyAccountQuery();
     auth(caller);
-    var club : ?Text = null;
-    label search {
-      for (t in teams.vals()) {
-        if (t.id == team) { club := ?t.club_id; break search };
-      };
-      for (t in acl.teams.vals()) {
-        if (t.id == team) { club := ?t.club; break search };
-      };
-    };
+    let club = liveTeamClub(team);
     switch (club) {
       case null { #Err("Unknown team") };
       case (?clubId) {
         if (not isMember(caller, clubId)) return #Err("Club membership required");
-        #Ok(accountRoles.filter(func(grant) = grant.team == ?team))
+        #Ok(accountRoles.filter(func(grant) = grant.team == ?team and roleEffective(grant.club, grant.team)))
       };
     };
   };
@@ -4175,7 +4167,7 @@ persistent actor class Main(governorInit : Principal) = this {
   public query func list_club_admins(club_id : Text) : async [Principal] {
     var out : [Principal] = [];
     for (grant in acl.roles.values()) {
-      if (grant.role == "club_admin" and grant.club == ?club_id) {
+      if (grant.role == "club_admin" and grant.club == ?club_id and roleEffective(grant.club, grant.team)) {
         out := out.concat([grant.user]);
       };
     };
@@ -4193,13 +4185,13 @@ persistent actor class Main(governorInit : Principal) = this {
     // Only actual club staff may read it; parents and players need
     // caller-scoped family/team views, not the whole club's family metadata.
     if (not canReadClubRoster(caller, club_id)) return #Err("Club staff role required");
-    let scopedTeamIds = clubTeamIds(club_id);
+    let scopedTeamIds = teams.filter(func(t) = t.club_id == club_id and t.deleted_at_ms == null).map(func(t) = t.id);
     #Ok({
       // A parent-created child begins with club_id=null; placement on a
       // verified team in this club must still make that child visible to staff.
       // Reuse the exact club/team inclusion boundary used by snapshots.
       children = acl.children.filter(func(c) = clubChild(club_id, scopedTeamIds, c));
-      roles = acl.roles.filter(func(g) = g.club == ?club_id);
+      roles = acl.roles.filter(func(g) = g.club == ?club_id and roleEffective(g.club, g.team));
     })
   };
 
@@ -5495,7 +5487,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
   public query ({ caller }) func find_pending_invite_by_email_hash(club_id : Text, hash : Text) : async { #Ok : ?Types.PendingInviteEmailHash; #Err : Text } {
     denyLegacyAccountQuery();
-    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id)) return #Err("Club staff required");
+    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id and roleEffective(grant.club, grant.team))) return #Err("Club staff required");
     #Ok(pendingInviteEmailHashes.find(func(h) = h.club_id == club_id and h.hash == hash))
   };
 
@@ -7548,7 +7540,7 @@ persistent actor class Main(governorInit : Principal) = this {
   func clubChatParticipants(clubId : Text) : [Principal] {
     var result : [Principal] = [];
     for (grant in acl.roles.values()) {
-      if (grant.club == ?clubId and result.size() < 500 and not result.any(func(p) = p.equal(grant.user))) {
+      if (grant.club == ?clubId and roleEffective(grant.club, grant.team) and result.size() < 500 and not result.any(func(p) = p.equal(grant.user))) {
         result := result.concat([grant.user]);
       };
     };
@@ -7562,7 +7554,7 @@ persistent actor class Main(governorInit : Principal) = this {
     var result : [Principal] = [];
     for (grant in acl.roles.values()) {
       let inScope = grant.club == ?clubId and (grant.team == ?teamId or grant.role == "club_admin");
-      if (inScope and result.size() < 500 and not result.any(func(p) = p.equal(grant.user))) {
+      if (inScope and roleEffective(grant.club, grant.team) and result.size() < 500 and not result.any(func(p) = p.equal(grant.user))) {
         result := result.concat([grant.user]);
       };
     };
@@ -8749,7 +8741,7 @@ persistent actor class Main(governorInit : Principal) = this {
   var pitchNotifyFlags : [PitchNotifyFlags];
 
   func teamClub(team_id : Text) : ?Text {
-    switch (teams.find(func(t) = t.id == team_id)) { case (?t) ?t.club_id; case null null }
+    liveTeamClub(team_id)
   };
 
   public shared query ({ caller }) func list_pitch_formations(team_id : Text) : async { #Ok : [PitchFormation]; #Err : Text } {
@@ -9272,9 +9264,9 @@ persistent actor class Main(governorInit : Principal) = this {
     await admitAccount(caller);
     // Members see their own club's roster (account ids + roles, no names) so
     // they can message people; app-wide grants stay admin-only.
-    if (isAdmin(caller, club)) return #Ok(accountRoles.filter(func(grant) = grant.club == ?club or grant.club == null));
+    if (isAdmin(caller, club)) return #Ok(accountRoles.filter(func(grant) = roleEffective(grant.club, grant.team) and (grant.club == ?club or grant.club == null)));
     if (not isMember(caller, club)) return #Err("Club membership required");
-    #Ok(accountRoles.filter(func(grant) = grant.club == ?club))
+    #Ok(accountRoles.filter(func(grant) = roleEffective(grant.club, grant.team) and grant.club == ?club))
   
     } finally { removalReceiver.leave(caller) };
   
@@ -9343,20 +9335,12 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(caller);
     auth(caller);
-    var club : ?Text = null;
-    label search {
-      for (t in teams.vals()) {
-        if (t.id == team) { club := ?t.club_id; break search };
-      };
-      for (t in acl.teams.vals()) {
-        if (t.id == team) { club := ?t.club; break search };
-      };
-    };
+    let club = liveTeamClub(team);
     switch (club) {
       case null { #Err("Unknown team") };
       case (?clubId) {
         if (not isMember(caller, clubId)) return #Err("Club membership required");
-        #Ok(accountRoles.filter(func(grant) = grant.team == ?team))
+        #Ok(accountRoles.filter(func(grant) = grant.team == ?team and roleEffective(grant.club, grant.team)))
       };
     };
   
@@ -9478,7 +9462,7 @@ persistent actor class Main(governorInit : Principal) = this {
         not isExcluded(caller, devClub) and isMember(caller, devClub) and
         acl.roles.any(func(grant) =
           ownsMembershipPrincipal(caller, grant.user) and grant.club == ?devClub and
-          grant.team == ?devTeam and grant.role == "parent"
+          roleEffective(grant.club, grant.team) and grant.team == ?devTeam and grant.role == "parent"
         )
       };
       if (not eligible()) return #Err("Parent access required");
@@ -9508,10 +9492,10 @@ persistent actor class Main(governorInit : Principal) = this {
     // Admission/linked-principal checks have already run. Apply the same
     // staff-only roster boundary as the legacy query variant.
     if (not canReadClubRoster(caller, club_id)) return #Err("Club staff role required");
-    let scopedTeamIds = clubTeamIds(club_id);
+    let scopedTeamIds = teams.filter(func(t) = t.club_id == club_id and t.deleted_at_ms == null).map(func(t) = t.id);
     #Ok({
       children = acl.children.filter(func(c) = clubChild(club_id, scopedTeamIds, c));
-      roles = acl.roles.filter(func(g) = g.club == ?club_id);
+      roles = acl.roles.filter(func(g) = g.club == ?club_id and roleEffective(g.club, g.team));
     })
   
     } finally { removalReceiver.leave(caller) };
@@ -9686,7 +9670,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id)) return #Err("Club staff required");
+    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id and roleEffective(grant.club, grant.team))) return #Err("Club staff required");
     #Ok(pendingInviteEmailHashes.find(func(h) = h.club_id == club_id and h.hash == hash))
   
     } finally { removalReceiver.leave(caller) };
