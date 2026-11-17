@@ -1,0 +1,24 @@
+{
+  "frontend": "wfnv2-piaaa-aaac5-aaazq-cai",
+  "host": "https://icp-api.io",
+  "canisterIds": {
+    "migration_coordinator": "v45ua-faaaa-aaac5-aaaqa-cai",
+    "placement_registry": "v34su-iyaaa-aaac5-aaaqq-cai",
+    "media_blob_store": "vs7zi-6qaaa-aaac5-aaara-cai",
+    "messaging_domain": "vv674-tiaaa-aaac5-aaarq-cai",
+    "insights_domain": "vazor-saaaa-aaac5-aaasa-cai",
+    "club_domain": "vhyif-7yaaa-aaac5-aaasq-cai",
+    "competition_domain": "vo3dz-jqaaa-aaac5-aaata-cai",
+    "pii_access_control": "vj2fn-eiaaa-aaac5-aaatq-cai",
+    "events_domain": "ueubd-laaaa-aaac5-aaaua-cai",
+    "identity_access": "udvhx-gyaaa-aaac5-aaauq-cai",
+    "timer_jobs": "ukwml-qqaaa-aaac5-aaava-cai",
+    "shard_router": "unxk7-5iaaa-aaac5-aaavq-cai",
+    "secret_workload_identity": "uyq3s-4aaaa-aaac5-aaawa-cai",
+    "notification_queue": "u7r5g-ryaaa-aaac5-aaawq-cai",
+    "club_points_domain": "uwsw2-hqaaa-aaac5-aaaxa-cai",
+    "vault_domain": "urtqo-kiaaa-aaac5-aaaxq-cai",
+    "media_metadata": "wmo6g-zaaaa-aaac5-aaaya-cai",
+    "mini_league_domain": "wlpys-uyaaa-aaac5-aaayq-cai"
+  }
+}
