@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## DEV engine frontend updates from Lovable — 17 November
+- [ ] Connect ongoing frontend updates to the uploaded DEV engine frontend, preserving PROD workflows. Blocked on its assigned frontend canister ID and owner-authorized deployment access; neither is available in this session.
+- [x] Confirmed Lovable Publish deploys Lovable hosting, not an external engine. Existing GitHub main-push frontend deployment targets the old DEV canister; automatic source-sync updates are a separate trigger, not publish-only updates. Do not add external network writes to preview/build scripts or claim the new engine is already wired.
+
 ## Document opening and saving — DEV only
 - [x] Trace chat/Vault taps; fix the shared native viewer import, MIME dispatch and Open/Download/Share separation.
 - [x] Authorize fresh downloads, cache native viewer copies, add platform save/export with accurate results and visible recovery actions.
