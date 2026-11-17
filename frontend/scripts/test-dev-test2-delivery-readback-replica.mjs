@@ -192,7 +192,9 @@ try {
   // Another team Parent role is insufficient even inside the same club.
   c.setPrincipal(governor);
   ok(await c.remove_role_grant(test2, clubId, 'parent', [teamId]));
-  ok(await c.add_role_grant(test2, clubId, 'parent', ['00000000-0000-4000-8000-000000001234']));
+  const otherTeamId = '00000000-0000-4000-8000-000000001234';
+  ok(await c.save_team({ ...teamInput(), id: otherTeamId, name: 'Disposable unrelated team' }));
+  ok(await c.add_role_grant(test2, clubId, 'parent', [otherTeamId]));
   c.setPrincipal(test2);
   denied(await c.read_account_my_dev_test2_event_delivery(eventId));
   c.setPrincipal(governor);

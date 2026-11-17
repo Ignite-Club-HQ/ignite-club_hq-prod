@@ -35,7 +35,7 @@ test("staff helper excludes Parent/player from club-wide principal reads", () =>
 test("both roster entry points use the same team-aware club child boundary", () => {
   for (const method of ["get_club_roster", "read_account_get_club_roster"]) {
     const body = bodyFor(method);
-    assert.match(body, /let scopedTeamIds = clubTeamIds\(club_id\)/);
+    assert.match(body, /let scopedTeamIds = teams\.filter\(func\(t\) = t\.club_id == club_id and t\.deleted_at_ms == null\)\.map\(func\(t\) = t\.id\)/);
     assert.match(body, /children = acl\.children\.filter\(func\(c\) = clubChild\(club_id, scopedTeamIds, c\)\)/);
   }
   assert.match(motoko, /func clubChild\(club : Text, ids : \[Text\], c : Types\.Child\) : Bool = c\.club_id == \?club or c\.teams\.any/);

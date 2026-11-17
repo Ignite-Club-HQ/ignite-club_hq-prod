@@ -24,10 +24,10 @@ try {
     identity.actor.setPrincipal(governor); ok(await identity.actor.set_service_authorities(groups.map(g => g.canisterId)));
     group.actor.setPrincipal(governor); ok(await group.actor.create_club(name, name, name, [], []));
     ok(await group.actor.add_role_grant(app, name, 'club_admin', []));
-    ok(await group.actor.add_role_grant(app, name, 'team_admin', ['u9']));
     const team = { id: 'u9', club_id: name, name: 'U9', archived: false, is_active: true, is_shell: false, playhq_auto_create_events: false };
     for (const key of ['age_group', 'deleted_at_ms', 'description', 'division', 'folder_id', 'gender', 'logo_url', 'playhq_competition_id', 'playhq_team_id', 'shell_claim_token', 'shell_claimed_at_ms', 'shell_claimed_by', 'shell_contact_email', 'shell_contact_name', 'shell_invited_by', 'team_type']) team[key] = [];
     ok(await group.actor.save_team(team));
+    ok(await group.actor.add_role_grant(app, name, 'team_admin', ['u9']));
   }
   identity.actor.setPrincipal(governor); ok(await identity.actor.set_club_authorities(groups.map(g => g.canisterId)));
   for (const group of groups) { group.actor.setPrincipal(governor); ok(await group.actor.set_identity_access_canister(identity.canisterId)); }
