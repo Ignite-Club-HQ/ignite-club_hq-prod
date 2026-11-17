@@ -3629,14 +3629,23 @@ persistent actor class Main(governorInit : Principal) = this {
     func edge(phase : Nat, offset : Nat, nested : Nat) : ?MembershipSource.Edge {
       switch (phase) {
         case (0) { let c = profiles[offset]; ?#Club({ id = c.id; deleted = c.deleted_at_ms != null }) };
-        case (1) { let g = acl.roles[offset]; ?#Role({ subject = g.user; club = g.club }) };
+        case (1) {
+          let g = acl.roles[offset];
+          if (roleEffective(g.club, g.team)) ?#Role({ subject = g.user; club = g.club }) else null
+        };
         case (2) {
           let c = acl.children[offset];
           if (nested == 0) switch (c.parent) { case (?subject) ?#Parent({ child = c.id; subject }); case null null }
-          else ?#ChildTeam({ child = c.id; team = c.teams[nested - 1] })
+          else {
+            let team = c.teams[nested - 1];
+            if (liveTeamClub(team) == null) null else ?#ChildTeam({ child = c.id; team })
+          }
         };
         case (3) { let g = acl.guardians[offset]; ?#Guardian({ child = g.child; subject = g.user }) };
-        case (4) { let t = acl.teams[offset]; ?#Team({ id = t.id; club = t.club; deleted = false }) };
+        case (4) {
+          let t = acl.teams[offset];
+          ?#Team({ id = t.id; club = t.club; deleted = liveTeamClub(t.id) != ?t.club })
+        };
         case (5) { let t = teams[offset]; ?#Team({ id = t.id; club = t.club_id; deleted = t.deleted_at_ms != null }) };
         case (6) { let e = acl.exclusions[offset]; ?#Excluded({ subject = e.user; club = e.club }) };
         case (7) { let e = removedMembers[offset]; ?#Excluded({ subject = e.user; club = e.club }) };
