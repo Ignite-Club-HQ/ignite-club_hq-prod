@@ -1,0 +1,1 @@
+- Combined frontend setup replaces the staged entry script and discovery metadata using the complete nineteen-canister installation mapping before completing sync; never reuse old backend IDs. Why: a fresh upload allocates different canisters and must not call the previous app.
