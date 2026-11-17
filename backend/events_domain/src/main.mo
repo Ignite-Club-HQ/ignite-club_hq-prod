@@ -4992,10 +4992,10 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
     let currentRoles = await freshMemberRolesForList(caller, association_id);
-    let allowed = isGovernor(caller) or hasBulkAccess(caller) or switch (currentRoles) {
+    let allowed = isGovernor(caller) or hasBulkAccess(caller) or (switch (currentRoles) {
       case null false;
       case (?grants) grants.any(func((role, team)) = role == "club_admin" and team == null);
-    };
+    });
     if (not allowed or removalReceiver.denied(caller)) return #Err("Association admin required");
     #Ok(associationEvents.filter(func(a) = a.association_id == association_id and not a.deleted))
   
