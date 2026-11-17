@@ -13,7 +13,7 @@ const filesystemMock = vi.hoisted(() => ({
 const fileOpenerMock = vi.hoisted(() => ({ open: vi.fn() }));
 const shareMock = vi.hoisted(() => ({ share: vi.fn() }));
 const fetchMock = vi.hoisted(() => vi.fn());
-const safeOpenUrlMock = vi.hoisted(() => vi.fn(async () => {}));
+const safeOpenUrlMock = vi.hoisted(() => vi.fn(async (_url?: string) => {}));
 const resolveSignedUrlMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@capacitor/core", () => ({
