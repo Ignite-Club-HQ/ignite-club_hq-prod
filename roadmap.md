@@ -489,7 +489,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] Correction 11 Nov 11:05 UTC: roadmap records both PROD groups (base and g2) OPENED with Paul's approval; earlier 'g2 closed' note was wrong. Fast native push sender covers only base queue, so g2 clubs' ICP alerts are not delivered natively. Needs g2 native sender coverage before claiming all-user push.
 - [x] 11 Nov: g2 alert coverage built on TEST (g2 queue accepts LIVE sender, sender drains base+g2, phones also register on g2, switch links and enables g2). Needs merge to prod, g2 queue upgrade, new Android build, then switch enable.
 
-## Deferred: Cloud Engine activation — saved 12 November (do later)
-- [ ] Provision/connect a Cloud Engine when economics justify it (blocked: Paul's later decision).
+## DEV Cloud Engine connection — resumed 17 November
+- [x] Paul has provisioned a DEV engine: https://opencloud.org/console/engines/engine-789969b4-e8ba-41b0-90a2-47b4dab699df/apps.
+- [ ] Inspect its actual subnet/service inventory and deployment access; distinguish existing DEV canister references from canisters installed on the engine. Confirm its encryption proxy before preparing a DEV-only connection.
 - [ ] Then: real-engine commissioning, engine admission/boot registration, cross-subnet calls, encryption, group push, and signed-in phone acceptance.
 - [ ] No existing clubs move and no live hosting changes without Paul's explicit approval.
