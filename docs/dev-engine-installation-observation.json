@@ -6,6 +6,20 @@
   "encryptionVerified": false,
   "frontendReady": false,
   "activeRoutingChanged": false,
+  "splitUploadInventory": {
+    "source": "Owner detail screenshots supplied 2026-11-17 at 04:22 UTC; no live module or setup verification implied",
+    "part1App": "ignite-engine-bundle-1of3",
+    "part1CanisterIds": {
+      "club_domain": "rrmq2-waaaa-aaac5-aaaka-cai",
+      "club_points_domain": "rwnwo-3yaaa-aaac5-aaakq-cai",
+      "competition_domain": "r7o5s-nqaaa-aaac5-aaala-cai",
+      "events_domain": "ryp3g-aiaaa-aaac5-aaalq-cai",
+      "identity_access": "qvb7i-paaaa-aaac5-aaama-cai",
+      "insights_domain": "qsaz4-cyaaa-aaac5-aaamq-cai"
+    },
+    "part2FullIdsAwaited": true,
+    "part3Prepared": false
+  },
   "canisterIds": {
     "secret_workload_identity": "s22gz-qyaaa-aaac5-aaaaq-cai",
     "identity_access": "stznf-gqaaa-aaac5-aaaba-cai",
