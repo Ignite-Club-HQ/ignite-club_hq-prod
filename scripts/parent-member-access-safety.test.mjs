@@ -23,8 +23,9 @@ test("ordinary parent event list consults live club authority and retains team s
   }
   for (const method of ["read_account_list_events", "read_account_list_events_multi"]) {
     const b = body(events, method);
-    assert.ok(b.includes("canViewListedEvent(caller, event, freshRoles)"), `${method} must use verified event audience`);
+    assert.ok(b.includes("canViewListedEvent(caller, event, freshRoles, ?teamVerified)"), `${method} must use verified event audience`);
     assert.ok(b.includes("memberRoleCache"), `${method} must cache role lookups by club`);
+    assert.ok(b.includes("teamStatus"), `${method} must cache live-team checks within the request`);
   }
 });
 
