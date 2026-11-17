@@ -1238,6 +1238,7 @@ export async function acceptPendingLiveInvite(ctx: FeatureBackendContext, invite
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
   const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_pending_invite(inviteId), "Accept pending invite"));
   syncAvatarClubGrantsBestEffort(ctx);
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
   return accepted;
 }
 
