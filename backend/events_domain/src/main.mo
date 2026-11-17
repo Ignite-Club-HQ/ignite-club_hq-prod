@@ -4977,7 +4977,10 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
     let request = Oql.parse(input, [OqlEvents.entity]);
-    Oql.run<Types.Event>(request, events, func(event) = not event.deleted and canView(caller, event), OqlEvents.row)
+    let permitted = await freshOqlVisibleEvents(caller);
+    if (removalReceiver.denied(caller)) throw Error.reject("Event access changed");
+    Oql.run<Types.Event>(request, events,
+      func(event) = permitted.any(func(approved) = approved == event), OqlEvents.row)
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -5184,6 +5187,65 @@ persistent actor class Main(governorInit : Principal) = this {
       };
       case _ false;
     }
+  };
+
+  // Build a single current-authority snapshot for OQL. Source events are
+  // read without names or PII. Team tombstones are fetched in bounded batches;
+  // per-club roles are fetched once, never from the cached event mirror.
+  func freshOqlVisibleEvents(subject : Principal) : async [Types.Event] {
+    if (Principal.isAnonymous(subject) or removalReceiver.denied(subject)) return [];
+    let configured = clubDomainCanister ?? return [];
+    let cd : actor { get_teams : shared query ([Text]) -> async {
+      #Ok : [{ id : Text; club_id : Text; deleted_at_ms : ?Nat64 }]; #Err : Text
+    } } = actor(configured.toText());
+    var ids : [Text] = [];
+    for (e in events.values()) {
+      if (not e.deleted) switch (e.team_id) {
+        case (?id) if (not ids.any(func(x) = x == id)) ids := ids.concat([id]);
+        case null {};
+      };
+    };
+    var currentTeams : [{ id : Text; club_id : Text; deleted_at_ms : ?Nat64 }] = [];
+    var offset : Nat = 0;
+    while (offset < ids.size()) {
+      let last = if (offset + 500 < ids.size()) offset + 500 else ids.size();
+      let chunk = Array.tabulate<Text>(last - offset, func(i) = ids[offset + i]);
+      let answer = try { await (with timeout = 10) cd.get_teams(chunk) } catch (_) { return [] };
+      switch (answer) {
+        case (#Ok(rows)) currentTeams := currentTeams.concat(rows);
+        case (#Err(_)) return [];
+      };
+      if (configured != clubDomainCanister or removalReceiver.denied(subject)) return [];
+      offset := last;
+    };
+    var cache : [(Text, ?[(Text, ?Text)])] = [];
+    var approved : [Types.Event] = [];
+    for (e in events.values()) {
+      if (not e.deleted and not isFenced(e.club_id) and
+          (switch (e.team_id) {
+            case null true;
+            case (?id) currentTeams.any(func(t) =
+              t.id == id and t.club_id == e.club_id and t.deleted_at_ms == null);
+          })) {
+        let roles = if (isGovernor(subject)) null else
+          switch (cache.find(func((club, _)) = club == e.club_id)) {
+            case (?(_, cached)) cached;
+            case null {
+              let fetched = await freshMemberRolesForList(subject, e.club_id);
+              cache := cache.concat([(e.club_id, fetched)]);
+              fetched
+            };
+          };
+        if (isGovernor(subject) or (switch (roles) {
+          case null false;
+          case (?grants) grants.any(func((role, team)) =
+            (role == "club_admin" or role == "team_admin" or role == "coach" or
+             role == "player" or role == "parent") and teamInEventScope(e, team));
+        })) approved := approved.concat([e]);
+      };
+    };
+    if (configured != clubDomainCanister or removalReceiver.denied(subject)) return [];
+    approved
   };
 
   // Recheck a series' owning team in the canonical club registry.
