@@ -85,3 +85,19 @@ test('event search, recurring schedules and duty-team events require current clu
   assert.match(duties,/await freshVisibleEventIds\(caller, candidates.map/);
   assert.doesNotMatch(duties,/canView\(caller, event\)/);
 });
+
+test('secondary event reads reject stale team roles and unauthorized membership probes',()=>{
+  const assoc=section(events,'func read_account_list_association_events(','func read_account_get_event_child(');
+  assert.match(assoc,/await freshMemberRolesForList\(caller, association_id\)/);
+  assert.doesNotMatch(assoc,/hasRole\(caller, "club_admin"/);
+  const pauses=section(events,'func read_account_list_team_training_pauses(','func read_account_is_paused(');
+  const paused=section(events,'func read_account_is_paused(','func read_account_is_team_member(');
+  assert.match(pauses,/await freshTeamReadAllowed\(caller, club_id, team_id\)/);
+  assert.match(paused,/await freshTeamReadAllowed\(caller, club_id, team_id\)/);
+  const probe=section(events,'func read_account_check_event_membership(','func read_account_get_playhq_config_status(');
+  assert.match(probe,/await freshVisibleEvent\(caller, event\)/);
+  const stats=section(events,'func read_account_get_player_stats_report(','func read_account_get_active_game(');
+  assert.match(stats,/await freshMemberRolesForList\(caller, club_id\)/);
+  assert.match(stats,/await freshEventTeamLive\(e\)/);
+  assert.doesNotMatch(stats,/managesTeam\(caller, club_id/);
+});
