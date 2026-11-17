@@ -19,12 +19,15 @@ describe("events_domain self RSVP authorization", () => {
   it("allows a caller to RSVP only for their own visible event account", () => {
     const method = selfRsvpMethod();
     expect(method).toContain("account_id != caller.toText()");
-    expect(method).toContain("not canSelfRsvp(caller, event)");
+    expect(method).toContain("not (canSelfRsvp(caller, event) or (await freshSelfRsvp(caller, event)))");
     const policyStart = source.indexOf("func canSelfRsvp(");
     const policyEnd = source.indexOf("func canGuardianRsvpForChild(", policyStart);
     expect(policyStart).toBeGreaterThanOrEqual(0);
     expect(policyEnd).toBeGreaterThan(policyStart);
-    expect(source.slice(policyStart, policyEnd)).toContain("not canView(caller, event)");
+    const policy = source.slice(policyStart, policyEnd);
+    expect(policy).toContain("if (event.deleted) return false;");
+    expect(policy).toContain("grant.user.equal(caller) and grant.club_id == event.club_id");
+    expect(policy).toContain("teamInEventScope(event, grant.team_id)");
     expect(method).not.toContain("requireManage(caller, event_id)");
   });
 

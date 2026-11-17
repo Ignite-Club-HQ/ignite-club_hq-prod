@@ -45,6 +45,15 @@ vi.mock("@/live/features/events", () => ({
   getLiveMyChildTeamAssignments: (...args: unknown[]) => mocks.getLiveMyChildTeamAssignments(...args),
 }));
 vi.mock("@/live/features/club", () => ({
+  listLiveTeams: async () => ["t1", "t2", "team-1", "team-2"].map((id) => ({ id, is_active: true, archived: false, deleted_at_ms: [] })),
+  listMyLiveOwnChildren: async (ctx: unknown) => {
+    const kids = (await mocks.getLiveMyChildren(ctx)) as Array<{ id: string; parent_id: string[] }>;
+    return Promise.all(kids.map(async (k) => ({
+      id: k.id,
+      parent: k.parent_id.map((p) => ({ toText: () => p })),
+      teams: ((await mocks.getLiveMyChildTeamAssignments(ctx, k.id)) as Array<{ team_id: string }>).map((a) => a.team_id),
+    })));
+  },
   myLiveRoleGrants: (...args: unknown[]) => mocks.myLiveRoleGrants(...args),
 }));
 vi.mock("@/live/features/vault", () => ({
