@@ -1,0 +1,38 @@
+name: "[TEST] Verify engine proxy encryption candidate"
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  encryption-rehearsal:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+      - name: Prepare isolated test tools
+        run: |
+          node scripts/ensure-frontend-deps.mjs
+          bun add -g ic-mops@3.5.1
+          node frontend/node_modules/@dfinity/pic/postinstall.mjs
+          (cd backend/pii_access_control && mops install)
+      - name: Compile encryption and run disposable-canister checks
+        run: |
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          (cd backend/pii_access_control && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o "$RUNNER_TEMP/pii-mainnet-compatible.wasm" src/main.mo)
+          (cd backend/pii_access_control && "$MOC" $(mops sources) -r test/engineVetKdPolicy.test.mo)
+          node --test scripts/engine-vetkd-replica.test.mjs
+      - name: Save compilation output, not an upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-encryption-rehearsal-only
+          path: ${{ runner.temp }}/pii-mainnet-compatible.wasm
+          if-no-files-found: error
