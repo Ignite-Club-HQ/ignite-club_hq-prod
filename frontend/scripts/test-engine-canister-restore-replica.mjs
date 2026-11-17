@@ -59,6 +59,8 @@ try {
     rsvp_audience: ['players_only'], adults_only: true, restricted_to_roles: [], target_team_ids: [],
     occurrences: [{ starts_at_ms: start, ends_at_ms: start + 3600000n }], duties: [], duty_team_id: [], reminder_hours: [] };
   events.actor.setPrincipal(coach);
+  assert.ok('Err' in await events.actor.create_event_with_setup(input), 'A club-level coach cannot create a club-wide event');
+  events.actor.setPrincipal(owner);
   const created = ok(await events.actor.create_event_with_setup(input));
   ok(await events.actor.set_schedule_view('calendar'));
   ok(await events.actor.send_individual_event_reminder(created.first_event_id, [member.toText()], []));
@@ -86,7 +88,7 @@ try {
   }
   // Deliberately change real persisted state after the checkpoint.
   for (const f of [club, events, queue]) await pic.startCanister({ canisterId: f.canisterId, sender: owner });
-  events.actor.setPrincipal(coach); ok(await events.actor.set_schedule_view('list'));
+  events.actor.setPrincipal(owner); ok(await events.actor.set_schedule_view('list'));
   const after = ok(await events.actor.create_event_with_setup({ ...input, request_id: 'after-checkpoint' }));
   assert.notEqual(after.first_event_id, created.first_event_id);
   club.actor.setPrincipal(owner);
@@ -99,7 +101,7 @@ try {
   // Local test-only start AFTER all snapshots loaded; not production resume approval.
   for (const f of [club, events, queue]) await pic.startCanister({ canisterId: f.canisterId, sender: owner });
   club.actor.setPrincipal(owner); assertCandidEqual(ok(await club.actor.export_acl()), beforeAcl);
-  events.actor.setPrincipal(coach);
+  events.actor.setPrincipal(owner);
   assert.deepEqual(await events.actor.get_schedule_view(), ['calendar']);
   assertCandidEqual(ok(await events.actor.create_event_with_setup(input)), created);
   assert.ok('Err' in await events.actor.create_event_with_setup({ ...input, title: 'conflicting payload' }));
