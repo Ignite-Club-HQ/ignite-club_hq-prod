@@ -753,6 +753,37 @@ persistent actor class Main(governorInit : Principal) = this {
       }
     }
   };
+  // DEV Group 2 direct club check (Paul 2026-11-18): for the pinned G2
+  // shared-club-name scope, ask the pinned G2 club service directly instead of
+  // the shared identity service (which crossed groups twice per check).
+  // Caller and every subject must be current club members; account removal
+  // fences and admission still apply. One check per request: removal is
+  // prompt (next unlock), not mid-request.
+  func directG2ClubNames(scope : PrivateNameScope) : Bool {
+    devG2SharedClubNames and devG2SharedClubScope(scope)
+  };
+  func authorizeDirectG2ClubNames(caller : Principal, ids : [Text], scope : PrivateNameScope) : async () {
+    if (ids.size() == 0 or ids.size() > 25 or ids.any(func id = id == "" or id.size() > 63)) throw Error.reject("Bounded exact private-name audience required");
+    let subjects = ids.map(func id = Principal.fromText(id));
+    if (subjects.any(func p = p.isAnonymous() or p.toText() == "aaaaa-aa") or subjects.size() != ids.filter(func id = ids.filter(func x = x == id).size() == 1).size()) throw Error.reject("Distinct active private-name subjects required");
+    let club : actor { read_has_club_membership : shared (Principal, Text) -> async Bool } = actor(scope.authority.toText());
+    let epoch = mediaAuthEpoch;
+    // Start every membership check at once, then collect.
+    let callerCheck = club.read_has_club_membership(caller, scope.resource);
+    var pending : [async Bool] = [];
+    for (p in subjects.values()) { pending := pending.concat([club.read_has_club_membership(p, scope.resource)]) };
+    let callerOk = try { await callerCheck } catch (_) { false };
+    if (not callerOk) throw Error.reject("Not a member of this club");
+    for (f in pending.values()) {
+      let ok = try { await f } catch (_) { false };
+      if (not ok) throw Error.reject("Private-name subject is not a club member");
+    };
+    if (epoch != mediaAuthEpoch or removalReceiver.denied(caller) or subjects.any(func p = removalReceiver.denied(p))) throw Error.reject("Private-name authority changed");
+    for (i in ids.keys()) {
+      let record = pii_records.find(func r = r.pii_id == ids[i] and r.field_id == "display_name") ?? throw Error.reject("Private name not found");
+      if (record.domain_owner != subjects[i]) throw Error.reject("Private-name owner changed");
+    };
+  };
   func authorizePrivateNames(caller : Principal, ids : [Text], scope : PrivateNameScope) : async [PrivateNameRow] {
     let verifier = privateNameVerifier() ?? throw Error.reject("Private name audiences are not released or configured");
     if (ids.size() > 25 or ids.any(func id = id == "" or id.size() > 63) or scope.resource == "" or scope.resource.size() > 128) throw Error.reject("Bounded exact private-name audience required");
@@ -781,10 +812,15 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
       await admitAccount(caller); auth(caller);
       let epoch = mediaAuthEpoch;
-      let first = await authorizePrivateNames(caller, ids, scope);
-      await admitAccount(caller);
-      let final = await authorizePrivateNames(caller, ids, scope);
-      if (epoch != mediaAuthEpoch or first != final or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
+      if (directG2ClubNames(scope)) {
+        await authorizeDirectG2ClubNames(caller, ids, scope);
+        if (epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
+      } else {
+        let first = await authorizePrivateNames(caller, ids, scope);
+        await admitAccount(caller);
+        let final = await authorizePrivateNames(caller, ids, scope);
+        if (epoch != mediaAuthEpoch or first != final or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
+      };
       var out : [EncryptedPii] = [];
       for (id in ids.values()) {
         let r = pii_records.find(func r = r.pii_id == id and r.field_id == "display_name") ?? return #Err("Private name not found");
@@ -1078,15 +1114,19 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
       await admitAccount(caller); auth(caller);
       let epoch = mediaAuthEpoch;
-      let first = await authorizePrivateNames(caller, ids, scope);
+      let direct = directG2ClubNames(scope);
+      let first = if (direct) { await authorizeDirectG2ClubNames(caller, ids, scope); [] } else await authorizePrivateNames(caller, ids, scope);
       for (id in ids.values()) {
         let r = pii_records.find(func r = r.pii_id == id and r.field_id == clubNameField(scope.resource)) ?? return #Err("Club name replica not found");
         if (r.master_key_id != clubNameScheme(scope.resource) or r.domain_owner.toText() != id) return #Err("Invalid club name replica");
       };
       let key = await encryptionDeriveKey<system>(ibeIdentity("clubnames:" # scope.resource, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
-      await admitAccount(caller);
-      let final = await authorizePrivateNames(caller, ids, scope);
-      if (first != final or epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
+      if (not direct) {
+        await admitAccount(caller);
+        let final = await authorizePrivateNames(caller, ids, scope);
+        if (first != final) return #Err("Private-name authorization changed");
+      } else if (removalReceiver.denied(caller)) return #Err("Account removal fenced");
+      if (epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
       log_audit(caller, "clubnames:" # scope.resource, "display_name", "club_name_vetkey", true, scope.kind);
       #Ok(key)
     } catch (e) { #Err(Error.message(e)) } finally { removalReceiver.leave(caller) }
