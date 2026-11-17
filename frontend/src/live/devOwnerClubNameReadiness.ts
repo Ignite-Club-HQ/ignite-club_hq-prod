@@ -72,8 +72,8 @@ export async function reconcileConfirmedDevOwnerClubName(
   };
 
   const prepare = async (): Promise<DevClubNameReadiness> => {
-    const io = options.io ?? await livePreparation(ctx, clubId);
     try {
+      const io = options.io ?? await livePreparation(ctx, clubId);
       active();
       if (!await io.readMember()) return 'pending-membership';
       active();
