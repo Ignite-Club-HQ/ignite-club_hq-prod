@@ -1,0 +1,21 @@
+import VetKd "../src/EngineVetKd";
+import Principal "mo:core/Principal";
+import Text "mo:core/Text";
+
+let proxy = Principal.fromText("ynolw-eyaaa-aaaaj-qspkq-cai");
+let key = { curve = #bls12_381_g2; name = "key_1" };
+let context = Text.encodeUtf8("ignite-pii-v1");
+let identity = Text.encodeUtf8("clubmedia:test\u{1F}blob");
+let transport = Text.encodeUtf8("transport-fixture");
+let publicRequest = VetKd.publicRequest(context, key);
+assert publicRequest.cycles == 0;
+assert publicRequest.method == "vetkd_public_key";
+let publicArgs : ?{ canister_id : ?Principal; context : Blob; key_id : { curve : { #bls12_381_g2 }; name : Text } } = from_candid(publicRequest.args);
+switch (publicArgs) { case (?a) { assert a.canister_id == null; assert a.context == context; assert a.key_id.name == "key_1" }; case null assert false };
+let deriveRequest = VetKd.deriveRequest(identity, context, key, transport);
+assert deriveRequest.cycles == 30_000_000_000;
+assert deriveRequest.method == "vetkd_derive_key";
+let deriveArgs : ?{ input : Blob; context : Blob; key_id : { curve : { #bls12_381_g2 }; name : Text }; transport_public_key : Blob } = from_candid(deriveRequest.args);
+switch (deriveArgs) { case (?a) { assert a.input == identity; assert a.context == context; assert a.transport_public_key == transport }; case null assert false };
+assert VetKd.select(#Direct, null) == null;
+assert VetKd.select(#Proxy proxy, ?"ynolw-eyaaa-aaaaj-qspkq-cai") == ?proxy;
