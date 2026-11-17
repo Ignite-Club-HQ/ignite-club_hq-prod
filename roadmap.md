@@ -1,7 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## Combined DEV engine upload — 17 November
+- [x] Prepared nineteen-canister single-app replacement, retaining the exact compressed eighteen backend programs and frontend program; all manifest/plugin hashes checked. Setup replaces frontend entry-script backend IDs and discovery/sign-in metadata with the newly allocated same-app inventory. Owner/refused-ID tests and four existing policy tests pass.
+- [ ] Owner uploads combined replacement and supplies its frontend ID; real-engine setup, login and encrypted photo/file acceptance remain unverified. Current installations and PROD untouched. Automatic updates remain paused pending replacement target and owner-authorized update access.
+
 ## DEV engine frontend updates from Lovable — 17 November
-- [ ] Connect ongoing frontend updates to the uploaded DEV engine frontend, preserving PROD workflows. Blocked on its assigned frontend canister ID and owner-authorized deployment access; neither is available in this session.
+- [ ] Connect ongoing frontend updates to the final DEV engine frontend, preserving PROD workflows. Preliminary separate-frontend workflow is superseded by the combined replacement; deployment remains blocked on its new frontend ID and owner-authorized update access.
 - [x] Confirmed Lovable Publish deploys Lovable hosting, not an external engine. Existing GitHub main-push frontend deployment targets the old DEV canister; automatic source-sync updates are a separate trigger, not publish-only updates. Do not add external network writes to preview/build scripts or claim the new engine is already wired.
 
 ## Document opening and saving — DEV only
