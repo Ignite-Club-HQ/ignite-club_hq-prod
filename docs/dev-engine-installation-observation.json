@@ -17,8 +17,19 @@
       "identity_access": "qvb7i-paaaa-aaac5-aaama-cai",
       "insights_domain": "qsaz4-cyaaa-aaac5-aaamq-cai"
     },
-    "part2FullIdsAwaited": true,
-    "part3Prepared": false
+    "part2App": "ignite-engine-bundle-2of3",
+    "part2CanisterIds": {
+      "mini_league_domain": "qagof-oiaaa-aaac5-aaapq-cai",
+      "messaging_domain": "qhhir-dqaaa-aaac5-aaapa-cai",
+      "notification_queue": "qoedn-vyaaa-aaac5-aaaoq-cai",
+      "media_blob_store": "qjffz-yaaaa-aaac5-aaaoa-cai",
+      "migration_coordinator": "q4cuu-ziaaa-aaac5-aaanq-cai",
+      "media_metadata": "q3dsa-uqaaa-aaac5-aaana-cai"
+    },
+    "part2FullIdsAwaited": false,
+    "part3Prepared": true,
+    "part3SetupIncluded": false,
+    "setupHold": "Official sync-plugin@0.2 permits only named canisters resolved within the upload project. Baking external IDs into plugin bytes does not authorize calls to apps 1 and 2. Part 3 is installation-only; cross-app owner-signed wiring remains outstanding."
   },
   "canisterIds": {
     "secret_workload_identity": "s22gz-qyaaa-aaac5-aaaaq-cai",
