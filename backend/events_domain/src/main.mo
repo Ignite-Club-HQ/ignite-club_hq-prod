@@ -6046,7 +6046,7 @@ persistent actor class Main(governorInit : Principal) = this {
       if (e.club_id == club_id and not e.deleted and
           e.starts_at_ms >= from_ms and e.starts_at_ms <= to_ms and
           (switch (team_id) { case (?t) e.team_id == ?t; case null true }) and
-          await freshEventTeamLive(e)) {
+          (await freshEventTeamLive(e))) {
         eventIds := eventIds.concat([e.id]);
       };
     };
