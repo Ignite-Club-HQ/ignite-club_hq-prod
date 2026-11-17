@@ -1,0 +1,51 @@
+name: "[TEST] Install DEV engine bundle on a throwaway local network"
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/test-engine-bundle-install.yml", "deploy/engine-bundle-test/**"]
+permissions:
+  contents: read
+jobs:
+  install:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install pinned ICP CLI (no credentials)
+        run: npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
+      - name: Unpack exact uploaded bundle and retarget to local network only
+        run: |
+          cd deploy/engine-bundle-test && sha256sum -c SHA256SUMS
+          mkdir -p "$RUNNER_TEMP/b" && tar -xzf ignite-dev-engine-bundle.tar.gz -C "$RUNNER_TEMP/b"
+          cd "$RUNNER_TEMP/b"
+          python3 -c "
+          t=open('icp.yaml').read()
+          t=t.replace('- name: ic\n  network: ic\n','- name: local\n  network: local\n')
+          assert 'network: ic' not in t
+          open('icp.yaml','w').write(t)"
+          icp --version
+      - name: Start throwaway local network
+        working-directory: ${{ runner.temp }}/b
+        run: icp network start -d && sleep 5 && (icp network status || true)
+      - name: Install each service separately and record the real error
+        working-directory: ${{ runner.temp }}/b
+        run: |
+          set +e
+          echo "| service | result |" >> "$GITHUB_STEP_SUMMARY"; echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          for c in $(grep -E '^- name: ' icp.yaml | sed 's/- name: //' | grep -v '^local$'); do
+            echo "::group::$c"
+            out=$(icp deploy -e local "$c" --yes 2>&1); rc=$?
+            echo "$out"
+            echo "::endgroup::"
+            if [ $rc -eq 0 ]; then r="installed"; else r="FAILED: $(echo "$out" | grep -iE 'error|trap|reject|panick|fail' | head -3 | tr '\n|' '  ' | cut -c1-400)"; fi
+            echo "$c => $r"
+            echo "| $c | $r |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          exit 0
