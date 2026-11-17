@@ -23,7 +23,7 @@ import PendingInvitesList from "@/components/PendingInvitesList";
 import { friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
 import { cn } from "@/lib/utils";
 import { visibleTeamMemberName } from "@/lib/teamRosterDisplay";
-import { teamRosterReadFailureCode } from "@/lib/teamRosterReads";
+import { teamRosterReadFailureCode, summarizeAdultNameIssues, adultNameIssueLabel } from "@/lib/teamRosterReads";
 
 export type TeamMemberEntry = {
   profile: any;
@@ -89,6 +89,7 @@ interface TeamMembersSectionProps {
   hasUnresolvedAdultNames?: boolean;
   refetchAdultNames?: () => unknown;
   devEncryptedAdultNameMode?: 'ON' | 'OFF';
+  adultNameIssues?: string[];
   showIcpRosterFailureCode?: boolean;
   refetchMembers: () => unknown;
   refetchChildren: () => unknown;
@@ -142,6 +143,7 @@ export function TeamMembersSection({
   hasUnresolvedAdultNames = false,
   refetchAdultNames,
   devEncryptedAdultNameMode,
+  adultNameIssues = [],
   showIcpRosterFailureCode = false,
   refetchMembers,
   refetchChildren,
@@ -258,7 +260,7 @@ export function TeamMembersSection({
         <div className="space-y-4 pt-2">
           {showIcpRosterFailureCode && devEncryptedAdultNameMode && (
             <p className="text-xs text-muted-foreground" role="status">
-              DEV ICP generic club-name build flag: {devEncryptedAdultNameMode} (exact-team access checked by server)
+              DEV ICP club-key parent names: {devEncryptedAdultNameMode} (club membership checked by server)
             </p>
           )}
           {showIcpRosterFailureCode && (hasUnresolvedAdultNames || isAdultNamesError) && (
@@ -273,6 +275,13 @@ export function TeamMembersSection({
                 {adultNameRetryPending ? 'Refreshing names…' : 'Retry names'}
               </Button>
             </div>
+          )}
+          {showIcpRosterFailureCode && !isAdultNamesError && adultNameIssues.length > 0 && (
+            <ul className="text-xs text-muted-foreground space-y-0.5" role="status">
+              {summarizeAdultNameIssues(adultNameIssues).map(({ code, count }) => (
+                <li key={code}>{count} parent name{count === 1 ? '' : 's'}: {adultNameIssueLabel(code)}</li>
+              ))}
+            </ul>
           )}
           {showIcpRosterFailureCode && isAdultNamesError && (
             <p className="text-xs text-muted-foreground" role="status">

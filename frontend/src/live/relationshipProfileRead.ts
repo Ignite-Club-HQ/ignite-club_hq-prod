@@ -6,7 +6,7 @@ import { createLivePrivateProfileAuthorityResolver } from './privateProfileAutho
 import { listLiveProfilesByIds } from './features/identityAccessClient';
 import { capturePrivateProfileSession } from './privateProfileSession';
 import { privateClubNameDisplaysEnabled } from './privateClubNameDisplayMode';
-import { createDevCrossGroupTeamNameResolver, devG2SharedClubNamesEnabled, sharedClubNameEnforcementEnabled } from './devCrossGroupTeamNameRoute';
+import { createDevCrossGroupTeamNameResolver, devG2SharedClubNamesEnabled, clubNameDisplaysActive } from './devCrossGroupTeamNameRoute';
 
 export type ProfileRelationship = {
   kind: 'club' | 'team' | 'family' | 'competition' | 'league' | 'direct' | 'broadcast' | 'competition_admin';
@@ -19,6 +19,7 @@ export type ProfileRelationship = {
 export async function readRelationshipProfiles(
   owner: FeatureBackendContext, ids: readonly string[], relationship: ProfileRelationship,
   signal?: AbortSignal,
+  options: { partialNames?: boolean } = {},
 ) {
   relationship = { ...relationship };
   ids = [...ids];
@@ -42,7 +43,7 @@ export async function readRelationshipProfiles(
       active();
       if (shared.identity !== identity) throw new Error('Profile reader identity changed.');
       const rehearsal = privateProfileSearchRehearsalEnabled();
-      const enforcedClubNames = sharedClubNameEnforcementEnabled(owner.target);
+      const enforcedClubNames = clubNameDisplaysActive(owner.target);
       // Never unlock a team's adults with personal/team-scoped keys after
       // club-key enforcement. Callers must pass the independently resolved
       // owning club ID, not infer it from the team or a profile reference.
@@ -78,6 +79,7 @@ export async function readRelationshipProfiles(
       const rows = await listLiveProfilesByIds(shared, ids, {
         signal,
         audience: { ...relationship, authority, profile_revision: 0n },
+        ...(options.partialNames ? { partialNames: true } : {}),
         ...(devTeamResolver && !rehearsal
           ? { resolveAuthority: devTeamResolver }
           : rehearsal ? { resolveAuthority: async (original: string) => {

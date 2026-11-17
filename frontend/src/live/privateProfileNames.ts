@@ -10,11 +10,14 @@ import { capturePrivateProfileSession } from './privateProfileSession';
 import { privateProfileSearchRehearsalEnabled } from './privateProfileSearchMode';
 import { isLoopbackRehearsalHost } from './accountReadAdapter.mjs';
 import { privateClubNameDisplaysEnabled } from './privateClubNameDisplayMode';
+import { clubNameDisplaysActive, devClubNameReleaseTarget } from './devCrossGroupTeamNameRoute';
 
 /** Dormant reference contract: publishing a reference requires the separately
  * approved identity/search cutover. The original key authority is immutable. */
 const PREFIX = "pii-display-name:v1:";
 const FIELD = "display_name";
+/** The person's own session has not yet saved their name for this club. */
+export const NAME_NOT_SHARED_YET = 'Club name copy not saved yet.';
 const BATCH_SIZE = 100;
 const READ_TIMEOUT_MS = 6000;
 
@@ -159,7 +162,7 @@ export async function refreshPrivateOwnClubNames(
   // The universal release also prepares each current club copy when the
   // account owner saves their own name. A new club join without an existing
   // copy remains fail-closed until the owner-authorised refresh completes.
-  if (!privateClubNameDisplaysEnabled() &&
+  if (!privateClubNameDisplaysEnabled() && !devClubNameReleaseTarget(ctx.target) &&
       !(import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1' && ctx.target.provider === 'icp')) return;
   if (privateProfileSearchRehearsalEnabled() && !isLoopbackRehearsalHost(ctx.target.host)) throw new Error('Private name maintenance requires a loopback rehearsal target.');
   const value = name.trim();
@@ -275,21 +278,20 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   const clubRows = validRows.filter(row => row.master_key_id?.startsWith('vetkey-club-names-'));
   if (clubRows.length && (!audience || audience.kind !== 'club' || field !== FIELD || clubRows.some(row => row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${audience.resource}`))) throw new Error('Invalid club name key scope.');
   const individualRows = validRows.filter(row => !clubRows.includes(row));
-  const strictSharedClub = import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1'
-    && ctx.target.provider === 'icp' && audience?.kind === 'club';
+  const strictSharedClub = clubNameDisplaysActive(ctx.target) && audience?.kind === 'club';
   // A team has no independently derived member-name key after cutover.
-  if (import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1'
-    && ctx.target.provider === 'icp' && audience?.kind === 'team') {
+  if (clubNameDisplaysActive(ctx.target) && audience?.kind === 'team') {
     throw new Error('Team member names must be read under their owning club key.');
   }
   // Never obtain paid person-specific keys when the selected reader promises
-  // a shared club key. A member without an encrypted club copy stays unnamed,
-  // pending controlled conversion; this is not permission to decrypt originals.
-  if (strictSharedClub && individualRows.length) throw new Error('Club-encrypted name copy missing; no personal-key fallback.');
-  if (individualRows.length || clubRows.length) phase('vetkey');
-  const keys = individualRows.length ? await fetchPiiVetKeys(ctx, individualRows.map(row => row.pii_id), field, { fresh: true, assertActive: active, ...(audience ? { audience } : {}), ...(retainOwnKey && !audience ? { retainOwnKey: true } : {}) }) : new Map();
+  // a shared club key. A member without an encrypted club copy stays unnamed
+  // (reported as not yet shared) until they open the app and their own
+  // session saves the club copy; this never decrypts originals.
+  if (strictSharedClub && !clubRows.length) return new Map();
+  if ((individualRows.length && !strictSharedClub) || clubRows.length) phase('vetkey');
+  const keys = individualRows.length && !strictSharedClub ? await fetchPiiVetKeys(ctx, individualRows.map(row => row.pii_id), field, { fresh: true, assertActive: active, ...(audience ? { audience } : {}), ...(retainOwnKey && !audience ? { retainOwnKey: true } : {}) }) : new Map();
   const clubKey = clubRows.length && audience ? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active) : undefined;
-  if (audience && keys.size + (clubKey ? clubRows.length : 0) !== validRows.length) throw new Error('Private-name keys were not authorized.');
+  if (audience && keys.size + (clubKey ? clubRows.length : 0) !== (strictSharedClub ? clubRows.length : validRows.length)) throw new Error('Private-name keys were not authorized.');
   active();
   phase('decrypt');
   const out = new Map<string, string>();
@@ -332,8 +334,7 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
         // audience must report TIMEOUT rather than silently appearing as an
         // unverified empty name set; never disclose ciphertext or IDs.
         // Keep other routes' existing deadlines and neutral failure behavior.
-        const sharedClubName = import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1'
-          && ctx.target.provider === 'icp' && audience?.kind === 'club';
+        const sharedClubName = clubNameDisplaysActive(ctx.target) && audience?.kind === 'club';
         const devTeam = audience?.kind === 'team' &&
           ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
         const crossGroupDevName = devTeam || sharedClubName;
@@ -370,8 +371,8 @@ async function boundedAuthorityCheck<T>(read: () => Promise<T>, timeoutLabel = '
 export async function hydratePrivateProfileNames<T extends { display_name: string | null; principal?: Principal }>(
   ctx: FeatureBackendContext,
   profiles: readonly T[],
-  options: { signal?: AbortSignal; resolveAuthority?: PrivateProfileAuthorityResolver; audience?: PrivateProfileAudience } = {},
-): Promise<Array<Omit<T, "display_name"> & { display_name: string | null }>> {
+  options: { signal?: AbortSignal; resolveAuthority?: PrivateProfileAuthorityResolver; audience?: PrivateProfileAudience; partialNames?: boolean } = {},
+): Promise<Array<Omit<T, "display_name"> & { display_name: string | null; name_error?: string }>> {
   // Retain the exact rows whose references were authorized. A caller changing
   // its array during an await must not attach a retained name to another row.
   profiles = profiles.map(profile => ({ ...profile }));
@@ -404,6 +405,11 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     byAuthority.set(ref.authority, subjects);
   }
   const names = new Map<string, Map<string, string>>();
+  // Partial mode (team rosters): one original source failing, or one person
+  // without a club copy, must not blank everybody else. Each unnamed person
+  // carries a diagnostic instead of a silent placeholder.
+  const partial = Boolean(options.audience && options.partialNames);
+  const failures = new Map<string, unknown>();
   const devTeam = options.audience?.kind === 'team' &&
     ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
   const batchSize = options.audience ? 25 : BATCH_SIZE;
@@ -442,12 +448,15 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
         routeGuards.get(authority)?.();
       };
       const part = await boundedRead(route, subjects, routeActive, options.audience);
-      if (options.audience && part.size !== subjects.length) throw new Error('Private-name audience is incomplete or unavailable.');
+      if (options.audience && !partial && part.size !== subjects.length) throw new Error('Private-name audience is incomplete or unavailable.');
       active();
       const group = names.get(authority) ?? new Map<string, string>();
       for (const [id, name] of part) group.set(id, name);
       names.set(authority, group);
-    } catch (error) { if (options.audience) throw error; /* Display-only reads remain neutral. */ }
+    } catch (error) {
+      if (partial) { failures.set(authority, error); names.delete(authority); return; }
+      if (options.audience) throw error; /* Display-only reads remain neutral. */
+    }
   };
   try {
     for (let start = 0; start < jobs.length; start += 2) await Promise.all(jobs.slice(start, start + 2).map(readJob));
@@ -458,7 +467,11 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
         await boundedAuthorityCheck(lease.confirm,
           devTeam ? 'Private team-name route closing timed out.' : undefined);
         active(); routeGuards.get(authority)?.();
-      } catch (error) { if (options.audience) throw error; names.delete(authority); }
+      } catch (error) {
+        if (partial) failures.set(authority, error);
+        else if (options.audience) throw error;
+        names.delete(authority);
+      }
     }
   } catch (error) {
     // A refused parallel batch retires sibling work before its late reply can
@@ -468,6 +481,19 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     throw error;
   }
   active();
+  if (partial) {
+    return profiles.map((profile, index) => {
+      const ref = references[index];
+      if (ref === undefined) return profile;
+      const name = ref ? names.get(ref.authority)?.get(ref.subject) : undefined;
+      if (name) return { ...profile, display_name: name };
+      const failure = ref ? failures.get(ref.authority) : undefined;
+      const name_error = ref === null ? 'Private-name reference does not match this member.'
+        : failure !== undefined ? (failure instanceof Error ? failure.message : String(failure))
+        : NAME_NOT_SHARED_YET;
+      return { ...profile, display_name: null, name_error };
+    });
+  }
   if (options.audience && references.some(ref => ref === null || (ref && !names.get(ref.authority)?.has(ref.subject)))) throw new Error('Private-name authority is unverified or unavailable.');
   return profiles.map((profile, index) => {
     const ref = references[index];
@@ -481,7 +507,7 @@ const ownClubNameBackfills = new Set<string>();
 /** Best-effort, once per session per account: copy the caller's own unlocked
  * name to every club they belong to. Never blocks or throws. */
 function scheduleOwnClubNameBackfill(ctx: FeatureBackendContext, caller: string, name: string): void {
-  if (!privateClubNameDisplaysEnabled() &&
+  if (!privateClubNameDisplaysEnabled() && !devClubNameReleaseTarget(ctx.target) &&
       !(import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1' && ctx.target.provider === 'icp')) return;
   // In-flight rather than permanent account suppression: a later sign-in may
   // include a newly joined club. Source-qualified identity prevents Group 1

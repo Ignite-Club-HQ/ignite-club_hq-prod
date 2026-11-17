@@ -3,7 +3,7 @@ import { Principal } from '@icp-sdk/core/principal';
 import { GROUP_DOMAINS } from './groupRouting';
 import type { FeatureBackendContext } from './featureRouter';
 import type { AccountRegistrySnapshot } from './accountAuthorityRegistry';
-import { createDevCrossGroupTeamNameResolver, devG2SharedClubNamesEnabled, sharedClubNameEnforcementEnabled } from './devCrossGroupTeamNameRoute';
+import { createDevCrossGroupTeamNameResolver, devG2SharedClubNamesEnabled, sharedClubNameEnforcementEnabled , clubNameDisplaysActive } from './devCrossGroupTeamNameRoute';
 
 const DEV = {
   identity: 'mq2sj-fiaaa-aaaal-qxlqa-cai',
@@ -41,9 +41,13 @@ function setup() {
 }
 afterEach(() => vi.unstubAllEnvs());
 describe('global ICP shared-club-name policy with DEV original-source gate', () => {
-  it('requires both frontend operator opt-in and every exact existing DEV target pin', () => {
+  it('activates on the pinned DEV Identity without a build flag, and requires every exact DEV target pin', () => {
     const f=setup();
-    expect(devG2SharedClubNamesEnabled(f.ctx.target, '177f8c01-3617-402a-aedd-5c5c17ccfde1')).toBe(false);
+    // DEV club-key names no longer depend on a per-build flag; the servers
+    // still enforce their own release switches and membership.
+    expect(devG2SharedClubNamesEnabled(f.ctx.target, '177f8c01-3617-402a-aedd-5c5c17ccfde1')).toBe(true);
+    expect(clubNameDisplaysActive(f.ctx.target)).toBe(true);
+    expect(clubNameDisplaysActive({...f.ctx.target, canisterIds:{...f.ctx.target.canisterIds, identity_access:p(81).toText()}} as typeof f.ctx.target)).toBe(false);
     vi.stubEnv('IGNITE_LIVE_SHARED_CLUB_NAMES','1');
     expect(devG2SharedClubNamesEnabled(f.ctx.target, '177f8c01-3617-402a-aedd-5c5c17ccfde1')).toBe(true);
     expect(devG2SharedClubNamesEnabled(f.ctx.target, 'another-dev-club')).toBe(true);

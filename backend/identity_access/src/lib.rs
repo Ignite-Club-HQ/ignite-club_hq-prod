@@ -59,6 +59,7 @@ mod admin_accounts;
 mod guardian_search;
 mod private_name_audience;
 mod legacy_g1_private_name;
+mod dev_g2_private_name_source;
 mod private_name_conversion;
 mod private_name_account_inventory;
 mod private_name_cleanup;
@@ -2435,6 +2436,14 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
     }
     private_name_audience::validate(viewer_principal, &subjects, &scope)?;
     let service = ic_cdk::api::msg_caller();
+    // The historically persisted service-reader list can omit the registered
+    // G2 PII. Accept ONLY the pinned DEV PII/Identity/club triple, in an
+    // explicitly released club-audience read. The full router proof is below.
+    // This never changes the service allowlist or grants a human a name.
+    let dev_g2_candidate = dev_g2_private_name_source::candidate(
+        ic_cdk::api::canister_self(), service, &scope.kind, scope.authority,
+        dev_g2_shared_club_names_enabled(), private_club_name_displays_released(),
+    );
     let mut allowed_services = service_authorities();
     // The legacy G1 PII is absent from the modern router by design. Include
     // exactly this compiled DEV principal only when the owner has separately
@@ -2445,7 +2454,9 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         && !allowed_services.contains(&service) {
         allowed_services.push(service);
     }
-    if !allowed_services.contains(&service) { return Err("Configured private-name service required".into()); }
+    if !allowed_services.contains(&service) && !dev_g2_candidate {
+        return Err("Configured private-name service required".into());
+    }
     let viewer = membership_lookup_viewer(viewer_principal)?;
     let config = directory_config()?;
     let history = removal_history_revision();
@@ -2463,6 +2474,18 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
     group_inventory::validate(&inventory, &config.binding, &registry_clubs, &[])?;
     let modern_pii_registered = inventory.groups.iter().any(|g|
         g.domains.iter().any(|d| d.domain == "pii_access_control" && d.canister == service));
+    // The registry must independently bind the approved DEV source and the
+    // requested owning club authority to the SAME active group. Neither the
+    // browser-selected scope nor a PII profile reference can assert this.
+    let dev_g2_registered_pair = inventory.groups.iter().any(|g| {
+        g.domains.iter().any(|d| d.domain == "pii_access_control" && d.canister == service)
+            && g.domains.iter().any(|d| d.domain == "club_domain" && d.canister == scope.authority)
+    });
+    if !dev_g2_private_name_source::registered_same_group(
+        dev_g2_candidate, modern_pii_registered && dev_g2_registered_pair,
+    ) {
+        return Err("DEV G2 private-name service authority changed".into());
+    }
     // This original DEV legacy fallback requires the exact source,
     // owner-verified observed public key, existing configured PII service
     // allowlist and explicit default-off DEV release. Historical test data
@@ -2525,6 +2548,13 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
             || dev_g1_observed_key_sha256().as_deref()!=Some(observed_sha256) {
             return Err("Original DEV PII key approval changed".into());
         }
+    }
+    // Re-evaluate the exact DEV-only release after both membership checks.
+    if dev_g2_candidate && !dev_g2_private_name_source::candidate(
+        ic_cdk::api::canister_self(), service, &scope.kind, scope.authority,
+        dev_g2_shared_club_names_enabled(), private_club_name_displays_released(),
+    ) {
+        return Err("DEV G2 private-name release changed".into());
     }
     // No await after these final subject/reference and caller rechecks.
     active()?;

@@ -10,6 +10,36 @@
 import { assertMayCreateChild, collectVerifiedChildren, requireSourceClubCanisterId } from "./icpChildrenGroupSafety";
 import type { ChildNameForCheck } from "./icpChildrenGroupSafety";
 
+/**
+ * Invitation mode: the invite's own group is checked strictly by the caller
+ * (where the child would be created or resumed). Other groups are best effort:
+ * only a confirmed readable same-name child there blocks; an unreadable name
+ * or an unanswered group is not treated as a duplicate.
+ */
+export async function verifyIcpChildNameInOtherGroups(name: string, inviteSourceClubCanisterId: string): Promise<void> {
+  const [{ withFeatureBackend }, club, vault] = await Promise.all([
+    import("@/live/featureRouter"),
+    import("@/live/features/club"),
+    import("@/live/features/vault"),
+  ]);
+  const wanted = name.trim().toLocaleLowerCase();
+  const found = await withFeatureBackend<boolean>("membership", {
+    supabase: async () => false,
+    icp: async scoped => {
+      if (requireSourceClubCanisterId(scoped.target) === inviteSourceClubCanisterId) return false;
+      const children = await club.listMyLiveOwnChildren(scoped);
+      if (children.length === 0) return false;
+      const names = await vault.resolveLivePiiTextBatch(
+        scoped, children.map(c => c.id), "name", "read", "child_duplicate_check",
+      ).catch(() => new Map<string, string>());
+      return children.some(c => names.get(c.id)?.trim().toLocaleLowerCase() === wanted);
+    },
+  }, { everyGroup: true, merge: parts => (parts as boolean[]).some(Boolean) }).catch(() => false);
+  if (found) {
+    throw new Error(`${name.trim()} already appears in your children in another club group. An existing child cannot be copied between groups automatically.`);
+  }
+}
+
 export async function verifyIcpChildNameAcrossGroups(name: string): Promise<void> {
   const [{ withFeatureBackend }, club, vault] = await Promise.all([
     import("@/live/featureRouter"),

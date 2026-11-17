@@ -11,6 +11,7 @@ vi.mock('./devCrossGroupTeamNameRoute', () => ({
   createDevCrossGroupTeamNameResolver: state.devRoute,
   devG2SharedClubNamesEnabled: () => state.cutover,
   sharedClubNameEnforcementEnabled: () => state.global,
+  clubNameDisplaysActive: () => state.global,
 }));
 import { readRelationshipProfiles } from './relationshipProfileRead';
 import { afterEach } from 'vitest';
