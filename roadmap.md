@@ -3,7 +3,7 @@
 ## Document opening and saving — DEV only
 - [x] Trace chat/Vault taps; fix the shared native viewer import, MIME dispatch and Open/Download/Share separation.
 - [x] Authorize fresh downloads, cache native viewer copies, add platform save/export with accurate results and visible recovery actions.
-- [x] Focused tests: 97 pass (3 existing skips); two native wiring rehearsals pass; browser helper download/open/blocked-popup checked; preview compiles. Evidence: docs/dev-document-opening-verification.md.
+- [x] Focused tests: 97 email-mode / 92 Internet Identity pass; two native wiring rehearsals pass; browser helper download/open/blocked-popup checked; preview compiles. Evidence: docs/dev-document-opening-verification.md.
 - [ ] Real Android/iPhone rendering, accessible export and signed-in referee/denied-user acceptance blocked on devices and external Supabase sign-in; native compilation awaits an actual platform build. No production data changes or publication; native update required.
 
 ## Invitation share addresses — 16 November

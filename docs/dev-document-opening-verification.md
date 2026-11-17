@@ -22,6 +22,7 @@
 ## Checks completed
 
 - Focused email-mode suite: 97 passing, 3 existing skipped checks across MIME resolution, Open/Share separation, save/cancel/failure, duplicate taps, private-file refusal, fresh signing, web popup failures, chat file dispatch and calendar nonregression.
+- Internet Identity mode: the same nine test files pass with 92 passing and 8 existing mode-specific skips.
 - Native wiring rehearsal: two Python tests pass for repeatable Android/iOS registration and export wiring. Actual native Java/Swift compilation is not verified in this Linux sandbox.
 - Playwright exercised the real shared helper on localhost with a bounded PDF fixture: nonempty `Check.pdf` download (39-byte dispatch fixture, not a PDF rendering acceptance file), a separate document tab, a specific blocked-window error and zero page errors. This is helper-level web verification, not a signed-in referee chat/Vault acceptance test.
 - Preview compilation passed after changes.
