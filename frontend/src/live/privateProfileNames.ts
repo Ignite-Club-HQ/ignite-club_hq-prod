@@ -317,7 +317,7 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   return out;
 }
 
-async function boundedRead(ctx: FeatureBackendContext, subjects: string[], active: () => void, audience?: PrivateProfileAudience): Promise<Map<string, string>> {
+async function boundedRead(ctx: FeatureBackendContext, subjects: string[], active: () => void, audience?: PrivateProfileAudience, onStep?: (step: 'ciphertext' | 'vetkey' | 'decrypt' | 'confirm') => void): Promise<Map<string, string>> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let retired = false;
   let phase: 'ciphertext' | 'vetkey' | 'decrypt' | 'confirm' = 'ciphertext';
@@ -327,7 +327,7 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
   };
   try {
     return await Promise.race([
-      readNames(ctx, subjects, FIELD, guard, audience, false, next => { if (!retired) phase = next; }),
+      readNames(ctx, subjects, FIELD, guard, audience, false, next => { if (!retired) { phase = next; onStep?.(next); } }),
       new Promise<Map<string, string>>((resolve, reject) => {
         // Cross-group team names require PII -> Identity -> Club double
         // verification and a fresh vetKey. A timed-out *pinned DEV team*
@@ -371,7 +371,7 @@ async function boundedAuthorityCheck<T>(read: () => Promise<T>, timeoutLabel = '
 export async function hydratePrivateProfileNames<T extends { display_name: string | null; principal?: Principal }>(
   ctx: FeatureBackendContext,
   profiles: readonly T[],
-  options: { signal?: AbortSignal; resolveAuthority?: PrivateProfileAuthorityResolver; audience?: PrivateProfileAudience; partialNames?: boolean } = {},
+  options: { signal?: AbortSignal; resolveAuthority?: PrivateProfileAuthorityResolver; audience?: PrivateProfileAudience; partialNames?: boolean; onStep?: (step: import('@/lib/nameUnlockProgress').NameUnlockStep) => void } = {},
 ): Promise<Array<Omit<T, "display_name"> & { display_name: string | null; name_error?: string }>> {
   // Retain the exact rows whose references were authorized. A caller changing
   // its array during an await must not attach a retained name to another row.
@@ -431,6 +431,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
       if (!pendingLease) {
         const resolve = options.resolveAuthority;
         pendingLease = (async () => {
+          options.onStep?.('route');
           const lease = resolve ? await boundedAuthorityCheck(() => resolve(authority),
             devTeam ? 'Private team-name route opening timed out.' : undefined, devTeam ? 20_000 : undefined) : { context: ctx, confirm: async () => {} };
           active();
@@ -450,7 +451,8 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
         active();
         routeGuards.get(authority)?.();
       };
-      const part = await boundedRead(route, subjects, routeActive, options.audience);
+      options.onStep?.('ciphertext');
+      const part = await boundedRead(route, subjects, routeActive, options.audience, options.onStep);
       if (options.audience && !partial && part.size !== subjects.length) throw new Error('Private-name audience is incomplete or unavailable.');
       active();
       const group = names.get(authority) ?? new Map<string, string>();
@@ -467,6 +469,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
       try {
         const lease = await pendingLease;
         active(); routeGuards.get(authority)?.();
+        options.onStep?.('closing');
         await boundedAuthorityCheck(lease.confirm,
           devTeam ? 'Private team-name route closing timed out.' : undefined, devTeam ? 20_000 : undefined);
         active(); routeGuards.get(authority)?.();

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   AccordionContent,
   AccordionItem,
@@ -23,6 +23,7 @@ import PendingInvitesList from "@/components/PendingInvitesList";
 import { friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
 import { cn } from "@/lib/utils";
 import { visibleTeamMemberName } from "@/lib/teamRosterDisplay";
+import { NAME_UNLOCK_STEP_LABELS, summarizeNameUnlockTimings, type NameUnlockSnapshot } from "@/lib/nameUnlockProgress";
 import { teamRosterReadFailureCode, summarizeAdultNameIssues, adultNameIssueLabel } from "@/lib/teamRosterReads";
 
 export type TeamMemberEntry = {
@@ -90,6 +91,7 @@ interface TeamMembersSectionProps {
   refetchAdultNames?: () => unknown;
   devEncryptedAdultNameMode?: 'ON' | 'OFF';
   adultNameIssues?: string[];
+  nameUnlockProgress?: NameUnlockSnapshot | null;
   showIcpRosterFailureCode?: boolean;
   refetchMembers: () => unknown;
   refetchChildren: () => unknown;
@@ -144,6 +146,7 @@ export function TeamMembersSection({
   refetchAdultNames,
   devEncryptedAdultNameMode,
   adultNameIssues = [],
+  nameUnlockProgress = null,
   showIcpRosterFailureCode = false,
   refetchMembers,
   refetchChildren,
@@ -166,6 +169,16 @@ export function TeamMembersSection({
   const [retryFailed, setRetryFailed] = useState(false);
   const [retryingNames, setRetryingNames] = useState(false);
   const adultNameRetryPending = retryingNames || isAdultNamesFetching;
+  // Tick once a second while names unlock so the elapsed time stays honest.
+  const [, setUnlockTick] = useState(0);
+  useEffect(() => {
+    if (!adultNameRetryPending) return;
+    const t = setInterval(() => setUnlockTick(n => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [adultNameRetryPending]);
+  const unlockRunning = adultNameRetryPending && nameUnlockProgress
+    && nameUnlockProgress.step !== 'done' && nameUnlockProgress.step !== 'failed';
+  const unlockTimings = summarizeNameUnlockTimings(nameUnlockProgress ?? null);
   const playerRetryPending = retryingPlayers || isChildrenFetching;
 
   // React Query keeps the previous isError visible during a manual refetch.
@@ -258,6 +271,18 @@ export function TeamMembersSection({
       </div>
       <AccordionContent>
         <div className="space-y-4 pt-2">
+          {unlockRunning && nameUnlockProgress && (
+            <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+              Unlocking parent names: {NAME_UNLOCK_STEP_LABELS[nameUnlockProgress.step]}
+              {' '}({Math.max(0, Math.round((Date.now() - nameUnlockProgress.stepStartedAt) / 1000))}s,
+              {' '}{Math.max(0, Math.round((Date.now() - nameUnlockProgress.startedAt) / 1000))}s total). Please keep this page open.
+            </p>
+          )}
+          {showIcpRosterFailureCode && !unlockRunning && unlockTimings && (
+            <p className="text-xs text-muted-foreground" role="status">
+              Last name unlock ({nameUnlockProgress?.step === 'done' ? 'finished' : 'stopped'}): {unlockTimings}
+            </p>
+          )}
           {showIcpRosterFailureCode && devEncryptedAdultNameMode && (
             <p className="text-xs text-muted-foreground" role="status">
               DEV ICP club-key parent names: {devEncryptedAdultNameMode} (club membership checked by server)

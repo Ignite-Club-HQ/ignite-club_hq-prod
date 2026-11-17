@@ -19,7 +19,7 @@ export type ProfileRelationship = {
 export async function readRelationshipProfiles(
   owner: FeatureBackendContext, ids: readonly string[], relationship: ProfileRelationship,
   signal?: AbortSignal,
-  options: { partialNames?: boolean } = {},
+  options: { partialNames?: boolean; onStep?: (step: import('@/lib/nameUnlockProgress').NameUnlockStep) => void } = {},
 ) {
   relationship = { ...relationship };
   ids = [...ids];
@@ -80,6 +80,7 @@ export async function readRelationshipProfiles(
         signal,
         audience: { ...relationship, authority, profile_revision: 0n },
         ...(options.partialNames ? { partialNames: true } : {}),
+        ...(options.onStep ? { onStep: options.onStep } : {}),
         ...(devTeamResolver && !rehearsal
           ? { resolveAuthority: devTeamResolver }
           : rehearsal ? { resolveAuthority: async (original: string) => {
