@@ -5308,6 +5308,24 @@ persistent actor class Main(governorInit : Principal) = this {
 
   // Every protected detail, roster and duty read must use the current
   // club-domain membership and canonical team tombstone, never local roles.
+  // Team-only detail endpoints have no club parameter. Resolve it from
+  // the canonical team, rejecting soft-deleted teams before checking grants.
+  func freshTeamOnlyReadAllowed(subject : Principal, team : Text) : async Bool {
+    let configured = clubDomainCanister ?? return false;
+    let cd : actor { get_team : shared query (Text) -> async {
+      #Ok : ?{ club_id : Text; deleted_at_ms : ?Nat64 }; #Err : Text
+    } } = actor(configured.toText());
+    let result = try { await (with timeout = 10) cd.get_team(team) } catch (_) { return false };
+    if (clubDomainCanister != ?configured or removalReceiver.denied(subject)) return false;
+    switch (result) {
+      case (#Ok(?t)) {
+        if (t.deleted_at_ms != null) return false;
+        await freshTeamReadAllowed(subject, t.club_id, team)
+      };
+      case (_) false;
+    }
+  };
+
   func freshVisibleEvent(subject : Principal, event : Types.Event) : async Bool {
     if (Principal.isAnonymous(subject) or event.deleted or removalReceiver.denied(subject)) return false;
     if (isGovernor(subject)) return await freshEventTeamLive(event);
@@ -5935,6 +5953,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
+    if (not (await freshTeamOnlyReadAllowed(caller, team_id))) return #Err("Forbidden");
     #Ok(pitchBoardSettings.find(func(item) = item.team_id == team_id))
   
     } finally { removalReceiver.leave(caller) };
@@ -6049,6 +6068,10 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
+    switch (team_id) {
+      case (?t) { if (not (await freshTeamOnlyReadAllowed(caller, t))) return #Err("Forbidden") };
+      case null {};
+    };
     #Ok(activeGames.find(func(item) = item.is_active and (switch (team_id) { case (?t) item.team_id == ?t; case null item.user_id.equal(caller) and item.team_id == null })))
   
     } finally { removalReceiver.leave(caller) };
@@ -6073,7 +6096,9 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
-    #Ok(event_ids.filter(func(id) = eventViews.any(func(item) = item.event_id == id and item.viewer.equal(caller))))
+    if (event_ids.size() > 300) return #Err("Too many event IDs");
+    let visible = await freshVisibleEventIds(caller, event_ids);
+    #Ok(visible.filter(func(id) = eventViews.any(func(item) = item.event_id == id and item.viewer.equal(caller))))
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -6121,6 +6146,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
+    if (not (await freshTeamOnlyReadAllowed(caller, team_id))) return #Err("Forbidden");
     #Ok(playhqTeamSyncs.find(func(s) = s.team_id == team_id))
   
     } finally { removalReceiver.leave(caller) };
