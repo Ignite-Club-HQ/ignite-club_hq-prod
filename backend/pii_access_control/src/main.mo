@@ -1880,6 +1880,27 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
+  /// DEV only: a sign-in ID reopened as its own new account (identity_access
+  /// dev_reopen_moved_principal) cannot save its own name while records keyed by
+  /// that ID still belong to the account it was moved to. Remove only those
+  /// records (pii_id == subject, owner != subject). Returns the count removed.
+  public shared ({ caller }) func dev_release_reopened_sign_in_records(subject : Principal, dry_run : Bool) : async { #ok : Nat; #err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+      auth(caller);
+      if (not isGovernor(caller)) return #err("Forbidden");
+      if (Principal.fromActor(this).toText() != "iui5p-aaaaa-aaaal-qxllq-cai") return #err("DEV only");
+      if (subject.isAnonymous() or isGovernor(subject)) return #err("Invalid principal");
+      let key = subject.toText();
+      let stale = pii_records.filter(func(r : PiiRecord) : Bool = r.pii_id == key and not r.domain_owner.equal(subject));
+      if (dry_run or stale.size() == 0) return #ok(stale.size());
+      pii_records := pii_records.filter(func(r : PiiRecord) : Bool = not (r.pii_id == key and not r.domain_owner.equal(subject)));
+      mediaAuthEpoch += 1;
+      log_audit(caller, key, "*", "dev_release_reopened_sign_in", true, "DEV reopened sign-in ID");
+      #ok(stale.size())
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
   // Same as rekey_principal, but allowed when the new sign-in ID already has data:
   // both IDs' records end up under the new one (keyed duplicates keep the new row).
   public shared ({ caller }) func merge_principal(old : Principal, new : Principal, dry_run : Bool) : async { #ok : Nat; #err : Text } {
