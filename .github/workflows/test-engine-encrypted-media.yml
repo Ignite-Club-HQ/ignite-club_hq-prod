@@ -32,15 +32,17 @@ jobs:
           done
           (cd backend/club_domain && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o "$RUNNER_TEMP/club_domain.wasm" src/main.mo)
           (cd backend/media_blob_store && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o "$RUNNER_TEMP/media_blob_store.wasm" src/main.mo)
-          cp -a backend/pii_access_control "$RUNNER_TEMP/pii-candidate"
+          mkdir -p "$RUNNER_TEMP/engine-candidate/backend"
+          cp -a backend/pii_access_control "$RUNNER_TEMP/engine-candidate/backend/pii_access_control"
+          cp -a backend/shared "$RUNNER_TEMP/engine-candidate/backend/shared"
           python3 - <<'PY'
           import os, pathlib
-          p = pathlib.Path(os.environ['RUNNER_TEMP']) / 'pii-candidate/src/main.mo'
+          p = pathlib.Path(os.environ['RUNNER_TEMP']) / 'engine-candidate/backend/pii_access_control/src/main.mo'
           s = p.read_text()
           assert s.count('let freshEngineBuild = false;') == 1
           p.write_text(s.replace('let freshEngineBuild = false;', 'let freshEngineBuild = true;'))
           PY
-          (cd "$RUNNER_TEMP/pii-candidate" && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o "$RUNNER_TEMP/pii_access_control.wasm" src/main.mo)
+          (cd "$RUNNER_TEMP/engine-candidate/backend/pii_access_control" && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o "$RUNNER_TEMP/pii_access_control.wasm" src/main.mo)
           (cd backend/pii_access_control && "$MOC" $(mops sources) --default-persistent-actors -o "$RUNNER_TEMP/test-proxy.wasm" ../../scripts/engine-browser/test-proxy.mo)
       - name: Verify exact module pins and encrypted media on disposable canisters
         working-directory: frontend
