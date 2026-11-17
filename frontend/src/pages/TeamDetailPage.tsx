@@ -1,6 +1,6 @@
 import { readIcpPitchRoster } from '@/lib/pitchEntryRoster';
 import { readGoingGameRsvps, readGameSubsDuty } from '@/lib/gameEventReads';
-import { useState, useEffect, useRef, Suspense, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useRef, Suspense, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { prefetchProfiles } from "@/hooks/useProfiles";
 import { cacheProfiles, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { invalidateTeamLists } from "@/lib/invalidateTeamLists";
