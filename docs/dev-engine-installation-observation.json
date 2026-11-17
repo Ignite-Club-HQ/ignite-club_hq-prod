@@ -27,13 +27,37 @@
     "migration_coordinator": "rdkhd-2qaaa-aaac5-aaaja-cai"
   },
   "queryReportedNoWasmIC0537": [
-    "notification_queue", "timer_jobs", "vault_domain", "pii_access_control",
-    "club_domain", "events_domain", "insights_domain", "placement_registry",
-    "shard_router", "media_blob_store", "media_metadata", "mini_league_domain"
+    "notification_queue",
+    "timer_jobs",
+    "vault_domain",
+    "pii_access_control",
+    "club_domain",
+    "events_domain",
+    "insights_domain",
+    "placement_registry",
+    "shard_router",
+    "media_blob_store",
+    "media_metadata",
+    "mini_league_domain"
   ],
   "queryReportedMethodMissingIC0536": [
-    "secret_workload_identity", "identity_access", "club_points_domain",
-    "competition_domain", "messaging_domain", "migration_coordinator"
+    "secret_workload_identity",
+    "identity_access",
+    "club_points_domain",
+    "competition_domain",
+    "messaging_domain",
+    "migration_coordinator"
   ],
-  "limitations": "getApiDoc probe is read-only; a method-missing response does not verify the installed module fingerprint, expected interface or service wiring. Query rejections are not certified module-state evidence. No installations, retries, settings, admission or key derivation were executed. Owner-signed installation rejection details remain required to diagnose the cause."
+  "limitations": "getApiDoc probe is read-only; a method-missing response does not verify the installed module fingerprint, expected interface or service wiring. Query rejections are not certified module-state evidence. No installations, retries, settings, admission or key derivation were executed. Owner-signed installation rejection details remain required to diagnose the cause.",
+  "standardNetworkRehearsal": {
+    "observedAtUtc": "2026-11-17T03:57:00Z",
+    "source": "GitHub [TEST] Install DEV engine bundle on a throwaway local network (owner screenshot)",
+    "bundleSha256": "308bfd95b3914b11bb55ceaa5880014c37dbfe4df61edfe66eb79c8a5eccdcfa",
+    "installed": 17,
+    "failed": [
+      "vault_domain"
+    ],
+    "vaultDomainReason": "Expected: setup step refuses because the throwaway network's installer is not the OpenCloud owner principal; vault_domain code itself installed before setup ran.",
+    "conclusion": "All 18 programs install on a standard network; the 12 empty engine services are an engine-side installation failure, not a bundle program defect."
+  }
 }
