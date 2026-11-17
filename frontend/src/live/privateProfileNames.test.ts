@@ -389,7 +389,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
       pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
     }]});
     await expect(hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],
-      {audience:clubScope})).rejects.toThrow('Club-encrypted name copy missing');
+      {audience:clubScope})).rejects.toThrow('Private-name audience is incomplete');
     expect(mocks.keys).not.toHaveBeenCalled();
     expect(mocks.clubKey).not.toHaveBeenCalled();
     expect(mocks.decrypt).not.toHaveBeenCalled();
@@ -418,7 +418,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
       pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
     }]});
     await expect(hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],
-      {audience:alternate})).rejects.toThrow('Club-encrypted name copy missing');
+      {audience:alternate})).rejects.toThrow('Private-name audience is incomplete');
     expect(mocks.keys).not.toHaveBeenCalled();
   });
   it('refuses a team-individual key fallback under universal club-key enforcement', async () => {
@@ -431,14 +431,29 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
       .rejects.toThrow('owning club key');
     expect(mocks.keys).not.toHaveBeenCalled();
   });
-  it('keeps the old club reader outside this separately pinned DEV cutover', async () => {
+  it('pinned DEV never falls back to person keys, even with the build flag off', async () => {
     vi.stubEnv('IGNITE_LIVE_SHARED_CLUB_NAMES','0');
     mocks.scopedRead.mockResolvedValue({Ok:[{
       pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
     }]});
-    await hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],{audience:clubScope});
-    expect(mocks.keys).toHaveBeenCalledOnce();
-    expect(mocks.clubKey).not.toHaveBeenCalled();
+    await expect(hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],{audience:clubScope}))
+      .rejects.toThrow('Private-name audience is incomplete');
+    expect(mocks.keys).not.toHaveBeenCalled();
+  });
+  it('roster partial mode labels a member without a club copy instead of blanking everyone', async () => {
+    mocks.scopedRead.mockResolvedValue({Ok:[{
+      pii_id:subject,field_id:'display_name',master_key_id:'vetkey-ibe-v1',ciphertext:[9],
+    }]});
+    const rows = await hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],{audience:clubScope, partialNames:true});
+    expect(rows[0].display_name).toBeNull();
+    expect(rows[0].name_error).toBe(NAME_NOT_SHARED_YET);
+    expect(mocks.keys).not.toHaveBeenCalled();
+  });
+  it('roster partial mode reports a server refusal per member', async () => {
+    mocks.scopedRead.mockResolvedValue({Err:'Configured private-name service required'});
+    const rows = await hydratePrivateProfileNames(makeCtx(),[{display_name:g1Reference}],{audience:clubScope, partialNames:true});
+    expect(rows[0].display_name).toBeNull();
+    expect(rows[0].name_error).toContain('Configured private-name service required');
   });
 });
 
