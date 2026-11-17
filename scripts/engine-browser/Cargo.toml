@@ -1,0 +1,11 @@
+[package]
+name = "ignite-engine-setup"
+version = "0.1.0"
+edition = "2024"
+[workspace]
+[lib]
+crate-type = ["cdylib"]
+[dependencies]
+candid = "0.10"
+wit-bindgen = { version = "0.56", features = ["realloc"] }
+serde = {version="1",features=["derive"]}

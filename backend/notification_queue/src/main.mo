@@ -1721,11 +1721,16 @@ persistent actor class Main(governorInit : Principal) = this {
       };
       var status : ?Nat = null;
       try {
-        let response = await (with cycles = 300_000_000) wakeManagement.http_request({
+        let request = {
           url;
-          max_response_bytes = ?1024; method = #post; headers = []; body = null;
+          max_response_bytes = ?(1024 : Nat64); method = #post; headers = []; body = null;
           transform = null; is_replicated = ?false;
-        });
+        };
+        let response = if (Runtime.envVar<system>("IGNITE_CLOUD_ENGINE") == ?"1") {
+          await wakeManagement.http_request(request)
+        } else {
+          await (with cycles = 300_000_000) wakeManagement.http_request(request)
+        };
         status := ?response.status
       } catch (_) {};
       nativeWakePending := false;

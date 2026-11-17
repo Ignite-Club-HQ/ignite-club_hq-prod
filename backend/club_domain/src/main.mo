@@ -5325,7 +5325,12 @@ persistent actor class Main(governorInit : Principal) = this {
     invite_emails_sent := (if (invite_emails_sent.size() >= 5000) invite_emails_sent.sliceToArray(1000, invite_emails_sent.size()) else invite_emails_sent).concat([invite_id]);
     let ic : actor { http_request : InviteEmail.Request -> async InviteEmail.HttpResult } = actor ("aaaaa-aa");
     let result = try {
-      await (with cycles = 20_000_000_000) ic.http_request(InviteEmail.request(sender, invite_id, invite.kind, to))
+      let request = InviteEmail.request(sender, invite_id, invite.kind, to);
+      if (Runtime.envVar<system>("IGNITE_CLOUD_ENGINE") == ?"1") {
+        await ic.http_request(request)
+      } else {
+        await (with cycles = 20_000_000_000) ic.http_request(request)
+      }
     } catch (_) {
       return #Err("Email delivery outcome unknown; share the link instead")
     };
