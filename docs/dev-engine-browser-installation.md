@@ -73,3 +73,16 @@ The corrected native test passed: https://github.com/Ignite-Club-HQ/ignite-club_
 Added `test-engine-encrypted-media.yml`: manual main-only Ubuntu 24.04, no live deployment credentials. It rebuilds three modules and refuses any fingerprint mismatch with the candidate; fresh-engine PII is changed only in temporary staging. The local rebuild matches `35c7abe95c8fb3d09abc109fd90eaef5e72fde410e547872d1e89fe45c74158b`. The disposable Motoko proxy fixture compiles and implements the documented length-tagged caller-context rewrite over real emulator VetKD; it is never deployed to a real network.
 
 The prepared runtime checks upload ciphertext, register its hash, derive real SDK keys, recover exact photo/PDF bytes for uploader/member, preserve MIME, refuse outsider upload/key access, preserve keys/bytes through upgrades, and refuse fresh keys after membership removal. Fourteen focused policy/host/supervisor checks and script syntax validation pass. Runtime execution awaits source sync: GitHub returned 404 for the new workflow during this turn, so no encryption pass is claimed. Reports explicitly deny real-console proxy, browser-plugin, full-bundle and upload readiness. No existing DEV/PROD services or data changed.
+
+## Encrypted-media runtime passed — 17 November 02:10 UTC
+
+Confirmed the workflow, runner, proxy fixture and candidate pins synced to `main`, then dispatched the manual credential-free workflow. Run https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/44000708528 passed on source `c8f48112222f3bf76dca123c864ed96d8e220b8e`. Its native host probe passed (writeBit=1), all three rebuilt service hashes matched the candidate, and disposable installations exercised real emulator VetKD with the owned caller-isolating proxy fixture.
+
+Retrieved and inspected `engine-media.json` from artifact `engine-encrypted-media-local-evidence`. The artifact ZIP SHA-256 matched GitHub's digest: `8fc382cd54376fca92a006688d7a599db6c88e735017f2430a9f0471916303db`. The report confirms:
+
+- PNG and PDF ciphertext uploads/downloads, exact-byte SDK decryption for uploader/member and original MIME.
+- Outsider upload and decryption-key refusal.
+- Public-key, club-membership and encrypted-byte preservation after upgrades.
+- Removed members receive no fresh decryption keys; this cannot revoke plaintext or keys already downloaded.
+
+The report explicitly records `realConsoleProxyVerified=false`, `browserPluginVerified=false`, `fullBundleInstalled=false`, `uploadReady=false` and `productionChanged=false`. Four local bundle/encryption policy checks also pass. This clears the isolated three-service encryption check, not browser installation or real-engine authorization. Full 18-service installation, official plugin execution, controller/complete service-link readback and actual engine proxy acceptance remain outstanding. Existing DEV/PROD IDs, data and app routing were untouched; the bundle remains held.
