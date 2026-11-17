@@ -67,7 +67,7 @@ export!(Plugin);
 mod tests {
  use super::*;
  fn input(owner: &str, id: &str) -> SyncExecInput {
-   SyncExecInput { canister_id:id.into(), environment:"ic".into(), api_url:"https://icp-api.io/".into(), gateway_url:None,
+   SyncExecInput { canister_id:id.into(), environment:"ic".into(), api_url:"https://icp-api.io/".into(), gateway_url:None, proxy_canister_id:None,
     dirs:vec![], files:vec![], fields:vec![], canister_ids:vec![], identity_principal:owner.into() }
  }
  #[test]
