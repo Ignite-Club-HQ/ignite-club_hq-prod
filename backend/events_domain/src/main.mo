@@ -3189,7 +3189,8 @@ persistent actor class Main(governorInit : Principal) = this {
     let current = switch (events.find(func(e) = e.id == event_id and not e.deleted)) {
       case null return #Err("Event no longer available"); case (?e) e
     };
-    if (current.revision != event.revision or not canView(caller,current)) return #Err("Event access changed");
+    if (current.revision != event.revision or
+        not (await freshVisibleEvent(caller, current))) return #Err("Event access changed");
     var canonical: ?{home:?Nat16;away:?Nat16;hidden:Bool}=null;
     switch(competitionMatchLinks.find(func(l)=l.event_id==event_id)){
       case null {};
@@ -5983,7 +5984,9 @@ persistent actor class Main(governorInit : Principal) = this {
     auth(caller);
     let event=switch(events.find(func(e)=e.id==event_id and not e.deleted)){case null return #Err("Event not found");case(?e)e};
     do { let removalReply = await syncRolesFromClubDomain(caller,event.club_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    if(not (do { let removalReply = await* canViewMatch(caller,event); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply }) or eventFenced(event_id)) return #Err("Event access forbidden");
+    if(not (do { let removalReply = await* canViewMatch(caller,event); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply }) or
+       eventFenced(event_id) or not (await freshVisibleEvent(caller, event)))
+      return #Err("Event access forbidden");
     #Ok(gameSummaries.find(func(item) = item.event_id == event_id))
   
     } finally { removalReceiver.leave(caller) };
