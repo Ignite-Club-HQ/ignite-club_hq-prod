@@ -2486,7 +2486,7 @@ function SupabaseJoinTeamPage() {
     // handleAddChild early-returns without either of these — never show a
     // tappable button that would silently do nothing.
     const canAddChild = (!!invite?.team_id || !!leagueLinkMiniLeagueId) &&
-      !(isIcpAccount && icpChildCreateAttempted.current);
+      !(isIcpAccount && icpChildCreateAttempted.current && !(user?.id && readInviteChildJournal(user.id)));
     return (
       <JoinTeamChildStepCard
         currentStep={getCurrentStep()}
