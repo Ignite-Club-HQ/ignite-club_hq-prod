@@ -5019,12 +5019,13 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    series.filter(func(item) =
-      not item.deleted
-        and canViewSeries(caller, item)
-        and (club_id == null or club_id == ?item.club_id)
-        and (team_id == null or team_id == item.team_id)
-    )
+    var visible : [Types.EventSeries] = [];
+    for (item in series.values()) {
+      if ((club_id == null or club_id == ?item.club_id) and
+          (team_id == null or team_id == item.team_id) and
+          await freshSeriesVisible(caller, item)) visible := visible.concat([item]);
+    };
+    visible
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -5037,7 +5038,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (series.find(func(item) = item.id == series_id)) {
       case null { #Err("Series not found") };
       case (?item) {
-        if (not canViewSeries(caller, item)) return #Err("Forbidden");
+        if (not (await freshSeriesVisible(caller, item))) return #Err("Forbidden");
         let occurrences = events.filter(func(e) = e.series_id == ?series_id);
         let sorted = occurrences.sort(func(a, b) = Nat64.compare(a.starts_at_ms, b.starts_at_ms));
         #Ok(sorted.map(func(e) = { id = e.id; starts_at_ms = e.starts_at_ms; ends_at_ms = e.ends_at_ms; deleted = e.deleted }));
@@ -5182,6 +5183,37 @@ persistent actor class Main(governorInit : Principal) = this {
         } catch (_) { false }
       };
       case _ false;
+    }
+  };
+
+  // Recheck a series' owning team in the canonical club registry.
+  func freshSeriesVisible(subject : Principal, item : Types.EventSeries) : async Bool {
+    if (Principal.isAnonymous(subject) or item.deleted or removalReceiver.denied(subject)) return false;
+    switch (item.team_id) {
+      case null {};
+      case (?id) {
+        let configured = clubDomainCanister ?? return false;
+        let cd : actor { get_team : shared query (Text) -> async {
+          #Ok : ?{ club_id : Text; deleted_at_ms : ?Nat64 }; #Err : Text
+        } } = actor(configured.toText());
+        let status = try { await (with timeout = 10) cd.get_team(id) } catch (_) { return false };
+        if (clubDomainCanister != ?configured or isFenced(item.club_id)) return false;
+        switch (status) {
+          case (#Ok(?team)) {
+            if (team.club_id != item.club_id or team.deleted_at_ms != null) return false;
+          };
+          case (_) return false;
+        };
+      };
+    };
+    if (isGovernor(subject)) return true;
+    let grants = await freshMemberRolesForList(subject, item.club_id);
+    switch (grants) {
+      case null false;
+      case (?current) current.any(func((role, team)) =
+        (role == "club_admin" or role == "team_admin" or role == "coach" or
+         role == "parent" or role == "player") and
+        (team == null or team == item.team_id))
     }
   };
 
