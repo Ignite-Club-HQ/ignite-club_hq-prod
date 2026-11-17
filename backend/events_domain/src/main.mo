@@ -5387,10 +5387,13 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (team_ids.size() > 100) return #Err("Too many duty teams");
-    #Ok(events.filter(func(event) =
-      not event.deleted and canView(caller, event) and
-      eventDutyTeams.any(func(assignment) = assignment.event_id == event.id and team_ids.any(func(id) = id == assignment.team_id))
-    ))
+    let candidates = events.filter(func(event) =
+      not event.deleted and eventDutyTeams.any(func(assignment) =
+        assignment.event_id == event.id and team_ids.any(func(id) = id == assignment.team_id))
+    );
+    if (candidates.size() > 300) return #Err("Too many matching events");
+    let permitted = await freshVisibleEventIds(caller, candidates.map(func(event) = event.id));
+    #Ok(candidates.filter(func(event) = permitted.any(func(id) = id == event.id)))
   
     } finally { removalReceiver.leave(caller) };
   };
