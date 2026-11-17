@@ -3770,6 +3770,18 @@ fn rekey_principal(old: Principal, new: Principal, dry_run: bool) -> Outcome<u64
     Ok(changed)
 }
 
+/// The DEV identity_access canister only (never PROD): moving an account back
+/// to the exact sign-in ID it was moved away from reopens that ID. Requires
+/// the recorded rekey destination to be `old` and still own the same account.
+const DEV_IDENTITY_ACCESS_CANISTER: &str = "mq2sj-fiaaa-aaaal-qxlqa-cai";
+fn dev_rekey_reversal_allowed(old: Principal, new: Principal) -> bool {
+    let Some(denial) = principal_denial(new) else { return false };
+    denial.reason == DenialReason::Rekeyed && denial.rekey_destination == Some(old) &&
+        ic_cdk::api::canister_self().to_text() == DEV_IDENTITY_ACCESS_CANISTER &&
+        !account_is_erased(&denial.account_id) &&
+        find_account_by_principal(old).is_some_and(|a| a.id == denial.account_id && a.principals.contains(&old))
+}
+
 fn rekey_principal_core(
     state: &mut CoreState,
     old: Principal,
@@ -3795,7 +3807,8 @@ fn rekey_principal_core(
         }
         return Err("Revoked identity cannot be rekeyed".into());
     }
-    if principal_denial(new).is_some() {
+    let reverse_dev_rekey = dev_rekey_reversal_allowed(old, new);
+    if principal_denial(new).is_some() && !reverse_dev_rekey {
         return Err("Revoked identity cannot be rekeyed".into());
     }
     if old == new {
@@ -3832,6 +3845,10 @@ fn rekey_principal_core(
     };
     // All refusal checks precede the durable terminal denial and data moves.
     if !dry_run {
+        if reverse_dev_rekey {
+            bump_removal_history();
+            PRINCIPAL_DENIALS.with(|m| m.borrow_mut().remove(&new.to_text()));
+        }
         deny_principals(&[old], &account.id, next_version, DenialReason::Rekeyed)?;
         let mut denial = principal_denial(old).ok_or("Rekey denial missing")?;
         denial.rekey_destination = Some(new);
