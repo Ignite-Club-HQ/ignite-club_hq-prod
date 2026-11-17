@@ -1,0 +1,39 @@
+{
+  "observedAtUtc": "2026-11-17T03:02:00Z",
+  "source": "Owner screenshots; checksum-validated principals; anonymous query responses from https://icp-api.io",
+  "certifiedModuleInventoryVerified": false,
+  "setupVerified": false,
+  "encryptionVerified": false,
+  "frontendReady": false,
+  "activeRoutingChanged": false,
+  "canisterIds": {
+    "secret_workload_identity": "s22gz-qyaaa-aaac5-aaaaq-cai",
+    "identity_access": "stznf-gqaaa-aaac5-aaaba-cai",
+    "notification_queue": "suylr-liaaa-aaac5-aaabq-cai",
+    "timer_jobs": "sb724-kaaaa-aaac5-aaaca-cai",
+    "vault_domain": "sg64i-hyaaa-aaac5-aaacq-cai",
+    "club_points_domain": "sp5xu-rqaaa-aaac5-aaada-cai",
+    "pii_access_control": "si4ra-4iaaa-aaac5-aaadq-cai",
+    "competition_domain": "tfsvo-taaaa-aaac5-aaaea-cai",
+    "club_domain": "tctt2-6yaaa-aaac5-aaaeq-cai",
+    "events_domain": "tlqyg-iqaaa-aaac5-aaafa-cai",
+    "insights_domain": "tmr6s-fiaaa-aaac5-aaafq-cai",
+    "placement_registry": "tzwp7-eaaaa-aaac5-aaaga-cai",
+    "shard_router": "t6xjl-jyaaa-aaac5-aaagq-cai",
+    "media_blob_store": "txucx-7qaaa-aaac5-aaaha-cai",
+    "media_metadata": "tqved-siaaa-aaac5-aaahq-cai",
+    "mini_league_domain": "rnikl-baaaa-aaac5-aaaia-cai",
+    "messaging_domain": "rkjm7-myaaa-aaac5-aaaiq-cai",
+    "migration_coordinator": "rdkhd-2qaaa-aaac5-aaaja-cai"
+  },
+  "queryReportedNoWasmIC0537": [
+    "notification_queue", "timer_jobs", "vault_domain", "pii_access_control",
+    "club_domain", "events_domain", "insights_domain", "placement_registry",
+    "shard_router", "media_blob_store", "media_metadata", "mini_league_domain"
+  ],
+  "queryReportedMethodMissingIC0536": [
+    "secret_workload_identity", "identity_access", "club_points_domain",
+    "competition_domain", "messaging_domain", "migration_coordinator"
+  ],
+  "limitations": "getApiDoc probe is read-only; a method-missing response does not verify the installed module fingerprint, expected interface or service wiring. Query rejections are not certified module-state evidence. No installations, retries, settings, admission or key derivation were executed. Owner-signed installation rejection details remain required to diagnose the cause."
+}
