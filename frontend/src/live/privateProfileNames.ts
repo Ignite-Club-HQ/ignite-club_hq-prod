@@ -16,6 +16,8 @@ import { clubNameDisplaysActive, devClubNameReleaseTarget } from './devCrossGrou
  * approved identity/search cutover. The original key authority is immutable. */
 const PREFIX = "pii-display-name:v1:";
 const FIELD = "display_name";
+/** The person's own session has not yet saved their name for this club. */
+export const NAME_NOT_SHARED_YET = 'Club name copy not saved yet.';
 const BATCH_SIZE = 100;
 const READ_TIMEOUT_MS = 6000;
 
@@ -369,8 +371,8 @@ async function boundedAuthorityCheck<T>(read: () => Promise<T>, timeoutLabel = '
 export async function hydratePrivateProfileNames<T extends { display_name: string | null; principal?: Principal }>(
   ctx: FeatureBackendContext,
   profiles: readonly T[],
-  options: { signal?: AbortSignal; resolveAuthority?: PrivateProfileAuthorityResolver; audience?: PrivateProfileAudience } = {},
-): Promise<Array<Omit<T, "display_name"> & { display_name: string | null }>> {
+  options: { signal?: AbortSignal; resolveAuthority?: PrivateProfileAuthorityResolver; audience?: PrivateProfileAudience; partialNames?: boolean } = {},
+): Promise<Array<Omit<T, "display_name"> & { display_name: string | null; name_error?: string }>> {
   // Retain the exact rows whose references were authorized. A caller changing
   // its array during an await must not attach a retained name to another row.
   profiles = profiles.map(profile => ({ ...profile }));
@@ -403,6 +405,11 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     byAuthority.set(ref.authority, subjects);
   }
   const names = new Map<string, Map<string, string>>();
+  // Partial mode (team rosters): one original source failing, or one person
+  // without a club copy, must not blank everybody else. Each unnamed person
+  // carries a diagnostic instead of a silent placeholder.
+  const partial = Boolean(options.audience && options.partialNames);
+  const failures = new Map<string, unknown>();
   const devTeam = options.audience?.kind === 'team' &&
     ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
   const batchSize = options.audience ? 25 : BATCH_SIZE;
@@ -441,12 +448,15 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
         routeGuards.get(authority)?.();
       };
       const part = await boundedRead(route, subjects, routeActive, options.audience);
-      if (options.audience && part.size !== subjects.length) throw new Error('Private-name audience is incomplete or unavailable.');
+      if (options.audience && !partial && part.size !== subjects.length) throw new Error('Private-name audience is incomplete or unavailable.');
       active();
       const group = names.get(authority) ?? new Map<string, string>();
       for (const [id, name] of part) group.set(id, name);
       names.set(authority, group);
-    } catch (error) { if (options.audience) throw error; /* Display-only reads remain neutral. */ }
+    } catch (error) {
+      if (partial) { failures.set(authority, error); names.delete(authority); return; }
+      if (options.audience) throw error; /* Display-only reads remain neutral. */
+    }
   };
   try {
     for (let start = 0; start < jobs.length; start += 2) await Promise.all(jobs.slice(start, start + 2).map(readJob));
@@ -457,7 +467,11 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
         await boundedAuthorityCheck(lease.confirm,
           devTeam ? 'Private team-name route closing timed out.' : undefined);
         active(); routeGuards.get(authority)?.();
-      } catch (error) { if (options.audience) throw error; names.delete(authority); }
+      } catch (error) {
+        if (partial) failures.set(authority, error);
+        else if (options.audience) throw error;
+        names.delete(authority);
+      }
     }
   } catch (error) {
     // A refused parallel batch retires sibling work before its late reply can
@@ -467,6 +481,19 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     throw error;
   }
   active();
+  if (partial) {
+    return profiles.map((profile, index) => {
+      const ref = references[index];
+      if (ref === undefined) return profile;
+      const name = ref ? names.get(ref.authority)?.get(ref.subject) : undefined;
+      if (name) return { ...profile, display_name: name };
+      const failure = ref ? failures.get(ref.authority) : undefined;
+      const name_error = ref === null ? 'Private-name reference does not match this member.'
+        : failure !== undefined ? (failure instanceof Error ? failure.message : String(failure))
+        : NAME_NOT_SHARED_YET;
+      return { ...profile, display_name: null, name_error };
+    });
+  }
   if (options.audience && references.some(ref => ref === null || (ref && !names.get(ref.authority)?.has(ref.subject)))) throw new Error('Private-name authority is unverified or unavailable.');
   return profiles.map((profile, index) => {
     const ref = references[index];
