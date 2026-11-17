@@ -5852,7 +5852,17 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    roles.any(func(grant) = grant.user.equal(principal) and grant.club_id == club_id and (grant.team_id == ?team_id or grant.team_id == null))
+    if (not (await freshTeamReadAllowed(caller, club_id, team_id))) return false;
+    // The target's effective roles are resolved from club_domain. This can
+    // never resurrect a stored grant for an already deleted team.
+    let grants = await freshMemberRolesForList(principal, club_id);
+    switch (grants) {
+      case null false;
+      case (?current) current.any(func((role, scope)) =
+        (scope == ?team_id or (scope == null and role == "club_admin")) and
+        (role == "club_admin" or role == "team_admin" or role == "coach" or
+          role == "player" or role == "parent" or role == "committee_member"));
+    }
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -5862,7 +5872,13 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    childGuardians.any(func(item) = item.child_id == child_id and item.guardian_id == Principal.toText(principal))
+    // Caller-scoped check against the canonical club guardians, rather
+    // than the now-stale events_domain child/guardian mirror.
+    if (caller != principal) return false;
+    let configured = clubDomainCanister ?? return false;
+    let cd : actor { read_account_has_child_guardian : shared (Principal, Text) -> async Bool } = actor(configured.toText());
+    let current = try { await (with timeout = 10) cd.read_account_has_child_guardian(principal, child_id) } catch (_) { return false };
+    configured == clubDomainCanister and not removalReceiver.denied(caller) and current
   
     } finally { removalReceiver.leave(caller) };
   };
