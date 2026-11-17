@@ -43,8 +43,21 @@ export function teamRoleRows(grants: readonly { account_id: string; role: string
   });
 }
 /** Error classifications contain no child IDs, profile data or raw canister replies. */
-export function teamRosterReadFailureCode(error: unknown): 'SESSION' | 'PERMISSION' | 'TIMEOUT' | 'TRANSPORT' | 'ROUTING' | 'OTHER' | 'ROUTE_OPEN_TIMEOUT' | 'ROUTE_CLOSE_TIMEOUT' | 'CIPHERTEXT_TIMEOUT' | 'VETKEY_TIMEOUT' | 'ROSTER_TIMEOUT' | 'DECRYPT_TIMEOUT' {
+export type TeamRosterFailureCode = 'SESSION' | 'PERMISSION' | 'TIMEOUT' | 'TRANSPORT' | 'ROUTING' | 'OTHER' | 'ROUTE_OPEN_TIMEOUT' | 'ROUTE_CLOSE_TIMEOUT' | 'CIPHERTEXT_TIMEOUT' | 'VETKEY_TIMEOUT' | 'ROSTER_TIMEOUT' | 'DECRYPT_TIMEOUT'
+  | 'NOT_SHARED_YET' | 'SERVICE_NOT_ADMITTED' | 'PROFILE_LINK_MISMATCH' | 'RELEASE_NOT_CONFIGURED' | 'SOURCE_ROUTE_CHANGED';
+
+/** Fixed, non-sensitive server/client refusal texts for parent names. */
+const KNOWN_NAME_FAILURES: ReadonlyArray<[RegExp, TeamRosterFailureCode]> = [
+  [/^Club name copy not saved yet\.$/, 'NOT_SHARED_YET'],
+  [/Configured private-name service required|DEV G2 private-name service authority changed/, 'SERVICE_NOT_ADMITTED'],
+  [/Original private-name binding changed|Private-name reference does not match this member/, 'PROFILE_LINK_MISMATCH'],
+  [/Private-name release fenced or not configured|Private name audiences are not released/, 'RELEASE_NOT_CONFIGURED'],
+  [/Original DEV source or registered team authority changed|Foreign original PII canister|DEV team-name routing authority changed/, 'SOURCE_ROUTE_CHANGED'],
+];
+
+export function teamRosterReadFailureCode(error: unknown): TeamRosterFailureCode {
   const message = error instanceof Error ? error.message : String(error ?? '');
+  for (const [pattern, code] of KNOWN_NAME_FAILURES) if (pattern.test(message)) return code;
   // Only locally authored, non-sensitive DEV team-name stage errors receive
   // precise labels; never echo arbitrary backend exception text or IDs.
   if (message === 'Private team-name route opening timed out.') return 'ROUTE_OPEN_TIMEOUT';
@@ -64,4 +77,28 @@ export function teamRosterReadFailureCode(error: unknown): 'SESSION' | 'PERMISSI
 function isTransientTeamRosterTransportError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? '');
   return /failed to fetch|network (?:error|request failed)|connection (?:reset|closed)|temporarily unavailable|http 50[234]/i.test(message);
+}
+
+const ADULT_NAME_ISSUE_LABELS: Partial<Record<TeamRosterFailureCode, string>> = {
+  NOT_SHARED_YET: 'not shared with this club yet — they need to open the app once while signed in',
+  SERVICE_NOT_ADMITTED: 'their name service is not yet accepted by the sign-in service (backend update pending)',
+  PROFILE_LINK_MISMATCH: 'their sign-in is linked to a different profile record (account link needs repair)',
+  RELEASE_NOT_CONFIGURED: 'club name sharing is switched off on their name service',
+  SOURCE_ROUTE_CHANGED: 'their name service location could not be verified',
+  TIMEOUT: 'took too long to load — try Retry names',
+  TRANSPORT: 'network problem — try Retry names',
+  PERMISSION: 'access refused by the club',
+};
+
+export function adultNameIssueLabel(code: TeamRosterFailureCode): string {
+  return ADULT_NAME_ISSUE_LABELS[code] ?? `could not be loaded (${code})`;
+}
+
+export function summarizeAdultNameIssues(messages: readonly string[]): Array<{ code: TeamRosterFailureCode; count: number }> {
+  const counts = new Map<TeamRosterFailureCode, number>();
+  for (const message of messages) {
+    const code = teamRosterReadFailureCode(message);
+    counts.set(code, (counts.get(code) ?? 0) + 1);
+  }
+  return [...counts].map(([code, count]) => ({ code, count }));
 }

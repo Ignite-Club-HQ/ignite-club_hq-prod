@@ -23,7 +23,7 @@ import PendingInvitesList from "@/components/PendingInvitesList";
 import { friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
 import { cn } from "@/lib/utils";
 import { visibleTeamMemberName } from "@/lib/teamRosterDisplay";
-import { teamRosterReadFailureCode } from "@/lib/teamRosterReads";
+import { teamRosterReadFailureCode, summarizeAdultNameIssues, adultNameIssueLabel } from "@/lib/teamRosterReads";
 
 export type TeamMemberEntry = {
   profile: any;
