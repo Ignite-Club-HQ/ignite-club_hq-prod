@@ -26,12 +26,13 @@ export function parseExactOwnDevNameReference(reference: string | null, principa
 // owner may explicitly recheck their own saved copy in a separate action.
 const uncertainWrites = new Set<string>();
 const inFlight = new Map<string, Promise<DevClubNameReadiness>>();
+const lastReadiness = new Map<string, DevClubNameReadiness>();
 let registered = false;
 function bindToSession() {
   if (registered) return;
   registered = true;
   void import('./privateProfileSession').then(({ onPrivateProfileSessionRetired }) => {
-    onPrivateProfileSessionRetired(() => { inFlight.clear(); uncertainWrites.clear(); });
+    onPrivateProfileSessionRetired(() => { inFlight.clear(); uncertainWrites.clear(); lastReadiness.clear(); });
   });
 }
 const fingerprint = (ctx: FeatureBackendContext, club: string) =>
@@ -108,6 +109,25 @@ export async function reconcileConfirmedDevOwnerClubName(
   const task = prepare().finally(() => { if (inFlight.get(key) === task) inFlight.delete(key); });
   inFlight.set(key,task);
   return task;
+}
+
+
+/** Read the last owner-only verification outcome, never an unscoped name. */
+export function lastConfirmedDevOwnerNameReadiness(ctx: FeatureBackendContext, club: string): DevClubNameReadiness | null {
+  if (!isExactDevG2NameTarget(ctx.target) || !club) return null;
+  return lastReadiness.get(fingerprint(ctx,club)) ?? null;
+}
+
+/** Membership has ALREADY committed; a rejected copy never re-submits it. */
+export async function afterConfirmedDevMembershipNameReadiness(
+  ctx: FeatureBackendContext, club: string,
+): Promise<DevClubNameReadiness> {
+  let status: DevClubNameReadiness;
+  try { status = await reconcileConfirmedDevOwnerClubName(ctx,club); }
+  catch { status = 'pending-owner-check'; }
+  if (isExactDevG2NameTarget(ctx.target) && club)
+    lastReadiness.set(fingerprint(ctx,club),status);
+  return status;
 }
 
 async function livePreparation(ctx: FeatureBackendContext, club: string): Promise<OwnerPreparation> {
