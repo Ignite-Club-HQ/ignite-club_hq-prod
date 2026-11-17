@@ -94,3 +94,13 @@ Rebuilt the complete backend archive using the official pinned CLI 1.7.0 `icp pr
 Attempted to access the supplied engine applications page using a fresh browser. It shows OpenCloud's passkey sign-in rather than an authenticated engine page; screenshot inspected. Paul's console session is not available in this environment, and the earlier failed MCP connection does not provide signing authority. No passkey, session, owner key or delegation was requested or copied, and no installation was attempted through unrelated CI credentials.
 
 This is a rebuilt full **candidate**, not an upload-ready or real-engine-verified release. Full archive/plugin installation remains untested; existing readback methods do not expose every configured link, so current setup checks cannot certify complete link readback. Actual owner-signed browser installation and real proxy encryption acceptance require a working authorized engine transport. The archive stays in temporary staging, not a ready-to-upload handover. Existing DEV and PROD services, data, routing and hosting remain untouched.
+
+## Frontend is a canister too — 17 November 02:31 UTC
+
+The web app is itself an ICP certified-assets canister named `frontend`, deployed from its own separate project (`deploy/frontend/icp.yaml`, recipe `@dfinity/static-site@v0.4.0`, workflow `[TEST] Deploy web app (frontend canister)`). It is kept in its own project deliberately so its canister ID never enters the backend canister ID table. The delivered backend archive contains the 18 backend services plus the setup component only — no frontend.
+
+Verified that a static-site frontend canister can be packaged for browser upload: a minimal `deploy/frontend`-shaped project bundled with the pinned CLI 1.7.0 produced an archive containing `canisters/frontend.wasm` (pre-built, SHA-256 pinned) plus a plugin sync step `plugins/frontend/0.wasm` carrying the site directory. So the frontend is not excluded by the bundle format; it is a separate, later package.
+
+Ordering constraint: the web app build bakes backend service addresses at build time (`IGNITE_LIVE_ICP_CANISTER_IDS_JSON` consumed by `frontend/scripts/prepare-canister-dist.mjs`). Engine canister IDs do not exist until the backend archive is installed. Therefore the sequence is: install the backend archive first, read the engine-assigned IDs, build the frontend against those IDs, then bundle and upload the frontend. Uploading a frontend before the backend install would bake the wrong (mainnet DEV) service addresses into the engine app.
+
+No frontend was added to the delivered archive; no existing DEV/PROD frontend or hosting was changed.
