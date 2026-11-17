@@ -1,0 +1,11 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { assertEngineFrontendContext, ENGINE_FRONTEND } from './dev-engine-frontend-policy.mjs';
+const target = JSON.parse(readFileSync(new URL('../deploy/frontend-engine/target.json', import.meta.url)));
+const valid = { branch: 'main', frontend: ENGINE_FRONTEND, database: 'https://ecsdwrarzfexssxtrymj.supabase.co', ids: target.canisterIds };
+test('updates exactly the uploaded DEV engine frontend', () => assert.equal(assertEngineFrontendContext(valid), true));
+test('never updates from prod', () => assert.throws(() => assertEngineFrontendContext({ ...valid, branch: 'prod' })));
+test('never targets a different frontend', () => assert.throws(() => assertEngineFrontendContext({ ...valid, frontend: 'u3mrq-uiaaa-aaaac-bgioq-cai' })));
+test('never uses the production database', () => assert.throws(() => assertEngineFrontendContext({ ...valid, database: 'https://yabcfiuntwqjwvschnji.supabase.co' })));
+test('never substitutes another service inventory', () => assert.throws(() => assertEngineFrontendContext({ ...valid, ids: { ...valid.ids, club_domain: 'mzzzv-taaaa-aaaal-qxlrq-cai' } })));
