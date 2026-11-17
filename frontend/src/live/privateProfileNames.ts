@@ -420,7 +420,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     const subjects = [...ids];
     return Array.from({ length: Math.ceil(subjects.length / batchSize) }, (_, index) => ({ authority, subjects: subjects.slice(index * batchSize, (index + 1) * batchSize) }));
   });
-  // A global two-request ceiling, not two requests per group. Original-key
+  // A global four-request ceiling, not four requests per group. Original-key
   // routes are checked again after all encryption/service awaits.
   const leases = new Map<string, Promise<Awaited<ReturnType<PrivateProfileAuthorityResolver>>>>();
   const routeGuards = new Map<string, () => void>();
@@ -462,7 +462,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     }
   };
   try {
-    for (let start = 0; start < jobs.length; start += 2) await Promise.all(jobs.slice(start, start + 2).map(readJob));
+    for (let start = 0; start < jobs.length; start += 4) await Promise.all(jobs.slice(start, start + 4).map(readJob));
     for (const [authority, pendingLease] of leases) {
       try {
         const lease = await pendingLease;
