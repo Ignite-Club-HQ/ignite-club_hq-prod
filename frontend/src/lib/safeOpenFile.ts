@@ -1,5 +1,4 @@
 import { Capacitor } from "@capacitor/core";
-import { safeOpenUrl } from "./safeOpenUrl";
 import { FileOpener } from "@capacitor-community/file-opener";
 import { toast } from "sonner";
 

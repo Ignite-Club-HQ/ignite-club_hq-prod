@@ -31,6 +31,7 @@ vi.mock("@capacitor-community/file-opener", () => ({
 }));
 vi.mock("@capacitor/share", () => ({ Share: shareMock }));
 vi.mock("./safeOpenUrl", () => ({ safeOpenUrl: safeOpenUrlMock }));
+vi.mock("@capacitor/browser", () => ({ Browser: { open: ({ url }: { url: string }) => safeOpenUrlMock(url) } }));
 vi.mock("@/hooks/useSignedPhotoUrl", () => ({
   resolveSignedUrl: resolveSignedUrlMock,
 }));
