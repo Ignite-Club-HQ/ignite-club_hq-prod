@@ -93,7 +93,7 @@ try {
     ok(await store.actor.put_chunk(upload, 0, ciphertext));
     ok(await store.actor.finalize_upload(upload));
     pii.actor.setPrincipal(uploader);
-    ok(await pii.actor.register_pii(path, 'blob', [], uploader));
+    ok(await pii.actor.register_pii(path, 'blob', new TextEncoder().encode(hash(ciphertext)), uploader));
     ok(await pii.actor.grant_pii_read_club(path, 'blob', clubId));
     const downloaded = await download(path);
     assert.deepEqual(downloaded.bytes, Buffer.from(ciphertext));
