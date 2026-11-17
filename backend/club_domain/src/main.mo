@@ -726,15 +726,25 @@ persistent actor class Main(governorInit : Principal) = this {
     memberIndex := ix; memberIndexEpoch := ?membershipEpoch(); ix
   };
 
+  // A role attached to a deleted team is retained for possible restoration,
+  // but must not grant current club access. Direct club/app roles remain valid.
+  func activeRoleGrantInClub(grant : Types.RoleGrant, club : Text) : Bool {
+    (grant.club == ?club or grant.club == null) and
+    (switch (grant.team) {
+      case null true;
+      case (?teamId) teamInClub(teamId, club);
+    })
+  };
+
   func isMember(caller : Principal, club : Text) : Bool {
     not isExcluded(caller, club) and (
-      acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (grant.club == ?club or grant.club == null))
+      acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and activeRoleGrantInClub(grant, club))
       or membershipAliases(caller).any(func p = isFamilyMember(p, club))
     )
   };
 
   func isAdmin(caller : Principal, club : Text) : Bool {
-    isGovernor(caller) or (not isExcluded(caller, club) and acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (grant.role == "club_admin" or grant.role == "app_admin") and (grant.club == ?club or grant.club == null)))
+    isGovernor(caller) or (not isExcluded(caller, club) and acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (grant.role == "club_admin" or grant.role == "app_admin") and activeRoleGrantInClub(grant, club)))
   };
   // A full roster is a staff-only inventory, not a membership-wide read.
   // Preserve existing coach/team-admin workflows while excluding parents,
@@ -746,6 +756,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (isExcluded(caller, club) or removalReceiver.denied(caller)) return false;
     acl.roles.any(func(grant) =
       ownsMembershipPrincipal(caller, grant.user) and grant.club == ?club and
+      activeRoleGrantInClub(grant, club) and
       (grant.role == "team_admin" or grant.role == "coach" or grant.role == "committee_member" or grant.role == "committee")
     )
   };
@@ -1513,8 +1524,12 @@ persistent actor class Main(governorInit : Principal) = this {
   // A team belongs to a club if either the ACL mirror or the team records
   // say so — teams created via save_team only exist in the records store.
   func teamInClub(teamId : Text, club : Text) : Bool {
-    acl.teams.any(func(t) = t.id == teamId and t.club == club)
-    or teams.any(func(t) = t.id == teamId and t.club_id == club and t.deleted_at_ms == null)
+    // The live team record wins over a stale legacy ACL mirror, including
+    // when it carries a deletion tombstone.
+    switch (teams.find(func(t) = t.id == teamId)) {
+      case (?t) t.club_id == club and t.deleted_at_ms == null;
+      case null acl.teams.any(func(t) = t.id == teamId and t.club == club);
+    }
   };
 
   // Caller belongs to (or parents a child on) the given team.
@@ -1546,8 +1561,8 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (liveTeamClub(teamId)) { case (?club) ?{ id = teamId; club }; case null null }
   };
   func liveTeamClub(teamId : Text) : ?Text {
-    switch (teams.find(func(t) = t.id == teamId and t.deleted_at_ms == null)) {
-      case (?t) ?t.club_id;
+    switch (teams.find(func(t) = t.id == teamId)) {
+      case (?t) if (t.deleted_at_ms == null) ?t.club_id else null;
       case null switch (acl.teams.find(func(t) = t.id == teamId)) { case (?t) ?t.club; case null null };
     }
   };
@@ -3872,11 +3887,12 @@ persistent actor class Main(governorInit : Principal) = this {
     await admitAccount(user);
     PiiAudience.decide(kind, scope, {
       isMember = func(club : Text) : Bool = not isExcluded(user, club) and isMember(user, club);
-      teamClub = func(team : Text) : ?Text = teamClub(team);
+      teamClub = func(team : Text) : ?Text = liveTeamClub(team);
       excluded = func(club : Text) : Bool = isExcluded(user, club);
       onTeam = func(team : Text) : Bool = isOnTeam(user, team);
       hasRole = func(role : Text, club : Text, team : ?Text) : Bool = acl.roles.any(func(g) =
         ownsMembershipPrincipal(user, g.user) and g.role == role and g.club == ?club and
+        activeRoleGrantInClub(g, club) and
         (switch (team) { case null true; case (?t) g.team == ?t or g.team == null }));
     })
     } finally { removalReceiver.leave(user) };
@@ -4063,7 +4079,9 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(user);
     if (user.equal(Principal.anonymous())) return false;
-    acl.roles.any(func(grant) = ownsMembershipPrincipal(user, grant.user) and grant.club == ?club_id)
+    not isExcluded(user, club_id) and acl.roles.any(func(grant) =
+      ownsMembershipPrincipal(user, grant.user) and grant.club == ?club_id and
+      activeRoleGrantInClub(grant, club_id))
   
     } finally { removalReceiver.leave(user) };
   };
