@@ -4991,8 +4991,12 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
-    let allowed = isGovernor(caller) or hasBulkAccess(caller) or hasRole(caller, "club_admin", association_id, null);
-    if (not allowed) return #Err("Association admin required");
+    let currentRoles = await freshMemberRolesForList(caller, association_id);
+    let allowed = isGovernor(caller) or hasBulkAccess(caller) or switch (currentRoles) {
+      case null false;
+      case (?grants) grants.any(func((role, team)) = role == "club_admin" and team == null);
+    };
+    if (not allowed or removalReceiver.denied(caller)) return #Err("Association admin required");
     #Ok(associationEvents.filter(func(a) = a.association_id == association_id and not a.deleted))
   
     } finally { removalReceiver.leave(caller) };
@@ -5276,6 +5280,29 @@ persistent actor class Main(governorInit : Principal) = this {
         (role == "club_admin" or role == "team_admin" or role == "coach" or
          role == "parent" or role == "player") and
         (team == null or team == item.team_id))
+    }
+  };
+
+  // Revoked or deleted team roles must not authorize protected calendar metadata.
+  func freshTeamReadAllowed(subject : Principal, club : Text, team : Text) : async Bool {
+    let configured = clubDomainCanister ?? return false;
+    let authority : actor { get_team : shared query (Text) -> async {
+      #Ok : ?{ club_id : Text; deleted_at_ms : ?Nat64 }; #Err : Text
+    } } = actor(configured.toText());
+    let found = try { await (with timeout = 10) authority.get_team(team) } catch (_) { return false };
+    if (configured != clubDomainCanister or isFenced(club) or removalReceiver.denied(subject)) return false;
+    switch (found) {
+      case (#Ok(?row)) { if (row.club_id != club or row.deleted_at_ms != null) return false };
+      case (_) return false;
+    };
+    if (isGovernor(subject)) return true;
+    let roles = await freshMemberRolesForList(subject, club);
+    switch (roles) {
+      case null false;
+      case (?grants) grants.any(func((role, scope)) =
+        (role == "club_admin" and scope == null) or
+        (scope == ?team and (role == "parent" or role == "player" or
+          role == "coach" or role == "team_admin" or role == "committee_member")));
     }
   };
 
@@ -5785,7 +5812,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    if (not isClubMember(caller, club_id) and not managesTeam(caller, club_id, team_id)) return #Err("Forbidden");
+    if (not (await freshTeamReadAllowed(caller, club_id, team_id))) return #Err("Forbidden");
     #Ok(teamTrainingPauses.filter(func(item) = item.club_id == club_id and item.team_id == team_id))
   
     } finally { removalReceiver.leave(caller) };
@@ -5796,7 +5823,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    if (not isClubMember(caller, club_id) and not managesTeam(caller, club_id, team_id)) return #Err("Forbidden");
+    if (not (await freshTeamReadAllowed(caller, club_id, team_id))) return #Err("Forbidden");
     #Ok(teamTrainingPauses.any(func(item) = item.club_id == club_id and item.team_id == team_id and item.starts_at_ms <= at_ms and at_ms <= item.ends_at_ms))
   
     } finally { removalReceiver.leave(caller) };
@@ -5968,10 +5995,24 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
     if (not valid(club_id)) return #Err("Invalid club");
-    let teamAllowed = switch (team_id) { case (?t) managesTeam(caller, club_id, t); case null false };
-    if (not isGovernor(caller) and not hasRole(caller, "club_admin", club_id, null) and not teamAllowed) return #Err("Team staff required");
-    let matchingEvents = events.filter(func(e) = e.club_id == club_id and not e.deleted and e.starts_at_ms >= from_ms and e.starts_at_ms <= to_ms and (switch (team_id) { case (?t) e.team_id == ?t; case null true }));
-    let eventIds = matchingEvents.map(func(e) = e.id);
+    let currentRoles = await freshMemberRolesForList(caller, club_id);
+    let allowed = isGovernor(caller) or switch (currentRoles) {
+      case null false;
+      case (?grants) grants.any(func((role, scope)) =
+        (role == "club_admin" and scope == null) or
+        (team_id != null and scope == team_id and (role == "coach" or role == "team_admin")));
+    };
+    if (not allowed) return #Err("Team staff required");
+    var eventIds : [Text] = [];
+    for (e in events.values()) {
+      if (e.club_id == club_id and not e.deleted and
+          e.starts_at_ms >= from_ms and e.starts_at_ms <= to_ms and
+          (switch (team_id) { case (?t) e.team_id == ?t; case null true }) and
+          await freshEventTeamLive(e)) {
+        eventIds := eventIds.concat([e.id]);
+      };
+    };
+    if (removalReceiver.denied(caller)) return #Err("Team staff authority changed");
     var rows : [Types.PlayerStatRow] = [];
     for (cap in matchCaptainAssignments.values()) {
       if (eventIds.any(func(id) = id == cap.event_id)) {
@@ -6043,6 +6084,8 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (not valid(user_id) or not valid(event_id)) return false;
+    let event = events.find(func(e) = e.id == event_id and not e.deleted) ?? return false;
+    if (not (await freshVisibleEvent(caller, event))) return false;
     let onRoster = roster.any(func(item) = item.event_id == event_id and item.account_id == user_id);
     if (onRoster) return true;
     let hasRsvp = rsvps.any(func(item) = item.event_id == event_id and item.account_id == user_id);
