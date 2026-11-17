@@ -77,7 +77,7 @@
       "name": "pii_access_control",
       "canisterId": "zt5a6-yiaaa-aaaal-qxp5q-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "0b0ce307248f3d886bb0f504ea9b7291722123b53ab3a3934610a1fe4a64ced5"
+      "moduleHash": "08265cd340c822ebbcbcab572994c7f9a2ba168424163fe8e66cc284f7884d8e"
     },
     {
       "name": "timer_jobs",
