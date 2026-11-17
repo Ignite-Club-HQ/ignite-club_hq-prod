@@ -394,7 +394,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
     expect(mocks.clubKey).not.toHaveBeenCalled();
     expect(mocks.decrypt).not.toHaveBeenCalled();
   });
-  it('allows any enforced ICP club a 25s ciphertext deadline, not the legacy 6s limit', async () => {
+  it('allows any enforced ICP club a 60s ciphertext deadline, not the legacy 6s limit', async () => {
     vi.useFakeTimers();
     try {
       vi.stubEnv('IGNITE_LIVE_SHARED_CLUB_NAMES','1');
@@ -406,7 +406,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
       // stalled ciphertext read.
       expect(mocks.keys).not.toHaveBeenCalled();
       expect(mocks.clubKey).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(19_000);
+      await vi.advanceTimersByTimeAsync(41_000);
       await rejection;
       expect(mocks.keys).not.toHaveBeenCalled();
     } finally { vi.useRealTimers(); }
