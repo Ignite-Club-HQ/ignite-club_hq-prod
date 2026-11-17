@@ -48,11 +48,28 @@ export function sharedClubNameEnforcementEnabled(target: IcpTargetConfig): boole
     Boolean(target.canisterIds.club_domain && target.canisterIds.pii_access_control);
 }
 
+/** DEV-only: the pinned DEV Identity on the public network. Every build that
+ * talks to it (Lovable hosting, preview, DEV canister) uses the club-key name
+ * contract; the servers still enforce their own release switches and
+ * viewer/subject membership. PROD Identity never matches. */
+export function devClubNameReleaseTarget(target: IcpTargetConfig): boolean {
+  return target.provider === 'icp' && target.status !== 'disabled' &&
+    target.host === 'https://icp-api.io' &&
+    target.canisterIds.identity_access === DEV.identity &&
+    Boolean(target.canisterIds.club_domain && target.canisterIds.pii_access_control);
+}
+
+/** Adult names are read under the owning club's shared key (one per original
+ * PII source) with no team/person-key fallback. */
+export function clubNameDisplaysActive(target: IcpTargetConfig): boolean {
+  return sharedClubNameEnforcementEnabled(target) || devClubNameReleaseTarget(target);
+}
+
 /** The legacy G1 -> registered G2 PII route retains its independent pins.
  * No club ID allowlist: the Group 2 Club validates each exact club membership.
  */
 export function devG2SharedClubNamesEnabled(target: IcpTargetConfig, clubId: string): boolean {
-  return Boolean(clubId.trim()) && sharedClubNameEnforcementEnabled(target) &&
+  return Boolean(clubId.trim()) && clubNameDisplaysActive(target) &&
     isExactDevG2NameTarget(target);
 }
 
