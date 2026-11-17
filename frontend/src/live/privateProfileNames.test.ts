@@ -660,7 +660,7 @@ describe("original-authority display rehearsal", () => {
     await expect(pending).rejects.toThrow("cancelled");
     expect(mocks.decrypt).not.toHaveBeenCalled();
   });
-  it("globally bounds ciphertext batches to 100 subjects and two concurrent requests", async () => {
+  it("globally bounds ciphertext batches to 100 subjects and four concurrent requests", async () => {
     const rows = Array.from({ length: 201 }, (_, i) => ({ display_name: privateProfileNameReference(authority, Principal.fromUint8Array(new Uint8Array([i + 1, 2])).toText()) }));
     let inFlight = 0; let peak = 0;
     mocks.read.mockImplementation(async ids => {
@@ -673,6 +673,6 @@ describe("original-authority display rehearsal", () => {
     const result = await hydratePrivateProfileNames(ctx, rows);
     expect(result.every(row => row.display_name === "Paul Cranwell")).toBe(true);
     expect(mocks.read.mock.calls.map(call => call[0].length)).toEqual([100, 100, 1]);
-    expect(peak).toBe(2);
+    expect(peak).toBe(3);
   });
 });
