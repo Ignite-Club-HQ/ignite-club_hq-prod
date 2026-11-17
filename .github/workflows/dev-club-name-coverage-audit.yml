@@ -7,6 +7,8 @@ on:
       - "scripts/dev-club-name-coverage-policy.mjs"
       - "scripts/dev-name-cleanup-triage.mjs"
       - "scripts/dev-name-cleanup-triage.test.mjs"
+      - "scripts/dev-name-cleanup-exact-preflight.mjs"
+      - "scripts/dev-name-cleanup-exact-preflight.test.mjs"
       - "scripts/dev-club-name-coverage-policy.test.mjs"
       - "scripts/dev-club-name-coverage-contract.test.mjs"
       - "backend/pii_access_control/src/main.mo"
@@ -38,7 +40,7 @@ jobs:
         with:
           node-version: '22.12.0'
       - name: Verify no privileged reads in pull requests and metadata-only release rules
-        run: node --test scripts/dev-club-name-coverage-policy.test.mjs scripts/dev-club-name-coverage-contract.test.mjs scripts/dev-name-cleanup-triage.test.mjs
+        run: node --test scripts/dev-club-name-coverage-policy.test.mjs scripts/dev-club-name-coverage-contract.test.mjs scripts/dev-name-cleanup-triage.test.mjs scripts/dev-name-cleanup-exact-preflight.test.mjs
       - name: Parse protected auditor without executing any canister calls
         run: npx --yes esbuild@0.25.12 frontend/scripts/audit-dev-club-name-coverage.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/dev-name-coverage-syntax.mjs"
   operator-read-only:
