@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest';
 import { loadSavedRosterNames, saveRosterNames, SAVED_ROSTER_NAMES_TTL_MS } from './savedRosterNames';
 
