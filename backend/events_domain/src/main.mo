@@ -6031,12 +6031,12 @@ persistent actor class Main(governorInit : Principal) = this {
     auth(caller);
     if (not valid(club_id)) return #Err("Invalid club");
     let currentRoles = await freshMemberRolesForList(caller, club_id);
-    let allowed = isGovernor(caller) or switch (currentRoles) {
+    let allowed = isGovernor(caller) or (switch (currentRoles) {
       case null false;
       case (?grants) grants.any(func((role, scope)) =
         (role == "club_admin" and scope == null) or
         (team_id != null and scope == team_id and (role == "coach" or role == "team_admin")));
-    };
+    });
     if (not allowed) return #Err("Team staff required");
     var eventIds : [Text] = [];
     for (e in events.values()) {
