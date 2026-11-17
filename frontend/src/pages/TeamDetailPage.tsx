@@ -101,6 +101,7 @@ import {
 } from "@/live/features/membership";
 import { getLiveTeam, getLiveClubProfile, getLiveClubSubscription, getLiveTeamSubscription, saveLiveTeamSubscription, saveLiveTeamPitchSettings } from "@/live/features/club";
 import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
+import { createNameUnlockTracker } from "@/lib/nameUnlockProgress";
 import { loadSavedRosterNames, saveRosterNames } from "@/lib/savedRosterNames";
 import { clubNameDisplaysActive } from "@/live/devCrossGroupTeamNameRoute";
 import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
@@ -158,6 +159,7 @@ export default function TeamDetailPage() {
   // in ICP mode rather than falling through to Supabase against a principal id.
   const isIcpAccount = isFeatureRoutedToIcp("membership");
   const navigate = useNavigate();
+  const [nameUnlockTracker] = useState(() => createNameUnlockTracker());
   const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -891,19 +893,21 @@ export default function TeamDetailPage() {
     queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id,
       devSharedClubNames ? 'shared-club-vetkey' : 'legacy-team-individual', adultNameIds],
     enabled: isIcpAccount && !!id && !!team?.club_id && adultNameIds.length > 0,
-    queryFn: () => withRosterDeadline(withFeatureBackend('membership', {
+    queryFn: () => { nameUnlockTracker.start(); return withRosterDeadline(withFeatureBackend('membership', {
       supabase: () => { throw new Error('ICP names required'); },
       icp: ctx => {
         if (!team?.club_id) throw new Error('Team club required for member names');
         return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds,
           devSharedClubNames ? { kind: 'club', resource: team.club_id } : { kind: 'team', resource: id! },
-          undefined, devSharedClubNames ? { partialNames: true } : {},
+          undefined, { ...(devSharedClubNames ? { partialNames: true } : {}), onStep: nameUnlockTracker.mark },
         ), 60_000, 'member names').then(rows => {
           if (user?.id) saveRosterNames(user.id, team.club_id!, id!, rows as any);
           return rows;
         });
       },
-    }, { clubId: team?.club_id ?? '' }), 65_000, 'member names'),
+    }, { clubId: team?.club_id ?? '' }), 65_000, 'member names')
+      .then(rows => { nameUnlockTracker.mark('done'); return rows; },
+        error => { nameUnlockTracker.mark('failed'); throw error; }); },
     // Names unlocked on an earlier visit show at once; the fresh read replaces
     // them (or clears them if access was withdrawn).
     placeholderData: () => (user?.id && team?.club_id && id
@@ -931,6 +935,7 @@ export default function TeamDetailPage() {
     retry: 0,
   });
   const adultNamesPending = isAdultNamesLoading || isAdultNamesFetching;
+  const nameUnlockProgress = useSyncExternalStore(nameUnlockTracker.subscribe, nameUnlockTracker.get);
   // Per-person reasons from the club-key read (never raw IDs or names).
   const adultNameIssues = useMemo(() => {
     if (adultNamesPending) return [];
@@ -2124,7 +2129,7 @@ export default function TeamDetailPage() {
             isAdultNamesError, adultNamesError,
             isAdultNamesFetching: adultNamesPending, hasUnresolvedAdultNames, refetchAdultNames,
             devEncryptedAdultNameMode: privateClubNameDisplaysEnabled() || devSharedClubNames ? 'ON' : 'OFF',
-            adultNameIssues,
+            adultNameIssues, nameUnlockProgress,
             showIcpRosterFailureCode: devIcpAdultNames,
     isChildNamesLoading: childNamesPending, hasUnresolvedChildNames, refetchChildNames,
             isSoccerClub: !!isSoccerClub, onOpenHeaderInvite: () => setHeaderInviteOpen(true), onOpenAddPlayer: () => setAddPlayerOpen(true),
