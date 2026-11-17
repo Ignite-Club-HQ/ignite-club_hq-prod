@@ -30,7 +30,7 @@ const io=()=>({
   readMember:vi.fn(async()=>true),
   readSavedReference:vi.fn(async()=>ref),
   unlockOriginal:vi.fn(async()=>({name:'Dev parent',source:ctx(),confirm:vi.fn(async()=>{})})),
-  prepareClubCopy:vi.fn(async()=>{}),
+  prepareClubCopy:vi.fn(async (_source:unknown,_name:string,_club:string,_active:()=>void)=>{}),
 });
 
 beforeEach(()=>{n++;flags.dev=true;flags.released=true;flags.retire?.();});
