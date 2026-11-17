@@ -60,3 +60,10 @@ test('club-team role listings do not expose deleted team or role grants', () => 
   assert.match(body('func clubChatParticipants(', 'func teamChatParticipants('), /roleEffective\(grant\.club, grant\.team\)/);
   assert.match(body('func teamChatParticipants(', 'func fanOutEnsureConversation('), /roleEffective\(grant\.club, grant\.team\)/);
 });
+
+test('membership source export never publishes deleted-team roles or family membership', () => {
+  const source = body('func membershipSourcePage(', 'public shared ({ caller }) func read_membership_source_page(');
+  assert.match(source, /if \(roleEffective\(g\.club, g\.team\)\)/);
+  assert.match(source, /if \(liveTeamClub\(team\) == null\) null else \?#ChildTeam/);
+  assert.match(source, /deleted = liveTeamClub\(t\.id\) != \?t\.club/);
+});
