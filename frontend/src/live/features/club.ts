@@ -1267,6 +1267,7 @@ export async function acceptLiveTeamInviteLink(ctx: FeatureBackendContext, token
     "Accept team invite link",
   ));
   syncAvatarClubGrantsBestEffort(ctx);
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
   return accepted;
 }
 
