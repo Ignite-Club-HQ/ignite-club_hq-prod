@@ -394,7 +394,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
     expect(mocks.clubKey).not.toHaveBeenCalled();
     expect(mocks.decrypt).not.toHaveBeenCalled();
   });
-  it('allows any enforced ICP club a 25s ciphertext deadline, not the legacy 6s limit', async () => {
+  it('allows any enforced ICP club a 60s ciphertext deadline, not the legacy 6s limit', async () => {
     vi.useFakeTimers();
     try {
       vi.stubEnv('IGNITE_LIVE_SHARED_CLUB_NAMES','1');
@@ -406,7 +406,7 @@ describe('DEV shared-club-key adult names - no individual-key fallback', () => {
       // stalled ciphertext read.
       expect(mocks.keys).not.toHaveBeenCalled();
       expect(mocks.clubKey).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(19_000);
+      await vi.advanceTimersByTimeAsync(41_000);
       await rejection;
       expect(mocks.keys).not.toHaveBeenCalled();
     } finally { vi.useRealTimers(); }
@@ -563,7 +563,7 @@ describe("original-authority display rehearsal", () => {
       mocks.scopedRead.mockImplementation(() => new Promise(resolve => { reply = resolve; }));
       const pending = hydratePrivateProfileNames(devCtx, [{ display_name: reference }], { audience: team });
       const denied = expect(pending).rejects.toThrow('Private team-name ciphertext timed out.');
-      await vi.advanceTimersByTimeAsync(25_000);
+      await vi.advanceTimersByTimeAsync(60_000);
       await denied;
       reply({ Ok: [{ pii_id: subject, field_id: 'display_name', ciphertext: [9] }] });
       await vi.advanceTimersByTimeAsync(0);
@@ -602,7 +602,7 @@ describe("original-authority display rehearsal", () => {
       const denied = expect(pending).rejects.toThrow('Private team-name vetkey timed out.');
       await vi.advanceTimersByTimeAsync(0);
       expect(mocks.keys).toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(25_000);
+      await vi.advanceTimersByTimeAsync(60_000);
       await denied;
       expect(mocks.decrypt).not.toHaveBeenCalled();
     } finally { vi.useRealTimers(); }
