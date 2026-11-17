@@ -2031,7 +2031,24 @@ persistent actor class Main(governorInit : Principal) = this {
           if (isFenced(c.club_id)) return #Err("Club chat authorization changed");
           let authority : actor { is_club_member : shared query (Principal, Text) -> async Bool } = actor(cd.toText());
           let member = try { await authority.is_club_member(caller, c.club_id) } catch (_) { return #Err("Club chat authority unavailable") };
-          if (not member) return #Err("Club chat access forbidden");
+          if (not member or clubDomainCanister != ?cd or isFenced(c.club_id)) return #Err("Club chat access forbidden");
+          switch (c.team_id) {
+            case (?team) {
+              // Fast-path query must meet the exact-team permission boundary
+              // of the protected update path, including deleted-team tombstones.
+              let scoped : actor {
+                read_competition_team_access : shared query (Text, Principal) -> async {
+                  club_id : ?Text; is_member : Bool; can_manage : Bool
+                }
+              } = actor(cd.toText());
+              let proof = try { await scoped.read_competition_team_access(team, caller) }
+                catch (_) { return #Err("Team chat authority unavailable") };
+              if (clubDomainCanister != ?cd or isFenced(c.club_id) or
+                  proof.club_id != ?c.club_id or not proof.is_member)
+                return #Err("Team chat membership revoked or team deleted");
+            };
+            case null {};
+          };
         };
       };
     };
