@@ -992,11 +992,9 @@ function SupabaseJoinTeamPage() {
           inviteId,
           guardianId: userId,
         });
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["children"] }),
-          queryClient.invalidateQueries({ queryKey: membershipKeys.userRoles() }),
-          queryClient.invalidateQueries({ queryKey: ["rsvps"] }),
-        ]);
+        void queryClient.invalidateQueries({ queryKey: ["children"] });
+        void queryClient.invalidateQueries({ queryKey: membershipKeys.userRoles() });
+        void queryClient.invalidateQueries({ queryKey: ["rsvps"] });
         console.log("[JoinTeam] Parent invite children provisioned:", childIds.length);
         return childIds;
       } catch (rpcError) {
@@ -1038,10 +1036,9 @@ function SupabaseJoinTeamPage() {
       try {
         const result = await acceptParentTeamInvite({ inviteToken: token });
         provisionedChildIdsRef.current = result.childIds;
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["children"] }),
-          queryClient.invalidateQueries({ queryKey: membershipKeys.userRoles() }),
-        ]);
+        // Refresh in the background; waiting for every refetch slowed acceptance.
+        void queryClient.invalidateQueries({ queryKey: ["children"] });
+        void queryClient.invalidateQueries({ queryKey: membershipKeys.userRoles() });
         await applyInviteClubFilter();
         return ["parent" as AppRole];
       } catch (error) {

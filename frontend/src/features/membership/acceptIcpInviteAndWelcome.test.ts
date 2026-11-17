@@ -5,11 +5,13 @@ const mocks = vi.hoisted(() => ({
   acceptPendingLiveInvite: vi.fn(),
   readReceipt: vi.fn(),
   invoke: vi.fn(),
+  addRel: vi.fn(),
+  grant: vi.fn(),
 }));
 
 vi.mock("@/live/featureRouter", () => ({
   withFeatureBackend: async (_feature: string, providers: { icp: (ctx: unknown) => Promise<unknown> }) =>
-    providers.icp({ identity: {}, target: {} }),
+    providers.icp({ identity: Object.defineProperty({}, "getPrincipal", { value: () => "me" }), target: {} }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { functions: { invoke: mocks.invoke } },
@@ -18,7 +20,7 @@ vi.mock("@/live/features/club", () => ({
   acceptPendingLiveInvite: mocks.acceptPendingLiveInvite,
   readLiveFamilyInviteReceipt: mocks.readReceipt,
 }));
-vi.mock("@/live/features/vault", () => ({ addLiveGuardianRelationship: vi.fn(), grantLivePiiRead: vi.fn() }));
+vi.mock("@/live/features/vault", () => ({ addLiveGuardianRelationship: mocks.addRel, grantLivePiiRead: mocks.grant }));
 
 import { acceptIcpInviteAndWelcome } from "./acceptIcpInviteAndWelcome";
 
@@ -60,5 +62,25 @@ describe("acceptIcpInviteAndWelcome", () => {
     const receipt = await acceptIcpInviteAndWelcome("pinv-family");
     expect(receipt.accepted_at_ms).toBe(7n);
     expect(mocks.readReceipt).toHaveBeenCalledWith({ identity: {}, target: {} }, "pinv-family");
+  });
+  it("does not hold acceptance longer than the wait cap on slow child grants", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.readReceipt.mockResolvedValueOnce({ child_ids: ["c1", "c2"], club_id: "club", team_id: ["team"], accepted_at_ms: 1n });
+      mocks.addRel.mockResolvedValue(undefined);
+      mocks.grant.mockImplementation(() => new Promise(() => undefined));
+      let done = false;
+      const p = (async () => {
+        const { acceptIcpInviteAndWelcome: run } = await import("./acceptIcpInviteAndWelcome");
+        return run.call(null, "pinv-x");
+      })().then((r) => { done = true; return r; });
+      await vi.advanceTimersByTimeAsync(8_000);
+      await p;
+      expect(done).toBe(true);
+      // Both children's three fields were requested in parallel.
+      expect(mocks.grant).toHaveBeenCalledTimes(6);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
