@@ -900,12 +900,12 @@ export default function TeamDetailPage() {
         return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds,
           devSharedClubNames ? { kind: 'club', resource: team.club_id } : { kind: 'team', resource: id! },
           undefined, { ...(devSharedClubNames ? { partialNames: true } : {}), onStep: nameUnlockTracker.mark },
-        ), 100_000, 'member names').then(rows => {
+        ), 160_000, 'member names').then(rows => {
           if (user?.id) saveRosterNames(user.id, team.club_id!, id!, rows as any);
           return rows;
         });
       },
-    }, { clubId: team?.club_id ?? '' }), 110_000, 'member names')
+    }, { clubId: team?.club_id ?? '' }), 170_000, 'member names')
       .then(rows => { nameUnlockTracker.mark('done'); return rows; },
         error => { nameUnlockTracker.mark('failed'); throw error; }); },
     // Names unlocked on an earlier visit show at once; the fresh read replaces

@@ -338,7 +338,7 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
           retired = true;
           if (crossGroupDevName) reject(new Error(`Private team-name ${phase} timed out.`));
           else resolve(new Map());
-        }, crossGroupDevName ? 60_000 : READ_TIMEOUT_MS);
+        }, crossGroupDevName ? 120_000 : READ_TIMEOUT_MS);
       }),
     ]);
   } catch (error) {
