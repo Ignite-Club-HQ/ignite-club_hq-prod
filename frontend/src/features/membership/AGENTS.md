@@ -1,0 +1,1 @@
+- ICP invite child onboarding plans create-vs-resume via planIcpInviteChild against the invite group's own children plus a device journal (inviteChildJournal); other groups block only on a confirmed readable same-name child. Why: unreadable names/unanswered groups are not duplicates, and a half-created child must be resumed, never re-created.
