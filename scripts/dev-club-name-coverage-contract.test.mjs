@@ -59,3 +59,19 @@ test('audit is source-bound and never uploads raw personal data',()=>{
   assert.match(policy,/readyToReleaseName:false,nameReadAuthorised:false/);
   assert.match(policy,/missingOwnerAuthorisedReadAndDenialAcceptance:true/);
 });
+
+test('a failed metadata read produces only a blocked, count-only report before failing',()=>{
+  assert.match(runner,/if\('Err' in reply\)/);
+  assert.match(runner,/classifyDevNameCoverageFailure\(reply.Err,\{backend:true\}\)/);
+  assert.match(runner,/classifyDevNameCoverageFailure\(error\)/);
+  assert.match(runner,/sourceGroup=group.source===PII.g1\?'g1':'g2'/);
+  assert.match(runner,/writeFileSync\(resolve\(reportDir,'check.json'\)/);
+  assert.match(runner,/if\(readFailure\)\{/);
+  assert.match(runner,/readFailure===null/);
+  assert.match(runner,/sourceReadbackFailed/);
+  assert.doesNotMatch(runner,/console\.(?:warn|error|log)\([^\n]*\b(?:error|reply\.Err|group\.subjects|group\.club)\b/);
+  assert.doesNotMatch(runner,/throw Error\(error\.message\)|throw error|error\?\.stack/);
+  assert.match(policy,/backend_refused_other/);
+  assert.match(policy,/transport_deadline/);
+  assert.match(policy,/readyToReleaseName:false,nameReadAuthorised:false/);
+});
