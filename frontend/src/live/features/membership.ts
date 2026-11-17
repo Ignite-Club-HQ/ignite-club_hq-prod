@@ -92,10 +92,16 @@ export async function addLiveRoleGrant(
   team?: string | null,
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return afterMembershipAcknowledgement(unwrapCandid(
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(
     actor.add_role_grant(user, club, role, candidOpt(team)),
     "Add role grant",
   ));
+  // An administrator adding somebody ELSE cannot sign for that person's
+  // encrypted name. Only reconcile when the recipient is the actual caller.
+  if (user.toText() === ctx.identity.getPrincipal().toText()) {
+    await afterConfirmedDevMembershipNameReadiness(ctx,club);
+  }
+  return accepted;
 }
 
 export async function removeLiveRoleGrant(
