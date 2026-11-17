@@ -1,9 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
 ## Document opening and saving — DEV only
-- [ ] Trace chat/Vault taps; fix the shared native viewer import, MIME dispatch and Open/Download/Share separation.
-- [ ] Authorize fresh downloads, cache native viewer copies, add platform save/export with accurate results and visible recovery actions.
-- [ ] Verify focused tests and web behavior; real Android/iPhone and signed-in referee/denied-user acceptance required before promotion. No production data changes or publication.
+- [x] Trace chat/Vault taps; fix the shared native viewer import, MIME dispatch and Open/Download/Share separation.
+- [x] Authorize fresh downloads, cache native viewer copies, add platform save/export with accurate results and visible recovery actions.
+- [x] Focused tests: 97 pass (3 existing skips); two native wiring rehearsals pass; browser helper download/open/blocked-popup checked; preview compiles. Evidence: docs/dev-document-opening-verification.md.
+- [ ] Real Android/iPhone rendering, accessible export and signed-in referee/denied-user acceptance blocked on devices and external Supabase sign-in; native compilation awaits an actual platform build. No production data changes or publication; native update required.
 
 ## Invitation share addresses — 16 November
 - [x] Replace device-local and placeholder origins across all invitation links with the Ignite public address; preserve tokens and invitation behavior. DEV code only.
