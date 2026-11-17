@@ -491,6 +491,7 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 
 ## DEV Cloud Engine connection — resumed 17 November
 - [x] Paul has provisioned a DEV engine: https://opencloud.org/console/engines/engine-789969b4-e8ba-41b0-90a2-47b4dab699df/apps.
-- [ ] Inspect its actual subnet/service inventory and deployment access; distinguish existing DEV canister references from canisters installed on the engine. Confirm its encryption proxy before preparing a DEV-only connection.
+- [x] Paul confirms existing DEV canisters are not hosted on the engine; pointing to them has not deployed Ignite there.
+- [ ] Establish an alternative deployment connection: ICP MCP connection failed; use a console-linked CLI on Paul's computer if available. Obtain engine subnet and encryption proxy IDs before preparing fresh DEV-only installation; existing DEV/PROD canisters remain unchanged.
 - [ ] Then: real-engine commissioning, engine admission/boot registration, cross-subnet calls, encryption, group push, and signed-in phone acceptance.
 - [ ] No existing clubs move and no live hosting changes without Paul's explicit approval.
