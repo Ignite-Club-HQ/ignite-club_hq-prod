@@ -760,7 +760,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (subjects.any(func p = p.isAnonymous() or p.toText() == "aaaaa-aa") or subjects.size() != ids.filter(func id = ids.filter(func x = x == id).size() == 1).size()) throw Error.reject("Distinct active private-name subjects required");
     let identity : actor { read_private_profile_name_authorization : shared (Principal, [Principal], PrivateNameScope) -> async { #Ok : [PrivateNameRow]; #Err : Text } } = actor(verifier.toText());
     let epoch = mediaAuthEpoch;
-    let reply = await (with timeout = 10) identity.read_private_profile_name_authorization(caller, subjects, scope);
+    let reply = await (with timeout = 60) identity.read_private_profile_name_authorization(caller, subjects, scope);
     if (epoch != mediaAuthEpoch or privateNameVerifier() != ?verifier or removalReceiver.denied(caller)) throw Error.reject("Private-name authority changed");
     let rows = switch (reply) { case (#Err(e)) throw Error.reject(e); case (#Ok(rows)) rows };
     if (rows.size() != ids.size()) throw Error.reject("Incomplete private-name authorization");
