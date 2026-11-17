@@ -97,7 +97,7 @@ async function performFileAction(
   const guessedName = opts.fileName?.trim() || guessFileNameFromUrl(url);
   const displayName = withExtension(sanitizeFileName(guessedName), url);
   const nameType = guessMimeFromName(displayName);
-  const documentType = normalizeMimeType(opts.mimeType) || normalizeMimeType(nameType);
+  const documentType = normalizeMimeType(nameType) || normalizeMimeType(opts.mimeType);
 
   if (!isNative) {
     if (action === "download") {
@@ -108,10 +108,23 @@ async function performFileAction(
       if (!response.ok) throw fileFetchError(response.status);
       const file = new File([await response.blob()], displayName, { type: documentType || "application/octet-stream" });
       if (!navigator.canShare?.({ files: [file] })) throw new Error("File sharing isn't available in this browser. Choose Download instead.");
-      try { await navigator.share({ files: [file], title: displayName }); }
-      catch (error) { if (!isUserCancel(error)) throw new Error("We couldn't share this file. Try Download instead."); }
+      // File fetching may consume user activation (especially Safari). The final
+      // explicit command starts the platform sheet synchronously from a new tap.
+      toast("File ready to share", { duration: 60000, action: { label: "Share", onClick: () => {
+        void navigator.share({ files: [file], title: displayName }).catch(error => {
+          if (!isUserCancel(error)) toast.error("We couldn't share this file. Try Download instead.");
+        });
+      } } });
     } else {
       if (!tab) throw new Error("Your browser blocked the file window. Allow pop-ups for Ignite and try Open again.");
+      try {
+        const response = await fetch(resolvedUrl, { headers: { Range: "bytes=0-0" } });
+        if (!response.ok) throw fileFetchError(response.status);
+        await response.body?.cancel();
+      } catch (error) {
+        tab.close();
+        throw error instanceof DocumentFileError ? error : new Error("We couldn't load this file. Check your connection and try again.");
+      }
       tab.opener = null;
       tab.location.href = resolvedUrl;
     }
@@ -313,7 +326,7 @@ function guessFileNameFromUrl(url: string): string {
 }
 
 function sanitizeFileName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80) || "file";
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^\.+/, "").slice(-80) || "file";
 }
 
 export function guessMimeFromName(name: string): string {

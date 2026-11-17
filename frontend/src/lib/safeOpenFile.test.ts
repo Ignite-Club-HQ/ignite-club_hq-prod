@@ -271,6 +271,7 @@ describe("safeOpenFile — download resilience (native)", () => {
 describe("safeOpenFile — external / public non-storage URLs", () => {
   it("does not call the signer for external URLs and retains browser fallback", async () => {
     const externalUrl = "https://reference.invalid";
+    fetchMock.mockResolvedValue({ ok: true, body: null });
     filesystemMock.downloadFile.mockRejectedValueOnce(new Error("download failed"));
     fetchMock.mockRejectedValue(new Error("network"));
 
@@ -323,7 +324,7 @@ describe("document intent separation", () => {
     resolveSignedUrlMock.mockImplementation(() => new Promise<string>(resolve => { finish = resolve; }));
     const first = safeOpenFile("https://example.org/once.docx");
     const second = safeOpenFile("https://example.org/once.docx");
-    await Promise.resolve();
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
     finish?.("https://example.org/once.docx");
     await Promise.all([first, second]);
     expect(filesystemMock.downloadFile).toHaveBeenCalledTimes(1);
