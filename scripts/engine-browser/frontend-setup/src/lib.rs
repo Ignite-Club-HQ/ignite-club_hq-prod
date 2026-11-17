@@ -62,3 +62,21 @@ impl Guest for Plugin {
  }
 }
 export!(Plugin);
+
+#[cfg(test)]
+mod tests {
+ use super::*;
+ fn input(owner: &str, id: &str) -> SyncExecInput {
+   SyncExecInput { canister_id:id.into(), environment:"ic".into(), api_url:"https://icp-api.io/".into(), gateway_url:None,
+    dirs:vec![], files:vec![], fields:vec![], canister_ids:vec![], identity_principal:owner.into() }
+ }
+ #[test]
+ fn refuses_non_owner_before_calls() {
+   assert_eq!(Plugin::exec(input("2vxsx-fae","vhyif-7yaaa-aaac5-aaasq-cai")),Err("DEV frontend owner mismatch".into()));
+ }
+ #[test]
+ fn refuses_reserved_frontend_before_calls() {
+   let owner="4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae";
+   assert_eq!(Plugin::exec(input(owner,"aaaaa-aa")),Err("Invalid frontend ID".into()));
+ }
+}
