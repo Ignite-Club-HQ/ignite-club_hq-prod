@@ -10,6 +10,7 @@ import {
   Folder,
   ExternalLink,
   Download,
+  Share2,
   
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -22,6 +23,8 @@ import { getLiveVaultFolder, getLiveVaultFile } from "@/live/features/vault";
 import { getLiveTeam, getLiveClubProfile } from "@/live/features/club";
 import { toast } from "sonner";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { presentFileAction } from "@/lib/safeOpenFile";
+import { Button } from "@/components/ui/button";
 
 interface VaultFileCardProps {
   fileId?: string;
@@ -316,8 +319,7 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
       try {
         // For storage-hosted files, hand off to the native viewer so the user
         // doesn't see a raw supabase URL in an in-app browser chrome.
-        const { safeOpenFile } = await import("@/lib/safeOpenFile");
-        await safeOpenFile(file.file_url, {
+        await presentFileAction("open", file.file_url, {
           fileName: file.name || undefined,
           mimeType: file.file_type || undefined,
         });
@@ -328,8 +330,10 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
     };
 
     return (
-      <button
+      <div>
+      <Button
         type="button"
+        variant="ghost"
         onClick={handleOpen}
         className="flex items-center gap-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors p-3 max-w-xs w-full text-left active:scale-[0.99]"
         aria-label={`Open file ${file.name}`}
@@ -349,7 +353,12 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
         ) : (
           <Download className="h-4 w-4 text-muted-foreground shrink-0" />
         )}
-      </button>
+      </Button>
+      {!file.is_external_link && <div className="flex gap-2 mt-1">
+        <Button size="sm" variant="ghost" onClick={() => { void presentFileAction("download", file.file_url, { fileName: file.name, mimeType: file.file_type || undefined }); }}><Download className="h-4 w-4 mr-1" />Download</Button>
+        <Button size="sm" variant="ghost" onClick={() => { void presentFileAction("share", file.file_url, { fileName: file.name, mimeType: file.file_type || undefined }); }}><Share2 className="h-4 w-4 mr-1" />Share</Button>
+      </div>}
+      </div>
     );
   }
 

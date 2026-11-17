@@ -94,6 +94,7 @@ workflows:
           # Capacitor writes capacitor.settings.gradle during update; regenerate if absent.
           [ -f android/capacitor.settings.gradle ] || npx cap update android
           npx cap sync android
+          python3 ../scripts/configure-native-documents.py android
           test -f android/capacitor.settings.gradle || { echo "capacitor.settings.gradle was not generated"; exit 1; }
           # Optional: notifications in the test build when the Firebase file is set.
           if [ -n "${GOOGLE_SERVICES_JSON:-}" ]; then
@@ -190,6 +191,7 @@ workflows:
           # Capacitor writes capacitor.settings.gradle during update; regenerate if absent.
           [ -f android/capacitor.settings.gradle ] || npx cap update android
           npx cap sync android
+          python3 ../scripts/configure-native-documents.py android
           test -f android/capacitor.settings.gradle || { echo "capacitor.settings.gradle was not generated"; exit 1; }
           # Internet Identity sign-in returns via com.igniteclubhq.app://ii-callback
           python3 - <<'PY'
@@ -376,6 +378,7 @@ workflows:
           [ -f dist-live/index.html ] || cp dist-live/live-index.html dist-live/index.html
           [ -d ios/App ] || npx cap add ios
           npx cap sync ios
+          python3 ../scripts/configure-native-documents.py ios
           # Capacitor 8 scaffolds iOS with Swift Package Manager (CapApp-SPM):
           # there is no Podfile and no Xcode workspace — build the .xcodeproj.
           if [ ! -d ios/App/App.xcodeproj ]; then
@@ -465,6 +468,7 @@ workflows:
           [ -f dist-live/index.html ] || cp dist-live/live-index.html dist-live/index.html
           npx cap add ios
           npx cap sync ios
+          python3 ../scripts/configure-native-documents.py ios
           # Internet Identity sign-in returns via com.igniteclubhq.app://ii-callback
           PL=ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$PL" 2>/dev/null || true
