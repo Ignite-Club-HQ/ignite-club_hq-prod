@@ -2,6 +2,7 @@
 import Principal "mo:core/Principal";
 import Blob "mo:core/Blob";
 import Nat8 "mo:core/Nat8";
+import Array "mo:core/Array";
 import Management "mo:ic-vetkeys/ManagementCanister";
 import Adapter "../../backend/pii_access_control/src/EngineVetKd";
 
