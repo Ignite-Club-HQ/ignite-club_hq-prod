@@ -41,17 +41,21 @@ jobs:
         run: node --test scripts/messaging-upgrade-policy.test.mjs scripts/group2-journal.test.mjs scripts/group2-upgrade-rules.test.mjs scripts/messaging-upgrade-workflow.test.mjs
       - name: Restore existing governor only
         env:
-          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
         run: |
           set -euo pipefail
           test -n "$DEPLOYER_PEM"
           umask 077
           echo "ICP_HOME=$RUNNER_TEMP/chat-icp-home" >> "$GITHUB_ENV"
           export ICP_HOME="$RUNNER_TEMP/chat-icp-home"
-          printf '%s' "$DEPLOYER_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$RUNNER_TEMP/chat.pem"
+          # Normalize existing PEM without printing it. Only the pinned governor can proceed.
+          PEM_IN="$DEPLOYER_PEM" node scripts/normalize-pem.mjs > "$RUNNER_TEMP/chat.pem"
           icp identity import --from-pem "$RUNNER_TEMP/chat.pem" --storage plaintext ignite-governor
           icp identity default ignite-governor
-          test "$(icp identity principal)" = vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae
+          if [ "$(icp identity principal --identity ignite-governor)" != vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae ]; then
+            echo "::error::The existing DEV governor credential does not match the pinned governor; check GOVERNOR_PEM and DEPLOYER_PEM without exposing the key."
+            exit 1
+          fi
       - name: Build only messaging recipe artifact
         working-directory: deploy/mainnet
         run: |
