@@ -5125,15 +5125,23 @@ persistent actor class Main(governorInit : Principal) = this {
   func freshMemberRolesForList(subject : Principal, club : Text) : async ?[(Text, ?Text)] {
     if (Principal.isAnonymous(subject) or isFenced(club)) return null;
     let authority = clubDomainCanister ?? return null;
+    // The configured club authority verifies this user's live membership,
+    // linked identity and exact club role grants in one protected consensus
+    // reply. An unavailable, denied or stale proof never grants visibility.
     let cd : actor {
-      read_has_club_membership : shared (Principal, Text) -> async Bool;
-      read_account_list_user_club_roles : shared (Principal, Text) -> async [(Text, ?Text)];
+      read_event_member_roles_if_current : shared (Principal, Text) -> async {
+        #Ok : [(Text, ?Text)]; #Err : Text
+      };
     } = actor(authority.toText());
-    let member = try { await (with timeout = 10) cd.read_has_club_membership(subject, club) } catch (_) { return null };
-    if (not member or clubDomainCanister != ?authority or removalReceiver.denied(subject) or isFenced(club)) return null;
-    let grants = try { await (with timeout = 10) cd.read_account_list_user_club_roles(subject, club) } catch (_) { return null };
-    if (clubDomainCanister != ?authority or removalReceiver.denied(subject) or isFenced(club)) return null;
-    ?grants
+    let result = try {
+      ?(await (with timeout = 10) cd.read_event_member_roles_if_current(subject, club))
+    } catch (_) { null };
+    if (clubDomainCanister != ?authority or removalReceiver.denied(subject) or isFenced(club))
+      return null;
+    switch (result) {
+      case (?(#Ok(grants))) ?grants;
+      case (_) null;
+    }
   };
 
   // Do not let cached event-side roles resurrect a soft-deleted team.
