@@ -1,4 +1,4 @@
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -64,6 +64,28 @@ it('reveals authorized child controls without waiting for name decryption or glo
   // The complete inventory may still be running when the preview appears.
   // Never require its cache to be populated before rendering the card.
 });
+it('does not start cross-group team discovery until the first child-name unlock resolves', async () => {
+  let finishNames!: (rows: Map<string, string>) => void;
+  state.names.mockImplementation(() => new Promise<Map<string, string>>(resolve => { finishNames = resolve; }));
+  open();
+  expect(await screen.findByLabelText('Retrieving child name')).toBeInTheDocument();
+  await waitFor(() => expect(state.names).toHaveBeenCalledTimes(1));
+  // No membership-role/team sweep competes with the paid PII unlock.
+  expect(state.grants).not.toHaveBeenCalled();
+  finishNames(new Map([['child-a', 'Ted']]));
+  expect(await screen.findByText('Ted')).toBeInTheDocument();
+  await waitFor(() => expect(state.grants).toHaveBeenCalled());
+});
+
+it('allows an explicitly opened Add child dialog to load teams while names are pending', async () => {
+  state.names.mockReturnValue(new Promise(() => {}));
+  open();
+  expect(await screen.findByRole('button', { name: 'Add child' })).toBeEnabled();
+  expect(state.grants).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Add child' }));
+  await waitFor(() => expect(state.grants).toHaveBeenCalledTimes(1));
+});
+
 it('failed child reads show retry rather than falsely reporting no children', async () => {
   state.children.mockRejectedValue(new Error('Denied'));
   open();
