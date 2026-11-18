@@ -1,13 +1,13 @@
 name: "[TEST] Update DEV engine frontend"
+# Cloud Engine is NOT release-ready. Never publish it on a main branch push.
+# Explicit review and a separately set release-readiness variable are required.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'frontend/**'
-      - 'scripts/**'
-      - 'deploy/frontend-engine/**'
-      - '.github/workflows/deploy-dev-engine-frontend.yml'
+    inputs:
+      confirmation:
+        description: "Type RELEASE DEV ENGINE FRONTEND only after engine readiness and controller verification"
+        required: true
+        type: string
 concurrency:
   group: dev-engine-frontend
   cancel-in-progress: false
@@ -15,7 +15,11 @@ permissions:
   contents: read
 jobs:
   update:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      vars.IGNITE_DEV_ENGINE_RELEASE_READY == 'true' &&
+      inputs.confirmation == 'RELEASE DEV ENGINE FRONTEND'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
