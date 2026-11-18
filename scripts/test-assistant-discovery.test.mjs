@@ -64,7 +64,7 @@ test("DEV assistant allowlist excludes extra service keys and rejects colliding 
     /Duplicate DEV assistant canister ID/,
   );
   assert.throws(
-    () => reviewedDevAssistantBaseCanisters({ ...testIds, club_domain: "not-a-canister" }),
+    () => reviewedDevAssistantBaseCanisters({ ...testIds, club_domain: "not_a_canister" }),
     /Invalid DEV assistant canister ID/,
   );
 });
