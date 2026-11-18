@@ -130,29 +130,31 @@ test('protected unread counts prefilter stored candidates before live chat permi
  assert.match(body,/removalReceiver.denied\(caller\)/,'post-await removal fence remains enforced');
 });
 
-test('protected recent conversations reduce duplicate proofs without weakening live membership checks', () => {
+test('protected recent conversations batch exact caller scopes and recheck current authority', () => {
  const body=section(chat,'func read_account_recent_conversations(','public shared ({ caller }) func read_account_list_all_online_users(');
+ const helper=section(chat,'func readRecentChatScopeProofs(','func recentChatScopeAllowed(');
+ const decision=section(chat,'func recentChatScopeAllowed(','public shared ({ caller }) func read_account_recent_conversations(');
+ const clubBatch=section(club,'func read_chat_scope_access_batch(','// Shared-key private-detail audiences');
  const admission=body.indexOf('await admitAccount(principal)');
  const candidates=body.indexOf('c.participants.any(func(p) = p.equal(principal))');
  const deleted=body.indexOf('not isGroupDeleted(c.id)');
- const proof=body.indexOf('await* requireChatClubMember(principal, club)');
- const teamProof=body.indexOf('await* requireChatTeamMember(principal, club, team)');
- const recheck=body.indexOf('let fresh = conversations.find(func(c) = c.id == conversation.id)', teamProof);
- const returnGate=body.indexOf('let fresh = conversations.find(func(c) = c.id == candidate.id)', recheck);
- const returned=body.indexOf('authorized := authorized.concat([', returnGate);
- assert.ok(admission>=0 && admission<candidates);
- assert.ok(candidates<deleted && deleted<proof && proof<teamProof && teamProof<recheck);
- assert.ok(recheck<returnGate && returnGate<returned);
- assert.match(body,/var approvedClubs : \[Text\] = \[\]/);
- assert.match(body,/var approvedTeams : \[\(Text, Text\)\] = \[\]/);
- assert.match(body,/var freshClubs : \[Text\] = \[\]/);
- assert.match(body,/var freshTeams : \[\(Text, Text\)\] = \[\]/);
+ const first=body.indexOf('let ?initial = await* readRecentChatScopeProofs(principal, clubs, teams)');
+ const second=body.indexOf('let ?freshProofs = await* readRecentChatScopeProofs(principal, clubs, teams)',first);
+ const returnGate=body.indexOf('let fresh = conversations.find(func(item) = item.id == candidate.id)',second);
+ const returned=body.indexOf('authorized := authorized.concat([',returnGate);
+ assert.ok(admission>=0 && admission<candidates && candidates<deleted && deleted<first && first<second && second<returnGate && returnGate<returned);
  assert.match(body,/requiresClubMembership\(current\) == requiresClubMembership\(candidate\)/);
  assert.match(body,/current\.participants\.any\(func\(p\) = p\.equal\(principal\)\)/);
  assert.match(body,/not isGroupDeleted\(candidate\.id\)/);
  assert.match(body,/not caller.equal\(principal\) and not isGovernor\(caller\)/);
  assert.match(body,/removalReceiver.denied\(principal\)/);
  assert.match(body,/let sorted = authorized.sort/);
+ assert.match(body,/Chat authorization changed; retry/);
+ assert.match(helper,/read_chat_scope_access_batch\(user, clubChunk, teamChunk\)/);
+ assert.match(helper,/configured != clubDomainCanister or removalReceiver.denied\(user\)/);
+ assert.match(decision,/club == c.club_id and id == team and allowed/);
+ assert.match(clubBatch,/caller != messaging/);
+ assert.match(clubBatch,/liveTeamClub\(team\) == \?club/);
  assert.doesNotMatch(body,/if \(entries\.size\(\) >= Nat16\.toNat\(limit\)\) break/);
 });
 
@@ -163,7 +165,11 @@ test('protected inbox prefilters keep authenticated update contracts and never m
   assert.match(chat, /public shared \(\{ caller \}\) func read_account_recent_conversations\(principal : Principal, limit : Nat16\)/);
   for (const [name, body] of [['unread', unread], ['recent', recent]]) {
     assert.match(body, /await admitAccount\(caller\)/, name + ' retains signed-in admission');
-    assert.match(body, /await\* requireChatAccess\(/, name + ' retains live club/team access');
+    if (name === 'recent') {
+      assert.match(body, /await\* readRecentChatScopeProofs\(principal, clubs, teams\)/, 'recent uses trusted batch scope proofs');
+    } else {
+      assert.match(body, /await\* requireChatAccess\(/, 'unread keeps live chat permissions');
+    }
     assert.match(body, /removalReceiver.denied\(/, name + ' retains post-await removal guard');
     assert.doesNotMatch(body, /mark_?read|set_?unread|last_read_sequence\s*:=|unread\.put\(/i,
       name + ' must not change read state');
