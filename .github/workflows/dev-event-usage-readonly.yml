@@ -1,0 +1,30 @@
+name: "[AUDIT] DEV event usage (anonymous read-only)"
+
+on:
+  pull_request:
+    paths:
+      - "frontend/scripts/dev-event-usage-readonly.mjs"
+      - ".github/workflows/dev-event-usage-readonly.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  count-dev-events:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-fund --no-audit
+      - name: Read DEV Group 1 and Group 2 public event counts only
+        run: node scripts/dev-event-usage-readonly.mjs
