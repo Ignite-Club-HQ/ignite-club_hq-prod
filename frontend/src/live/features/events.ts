@@ -155,7 +155,8 @@ async function listLiveEventsRaw(
   clubId?: string | null,
   teamId?: string | null,
 ) {
-  // Exactly one scope -> coalesce with sibling calls into list_events_multi.
+  // Exactly one scope -> coalesce with sibling calls into the protected consensus list_events_multi twin.
+  // Use the protected methods directly: legacy queries can trap on account-protected groups.
   if (!!clubId !== !!teamId) {
     const key = clubId ? `c:${clubId}` : `t:${teamId}`;
     return batched(
@@ -163,7 +164,7 @@ async function listLiveEventsRaw(
       async (actor: EventsActor, keys) => {
         const clubs = keys.filter((k) => k.startsWith("c:")).map((k) => k.slice(2));
         const teams = keys.filter((k) => k.startsWith("t:")).map((k) => k.slice(2));
-        const rows = await unwrapCandid(actor.list_events_multi(clubs, teams), "List events");
+        const rows = await unwrapCandid(actor.read_account_list_events_multi(clubs, teams), "List events");
         const m = new Map(keys.map((k) => [k, [] as typeof rows]));
         for (const e of rows) {
           m.get(`c:${e.club_id}`)?.push(e);
@@ -173,11 +174,11 @@ async function listLiveEventsRaw(
         return m;
       },
       (actor: EventsActor, k) =>
-        k.startsWith("c:") ? actor.list_events([k.slice(2)], []) : actor.list_events([], [k.slice(2)]),
+        k.startsWith("c:") ? actor.read_account_list_events([k.slice(2)], []) : actor.read_account_list_events([], [k.slice(2)]),
     );
   }
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return actor.list_events(candidOpt(clubId), candidOpt(teamId));
+  return actor.read_account_list_events(candidOpt(clubId), candidOpt(teamId));
 }
 
 /**
@@ -224,13 +225,13 @@ export async function listLiveEventDutyTeams(
 }
 
 /**
- * The caller's own RSVPs (events_domain `my_rsvps` query). Caller-scoped
+ * The caller's own RSVPs (events_domain protected `read_account_my_rsvps`). Caller-scoped
  * counterpart of the governor-gated export_state snapshot, for member-facing
- * surfaces like the home feed. Plain query result (no Ok/Err variant).
+ * surfaces like the home feed. Protected consensus result (no Ok/Err variant).
  */
 export async function listLiveMyRsvps(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return actor.my_rsvps();
+  return actor.read_account_my_rsvps();
 }
 
 export async function createLiveEvent(ctx: FeatureBackendContext, input: LiveEventInput) {

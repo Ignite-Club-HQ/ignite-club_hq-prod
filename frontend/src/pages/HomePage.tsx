@@ -80,7 +80,7 @@ import {
   fetchPendingHomeRedemptionsForBackend,
 } from "@/features/home/homeRewardsRepository";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
-import { logHomeOpenLatency, resetHomeOpenLog } from "@/lib/homeOpenLatency";
+import { logHomeOpenLatency, logHomeDataTimeout, HOME_LONG_OPEN_MS, resetHomeOpenLog } from "@/lib/homeOpenLatency";
 import { recordPointsHistory } from "@/lib/pointsHistory";
 import { homeRewardQuery, readHomeRewardsWithDeadline } from "@/features/home/homeRewardQuery";
 import { useHomeRewardsBrowser } from "@/components/home/useHomeRewardsBrowser";
@@ -169,7 +169,7 @@ interface Team {
 export default function HomePage() {
   const { user, profile, refreshProfile, initialized, profileNamePending } = useAuth();
   useEffect(() => {
-    const id = requestAnimationFrame(() => markStage("home_first_paint"));
+    const id = requestAnimationFrame(() => markStage("home_shell_paint"));
     return () => cancelAnimationFrame(id);
   }, []);
   // Quietly prepare "Invite people" choices so the sheet opens instantly.
@@ -2278,6 +2278,18 @@ export default function HomePage() {
     userClubs.length === 0 &&
     activeTeamIds.length === 0;
 
+  // A home-data query that never settles cannot reach the normal first-paint
+  // logging path. Record a separate timeout even if the ICP shell has painted.
+  useEffect(() => {
+    if (!initialized || !user?.id || membershipAndEvents) return;
+    const timer = window.setTimeout(() => {
+      if (homeQueryReturnTsRef.current !== null) return;
+      markStage("home_data_timeout");
+      void logHomeDataTimeout(homeOpenStartRef.current);
+    }, HOME_LONG_OPEN_MS);
+    return () => window.clearTimeout(timer);
+  }, [initialized, user?.id, membershipAndEvents]);
+
   // Home perf: log once first paint occurs (unified skeleton has been
   // replaced by real content OR the authoritative empty state).
   useEffect(() => {
@@ -2289,8 +2301,14 @@ export default function HomePage() {
   useEffect(() => {
     if (homePerfLoggedRef.current) return;
     if (!user?.id) return;
-    if (!(showContent || isNewUserEmptyState)) return;
+    // ICP reveals the shell while sections load; only count actual membership
+    // data (or a genuine cached card) as first meaningful content.
+    const meaningfulContent = resolveAuthBackend() === "icp"
+      ? initialized && (!!membershipAndEvents || !!nextUpCachedSnapshot || isNewUserEmptyState)
+      : (showContent || isNewUserEmptyState);
+    if (!meaningfulContent) return;
     homePerfLoggedRef.current = true;
+    markStage("home_first_paint");
     if (homeFirstPaintTsRef.current === null) {
       homeFirstPaintTsRef.current = Date.now();
     }
@@ -2326,7 +2344,7 @@ export default function HomePage() {
         isNewUserEmptyState,
       },
     });
-  }, [showContent, isNewUserEmptyState, user?.id, membershipClubCount, membershipTeamCount, events.length, activeClubFilter, nextUpCachedSnapshot]);
+  }, [showContent, isNewUserEmptyState, initialized, membershipAndEvents, user?.id, membershipClubCount, membershipTeamCount, events.length, activeClubFilter, nextUpCachedSnapshot]);
 
   const canAccessVault = !!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role));
 

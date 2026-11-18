@@ -58,7 +58,7 @@ export async function listLiveTeamRoleGrants(ctx: FeatureBackendContext, teamId:
 /** Caller-scoped: children linked to the signed-in member's account. */
 export async function listLiveChildren(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.list_children(), "List children");
+  return unwrapCandid(actor.read_account_list_children(), "List children");
 }
 
 export async function listLiveMembershipClubs(ctx: FeatureBackendContext) {
