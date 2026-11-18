@@ -138,3 +138,43 @@ proxy/keys, controllers and data; no DEV records, journals or settings are copie
 If a change depends on engine behavior, grouped OpenCloud evidence alone does not
 prove mainnet behavior: retain a mainnet rehearsal for that path while PROD uses
 mainnet. No GitHub workflow, hosting setting or live canister was changed here.
+
+## Published capacity and price research (18 November 2026, opencloud.org)
+
+Market-observed figures from OpenCloud's public pricing and node-class pages;
+node providers set real prices in the console wizard, so treat these as budget
+ranges, not quotes. Engine canisters hold zero cycles on a free cost schedule,
+so the monthly node fee plus metered egress bandwidth is the whole running cost.
+
+Per-node class floor (vCPU / RAM / NVMe) and observed USD per node per month:
+
+| Class | Spec floor | US | EU hyperscaler | Hetzner EU |
+| --- | --- | ---: | ---: | ---: |
+| nano | 2 / 8 GiB / 100 GB | $40–41 | $41–45 | not in region |
+| std | 8 / 32 GiB / 500 GB | not in region | $350 | $95–105 |
+| perf | 16 / 64 GiB / 1 TB | $588–613 | $625–675 | $185–195 |
+| hperf | 32 / 128 GiB / 2 TB | $1,200 | $1,275–1,325 | $375 |
+| dense | 64 / 256 GiB / 4 TB | $2,275 | not in region | not in region |
+
+Consequences for Ignite media:
+
+- The current DEV engine (4× nano) is roughly $160–180/month plus egress, and
+  its 100 GB per node is the ceiling for **all** parts together — both groups'
+  blob stores, metadata and every other service share it. Adding Group 2 on the
+  same engine adds isolation, not storage.
+- Storage growth on an engine means swapping node class (OpenCloud supports
+  class swaps without interrupting hosted apps), not adding groups. A 4-node
+  std engine (500 GB/node) is roughly $380–420/month on Hetzner-class nodes;
+  perf (1 TB/node) roughly $740–780/month. Mainnet groups spread storage
+  across subnets instead, which engines cannot do.
+- Media egress is metered separately per node operator: ~$0.09/GB at
+  hyperscaler rates (100 GB/month included) versus 20 TB/month bundled on
+  Hetzner-class nodes. A photo-heavy club app should prefer bundled-egress
+  nodes; node choice matters more than class for bandwidth cost.
+- Worked examples published by OpenCloud: 4× nano hobby engine $92–220/month;
+  7× std production engine $630–2,492/month.
+
+These figures do not change the recommendation: grouped mainnet DEV remains the
+release-testing environment; PROD stays on mainnet. Usable stable-storage
+capacity per canister on the engine is still unmeasured and must be rehearsed
+before any real club is placed there.
