@@ -295,9 +295,15 @@ export default function IcpChildrenPage() {
     )
   );
 
-  const { data: teams } = useQuery({
+  // Name unlocking is on the critical path; a complete team inventory can
+  // issue many separate cross-canister role, profile and team reads. Do not
+  // compete with first-paint child/name reads just to enrich team badges.
+  // The Add child and Add to team dialogs may start the same authorised query
+  // immediately, even when names are still unlocking.
+  const needsTeams = addOpen || !!teamFor || namesQuery.isSuccess || namesQuery.isError;
+  const { data: teams, isLoading: teamsLoading, isError: teamsError, refetch: refetchTeams } = useQuery({
     queryKey: ["icp-children-teams", user?.id],
-    enabled: !!user,
+    enabled: !!user && needsTeams,
     staleTime: 5 * 60_000,
     retry: false,
     queryFn: async (): Promise<TeamOpt[]> => {
@@ -598,7 +604,9 @@ export default function IcpChildrenPage() {
               Existing children in another ICP group cannot be copied or re-created here.
               Confirm their names and group before requesting a transfer.
             </p>}
-            {!teams?.length && <p className="text-xs text-muted-foreground">No eligible team found. Join a club team first.</p>}
+            {teamsLoading && <p role="status" className="text-xs text-muted-foreground">Loading eligible teams…</p>}
+            {teamsError && <Button type="button" size="sm" variant="outline" onClick={() => void refetchTeams()}>Retry team lookup</Button>}
+            {!teamsLoading && !teamsError && !teams?.length && <p className="text-xs text-muted-foreground">No eligible team found. Join a club team first.</p>}
           </div>
           <ResponsiveDialogFooter>
             <Button onClick={() => addChild.mutate()} disabled={!name.trim() || !availableNewChildTeam || !existingNamesResolved || createAttempted.current || addChild.isPending}>
@@ -633,7 +641,12 @@ export default function IcpChildrenPage() {
                 A child cannot be moved to another group by selecting a team.
               </p>
             )}
-            {!teams && <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
+            {teamsError && (
+              <Button type="button" variant="outline" onClick={() => void refetchTeams()}>
+                Could not load teams. Retry
+              </Button>
+            )}
+            {!teams && !teamsError && <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
           </div>
         </ResponsiveDialogContent>
       </ResponsiveDialog>
