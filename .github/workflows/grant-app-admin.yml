@@ -15,8 +15,8 @@ on:
         required: true
         default: "Paul Cranwell"
       principal:
-        description: "Optional sign-in ID (Settings → Your sign-in ID) when several profiles share the name"
-        required: false
+        description: "Exact sign-in ID (Settings → Your sign-in ID); profile name is not used to select accounts"
+        required: true
         default: ""
 
 permissions:
@@ -36,35 +36,23 @@ jobs:
         with:
           node-version: "22.12.0"
 
-      - name: Install icp CLI
-        run: npm install -g @icp-sdk/icp-cli --no-fund --no-audit
-
-      - name: Restore existing governor
-        env:
-          # Same key source as the working [TEST] Upgrade backend workflow.
-          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+      - name: Install pinned ICP SDK
         run: |
-          set -euo pipefail
-          test -n "$DEPLOYER_PEM" || { echo "::error::No governor key secret is available."; exit 1; }
-          umask 077
-          # Rebuild a clean PEM even when the secret was pasted on one line.
-          PEM_IN="$DEPLOYER_PEM" node -e '
-            const s=process.env.PEM_IN.replace(/\r/g,"").replace(/\\n/g,"\n");
-            const m=s.match(/-----BEGIN ([A-Z0-9 ]*PRIVATE KEY)-----([\s\S]*?)-----END \1-----/);
-            if(!m){console.error("Governor key secret has no BEGIN/END block");process.exit(1);}
-            const body=m[2].replace(/\s+/g,"").match(/.{1,64}/g).join("\n");
-            process.stdout.write(`-----BEGIN ${m[1]}-----\n${body}\n-----END ${m[1]}-----\n`);
-          ' > "$RUNNER_TEMP/governor.pem"
-          icp identity import --from-pem "$RUNNER_TEMP/governor.pem" --storage plaintext ignite-governor
-          rm -f "$RUNNER_TEMP/governor.pem"
-          icp identity default ignite-governor
-          if [ "$(icp identity principal --identity ignite-governor 2>/dev/null)" != vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae ]; then
-            echo "::error::The key is not the TEST governor. Nothing changed."
-            exit 1
-          fi
+          mkdir -p /tmp/icp-admin
+          printf '{"type":"module"}\n' > /tmp/icp-admin/package.json
+          npm install --prefix /tmp/icp-admin @icp-sdk/core@5.4.0 --no-fund --no-audit
 
       - name: Grant app admin
         env:
           DISPLAY_NAME: ${{ inputs.display_name }}
           ONLY_PRINCIPAL: ${{ inputs.principal }}
-        run: bash scripts/grant-app-admin.sh "$DISPLAY_NAME"
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+          IDS_FILE: ${{ github.workspace }}/deploy/mainnet/.icp/data/mappings/ic.ids.json
+        run: |
+          set -euo pipefail
+          cp scripts/dev-app-admin*.mjs /tmp/icp-admin/
+          for service in identity_access club_domain insights_domain messaging_domain; do
+            cp "frontend/src/lab/generated-contracts/$service/declarations/$service.did.js" /tmp/icp-admin/
+          done
+          node --test /tmp/icp-admin/dev-app-admin-policy.test.mjs
+          node /tmp/icp-admin/dev-app-admin.mjs
