@@ -6,10 +6,14 @@ Status: implementation guidance / DEV validation, **not** proof of a successful 
 
 | Environment | Application URL | Branch | Notes |
 | --- | --- | --- | --- |
-| DEV | https://ignite-club-launchpad.lovable.app | `main` | Use for all onboarding tests; its derivation origin resolves separately via `open_app`. |
+| DEV | https://proe7-kqaaa-aaaas-qg6gq-cai.icp.net | `main` | **Canonical connector endpoint**, published on the reviewed ICP frontend; check the live manifest and exact II derivation origin. |
 | PROD | https://igniteclubhq.app | `prod` | Different II derivation origin and canister IDs. No production onboarding tests or writes without explicit approval. |
 
-**Always use `open_app` with the exact user-supplied URL**. ICP MCP cannot find Ignite by the bare name. Never invent canister IDs, target aliases, or derivation origins and never swap DEV/PROD principals. Users must authorise their own II access; the app-admin identity used by a developer is not a proxy for a new coach.
+**Connector origin policy:** For Ignite DEV ChatGPT canister operations use the canonical ICP-hosted URL above, not a Lovable or Netlify preview as an implicit fallback. `https://ignite-club-launchpad.lovable.app` is the legacy DEV preview: it advertises only the reviewed base/G2 customer subset and intentionally does **not** opt into Group 2 encrypted-child-name PII discovery. Both DEV origins identify the same pinned Internet Identity derivation origin, but their published service manifests can differ by deliberate capability gating. Do not call an undeclared canister through a different app URL to bypass its refusal, and never automatically substitute PROD.
+
+Use `open_app` on the specific URL agreed with the user, and verify the `/.well-known/ic-architecture` declaration and derivation origin before any canister operation. If the user explicitly requests the Lovable preview, explain the narrower capabilities rather than silently switching origins. Never invent canister IDs, target aliases or derivation origins, or swap DEV/PROD principals. Users must authorise their own II access; an app-admin identity is not a proxy for a new coach.
+
+**Manifest minimisation:** DEV publishes only reviewed customer-facing base services and the exact required authenticated identity, PII and group-routing dependencies. The shared `secret_workload_identity`, `migration_coordinator` and `timer_jobs` are excluded from connector discovery. G2 notification/worker/governance services remain excluded; the G2 child-name PII exception is separately pinned and gated on the ICP-hosted DEV build. Discovery is not permission: canister-side authority still applies. PROD manifest and email/Supabase routing are unchanged.
 
 ## Account setup: existing operations
 
