@@ -1,4 +1,4 @@
-name: "[AUDIT] DEV event usage (anonymous read-only)"
+name: "[TEST] DEV event usage (anonymous read-only)"
 
 on:
   pull_request:
