@@ -1,0 +1,40 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ignite-club-hq",
+  "version": "0.1.0",
+  "description": "Ignite Club HQ onboarding and club management via DFINITY's existing ICP MCP connection; customer-facing registration guidance and authorized Internet Identity tools.",
+  "author": {
+    "name": "Ignite Club HQ Pty Ltd",
+    "url": "https://igniteclubhq.com"
+  },
+  "homepage": "https://igniteclubhq.com",
+  "repository": "https://github.com/Ignite-Club-HQ/ignite-club_hq-prod",
+  "keywords": [
+    "club management",
+    "community sport",
+    "coaches",
+    "teams"
+  ],
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/ignite-onboarding/SKILL.md",
+      "interface": {
+        "displayName": "Ignite Club HQ",
+        "shortDescription": "Manage your club and teams with Ignite",
+        "longDescription": "Connect securely with Internet Identity to work with existing Ignite clubs and teams using the DFINITY-hosted ICP connector. Onboarding features depend on the app's published canister capabilities.",
+        "developerName": "Ignite Club HQ",
+        "category": "Productivity",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://igniteclubhq.com",
+        "defaultPrompt": [
+          "Connect me to my Ignite club",
+          "Help me register with Ignite for free",
+          "Show my Ignite teams and their schedules"
+        ]
+      }
+    }
+  }
+}

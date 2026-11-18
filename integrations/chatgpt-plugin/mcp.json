@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "internet_computer": {
+      "type": "streamable-http",
+      "url": "https://mcp.internetcomputer.org/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": {
+              "mode": "cimd"
+            }
+          }
+        }
+      }
+    }
+  }
+}
