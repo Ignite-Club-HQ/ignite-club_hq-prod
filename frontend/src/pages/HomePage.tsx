@@ -2301,7 +2301,12 @@ export default function HomePage() {
   useEffect(() => {
     if (homePerfLoggedRef.current) return;
     if (!user?.id) return;
-    if (!(showContent || isNewUserEmptyState)) return;
+    // ICP reveals the shell while sections load; only count actual membership
+    // data (or a genuine cached card) as first meaningful content.
+    const meaningfulContent = resolveAuthBackend() === "icp"
+      ? initialized && (!!membershipAndEvents || !!nextUpCachedSnapshot || isNewUserEmptyState)
+      : (showContent || isNewUserEmptyState);
+    if (!meaningfulContent) return;
     homePerfLoggedRef.current = true;
     markStage("home_first_paint");
     if (homeFirstPaintTsRef.current === null) {
@@ -2339,7 +2344,7 @@ export default function HomePage() {
         isNewUserEmptyState,
       },
     });
-  }, [showContent, isNewUserEmptyState, user?.id, membershipClubCount, membershipTeamCount, events.length, activeClubFilter, nextUpCachedSnapshot]);
+  }, [showContent, isNewUserEmptyState, initialized, membershipAndEvents, user?.id, membershipClubCount, membershipTeamCount, events.length, activeClubFilter, nextUpCachedSnapshot]);
 
   const canAccessVault = !!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role));
 
