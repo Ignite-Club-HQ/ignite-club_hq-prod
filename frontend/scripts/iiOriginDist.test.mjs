@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { testAssistantDiscoveryFiles } from "../../scripts/test-assistant-discovery.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const DEV_FRONTEND = "proe7-kqaaa-aaaas-qg6gq-cai";
@@ -77,6 +78,24 @@ test("generated DEV files never advertise the production website or backend", ()
   assert.equal(dev.derivation, `https://${DEV_FRONTEND}.icp0.io`);
   assert.ok(dev.manifest.canisters.some(c => c.id === DEV_CLUB));
   assert.ok(dev.manifest.canisters.every(c => c.id !== PROD_CLUB && c.id !== PROD_FRONTEND));
+});
+
+test("DEV preview and ICP-hosted discovery use the same reduced base and G2 customer allowlists", () => {
+  const preview = JSON.parse(testAssistantDiscoveryFiles()["/.well-known/ic-architecture"].body);
+  const hosted = generatedManifest("dev", { enableGroup2: true, enableChildNamePii: false }).manifest;
+  assert.deepEqual(
+    preview.canisters.map(row => row.id).sort(),
+    hosted.canisters.map(row => row.id).sort(),
+    "Shared base/G2 member services must not drift between the two DEV generators",
+  );
+  for (const key of ["secret_workload_identity", "migration_coordinator", "timer_jobs"]) {
+    assert.ok(!hosted.canisters.some(row => row.id === sharedDevCanisters[key]), key);
+    assert.ok(!preview.canisters.some(row => row.id === sharedDevCanisters[key]), key);
+  }
+  // Only the exact pinned ICP-hosted DEV origin opts into the already approved
+  // Group 2 PII connector path; Lovable preview remains less privileged.
+  assert.ok(!preview.canisters.some(row => row.id === GROUP2_PII));
+  assert.ok(generatedManifest("dev", { enableChildNamePii: true }).manifest.canisters.some(row => row.id === GROUP2_PII));
 });
 
 test("generated PROD files preserve production website login continuity", () => {
