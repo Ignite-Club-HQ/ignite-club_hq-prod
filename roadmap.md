@@ -537,3 +537,4 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Invite child flow: strict same-group check, resume half-created child via journal/confirmed name, no duplicate on retry.
 
 - [ ] Repoint DEV backend upgrade workflows to the 18 OpenCloud canisters — blocked: update account must be a controller on all 19 engine canisters (Paul, OpenCloud)
+- [ ] 18 Nov: built combined_v3 (Files) = v2 with owner + jfagr controllers on all 19; awaiting Paul install and controller readback.
