@@ -18,13 +18,37 @@ test("Group 2 child and guardian reads use protected consensus account APIs", ()
 });
 
 
-test("invite and My Children both check duplicate names across every group before create", () => {
-  assert.match(invite, /await verifyIcpChildNameAcrossGroups\(addedLabel\)/);
+test("invitation verifies its own group and only creates after checking confirmed other-group duplicates", () => {
+  // The invite's source-group recovery path deliberately differs from the
+  // complete-inventory My Children create path: it must not redo a partial
+  // non-idempotent create, and an unreadable OTHER group is not a duplicate.
+  const start = invite.indexOf("const handleAddChild = async () => {");
+  const end = invite.indexOf("const handleFinishChildStep = () => {", start);
+  assert.ok(start >= 0 && end > start, "parent child-invite handler must exist");
+  const handler = invite.slice(start, end);
+  const own = handler.indexOf("try { own = await club.listMyLiveOwnChildren(ctx); }");
+  const plan = handler.indexOf("const plan = planIcpInviteChild(");
+  const otherGroups = handler.indexOf('if (plan.kind === "create") await verifyIcpChildNameInOtherGroups(addedLabel, sourceClubCanisterId)');
+  const create = handler.indexOf("const outcome = await createIcpInviteChild(");
+  assert.ok(own >= 0 && own < plan && plan < otherGroups && otherGroups < create,
+    "verify and plan before any new child creation");
+  assert.match(handler, /catch \{ throw new Error\("We couldn't check your existing children for this club/);
+  assert.match(handler, /if \(icpChildCreateAttempted\.current\)/);
+  assert.match(handler, /writeOnce\(\{ clubId: verifiedClubId \}\)/);
+  assert.match(duplicate, /if \(requireSourceClubCanisterId\(scoped\.target\) === inviteSourceClubCanisterId\) return false/);
+  assert.match(duplicate, /listMyLiveOwnChildren\(scoped\)/);
+  assert.match(duplicate, /names\.get\(c\.id\)\?\.trim\(\)\.toLocaleLowerCase\(\) === wanted/);
+  assert.match(duplicate, /everyGroup: true, merge: parts => \(parts as boolean\[\]\)\.some\(Boolean\)/);
+  assert.match(duplicate, /if \(found\) \{/);
+  assert.match(duplicate, /already appears in your children in another club group/);
+  assert.doesNotMatch(duplicate, /createMyLiveChild\(|create_own_child\(/);
+});
+
+test("My Children requires complete verified name inventory across all groups before create", () => {
   assert.match(page, /await verifyIcpChildNameAcrossGroups\(trimmed\)/);
   assert.match(duplicate, /everyGroup: true, requireComplete: true/);
   assert.match(duplicate, /vault\.resolveLivePiiTextBatch\(/);
   assert.match(duplicate, /assertMayCreateChild\(name, existing, true\)/);
-  assert.doesNotMatch(duplicate, /createMyLiveChild\(|create_own_child\(/);
 });
 
 test("authoritative child inventory remains all-groups complete while early member preview is read-only", () => {
@@ -64,7 +88,7 @@ test("new child has an explicit team placement and an unretried create", () => {
 });
 
 test("parent invite child creation preflights current club membership and locks only the write", () => {
-  assert.match(invite, /await verifyIcpChildNameAcrossGroups\(addedLabel\)/);
+  assert.match(invite, /if \(plan\.kind === "create"\) await verifyIcpChildNameInOtherGroups\(addedLabel, sourceClubCanisterId\)/);
   assert.match(invite, /club\.isMyLiveClubMember\(ctx, clubId\)/);
   assert.match(invite, /readTeam: async \(\) => \{/);
   assert.match(invite, /createOwnChild: \(\) => \{/);
