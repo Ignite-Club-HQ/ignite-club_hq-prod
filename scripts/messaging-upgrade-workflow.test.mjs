@@ -17,13 +17,13 @@ test('protected messaging workflow restores only existing pinned governor and ch
   const restore = workflow.slice(begin, end);
   assert.match(workflow, /environment: group-2-admin-controls/);
   assert.match(workflow, /group: ignite-mainnet-governor-deployment/);
-  assert.match(restore, /secrets\\.GOVERNOR_PEM \\|\\| secrets\\.DEPLOYER_PEM/);
-  assert.match(restore, /PEM_IN="\\$DEPLOYER_PEM" node scripts\\/normalize-pem\\.mjs/);
+  assert.match(restore, /secrets\.GOVERNOR_PEM \|\| secrets\.DEPLOYER_PEM/);
+  assert.match(restore, /PEM_IN="\$DEPLOYER_PEM" node scripts\/normalize-pem\.mjs/);
   assert.match(restore, /icp identity import --from-pem/);
   assert.match(restore, /icp identity principal --identity ignite-governor/);
   assert.match(restore, /vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae/);
   assert.doesNotMatch(restore, /identity new|sed -n|cycles mint|canister install/);
-  assert.match(workflow, /if: inputs\\.action == 'upgrade'/);
-  assert.match(workflow, /if: always\\(\\)/);
-  assert.match(workflow, /rm -f "\\$RUNNER_TEMP\\/chat\\.pem"/);
+  assert.match(workflow, /if: inputs\.action == 'upgrade'/);
+  assert.match(workflow, /if: always\(\)/);
+  assert.match(workflow, /rm -f "\$RUNNER_TEMP\/chat\.pem"/);
 });
