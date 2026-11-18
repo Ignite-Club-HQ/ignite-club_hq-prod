@@ -133,7 +133,7 @@ test('protected unread counts prefilter stored candidates before live chat permi
 test('protected recent conversations reduce duplicate proofs without weakening live membership checks', () => {
  const body=section(chat,'func read_account_recent_conversations(','public shared ({ caller }) func read_account_list_all_online_users(');
  const admission=body.indexOf('await admitAccount(principal)');
- const candidates=body.indexOf('conversation.participants.any(func(p) = p.equal(principal))');
+ const candidates=body.indexOf('c.participants.any(func(p) = p.equal(principal))');
  const deleted=body.indexOf('not isGroupDeleted(c.id)');
  const proof=body.indexOf('await* requireChatClubMember(principal, club)');
  const teamProof=body.indexOf('await* requireChatTeamMember(principal, club, team)');
