@@ -6079,7 +6079,10 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not caller.equal(principal) and not isGovernor(caller) and not hasRole(caller, "app_admin", null, null)) return #Err("Access forbidden");
     if (not removalReceiver.enter(principal)) return #Err("Account removal fenced or operation capacity reached");
     try {
-    await admitAccount(principal);
+    // Self-reads have already admitted this exact subject above, with no
+    // intervening await. Do not repeat the expensive identity-service call.
+    // Elevated cross-principal requests must still admit their subject.
+    if (not caller.equal(principal)) { await admitAccount(principal) };
     if (limit == 0 or limit > 100) return #Err("Invalid limit");
     var entries : [Types.RecentConversation] = [];
     for (conversation in conversations.values()) {
