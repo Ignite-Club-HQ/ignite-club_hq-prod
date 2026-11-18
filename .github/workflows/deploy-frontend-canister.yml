@@ -1,7 +1,7 @@
 # Ignite web app → ICP frontend canister (replaces Netlify file hosting).
-# Release trigger (2026-11-18): explicitly requested DEV MAINNET frontend publish of
-# merged performance source. This comment changes no build/routing/permission
-# behavior. Cloud Engine remains manual-only; PROD is not a target.
+# Release candidate (2026-11-18): original DEV mainnet frontend asset-only sync
+# after prior deploy and retry failed. No module install, restart, top-up or
+# controller mutation; Cloud Engine stays manual-only and PROD is not targeted.
 #
 # Runs on every push to main that touches the frontend, or manually.
 # Uses the same DEPLOYER_PEM secret as "[TEST] Deploy canisters (legacy base/Group 1)".
@@ -221,7 +221,8 @@ jobs:
             fail('DEV website module hash changed; a separately reviewed upgrade is needed');
           }
           const controllers = status.settings?.controllers ?? [];
-          if (!controllers.includes('jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe') ||
+          if (controllers.length !== 3 ||
+              !controllers.includes('jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe') ||
               !controllers.includes('vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae') ||
               !controllers.includes('mzzzv-taaaa-aaaal-qxlrq-cai')) {
             fail('Existing DEV frontend controllers differ; no sync attempted');
