@@ -1,7 +1,7 @@
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { reviewedDevGroup2Canisters } from "./group2-mcp-discovery.mjs";
+import { reviewedDevGroup2Canisters, reviewedDevAssistantBaseCanisters } from "./group2-mcp-discovery.mjs";
 
 export const TEST_ASSISTANT_ORIGIN = "https://ignite-club-launchpad.lovable.app";
 export const TEST_IDENTITY_ORIGIN = "https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io";
@@ -11,6 +11,10 @@ export const TEST_IDENTITY_ORIGIN = "https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io
 export function testAssistantDiscoveryFiles() {
   const tablePath = fileURLToPath(new URL("../deploy/mainnet/.icp/data/mappings/ic.ids.json", import.meta.url));
   const ids = JSON.parse(readFileSync(tablePath, "utf8"));
+  // Preview and ICP-hosted DEV share the same reviewed base-service allowlist.
+  // The preview intentionally does not publish Group 2 PII. For authenticated
+  // child-name access, agents must use the canonical ICP-hosted DEV frontend;
+  // no silent origin fallback or invented authority is permitted.
   // All customer-facing G2 endpoints come from one reviewed and pinned allowlist.
   const group2 = reviewedDevGroup2Canisters({ sharedIds: ids, frontendId: "proe7-kqaaa-aaaas-qg6gq-cai" });
   return {
@@ -24,7 +28,7 @@ export function testAssistantDiscoveryFiles() {
         version: "1.0.0",
         canisters: [
           { id: "proe7-kqaaa-aaaas-qg6gq-cai", name: "Ignite TEST frontend", role: "the frontend" },
-          ...Object.entries(ids).map(([name, id]) => ({ id, name, role: "backend" })),
+          ...reviewedDevAssistantBaseCanisters(ids).map(([name, id]) => ({ id, name, role: "backend" })),
           ...group2,
         ],
       }, null, 2) + "\n",
