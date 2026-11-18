@@ -6077,17 +6077,12 @@ persistent actor class Main(governorInit : Principal) = this {
     // Elevated cross-principal requests must still admit their subject.
     if (not caller.equal(principal)) { await admitAccount(principal) };
     if (limit == 0 or limit > 100) return #Err("Invalid limit");
-    // Evaluate only the caller's locally visible candidates, most recent
-    // first. Older unauthorized candidates must still be considered until
-    // `limit` authorized results have been found. No membership grant is
-    // inferred from stored participants or from the ordering itself.
+    // Preserve full candidate coverage and the existing final sort/limit:
+    // stopping at the first N before the final live revocation check could
+    // under-fill the inbox and hide an older, still-authorized conversation.
     let candidates = conversations.filter(func(c) =
       c.participants.any(func(p) = p.equal(principal)) and not isGroupDeleted(c.id)
-    ).sort(func(a, b) {
-      let aSeq : Nat64 = if (a.next_sequence == 0) 0 else a.next_sequence - 1;
-      let bSeq : Nat64 = if (b.next_sequence == 0) 0 else b.next_sequence - 1;
-      Nat64.compare(bSeq, aSeq)
-    });
+    );
     // These are invocation-local, *positive-only* proof sets, never stable
     // state or cross-user/time caches. The final pass rechecks every distinct
     // club and team scope after all intervening awaits.
@@ -6095,7 +6090,6 @@ persistent actor class Main(governorInit : Principal) = this {
     var approvedTeams : [(Text, Text)] = [];
     var entries : [Types.Conversation] = [];
     for (conversation in candidates.vals()) {
-      if (entries.size() >= Nat16.toNat(limit)) break;
       let visible = try {
         if (requiresClubMembership(conversation)) {
           let club = conversation.club_id;
