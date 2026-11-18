@@ -1,8 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { Principal } from '@icp-sdk/core/principal';
 import type { FeatureBackendContext } from './featureRouter';
-const mocks = vi.hoisted(() => ({ derive: vi.fn(), load: vi.fn(), store: vi.fn(), decrypt: vi.fn() }));
-vi.mock('./domains', () => ({ connectLivePiiAccessControl: async (target: {canisterIds: {pii_access_control: string}}) => ({canisterId: Principal.fromText(target.canisterIds.pii_access_control), actor: {pii_vetkey_verification_key: async () => [1], get_private_profile_club_name_vetkey: mocks.derive}}) }));
+const mocks = vi.hoisted(() => ({ derive: vi.fn(), publicKey: vi.fn(), load: vi.fn(), store: vi.fn(), decrypt: vi.fn() }));
+vi.mock('./domains', () => ({ connectLivePiiAccessControl: async (target: {canisterIds: {pii_access_control: string}}) => ({canisterId: Principal.fromText(target.canisterIds.pii_access_control), actor: {pii_vetkey_verification_key: mocks.publicKey, get_private_profile_club_name_vetkey: mocks.derive}}) }));
 vi.mock('./deviceMediaCache', () => ({loadStoredClubKey: mocks.load, storeClubKey: mocks.store, forgetStoredClubKey: vi.fn(), clearDeviceMediaCaches: vi.fn(), clearDeviceCachedPhotos: vi.fn(), clearStoredDeviceKeys: vi.fn()}));
 vi.mock('./mediaDecrypt', () => ({clearIcpPhotoResolutionCache: vi.fn()}));
 vi.mock('@icp-sdk/vetkeys', () => ({DerivedPublicKey: {deserialize: () => 'public'}, EncryptedVetKey: {deserialize: () => ({decryptAndVerify: mocks.decrypt})}, TransportSecretKey: {random: () => ({publicKeyBytes: () => new Uint8Array(48)})}, VetKey: {deserialize: () => ({serialize: () => new Uint8Array([8])})}, IbeCiphertext: {}, IbeIdentity: {}, IbeSeed: {}}));
@@ -11,7 +11,24 @@ const authority = Principal.fromText('rrkah-fqaaa-aaaaa-aaaaq-cai');
 // @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const ctx = {identity: {getPrincipal: () => Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai')}, target: {host: 'https://icp-api.io', canisterIds: {pii_access_control: authority.toText()}}} as FeatureBackendContext;
 const scope = {kind: 'club' as const, authority, resource: 'club-1', profile_revision: 0n};
-beforeEach(() => {clearPiiVetKeyCache(); vi.clearAllMocks(); mocks.load.mockReturnValue(null); mocks.derive.mockResolvedValue({Ok: [1]}); mocks.decrypt.mockReturnValue({serialize: () => new Uint8Array([8])});});
+beforeEach(() => {clearPiiVetKeyCache(); vi.clearAllMocks(); mocks.load.mockReturnValue(null); mocks.derive.mockResolvedValue({Ok: [1]}); mocks.publicKey.mockResolvedValue([1]); mocks.decrypt.mockReturnValue({serialize: () => new Uint8Array([8])});});
+it('overlaps cold public verification with the caller-scoped club name key request', async () => {
+  localStorage.removeItem('ignite_pii_verification_key:https://icp-api.io|rrkah-fqaaa-aaaaa-aaaaq-cai');
+  let releasePublic!: (bytes: number[]) => void;
+  mocks.publicKey.mockImplementation(() => new Promise<number[]>(resolve => { releasePublic = resolve; }));
+  const pending = fetchClubNameVetKey(ctx, ['member-one'], scope, () => {});
+  await vi.waitFor(() => {
+    expect(mocks.publicKey).toHaveBeenCalledTimes(1);
+    expect(mocks.derive).toHaveBeenCalledTimes(1);
+  });
+  expect(mocks.decrypt).not.toHaveBeenCalled();
+  expect(mocks.store).not.toHaveBeenCalled();
+  releasePublic([1]);
+  await expect(pending).resolves.toBeTruthy();
+  expect(mocks.decrypt).toHaveBeenCalledOnce();
+  expect(mocks.store).toHaveBeenCalledOnce();
+});
+
 it('coalesces the whole team and later refresh into one club derivation', async () => {
   await Promise.all([fetchClubNameVetKey(ctx, ['one'], scope, () => {}), fetchClubNameVetKey(ctx, ['two'], scope, () => {})]);
   await fetchClubNameVetKey(ctx, ['three'], scope, () => {});
