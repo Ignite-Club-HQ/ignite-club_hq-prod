@@ -57,6 +57,8 @@ jobs:
         run: node --test ../scripts/dev-deleted-team-membership-contract.test.mjs
       - name: Verify deleted-team chat and protected event-feed guards
         run: node --test ../scripts/dev-team-cross-service-security-contract.test.mjs
+      - name: Check protected message-page equivalence and cursors
+        run: node --test ../scripts/message-history-page-equivalence.test.mjs
       - run: npm run typecheck:product
       - run: npx vitest run --config vitest.legacy.config.mjs src/live/localRuntimeMode.test.ts src/live/disabledLabRuntime.test.ts
       - name: Verify club roster privacy and parent-child inclusion source gates
