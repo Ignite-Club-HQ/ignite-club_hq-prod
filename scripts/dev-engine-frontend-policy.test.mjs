@@ -9,3 +9,25 @@ test('never updates from prod', () => assert.throws(() => assertEngineFrontendCo
 test('never targets a different frontend', () => assert.throws(() => assertEngineFrontendContext({ ...valid, frontend: 'u3mrq-uiaaa-aaaac-bgioq-cai' })));
 test('never uses the production database', () => assert.throws(() => assertEngineFrontendContext({ ...valid, database: 'https://yabcfiuntwqjwvschnji.supabase.co' })));
 test('never substitutes another service inventory', () => assert.throws(() => assertEngineFrontendContext({ ...valid, ids: { ...valid.ids, club_domain: 'mzzzv-taaaa-aaaal-qxlrq-cai' } })));
+
+test('unfinished Cloud Engine cannot auto-publish from any main push', () => {
+  const engine = readFileSync(new URL('../.github/workflows/deploy-dev-engine-frontend.yml', import.meta.url), 'utf8');
+  const trigger = engine.slice(0, engine.indexOf('\nconcurrency:'));
+  assert.match(trigger, /^on:\n  workflow_dispatch:/m);
+  assert.doesNotMatch(trigger, /^\s*push:/m);
+  assert.match(trigger, /confirmation:/);
+  const gate = engine.slice(engine.indexOf('jobs:\n  update:'), engine.indexOf('    runs-on: ubuntu-latest'));
+  assert.match(gate, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(gate, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(gate, /vars\.IGNITE_DEV_ENGINE_RELEASE_READY == 'true'/);
+  assert.match(gate, /inputs\.confirmation == 'RELEASE DEV ENGINE FRONTEND'/);
+});
+
+test('original DEV mainnet frontend deployment remains separately enabled', () => {
+  const legacy = readFileSync(new URL('../.github/workflows/deploy-frontend-canister.yml', import.meta.url), 'utf8');
+  const trigger = legacy.slice(0, legacy.indexOf('\nconcurrency:'));
+  assert.match(trigger, /push:\s*\n\s*branches: \[main\]/);
+  assert.match(trigger, /frontend\/\*\*/);
+  assert.match(legacy, /IGNITE_ICP_ENV=dev/);
+  assert.doesNotMatch(legacy, /deploy\/frontend-prod|IGNITE_ICP_ENV=prod/);
+});
