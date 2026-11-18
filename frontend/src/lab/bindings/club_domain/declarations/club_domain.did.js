@@ -2417,6 +2417,19 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Bool],
         [],
       ),
+    'read_chat_scope_access_batch' : IDL.Func(
+      [IDL.Principal, IDL.Vec(IDL.Text), IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
+      [
+        IDL.Variant({
+          'Ok' : IDL.Record({
+            'clubs' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Bool)),
+            'teams' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text, IDL.Bool)),
+          }),
+          'Err' : IDL.Text,
+        }),
+      ],
+      [],
+    ),
     'read_has_club_membership' : IDL.Func(
         [IDL.Principal, IDL.Text],
         [IDL.Bool],
