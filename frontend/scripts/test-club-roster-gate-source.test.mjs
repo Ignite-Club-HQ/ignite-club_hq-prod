@@ -57,7 +57,21 @@ test("ICP team player roster starts canonical canister read before optional vetK
   assert.match(page, /\.then\(\(\{ prewarmPiiVerificationKey \}\) => prewarmPiiVerificationKey\(ctx\)\)/);
   assert.match(page, /\.catch\(\(\) => undefined\)/);
   assert.doesNotMatch(page, /const \{ prewarmPiiVerificationKey \} = await import/);
-  assert.match(page, /return withRosterDeadline\(readTeamChildRows\(ctx, team\.club_id, id\), 30_000/);
+  // Keep the protected player read club-scoped, start it without awaiting the
+  // optional vetKey prewarm and bound routing + read with the current deadline.
+  const roster = page.slice(
+    page.indexOf("const { data: teamChildrenData = []"),
+    page.indexOf("// Fetch roles data with profiles"),
+  );
+  assert.ok(roster.length > 0 && roster.length < page.length, "team children query must be present");
+  assert.match(roster, /return withRosterDeadline\(withFeatureBackend\('membership', \{/);
+  assert.match(roster, /supabase: \(\) => \{ throw new Error\('ICP roster required'\); \}/);
+  assert.match(roster, /return readTeamChildRows\(ctx, team\.club_id, id\);/);
+  assert.match(roster, /\}, \{ clubId: team\.club_id \}\), 35_000, 'team player list'\);/);
+  const prewarm = roster.indexOf("void import('@/live/piiVetKeys')");
+  const childRead = roster.indexOf("return readTeamChildRows(ctx, team.club_id, id);");
+  assert.ok(prewarm >= 0 && childRead > prewarm, "the canonical child read must follow nonblocking key prewarm");
+  assert.doesNotMatch(roster.slice(prewarm, childRead), /\bawait\b/, "key prewarm may not block the child roster");
   assert.match(page, /retry: isIcpAccount \? 0 : 3/);
   assert.match(page, /enabled: !!id && !useIcpLab && \(!isIcpAccount \|\| !!team\?\.club_id\)/);
 });
