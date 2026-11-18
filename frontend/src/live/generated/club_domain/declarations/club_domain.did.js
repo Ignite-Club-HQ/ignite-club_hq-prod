@@ -2406,6 +2406,14 @@ export const idlFactory = ({ IDL }) => {
       ],
       [],
     ),
+    'read_event_member_roles_if_current' : IDL.Func(
+      [IDL.Principal, IDL.Text],
+      [IDL.Variant({
+        'Ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Opt(IDL.Text))),
+        'Err' : IDL.Text,
+      })],
+      [],
+    ),
     'read_has_club_membership' : IDL.Func(
         [IDL.Principal, IDL.Text],
         [IDL.Bool],
