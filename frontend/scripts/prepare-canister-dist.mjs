@@ -4,7 +4,7 @@
 // @dfinity/static-site recipe; see deploy/frontend/icp.yaml.
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync, copyFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { reviewedDevGroup2Canisters } from "../../scripts/group2-mcp-discovery.mjs";
+import { reviewedDevGroup2Canisters, reviewedDevAssistantBaseCanisters } from "../../scripts/group2-mcp-discovery.mjs";
 import { PROD_MEMBER_II_ORIGIN, DEV_FRONTEND_II_CANISTER, alternativeOriginsForBuild, derivationOriginForBuild } from "./iiOriginPolicy.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -118,10 +118,14 @@ const manifest = {
   version: "1.0.0",
   canisters: [
     { id: frontendCanisterId, name: "frontend", role: "the frontend" },
-    ...Object.entries(canisterIds).map(([key, id]) => {
-      const [name, description] = CANISTER_ROLES[key] ?? [key, undefined];
-      return description ? { id, name, role: "backend", description } : { id, name, role: "backend" };
-    }),
+    // The PROD artifact/manifest is a separate release and is unchanged.
+    // DEV MCP discovery only advertises the reviewed caller-facing services;
+    // privileged workload, migration and worker canisters remain outside the manifest.
+    ...(isProdBuild ? Object.entries(canisterIds) : reviewedDevAssistantBaseCanisters(canisterIds))
+      .map(([key, id]) => {
+        const [name, description] = CANISTER_ROLES[key] ?? [key, undefined];
+        return description ? { id, name, role: "backend", description } : { id, name, role: "backend" };
+      }),
     ...devGroup2Discovery(),
   ],
 };
