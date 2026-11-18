@@ -8,6 +8,7 @@ import Map "mo:core/Map";
 import PrimMem "mo:⛔";
 import Cycles "mo:core/Cycles";
 import Array "mo:core/Array";
+import List "mo:core/List";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";
 import Option "mo:core/Option";
@@ -5398,7 +5399,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    var visible : [Types.Event] = [];
+    let visible = List.empty<Types.Event>();
     var memberRoleCache : [(Text, ?[(Text, ?Text)])] = [];
     var teamStatus : [(Text, Text, Bool)] = [];
     for (event in events.values()) {
@@ -5424,10 +5425,10 @@ persistent actor class Main(governorInit : Principal) = this {
           };
         };
         if (await canViewListedEvent(caller, event, freshRoles, ?teamVerified))
-          visible := visible.concat([event]);
+          List.add(visible, event);
       };
     };
-    visible
+    List.toArray(visible)
   
     } finally { removalReceiver.leave(caller) };
   };
@@ -5438,7 +5439,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (club_ids.size() + team_ids.size() > 300) return #Err("Too many ids");
-    var visible : [Types.Event] = [];
+    let visible = List.empty<Types.Event>();
     var memberRoleCache : [(Text, ?[(Text, ?Text)])] = [];
     var teamStatus : [(Text, Text, Bool)] = [];
     for (event in events.values()) {
@@ -5464,10 +5465,10 @@ persistent actor class Main(governorInit : Principal) = this {
           };
         };
         if (await canViewListedEvent(caller, event, freshRoles, ?teamVerified))
-          visible := visible.concat([event]);
+          List.add(visible, event);
       };
     };
-    #Ok(visible)
+    #Ok(List.toArray(visible))
   
     } finally { removalReceiver.leave(caller) };
   };
