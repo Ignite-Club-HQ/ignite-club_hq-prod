@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createGroupedEngineDraft, groupedPlanHash, assessGroupedEngineReadiness,
+import { createGroupedEngineDraft, createGroupedUpdateCandidate, groupedPlanHash, assessGroupedEngineReadiness,
   assessGroupedAcceptance, GROUPED_ENGINE_SCENARIOS, ENGINE_SUBNET } from './engine-grouped-preparation.mjs';
 import { ENGINE_OWNER, DEV_GOVERNOR, WEB_APP_KEY } from './engine-browser/engine-controller-policy.mjs';
 
@@ -108,4 +108,64 @@ test('duplicate scenarios refuse and failed or stale denials remain pending', ()
   rs.find(r => r.scenario === 'removed-member-fresh-key-denial').observedAtMs = 9499;
   assert.deepEqual(assessGroupedAcceptance(plan, rs, time).pending,
     ['outsider-name-photo-document-denial', 'removed-member-fresh-key-denial']);
+});
+const group2 = JSON.parse(readFileSync(new URL('../docs/dev-engine-group2-owner-inventory.json', import.meta.url)));
+test('owner screenshot maps all thirteen Group 2 services exactly without claiming verification', () => {
+  const expected = {
+  "messaging_domain": "dc4y3-hiaaa-aaac5-aadjq-cai",
+  "vault_domain": "dx3jw-gaaaa-aaac5-aadka-cai",
+  "events_domain": "dq2pc-lyaaa-aaac5-aadkq-cai",
+  "club_domain": "dzze6-5qaaa-aaac5-aadla-cai",
+  "notification_queue": "d6yck-qiaaa-aaac5-aadlq-cai",
+  "mini_league_domain": "ctwge-7aaaa-aaac5-aadma-cai",
+  "media_metadata": "cuxaq-syaaa-aaac5-aadmq-cai",
+  "insights_domain": "c5ulm-eqaaa-aaac5-aadna-cai",
+  "timer_jobs": "c2ynv-iiaaa-aaac5-aadnq-cai",
+  "club_points_domain": "cps4v-iaaaa-aaac5-aadoa-cai",
+  "media_blob_store": "cit2b-fyaaa-aaac5-aadoq-cai",
+  "pii_access_control": "cbqr5-tqaaa-aaac5-aadpa-cai",
+  "competition_domain": "cgrxj-6iaaa-aaac5-aadpq-cai"
+};
+  const p = createGroupedEngineDraft(observation, group2);
+  assert.deepEqual(Object.fromEntries(p.services.filter(s => s.scope === 'g2').map(s => [s.service, s.canisterId])), expected);
+  assert.equal(new Set(p.services.map(s => s.canisterId)).size, 32);
+  for (const row of p.services.filter(s => s.scope !== 'g2')) assert.equal(row.canisterId, observation[row.service].id);
+  assert.equal(p.independentlyVerified, false);
+  assert.ok(p.services.every(s => s.reviewedModuleHash === null));
+  assert.equal(assessGroupedEngineReadiness(p, null, time).suppliedReadinessChecksPassed, false);
+});
+test('owner inventory refuses missing, extra, duplicate, reused and malformed IDs or claimed verification', () => {
+  const variants = [
+    g => { delete g.canisterIds.events_domain; }, g => { g.canisterIds.frontend = observation.frontend.id; },
+    g => { g.canisterIds.events_domain = g.canisterIds.club_domain; },
+    g => { g.canisterIds.club_domain = observation.club_domain.id; },
+    g => { g.canisterIds.club_domain = 'not-a-principal'; }, g => { g.independentlyVerified = true; },
+  ];
+  for (const mutate of variants) {
+    const g = structuredClone(group2); mutate(g);
+    assert.throws(() => createGroupedEngineDraft(observation, g), /thirteen unique/);
+  }
+});
+test('update review includes 32 targets, two stores, DEV database and no activation authority', () => {
+  const plan = createGroupedEngineDraft(observation, group2);
+  const candidate = createGroupedUpdateCandidate(plan);
+  assert.equal(candidate.targets.length, 32);
+  assert.equal(candidate.targets.filter(s => s.service === 'media_blob_store').length, 2);
+  assert.equal(candidate.database, 'https://ecsdwrarzfexssxtrymj.supabase.co');
+  assert.equal(candidate.frontend, '7pfcq-raaaa-aaac5-aabia-cai');
+  assert.equal(candidate.branch, 'main');
+  assert.equal(candidate.planHash, groupedPlanHash(plan));
+  for (const key of ['enabled', 'activationAuthorized', 'deploymentAuthorized', 'promotionAuthorized', 'liveReadPerformed']) assert.equal(candidate[key], false);
+  assert.equal(candidate.updateMode, 'upgrade-only-preserve-state');
+  assert.equal(candidate.targets.filter(s => s.proposedConsoleMetadata.__META_MAIN_CANISTER === 'true').length, 1);
+  assert.ok(candidate.targets.every(s => s.proposedConsoleMetadata.__META_PROJECT === 'ignite_dev'));
+  for (const t of candidate.targets) assert.deepEqual(t.requiredControllers,
+    t.service === 'frontend' ? [ENGINE_OWNER, DEV_GOVERNOR, WEB_APP_KEY] : [ENGINE_OWNER, DEV_GOVERNOR]);
+});
+test('update preparation refuses PROD, missing Group 2 and drifted existing DEV targets', () => {
+  assert.throws(() => createGroupedUpdateCandidate(createGroupedEngineDraft(observation)), /inventory/);
+  const p = createGroupedEngineDraft(observation, group2); p.branch = 'prod';
+  assert.throws(() => createGroupedUpdateCandidate(p), /DEV/);
+  p.branch = 'main'; p.services.find(s => s.scope === 'g1' && s.service === 'club_domain').canisterId = 'wrong-target-cai';
+  assert.throws(() => createGroupedUpdateCandidate(p), /DEV services/);
 });

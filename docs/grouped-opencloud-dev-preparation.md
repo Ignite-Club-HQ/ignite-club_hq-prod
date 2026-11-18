@@ -16,8 +16,10 @@ Keep the existing nineteen-canister app together and extend that same app:
 | Total | One combined app, two groups | **32** |
 
 The existing app provides nineteen historical ID references; thirteen Group 2
-IDs are deliberately unset. No second frontend or second installation-only app.
-Group 2 is not installed by this work. Capacity for 32 running parts on the
+IDs are recorded from Paul's 18 November 05:48 console screenshot in
+`docs/dev-engine-group2-owner-inventory.json`, explicitly not independently verified.
+The final display remains one combined app with one frontend. Group 2 installation
+and status are not independently certified by this work. Capacity for 32 running parts on the
 current Nano engine is unmeasured and must be checked before extending it.
 
 ## What is ready now
@@ -30,6 +32,7 @@ current reviewed upgrade artifacts; those fields remain unset in the draft.
 
 ```text
 node scripts/engine-grouped-preparation.mjs draft > /tmp/grouped-engine-plan.json
+node scripts/engine-grouped-preparation.mjs updates > /tmp/grouped-engine-updates.json
 node --test scripts/engine-grouped-preparation.test.mjs
 node scripts/engine-grouped-preparation.mjs check PLAN.json CAPTURE.json NOW_MS MAX_AGE_MS
 ```
@@ -40,6 +43,29 @@ deployment, promotion and activation permissions remain false. Inputs are local
 JSON files, at most 256 KiB each. Freshness is explicitly supplied, not an invented
 production default. Never include private keys, delegation tokens or personal
 data in captures. Receipt values are locators, not proof.
+
+## Inactive DEV update review — 18 November
+
+The `updates` command emits review-only JSON for all 32 targets. It pins `main`,
+the existing DEV Supabase URL, historical shared/Group 1 IDs and owner-reported
+Group 2 IDs. It preserves one frontend and separate group photo stores. This is
+not an environment file, executable workflow or live deployment configuration;
+no hosting or update workflow consumes it. `enabled` and every execution grant
+remain false. Reviewed artifact hashes and registry revision remain unset.
+
+The candidate lists owner-plus-DEV-governor controller requirements (publishing
+key on frontend only), separately required internal governors, upgrade-only state
+preservation and zero-cycle engine handling. Proposed console metadata merges
+`__META_PROJECT=ignite_dev` on all targets and marks only the existing frontend
+as main; it is not applied and must preserve other settings. The 32-settings limit
+still requires authorized inspection before applying metadata, not replacement
+of encryption/governor settings or another combined import.
+
+Service wiring still requires authorized current configuration reads and reviewed
+reciprocal links. IDs alone neither register the two groups nor prove installation.
+After access is resolved, verify the complete inventory, original key identity,
+reviewed modules, service links and closed registry, then exercise signed-in name,
+photo, document and access-denial flows before any DEV cutover. PROD is untouched.
 
 ## Controller permission is only the first blocker
 

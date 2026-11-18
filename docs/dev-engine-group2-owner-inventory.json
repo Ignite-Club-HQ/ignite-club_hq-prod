@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "source": "owner-console-screenshot",
+  "receivedAt": "2026-11-18T05:48:00Z",
+  "independentlyVerified": false,
+  "canisterIds": {
+    "messaging_domain": "dc4y3-hiaaa-aaac5-aadjq-cai",
+    "vault_domain": "dx3jw-gaaaa-aaac5-aadka-cai",
+    "events_domain": "dq2pc-lyaaa-aaac5-aadkq-cai",
+    "club_domain": "dzze6-5qaaa-aaac5-aadla-cai",
+    "notification_queue": "d6yck-qiaaa-aaac5-aadlq-cai",
+    "mini_league_domain": "ctwge-7aaaa-aaac5-aadma-cai",
+    "media_metadata": "cuxaq-syaaa-aaac5-aadmq-cai",
+    "insights_domain": "c5ulm-eqaaa-aaac5-aadna-cai",
+    "timer_jobs": "c2ynv-iiaaa-aaac5-aadnq-cai",
+    "club_points_domain": "cps4v-iaaaa-aaac5-aadoa-cai",
+    "media_blob_store": "cit2b-fyaaa-aaac5-aadoq-cai",
+    "pii_access_control": "cbqr5-tqaaa-aaac5-aadpa-cai",
+    "competition_domain": "cgrxj-6iaaa-aaac5-aadpq-cai"
+  }
+}

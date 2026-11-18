@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { GROUP_BUILD_SERVICES } from './stage-group-wasm.mjs';
 import { SHARED_SERVICES } from './all-group-upgrade-policy.mjs';
 import { ENGINE_OWNER, DEV_GOVERNOR, WEB_APP_KEY } from './engine-browser/engine-controller-policy.mjs';
+import { assertEngineFrontendContext } from './dev-engine-frontend-policy.mjs';
 
 export const ENGINE_SUBNET = 'nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae';
 export const ENGINE_PROXY = 'ynolw-eyaaa-aaaaj-qspkq-cai';
@@ -16,9 +17,20 @@ const deniedAuthority = () => ({ preparationOnly: true, independentlyVerified: f
   activationAuthorized: false, deploymentAuthorized: false, promotionAuthorized: false });
 
 /** Historical IDs/hashes are references, not fresh controller or code acceptance. */
-export function createGroupedEngineDraft(observation) {
+export function createGroupedEngineDraft(observation, group2Inventory) {
+  const group2 = group2Inventory?.canisterIds;
+  if (group2Inventory !== undefined) {
+    if (group2Inventory.schema !== 1 || group2Inventory.source !== 'owner-console-screenshot' ||
+        group2Inventory.independentlyVerified !== false || !group2 ||
+        Object.keys(group2).length !== 13 || GROUP_BUILD_SERVICES.some(s => !Object.hasOwn(group2, s)) ||
+        Object.values(group2).some(id => typeof id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)+-cai$/.test(id)) ||
+        new Set(Object.values(group2)).size !== 13 ||
+        Object.values(group2).some(id => Object.values(observation).some(row => row.id === id)))
+      throw Error('Exact thirteen unique Group 2 owner-reported IDs required, separate from existing parts');
+  }
   const row = (scope, service) => ({ scope, service,
-    canisterId: scope === 'g2' ? null : observation[service]?.id ?? null,
+    canisterId: scope === 'g2' ? group2?.[service] ?? null : observation[service]?.id ?? null,
+    inventorySource: scope === 'g2' ? group2Inventory?.source ?? 'unassigned' : 'historical-installation-observation',
     reviewedModuleHash: null,
     historicalModuleHash: scope === 'g2' ? null : observation[service]?.hash ?? null });
   return { schema: 1, ...deniedAuthority(), branch: 'main', networkKind: 'cloud_engine',
@@ -54,6 +66,37 @@ export function groupedPlanHash(plan) {
       ({ scope, service, canisterId, reviewedModuleHash })).sort((a, b) =>
         `${a.scope}/${a.service}`.localeCompare(`${b.scope}/${b.service}`)) };
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
+/** Review data only: no executable workflow, env file, transport or deployment hook. */
+export function createGroupedUpdateCandidate(plan) {
+  validateScope(plan);
+  const ids = plan.services.map(s => s.canisterId);
+  if (ids.some(id => typeof id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)+-cai$/.test(id)) ||
+      new Set(ids).size !== 32) throw Error('Complete unique inventory required for update preparation');
+  const frontend = plan.services.find(s => s.scope === 'shared' && s.service === 'frontend')?.canisterId;
+  const baseIds = Object.fromEntries(plan.services.filter(s => s.scope !== 'g2' && s.service !== 'frontend')
+    .map(s => [s.service, s.canisterId]));
+  const database = 'https://ecsdwrarzfexssxtrymj.supabase.co';
+  assertEngineFrontendContext({ branch: plan.branch, frontend, database, ids: baseIds });
+  return { schema: 1, ...deniedAuthority(), enabled: false, liveReadPerformed: false,
+    planHash: groupedPlanHash(plan), branch: plan.branch, networkKind: plan.networkKind,
+    host: plan.host, engineId: plan.engineId, subnetId: plan.subnetId, proxyId: plan.proxyId,
+    database, frontend, frontendBaseServiceIds: baseIds,
+    updateMode: 'upgrade-only-preserve-state', canisterCyclesPolicy: 'zero-cycles-no-mainnet-topups',
+    consoleGroupingPolicy: 'merge-metadata-preserve-other-settings',
+    targets: plan.services.map(s => ({ scope: s.scope, service: s.service, canisterId: s.canisterId,
+      reviewedModuleHash: s.reviewedModuleHash,
+      requiredControllers: s.service === 'frontend' ? [ENGINE_OWNER, DEV_GOVERNOR, WEB_APP_KEY] : [ENGINE_OWNER, DEV_GOVERNOR],
+      internalGovernorRequired: noGovernor.has(s.service) ? null : DEV_GOVERNOR,
+      proposedConsoleMetadata: { __META_PROJECT: 'ignite_dev',
+        __META_MAIN_CANISTER: s.service === 'frontend' ? 'true' : 'false' } })),
+    holds: ['owner-authorized-controller-and-internal-governor-readback',
+      'independent-inventory-subnet-proxy-and-artifact-verification',
+      'reciprocal-service-links-and-closed-two-group-registry',
+      'fresh-name-photo-document-and-denied-access-acceptance',
+      'separate-reviewed-dev-website-and-update-cutover'],
+  };
 }
 
 /** Assess local capture input; never imply canister status was read by this tool.
@@ -139,11 +182,15 @@ function localJson(path) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const [command, ...args] = process.argv.slice(2);
-  if (command === 'draft' && args.length === 0)
-    console.log(JSON.stringify(createGroupedEngineDraft(localJson(new URL('../docs/dev-engine-combined-installation-observation.json', import.meta.url))), null, 2));
+  if (['draft', 'updates'].includes(command) && args.length === 0) {
+    const plan = createGroupedEngineDraft(
+      localJson(new URL('../docs/dev-engine-combined-installation-observation.json', import.meta.url)),
+      localJson(new URL('../docs/dev-engine-group2-owner-inventory.json', import.meta.url)));
+    console.log(JSON.stringify(command === 'updates' ? createGroupedUpdateCandidate(plan) : plan, null, 2));
+  }
   else if (command === 'check' && args.length === 4) {
     const report = assessGroupedEngineReadiness(localJson(args[0]), localJson(args[1]), { now: Number(args[2]), maxAgeMs: Number(args[3]) });
     console.log(JSON.stringify(report, null, 2));
     if (!report.suppliedReadinessChecksPassed) process.exitCode = 1;
-  } else throw Error('Usage: draft | check <local-plan.json> <local-capture.json> <now-ms> <max-age-ms>');
+  } else throw Error('Usage: draft | updates | check <local-plan.json> <local-capture.json> <now-ms> <max-age-ms>');
 }

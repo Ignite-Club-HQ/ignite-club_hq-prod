@@ -8,11 +8,12 @@
 - [ ] Real signed-in grouped-DEV unlock/join/readback and installed-phone timings require a delegated Internet Identity session/device unavailable here; must precede PROD promotion.
 
 ## Grouped OpenCloud DEV preparation — 18 November
+- [x] Recorded all thirteen Group 2 IDs from Paul's 05:48 screenshot as unverified owner input; default offline draft and disabled update-review generator include all 32 targets with DEV-only context. No workflow, hosting, database or live canister changes.
 - [ ] Replacement 32-part import bundle is held: console errors show 36–38 runtime settings against a 32 limit; official discovery injects one ID per environment canister. No verified bundle-level suppression exists; retain required engine/governor/PII settings and obtain a supported bounded-ID import path before issuing another upload.
 - [ ] Assign DEV update controllers during OpenCloud import: blocked by the console's explicit refusal to grant controllers from bundles; requires an owner-authorized controller mechanism confirmed by OpenCloud. Do not embed a self-grant or claim manifest entries grant management authority.
-- [x] Prepared same-app 32-part layout: six shared parts and two thirteen-part groups; existing 19 IDs retained as historical references, 13 new IDs unset. Closed wiring/media/promotion runbook: docs/grouped-opencloud-dev-preparation.md. No live changes.
+- [x] Prepared same-app 32-part layout: six shared parts and two thirteen-part groups; existing 19 IDs retained as historical references, thirteen Group 2 IDs owner-reported but not certified. Closed wiring/media/promotion runbook: docs/grouped-opencloud-dev-preparation.md. No live changes.
 - [x] Prepared bounded local readiness checks, exact inventory/revision/artifact bindings and 18 two-group acceptance scenarios; 43 new/existing engine tests pass, inactive draft verified and preview build OK. No live verifier or activation permission shipped.
-- [ ] Real controller/internal-governor readback, second-group installation and signed-in encrypted-media acceptance await OpenCloud owner access/support; grouped mainnet DEV remains the release-testing environment.
+- [ ] Independent 32-part installation/controller/internal-governor readback, reciprocal configuration and signed-in encrypted-media acceptance await OpenCloud owner access/support; grouped mainnet DEV remains the release-testing environment.
 - [x] 18 November: recorded OpenCloud's published node-class capacity/pricing in the preparation doc. Key finding: engine storage is bounded by per-node disk shared by all parts (nano 100 GB), so groups add isolation, not storage; growth means node-class swaps. Current 4×nano DEV engine ≈ $160–180/month plus egress.
 
 ## Combined DEV engine upload — 17 November
