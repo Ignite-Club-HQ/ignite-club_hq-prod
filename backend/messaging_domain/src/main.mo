@@ -5727,11 +5727,19 @@ persistent actor class Main(governorInit : Principal) = this {
     if (caller.equal(Principal.anonymous())) return [];
     var result : [Types.UnreadSummary] = [];
     for (conversation in conversations.values()) {
-      let visible = try { await* requireChatAccess(caller, conversation.id); true } catch (_) { false };
-      if (visible and conversation.participants.any(func(p) = p.equal(caller))) {
-        let u = unreadFor(caller, conversation.id);
-        if (u.count > 0) {
-          result := result.concat([{ conversation_id = conversation.id; kind = inferConversationKind(conversation); count = u.count }]);
+      // Local candidate checks avoid live club/team authorization for unrelated
+      // or already-read conversations. They are not evidence of access.
+      if (conversation.participants.any(func(p) = p.equal(caller))) {
+        let candidate = unreadFor(caller, conversation.id);
+        if (candidate.count > 0) {
+          let visible = try { await* requireChatAccess(caller, conversation.id); true } catch (_) { false };
+          if (visible) {
+            // Authorization can await: reread the local count after it returns.
+            let u = unreadFor(caller, conversation.id);
+            if (u.count > 0) {
+              result := result.concat([{ conversation_id = conversation.id; kind = inferConversationKind(conversation); count = u.count }]);
+            };
+          };
         };
       };
     };
@@ -6075,10 +6083,14 @@ persistent actor class Main(governorInit : Principal) = this {
     if (limit == 0 or limit > 100) return #Err("Invalid limit");
     var entries : [Types.RecentConversation] = [];
     for (conversation in conversations.values()) {
-      let visible = try { await* requireChatAccess(principal, conversation.id); true } catch (_) { false };
-      if (visible and conversation.participants.any(func(p) = p.equal(principal)) and not isGroupDeleted(conversation.id)) {
-        let lastSeq : Nat64 = if (conversation.next_sequence == 0) 0 else conversation.next_sequence - 1;
-        entries := entries.concat([{ conversation_id = conversation.id; kind = inferConversationKind(conversation); last_message_sequence = lastSeq; last_message_at_ms = null }]);
+      // A stored participant is only a candidate; current club/team access
+      // is still required before returning this conversation.
+      if (conversation.participants.any(func(p) = p.equal(principal)) and not isGroupDeleted(conversation.id)) {
+        let visible = try { await* requireChatAccess(principal, conversation.id); true } catch (_) { false };
+        if (visible and not isGroupDeleted(conversation.id)) {
+          let lastSeq : Nat64 = if (conversation.next_sequence == 0) 0 else conversation.next_sequence - 1;
+          entries := entries.concat([{ conversation_id = conversation.id; kind = inferConversationKind(conversation); last_message_sequence = lastSeq; last_message_at_ms = null }]);
+        };
       };
     };
     let sorted = entries.sort(func(a, b) = Nat64.compare(b.last_message_sequence, a.last_message_sequence));
