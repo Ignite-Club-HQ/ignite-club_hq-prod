@@ -1681,6 +1681,10 @@ export interface Main {
     { 'Ok': { 'clubs': Array<[string, boolean]>, 'teams': Array<[string, string, boolean]> } } |
       { 'Err': string }
   >,
+  'read_event_member_roles_if_current' : ActorMethod<
+    [Principal, string],
+    { 'Ok': Array<[string, [] | [string]]> } | { 'Err': string }
+  >,
   'read_has_club_membership' : ActorMethod<[Principal, string], boolean>,
   'read_has_club_staff_role' : ActorMethod<[Principal, string], boolean>,
   'read_has_pii_audience' : ActorMethod<[Principal, string, string], boolean>,
