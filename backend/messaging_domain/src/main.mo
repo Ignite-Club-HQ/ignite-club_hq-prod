@@ -5354,31 +5354,24 @@ persistent actor class Main(governorInit : Principal) = this {
       case null {};
     };
     let cap : Nat64 = switch (before) { case (?cursor) { cursor }; case null { latest + 1 } };
-    // Messages are appended in send order, so sequence ascends within a
-    // conversation: count the matching rows, then drop the surplus oldest.
-    var matching : Nat = 0;
-    for (m in messages.values()) {
-      if (m.conversation_id == conversation_id and m.sequence < cap) { matching += 1 };
-    };
+    // Append-only messages remain in send order. Read backwards and stop after
+    // the latest (limit + 1) matching entries, then reverse only the bounded
+    // page. The extra entry proves an older page exists without scanning the
+    // full log twice. No permission checks or cursor semantics are changed.
     let limit_n = Nat16.toNat(limit);
-    let skip = if (matching > limit_n) { matching - limit_n } else { 0 };
-    var page_messages : [Types.Message] = [];
-    var seen : Nat = 0;
-    var oldest_in_page : Nat64 = 0;
-    var oldest_set = false;
-    for (m in messages.values()) {
+    var newest : [Types.Message] = [];
+    var index = messages.size();
+    while (index > 0 and newest.size() <= limit_n) {
+      index -= 1;
+      let m = messages[index];
       if (m.conversation_id == conversation_id and m.sequence < cap) {
-        if (seen >= skip) {
-          page_messages := page_messages.concat([m]);
-          if (not oldest_set or m.sequence < oldest_in_page) {
-            oldest_in_page := m.sequence;
-            oldest_set := true;
-          };
-        };
-        seen += 1;
+        newest := newest.concat([m]);
       };
     };
-    let next_seq : ?Nat64 = if (skip > 0 and oldest_set) ?oldest_in_page else null;
+    let has_older = newest.size() > limit_n;
+    let page_size = if (has_older) limit_n else newest.size();
+    let page_messages = Array.tabulate<Types.Message>(page_size, func(i) = newest[page_size - 1 - i]);
+    let next_seq : ?Nat64 = if (has_older and page_size > 0) ?page_messages[0].sequence else null;
     #Ok({ messages = page_messages; next_sequence = next_seq; latest_sequence = latest })
   
     } finally { removalReceiver.leave(caller) };
