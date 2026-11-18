@@ -80,9 +80,12 @@ it('does not start cross-group team discovery until the first child-name unlock 
 it('allows an explicitly opened Add child dialog to load teams while names are pending', async () => {
   state.names.mockReturnValue(new Promise(() => {}));
   open();
-  expect(await screen.findByRole('button', { name: 'Add child' })).toBeEnabled();
+  const add = await screen.findByRole('button', { name: 'Add child' });
+  // Full cross-group verification, not the faster member preview, enables
+  // child creation. Never weaken that guard just to make the test faster.
+  await waitFor(() => expect(add).toBeEnabled());
   expect(state.grants).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Add child' }));
+  fireEvent.click(add);
   await waitFor(() => expect(state.grants).toHaveBeenCalledTimes(1));
 });
 
