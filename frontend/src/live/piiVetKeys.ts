@@ -374,8 +374,12 @@ export async function fetchPiiVetKeys(
     return out;
   }
 
-  const { key: verificationKey } = await getPiiVerificationKey(ctx);
-  active();
+  // The PUBLIC verification key and transport-bound encrypted vetKeys are
+  // independent. On a cold device these were sequential consensus calls,
+  // delaying child-name unlock. Start the public read once and overlap it with
+  // the first authorised relay batch; decrypt only after BOTH succeed.
+  // No additional derivations, persistent key grants or bridge are introduced.
+  const verificationRequest = getPiiVerificationKey(ctx);
 
   for (let start = 0; start < missing.length; start += VETKEY_BATCH_SIZE) {
     active();
@@ -383,11 +387,14 @@ export async function fetchPiiVetKeys(
     // One fresh transport key per relay call; every derived key in the
     // batch is encrypted under it.
     const transport = TransportSecretKey.random();
-    const keys = await unwrapCandid(
-      options.audience
-        ? actor.get_private_profile_name_vetkeys_batch(chunk, options.audience, transport.publicKeyBytes())
-        : actor.get_encrypted_pii_vetkeys_batch(chunk, fieldId, transport.publicKeyBytes()),
-      "Fetch PII vetKeys",
+    const [{ key: verificationKey }, keys] = await readSharedVetKeyMaterialsConcurrently(
+      () => verificationRequest,
+      () => unwrapCandid(
+        options.audience
+          ? actor.get_private_profile_name_vetkeys_batch(chunk, options.audience, transport.publicKeyBytes())
+          : actor.get_encrypted_pii_vetkeys_batch(chunk, fieldId, transport.publicKeyBytes()),
+        "Fetch PII vetKeys",
+      ),
     );
     active();
     if (keys.length !== chunk.length) throw new Error("Invalid PII key response length.");
