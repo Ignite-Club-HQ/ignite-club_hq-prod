@@ -35,6 +35,9 @@ for (const file of [
   'prepare-icp-chatgpt-child-name.mjs',
   'prepare-icp-chatgpt-child-name-connector.mjs',
   'prepare-icp-chatgpt-child-name-cli.mjs',
+  'prepare-icp-chatgpt-private-name.mjs',
+  'prepare-icp-chatgpt-profile-name-connector.mjs',
+  'prepare-icp-chatgpt-profile-name-cli.mjs',
 ]) {
   cpSync(join(root, 'scripts', file), join(destination, 'scripts', file));
 }
@@ -57,10 +60,10 @@ while (pending.length) {
   }
 }
 writeFileSync(join(destination, 'package.json'),
-  JSON.stringify({private:true,type:'module',name:'ignite-dev-chatgpt-offline-child-name'},null,2)+'\n');
+  JSON.stringify({private:true,type:'module',name:'ignite-dev-chatgpt-offline-private-names'},null,2)+'\n');
 writeFileSync(join(destination, 'README.txt'),
-  'DEV-only offline child-name cipher preparation.\n' +
-  'Use node scripts/prepare-icp-chatgpt-child-name-cli.mjs with ONE private JSON input on stdin.\n' +
+  'DEV-only offline child and own-profile name cipher preparation.\n' +
+  'Use the child-name or profile-name CLI with ONE private JSON input on stdin.\n' +
   'Never send personal names to GitHub Actions or save them in the repository.\n' +
   'No canister calls or Internet Identity keys are included in this package.\n');
 // Report package names only; no personal information or ciphertext is used.
