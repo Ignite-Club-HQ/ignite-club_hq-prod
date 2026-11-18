@@ -5345,7 +5345,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    await* requireChatAccess(caller, conversation_id);
+    await* requireBatchedReadChatAccess(caller, conversation_id);
     if (not canReadTeamMessages(caller, conversation_id)) return #Err("Conversation access forbidden");
     if (limit == 0 or limit > 100) return #Err("Invalid page size");
     let latest = conversationLatestSequence(conversation_id);
@@ -5440,7 +5440,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    await* requireChatAccess(caller, conversation_id);
+    await* requireBatchedReadChatAccess(caller, conversation_id);
     if (not canReadTeamMessages(caller, conversation_id)) return #Err("Conversation access forbidden");
     if (limit == 0 or limit > 100) return #Err("Invalid page size");
     let latest = conversationLatestSequence(conversation_id);
@@ -5718,19 +5718,57 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(caller);
     if (caller.equal(Principal.anonymous())) return [];
-    var result : [Types.UnreadSummary] = [];
+    // Collect unread-positive participating conversations before asking the
+    // live authority. Other users' chats and fully-read threads never trigger
+    // external membership checks or enter the result.
+    var candidates : [Types.Conversation] = [];
+    var clubs : [Text] = [];
+    var teams : [(Text, Text)] = [];
     for (conversation in conversations.values()) {
-      // Local candidate checks avoid live club/team authorization for unrelated
-      // or already-read conversations. They are not evidence of access.
       if (conversation.participants.any(func(p) = p.equal(caller))) {
         let candidate = unreadFor(caller, conversation.id);
         if (candidate.count > 0) {
-          let visible = try { await* requireChatAccess(caller, conversation.id); true } catch (_) { false };
+          candidates := candidates.concat([conversation]);
+          if (requiresClubMembership(conversation)) {
+            if (not clubs.any(func(id) = id == conversation.club_id))
+              clubs := clubs.concat([conversation.club_id]);
+            switch (conversation.team_id) {
+              case (?team) {
+                if (not teams.any(func((club, id)) = club == conversation.club_id and id == team))
+                  teams := teams.concat([(conversation.club_id, team)]);
+              };
+              case null {};
+            };
+          };
+        };
+      };
+    };
+    // One bounded first-party club/team proof per batch instead of sequential
+    // club then team admissions for each unread conversation. Missing, stale
+    // or malformed authority fails closed, not as a misleading "all read".
+    let ?proofs = await* readRecentChatScopeProofs(caller, clubs, teams)
+      else throw Error.reject("Unread authorization unavailable; retry");
+    var result : [Types.UnreadSummary] = [];
+    for (conversation in candidates.vals()) {
+      // Local roles, participants, team ownership and metadata can change
+      // while the authority is awaited: only use the current matching scope.
+      switch (conversations.find(func(c) = c.id == conversation.id)) {
+        case null {};
+        case (?current) {
+          let visible = recentChatScopeAllowed(caller, conversation, proofs) and
+            current.participants.any(func(p) = p.equal(caller)) and
+            current.club_id == conversation.club_id and
+            current.team_id == conversation.team_id and
+            requiresClubMembership(current) == requiresClubMembership(conversation) and
+            not isGroupDeleted(current.id);
           if (visible) {
-            // Authorization can await: reread the local count after it returns.
             let u = unreadFor(caller, conversation.id);
             if (u.count > 0) {
-              result := result.concat([{ conversation_id = conversation.id; kind = inferConversationKind(conversation); count = u.count }]);
+              result := result.concat([{
+                conversation_id = current.id;
+                kind = inferConversationKind(current);
+                count = u.count;
+              }]);
             };
           };
         };
@@ -6140,6 +6178,38 @@ persistent actor class Main(governorInit : Principal) = this {
         club == c.club_id and id == team and allowed
       );
     }
+  };
+
+  // Read-only chat page fast path: reuse the pinned first-party club authority
+  // to check the exact club and team together, with one current admission.
+  // DMs, broadcasts, competition chats and governor operations keep their
+  // original independent access logic. No cross-call proof is cached.
+  func requireBatchedReadChatAccess(subject : Principal, conversation_id : Text) : async* () {
+    if (removalReceiver.denied(subject)) throw Error.reject("Account removal fenced");
+    let captured = conversations.find(func(c) = c.id == conversation_id);
+    let ?c = captured else {
+      await* requireChatAccess(subject, conversation_id);
+      return;
+    };
+    if (not requiresClubMembership(c) or isGovernor(subject)) {
+      await* requireChatAccess(subject, conversation_id);
+      return;
+    };
+    auth(subject);
+    let teams : [(Text, Text)] = switch (c.team_id) {
+      case (?team) [(c.club_id, team)];
+      case null [];
+    };
+    let ?proofs = await* readRecentChatScopeProofs(subject, [c.club_id], teams)
+      else throw Error.reject("Chat authority unavailable; retry");
+    if (not recentChatScopeAllowed(subject, c, proofs))
+      throw Error.reject("Chat access forbidden or team revoked");
+    let ?fresh = conversations.find(func(current) = current.id == conversation_id)
+      else throw Error.reject("Conversation no longer exists");
+    if (fresh.club_id != c.club_id or fresh.team_id != c.team_id or
+        not requiresClubMembership(fresh) or removalReceiver.denied(subject) or
+        isFenced(c.club_id))
+      throw Error.reject("Conversation authorization changed");
   };
 
   public shared ({ caller }) func read_account_recent_conversations(principal : Principal, limit : Nat16) : async { #Ok : [Types.RecentConversation]; #Err : Text } {
