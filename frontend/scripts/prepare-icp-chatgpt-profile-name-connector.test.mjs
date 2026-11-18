@@ -31,7 +31,7 @@ test('rejects mismatched caller, origin, target, missing manifest or approval',(
  x=>{x.authority.owner_principal='2vxsx-fae';},
  x=>{x.authority.verification_key=[1,2,3];},
  x=>{x.name.confirmed_by_user=false;},
- x=>{x.name.value='bad\\nname';},
+ x=>{x.name.value='bad'+String.fromCharCode(10)+'name';},
  ];
  for(const change of mutate){const x=fixture();change(x);assert.throws(()=>prepare(x));}
 });
