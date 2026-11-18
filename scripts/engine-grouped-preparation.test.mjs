@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createGroupedEngineDraft, createGroupedUpdateCandidate, groupedPlanHash, assessGroupedEngineReadiness,
+import { createGroupedEngineDraft, createGroupedUpdateCandidate, createGroupedConnectionCandidate, groupedPlanHash, assessGroupedEngineReadiness,
   assessGroupedAcceptance, GROUPED_ENGINE_SCENARIOS, ENGINE_SUBNET } from './engine-grouped-preparation.mjs';
 import { ENGINE_OWNER, DEV_GOVERNOR, WEB_APP_KEY } from './engine-browser/engine-controller-policy.mjs';
 
@@ -168,4 +168,51 @@ test('update preparation refuses PROD, missing Group 2 and drifted existing DEV 
   assert.throws(() => createGroupedUpdateCandidate(p), /DEV/);
   p.branch = 'main'; p.services.find(s => s.scope === 'g1' && s.service === 'club_domain').canisterId = 'wrong-target-cai';
   assert.throws(() => createGroupedUpdateCandidate(p), /DEV services/);
+});
+
+const connections = () => createGroupedConnectionCandidate(createGroupedEngineDraft(observation, group2));
+test('connection recipe resolves Group 2 gallery and Vault only to its own authorities and store', () => {
+  const r = connections();
+  const gallery = r.links.find(l => l.source.scope === 'g2' && l.method === 'set_gallery_authorities');
+  assert.deepEqual(gallery.targets.map(t => t.canisterId), ['dzze6-5qaaa-aaac5-aadla-cai', 'dx3jw-gaaaa-aaac5-aadka-cai']);
+  const store = r.links.find(l => l.source.scope === 'g2' && l.method === 'set_vault_stores');
+  assert.deepEqual(store.targets.map(t => t.canisterId), ['cit2b-fyaaa-aaac5-aadoq-cai']);
+  for (const l of r.links) for (const t of l.targets) assert.ok(t.scope === 'shared' || t.scope === l.source.scope);
+});
+test('both queues use the one shared engine identity without copying Group 1 service IDs', () => {
+  const rows = connections().links.filter(l => l.method === 'set_identity_access_canister');
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map(l => l.targets[0].canisterId), ['5j5q5-yqaaa-aaac5-aabfa-cai', '5j5q5-yqaaa-aaac5-aabfa-cai']);
+});
+test('all 32 services have review coverage while shared lifecycle bindings remain unresolved', () => {
+  const r = connections();
+  assert.equal(r.sharedReviews.length, 6);
+  assert.equal(r.groupReviews.flatMap(g => g.services).length, 26);
+  assert.ok(r.sharedReviews.every(s => s.action === 'held-separate-review' && s.currentConfiguration === null));
+  assert.ok(r.unresolved.includes('shared-registry-identity-placement-and-workload-bindings'));
+  assert.ok(r.links.every(l => /^[a-f0-9]{64}$/.test(l.sourceInterfaceSha256) && l.currentValue === null));
+});
+test('connection review never executes or enables opening, upgrades or cutover', () => {
+  const r = connections();
+  for (const k of ['enabled', 'activationAuthorized', 'deploymentAuthorized', 'promotionAuthorized', 'liveReadPerformed']) assert.equal(r[k], false);
+  assert.ok(r.links.every(l => l.action === 'review-only' && l.liveVerified === false));
+  assert.ok(r.groupReviews.every(g => g.keyContinuityVerified === false && g.originalKeyCommitment === null));
+});
+test('switch-back only restores reviewed DEV routing, never data or PROD', () => {
+  const r = connections();
+  assert.equal(r.switchBack.executable, false);
+  assert.equal(r.switchBack.prodChangesAllowed, false);
+  assert.equal(r.switchBack.dataRollbackAllowed, false);
+  assert.ok(r.switchBack.onFailure.includes('leave-engine-data-in-place-no-cross-platform-copy-or-reinstall'));
+  assert.ok(r.switchBack.beforeCutover.includes('retain-existing-mainnet-dev-canisters-data-and-key-authorities'));
+});
+test('connection review is bound to source interfaces and exact inventory and refuses incomplete or PROD plans', () => {
+  assert.equal(connections().connectionReviewHash, connections().connectionReviewHash);
+  const p = createGroupedEngineDraft(observation, group2);
+  const hash = createGroupedConnectionCandidate(p).connectionReviewHash;
+  p.services.find(s => s.scope === 'g2' && s.service === 'media_blob_store').canisterId = 'other-store-cai';
+  assert.notEqual(createGroupedConnectionCandidate(p).connectionReviewHash, hash);
+  p.branch = 'prod';
+  assert.throws(() => createGroupedConnectionCandidate(p), /DEV/);
+  assert.throws(() => createGroupedConnectionCandidate(createGroupedEngineDraft(observation)), /inventory/);
 });

@@ -33,6 +33,7 @@ current reviewed upgrade artifacts; those fields remain unset in the draft.
 ```text
 node scripts/engine-grouped-preparation.mjs draft > /tmp/grouped-engine-plan.json
 node scripts/engine-grouped-preparation.mjs updates > /tmp/grouped-engine-updates.json
+node scripts/engine-grouped-preparation.mjs connections > /tmp/grouped-engine-connections.json
 node --test scripts/engine-grouped-preparation.test.mjs
 node scripts/engine-grouped-preparation.mjs check PLAN.json CAPTURE.json NOW_MS MAX_AGE_MS
 ```
@@ -68,6 +69,36 @@ reviewed modules, service links and closed registry, then exercise signed-in nam
 photo, document and access-denial flows before any DEV cutover. PROD is untouched.
 
 ## Controller permission is only the first blocker
+
+### Exact connection review and switch-back preparation — 18 November
+
+The `connections` command expands the existing closed browser recipe twice,
+resolving each group's destinations only within that group, except the queue's
+explicit shared identity connection. Gallery, Vault and club links are reciprocal;
+each group retains its own blob store and PII authority. Source Candid interfaces
+are checked for the listed methods and fingerprinted with the recipe and inventory.
+This proves local method presence only, not deployed argument compatibility or
+owner authorization. It emits no calls, executable environment file or workflow.
+
+All 32 parts have review coverage. The group review includes consensus configuration
+readers and permission requirements, including local club-role permission sources
+for metadata/insights. Shared identity, router, placement, coordinator and workload
+bindings remain explicit unresolved reviews, not invented setter instructions.
+Current values and original key commitments are unset. Read the entire authorized
+configuration, preserve correct values, and hold differing values for review;
+do not blindly replay timer initialization or singleton-overwrite registries.
+
+Before a separately approved cutover, record the actual mainnet DEV website and
+update destinations, source revision and routing revision; retain all existing
+canisters and key authorities. Keep any credential-bearing before-images outside
+reports and commits. Check identity origins: switching websites can produce a
+different sign-in principal, and no account-linking or role grant is implicit.
+
+If acceptance fails, stop and retain unknown-write intents. A switch-back restores
+only separately reviewed DEV website/update routing before-images, then verifies
+mainnet sign-in, existing clubs and fresh media. It does not undo engine writes,
+copy engine records into mainnet, rotate keys, reinstall canisters or touch PROD.
+Neither this checklist nor its hash is a cutover/recovery authorization.
 
 OpenCloud's console explicitly reported that bundles cannot add controllers;
 do not try another package to grant GitHub permission. Support/owner access must

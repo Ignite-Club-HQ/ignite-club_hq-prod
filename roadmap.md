@@ -8,6 +8,7 @@
 - [ ] Real signed-in grouped-DEV unlock/join/readback and installed-phone timings require a delegated Internet Identity session/device unavailable here; must precede PROD promotion.
 
 ## Grouped OpenCloud DEV preparation — 18 November
+- [x] Prepared exact per-group closed-recipe connection review with source-interface hashes and all 32-part review coverage; shared lifecycle bindings remain held. Added routing-only DEV switch-back checklist preserving canisters, data, keys and PROD. No live calls or activation.
 - [x] Recorded all thirteen Group 2 IDs from Paul's 05:48 screenshot as unverified owner input; default offline draft and disabled update-review generator include all 32 targets with DEV-only context. No workflow, hosting, database or live canister changes.
 - [ ] Replacement 32-part import bundle is held: console errors show 36–38 runtime settings against a 32 limit; official discovery injects one ID per environment canister. No verified bundle-level suppression exists; retain required engine/governor/PII settings and obtain a supported bounded-ID import path before issuing another upload.
 - [ ] Assign DEV update controllers during OpenCloud import: blocked by the console's explicit refusal to grant controllers from bundles; requires an owner-authorized controller mechanism confirmed by OpenCloud. Do not embed a self-grant or claim manifest entries grant management authority.

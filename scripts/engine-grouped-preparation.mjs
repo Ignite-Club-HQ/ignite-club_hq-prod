@@ -99,6 +99,72 @@ export function createGroupedUpdateCandidate(plan) {
   };
 }
 
+/** Expand the existing closed bundle recipe into exact per-group review rows.
+ * Method presence is a source check, not proof of installed ABI or authorization. */
+export function createGroupedConnectionCandidate(plan) {
+  const update = createGroupedUpdateCandidate(plan);
+  const recipe = readFileSync(new URL('./engine-browser/links.txt', import.meta.url), 'utf8');
+  const lookup = (scope, service) => {
+    const row = plan.services.find(s => s.scope === scope && s.service === service);
+    if (!row?.canisterId) throw Error('Connection target absent from complete inventory');
+    return { scope, service, canisterId: row.canisterId };
+  };
+  const links = [];
+  const interfaces = new Map();
+  for (const scope of ['g1', 'g2']) {
+    for (const line of recipe.trim().split('\n')) {
+      const [service, method, shape, destinations, extra] = line.split('|');
+      const names = destinations ? destinations.split(',') : [];
+      if (extra !== undefined || !['none', 'one', 'two', 'vec'].includes(shape) ||
+          names.length !== ({ none: 0, one: 1, two: 2, vec: 1 })[shape])
+        throw Error('Unsupported closed connection recipe');
+      const source = lookup(scope, service);
+      const targets = names.map(name => lookup(SHARED_SERVICES.includes(name) ? 'shared' : scope, name));
+      if (!interfaces.has(service)) {
+        const bytes = readFileSync(new URL(`../backend/${service}/${service}.did`, import.meta.url));
+        interfaces.set(service, { text: bytes.toString('utf8'), sha256: createHash('sha256').update(bytes).digest('hex') });
+      }
+      const abi = interfaces.get(service);
+      if (!abi || !new RegExp(`\\b${method}\\s*:`).test(abi.text)) throw Error('Closed recipe method absent from source interface');
+      links.push({ source, method, argumentShape: shape, targets, sourceInterfaceSha256: abi.sha256,
+        readbackMethod: 'read_group_opening_configuration',
+        currentValue: null, action: 'review-only', liveVerified: false,
+        prerequisite: method === 'initialize' ? 'read-current-initialization-state-no-blind-replay' :
+          'authorized-current-readback-add-missing-only-hold-differing-values' });
+    }
+  }
+  const review = { schema: 1, ...deniedAuthority(), enabled: false, liveReadPerformed: false,
+    planHash: update.planHash, branch: update.branch, host: update.host, engineId: update.engineId,
+    recipeSha256: createHash('sha256').update(recipe).digest('hex'), links,
+    groupReviews: ['g1', 'g2'].map(scope => ({ scope,
+      services: plan.services.filter(s => s.scope === scope).map(s => ({ service: s.service,
+        canisterId: s.canisterId, readbackMethod: 'read_group_opening_configuration',
+        permissionRequirement: ['media_metadata', 'insights_domain'].includes(s.service) ?
+          { permission_source: 'local_club_roles' } : s.service === 'timer_jobs' ? null :
+          { club_domain: lookup(scope, 'club_domain').canisterId } })),
+      photoStore: lookup(scope, 'media_blob_store'), piiAuthority: lookup(scope, 'pii_access_control'),
+      proxyId: plan.proxyId, originalKeyCommitment: null, keyContinuityVerified: false })),
+    sharedReviews: plan.services.filter(s => s.scope === 'shared').map(s => ({ ...s,
+      action: 'held-separate-review', currentConfiguration: null,
+      requirement: s.service === 'frontend' ? 'separate-website-cutover-after-acceptance' :
+        'complete-both-group-binding-and-current-authority-review-no-singleton-overwrite' })),
+    unresolved: ['installed-interface-and-reader-authorization', 'shared-registry-identity-placement-and-workload-bindings',
+      'original-proxy-pii-keys-and-engine-build-settings', 'closed-registry-revision-and-admission-remains-off',
+      'fresh-signed-in-two-group-acceptance'],
+    switchBack: { executable: false, beforeCutover: [
+      'record-current-mainnet-dev-website-update-targets-source-and-routing-revision',
+      'retain-existing-mainnet-dev-canisters-data-and-key-authorities',
+      'review-dev-only-before-images-without-exporting-secrets',
+      'verify-new-website-identity-origin-and-sign-in-continuity'],
+      onFailure: ['stop-cutover-and-hold-unknown-writes-without-replay',
+        'restore-only-reviewed-dev-website-and-update-routing-before-images',
+        'leave-engine-data-in-place-no-cross-platform-copy-or-reinstall',
+        'verify-mainnet-dev-sign-in-existing-clubs-and-fresh-media'],
+      prodChangesAllowed: false, dataRollbackAllowed: false },
+  };
+  return { ...review, connectionReviewHash: createHash('sha256').update(JSON.stringify(review)).digest('hex') };
+}
+
 /** Assess local capture input; never imply canister status was read by this tool.
  * All future IDs must be assigned/independently certified before capture. */
 export function assessGroupedEngineReadiness(plan, capture, { now, maxAgeMs }) {
@@ -182,15 +248,16 @@ function localJson(path) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const [command, ...args] = process.argv.slice(2);
-  if (['draft', 'updates'].includes(command) && args.length === 0) {
+  if (['draft', 'updates', 'connections'].includes(command) && args.length === 0) {
     const plan = createGroupedEngineDraft(
       localJson(new URL('../docs/dev-engine-combined-installation-observation.json', import.meta.url)),
       localJson(new URL('../docs/dev-engine-group2-owner-inventory.json', import.meta.url)));
-    console.log(JSON.stringify(command === 'updates' ? createGroupedUpdateCandidate(plan) : plan, null, 2));
+    console.log(JSON.stringify(command === 'connections' ? createGroupedConnectionCandidate(plan) :
+      command === 'updates' ? createGroupedUpdateCandidate(plan) : plan, null, 2));
   }
   else if (command === 'check' && args.length === 4) {
     const report = assessGroupedEngineReadiness(localJson(args[0]), localJson(args[1]), { now: Number(args[2]), maxAgeMs: Number(args[3]) });
     console.log(JSON.stringify(report, null, 2));
     if (!report.suppliedReadinessChecksPassed) process.exitCode = 1;
-  } else throw Error('Usage: draft | updates | check <local-plan.json> <local-capture.json> <now-ms> <max-age-ms>');
+  } else throw Error('Usage: draft | updates | connections | check <local-plan.json> <local-capture.json> <now-ms> <max-age-ms>');
 }
