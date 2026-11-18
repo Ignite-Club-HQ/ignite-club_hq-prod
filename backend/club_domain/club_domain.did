@@ -1866,6 +1866,11 @@ type Main =
           teams: vec record { text; text; bool };
         };
       });
+   read_event_member_roles_if_current: (user: principal, club_id: text) ->
+     (variant {
+        Err: text;
+        Ok: vec record { text; opt text };
+      });
    read_has_club_membership: (user: principal, club_id: text) -> (bool);
    read_has_club_staff_role: (user: principal, club_id: text) -> (bool);
    read_has_pii_audience: (user: principal, kind: text, scope: text) ->
