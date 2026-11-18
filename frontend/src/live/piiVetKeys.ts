@@ -112,12 +112,16 @@ export async function fetchClubNameVetKey(
       if (stored) {
         try { return VetKey.deserialize(stored); } catch { forgetStoredClubKey(cid, principal, slot); }
       }
-      const { key: verification } = await getPiiVerificationKey(ctx);
-      active();
+      // A club shares ONE name key, and both prerequisites are independent:
+      // begin its authenticated relay while the public verification key loads.
+      // The protected read of each club-name ciphertext remains mandatory.
       const transport = TransportSecretKey.random();
-      const bytes = await unwrapCandid((actor as unknown as {
-        get_private_profile_club_name_vetkey: (ids: string[], scope: PrivateProfileAudience, transport: Uint8Array) => Promise<{ Ok: Uint8Array | number[] } | { Err: string }>;
-      }).get_private_profile_club_name_vetkey(subjects, scope, transport.publicKeyBytes()), 'Unlock club names');
+      const [{ key: verification }, bytes] = await readSharedVetKeyMaterialsConcurrently(
+        () => getPiiVerificationKey(ctx),
+        () => unwrapCandid((actor as unknown as {
+          get_private_profile_club_name_vetkey: (ids: string[], scope: PrivateProfileAudience, transport: Uint8Array) => Promise<{ Ok: Uint8Array | number[] } | { Err: string }>;
+        }).get_private_profile_club_name_vetkey(subjects, scope, transport.publicKeyBytes()), 'Unlock club names'),
+      );
       active();
       const key = EncryptedVetKey.deserialize(Uint8Array.from(bytes)).decryptAndVerify(transport, verification, piiIbeIdentity(piiId, 'display_name'));
       active();
