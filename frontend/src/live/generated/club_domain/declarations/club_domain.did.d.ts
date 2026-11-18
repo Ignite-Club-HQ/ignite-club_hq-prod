@@ -1669,6 +1669,11 @@ export interface Main {
    */
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
   'read_has_child_guardian' : ActorMethod<[Principal, string], boolean>,
+  'read_chat_scope_access_batch' : ActorMethod<
+    [Principal, Array<string>, Array<[string, string]>],
+    { 'Ok': { 'clubs': Array<[string, boolean]>, 'teams': Array<[string, string, boolean]> } } |
+      { 'Err': string }
+  >,
   'read_has_club_membership' : ActorMethod<[Principal, string], boolean>,
   'read_has_club_staff_role' : ActorMethod<[Principal, string], boolean>,
   'read_has_pii_audience' : ActorMethod<[Principal, string, string], boolean>,

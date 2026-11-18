@@ -1857,6 +1857,15 @@ type Main =
    read_can_list_guardian_children: (user: principal) -> (vec record { id: text; parent_id: opt text });
    read_can_guardian_rsvp_child: (user: principal, child_id: text, club_id: text,
      team_id: opt text, target_team_ids: vec text) -> (bool);
+   read_chat_scope_access_batch: (user: principal, club_ids: vec text,
+     team_scopes: vec record { text; text }) ->
+     (variant {
+        Err: text;
+        Ok: record {
+          clubs: vec record { text; bool };
+          teams: vec record { text; text; bool };
+        };
+      });
    read_has_club_membership: (user: principal, club_id: text) -> (bool);
    read_has_club_staff_role: (user: principal, club_id: text) -> (bool);
    read_has_pii_audience: (user: principal, kind: text, scope: text) ->

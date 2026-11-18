@@ -3874,6 +3874,56 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(user) };
   };
 
+  // Restricted batch authority for the trusted messaging canister. One
+  // account admission establishes the linked-principal snapshot for all exact
+  // club/team checks in this single consensus message. The result is boolean
+  // scope proof only: no roster, private names, identity aliases or PII.
+  //
+  // This is NOT a public membership probe. A browser/user must not call this
+  // method directly or select an unrelated subject principal.
+  public shared ({ caller }) func read_chat_scope_access_batch(
+    user : Principal, club_ids : [Text], team_scopes : [(Text, Text)]
+  ) : async { #Ok : { clubs : [(Text, Bool)]; teams : [(Text, Text, Bool)] }; #Err : Text } {
+    let ?messaging = messagingDomainCanister else return #Err("Trusted messaging authority unavailable");
+    if (caller != messaging) return #Err("Trusted messaging canister required");
+    if (user == Principal.anonymous()) return #Err("Authenticated subject required");
+    // The messaging service chunks larger requests; no silent truncation.
+    if (club_ids.size() > 64 or team_scopes.size() > 64) return #Err("Chat scope batch too large");
+    for (club in club_ids.vals()) {
+      if (club == "" or club.size() > 128) return #Err("Invalid club scope");
+    };
+    for ((club, team) in team_scopes.vals()) {
+      if (club == "" or club.size() > 128 or team == "" or team.size() > 128)
+        return #Err("Invalid team scope");
+    };
+    let privateWriterLease = switch (privateNameWriterGate.enter()) {
+      case (#Ok(key)) key;
+      case (#Err(reason)) throw Error.reject(reason);
+    };
+    try {
+      if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
+      try {
+        await admitAccount(user);
+        // Admission can suspend; confirm the caller is still the *configured*
+        // messaging service and the subject is not being removed.
+        if (messagingDomainCanister != ?caller or removalReceiver.denied(user) or nameCleanup.locked())
+          return #Err("Chat authority changed");
+        let clubs = Array.map<Text, (Text, Bool)>(club_ids, func(club) {
+          (club, not isExcluded(user, club) and isMember(user, club))
+        });
+        let teamProofs = Array.map<(Text, Text), (Text, Text, Bool)>(team_scopes, func((club, team)) {
+          let live = liveTeamClub(team) == ?club;
+          let allowed = live and not isExcluded(user, club)
+            and (isOnTeam(user, team) or isAdmin(user, club));
+          (club, team, allowed)
+        });
+        if (removalReceiver.denied(user) or messagingDomainCanister != ?caller or nameCleanup.locked())
+          return #Err("Chat authority changed");
+        #Ok({ clubs; teams = teamProofs })
+      } finally { removalReceiver.leave(user) };
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
   // Shared-key private-detail audiences, asked only by the configured PII
   // canister. kind/scope: "clubchildren"/<club>, "teamnames"/<team>,
   // "vaultrole"/"<club>|<team or empty>|<role,role,...>". Boolean only.

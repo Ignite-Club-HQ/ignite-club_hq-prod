@@ -33,6 +33,23 @@ try{
   const chat=await install(chatIdl,process.env.MESSAGING_DOMAIN_WASM);
   const events=await install(eventsIdl,process.env.EVENTS_DOMAIN_WASM);
   const as=(canister,who)=>{canister.actor.setPrincipal(who);return canister.actor;};
+  // New trusted consensus batch method, isolated from historical frontend
+  // bindings so this disposable suite can test the exact server Candid ABI.
+  const chatScopeIdl=({IDL})=>IDL.Service({
+    read_chat_scope_access_batch:IDL.Func([
+      IDL.Principal,IDL.Vec(IDL.Text),IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text))
+    ],[IDL.Variant({
+      Ok:IDL.Record({
+        clubs:IDL.Vec(IDL.Tuple(IDL.Text,IDL.Bool)),
+        teams:IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text,IDL.Bool)),
+      }),Err:IDL.Text
+    })],[]),
+  });
+  const chatScope=pic.createActor(chatScopeIdl,club.canisterId);
+  const batch=async(from,subject,clubs,teams)=>{
+    chatScope.setPrincipal(from);
+    return chatScope.read_chat_scope_access_batch(subject,clubs,teams);
+  };
   ok(await as(club,owner).set_messaging_domain_canister(chat.canisterId));
   ok(await as(club,owner).set_events_domain_canister(events.canisterId));
   ok(await as(chat,owner).set_club_domain_canister(club.canisterId));
@@ -45,6 +62,16 @@ try{
     [u10Only,'parent',deletedId],[twoTeams,'parent',deletedId],[twoTeams,'parent',liveId],
     [admin,'club_admin',null]
   ]) ok(await as(club,owner).add_role_grant(human,clubId,role,teamId===null?[]:[teamId]));
+
+  denied(await batch(outsider,twoTeams,[clubId],[[clubId,deletedId]]));
+  denied(await batch(owner,twoTeams,[clubId],[[clubId,deletedId]]));
+  denied(await batch(chat.canisterId,twoTeams,Array(65).fill(clubId),[]));
+  const allowedBatch=ok(await batch(chat.canisterId,twoTeams,[clubId],[[clubId,deletedId],[clubId,liveId],[clubId,'nonexistent']]));
+  assert.deepEqual(allowedBatch.clubs,[[clubId,true]]);
+  assert.deepEqual(allowedBatch.teams,[[clubId,deletedId,true],[clubId,liveId,true],[clubId,'nonexistent',false]]);
+  const outsiderBatch=ok(await batch(chat.canisterId,outsider,[clubId],[[clubId,liveId]]));
+  assert.deepEqual(outsiderBatch.clubs,[[clubId,false]]);
+  assert.deepEqual(outsiderBatch.teams,[[clubId,liveId,false]]);
 
   const oldChat=ok(await as(chat,owner).ensure_conversation(clubId,[deletedId],[u10Only,twoTeams,admin]));
   assert.equal(oldChat.id,deletedId);
@@ -62,6 +89,17 @@ try{
   assert.equal(beforeEvents.some(e=>e.id===liveEvent.id),true,'U12 accessible prior to deletion');
 
   ok(await as(club,owner).soft_delete_team(deletedId));
+  const revokedBatch=ok(await batch(chat.canisterId,twoTeams,[clubId],[[clubId,deletedId],[clubId,liveId]]));
+  assert.deepEqual(revokedBatch.clubs,[[clubId,true]]);
+  assert.deepEqual(revokedBatch.teams,[[clubId,deletedId,false],[clubId,liveId,true]],
+    'deleted team must be revoked even for member of another team');
+  const oldOnlyBatch=ok(await batch(chat.canisterId,u10Only,[clubId],[[clubId,deletedId]]));
+  assert.deepEqual(oldOnlyBatch.clubs,[[clubId,false]]);
+  assert.deepEqual(oldOnlyBatch.teams,[[clubId,deletedId,false]]);
+  const afterInbox=ok(await as(chat,twoTeams).read_account_recent_conversations(twoTeams,10));
+  assert.ok(!afterInbox.some(c=>c.conversation_id===deletedId),
+    'protected ChatGPT inbox must hide deleted team thread');
+
   assert.equal(await as(club,owner).read_account_is_club_member(u10Only,clubId),false,
     'U10-only parent no longer club member');
   assert.equal(await as(club,owner).read_account_is_club_member(twoTeams,clubId),true,
@@ -100,5 +138,10 @@ try{
     .some(e=>e.id===oldEvent.id));
   assert.ok(!((await as(events,outsider).read_account_list_events([clubId],[]))
     .some(e=>e.id===oldEvent.id)));
-  console.log('PASS: deleted-team chat/event denial, U12 preservation, independent admin, restore without privilege resurrection and rejoin; disposable PocketIC only');
+  const restoredBatch=ok(await batch(chat.canisterId,u10Only,[clubId],[[clubId,deletedId]]));
+  assert.deepEqual(restoredBatch.teams,[[clubId,deletedId,true]]);
+  const restoredInbox=ok(await as(chat,u10Only).read_account_recent_conversations(u10Only,10));
+  assert.ok(restoredInbox.some(c=>c.conversation_id===deletedId),
+    'new explicit grant restores the single intended inbox conversation');
+  console.log('PASS: live trusted batch caller restrictions, positive club/team access, deleted-team revocation, inbox hiding and explicit rejoin; disposable PocketIC only');
 } finally {await pic?.tearDown();await server.stop();}
