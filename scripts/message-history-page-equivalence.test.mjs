@@ -28,7 +28,12 @@ function newPage(messages,conversation,before,limit) {
 }
 test('protected history retains signed admission, current team authority and removal fences',()=>{
   assert.match(body,/await admitAccount\(caller\)/);
-  assert.match(body,/await\* requireChatAccess\(caller, conversation_id\)/);
+  assert.match(body,/await\* requireBatchedReadChatAccess\(caller, conversation_id\)/);
+  const helper=chat.slice(chat.indexOf('func requireBatchedReadChatAccess('),chat.indexOf('public shared ({ caller }) func read_account_recent_conversations('));
+  assert.match(helper,/readRecentChatScopeProofs\(subject, \[c\.club_id\], teams\)/);
+  assert.match(helper,/not requiresClubMembership\(fresh\)/);
+  assert.match(helper,/isFenced\(c\.club_id\)/);
+  assert.match(helper,/await\* requireChatAccess\(subject, conversation_id\)/,'special scopes retain legacy access path');
   assert.match(body,/not canReadTeamMessages\(caller, conversation_id\)/);
   assert.match(body,/if \(limit == 0 or limit > 100\)/);
   assert.match(body,/if \(cursor > latest\) return #Err\("Stale cursor"\)/);
