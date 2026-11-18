@@ -8,6 +8,7 @@
 - [ ] Real signed-in grouped-DEV unlock/join/readback and installed-phone timings require a delegated Internet Identity session/device unavailable here; must precede PROD promotion.
 
 ## Grouped OpenCloud DEV preparation — 18 November
+- [ ] Assign DEV update controllers during OpenCloud import: blocked by the console's explicit refusal to grant controllers from bundles; requires an owner-authorized controller mechanism confirmed by OpenCloud. Do not embed a self-grant or claim manifest entries grant management authority.
 - [x] Prepared same-app 32-part layout: six shared parts and two thirteen-part groups; existing 19 IDs retained as historical references, 13 new IDs unset. Closed wiring/media/promotion runbook: docs/grouped-opencloud-dev-preparation.md. No live changes.
 - [x] Prepared bounded local readiness checks, exact inventory/revision/artifact bindings and 18 two-group acceptance scenarios; 43 new/existing engine tests pass, inactive draft verified and preview build OK. No live verifier or activation permission shipped.
 - [ ] Real controller/internal-governor readback, second-group installation and signed-in encrypted-media acceptance await OpenCloud owner access/support; grouped mainnet DEV remains the release-testing environment.
