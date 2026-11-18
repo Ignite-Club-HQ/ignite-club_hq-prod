@@ -23,7 +23,7 @@ test('self conversation listing admits once, preserves elevated access denial an
 
 test('request-local positive club/team scope proofs and final live revocation checks remain enforced', () => {
   const ordered = [
-    'conversation.participants.any(func(p) = p.equal(principal))',
+    'c.participants.any(func(p) = p.equal(principal))',
     'not isGroupDeleted(c.id)',
     'var approvedClubs : [Text] = []',
     'var approvedTeams : [(Text, Text)] = []',
