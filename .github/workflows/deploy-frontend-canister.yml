@@ -117,6 +117,20 @@ jobs:
           import { readFileSync } from 'node:fs';
           const m = JSON.parse(readFileSync('dist-canister/.well-known/ic-architecture', 'utf8'));
           const ids = m.canisters.map(c => c.id);
+          const base = JSON.parse(readFileSync('../deploy/mainnet/.icp/data/mappings/ic.ids.json', 'utf8'));
+          // A green asset-sync must never publish internal DEV workers or
+          // workload credentials just because the complete canister map exists.
+          for (const service of ['secret_workload_identity', 'migration_coordinator', 'timer_jobs']) {
+            if (!base[service] || ids.includes(base[service])) {
+              throw new Error('DEV connector discovery includes or cannot verify excluded ' + service);
+            }
+          }
+          for (const service of ['identity_access', 'pii_access_control', 'shard_router', 'placement_registry']) {
+            if (!base[service] || !ids.includes(base[service])) {
+              throw new Error('DEV connector discovery lost required member/placement service ' + service);
+            }
+          }
+          if (new Set(ids).size !== ids.length) throw new Error('Duplicate DEV discovery canister ID');
           const g2Pii = 'zt5a6-yiaaa-aaaal-qxp5q-cai';
           const forbidden = ['zu4gk-vqaaa-aaaal-qxp5a-cai', 'zg2rt-zaaaa-aaaal-qxp6a-cai', 'tbeh7-5qaaa-aaaai-ayenq-cai'];
           const enabled = process.env.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY === '1';
