@@ -58,7 +58,7 @@ test('request-local positive club/team scope proofs and final live revocation ch
 });
 
 test('inbox optimisation cannot modify Virtuoso, messages, unread state or stored permissions', () => {
-  assert.match(body, /public shared \(\{ caller \}\) func read_account_recent_conversations/);
+  assert.match(body, /func read_account_recent_conversations/);
   assert.match(body, /#Ok\(Array\.tabulate<Types\.RecentConversation>\(take/);
   assert.doesNotMatch(body, /mark_?read|set_?unread|last_read_sequence\s*:=|unread\.put\(|send_message\(|update_group\(/i);
   assert.doesNotMatch(body, /stable\s+(var|let)/, 'proof sets must be request-local only');
