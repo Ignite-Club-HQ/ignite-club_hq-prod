@@ -1,4 +1,7 @@
 # Ignite web app → ICP frontend canister (replaces Netlify file hosting).
+# Release candidate (2026-11-18): original DEV mainnet frontend asset-only sync
+# after prior deploy and retry failed. No module install, restart, top-up or
+# controller mutation; Cloud Engine stays manual-only and PROD is not targeted.
 #
 # Runs on every push to main that touches the frontend, or manually.
 # Uses the same DEPLOYER_PEM secret as "[TEST] Deploy canisters (legacy base/Group 1)".
@@ -28,7 +31,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   deploy:
@@ -191,88 +194,57 @@ jobs:
           icp identity default ignite-governor
           echo "Deployer: $(icp identity principal)"
 
-      - name: Convert any ICP into cycles
-        run: |
-          set -uo pipefail
-          mkdir -p "$RUNNER_TEMP/icp-no-project" && cd "$RUNNER_TEMP/icp-no-project"
-          echo "Cycles balance: $(icp cycles balance -n ic 2>/dev/null || true)"
-          RAW="$(icp token balance -n ic 2>/dev/null || true)"
-          echo "ICP balance: $RAW"
-          AMT="$(echo "$RAW" | grep -oE '[0-9]+(\.[0-9]+)?' | head -1 || true)"
-          MINT="$(awk -v b="${AMT:-0}" 'BEGIN{ m = b - 0.0001; if (m <= 0) m = 0; printf "%.8f", m }')"
-          if [ "$MINT" != "0.00000000" ]; then
-            echo "==> Converting $MINT ICP into cycles"
-            icp cycles mint --icp "$MINT" -n ic
-          fi
-          echo "Cycles balance now: $(icp cycles balance -n ic 2>/dev/null || true)"
-
-      - name: Upload to frontend canister
+      # Existing DEV mainnet site: the frontend module is already installed.
+      # Never run `icp deploy` for a static asset-only release; that command
+      # stops/reinstalls a running canister before the sync plugin can upload.
+      - name: Sync existing DEV mainnet website assets only
         working-directory: deploy/frontend
         run: |
           set -euo pipefail
-          # Make sure the canister has room to install/upload (it ran dry once).
-          # Try smaller amounts if the deploy account is short on cycles.
-          # Only spend deploy-account cycles when the website canister is actually low;
-          # topping up on every push drained the account shared with tests and group funding.
-          FUEL=$(icp canister status frontend -e ic --json 2>/dev/null | node -e 'let t="";process.stdin.on("data",d=>t+=d).on("end",()=>{let v=null;const walk=o=>{if(o&&typeof o==="object")for(const[k,x]of Object.entries(o)){if(v===null&&/^(cycles|balance|cycles_balance)$/i.test(k)&&/^\d[\d_]*$/.test(String(x).replace(/ cycles$/,"")))v=String(x).replace(/[_ a-z]/gi,"");else walk(x)}};try{walk(JSON.parse(t))}catch{};console.log(v??"")})' || true)
-          TOPPED=""
-          AMOUNTS="0.3T 0.15T 0.1T 0.05T"
-          if [ -n "$FUEL" ] && [ "$FUEL" -ge 2000000000000 ] 2>/dev/null; then
-            echo "Website canister holds $FUEL cycles; no top-up needed."; AMOUNTS=""; TOPPED="skipped"
-          elif [ -z "$FUEL" ]; then
-            echo "::warning::Could not read website canister fuel; topping up minimally."; AMOUNTS="0.05T"
+          EXPECTED_FRONTEND="proe7-kqaaa-aaaas-qg6gq-cai"
+          EXPECTED_MODULE_HASH="0xb143d5526d180140593e8d61f1eca2d917d5761cf0b59fdc5bada947abb1d304"
+          ID="$(jq -r '.frontend // empty' .icp/data/mappings/ic.ids.json)"
+          if [ "$ID" != "$EXPECTED_FRONTEND" ]; then
+            echo "::error::Not the pinned existing DEV mainnet frontend; no sync attempted."
+            exit 1
           fi
-          for A in $AMOUNTS; do
-            if icp canister top-up frontend --amount "$A" -e ic; then TOPPED="$A"; echo "Topped up $A"; break; fi
-          done
-          [ -n "$TOPPED" ] || echo "::warning::Top-up skipped — the deploy account needs more cycles (send ICP to it)."
-          # Sync calls require a running canister. A prior failed deploy left it
-          # stopped, and a stopped canister refuses every call — start it first
-          # and prove it is running before uploading. Never reinstall: that would
-          # wipe the stored site.
-          if [ -f .icp/data/mappings/ic.ids.json ] && jq -e '.frontend // empty' .icp/data/mappings/ic.ids.json >/dev/null; then
-            echo "Ensuring frontend canister is running..."
-            # "already running" is fine; only a real rejection matters.
-            icp canister start frontend -e ic || true
-            sleep 5
-            STATUS_JSON="$(icp canister status frontend -e ic --json 2>/dev/null || true)"
-            echo "Status after start: $STATUS_JSON"
-            if echo "$STATUS_JSON" | grep -qi stopped; then
-              # Start is rejected while the balance sits below the freezing
-              # threshold; top up once and retry.
-              echo "::warning::Canister still stopped — topping up 1T and retrying start."
-              icp canister top-up frontend --amount 1T -e ic || true
-              icp canister start frontend -e ic || true
-              sleep 5
-              STATUS_JSON="$(icp canister status frontend -e ic --json 2>/dev/null || true)"
-              echo "Status after retry: $STATUS_JSON"
-            fi
-            if echo "$STATUS_JSON" | grep -qi stopped; then
-              echo "::error::Frontend canister is stopped and would not start. Top it up with more cycles (Top up canister cycles workflow) and rerun this workflow."
-              exit 1
-            fi
-          fi
-          # Never reinterpret a sync failure as permission to erase stored files.
-          icp deploy -e ic frontend --mode auto --yes --cycles 1000000000000
-          ID="$(jq -r '.frontend' .icp/data/mappings/ic.ids.json)"
-          # Let club_domain read this canister's cycle balance (admin settings panel).
-          # Hard fail: without this grant the admin balances card cannot read the
-          # web-app canister's cycles (it silently showed "—" once before).
-          icp canister settings update frontend --add-controller mzzzv-taaaa-aaaal-qxlrq-cai -e ic --force
-          echo "::notice::Web app live at https://$ID.icp.net"
-          echo "### Web app deployed: https://$ID.icp.net" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Commit frontend canister ID
-        run: |
-          set -euo pipefail
-          IDS="deploy/frontend/.icp/data/mappings/ic.ids.json"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add -f "$IDS"
-          if git diff --cached --quiet; then echo "Mapping unchanged."; exit 0; fi
-          git commit -m "Record frontend canister ID [skip ci]"
-          for i in 1 2 3; do
-            git pull --rebase --autostash -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
-            sleep 5
-          done
-          exit 1
+          # Status readback is an early refusal gate, not a guarantee that no
+          # other controller can change the state during the subsequent call.
+          STATUS_JSON="$(icp canister status frontend -e ic --json)"
+          STATUS_JSON="$STATUS_JSON" EXPECTED_FRONTEND="$EXPECTED_FRONTEND" EXPECTED_MODULE_HASH="$EXPECTED_MODULE_HASH" node --input-type=module <<'JS'
+          const status = JSON.parse(process.env.STATUS_JSON);
+          const fail = message => { console.error('::error::'+message); process.exit(1); };
+          if (status.id !== process.env.EXPECTED_FRONTEND || status.status !== 'Running') {
+            fail('Existing DEV website is not running at the pinned ID; inspect before any retry');
+          }
+          if (status.module_hash?.toLowerCase() !== process.env.EXPECTED_MODULE_HASH) {
+            fail('DEV website module hash changed; a separately reviewed upgrade is needed');
+          }
+          const controllers = status.settings?.controllers ?? [];
+          if (controllers.length !== 3 ||
+              !controllers.includes('jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe') ||
+              !controllers.includes('vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae') ||
+              !controllers.includes('mzzzv-taaaa-aaaal-qxlrq-cai')) {
+            fail('Existing DEV frontend controllers differ; no sync attempted');
+          }
+          const fuel = BigInt(String(status.cycles ?? 0).replace(/_/g, ''));
+          if (fuel < 200_000_000_000n) fail('DEV frontend cycles below 200B safeguard; no automatic top-up or sync');
+          console.log('Existing DEV mainnet website readback passed; running, pinned module and controllers, sufficient cycles');
+          JS
+          # No canister stop/install/upgrade, settings update, controller grant,
+          # frontend creation, cycle minting or top-up. One sync attempt only.
+          icp sync frontend -e ic
+          # Check the target remains running after the sync. No automatic retry.
+          FINAL_STATUS="$(icp canister status frontend -e ic --json)"
+          FINAL_STATUS="$FINAL_STATUS" EXPECTED_FRONTEND="$EXPECTED_FRONTEND" EXPECTED_MODULE_HASH="$EXPECTED_MODULE_HASH" node --input-type=module <<'JS'
+          const status = JSON.parse(process.env.FINAL_STATUS);
+          if (status.id !== process.env.EXPECTED_FRONTEND ||
+              status.status !== 'Running' ||
+              status.module_hash?.toLowerCase() !== process.env.EXPECTED_MODULE_HASH) {
+            console.error('::error::Website post-sync state differs; inspect before another deployment');
+            process.exit(1);
+          }
+          console.log('Existing DEV mainnet frontend remains running on original module');
+          JS
+          echo "::notice::Existing DEV mainnet web assets synced: https://$ID.icp.net"
+          echo "### DEV mainnet frontend assets synced: https://$ID.icp.net" >> "$GITHUB_STEP_SUMMARY"
