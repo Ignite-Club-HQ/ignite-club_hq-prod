@@ -9,6 +9,18 @@ permissions:
   contents: read
 
 jobs:
+  plugin-native-discovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Test canonical DEV principal/discovery parity (no network)
+        run: node --test scripts/ignite-plugin-discovery-parity.test.mjs scripts/ignite-plugin-native-preflight.test.mjs
+
   auth-release-policy:
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,22 @@
+name: "[TEST] Audit Ignite ChatGPT connector discovery (read-only)"
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Verify fail-closed connector discovery rules
+        run: node --test scripts/ignite-plugin-discovery-parity.test.mjs
+      - name: Compare public DEV manifests (no accounts or canister calls)
+        run: node scripts/ignite-plugin-discovery-parity.mjs
