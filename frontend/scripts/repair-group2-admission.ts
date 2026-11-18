@@ -15,6 +15,7 @@ import { createJournalApi } from './media-stage-two-github.mjs';
 import { persistGroup2Journal } from '../../scripts/group2-journal.mjs';
 import { wasmHash } from '../../scripts/group2-upgrade-rules.mjs';
 import { IDENTITY, ROUTER, GOVERNOR, digest, validateRequest, verifyIdentityStatus, reconcileIdentityUpgrade } from '../../scripts/group2-admission-release-rules.mjs';
+import { group2AccountLinkReadiness } from '../../scripts/group2-account-link-readiness.mjs';
 
 const [action, wasmFile, pem, directory] = process.argv.slice(2);
 validateRequest(action, process.env.CONFIRMATION);
@@ -81,7 +82,15 @@ const binding={registry:pid(ROUTER),registry_revision:live.revision,target_alias
 const publicReport={action,identity:IDENTITY,newHash,oldHash:original.moduleHash,subnetId:original.subnetId,
   registryRevision:String(live.revision),groupAccepting:group.accepting,readers:targets};
 writeFileSync(join(directory,'account-access-report.json'),JSON.stringify(publicReport,null,2));
-if(action==='check') {console.log('Identity-only repair preflight passed; no deployment or authorization performed.');process.exit(0);}
+if(action==='check') {
+  // Do not confuse an eligible Group 2 service with authorised account reads.
+  // This check intentionally performs no user-dependent linked-account read.
+  const config = ok(await account.read_group_opening_configuration());
+  const readiness = group2AccountLinkReadiness(config);
+  writeFileSync(join(directory,'account-link-readiness.json'),JSON.stringify(readiness,null,2));
+  console.log('Identity-only admission preflight passed; account-link status: '+readiness.status+'. No deployment or authorization performed.');
+  process.exit(0);
+}
 const repo=process.env.GITHUB_REPOSITORY,release=process.env.GITHUB_SHA;
 if(!repo || !release || !/^[a-f0-9]{40}$/.test(release))throw new Error('GitHub release binding required');
 const api=createJournalApi(repo,JSON.stringify),branch='group-2-upgrade-receipts';
@@ -119,5 +128,16 @@ if(action==='repair' && (enabled!=='true'||targets.some(t=>!evidence.some(r=>r[0
 if(action==='disable' && enabled!=='false')throw new Error('Admission disable readback failed');
 if((await registry()).revision!==live.revision)throw new Error('Registry changed during account-access repair');
 journal.phase='complete';persist();
-writeFileSync(join(directory,'account-access-report.json'),JSON.stringify({...publicReport,verified:true,evidence},null,2));
-console.log(action==='repair'?'Identity upgraded and exact Group 2 readers authorized; group placement state and other services unchanged.':'Group 2 account eligibility disabled; placement state unchanged.');
+const accountLink = group2AccountLinkReadiness(evidence);
+writeFileSync(join(directory,'account-link-readiness.json'),JSON.stringify(accountLink,null,2));
+writeFileSync(join(directory,'account-access-report.json'),JSON.stringify({
+  ...publicReport,
+  verified:true,
+  eligibilityAuthorized:action==='repair',
+  accountLinkVerified:false,
+  accountLinkStatus:accountLink.status,
+  evidence,
+},null,2));
+console.log(action==='repair'
+  ? 'Identity upgraded and exact Group 2 eligibility readers authorized. Account linking is NOT verified: '+accountLink.status+'. Member account-read commissioning and signed-in confirmation are separate requirements.'
+  : 'Group 2 account eligibility disabled; placement state unchanged.');
