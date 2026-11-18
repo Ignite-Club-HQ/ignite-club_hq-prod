@@ -11,6 +11,9 @@ on:
       - "frontend/scripts/prepare-icp-chatgpt-child-name-cli.mjs"
       - "frontend/scripts/prepare-icp-chatgpt-child-name-connector.test.mjs"
       - "frontend/scripts/package-icp-chatgpt-child-name-offline.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-profile-name-cli.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs"
       - ".github/workflows/test-icp-chatgpt-private-name.yml"
   workflow_dispatch:
 
@@ -39,6 +42,9 @@ jobs:
       - name: Verify actual connector Candid bridge and local stdin CLI with synthetic data only
         working-directory: frontend
         run: node --test scripts/prepare-icp-chatgpt-child-name-connector.test.mjs
+      - name: Validate own-profile name client encryption using synthetic principal
+        working-directory: frontend
+        run: node --test scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs
       # Copy only lockfile-pinned SDK runtime packages, not all node_modules.
       # Produces a portable offline runner without installing a new bundler.
       # Uses synthetic fixtures; no canisters, identities or PROD operations.
@@ -47,6 +53,8 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/package-icp-chatgpt-child-name-offline.mjs "$RUNNER_TEMP/ignite-child-crypto"
+          test -f "$RUNNER_TEMP/ignite-child-crypto/scripts/prepare-icp-chatgpt-profile-name-cli.mjs"
+          node --check "$RUNNER_TEMP/ignite-child-crypto/scripts/prepare-icp-chatgpt-profile-name-cli.mjs"
           IGNITE_CHATGPT_BUNDLED_CLI="$RUNNER_TEMP/ignite-child-crypto/scripts/prepare-icp-chatgpt-child-name-cli.mjs" \
             node --test scripts/prepare-icp-chatgpt-child-name-connector.test.mjs
       - name: Attach verified offline crypto runtime (code only, no child data)
