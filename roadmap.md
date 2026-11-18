@@ -536,5 +536,5 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] Live verification of parent names waits on running `[TEST] Upgrade backend (all test groups)` for identity_access and the env switches IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE=1 / IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE=1; then signed-in checks by each parent.
 - [x] Invite child flow: strict same-group check, resume half-created child via journal/confirmed name, no duplicate on retry.
 
-- [ ] Repoint DEV backend upgrade workflows to the 18 OpenCloud canisters — blocked: update account must be a controller on all 19 engine canisters (Paul, OpenCloud)
-- [ ] 18 Nov: built combined_v3 (Files) = v2 with owner + jfagr controllers on all 19; awaiting Paul install and controller readback.
+- [ ] Repoint DEV backend upgrade workflows to the 18 OpenCloud canisters — blocked: the DEV governor key must be a controller on all 19 engine canisters (Paul, OpenCloud)
+- [ ] 18 Nov: combined_v3 was wrong — jfagr is the web-app publishing key, not the key "[TEST] Upgrade backend" signs with (vk34m governor), and its init args handed internal governorship to the owner. built combined_v4 (Files, sha256 91ccd704…) = v3 with owner + governor controllers on all 19 (web-app key only on frontend) and governor init args on the 16 services that take one; all other bytes identical; awaiting Paul install and controller readback.
