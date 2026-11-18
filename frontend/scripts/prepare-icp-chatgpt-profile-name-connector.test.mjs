@@ -9,7 +9,7 @@ const key=[177,78,48,240,39,234,226,250,163,45,107,185,179,87,249,4,113,97,47,2,
 const entry = id => ({canister_id:id,declared:true,sources:['ic-architecture']});
 const fixture=()=>({
  app:{app_url:dev.app,derivation_origin:dev.origin,canisters:[entry(dev.identity),entry(dev.pii)]},
- identity:{derivation_origin:dev.origin,principal:p,query_only:false},
+ identity:{requested:dev.origin,derived_for_origin:dev.origin,principal:p,read_only:false},
  authority:{identity_canister:dev.identity,pii_canister:dev.pii,owner_principal:p,verification_key:key},
  name:{value:'Synthetic User',confirmed_by_user:true}
 });
@@ -24,7 +24,7 @@ test('encrypts synthetic name with official VetKeys and no plaintext output',()=
 test('rejects mismatched caller, origin, target, missing manifest or approval',()=>{
  const mutate=[
  x=>{x.identity.principal='2vxsx-fae';},
- x=>{x.identity.query_only=true;},
+ x=>{x.identity.read_only=true;},
  x=>{x.app.derivation_origin='https://igniteclubhq.app';},
  x=>{x.app.canisters[1].declared=false;},
  x=>{x.authority.pii_canister='zt5a6-yiaaa-aaaal-qxp5q-cai';},
