@@ -22,7 +22,7 @@ import {
 import PendingInvitesList from "@/components/PendingInvitesList";
 import { friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
 import { cn } from "@/lib/utils";
-import { visibleTeamMemberName } from "@/lib/teamRosterDisplay";
+import { hasPendingAdultNameDisplay, visibleTeamMemberName } from "@/lib/teamRosterDisplay";
 import { type NameUnlockSnapshot } from "@/lib/nameUnlockProgress";
 import { summarizeAdultNameIssues, adultNameIssueLabel } from "@/lib/teamRosterReads";
 
@@ -165,7 +165,9 @@ export function TeamMembersSection({
   const [retryFailed, setRetryFailed] = useState(false);
   const [retryingNames, setRetryingNames] = useState(false);
   const adultNameRetryPending = retryingNames || isAdultNamesFetching;
-  const unlockRunning = adultNameRetryPending && nameUnlockProgress
+  const unlockRunning = hasPendingAdultNameDisplay(
+    Object.values(members).map(member => member.profile?.display_name), adultNameRetryPending,
+  ) && nameUnlockProgress
     && nameUnlockProgress.step !== 'done' && nameUnlockProgress.step !== 'failed';
   const playerRetryPending = retryingPlayers || isChildrenFetching;
 

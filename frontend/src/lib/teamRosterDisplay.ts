@@ -9,6 +9,18 @@ export function visibleTeamMemberName(displayName: string | null | undefined, pe
   return name;
 }
 
+/** Background revalidation is not an unlock when every rendered name exists. */
+export function hasPendingAdultNameDisplay(
+  displayNames: readonly (string | null | undefined)[],
+  pending: boolean,
+): boolean {
+  return pending && displayNames.some(name => {
+    const text = typeof name === 'string' ? name.trim() : '';
+    return !text || text.startsWith('pii-display-name:') ||
+      text === 'Name unavailable' || text === 'Unlocking name…';
+  });
+}
+
 export function teamRosterHeaderStatus({
   members, children, loadingMembers, loadingChildren, memberError, childError,
 }: {

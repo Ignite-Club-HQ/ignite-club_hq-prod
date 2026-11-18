@@ -1,7 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { visibleTeamMemberName, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry, requestedClubAdultNameIds, teamRosterHeaderStatus, scopedIcpTeamRosterKey } from './teamRosterDisplay';
+import { hasPendingAdultNameDisplay, visibleTeamMemberName, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry, requestedClubAdultNameIds, teamRosterHeaderStatus, scopedIcpTeamRosterKey } from './teamRosterDisplay';
 
 describe('team-roster privacy and loading', () => {
+  it('does not treat background refresh as unlocking when all parent names are visible', () => {
+    expect(hasPendingAdultNameDisplay(['Paul Cranwell', 'Test', 'Test2'], true)).toBe(false);
+    expect(hasPendingAdultNameDisplay([], true)).toBe(false);
+  });
+
+  it('tracks an active unlock only while a rendered parent name is unresolved', () => {
+    for (const missing of [null, undefined, '', ' ', 'pii-display-name:v1:authority:subject', 'Name unavailable', 'Unlocking name…']) {
+      expect(hasPendingAdultNameDisplay(['Paul Cranwell', missing], true)).toBe(true);
+      expect(hasPendingAdultNameDisplay(['Paul Cranwell', missing], false)).toBe(false);
+    }
+  });
+
   it('shows existing public/authorized display names without changing them', () => {
     expect(visibleTeamMemberName(' Test ')).toBe('Test');
     expect(visibleTeamMemberName('Coach Jane')).toBe('Coach Jane');
