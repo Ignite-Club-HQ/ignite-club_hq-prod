@@ -1,5 +1,12 @@
 # Roadmap — launch the live (PROD) system
 
+## Three DEV improvements — 18 November
+- [x] Name-unlock route closings run together and pinned DEV sources share only overlapping full-registry confirmations; fresh checks, exact club keys and denied access retained.
+- [x] Invitation acceptance waits for child names but not optional birth-year/jersey grants; exact committed receipt and eight-second name cap retained, fast-completion timer cleared.
+- [x] Overlapping event listings share identity/full-target/club/team-bound in-flight reads; duplicate exact club/event rows removed without deleting stored events or collapsing distinct IDs.
+- [x] 197 focused tests pass in each sign-in mode, including mounted invite/roster/Schedule tests; edited-file lint passes. Details: docs/dev-name-invite-schedule-improvements-2026-11-18.md. No PROD changes.
+- [ ] Real signed-in grouped-DEV unlock/join/readback and installed-phone timings require a delegated Internet Identity session/device unavailable here; must precede PROD promotion.
+
 ## Grouped OpenCloud DEV preparation — 18 November
 - [x] Prepared same-app 32-part layout: six shared parts and two thirteen-part groups; existing 19 IDs retained as historical references, 13 new IDs unset. Closed wiring/media/promotion runbook: docs/grouped-opencloud-dev-preparation.md. No live changes.
 - [x] Prepared bounded local readiness checks, exact inventory/revision/artifact bindings and 18 two-group acceptance scenarios; 43 new/existing engine tests pass, inactive draft verified and preview build OK. No live verifier or activation permission shipped.

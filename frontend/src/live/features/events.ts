@@ -105,7 +105,22 @@ export async function listLiveEvents(
   clubId?: string | null,
   teamId?: string | null,
 ) {
-  const rows = await listLiveEventsRaw(ctx, clubId, teamId);
+  // Schedule/Home/Next Up can ask for the same scope after the microtask
+  // batching window has closed. Join only the still-running read, never a
+  // completed result; every subsequent visit remains server-authorized.
+  const key = JSON.stringify([ctx.identity.getPrincipal().toText(), ctx.target, clubId ?? null, teamId ?? null]);
+  let reads = eventListReads.get(ctx.identity);
+  if (!reads) { reads = new Map(); eventListReads.set(ctx.identity, reads); }
+  let pending = reads.get(key);
+  if (!pending) {
+    const bucket = reads;
+    pending = listLiveEventsRaw(ctx, clubId, teamId).then(rows =>
+      [...new Map(rows.map(row => [JSON.stringify([row.club_id, row.id]), row])).values()],
+    ).finally(() => { if (bucket.get(key) === pending) bucket.delete(key); });
+    bucket.set(key, pending);
+  }
+  // Independent arrays: a consumer must not reorder its sibling's schedule.
+  const rows = [...await pending];
   rememberLiveEvents(rows);
   // Each listed event's club is known here: record it so opening the event
   // goes straight to its group instead of asking every group first.
@@ -119,6 +134,7 @@ export async function listLiveEvents(
 // can show it at once and refresh only its own club. Session memory only;
 // it is a display hint, never an access decision.
 type ListedLiveEvent = Awaited<ReturnType<typeof listLiveEventsRaw>>[number];
+const eventListReads = new WeakMap<FeatureBackendContext['identity'], Map<string, Promise<ListedLiveEvent[]>>>();
 const listedEvents = new Map<string, ListedLiveEvent>();
 function rememberLiveEvents(rows: readonly ListedLiveEvent[]) {
   for (const row of rows) {

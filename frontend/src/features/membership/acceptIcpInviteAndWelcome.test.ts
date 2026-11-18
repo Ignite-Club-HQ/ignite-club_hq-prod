@@ -27,6 +27,9 @@ import { acceptIcpInviteAndWelcome } from "./acceptIcpInviteAndWelcome";
 describe("acceptIcpInviteAndWelcome", () => {
   beforeEach(() => {
     mocks.calls.length = 0;
+    mocks.addRel.mockReset().mockResolvedValue(undefined);
+    mocks.grant.mockReset().mockResolvedValue(undefined);
+    mocks.readReceipt.mockReset();
     mocks.readReceipt.mockResolvedValue({ child_ids: [], club_id: "club", team_id: ["team"], accepted_at_ms: 1n });
     mocks.acceptPendingLiveInvite.mockReset().mockImplementation(async () => {
       mocks.calls.push("accepted");
@@ -62,6 +65,24 @@ describe("acceptIcpInviteAndWelcome", () => {
     const receipt = await acceptIcpInviteAndWelcome("pinv-family");
     expect(receipt.accepted_at_ms).toBe(7n);
     expect(mocks.readReceipt).toHaveBeenCalledWith({ identity: {}, target: {} }, "pinv-family");
+  });
+  it('returns once child names are ready without waiting for optional details', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.readReceipt.mockResolvedValueOnce({ child_ids: ['c1'], club_id: 'club', accepted_at_ms: 1n });
+      mocks.grant.mockImplementation(async (_ctx, _id, field) => field === 'name' ? undefined : new Promise(() => {}));
+      await expect(acceptIcpInviteAndWelcome('pinv-name')).resolves.toMatchObject({ child_ids: ['c1'] });
+      expect(mocks.grant).toHaveBeenCalledTimes(3);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(mocks.acceptPendingLiveInvite).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
+  });
+  it('does not replay acceptance or read a receipt after an uncertain write', async () => {
+    mocks.acceptPendingLiveInvite.mockRejectedValueOnce(new Error('Unknown commit'));
+    await expect(acceptIcpInviteAndWelcome('pinv-uncertain')).rejects.toThrow('Unknown commit');
+    expect(mocks.acceptPendingLiveInvite).toHaveBeenCalledOnce();
+    expect(mocks.readReceipt).not.toHaveBeenCalled();
+    expect(mocks.grant).not.toHaveBeenCalled();
   });
   it("does not hold acceptance longer than the wait cap on slow child grants", async () => {
     vi.useFakeTimers();

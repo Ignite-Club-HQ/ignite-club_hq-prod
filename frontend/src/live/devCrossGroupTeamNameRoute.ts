@@ -119,6 +119,9 @@ export function createDevCrossGroupTeamNameResolver(
   };
 
   let opening: Promise<Awaited<ReturnType<typeof inspect>>> | undefined;
+  // All original sources in one roster share the same full registry check.
+  // Share only overlapping closing reads; a later unlock still reads afresh.
+  let closing: Promise<Awaited<ReturnType<typeof inspect>>> | undefined;
   return async authority => {
     active();
     const principal = Principal.fromText(authority);
@@ -139,7 +142,8 @@ export function createDevCrossGroupTeamNameResolver(
         ...target, canisterIds: { ...target.canisterIds, pii_access_control: authority },
       } },
       confirm: async () => {
-        const final = await inspect();
+        closing ??= inspect().finally(() => { closing = undefined; });
+        const final = await closing;
         active();
         if (final.signature !== first.signature || !final.allowed.has(authority)) {
           throw new Error('DEV team-name routing authority changed');

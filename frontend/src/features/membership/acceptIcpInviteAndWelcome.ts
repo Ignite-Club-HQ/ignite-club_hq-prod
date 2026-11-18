@@ -14,6 +14,8 @@ export async function acceptIcpInviteAndWelcome(inviteId: string) {
       const { acceptPendingLiveInvite, readLiveFamilyInviteReceipt } = await import("@/live/features/club");
       await acceptPendingLiveInvite(ctx, inviteId);
       const receipt = await readLiveFamilyInviteReceipt(ctx, inviteId);
+      // No child means no PII setup or extra module load at all.
+      if (!receipt.child_ids.length) return receipt;
       const { addLiveGuardianRelationship, grantLivePiiRead } = await import("@/live/features/vault");
       // Child access setup is best-effort and each call is a separate
       // canister round trip, so run every child (and its three fields) in
@@ -23,15 +25,21 @@ export async function acceptIcpInviteAndWelcome(inviteId: string) {
       const setup = Promise.all(receipt.child_ids.map(async (id) => {
         try {
           await addLiveGuardianRelationship(ctx, me, id);
-          const results = await Promise.allSettled(
-            ["name", "year_of_birth", "jersey_number"].map((field) => grantLivePiiRead(ctx, id, field, me)),
+          // The roster needs the name, not the optional details. Continue
+          // those grants separately without keeping the accept screen open.
+          const name = grantLivePiiRead(ctx, id, "name", me);
+          void Promise.allSettled(
+            ["year_of_birth", "jersey_number"].map((field) => grantLivePiiRead(ctx, id, field, me)),
           );
-          if (results[0].status === "rejected") throw results[0].reason;
+          await name;
         } catch (error) {
           console.warn("Accepted invitation; encrypted child-name access needs retry", error);
         }
       }));
-      await Promise.race([setup, new Promise((resolve) => setTimeout(resolve, CHILD_ACCESS_WAIT_MS))]);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([setup, new Promise((resolve) => { timer = setTimeout(resolve, CHILD_ACCESS_WAIT_MS); })]);
+      } finally { clearTimeout(timer); }
       return receipt;
     },
   }, { inviteToken: inviteId });

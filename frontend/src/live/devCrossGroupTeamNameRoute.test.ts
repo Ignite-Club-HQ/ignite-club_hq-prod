@@ -90,6 +90,20 @@ describe('DEV original G1 encrypted teammate names - authoritative cross-group r
     await lease.confirm();
     expect(lease.context.target.canisterIds.pii_access_control).toBe(DEV.g2Pii);
   });
+  it('shares overlapping closing reads across sources but checks again on a later unlock', async () => {
+    const f = setup();
+    if (!f.resolver) throw Error('Expected DEV resolver');
+    const [original, group] = await Promise.all([f.resolver(DEV.originalPii), f.resolver(DEV.g2Pii)]);
+    expect(f.read).toHaveBeenCalledTimes(1);
+    await Promise.all([original.confirm(), group.confirm()]);
+    expect(f.read).toHaveBeenCalledTimes(2);
+    await original.confirm();
+    expect(f.read).toHaveBeenCalledTimes(3);
+    f.snapshot.revision = 12n;
+    const refused = await Promise.allSettled([original.confirm(), group.confirm()]);
+    expect(refused.map(result => result.status)).toEqual(['rejected', 'rejected']);
+    expect(f.read).toHaveBeenCalledTimes(4);
+  });
   it('never uses a foreign, guessed or malformed PII endpoint',async()=>{
     const f=setup();
     for(const bad of [p(50).toText(),DEV.originalClub,DEV.g2Club,'aaaaa-aa','not-a-principal']){

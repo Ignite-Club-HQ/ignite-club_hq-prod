@@ -496,6 +496,22 @@ describe("original-authority display rehearsal", () => {
     expect(resolveAuthority).toHaveBeenCalledOnce();
     expect(route.confirm).toHaveBeenCalledOnce();
   });
+  it('starts both closing checks together and withholds names until both succeed', async () => {
+    let finish: (() => void) | undefined;
+    const firstConfirm = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+    const secondConfirm = vi.fn(async () => {});
+    const secondRoute = lease(secondConfirm);
+    const pending = hydratePrivateProfileNames(ctx, [
+      { display_name: reference }, { display_name: foreignReference },
+    ], { resolveAuthority: async id => id === authority ? { context: ctx, confirm: firstConfirm } : secondRoute });
+    let settled = false;
+    void pending.then(() => { settled = true; });
+    await vi.waitFor(() => expect(secondConfirm).toHaveBeenCalledOnce());
+    expect(firstConfirm).toHaveBeenCalledOnce();
+    expect(settled).toBe(false);
+    finish?.();
+    expect((await pending).map(row => row.display_name)).toEqual(['Paul Cranwell', 'Paul Cranwell']);
+  });
 
   it('retires sibling ciphertext work when one scoped batch is refused', async () => {
     const rows = Array.from({ length: 26 }, (_, i) => ({ display_name: privateProfileNameReference(authority, Principal.fromUint8Array(new Uint8Array([i + 1, 2])).toText()) }));

@@ -468,7 +468,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
   };
   try {
     for (let start = 0; start < jobs.length; start += 4) await Promise.all(jobs.slice(start, start + 4).map(readJob));
-    for (const [authority, pendingLease] of leases) {
+    await Promise.all([...leases].map(async ([authority, pendingLease]) => {
       try {
         const lease = await pendingLease;
         active(); routeGuards.get(authority)?.();
@@ -481,7 +481,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
         else if (options.audience) throw error;
         names.delete(authority);
       }
-    }
+    }));
   } catch (error) {
     // A refused parallel batch retires sibling work before its late reply can
     // start fresh key derivations or contribute to a replacement request.
