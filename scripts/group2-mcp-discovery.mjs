@@ -2,6 +2,35 @@
 // is not an authorisation grant: every canister still checks caller privileges.
 import { readFileSync } from "node:fs";
 
+// DEV assistant discovery is a public *routing directory*, not the app's complete
+// canister inventory. Keep only services with a known member/agent use case.
+// In particular, NEVER expose workload credentials, migration orchestration or
+// scheduled-worker canisters in either the ICP-hosted or legacy preview manifest.
+// Identity, PII, shard routing and placement are retained: authenticated
+// onboarding/name reads and cross-group routing use them directly.
+export const DEV_ASSISTANT_BASE_SERVICES = Object.freeze([
+  "club_domain", "events_domain", "messaging_domain", "vault_domain",
+  "competition_domain", "club_points_domain", "mini_league_domain",
+  "media_metadata", "media_blob_store", "insights_domain",
+  "notification_queue", "pii_access_control", "identity_access",
+  "shard_router", "placement_registry",
+]);
+
+export function reviewedDevAssistantBaseCanisters(ids) {
+  if (!ids || typeof ids !== "object" || Array.isArray(ids)) {
+    throw new Error("DEV assistant canister ID map must be an object");
+  }
+  const allowed = new Set(DEV_ASSISTANT_BASE_SERVICES);
+  const selected = Object.entries(ids).filter(([name]) => allowed.has(name));
+  if (selected.some(([, id]) => typeof id !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)+$/.test(id))) {
+    throw new Error("Invalid DEV assistant canister ID");
+  }
+  if (new Set(selected.map(([, id]) => id)).size !== selected.length) {
+    throw new Error("Duplicate DEV assistant canister ID");
+  }
+  return selected;
+}
+
 export const GROUP2_CUSTOMER_SERVICES = Object.freeze([
   ["club_domain", "Clubs, teams, memberships and roles; caller-scoped."],
   ["events_domain", "Club and team schedules, event attendance and RSVPs."],
