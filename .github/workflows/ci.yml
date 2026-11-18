@@ -88,7 +88,7 @@ jobs:
       - name: Verify ICP child pages cannot send unscoped group writes
         run: node --test scripts/test-icp-children-group-routing.mjs
       - name: Verify bounded child-name unlock and retryable guardian display
-        run: npx vitest run --config vitest.legacy.config.mjs src/live/groupDispatch.test.ts src/pages/IcpChildrenPage.loading.test.tsx src/live/sharedVetKeyReadParallel.test.ts
+        run: npx vitest run --config vitest.legacy.config.mjs src/live/groupDispatch.test.ts src/pages/IcpChildrenPage.loading.test.tsx src/live/sharedVetKeyReadParallel.test.ts src/live/piiVetKeys.fresh.test.ts src/live/piiVetKeys.clubNames.test.ts
       - name: Verify DEV invite lookups, authority retry, and Internet Identity handoff
         run: npx vitest run --config vitest.legacy.config.mjs src/live/invitePreview.test.ts src/live/acceptShareableInviteWithRetry.test.ts src/features/membership/createIcpInviteChild.test.ts src/features/membership/verifyIcpChildNameAcrossGroups.test.ts src/pages/JoinTeamPage.icp.test.tsx
       - name: Verify signed-in principal isolation during session restore
