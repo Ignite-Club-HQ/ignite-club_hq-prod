@@ -112,3 +112,35 @@ test('protected batch event and roster readers reuse canonical live team status'
   assert.match(batched,/await freshEventTeamLive\(event\)/);
   assert.match(batched,/canViewListedEvent\(subject, event, roles, \?teamVerified\)/);
 });
+
+test('protected unread counts prefilter stored candidates before live chat permission checks', () => {
+ const body=section(chat,'func read_account_my_unread_counts(','public shared ({ caller }) func read_account_list_deleted_groups(');
+ const positions=[
+  ['admission','await admitAccount(caller)'],
+  ['participant','conversation.participants.any(func(p) = p.equal(caller))'],
+  ['candidate count','let candidate = unreadFor(caller, conversation.id)'],
+  ['positive candidate','if (candidate.count > 0)'],
+  ['live access','await* requireChatAccess(caller, conversation.id)'],
+  ['post-await fresh count','let u = unreadFor(caller, conversation.id)'],
+  ['result','result := result.concat([']
+ ].map(([label,token])=>{const index=body.indexOf(token);assert.ok(index>=0,'missing '+label);return index;});
+ for(let i=1;i<positions.length;i++) assert.ok(positions[i-1]<positions[i],'read gates incorrectly ordered at '+i);
+ assert.match(body,/if \(visible\) \{/,'only current-authorized conversations can contribute');
+ assert.match(body,/if \(u.count > 0\)/,'read-after-await can return no unread messages');
+ assert.match(body,/removalReceiver.denied\(caller\)/,'post-await removal fence remains enforced');
+});
+
+test('protected recent conversations prefilter candidates without weakening live membership checks', () => {
+ const body=section(chat,'func read_account_recent_conversations(','public shared ({ caller }) func read_account_list_all_online_users(');
+ const admission=body.indexOf('await admitAccount(principal)');
+ const participant=body.indexOf('conversation.participants.any(func(p) = p.equal(principal))');
+ const deleted=body.indexOf('not isGroupDeleted(conversation.id)');
+ const access=body.indexOf('await* requireChatAccess(principal, conversation.id)');
+ const recheck=body.indexOf('if (visible and not isGroupDeleted(conversation.id))',access);
+ const returned=body.indexOf('entries := entries.concat([',access);
+ assert.ok(admission>=0 && admission<participant);
+ assert.ok(participant<deleted && deleted<access,'local candidate checks must run before cross-canister access');
+ assert.ok(access<recheck && recheck<returned,'live access plus deleted status required before results');
+ assert.match(body,/not caller.equal\(principal\) and not isGovernor\(caller\)/,'cross-principal access remains gated');
+ assert.match(body,/removalReceiver.denied\(principal\)/,'removed subject must remain fenced');
+});
