@@ -22,7 +22,7 @@ jobs:
       - name: Verify pinned shared club-name release and settings-only safeguards
         run: node --test scripts/all-group-upgrade-policy.test.mjs scripts/dev-name-copy-reader-upgrade-contract.test.mjs scripts/secure-name-release-policy.test.mjs
       - name: Validate ICP MCP onboarding and DEV legal-release OQL contracts
-        run: node --test scripts/icp-mcp-onboarding-doc.test.mjs scripts/legal-release-oql-contract.test.mjs scripts/dev-legal-release-policy.test.mjs
+        run: node --test scripts/icp-mcp-onboarding-doc.test.mjs scripts/legal-release-oql-contract.test.mjs scripts/chatgpt-own-name-crypto-contract.test.mjs scripts/dev-legal-release-policy.test.mjs
       # Offline source consistency only; live target checks remain in promotion.
       - name: Install pinned offline SQL parser for PROD PR
         if: github.base_ref == 'prod'
@@ -46,6 +46,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --ignore-scripts --no-fund --no-audit
+      - name: Verify client-only in-chat VetKeys crypto with synthetic principal
+        run: node --test scripts/chatgpt-own-name-crypto.test.mjs
       - run: npm run check:step1
       - run: node --test scripts/generated-contract-syntax.test.mjs
       - run: npm run lint
