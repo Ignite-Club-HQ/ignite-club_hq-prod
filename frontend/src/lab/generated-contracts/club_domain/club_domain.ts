@@ -2033,6 +2033,13 @@ export interface MainInterface {
     read_can_list_guardian_children(user: Principal): Promise<Array<{ id: string; parent_id: [] | [string] }>>;
     read_can_guardian_rsvp_child(user: Principal, child_id: string, club_id: string, team_id: [] | [string], target_team_ids: Array<string>): Promise<boolean>;
     read_has_child_guardian(user: Principal, child_id: string): Promise<boolean>;
+    read_chat_scope_access_batch(user: Principal, club_ids: Array<string>, team_scopes: Array<[string, string]>): Promise<{
+        __kind__: "Ok";
+        Ok: { clubs: Array<[string, boolean]>; teams: Array<[string, string, boolean]> };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     read_has_club_membership(user: Principal, club_id: string): Promise<boolean>;
     read_has_club_staff_role(user: Principal, club_id: string): Promise<boolean>;
     read_has_pii_audience(user: Principal, kind: string, scope: string): Promise<boolean>;
@@ -6287,6 +6294,17 @@ export class Club_domain implements club_domainInterface {
     async read_has_child_guardian(arg0: Principal, arg1: string): Promise<boolean> {
         const result = await this.actor.read_has_child_guardian(arg0, arg1);
         return result;
+    }
+    async read_chat_scope_access_batch(arg0: Principal, arg1: Array<string>, arg2: Array<[string, string]>): Promise<{
+        __kind__: "Ok";
+        Ok: { clubs: Array<[string, boolean]>; teams: Array<[string, string, boolean]> };
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.read_chat_scope_access_batch(arg0, arg1, arg2);
+        if ('Ok' in result) return { __kind__: "Ok", Ok: result.Ok };
+        return { __kind__: "Err", Err: result.Err };
     }
     async read_has_club_membership(arg0: Principal, arg1: string): Promise<boolean> {
         const result = await this.actor.read_has_club_membership(arg0, arg1);
