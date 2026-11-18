@@ -51,7 +51,7 @@ async function getStats(group, canisterId) {
       canister_id: canisterId,
       status: "unavailable",
       reason: error instanceof Error
-        ? error.message.replace(/\\s+/g, " ").slice(0, 240)
+        ? error.message.replace(/\s+/g, " ").slice(0, 240)
         : "Unknown read failure",
       anonymous_query_wall_ms: Math.round(performance.now() - start),
     };
