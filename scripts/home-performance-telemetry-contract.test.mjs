@@ -27,6 +27,9 @@ test("home can record missing-data timeout without claiming first paint", () => 
   assert.match(home, /void logHomeDataTimeout\(homeOpenStartRef\.current\)/);
   assert.match(home, /}, HOME_LONG_OPEN_MS\)/);
   assert.match(home, /markStage\("home_first_paint"\)/);
+  assert.match(home, /const meaningfulContent = resolveAuthBackend\(\) === "icp"/);
+  assert.match(home, /!!membershipAndEvents \|\| !!nextUpCachedSnapshot \|\| isNewUserEmptyState/);
+  assert.match(home, /if \(!meaningfulContent\) return/);
   assert.match(latency, /"home_data_timeout", "membership"/);
   assert.doesNotMatch(latency.slice(latency.indexOf("export async function logHomeDataTimeout")), /coldMark\("home_first_paint"\)/);
 });
