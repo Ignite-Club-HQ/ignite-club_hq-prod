@@ -22,6 +22,23 @@ Status: implementation guidance / DEV validation, **not** proof of a successful 
 
 An II account is **not** a fully onboarded Ignite account until its required profile and legal acceptance are complete.
 
+## Full onboarding preflight (DEV, 12 Nov 2026)
+
+**Observed live through the Test account**: a Test-account caller successfully placed a club in g2, created an active club and U10 team, and read back its `club_admin` role. But g2 `read_account_whoami()` returned `Err("Unlinked identity")`, and `sync_my_linked_account()` returned `Err("Service admission not released")`. The identity service has an active account and a display name; `my_terms_acceptance()` returned `Ok(null)`. Club/team writes do **not** prove account-link synchronization, accepted terms, recorded sport/home-country, default club settings or chats.
+
+The Group 2 response is a deliberate service-admission release boundary. **Do not** turn on service admission, modify canister controllers, claim account synchronization, or attempt a Governor bypass during chatbot onboarding. Escalate the linked-account release for explicit architecture/security review. Even if `read_account_my_role_grants()` verifies a real `club_admin` role, that is separate from local `read_account_whoami()`.
+
+Before reporting `complete`, independently verify every entry via `evaluateIcpMcpOnboarding` (`frontend/src/live/icpMcpOnboardingReadiness.mjs`):
+
+1. `identity_access.whoami()` shows an active account; `get_profile()` shows the completed protected profile.
+2. `identity_access.my_terms_acceptance()` matches the current applicable legal version, **after the user has personally reviewed and accepted it**. Resolve the version from Ignite's legal policy setting (`icpTermsVersionFromSetting`), never from a guessed constant. An absent record means not accepted; never call `set_terms_acceptance` on the user's behalf without affirmative consent. For unavailable verified legal display, refer the user to Ignite's consent screen.
+3. Ask for sport and home country **before** creating the club. The country write is set-once. Ask for club/team name and age group; do not silently assume Australia or soccer from a synthetic test. Verify the group placement receipt and actual `club_admin` role.
+4. After creation, read back sport, `get_club_home_countries`, `read_account_get_club_general_settings` and caller-scoped club/team OQL. On protected g2 OQL, `execute` may trap `Use protected consensus account read`: use signed `read_account_execute(json)` instead. **That call is a read**, not permission to redo a failed mutation.
+5. Verify default conversations through an authorised messaging canister or have the member finish them in Ignite. If a required canister is not in the app's published manifest, don't invent a new destination or promise completion.
+6. Verify g2 account linkage independently and report service-admission blockers as blockers. The checklist intentionally fails closed even when all club/team records exist.
+
+**Never blindly retry `create_club`, `save_team` or invitations after an uncertain network reply.** Keep original opaque IDs, read them back, then continue only if you can distinguish committed records from missing writes. Existing club/identity discovery takes precedence over fresh registration. Do not treat DEV principals as PROD accounts.
+
 ## Club administrator creates a club and team
 
 1. Ask whether the organisation already exists and whether the user is its administrator. Use public directory reads to avoid duplicate clubs; a name match alone never grants ownership.
