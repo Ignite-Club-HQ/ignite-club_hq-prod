@@ -144,3 +144,17 @@ test('protected recent conversations prefilter candidates without weakening live
  assert.match(body,/not caller.equal\(principal\) and not isGovernor\(caller\)/,'cross-principal access remains gated');
  assert.match(body,/removalReceiver.denied\(principal\)/,'removed subject must remain fenced');
 });
+
+test('protected inbox prefilters keep authenticated update contracts and never mark messages read', () => {
+  const unread = section(chat, 'func read_account_my_unread_counts(', 'public shared ({ caller }) func read_account_list_deleted_groups(');
+  const recent = section(chat, 'func read_account_recent_conversations(', 'public shared ({ caller }) func read_account_list_all_online_users(');
+  assert.match(chat, /public shared \(\{ caller \}\) func read_account_my_unread_counts\(\) : async \[Types\.UnreadSummary\]/);
+  assert.match(chat, /public shared \(\{ caller \}\) func read_account_recent_conversations\(principal : Principal, limit : Nat16\)/);
+  for (const [name, body] of [['unread', unread], ['recent', recent]]) {
+    assert.match(body, /await admitAccount\(caller\)/, name + ' retains signed-in admission');
+    assert.match(body, /await\* requireChatAccess\(/, name + ' retains live club/team access');
+    assert.match(body, /removalReceiver.denied\(/, name + ' retains post-await removal guard');
+    assert.doesNotMatch(body, /mark_?read|set_?unread|last_read_sequence\s*:=|unread\.put\(/i,
+      name + ' must not change read state');
+  }
+});
