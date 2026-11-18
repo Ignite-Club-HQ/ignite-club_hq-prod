@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const events = readFileSync(new URL("../backend/events_domain/src/main.mo", import.meta.url), "utf8");
 const messages = readFileSync(new URL("../backend/messaging_domain/src/main.mo", import.meta.url), "utf8");
+const club = readFileSync(new URL("../backend/club_domain/src/main.mo", import.meta.url), "utf8");
 
 const body = (source, name) => {
   const start = source.indexOf(`func ${name}(`);
@@ -15,9 +16,15 @@ const body = (source, name) => {
 test("ordinary parent event list consults live club authority and retains team scope", () => {
   const fresh = body(events, "freshMemberRolesForList");
   const audience = body(events, "canViewListedEvent");
-  for (const phrase of ["read_has_club_membership", "read_account_list_user_club_roles", "removalReceiver.denied(subject)", "isFenced(club)"]) {
+  for (const phrase of ["read_event_member_roles_if_current", "removalReceiver.denied(subject)", "isFenced(club)"]) {
     assert.ok(fresh.includes(phrase), `missing event guard: ${phrase}`);
   }
+  const authority = body(club, "read_event_member_roles_if_current");
+  for (const phrase of ["eventsDomainCanister", "caller != eventsService", "await admitAccount(user)", "not isMember(user, club_id)", "ownsMembershipPrincipal(user, grant.user)", "roleEffective(grant.club, grant.team)", "nameCleanup.locked()", "removalReceiver.denied(user)"]) {
+    assert.ok(authority.includes(phrase), 'missing trusted event role proof: ' + phrase);
+  }
+  assert.equal((authority.match(/await admitAccount\(user\)/g)||[]).length,1,
+    'one identity-service admission per live event-role proof');
   for (const phrase of ['role == "parent"', 'role == "player"', "teamInEventScope(current, team)", "current.revision == event.revision"]) {
     assert.ok(audience.includes(phrase), `missing audience restriction: ${phrase}`);
   }

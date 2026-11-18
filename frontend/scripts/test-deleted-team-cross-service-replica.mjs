@@ -33,6 +33,22 @@ try{
   const chat=await install(chatIdl,process.env.MESSAGING_DOMAIN_WASM);
   const events=await install(eventsIdl,process.env.EVENTS_DOMAIN_WASM);
   const as=(canister,who)=>{canister.actor.setPrincipal(who);return canister.actor;};
+  // Restricted event-role proof, exposed through a narrow Candid actor in
+  // disposable PocketIC only. No browser or unrelated principal can request
+  // another user's current club role grants.
+  const eventRolesIdl=({IDL})=>IDL.Service({
+    read_event_member_roles_if_current:IDL.Func(
+      [IDL.Principal,IDL.Text],
+      [IDL.Variant({Ok:IDL.Vec(IDL.Tuple(IDL.Text,IDL.Opt(IDL.Text))),Err:IDL.Text})],
+      []
+    )
+  });
+  const roleProofActor=pic.createActor(eventRolesIdl,club.canisterId);
+  const proofAs=async(from,subject,clubScope=clubId)=>{
+    roleProofActor.setPrincipal(from);
+    return roleProofActor.read_event_member_roles_if_current(subject,clubScope);
+  };
+
   // New trusted consensus batch method, isolated from historical frontend
   // bindings so this disposable suite can test the exact server Candid ABI.
   const chatScopeIdl=({IDL})=>IDL.Service({
@@ -73,6 +89,15 @@ try{
   assert.deepEqual(outsiderBatch.clubs,[[clubId,false]]);
   assert.deepEqual(outsiderBatch.teams,[[clubId,liveId,false]]);
 
+  denied(await proofAs(outsider,twoTeams));
+  denied(await proofAs(owner,twoTeams));
+  denied(await proofAs(chat.canisterId,twoTeams));
+  denied(await proofAs(events.canisterId,outsider));
+  const preRoles=ok(await proofAs(events.canisterId,twoTeams));
+  assert.ok(preRoles.some(([role,teamId])=>role==='parent'&&teamId[0]===deletedId));
+  assert.ok(preRoles.some(([role,teamId])=>role==='parent'&&teamId[0]===liveId));
+  denied(await proofAs(events.canisterId,twoTeams,'another-club'));
+
   const oldChat=ok(await as(chat,owner).ensure_conversation(clubId,[deletedId],[u10Only,twoTeams,admin]));
   assert.equal(oldChat.id,deletedId);
   ok(await as(chat,u10Only).send_message(deletedId,'Disposable private U10 message','test-u10-only',[],[]));
@@ -104,6 +129,13 @@ try{
   assert.equal(beforeEvents.some(e=>e.id===liveEvent.id),true,'U12 accessible prior to deletion');
 
   ok(await as(club,owner).soft_delete_team(deletedId));
+  const postRoles=ok(await proofAs(events.canisterId,twoTeams));
+  assert.ok(!postRoles.some(([_,teamId])=>teamId[0]===deletedId),
+    'revoked U10 team grant must not appear in event role proof');
+  assert.ok(postRoles.some(([role,teamId])=>role==='parent'&&teamId[0]===liveId),
+    'U12 membership must remain effective after U10 deletion');
+  denied(await proofAs(events.canisterId,u10Only));
+
   const revokedBatch=ok(await batch(chat.canisterId,twoTeams,[clubId],[[clubId,deletedId],[clubId,liveId]]));
   assert.deepEqual(revokedBatch.clubs,[[clubId,true]]);
   assert.deepEqual(revokedBatch.teams,[[clubId,deletedId,false],[clubId,liveId,true]],
@@ -159,6 +191,10 @@ try{
 
   // An explicit new admission restores only the intended U10 member's access.
   ok(await as(club,owner).add_role_grant(u10Only,clubId,'parent',[deletedId]));
+  const rejoinedRoles=ok(await proofAs(events.canisterId,u10Only));
+  assert.ok(rejoinedRoles.some(([role,teamId])=>role==='parent'&&teamId[0]===deletedId),
+    'explicit new U10 grant is necessary to restore event authority');
+
   const restored=ok(await as(chat,u10Only).read_account_open_conversation(deletedId,25));
   assert.equal(restored.page.messages.length,1);
   assert.ok((await as(events,u10Only).read_account_list_events([clubId],[]))

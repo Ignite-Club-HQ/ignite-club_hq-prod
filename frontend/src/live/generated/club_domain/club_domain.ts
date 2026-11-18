@@ -2038,6 +2038,13 @@ export interface MainInterface {
         __kind__: "Err";
         Err: string;
     }>;
+    read_event_member_roles_if_current(user: Principal, club_id: string): Promise<{
+        __kind__: "Ok";
+        Ok: Array<[string, string | null]>;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     read_has_club_membership(user: Principal, club_id: string): Promise<boolean>;
     read_has_club_staff_role(user: Principal, club_id: string): Promise<boolean>;
     read_has_pii_audience(user: Principal, kind: string, scope: string): Promise<boolean>;
@@ -6294,6 +6301,19 @@ export class Club_domain implements club_domainInterface {
     }> {
         const result = await this.actor.read_chat_scope_access_batch(arg0, arg1, arg2);
         if ('Ok' in result) return { __kind__: "Ok", Ok: result.Ok };
+        return { __kind__: "Err", Err: result.Err };
+    }
+    async read_event_member_roles_if_current(arg0: Principal, arg1: string): Promise<{
+        __kind__: "Ok";
+        Ok: Array<[string, string | null]>;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.read_event_member_roles_if_current(arg0, arg1);
+        if ('Ok' in result) {
+            return { __kind__: "Ok", Ok: result.Ok.map(([role, team]) => [role, team.length > 0 ? team[0] : null]) };
+        }
         return { __kind__: "Err", Err: result.Err };
     }
     async read_has_club_membership(arg0: Principal, arg1: string): Promise<boolean> {

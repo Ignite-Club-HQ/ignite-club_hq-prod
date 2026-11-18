@@ -3874,6 +3874,45 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(user) };
   };
 
+  // One live membership+role proof for the configured events service only.
+  // Previously events_domain called read_has_club_membership and
+  // read_account_list_user_club_roles sequentially; each independently
+  // admitted the same subject. This combines those exact decisions in ONE
+  // consensus message and never returns roles to a browser or other canister.
+  // Grants are request-local, not durable admission or a membership cache.
+  public shared ({ caller }) func read_event_member_roles_if_current(
+    user : Principal, club_id : Text
+  ) : async { #Ok : [(Text, ?Text)]; #Err : Text } {
+    let ?eventsService = eventsDomainCanister else return #Err("Events authority unavailable");
+    if (caller != eventsService) return #Err("Configured events service required");
+    if (user == Principal.anonymous() or club_id == "" or club_id.size() > 128)
+      return #Err("Invalid event membership scope");
+    let privateWriterLease = switch (privateNameWriterGate.enter()) {
+      case (#Ok(key)) key;
+      case (#Err(reason)) throw Error.reject(reason);
+    };
+    try {
+      if (not removalReceiver.enter(user))
+        throw Error.reject("Account removal fenced or operation capacity reached");
+      try {
+        await admitAccount(user);
+        if (eventsDomainCanister != ?caller or nameCleanup.locked() or removalReceiver.denied(user))
+          return #Err("Event membership authority changed");
+        // Equivalent to read_has_club_membership, followed by
+        // read_account_list_user_club_roles only for a current member.
+        if (isExcluded(user, club_id) or not isMember(user, club_id))
+          return #Err("Club membership unavailable");
+        let grants = acl.roles.filter(func(grant) =
+          not isExcluded(user, club_id) and ownsMembershipPrincipal(user, grant.user) and
+          grant.club == ?club_id and roleEffective(grant.club, grant.team)
+        ).map(func(grant) = (grant.role, grant.team));
+        if (eventsDomainCanister != ?caller or nameCleanup.locked() or removalReceiver.denied(user))
+          return #Err("Event membership authority changed");
+        #Ok(grants)
+      } finally { removalReceiver.leave(user) };
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
   // Restricted batch authority for the trusted messaging canister. One
   // account admission establishes the linked-principal snapshot for all exact
   // club/team checks in this single consensus message. The result is boolean
