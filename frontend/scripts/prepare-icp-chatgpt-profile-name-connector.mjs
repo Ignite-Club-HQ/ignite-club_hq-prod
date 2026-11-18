@@ -7,7 +7,7 @@ import { Principal } from '@icp-sdk/core/principal';
 import { prepareEncryptedChatgptProfileName } from './prepare-icp-chatgpt-private-name.mjs';
 
 export const DEV_PROFILE_TARGET = Object.freeze({
-  app: 'https://ignite-club-launchpad.lovable.app',
+  app: 'https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io',
   origin: 'https://proe7-kqaaa-aaaas-qg6gq-cai.ic0.app',
   identity: 'mq2sj-fiaaa-aaaal-qxlqa-cai',
   pii: 'iui5p-aaaaa-aaaal-qxllq-cai',
@@ -46,8 +46,9 @@ export function prepareOwnProfileFromVerifiedIcp(input) {
         c.declared === true && c.sources?.includes('ic-architecture')) ||
       !app.canisters.some(c => c.canister_id === DEV_PROFILE_TARGET.pii &&
         c.declared === true && c.sources?.includes('ic-architecture'))) throw Error('Refused');
-  requireExact(identity.derivation_origin, DEV_PROFILE_TARGET.origin);
-  if (identity.query_only !== false) throw Error('Refused');
+  requireExact(identity.requested, DEV_PROFILE_TARGET.origin);
+  requireExact(identity.derived_for_origin, DEV_PROFILE_TARGET.origin);
+  if (identity.read_only !== false) throw Error('Refused');
   const caller = principal(identity.principal);
   requireExact(authority.identity_canister, DEV_PROFILE_TARGET.identity);
   requireExact(authority.pii_canister, DEV_PROFILE_TARGET.pii);
