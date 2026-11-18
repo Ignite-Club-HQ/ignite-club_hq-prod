@@ -596,6 +596,23 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
 
+  // A parent who authored EVERY requested child-name record already passes
+  // can_read as its domain_owner. The separate same-team visibility route is
+  // needed for members/guardians who rely on that audience, not to establish
+  // the owner's own record access. Never skip it for a missing record, a mixed
+  // batch, an explicit reader grant, an old guardian mirror, or any other PII
+  // field. Account admission, removal fences, local authorization epochs and
+  // closing checks still run in both read and vetKey endpoints.
+  func ownsEveryRequestedChildName(caller : Principal, ids : [Text], fieldId : Text) : Bool {
+    if (caller.isAnonymous() or fieldId != "name" or ids.size() == 0) return false;
+    ids.all(func(id) =
+      switch (pii_records.find(func(r) = r.pii_id == id and r.field_id == fieldId)) {
+        case (?record) record.domain_owner == caller;
+        case null false;
+      }
+    )
+  };
+
   // Pinned club-domain source verifies *same-team* child names only.
   // Input child IDs cannot grant access: the Club canister checks its own
   // Child.teams and the viewer's currently admitted team membership.
@@ -646,7 +663,11 @@ persistent actor class Main(governorInit : Principal) = this {
     let epoch = mediaAuthEpoch;
     let allowedClubs = await resolveAllowedClubs(caller, pii_ids, field_id);
     let allowedCompetitions = await resolveAllowedCompetitions(caller, pii_ids, field_id);
-    let teamChildNames = await verifiedTeamChildNames(caller, pii_ids, field_id);
+    // Skip the costly Club cross-canister team-visibility read only when
+    // every requested child-name record is directly owned by this caller.
+    // Mixed/guardian/club-staff audiences retain all authority checks.
+    let ownerChildNames = ownsEveryRequestedChildName(caller, pii_ids, field_id);
+    let teamChildNames = if (ownerChildNames) [] else await verifiedTeamChildNames(caller, pii_ids, field_id);
     if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
     var out : [?Blob] = [];
     for (pii_id in pii_ids.values()) {
@@ -666,7 +687,7 @@ persistent actor class Main(governorInit : Principal) = this {
             let freshClubs = await resolveAllowedClubs(caller, [pii_id], field_id);
             let freshCompetitions = await resolveAllowedCompetitions(caller, [pii_id], field_id);
             let freshDirect = await directRead(caller, r);
-            let freshTeamChildNames = await verifiedTeamChildNames(caller, [pii_id], field_id);
+            let freshTeamChildNames = if (ownerChildNames) [] else await verifiedTeamChildNames(caller, [pii_id], field_id);
             await admitAccount(caller);
             if (epoch != mediaAuthEpoch or not (freshDirect or canReadViaClub(r, freshClubs) or canReadViaCompetition(r, freshCompetitions) or freshTeamChildNames.any(func(id) = id == pii_id)))
               return #Err("PII authorization changed");
@@ -1386,7 +1407,11 @@ persistent actor class Main(governorInit : Principal) = this {
     let epoch = mediaAuthEpoch;
     let allowedClubs = await resolveAllowedClubs(caller, pii_ids, field_id);
     let allowedCompetitions = await resolveAllowedCompetitions(caller, pii_ids, field_id);
-    let teamChildNames = await verifiedTeamChildNames(caller, pii_ids, field_id);
+    // Skip the costly Club cross-canister team-visibility read only when
+    // every requested child-name record is directly owned by this caller.
+    // Mixed/guardian/club-staff audiences retain all authority checks.
+    let ownerChildNames = ownsEveryRequestedChildName(caller, pii_ids, field_id);
+    let teamChildNames = if (ownerChildNames) [] else await verifiedTeamChildNames(caller, pii_ids, field_id);
     if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
     var out : [EncryptedPii] = [];
     for (pii_id in pii_ids.values()) {
