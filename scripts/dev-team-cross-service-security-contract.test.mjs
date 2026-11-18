@@ -130,19 +130,30 @@ test('protected unread counts prefilter stored candidates before live chat permi
  assert.match(body,/removalReceiver.denied\(caller\)/,'post-await removal fence remains enforced');
 });
 
-test('protected recent conversations prefilter candidates without weakening live membership checks', () => {
+test('protected recent conversations reduce duplicate proofs without weakening live membership checks', () => {
  const body=section(chat,'func read_account_recent_conversations(','public shared ({ caller }) func read_account_list_all_online_users(');
  const admission=body.indexOf('await admitAccount(principal)');
- const participant=body.indexOf('conversation.participants.any(func(p) = p.equal(principal))');
- const deleted=body.indexOf('not isGroupDeleted(conversation.id)');
- const access=body.indexOf('await* requireChatAccess(principal, conversation.id)');
- const recheck=body.indexOf('if (visible and not isGroupDeleted(conversation.id))',access);
- const returned=body.indexOf('entries := entries.concat([',access);
- assert.ok(admission>=0 && admission<participant);
- assert.ok(participant<deleted && deleted<access,'local candidate checks must run before cross-canister access');
- assert.ok(access<recheck && recheck<returned,'live access plus deleted status required before results');
- assert.match(body,/not caller.equal\(principal\) and not isGovernor\(caller\)/,'cross-principal access remains gated');
- assert.match(body,/removalReceiver.denied\(principal\)/,'removed subject must remain fenced');
+ const candidates=body.indexOf('conversation.participants.any(func(p) = p.equal(principal))');
+ const deleted=body.indexOf('not isGroupDeleted(c.id)');
+ const proof=body.indexOf('await* requireChatClubMember(principal, club)');
+ const teamProof=body.indexOf('await* requireChatTeamMember(principal, club, team)');
+ const recheck=body.indexOf('let fresh = conversations.find(func(c) = c.id == conversation.id)', teamProof);
+ const returnGate=body.indexOf('let fresh = conversations.find(func(c) = c.id == candidate.id)', recheck);
+ const returned=body.indexOf('authorized := authorized.concat([', returnGate);
+ assert.ok(admission>=0 && admission<candidates);
+ assert.ok(candidates<deleted && deleted<proof && proof<teamProof && teamProof<recheck);
+ assert.ok(recheck<returnGate && returnGate<returned);
+ assert.match(body,/var approvedClubs : \[Text\] = \[\]/);
+ assert.match(body,/var approvedTeams : \[\(Text, Text\)\] = \[\]/);
+ assert.match(body,/var freshClubs : \[Text\] = \[\]/);
+ assert.match(body,/var freshTeams : \[\(Text, Text\)\] = \[\]/);
+ assert.match(body,/requiresClubMembership\(current\) == requiresClubMembership\(candidate\)/);
+ assert.match(body,/current\.participants\.any\(func\(p\) = p\.equal\(principal\)\)/);
+ assert.match(body,/not isGroupDeleted\(candidate\.id\)/);
+ assert.match(body,/not caller.equal\(principal\) and not isGovernor\(caller\)/);
+ assert.match(body,/removalReceiver.denied\(principal\)/);
+ assert.match(body,/let sorted = authorized.sort/);
+ assert.doesNotMatch(body,/if \(entries\.size\(\) >= Nat16\.toNat\(limit\)\) break/);
 });
 
 test('protected inbox prefilters keep authenticated update contracts and never mark messages read', () => {
