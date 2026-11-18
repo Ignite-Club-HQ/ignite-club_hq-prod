@@ -26,7 +26,7 @@ jobs:
       FRONTEND_CANISTER_ID: 7pfcq-raaaa-aaac5-aabia-cai
       IGNITE_LIVE_BUILD: '1'
       IGNITE_LIVE_SUPABASE_URL: https://ecsdwrarzfexssxtrymj.supabase.co
-      IGNITE_LIVE_SUPABASE_ANON_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY }}
+      IGNITE_LIVE_SUPABASE_ANON_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0' }}
       IGNITE_LIVE_ICP_HOST: https://icp-api.io
       IGNITE_LIVE_ICP_ALIAS: ignite-dev-engine
       IGNITE_MCP_DEV_GROUP2_DISCOVERY: '0'
@@ -55,10 +55,16 @@ jobs:
           npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
           umask 077
           mkdir -p "$ICP_HOME"
-          node scripts/normalize-pem.mjs > "$ICP_HOME/deployer.pem"
+          node scripts/normalize-dev-engine-publisher-pem.mjs > "$ICP_HOME/deployer.pem"
           icp identity import --from-pem "$ICP_HOME/deployer.pem" --storage plaintext engine-dev
           icp identity default engine-dev
-          echo "DEV frontend update identity: $(icp identity principal)"
+          # Do not publish with the backend governor or an arbitrary signing identity.
+          signer="$(icp identity principal --identity engine-dev)"
+          if [ "$signer" != "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe" ]; then
+            echo "::error::The existing DEV publisher credential does not match the pinned frontend publishing identity."
+            exit 1
+          fi
+          echo "DEV frontend publisher verified against pinned identity"
       - name: Build DEV engine website
         run: |
           set -euo pipefail
