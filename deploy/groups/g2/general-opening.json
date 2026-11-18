@@ -29,7 +29,7 @@
       "name": "messaging_domain",
       "canisterId": "yluv5-wiaaa-aaaal-qxpzq-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "5acc682c33e94c63d0e4aa512e5ed454e27076f54a1337cd166b01a0ead04c14"
+      "moduleHash": "e473b8a51db0cecef84c840cf52709e9a57c2230ef46be188ebbaa5151bf2ce0"
     },
     {
       "name": "vault_domain",
