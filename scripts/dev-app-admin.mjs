@@ -10,9 +10,15 @@ let stage = 'reading settings';
 class Refusal extends Error {}
 async function main() {
   const env = process.env;
+  stage = 'reading the sign-in ID';
   const principal = Principal.fromText(env.ONLY_PRINCIPAL || '').toText();
+  stage = 'reading DEV service list';
   const ids = JSON.parse(readFileSync(env.IDS_FILE, 'utf8'));
-  const pem = env.DEPLOYER_PEM.replace(/\r/g, '').replace(/\\n/g, '\n');
+  const raw = (env.DEPLOYER_PEM || '').replace(/\r/g, '').replace(/\\n/g, '\n');
+  const block = raw.match(/-----BEGIN ([A-Z0-9 ]*PRIVATE KEY)-----([\s\S]*?)-----END \1-----/);
+  if (!block) throw Error('DEV key secret has no BEGIN/END block');
+  const pem = `-----BEGIN ${block[1]}-----\n${block[2].replace(/\s+/g, '').match(/.{1,64}/g).join('\n')}\n-----END ${block[1]}-----\n`;
+  stage = 'loading the DEV key';
   const jwk = createPrivateKey(pem).export({ format: 'jwk' });
   const secret = new Uint8Array(Buffer.from(jwk.d, 'base64url'));
   const identity = jwk.kty === 'OKP' && jwk.crv === 'Ed25519' ? Ed25519KeyIdentity.fromSecretKey(secret)
