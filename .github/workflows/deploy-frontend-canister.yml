@@ -1,4 +1,7 @@
 # Ignite web app → ICP frontend canister (replaces Netlify file hosting).
+# Release trigger (2026-11-18): explicitly requested DEV MAINNET frontend publish of
+# merged performance source. This comment changes no build/routing/permission
+# behavior. Cloud Engine remains manual-only; PROD is not a target.
 #
 # Runs on every push to main that touches the frontend, or manually.
 # Uses the same DEPLOYER_PEM secret as "[TEST] Deploy canisters (legacy base/Group 1)".
