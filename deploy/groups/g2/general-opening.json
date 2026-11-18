@@ -17,19 +17,19 @@
       "name": "club_domain",
       "canisterId": "yfwyv-nyaaa-aaaal-qxpyq-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "5e6a418e067aa4f7a159e992a9ffecdc367c68f2fdacd70468dc343b705f07b9"
+      "moduleHash": "3c55bec919ea4d839d6f292a2e86272e32f21328cbf16213dc9b851059ff42fa"
     },
     {
       "name": "events_domain",
       "canisterId": "ymvtj-3qaaa-aaaal-qxpza-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "a01a88b226a091611b19d3edc848e69993302ab47046c3dd113f8da698790738"
+      "moduleHash": "b7f1f9bfd6165c006a9708c87862b53e3dceb54d434e4ea6ca7f2f4a11a8ec1e"
     },
     {
       "name": "messaging_domain",
       "canisterId": "yluv5-wiaaa-aaaal-qxpzq-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "3fab9ce42a5ea61aa7eb6a70dc8e4a952143e4b70fa6ad050962af34363bccb2"
+      "moduleHash": "5acc682c33e94c63d0e4aa512e5ed454e27076f54a1337cd166b01a0ead04c14"
     },
     {
       "name": "vault_domain",
@@ -77,7 +77,7 @@
       "name": "pii_access_control",
       "canisterId": "zt5a6-yiaaa-aaaal-qxp5q-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "93929aaaee3121042c51777ce7e473b54c261e571faa98046c0b3ac6fe05ffb0"
+      "moduleHash": "d777c5fbc952f3a1485a1f0706332c1fe99e72fedcf39bb50f0d2b4a95ba62b9"
     },
     {
       "name": "timer_jobs",
