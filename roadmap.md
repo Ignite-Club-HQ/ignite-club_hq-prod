@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Grouped OpenCloud DEV preparation — 18 November
+- [x] Prepared same-app 32-part layout: six shared parts and two thirteen-part groups; existing 19 IDs retained as historical references, 13 new IDs unset. Closed wiring/media/promotion runbook: docs/grouped-opencloud-dev-preparation.md. No live changes.
+- [x] Prepared bounded local readiness checks, exact inventory/revision/artifact bindings and 18 two-group acceptance scenarios; 43 new/existing engine tests pass, inactive draft verified and preview build OK. No live verifier or activation permission shipped.
+- [ ] Real controller/internal-governor readback, second-group installation and signed-in encrypted-media acceptance await OpenCloud owner access/support; grouped mainnet DEV remains the release-testing environment.
+
 ## Combined DEV engine upload — 17 November
 - [x] Prepared a lighter single-app v2 retry: all nineteen gzip programs recompressed losslessly, reducing their transfer bytes by 4.4%; archive reduced from 20.40 MB to 19.85 MB. All decoded programs, plugin/setup bytes, website scripts and settings preserved; all 722 file entries inspected, pins/readback and seven focused tests pass. Console concurrency remains outside bundle control; real-engine success awaits owner upload. Existing installations and PROD untouched.
 - [x] Prepared nineteen-canister single-app replacement, retaining the exact compressed eighteen backend programs and frontend program; all manifest/plugin hashes checked. Setup replaces frontend entry-script backend IDs and discovery/sign-in metadata with the newly allocated same-app inventory. Owner/refused-ID tests and four existing policy tests pass.
