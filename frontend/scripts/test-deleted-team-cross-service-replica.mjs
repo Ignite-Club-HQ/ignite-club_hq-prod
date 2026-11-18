@@ -78,6 +78,21 @@ try{
   ok(await as(chat,u10Only).send_message(deletedId,'Disposable private U10 message','test-u10-only',[],[]));
   const before=ok(await as(chat,twoTeams).read_account_open_conversation(deletedId,25));
   assert.equal(before.page.messages.length,1,'both-team parent could read U10 prior to deletion');
+  // A live U12 chat ensures unread batching preserves a second independent
+  // team when the U10 authority is subsequently revoked.
+  ok(await as(chat,owner).ensure_conversation(clubId,[liveId],[owner,twoTeams,admin]));
+  ok(await as(chat,owner).send_message(liveId,'Disposable private U12 message','test-u12-owner',[],[]));
+  const unreadBefore=await as(chat,twoTeams).read_account_my_unread_counts();
+  assert.ok(unreadBefore.some(r=>r.conversation_id===deletedId && r.count>0n),
+    'protected unread summary includes currently authorized U10');
+  assert.ok(unreadBefore.some(r=>r.conversation_id===liveId && r.count>0n),
+    'protected unread summary includes currently authorized U12');
+  const beforePage=ok(await as(chat,twoTeams).read_account_list_latest_messages_page(deletedId,[],20));
+  assert.equal(beforePage.messages.length,1,'first-page protected read includes authorized U10');
+  const unreadAfterPage=await as(chat,twoTeams).read_account_my_unread_counts();
+  assert.deepEqual(unreadAfterPage,unreadBefore,
+    'read-only message pages must never mark unread conversations as read');
+
 
   const start=BigInt((await pic.getTime())+3_600_000);
   const createEvent=async(teamId,title)=>ok(await as(events,owner).create_event(
@@ -99,6 +114,15 @@ try{
   const afterInbox=ok(await as(chat,twoTeams).read_account_recent_conversations(twoTeams,10));
   assert.ok(!afterInbox.some(c=>c.conversation_id===deletedId),
     'protected ChatGPT inbox must hide deleted team thread');
+  const unreadAfterDelete=await as(chat,twoTeams).read_account_my_unread_counts();
+  assert.ok(!unreadAfterDelete.some(r=>r.conversation_id===deletedId),
+    'revoked team must not leak through unread summary');
+  assert.ok(unreadAfterDelete.some(r=>r.conversation_id===liveId && r.count>0n),
+    'independent live-team unread count must survive revocation');
+  const unreadOldOnly=await as(chat,u10Only).read_account_my_unread_counts();
+  assert.ok(!unreadOldOnly.some(r=>r.conversation_id===deletedId),
+    'former U10-only parent must not see U10 unread metadata');
+
 
   assert.equal(await as(club,owner).read_account_is_club_member(u10Only,clubId),false,
     'U10-only parent no longer club member');
@@ -110,6 +134,9 @@ try{
   for(const human of [u10Only,twoTeams,admin]){
     await assert.rejects(()=>as(chat,human).read_account_open_conversation(deletedId,25),
       /Team chat|Conversation|team|access|authority/i,'deleted team cannot disclose old chat');
+    await assert.rejects(()=>as(chat,human).read_account_list_latest_messages_page(deletedId,[],20),
+      /Team chat|Conversation|team|access|authority/i,
+      'deleted team must not disclose protected message-history page');
     denied(await as(chat,human).open_conversation_query(deletedId,25));
   }
   const twoTeamEvents=await as(events,twoTeams).read_account_list_events([clubId],[]);
