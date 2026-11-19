@@ -31,6 +31,7 @@ on:
 
 permissions:
   contents: write # ONLY durable intent/verified completion on a dedicated receipt branch
+  actions: read # Must read authenticated completed main recovery job and its exact Wasm artifact
 concurrency:
   group: ignite-mainnet-governor-deployment
   cancel-in-progress: false
