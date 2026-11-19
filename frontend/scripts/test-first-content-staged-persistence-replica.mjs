@@ -90,10 +90,17 @@ try {
   assert.equal(good(await g2.actor.read_account_whoami()).id,account.id,'linked account preserved');
   assert.deepEqual(await clubs(g1,linked),['persist-g1'],'G1 Club remains on previous module');
   g2.actor.setPrincipal(outsider);
-  const outsiderMembership=await g2.actor.read_my_club_memberships_indexed([],100);
-  assert.ok('Err' in outsiderMembership ||
-    ('Ok' in outsiderMembership && outsiderMembership.Ok.clubs.length===0),
-    'unlinked outsider cannot see the protected G2 club');
+  // The protected path may reply with Err, an empty member page or a
+  // certified CanisterReject for an unregistered principal.
+  let outsiderDenied=false;
+  try {
+    const outsiderMembership=await g2.actor.read_my_club_memberships_indexed([],100);
+    outsiderDenied='Err' in outsiderMembership ||
+      ('Ok' in outsiderMembership && outsiderMembership.Ok.clubs.length===0);
+  } catch(error) {
+    outsiderDenied=/Account admission denied or unavailable/.test(String(error));
+  }
+  assert.ok(outsiderDenied,'unlinked outsider cannot see the protected G2 club');
   identity.actor.setPrincipal(g2.canisterId);
   const post=good(await identity.actor.read_member_admission(linked));
   assert.ok('Eligible' in post.eligibility.decision);
