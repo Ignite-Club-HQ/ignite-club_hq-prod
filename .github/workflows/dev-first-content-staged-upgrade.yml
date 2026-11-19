@@ -1,0 +1,146 @@
+# Manual-only. Never targets PROD, Cloud Engines, G1 Club, PII, events or messaging.
+# One frozen source+live preflight / one immutable candidate / one journaled IC install.
+name: "[TEST] Stage DEV first-content Identity then G2 Club (manual only)"
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Choose check first; upgrade requires checked plan and separate approval"
+        type: choice
+        required: true
+        default: check
+        options: [check, upgrade]
+      stage:
+        description: "Identity must complete and be verified before Group 2 Club"
+        type: choice
+        required: true
+        default: identity
+        options: [identity, g2_club]
+      checked_plan:
+        description: "Stage-specific plan hash from a prior check on this exact source and live state"
+        required: false
+        default: ""
+      confirmation:
+        description: "Exact confirmation: UPGRADE EXACT DEV SHARED IDENTITY FIRST or UPGRADE EXACT DEV GROUP 2 CLUB SECOND"
+        required: false
+        default: ""
+
+permissions:
+  contents: write # ONLY durable intent/verified completion on a dedicated receipt branch
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    environment: group-2-admin-controls
+    timeout-minutes: 120
+    env:
+      ACTION: ${{ inputs.action }}
+      STAGE: ${{ inputs.stage }}
+      CHECKED_PLAN: ${{ inputs.checked_plan }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Refuse non-main, invalid action or missing separate manual approval evidence
+        run: |
+          test "$GITHUB_REF" = "refs/heads/main" || { echo "::error::Only reviewed DEV main source"; exit 1; }
+          node --input-type=module <<'JS'
+          import {STAGE_CONFIRMATIONS} from './scripts/dev-first-content-stage-policy.mjs';
+          const action=process.env.ACTION, stage=process.env.STAGE;
+          if(!['check','upgrade'].includes(action)||!Object.hasOwn(STAGE_CONFIRMATIONS,stage))throw Error('Unsupported DEV release action/stage');
+          if(action==='check'){
+            if(process.env.CHECKED_PLAN||process.env.CONFIRMATION)throw Error('Leave both approval fields blank for check');
+          }else{
+            if(process.env.CONFIRMATION!==STAGE_CONFIRMATIONS[stage]||!/^[a-f0-9]{64}$/.test(process.env.CHECKED_PLAN??''))
+              throw Error('Separate exact stage confirmation and prior checked plan required; nothing changed');
+          }
+          JS
+      - name: Verify immutable live-target guards and existing no-replay policy tests
+        run: node --test scripts/dev-first-content-stage-policy.test.mjs scripts/dev-first-content-stage-workflow.test.mjs scripts/dev-first-content-preflight-policy.test.mjs
+      - name: Install pinned build tools and dependencies
+        run: |
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          node scripts/ensure-frontend-deps.mjs
+          icp canister install --help | grep -q -- --wasm-memory-persistence
+      - name: Restore existing governor only
+        # Cleanup must not restore signing credentials until live protections
+        # and real disposable acceptance have passed on this exact source.
+        env:
+          # GOVERNOR_PEM holds the governor (vk34m-…) key when DEPLOYER_PEM is the web-app publisher key.
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOYER_PEM"
+          umask 077
+          export ICP_HOME="$RUNNER_TEMP/all-group-icp-home"
+          echo "ICP_HOME=$ICP_HOME" >> "$GITHUB_ENV"
+          # Rebuild a clean PEM even when the secret was pasted on one line (newlines turned into spaces or literal \n).
+          PEM_IN="$DEPLOYER_PEM" node -e '
+            const s=process.env.PEM_IN.replace(/\r/g,"").replace(/\\n/g,"\n");
+            const m=s.match(/-----BEGIN ([A-Z0-9 ]*PRIVATE KEY)-----([\s\S]*?)-----END \1-----/);
+            if(!m){console.error("Governor key secret has no BEGIN/END block");process.exit(1);}
+            const body=m[2].replace(/\s+/g,"").match(/.{1,64}/g).join("\n");
+            process.stdout.write(`-----BEGIN ${m[1]}-----\n${body}\n-----END ${m[1]}-----\n`);
+          ' > "$RUNNER_TEMP/all-group.pem"
+          icp identity import --from-pem "$RUNNER_TEMP/all-group.pem" --storage plaintext ignite-governor
+          icp identity default ignite-governor
+          # Select the imported identity explicitly; never print key-derived output.
+          if ! governor_identity="$(icp identity principal --identity ignite-governor 2>/dev/null)"; then
+            echo "::error::Could not read the imported governor identity. No canisters changed."
+            exit 1
+          fi
+          if [ "$governor_identity" != vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae ]; then
+            echo "::error::The imported identity does not match the pinned TEST governor. Verify the original governor file and whether an environment-level GOVERNOR_PEM overrides the repository secret. Do not change the governor pin or share the key. No canisters changed."
+            exit 1
+          fi
+          unset governor_identity
+      - name: Build both exact candidate WASMs (no installation)
+        run: |
+          set -euo pipefail
+          node scripts/prefetch-test-icp-tools.mjs
+          cd deploy/mainnet
+          icp build identity_access club_domain
+          mkdir -p "$RUNNER_TEMP/first-content-wasm"
+          cp .icp/cache/artifacts/identity_access "$RUNNER_TEMP/first-content-wasm/identity_access"
+          cp .icp/cache/artifacts/club_domain "$RUNNER_TEMP/first-content-wasm/club_domain"
+      - name: Read-only canonical DEV preflight on the exact same source
+        working-directory: frontend
+        env:
+          SCOPE: dev_first_content_admission_preflight
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/first-content-before" "$RUNNER_TEMP/first-content-stage"
+          npx --yes tsx@4 scripts/upgrade-all-groups.ts check "$SCOPE" "$RUNNER_TEMP/first-content-wasm" "$RUNNER_TEMP/all-group.pem" "$RUNNER_TEMP/first-content-before"
+      - name: Check stage or install ONLY one exact approved canister and journal intent
+        working-directory: frontend
+        run: |
+          npx --yes tsx@4 scripts/dev-first-content-staged-upgrade.ts "$RUNNER_TEMP/first-content-before/check.json" "$RUNNER_TEMP/first-content-wasm" "$RUNNER_TEMP/first-content-stage" "$RUNNER_TEMP/all-group.pem"
+      - name: Verify complete DEV preflight again after the single module upgrade
+        if: inputs.action == 'upgrade'
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/first-content-after"
+          npx --yes tsx@4 scripts/upgrade-all-groups.ts check dev_first_content_admission_preflight "$RUNNER_TEMP/first-content-wasm" "$RUNNER_TEMP/all-group.pem" "$RUNNER_TEMP/first-content-after"
+      - name: Remove private governor material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/all-group.pem"
+          rm -rf "$RUNNER_TEMP/all-group-icp-home"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dev-first-content-stage-report
+          path: |
+            ${{ runner.temp }}/first-content-before
+            ${{ runner.temp }}/first-content-stage
+            ${{ runner.temp }}/first-content-after
+          if-no-files-found: warn
