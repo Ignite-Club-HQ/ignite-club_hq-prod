@@ -24,7 +24,7 @@ jobs:
       - name: Guard DEV Group 2 governor restore against malformed key imports
         run: node --test scripts/group2-upgrade-workflow.test.mjs scripts/messaging-upgrade-workflow.test.mjs
       - name: Verify pinned shared club-name release and settings-only safeguards
-        run: node --test scripts/all-group-upgrade-policy.test.mjs scripts/dev-name-copy-reader-upgrade-contract.test.mjs scripts/secure-name-release-policy.test.mjs
+        run: node --test scripts/all-group-upgrade-policy.test.mjs scripts/dev-name-copy-reader-upgrade-contract.test.mjs scripts/dev-g2-pii-only-upgrade-contract.test.mjs scripts/secure-name-release-policy.test.mjs
       - name: Validate ICP MCP onboarding and DEV legal-release OQL contracts
         run: node --test scripts/icp-mcp-onboarding-doc.test.mjs scripts/legal-release-oql-contract.test.mjs scripts/dev-legal-release-policy.test.mjs
       - name: Verify restricted DEV ICP connector manifests and canonical-origin parity
