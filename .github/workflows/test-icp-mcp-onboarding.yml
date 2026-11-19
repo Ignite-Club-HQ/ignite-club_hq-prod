@@ -114,3 +114,11 @@ jobs:
           IDENTITY_ACCESS_WASM="$R/target/wasm32-unknown-unknown/release/identity_access.wasm" \
           CLUB_DOMAIN_WASM="$R/backend/club_domain/.mops/.build/club_domain.wasm" \
           node scripts/test-linked-membership-replica.mjs
+      - name: Rehearse protected first-content membership and linked-principal revocation
+        working-directory: frontend
+        run: |
+          R="$GITHUB_WORKSPACE"
+          POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic" \
+          IDENTITY_ACCESS_WASM="$R/target/wasm32-unknown-unknown/release/identity_access.wasm" \
+          CLUB_DOMAIN_WASM="$R/backend/club_domain/.mops/.build/club_domain.wasm" \
+          node scripts/test-account-groups-replica.mjs
