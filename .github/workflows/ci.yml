@@ -33,6 +33,8 @@ jobs:
         run: node --test scripts/dev-first-content-admission-contract.test.mjs
       - name: Guard exact DEV first-content admission check-only scope
         run: node --test scripts/dev-first-content-preflight-policy.test.mjs
+      - name: Guard exact DEV first-content staged release and no-replay journal
+        run: node --test scripts/dev-first-content-stage-policy.test.mjs scripts/dev-first-content-stage-workflow.test.mjs scripts/dev-first-content-recovery-gate.test.mjs
       # Offline source consistency only; live target checks remain in promotion.
       - name: Install pinned offline SQL parser for PROD PR
         if: github.base_ref == 'prod'
