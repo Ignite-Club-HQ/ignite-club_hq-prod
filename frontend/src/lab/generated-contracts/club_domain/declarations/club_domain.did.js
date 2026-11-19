@@ -2269,6 +2269,21 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
+    'read_account_my_clubs_and_roles_indexed' : IDL.Func(
+      [IDL.Opt(IDL.Text), IDL.Nat16],
+      [
+        IDL.Variant({
+          'Ok' : IDL.Record({
+            'clubs' : IDL.Vec(IDL.Text),
+            'next' : IDL.Opt(IDL.Text),
+            'acl_revision' : IDL.Nat64,
+            'roles' : IDL.Vec(RoleGrant),
+          }),
+          'Err' : IDL.Text,
+        }),
+      ],
+      [],
+    ),
     'read_account_my_role_grants' : IDL.Func([], [IDL.Vec(RoleGrant)], []),
     'read_account_profile_team_history' : IDL.Func(
         [IDL.Text],

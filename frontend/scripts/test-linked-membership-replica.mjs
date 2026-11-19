@@ -42,6 +42,10 @@ try {
     const roles = await group.actor.read_account_my_role_grants();
     assert.deepEqual(roles.map(r => [r.role, r.club[0], r.team[0] ?? null]), [['club_admin', group.name, null], ['team_admin', group.name, 'u9']]);
     assert.equal(roles.every(r => r.user.toText() === app.toText()), true, 'stored owners unchanged');
+    const combined = ok(await group.actor.read_account_my_clubs_and_roles_indexed([], 100));
+    assert.deepEqual(combined.clubs, [group.name], 'one direct canister call returns own club');
+    assert.deepEqual(combined.roles, roles, 'one direct call has exactly existing authorised role grants');
+    assert.deepEqual(combined.next, [], 'no additional membership page');
     assert.equal(await group.actor.read_account_is_club_member(browser, group.name), true);
     assert.equal(await group.actor.read_account_is_club_member(browser, 'unrelated-club'), false);
     ok(await group.actor.read_account_get_club_roster(group.name));
@@ -50,6 +54,9 @@ try {
     await refused(() => group.actor.set_team_welcome_email('unrelated-team', true, 'Welcome', 'Test'));
     group.actor.setPrincipal(outsider);
     assert.deepEqual(await group.actor.read_account_my_role_grants(), []);
+    const outsiderCombined = ok(await group.actor.read_account_my_clubs_and_roles_indexed([], 100));
+    assert.deepEqual(outsiderCombined.clubs, [], 'outsider sees no unrelated clubs');
+    assert.deepEqual(outsiderCombined.roles, [], 'outsider sees no unrelated roles');
     await refused(() => group.actor.read_account_get_club_roster(group.name));
   }
   // An invited parent can create and assign their own child, but must never
@@ -161,6 +168,7 @@ try {
 
   identity.actor.setPrincipal(governor); ok(await identity.actor.set_account_status(account.id, { Suspended: null }));
   groups[0].actor.setPrincipal(browser); await refused(() => groups[0].actor.read_account_my_role_grants());
+  await refused(() => groups[0].actor.read_account_my_clubs_and_roles_indexed([], 100));
   identity.actor.setPrincipal(governor); ok(await identity.actor.set_account_status(account.id, { Active: null }));
   // Club removal on either alias denies the whole account only in that club.
   groups[0].actor.setPrincipal(governor); ok(await groups[0].actor.remove_member(groups[0].name, app));
@@ -168,12 +176,17 @@ try {
   const survivingRoles = await groups[0].actor.read_account_my_role_grants();
   assert.equal(survivingRoles.some(g => g.club[0] === groups[0].name), false, 'removed-club grants cleared');
   assert.equal(survivingRoles.some(g => g.club[0] === 'other-private-club'), true, 'unrelated club grant survives removal');
+  const afterRemoval = ok(await groups[0].actor.read_account_my_clubs_and_roles_indexed([], 100));
+  assert.equal(afterRemoval.clubs.includes(groups[0].name), false, 'combined response does not include removed membership');
+  assert.deepEqual(afterRemoval.roles, survivingRoles, 'combined response uses live post-removal roles');
   assert.equal(await groups[0].actor.read_account_is_club_member(browser, groups[0].name), false);
   groups[1].actor.setPrincipal(browser); assert.equal((await groups[1].actor.read_account_my_role_grants()).length, 2);
   await pic.stopCanister({ canisterId: identity.canisterId, sender: governor });
   await refused(() => groups[1].actor.read_account_my_role_grants());
+  await refused(() => groups[1].actor.read_account_my_clubs_and_roles_indexed([], 100));
   await pic.startCanister({ canisterId: identity.canisterId, sender: governor });
   identity.actor.setPrincipal(app); ok(await identity.actor.revoke(browser, 1n));
   await refused(() => groups[1].actor.read_account_my_role_grants());
+  await refused(() => groups[1].actor.read_account_my_clubs_and_roles_indexed([], 100));
   console.log('PASS: linked two-group discovery, admin-only club rosters including parent-owned assigned child, cross-club child isolation, suspension and unlink denial.');
 } finally { await pic?.tearDown(); await server.stop(); }

@@ -1572,6 +1572,18 @@ export interface Main {
     { 'Ok' : [] | [{ 'status' : string, 'attempts' : number, 'created_at_ms' : bigint }] } |
       { 'Err' : string }
   >,
+  'read_account_my_clubs_and_roles_indexed' : ActorMethod<
+    [[] | [string], number],
+    {
+        'Ok' : {
+          'clubs' : Array<string>,
+          'next' : [] | [string],
+          'acl_revision' : bigint,
+          'roles' : Array<RoleGrant>,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'read_account_my_role_grants' : ActorMethod<[], Array<RoleGrant>>,
   'read_account_profile_team_history' : ActorMethod<
     [string],
