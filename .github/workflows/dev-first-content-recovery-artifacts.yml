@@ -54,9 +54,16 @@ jobs:
           cp target/private-name-cleanup/wasm32-unknown-unknown/release/identity_access.wasm "$RUNNER_TEMP/recovery-modules/identity_access.wasm"
       - name: Rebuild old Group 2 Club exactly from historical mainnet recipe
         working-directory: prior-club
+        env:
+          ICP_HOME: ${{ runner.temp }}/dev-recovery-icp-home
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          node scripts/prefetch-test-icp-tools.mjs
+          # Only this compiler-download helper requires an old main-branch label.
+          # The immutable historical source was verified above; the job has
+          # read-only GitHub permissions, no governor PEM and no canister calls.
+          # Do NOT change GITHUB_REF for any installation or release step.
+          GITHUB_REF=refs/heads/main node scripts/prefetch-test-icp-tools.mjs
           cd deploy/mainnet
           icp build club_domain
           cp .icp/cache/artifacts/club_domain "$RUNNER_TEMP/recovery-modules/club_domain.wasm"
@@ -79,6 +86,9 @@ jobs:
           },null,2)+'\n');
           console.log('Both exact old DEV modules reproduced. No canister touched; durable bytes archived for manual recovery.');
           JS
+      - name: Remove compiler cache; retain only explicit hash-verified binary output
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/dev-recovery-icp-home"
       - name: Retain verified old Wasm recovery binaries (no secrets)
         uses: actions/upload-artifact@v4
         with:
