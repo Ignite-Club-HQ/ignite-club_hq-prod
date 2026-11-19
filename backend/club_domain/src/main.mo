@@ -65,6 +65,9 @@ persistent actor class Main(governorInit : Principal) = this {
     Runtime.envVar<system>("IGNITE_ACCOUNT_REMOVAL_RELEASE") == ?"1");
   // Effective protection, not the local rehearsal flag, governs every guarded path.
   transient let accountAdmissionEnabled = AccountProtection.admissionRequired(accountProtectionMode);
+  // Opt-in only after the exact Identity method is verified on the target group.
+  // Missing Identity versions must not impose an extra RPC on routine reads.
+  transient let combinedAdmissionEnabled = Runtime.envVar<system>("IGNITE_FIRST_CONTENT_COMBINED_ADMISSION") == ?"1";
   transient let accountAdmissionAuthority = switch (Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")) {
     case (?id) ?Principal.fromText(id); case null null
   };
@@ -131,6 +134,36 @@ persistent actor class Main(governorInit : Principal) = this {
     // AccountAdmission.account verifies the exact caller's active Identity
     // account; Identity itself applies account deletion and alias-revocation
     // fences and the pinned service-reader authorization on every call.
+    // Newer Identity can return eligibility and optional aliases under one
+    // inventory-validated authority check. Older deployments keep the exact
+    // established account-first/eligibility fallback below.
+    let combined = if (combinedAdmissionEnabled) await accountAdmission.combined(subject) else null;
+    if (authority != accountAdmissionAuthority or epoch != membershipEpoch() or nameCleanup.locked() or removalReceiver.denied(subject))
+      throw Error.reject("Account authority changed; retry");
+    switch (combined) {
+      case (?proof) {
+        if (not AccountAdmission.matches(subject, proof.eligibility))
+          throw Error.reject("Account admission denied or unavailable");
+        switch (proof.account) {
+          case null { linkedMembershipSnapshots.remove(subject) };
+          case (?current) {
+            // The account is optional, but if provided it must bind to this
+            // exact subject and eligibility generation, not a cached alias.
+            if (not AccountAdmission.owns(subject, current) or
+              proof.eligibility.account_version != ?current.version)
+              throw Error.reject("Identity account evidence changed");
+            let verified = if (AccountUnlinkFence.rejects(current.id, current.version, current.principals, identityUnlinkReceipts)) ({ current with principals = [subject] }) else current;
+            if (linkedMembershipSnapshots.size() >= 256) linkedMembershipSnapshots.clear();
+            linkedMembershipSnapshots.add(subject, { account = verified; observed = Time.now() });
+          };
+        };
+        return
+      };
+      case null {};
+    };
+    // Legacy fallback (or a method unavailable during a staged rollout).
+    // The old verified account method still prevents duplicated eligibility
+    // checks on success and requires live eligibility on failure.
     let account = await accountAdmission.account(subject);
     if (authority != accountAdmissionAuthority or epoch != membershipEpoch() or nameCleanup.locked() or removalReceiver.denied(subject))
       throw Error.reject("Account authority changed; retry");
