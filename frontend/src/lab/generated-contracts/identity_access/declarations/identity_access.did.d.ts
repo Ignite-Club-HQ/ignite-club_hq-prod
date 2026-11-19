@@ -319,6 +319,10 @@ export interface PrincipalEligibility {
   'subject' : Principal,
   'denied_through_version' : [] | [bigint],
 }
+export interface MemberAdmission {
+  'eligibility' : PrincipalEligibility,
+  'account' : [] | [Account],
+}
 export interface PrivacyConsent {
   'account_id' : string,
   'updated_at_ns' : bigint,
@@ -546,7 +550,8 @@ export type Result_51 = { 'Ok' : TermsAcceptance } |
   { 'Err' : string };
 export type Result_52 = { 'Ok' : Array<Receipt> } |
   { 'Err' : string };
-export type Result_6 = { 'Ok' : WriteWindow } |
+
+export type Result_53 = { 'Ok' : MemberAdmission } | { 'Err' : string };export type Result_6 = { 'Ok' : WriteWindow } |
   { 'Err' : string };
 export type Result_7 = { 'Ok' : CleanupAccount } |
   { 'Err' : string };
@@ -1002,6 +1007,7 @@ export interface _SERVICE {
    * Consensus reads; never create an account or grant resource permissions.
    * Versions are account-scoped evidence, NOT globally atomic access tokens.
    */
+  'read_member_admission' : ActorMethod<[Principal], Result_53>,
   'read_principal_eligibility' : ActorMethod<[Principal], Result_36>,
   'read_private_name_account_inventory' : ActorMethod<
     [string, Request_1, [] | [AccountInventoryCursor], number],
