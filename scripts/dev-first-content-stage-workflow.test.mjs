@@ -33,6 +33,15 @@ test('only one approved install is possible; no implicit other-canister writes o
   assert.match(runner,/if\(!previousWasmDirectory\)throw Error/);
   assert.match(runner,/verifyExactPreviousWasms\(\{/);
   assert.match(runner,/get\('subnet'\)/);
+  // The GitHub runner has NO .local-icp/identity-init.bin. The CLI must
+  // load reviewed deploy/mainnet/icp.yaml, never repository-root lab icp.yaml.
+  assert.match(runner,/const mainnetProject=resolve\(import\.meta\.dirname,'\.\.\/\.\.\/deploy\/mainnet'\)/);
+  assert.match(runner,/readFileSync\(join\(mainnetProject,'icp\.yaml'\),'utf8'\)/);
+  assert.match(runner,/throw Error\('Expected reviewed deploy\/mainnet ICP project; refusing install before intent'\)/);
+  assert.match(runner,/spawnSync\('icp',args,\{cwd:mainnetProject,stdio:'inherit'\}\)/);
+  assert.ok(runner.indexOf("const mainnetProject=")<runner.indexOf("journal.stages[stage]={phase:'pending'"),
+    'ICP project must be checked before durable pending intent');
+
   assert.doesNotMatch(runner,/update_settings|set_pii_canister|set_service_authorities|update_settings|icp deploy|icp sync|stopCanister|upgradeCanister/);
   assert.match(policy,/dev_first_content_admission_preflight/);
   assert.match(policy,/UPGRADE EXACT DEV SHARED IDENTITY FIRST/);
