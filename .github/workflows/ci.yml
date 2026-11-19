@@ -87,6 +87,8 @@ jobs:
         run: npx vitest run --config vitest.legacy.config.mjs src/features/membership/icpChildrenGroupSafety.test.ts
       - name: Verify ICP child pages cannot send unscoped group writes
         run: node --test scripts/test-icp-children-group-routing.mjs
+      - name: Verify direct child-name owner optimisation retains all non-owner ACL and closing revocation checks
+        run: node --test ../scripts/dev-pii-owner-read-fastpath-contract.test.mjs
       - name: Verify bounded child-name unlock and retryable guardian display
         run: npx vitest run --config vitest.legacy.config.mjs src/live/groupDispatch.test.ts src/pages/IcpChildrenPage.loading.test.tsx src/live/sharedVetKeyReadParallel.test.ts src/live/piiVetKeys.fresh.test.ts src/live/piiVetKeys.clubNames.test.ts
       - name: Verify DEV invite lookups, authority retry, and Internet Identity handoff
