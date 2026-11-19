@@ -175,3 +175,12 @@ jobs:
           name: dev-g2-single-read-release-report
           path: ${{ runner.temp }}/g2-club-roster-report
           if-no-files-found: ignore
+
+      - name: Archive verified previous G2 WASM bytes for manual recovery
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dev-g2-single-read-previous-club-wasm
+          path: ${{ runner.temp }}/dev-g2-single-read-recovery/club_domain.wasm
+          retention-days: 90
+          if-no-files-found: warn
