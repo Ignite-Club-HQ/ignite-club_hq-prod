@@ -117,6 +117,36 @@ test('DEV name coverage reader installs exactly two PII Wasms without activating
   }
 });
 
+test('DEV child-name performance release only upgrades the exact Group 2 PII canister',()=>{
+  const fx=fixture();
+  const plan=planInventory(shared,fx.provisions,fx.registry,'dev_g2_pii_owner_fastpath',fx.hashes);
+  assert.deepEqual(SCOPES.dev_g2_pii_owner_fastpath,['pii_access_control']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g2','pii_access_control','zt5a6-yiaaa-aaaal-qxp5q-cai'],
+  ]);
+  const only=plan.targets[0];
+  assert.equal(only.newHash,fx.hashes.pii_access_control);
+  assert.ok(installArgs(only,'/tmp/exact-g2-pii').includes('--wasm-memory-persistence'));
+  assert.equal(plan.targets.some(t=>t.groupId==='g1'||t.groupId==='shared'),false);
+  validateRequest('check','dev_g2_pii_owner_fastpath');
+  validateRequest('upgrade','dev_g2_pii_owner_fastpath','UPGRADE DEV GROUP 2 PII ONLY',hash(1));
+  assert.throws(()=>validateRequest('upgrade','dev_g2_pii_owner_fastpath','UPGRADE ALL MAINNET GROUPS',hash(1)),/GROUP 2 PII/);
+  assert.throws(()=>validateRequest('upgrade','dev_g2_pii_owner_fastpath','UPGRADE DEV GROUP 2 PII ONLY',''),/Checked plan/);
+  assert.throws(()=>validateRequest('upgrade','dev_g2_pii_owner_fastpath','UPGRADE DEV GROUP 2 PII ONLY','wrong'),/Checked plan/);
+  // An otherwise valid third group cannot accidentally be included.
+  const extra=fixture(3);
+  assert.deepEqual(planInventory(shared,extra.provisions,extra.registry,'dev_g2_pii_owner_fastpath',extra.hashes).targets.map(t=>t.canisterId),[only.canisterId]);
+  // Missing G2 and a rotated/replaced G2 PII principal both fail closed.
+  const missing=fixture();
+  missing.provisions=[];missing.registry.groups=[];missing.registry.placements=[];
+  assert.throws(()=>planInventory(shared,missing.provisions,missing.registry,'dev_g2_pii_owner_fastpath',missing.hashes));
+  const changed=fixture();
+  changed.provisions[0].canisters.pii_access_control='unapproved-foreign-pii-cai';
+  changed.registry.groups[0].domains.find(d=>d.domain==='pii_access_control').canister=p('unapproved-foreign-pii-cai');
+  changed.registry.placements[0].domains.find(d=>d.domain==='pii_access_control').canister=p('unapproved-foreign-pii-cai');
+  assert.throws(()=>planInventory(shared,changed.provisions,changed.registry,'dev_g2_pii_owner_fastpath',changed.hashes),/exactly pinned G2 PII/);
+});
+
 test('DEV RSVP-only release requires exact confirmation and only two pinned events canisters',()=>{
   const f=fixture();
   const plan=planInventory(shared,f.provisions,f.registry,'rsvp_integrity',f.hashes);
