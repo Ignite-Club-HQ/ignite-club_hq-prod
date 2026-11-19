@@ -3,11 +3,6 @@
 name: "[TEST] Prepare exact DEV prior modules (no canister calls)"
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - ".github/workflows/dev-first-content-recovery-artifacts.yml"
-      - "scripts/dev-first-content-recovery-gate.mjs"
-      - "scripts/dev-first-content-recovery-gate.test.mjs"
 permissions:
   contents: read
 jobs:
