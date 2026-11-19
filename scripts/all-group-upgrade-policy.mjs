@@ -18,6 +18,10 @@ export const SCOPES = Object.freeze({
   // Install only the DEV G1/G2 governor-only copy-status reader. This is a
   // NORMAL PII Wasm upgrade, not a name-release/settings activation.
   dev_club_name_coverage_reader: ['pii_access_control'],
+  // DEV Group 2 ONLY: exact existing PII canister for the directly-owned
+  // child-name performance fix. Reuse journaled upgrades, photo-key checks and
+  // original settings; never upgrade G1, a third group or shared identity.
+  dev_g2_pii_owner_fastpath: ['pii_access_control'],
   team_invites: ['club_domain', 'mini_league_domain'],
   messaging: ['messaging_domain'],
   plugin_member_access: ['events_domain', 'messaging_domain'],
@@ -36,7 +40,7 @@ export const normalizeConfirmation = v => String(v ?? '').replace(/[\u200b-\u200
 export function validateRequest(action, scope, confirmation, checkedPlan) {
   action = String(action ?? '').trim(); scope = String(scope ?? '').trim();
   if (!['check', 'upgrade', 'recover'].includes(action) || !Object.hasOwn(SCOPES, scope)) throw Error('Choose a reviewed scope and check, upgrade or recover');
-  const words = action === 'upgrade' && scope === 'dev_identity_directory' ? 'UPGRADE DEV IDENTITY DIRECTORY ONLY' : action === 'upgrade' && scope === 'plugin_member_access' ? 'UPGRADE DEV MEMBER ACCESS' : action === 'upgrade' && scope === 'rsvp_integrity' ? 'UPGRADE DEV RSVP ONLY' : action === 'upgrade' && scope === 'guardian_rsvp_authority' ? 'UPGRADE DEV GUARDIAN RSVP' : action === 'upgrade' && scope === 'shared_club_name_enforcement' ? 'UPGRADE DEV SHARED CLUB NAMES ONLY' : action === 'upgrade' && scope === 'dev_club_name_coverage_reader' ? 'UPGRADE DEV NAME COVERAGE READER ONLY' : { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
+  const words = action === 'upgrade' && scope === 'dev_identity_directory' ? 'UPGRADE DEV IDENTITY DIRECTORY ONLY' : action === 'upgrade' && scope === 'plugin_member_access' ? 'UPGRADE DEV MEMBER ACCESS' : action === 'upgrade' && scope === 'rsvp_integrity' ? 'UPGRADE DEV RSVP ONLY' : action === 'upgrade' && scope === 'guardian_rsvp_authority' ? 'UPGRADE DEV GUARDIAN RSVP' : action === 'upgrade' && scope === 'shared_club_name_enforcement' ? 'UPGRADE DEV SHARED CLUB NAMES ONLY' : action === 'upgrade' && scope === 'dev_club_name_coverage_reader' ? 'UPGRADE DEV NAME COVERAGE READER ONLY' : action === 'upgrade' && scope === 'dev_g2_pii_owner_fastpath' ? 'UPGRADE DEV GROUP 2 PII ONLY' : { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
   if (words) {
     const c = normalizeConfirmation(confirmation), plan = normalizePlan(checkedPlan);
     if (c !== words) throw Error(`Confirmation box must say ${words} (received ${c.length} characters${c ? ` starting "${c.slice(0, 12)}"` : ''})`);
@@ -77,8 +81,22 @@ export function planInventory(shared, provisions, registry, scope, hashes) {
     }
     if (text(live.photo_store[0]) !== g.services.find(s=>s.name==='media_blob_store')?.canisterId) throw Error('Photo store differs');
   }
-  const targets = names.flatMap(name => SHARED_SERVICES.includes(name) ? [{groupId:'shared',name,canisterId:shared[name],subnetId:PRIMARY_SUBNET,newHash:hashes[name]}] : all.map(g => ({ groupId:g.id, ...g.services.find(s=>s.name===name), newHash:hashes[name] })));
+  const group2Pii = all.find(g => g.id === 'g2')?.services.find(service => service.name === 'pii_access_control');
+  const targets = scope === 'dev_g2_pii_owner_fastpath'
+    ? (group2Pii ? [{ groupId: 'g2', ...group2Pii, newHash: hashes.pii_access_control }] : [])
+    : names.flatMap(name => SHARED_SERVICES.includes(name) ? [{groupId:'shared',name,canisterId:shared[name],subnetId:PRIMARY_SUBNET,newHash:hashes[name]}] : all.map(g => ({ groupId:g.id, ...g.services.find(s=>s.name===name), newHash:hashes[name] })));
   if (targets.some(t=>!t.name || !validId(t.canisterId) || !/^[a-f0-9]{64}$/.test(t.newHash ?? '')) || new Set(targets.map(t=>t.canisterId)).size!==targets.length) throw Error('Incomplete upgrade artifacts/targets');
+  // A separately reviewed PII-only DEV performance release. Check both the
+  // exact group AND the immutable canister principal after reading the entire
+  // saved/live registry; an unregistered G2, replacement service or extra
+  // target must fail before an install or a release journal is written.
+  if (scope === 'dev_g2_pii_owner_fastpath') {
+    const t = targets[0];
+    if (targets.length !== 1 || !t || t.groupId !== 'g2' ||
+        t.name !== 'pii_access_control' ||
+        t.canisterId !== 'zt5a6-yiaaa-aaaal-qxp5q-cai')
+      throw Error('DEV PII performance upgrade requires exactly pinned G2 PII only');
+  }
   // Separate universal-club-key release across the TWO existing DEV canister
   // groups. A newly opened group or unknown PII service blocks this rollout
   // until a separate source/key/replica audit is reviewed.
