@@ -24,6 +24,10 @@ on:
         description: "Exact confirmation: UPGRADE EXACT DEV SHARED IDENTITY FIRST or UPGRADE EXACT DEV GROUP 2 CLUB SECOND"
         required: false
         default: ""
+      recovery_run_id:
+        description: "Successful manually dispatched main-branch exact old-Wasm recovery build run ID, required for upgrade"
+        required: false
+        default: ""
 
 permissions:
   contents: write # ONLY durable intent/verified completion on a dedicated receipt branch
@@ -41,6 +45,7 @@ jobs:
       CHECKED_PLAN: ${{ inputs.checked_plan }}
       CONFIRMATION: ${{ inputs.confirmation }}
       GH_TOKEN: ${{ github.token }}
+      RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -119,6 +124,34 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/first-content-before" "$RUNNER_TEMP/first-content-stage"
           npx --yes tsx@4 scripts/upgrade-all-groups.ts check "$SCOPE" "$RUNNER_TEMP/first-content-wasm" "$RUNNER_TEMP/all-group.pem" "$RUNNER_TEMP/first-content-before"
+      - name: Validate archival recovery run and obtain exact previous Wasm binaries
+        if: inputs.action == 'upgrade'
+        run: |
+          set -euo pipefail
+          [[ "$RECOVERY_RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::A completed main-branch recovery run ID is required for any upgrade"; exit 1; }
+          node --input-type=module <<'JS'
+          import {execFileSync} from 'node:child_process';
+          import {assertRecoveryRunMetadata} from './scripts/dev-first-content-recovery-gate.mjs';
+          const id=process.env.RECOVERY_RUN_ID;
+          const raw=execFileSync('gh',['api','repos/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/'+id],{encoding:'utf8'});
+          const run=JSON.parse(raw);
+          assertRecoveryRunMetadata(run);
+          console.log('Verified completed, manually dispatched main-branch recovery run',id);
+          JS
+          mkdir -p "$RUNNER_TEMP/dev-first-content-recovery-modules"
+          gh run download "$RECOVERY_RUN_ID" --repo Ignite-Club-HQ/ignite-club_hq-prod --name dev-first-content-old-modules --dir "$RUNNER_TEMP/dev-first-content-recovery-modules"
+          RECOVERY_DIR="$RUNNER_TEMP/dev-first-content-recovery-modules" node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          import {verifyExactPreviousWasms} from './scripts/dev-first-content-recovery-gate.mjs';
+          const dir=process.env.RECOVERY_DIR;
+          const verified=verifyExactPreviousWasms({
+            identity_access:readFileSync(join(dir,'identity_access.wasm')),
+            club_domain:readFileSync(join(dir,'club_domain.wasm'))
+          });
+          console.log('Both exact archived DEV prior Wasms verified:',verified.verified.map(x=>x.name).join(', '));
+          JS
+          echo "DEV_FIRST_CONTENT_RECOVERY_DIR=$RUNNER_TEMP/dev-first-content-recovery-modules" >> "$GITHUB_ENV"
       - name: Check stage or install ONLY one exact approved canister and journal intent
         working-directory: frontend
         run: |
@@ -135,6 +168,7 @@ jobs:
         run: |
           rm -f "$RUNNER_TEMP/all-group.pem"
           rm -rf "$RUNNER_TEMP/all-group-icp-home"
+          rm -rf "$RUNNER_TEMP/dev-first-content-recovery-modules"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
