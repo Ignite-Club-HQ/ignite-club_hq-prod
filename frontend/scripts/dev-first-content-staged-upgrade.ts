@@ -110,10 +110,6 @@ if(journal){
 if(!exists)api('git/refs','POST',{ref:`refs/heads/${branch}`,sha:sourceRevision});
 // Check live status again immediately before writing intent.
 await observeBoth(expectedBefore as [string,string]);
-journal.stages[stage]={phase:'pending',sourceRevision,checkedPlan:planHash,
-  canisterId:target.id,oldHash:target.old,candidate:target.next,
-  settings:target.settings};
-stored=persistGroup2Journal(api,path,branch,stored,journal,'first-content '+stage+' install intent');
 // Resolve the explicit, reviewed mainnet project: running icp from frontend
 // searches upward and instead loads root icp.yaml (the disposable local lab),
 // which expects .local-icp/identity-init.bin and prevents installation.
@@ -124,6 +120,10 @@ if(!mainnetConfig.includes('- ../../backend/identity_access')||
    !mainnetConfig.includes('- ../../backend/club_domain')||
    !mainnetConfig.includes('- name: ic')||mainnetConfig.includes('.local-icp/'))
   throw Error('Expected reviewed deploy/mainnet ICP project; refusing install before intent');
+journal.stages[stage]={phase:'pending',sourceRevision,checkedPlan:planHash,
+  canisterId:target.id,oldHash:target.old,candidate:target.next,
+  settings:target.settings};
+stored=persistGroup2Journal(api,path,branch,stored,journal,'first-content '+stage+' install intent');
 // Pending acknowledgement is durable BEFORE the only IC installation attempt.
 const args=installArgs({name:target.name,groupId:target.groupId,canisterId:target.id,subnetId:pins.subnet},resolve(artifactDirectory,target.name));
 const installed=spawnSync('icp',args,{cwd:mainnetProject,stdio:'inherit'});
