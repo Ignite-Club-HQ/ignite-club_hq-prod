@@ -7,6 +7,8 @@ export const SHARED_SERVICES = Object.freeze(['shard_router', 'identity_access',
 export const SCOPES = Object.freeze({
   full_backend: [...SHARED_SERVICES.filter(name=>name!=='shard_router'), ...GROUP_BUILD_SERVICES, 'shard_router'],
   dev_identity_directory: ['identity_access'],
+  // Check-only: read exact shared DEV Identity and G2 club; cannot upgrade.
+  dev_first_content_admission_preflight: ['identity_access', 'club_domain'],
   app_admin: ['identity_access', 'notification_queue'],
   club_migration: ['club_domain'],
   private_name_cleanup: ['identity_access', 'pii_access_control', 'club_domain'],
@@ -40,6 +42,7 @@ export const normalizeConfirmation = v => String(v ?? '').replace(/[\u200b-\u200
 export function validateRequest(action, scope, confirmation, checkedPlan) {
   action = String(action ?? '').trim(); scope = String(scope ?? '').trim();
   if (!['check', 'upgrade', 'recover'].includes(action) || !Object.hasOwn(SCOPES, scope)) throw Error('Choose a reviewed scope and check, upgrade or recover');
+  if (scope === 'dev_first_content_admission_preflight' && action !== 'check') throw Error('DEV first-content admission preflight is check-only; upgrading either canister requires a separately reviewed release');
   const words = action === 'upgrade' && scope === 'dev_identity_directory' ? 'UPGRADE DEV IDENTITY DIRECTORY ONLY' : action === 'upgrade' && scope === 'plugin_member_access' ? 'UPGRADE DEV MEMBER ACCESS' : action === 'upgrade' && scope === 'rsvp_integrity' ? 'UPGRADE DEV RSVP ONLY' : action === 'upgrade' && scope === 'guardian_rsvp_authority' ? 'UPGRADE DEV GUARDIAN RSVP' : action === 'upgrade' && scope === 'shared_club_name_enforcement' ? 'UPGRADE DEV SHARED CLUB NAMES ONLY' : action === 'upgrade' && scope === 'dev_club_name_coverage_reader' ? 'UPGRADE DEV NAME COVERAGE READER ONLY' : action === 'upgrade' && scope === 'dev_g2_pii_owner_fastpath' ? 'UPGRADE DEV GROUP 2 PII ONLY' : { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
   if (words) {
     const c = normalizeConfirmation(confirmation), plan = normalizePlan(checkedPlan);
@@ -82,10 +85,27 @@ export function planInventory(shared, provisions, registry, scope, hashes) {
     if (text(live.photo_store[0]) !== g.services.find(s=>s.name==='media_blob_store')?.canisterId) throw Error('Photo store differs');
   }
   const group2Pii = all.find(g => g.id === 'g2')?.services.find(service => service.name === 'pii_access_control');
+  const group2Club = all.find(g => g.id === 'g2')?.services.find(service => service.name === 'club_domain');
   const targets = scope === 'dev_g2_pii_owner_fastpath'
     ? (group2Pii ? [{ groupId: 'g2', ...group2Pii, newHash: hashes.pii_access_control }] : [])
+    : scope === 'dev_first_content_admission_preflight'
+      ? (group2Club ? [
+          {groupId:'shared',name:'identity_access',canisterId:shared.identity_access,subnetId:PRIMARY_SUBNET,newHash:hashes.identity_access},
+          {groupId:'g2',...group2Club,newHash:hashes.club_domain},
+        ] : [])
     : names.flatMap(name => SHARED_SERVICES.includes(name) ? [{groupId:'shared',name,canisterId:shared[name],subnetId:PRIMARY_SUBNET,newHash:hashes[name]}] : all.map(g => ({ groupId:g.id, ...g.services.find(s=>s.name===name), newHash:hashes[name] })));
   if (targets.some(t=>!t.name || !validId(t.canisterId) || !/^[a-f0-9]{64}$/.test(t.newHash ?? '')) || new Set(targets.map(t=>t.canisterId)).size!==targets.length) throw Error('Incomplete upgrade artifacts/targets');
+  // Preflight ONLY: never silently include G1 Club or a third group, never
+  // let this scope become a general upgrade/recovery target.
+  if (scope === 'dev_first_content_admission_preflight') {
+    if (all.length !== 2 || all[0].id !== 'g1' || all[1].id !== 'g2' ||
+        targets.length !== 2 ||
+        targets[0].groupId !== 'shared' || targets[0].name !== 'identity_access' ||
+        targets[0].canisterId !== 'mq2sj-fiaaa-aaaal-qxlqa-cai' ||
+        targets[1].groupId !== 'g2' || targets[1].name !== 'club_domain' ||
+        targets[1].canisterId !== 'yfwyv-nyaaa-aaaal-qxpyq-cai')
+      throw Error('DEV first-content preflight requires exact shared Identity and Group 2 Club only');
+  }
   // A separately reviewed PII-only DEV performance release. Check both the
   // exact group AND the immutable canister principal after reading the entire
   // saved/live registry; an unregistered G2, replacement service or extra
