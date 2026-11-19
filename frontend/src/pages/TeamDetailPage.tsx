@@ -2042,7 +2042,7 @@ export default function TeamDetailPage() {
             <h2 className="font-semibold">Your team is ready!</h2>
             <p className="text-sm text-muted-foreground">
               Download Ignite for iPhone or Android, or keep using it in your browser.
-              Sign in with the same Internet Identity to access your club and team.
+              {isIcpAccount ? "Use the same Internet Identity to access your club and team." : "Sign in with your existing Ignite account to access your club and team."}
             </p>
           </div>
           <AppStoreDownloadGuide
