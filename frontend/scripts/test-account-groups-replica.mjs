@@ -57,6 +57,14 @@ try {
     assert.equal(ok(await group.actor.read_my_club_memberships_indexed([], 100)).clubs.length, 1);
     group.actor.setPrincipal(stranger); assert.ok('Err' in await group.actor.revoke_linked_principal(account.id, linked, 1n));
   }
+  // This is the existing stronger service-account proof the two first-content
+  // reads now use before falling back to the original eligibility-only path.
+  service.setPrincipal(groups[0].canisterId);
+  const approvedAccount = ok(await service.read_service_account(linked));
+  assert.equal(approvedAccount.id, account.id, 'trusted service account matches the linked identity');
+  assert.ok(approvedAccount.principals.some(p => p.toText() === linked.toText()));
+  service.setPrincipal(stranger);
+  assert.ok('Err' in await service.read_service_account(linked), 'untrusted service cannot get linked principals');
   service.setPrincipal(stranger); assert.ok('Err' in await service.read_linked_account(primary));
   assert.ok('Err' in await service.read_principal_eligibility(primary));
   service.setPrincipal(groups[0].canisterId);
