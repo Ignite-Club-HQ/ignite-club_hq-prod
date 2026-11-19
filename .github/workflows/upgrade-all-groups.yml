@@ -13,7 +13,7 @@ on:
         type: choice
         required: true
         default: full_backend
-        options: [full_backend, dev_identity_directory, club_migration, private_name_cleanup, secure_name_save, private_club_name_display, shared_club_name_enforcement, dev_club_name_coverage_reader, dev_g2_pii_owner_fastpath, app_admin, team_invites, messaging, plugin_member_access, rsvp_integrity, guardian_rsvp_authority, browser_push_test, competition, history, subscriptions, events_pitch, gallery_vault]
+        options: [full_backend, dev_identity_directory, dev_first_content_admission_preflight, club_migration, private_name_cleanup, secure_name_save, private_club_name_display, shared_club_name_enforcement, dev_club_name_coverage_reader, dev_g2_pii_owner_fastpath, app_admin, team_invites, messaging, plugin_member_access, rsvp_integrity, guardian_rsvp_authority, browser_push_test, competition, history, subscriptions, events_pitch, gallery_vault]
       checked_plan:
         description: "CHECKED PLAN HASH (64 letters/numbers) - required for recover; optional for upgrade"
         required: false
@@ -63,7 +63,7 @@ jobs:
           }else validateRequest(process.env.ACTION,process.env.SCOPE,process.env.CONFIRMATION,process.env.CHECKED_PLAN);
           JS
       - name: Reject any non-DEV release ref for member-access scope
-        if: inputs.scope == 'dev_identity_directory' || inputs.scope == 'plugin_member_access' || inputs.scope == 'rsvp_integrity' || inputs.scope == 'guardian_rsvp_authority' || inputs.scope == 'shared_club_name_enforcement' || inputs.scope == 'dev_club_name_coverage_reader' || inputs.scope == 'dev_g2_pii_owner_fastpath'
+        if: inputs.scope == 'dev_first_content_admission_preflight' || inputs.scope == 'dev_identity_directory' || inputs.scope == 'plugin_member_access' || inputs.scope == 'rsvp_integrity' || inputs.scope == 'guardian_rsvp_authority' || inputs.scope == 'shared_club_name_enforcement' || inputs.scope == 'dev_club_name_coverage_reader' || inputs.scope == 'dev_g2_pii_owner_fastpath'
         run: |
           test "$GITHUB_REF" = "refs/heads/main" || { echo "::error::DEV member access and RSVP repairs must run from main"; exit 1; }
       - name: Install pinned tools and existing dependencies
@@ -73,6 +73,9 @@ jobs:
           icp canister install --help | grep -q -- --wasm-memory-persistence
       - name: Test inventory and interrupted-release safeguards
         run: node --test scripts/all-group-upgrade-policy.test.mjs scripts/dev-name-copy-reader-upgrade-contract.test.mjs scripts/private-name-cleanup-release-policy.test.mjs scripts/secure-name-release-policy.test.mjs scripts/all-group-wiring-policy.test.mjs scripts/all-group-publication.test.mjs scripts/group2-journal.test.mjs scripts/group2-upgrade-rules.test.mjs scripts/subscription-upgrade-policy.test.mjs scripts/placement-upgrade-evidence.test.mjs scripts/dev-g2-pii-only-upgrade-contract.test.mjs
+      - name: Assert exact two-target DEV first-content check-only preflight
+        if: inputs.scope == 'dev_first_content_admission_preflight'
+        run: node --test scripts/dev-first-content-preflight-policy.test.mjs
       - name: Verify encrypted-name audit is read-only and never enables key release
         if: inputs.scope == 'dev_club_name_coverage_reader'
         run: node --test scripts/dev-club-name-coverage-policy.test.mjs scripts/dev-club-name-coverage-contract.test.mjs
