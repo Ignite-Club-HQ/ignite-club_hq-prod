@@ -7,7 +7,10 @@ import { Principal } from '@icp-sdk/core/principal';
 import { prepareEncryptedChatgptProfileName } from './prepare-icp-chatgpt-private-name.mjs';
 
 export const DEV_PROFILE_TARGET = Object.freeze({
-  app: 'https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io',
+  app: 'https://proe7-kqaaa-aaaas-qg6gq-cai.icp.net',
+  // The historical .icp0.io gateway remains a permitted alias only when the
+  // connector freshly declares the same exact origin AND canister manifest.
+  legacyApp: 'https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io',
   origin: 'https://proe7-kqaaa-aaaas-qg6gq-cai.ic0.app',
   identity: 'mq2sj-fiaaa-aaaal-qxlqa-cai',
   pii: 'iui5p-aaaaa-aaaal-qxllq-cai',
@@ -39,7 +42,10 @@ export function prepareOwnProfileFromVerifiedIcp(input) {
   if (!input || typeof input !== 'object') throw Error('Refused');
   const { app, identity, authority, name } = input;
   if (!app || !identity || !authority || !name) throw Error('Refused');
-  requireExact(app.app_url, DEV_PROFILE_TARGET.app);
+  if (![DEV_PROFILE_TARGET.app, DEV_PROFILE_TARGET.legacyApp].includes(app.app_url)) throw Error('Refused');
+  // Input evidence is not trusted merely because this local adapter accepts
+  // it: the host must match fresh official connector responses, same link and
+  // session, before invoking this helper or submitting any signed write.
   requireExact(app.derivation_origin, DEV_PROFILE_TARGET.origin);
   if (!Array.isArray(app.canisters) ||
       !app.canisters.some(c => c.canister_id === DEV_PROFILE_TARGET.identity &&
