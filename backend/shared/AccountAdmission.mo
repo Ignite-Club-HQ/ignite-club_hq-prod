@@ -5,6 +5,7 @@ import Principal "mo:core/Principal";
 module {
   public type Evidence = { subject : Principal; decision : { #Eligible; #Denied }; account_version : ?Nat64; denied_through_version : ?Nat64 };
   public type Account = { id : Text; principals : [Principal]; version : Nat64; status : { #Active; #Suspended } };
+  public type MemberAdmission = { eligibility : Evidence; account : ?Account };
   public func matches(subject : Principal, evidence : Evidence) : Bool {
     not Principal.isAnonymous(subject) and subject != Principal.fromText("aaaaa-aa") and
     evidence.subject == subject and evidence.decision == #Eligible and
@@ -31,6 +32,23 @@ module {
           case (#Ok(e)) matches(subject, e); case (#Err(_)) false
         }
       } catch (_) { false }
+    };
+    /// Optional compatibility fast path. An older Identity canister or an
+    /// unavailable reader returns null; caller must then use its existing
+    /// admission path, never treat transport failure as approval.
+    public func combined(subject : Principal) : async ?MemberAdmission {
+      if (not enabled or Principal.isAnonymous(subject)) return null;
+      let id = switch (authority) { case null return null; case (?id) id };
+      if (Principal.isAnonymous(id)) return null;
+      let service : actor { read_member_admission : shared (Principal) -> async { #Ok : MemberAdmission; #Err : Text } } = actor(id.toText());
+      try {
+        switch (await (with timeout = 10) service.read_member_admission(subject)) {
+          case (#Ok(snapshot)) {
+            if (snapshot.eligibility.subject == subject) ?snapshot else null
+          };
+          case (#Err(_)) null
+        }
+      } catch (_) { null }
     };
     public func account(subject : Principal) : async ?Account {
       if (Principal.isAnonymous(subject)) return null;
