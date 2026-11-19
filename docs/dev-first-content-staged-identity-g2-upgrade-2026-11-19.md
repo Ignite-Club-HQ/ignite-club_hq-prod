@@ -13,6 +13,14 @@ The previous **read-only** workflow run [#44478590675](https://github.com/Ignite
 
 Both are on existing DEV subnet `e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe`, signed by existing governor `vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae`. No reader authority, G1 canister or PII key replacement is permitted.
 
+## Recovery binary prerequisite — live release STOP until proven
+
+The exact old module SHA-256s are known, but a hash or source revision alone is **not** a rollback binary. The isolated GitHub workflow `[TEST] Prepare exact DEV prior modules (no canister calls)` checks out immutable source revisions `4aeae3a09103b067ac289e602a1efa0b5ac757ca` (Identity) and `4b9650f219c2ee0985fd6deda5cb6670c14252f4` (G2 Club), builds the previous modules without any governor key, and archives binaries **only when both actual files match the pinned installed module hashes**. The job must complete successfully in a manually triggered `workflow_dispatch` on `main` before either stage can be installed.
+
+For either live stage's `action=upgrade` input, a separate `recovery_run_id` is mandatory. The installer validates the successful main-branch recovery workflow metadata, downloads its `dev-first-content-old-modules` artifact and checks both Wasm byte hashes again before writing any install journal or invoking `icp`. Missing/expired artifacts, wrong hashes or a pull-request-only recovery run fail closed. The same completed main recovery run can support both independently approved stages if still available.
+
+**Important:** Reproducing prior Wasm bytes does not prove state/memory downgrade safety. A separately reviewed state-preservation and stable-memory rollback rehearsal is still a manual release prerequisite.
+
 ## Manual-only protected workflow
 
 [Stage DEV first-content Identity then G2 Club](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/workflows/dev-first-content-staged-upgrade.yml) uses workflow dispatch only. It is serialized against the existing mainnet governor workflow and requires the protected `group-2-admin-controls` environment. The **default action is check**, not upgrade. Both stages build both pinned candidate Wasms from the dispatched `main` SHA and run the existing exhaustive preflight *before* the stage action.
@@ -39,4 +47,4 @@ Both are on existing DEV subnet `e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz
 - Historical *old* Wasm module hashes are recorded, but no backed-up old Wasm binary or automatic rollback has been established by this PR. Before approving an actual install, review preservation/reconstruction of the exact old module and stable-memory restoration approach. Do not equate installing an older Wasm with an automatically safe rollback.
 - After separate activation, compare at least 10 authenticated connector runs under the same DEV account/club, including denial and revoked-account negative tests, to the prior Group 2 membership wall times of **6.839s initial / 6.231s repeated**. These times are not proof of backend savings.
 
-**Review hold:** This PR prepares tooling and tests only. No live backend operation has been run, no CI result alone authorises an install, and no live latency improvement is claimed.
+**Review hold:** This PR prepares tooling and tests only. No live installation may be approved before (1) successful manual main-branch old module archive and exact binary checks, and (2) stable-memory upgrade/downgrade review with original DEV Identity and G2 state assumptions.  No live backend operation has been run, no CI result alone authorises an install, and no live latency improvement is claimed.
