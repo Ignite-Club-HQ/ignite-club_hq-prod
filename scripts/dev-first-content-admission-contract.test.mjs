@@ -5,7 +5,7 @@ import test from 'node:test';
 const club = readFileSync(new URL('../backend/club_domain/src/main.mo', import.meta.url), 'utf8');
 const gate = readFileSync(new URL('../backend/shared/AccountAdmission.mo', import.meta.url), 'utf8');
 const identity = readFileSync(new URL('../backend/identity_access/src/lib.rs', import.meta.url), 'utf8');
-const methods = ['read_my_club_memberships_indexed', 'read_account_my_role_grants'];
+const methods = ['read_my_club_memberships_indexed', 'read_account_my_role_grants', 'read_account_my_clubs_and_roles_indexed'];
 const between = (start, end) => {
   const i = club.indexOf(start);
   assert.ok(i >= 0, `Missing ${start}`);
@@ -14,8 +14,8 @@ const between = (start, end) => {
   return club.slice(i, j);
 };
 
-test('only two caller-scoped first-content reads use the new path; generic admission is preserved', () => {
-  assert.equal((club.match(/await admitAccountForFirstContent\(caller\);/g) ?? []).length, 2);
+test('only three caller-scoped first-content reads use the new path; generic admission is preserved', () => {
+  assert.equal((club.match(/await admitAccountForFirstContent\(caller\);/g) ?? []).length, 3);
   for (const method of methods) {
     const body = between(`func ${method}(`, '\n  };');
     assert.match(body, /await admitAccountForFirstContent\(caller\);/);
@@ -85,4 +85,23 @@ test('combined proof verifies reader before reconstruction and fail-closed club 
   assert.match(identity, /let eligibility = principal_eligibility\(subject\)/);
   assert.match(identity, /current_service_account\(subject\)\.ok\(\)/);
   assert.match(identity, /service_authorities\(\)\.contains\(&caller\)/);
+});
+
+test('one signed first-content RPC returns only currently authorised indexed clubs and roles', () => {
+  const body = between('func read_account_my_clubs_and_roles_indexed(', 'public shared func read_account_has_club_staff_role(');
+  const did = readFileSync(new URL('../backend/club_domain/club_domain.did', import.meta.url), 'utf8');
+  assert.match(did, /read_account_my_clubs_and_roles_indexed: \(after: opt text, limit: nat16\)/);
+  assert.match(body, /await admitAccountForFirstContent\(caller\)/);
+  assert.equal((body.match(/await /g) ?? []).length, 1, 'no second consensus read or service round trip');
+  assert.match(body, /privateNameWriterGate\.enter\(\)/);
+  assert.match(body, /removalReceiver\.enter\(caller\)/);
+  assert.match(body, /removalReceiver\.leave\(caller\)/);
+  assert.match(body, /membershipAliases\(caller\)/);
+  assert.match(body, /MembershipIndex\.page\(/);
+  assert.match(body, /live and isMember\(caller, club\)/);
+  assert.match(body, /ownsMembershipPrincipal\(caller, grant\.user\)/);
+  assert.match(body, /roleEffective\(grant\.club, grant\.team\)/);
+  assert.match(body, /not isExcluded\(caller, club\)/);
+  assert.match(body, /acl_revision = aclVersion; roles = roles/);
+  assert.doesNotMatch(body, /http|fetch\(|Supabase|oauth|actor\(/i);
 });
