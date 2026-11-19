@@ -1,0 +1,186 @@
+name: "[TEST] DEV G2 single-read Club ONLY release (manual)"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dev-g2-single-read-release.yml"
+      - "frontend/scripts/upgrade-dev-g2-single-read.ts"
+      - "scripts/dev-g2-single-read-release-policy.mjs"
+      - "scripts/dev-g2-single-read-release-policy.test.mjs"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "check is read-only; upgrade installs ONLY existing Group 2 club_domain"
+        required: true
+        type: choice
+        default: check
+        options: [check, upgrade]
+      confirmation:
+        description: "Upgrade confirmation: UPGRADE DEV G2 SINGLE READ ONLY (blank for check)"
+        type: string
+        required: false
+        default: ""
+      expected_release_sha:
+        description: "Exact 40-character main commit from successful check.json"
+        type: string
+        required: false
+        default: ""
+      expected_club_hash:
+        description: "Exact old G2 installed module hash from successful check"
+        type: string
+        required: false
+        default: ""
+      expected_candidate_hash:
+        description: "Exact compiled new club_domain hash from successful check.json (blank for check)"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+
+jobs:
+  scope-policy:
+    name: Verify pinned single-canister scope without credentials
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - run: node --test scripts/dev-g2-single-read-release-policy.test.mjs scripts/g2-club-roster-release-policy.test.mjs
+      - name: Syntax-check runner without executing it
+        run: npx --yes esbuild@0.25.12 frontend/scripts/upgrade-dev-g2-single-read.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/dev-g2-single-read-runner.mjs"
+
+  owner-manual-check-or-upgrade:
+    needs: scope-policy
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: group-2-admin-controls
+    permissions:
+      contents: write
+    timeout-minutes: 90
+    env:
+      ACTION: ${{ inputs.action }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      EXPECTED_RELEASE_SHA: ${{ inputs.expected_release_sha }}
+      EXPECTED_CLUB_HASH: ${{ inputs.expected_club_hash }}
+      EXPECTED_CANDIDATE_HASH: ${{ inputs.expected_candidate_hash }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Initialise isolated ICP tool home
+        run: echo "ICP_HOME=$RUNNER_TEMP/g2-club-roster-icp-home" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Reject non-main source or unapproved action
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "Ignite-Club-HQ/ignite-club_hq-prod"
+          test "$GITHUB_REF" = "refs/heads/main"
+          node --input-type=module <<'NODE'
+          import { validateRequest } from './scripts/dev-g2-single-read-release-policy.mjs';
+          validateRequest({
+            action:process.env.ACTION,
+            confirmation:process.env.CONFIRMATION,
+            release:process.env.EXPECTED_RELEASE_SHA,
+            actualCommit:process.env.GITHUB_SHA,
+            oldHash:process.env.EXPECTED_CLUB_HASH,
+            candidateHash:process.env.EXPECTED_CANDIDATE_HASH,
+            expectedCandidateHash:process.env.EXPECTED_CANDIDATE_HASH
+          });
+          NODE
+      - name: Install pinned CLI and existing dependencies
+        run: |
+          set -euo pipefail
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          node scripts/ensure-frontend-deps.mjs
+          icp canister install --help | grep -q -- --wasm-memory-persistence
+      - name: Verify fixed scope and existing release safeguards
+        run: node --test scripts/dev-g2-single-read-release-policy.test.mjs scripts/g2-club-roster-release-policy.test.mjs scripts/group2-journal.test.mjs scripts/group2-upgrade-rules.test.mjs
+      - name: Restore ONLY existing signed Group 2 governor
+        env:
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOYER_PEM:-}" || { echo "::error::Existing Group 2 governor secret required"; exit 1; }
+          umask 077
+          mkdir -p "$ICP_HOME/identity/keys"
+          PEM_FILE="$RUNNER_TEMP/g2-club-roster.pem"
+          if ! PEM_IN="$DEPLOYER_PEM" node scripts/normalize-pem.mjs > "$PEM_FILE"; then
+            echo "::error::Governor private-key PEM could not be normalized; no canister changed."
+            exit 1
+          fi
+          if ! icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor >/dev/null 2>&1; then
+            echo "::error::Existing governor identity was rejected by CLI; no canister changed."
+            exit 1
+          fi
+          icp identity default ignite-governor >/dev/null
+          test "$(icp identity principal)" = vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae || {
+            echo "::error::Connected identity differs from pinned TEST Group 2 governor; no canister changed."
+            exit 1
+          }
+      - name: Checkout exact old installed G2 Club source for verified recovery bytes
+        uses: actions/checkout@v4
+        with:
+          ref: 51bb9578ec7888acf21dddcdfc488eb6580d1408
+          path: previous-g2-source
+          persist-credentials: false
+      - name: Rebuild old installed G2 Club WASM (no deployment)
+        run: |
+          set -euo pipefail
+          (cd previous-g2-source && node scripts/prefetch-test-icp-tools.mjs && cd deploy/mainnet && icp build club_domain)
+          mkdir -p "$RUNNER_TEMP/dev-g2-single-read-recovery"
+          cp previous-g2-source/deploy/mainnet/.icp/cache/artifacts/club_domain "$RUNNER_TEMP/dev-g2-single-read-recovery/club_domain.wasm"
+          PREVIOUS_WASM="$RUNNER_TEMP/dev-g2-single-read-recovery/club_domain.wasm" node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import {wasmHash} from './scripts/group2-upgrade-rules.mjs';
+          import {PREVIOUS_MODULE_HASH} from './scripts/dev-g2-single-read-release-policy.mjs';
+          if(wasmHash(readFileSync(process.env.PREVIOUS_WASM))!==PREVIOUS_MODULE_HASH)throw Error('Original live module WASM bytes cannot be reproduced. STOP before release.');
+          console.log('Exact previous G2 Club recovery WASM verified');
+          JS
+      - name: Build ONLY the club_domain recipe artifact
+        working-directory: deploy/mainnet
+        run: |
+          set -euo pipefail
+          icp build club_domain
+          mkdir -p "$RUNNER_TEMP/g2-club-roster-wasm"
+          cp .icp/cache/artifacts/club_domain "$RUNNER_TEMP/g2-club-roster-wasm/club_domain"
+          test -s "$RUNNER_TEMP/g2-club-roster-wasm/club_domain"
+      - name: Check or journal-and-upgrade ONLY the pinned DEV G2 club_domain
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          npx --yes tsx@4 scripts/upgrade-dev-g2-single-read.ts \
+            "$ACTION" "$RUNNER_TEMP/g2-club-roster-wasm" \
+            "$RUNNER_TEMP/g2-club-roster.pem" "$RUNNER_TEMP/g2-club-roster-report" "$RUNNER_TEMP/dev-g2-single-read-recovery/club_domain.wasm"
+      - name: Destroy signing credentials and temporary historic builds
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/g2-club-roster.pem"
+          rm -rf "$ICP_HOME" "$GITHUB_WORKSPACE/previous-g2-source"
+      - name: Save non-sensitive read-only check or release receipt
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dev-g2-single-read-release-report
+          path: ${{ runner.temp }}/g2-club-roster-report
+          if-no-files-found: ignore
+
+      - name: Archive verified previous G2 WASM bytes for manual recovery
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dev-g2-single-read-previous-club-wasm
+          path: ${{ runner.temp }}/dev-g2-single-read-recovery/club_domain.wasm
+          retention-days: 90
+          if-no-files-found: warn
