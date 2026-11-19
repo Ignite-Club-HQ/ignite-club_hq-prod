@@ -518,6 +518,11 @@ export const idlFactory = ({ IDL }) => {
     'subject' : IDL.Principal,
     'denied_through_version' : IDL.Opt(IDL.Nat64),
   });
+  const MemberAdmission = IDL.Record({
+    'eligibility' : PrincipalEligibility,
+    'account' : IDL.Opt(Account),
+  });
+  const Result_53 = IDL.Variant({ 'Ok' : MemberAdmission, 'Err' : IDL.Text });
   const Result_35 = IDL.Variant({
     'Ok' : IDL.Vec(PrincipalEligibility),
     'Err' : IDL.Text,
@@ -898,6 +903,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_35],
         [],
       ),
+    'read_member_admission' : IDL.Func([IDL.Principal], [Result_53], []),
     'read_principal_eligibility' : IDL.Func([IDL.Principal], [Result_36], []),
     'read_private_name_account_inventory' : IDL.Func(
         [IDL.Text, Request_1, IDL.Opt(AccountInventoryCursor), IDL.Nat16],
