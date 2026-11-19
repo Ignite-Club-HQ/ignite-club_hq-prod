@@ -2052,7 +2052,7 @@ export default function TeamDetailPage() {
               state: { ...locationState, justCreatedTeam: false },
             })}
           />
-          {window.location.hostname !== "igniteclubhq.app" && (
+          {(devIcpAdultNames || !["igniteclubhq.app", "www.igniteclubhq.app", "igniteclubhq.com", "www.igniteclubhq.com"].includes(window.location.hostname)) && (
             <p className="text-xs text-muted-foreground">
               You are using a DEV or preview environment. Test clubs and teams
               will not appear in the production iOS or Android apps.
