@@ -133,7 +133,13 @@ test("parents see only authorized same-team child names; private fields stay res
   assert.match(privateNameBackend, /func verifiedTeamChildNames/);
   assert.match(privateNameBackend, /fieldId != "name"/);
   assert.match(privateNameBackend, /read_can_team_child_name_visibility\(viewer, ids\)/);
-  assert.match(privateNameBackend, /let teamChildNames = await verifiedTeamChildNames\(caller, pii_ids, field_id\)/);
-  assert.match(privateNameBackend, /let freshTeamChildNames = await verifiedTeamChildNames\(caller, \[pii_id\], field_id\)/);
+  // An exact owner may skip a redundant same-team probe; everyone using
+  // guardian, team membership or club staff authority still needs the pinned
+  // Club verifier and its closing key-derivation check.
+  assert.match(privateNameBackend, /let teamChildNames = if \(ownerChildNames\) \[\] else await verifiedTeamChildNames\(caller, pii_ids, field_id\)/);
+  assert.match(privateNameBackend, /let freshTeamChildNames = if \(ownerChildNames\) \[\] else await verifiedTeamChildNames\(caller, \[pii_id\], field_id\)/);
+  assert.match(privateNameBackend, /record\.domain_owner == caller/);
+  assert.match(privateNameBackend, /fieldId != "name"/);
+
   assert.doesNotMatch(teamRoster, /return .*child\.name/);
 });
