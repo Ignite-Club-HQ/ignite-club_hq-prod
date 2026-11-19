@@ -48,7 +48,7 @@ test('runner retains journal/readback/crypto continuity, never updates PII setti
   assert.match(runner,/await executeUpgrades\(/);
   assert.match(runner,/await gate\(\)/);
   assert.match(runner,/if\(action==='check'\)\{await gate\(\);process\.exit\(0\);\}/);
-  assert.match(runner,/const settingsRelease=cleanupRelease\|\|secureRelease/);
+  assert.match(runner,/const settingsRelease\s*=\s*cleanupRelease\s*\|\|\s*secureRelease/);
   assert.ok(!policy.includes("dev_g2_pii_owner_fastpath: ['identity_access'"));
   assert.doesNotMatch(workflow,/\n  push:/);
 });
