@@ -13,6 +13,7 @@ import { GROUP2_GOVERNOR, wasmHash, verifyUpgradeStatus } from '../../scripts/gr
 import { digest, installArgs } from '../../scripts/all-group-upgrade-policy.mjs';
 import { canonicalSettingRows } from '../../scripts/private-name-cleanup-release-policy.mjs';
 import { FIRST_CONTENT_DEV as pins, verifyFirstContentStage } from '../../scripts/dev-first-content-stage-policy.mjs';
+import { verifyExactPreviousWasms } from '../../scripts/dev-first-content-recovery-gate.mjs';
 import { createJournalApi } from './media-stage-two-github.mjs';
 import { persistGroup2Journal } from '../../scripts/group2-journal.mjs';
 
@@ -75,6 +76,12 @@ if(action==='check') {
   process.exit(0);
 }
 if(action!=='upgrade')throw Error('Only check or upgrade allowed');
+const previousWasmDirectory=process.env.DEV_FIRST_CONTENT_RECOVERY_DIR;
+if(!previousWasmDirectory)throw Error('Two verified archived prior Wasm bytes required before any live install');
+verifyExactPreviousWasms({
+  identity_access:readFileSync(resolve(previousWasmDirectory,'identity_access.wasm')),
+  club_domain:readFileSync(resolve(previousWasmDirectory,'club_domain.wasm')),
+});
 if(repo!=='Ignite-Club-HQ/ignite-club_hq-prod')throw Error('Wrong GitHub repository; no installation');
 if(!process.env.GH_TOKEN)throw Error('Protected GitHub journal token unavailable');
 const api=createJournalApi(repo,JSON.stringify);
