@@ -195,11 +195,17 @@ const guardedGate=async()=>{
   await gate();
   if(await wiring()!==journal.step.wiringHash) throw Error('Cross-canister authority changed');
 };
+// Resolve the reviewed mainnet ICP project before writing any pending install intent.
+const mainnetProject=resolve(import.meta.dirname,'../../deploy/mainnet');
+const mainnetConfig=readFileSync(join(mainnetProject,'icp.yaml'),'utf8');
+if(!mainnetConfig.includes('- ../../backend/club_domain') ||
+   !mainnetConfig.includes('- name: ic') || mainnetConfig.includes('.local-icp/'))
+  throw Error('Missing exact reviewed deploy/mainnet project; no install');
 await executeUpgrade(journal,{
   gate:guardedGate,observe,persist,
   install:async()=>{
     const args=upgradeArgs(target,file,GROUP2_GOVERNOR);
-    const response=spawnSync('icp',args,{cwd:reportDir,stdio:'inherit'});
+    const response=spawnSync('icp',args,{cwd:mainnetProject,stdio:'inherit'});
     if(response.status!==0)throw Error('Install failed/unknown; durable pending receipt preserved; no automatic retry');
   }
 });
