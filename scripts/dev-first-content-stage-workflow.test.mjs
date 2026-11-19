@@ -12,6 +12,7 @@ test('new DEV stage workflow is manual-only, check-default, protected and serial
   assert.match(workflow,/options: \[check, upgrade\]/);
   assert.match(workflow,/options: \[identity, g2_club\]/);
   assert.match(workflow,/environment: group-2-admin-controls/);
+  assert.match(workflow,/actions: read # Must read authenticated completed main recovery job/);
   assert.match(workflow,/recovery_run_id:/);
   assert.match(workflow,/if: inputs.action == 'upgrade'\n        run: \|\n          set -euo pipefail\n          \[\[ "\$RECOVERY_RUN_ID"/);
   assert.match(workflow,/assertRecoveryRunMetadata\(run\)/);
