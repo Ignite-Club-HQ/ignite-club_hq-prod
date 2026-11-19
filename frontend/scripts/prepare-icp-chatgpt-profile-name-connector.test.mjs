@@ -21,11 +21,29 @@ test('encrypts synthetic name with official VetKeys and no plaintext output',()=
  assert.equal(result.register_pii_args.includes('Synthetic User'),false);
  assert.equal(JSON.stringify(result).includes('Synthetic User'),false);
 });
+test('accepts the actual canonical DEV icp.net connector origin with authenticated discovery',()=>{
+ const input=fixture();
+ assert.equal(dev.app,'https://proe7-kqaaa-aaaas-qg6gq-cai.icp.net');
+ const prepared=prepare(input);
+ assert.equal(prepared.environment,'DEV');
+ assert.equal(prepared.caller_principal,p);
+ assert.equal(prepared.identity_canister,dev.identity);
+ assert.equal(prepared.pii_canister,dev.pii);
+});
+test('retains .icp0.io as a pinned legacy alias only with exact DEV manifest and derived principal',()=>{
+ const input=fixture();
+ input.app.app_url=dev.legacyApp;
+ assert.equal(prepare(input).environment,'DEV');
+ input.app.derivation_origin='https://igniteclubhq.app';
+ assert.throws(()=>prepare(input));
+});
 test('rejects mismatched caller, origin, target, missing manifest or approval',()=>{
  const mutate=[
  x=>{x.identity.principal='2vxsx-fae';},
  x=>{x.identity.read_only=true;},
  x=>{x.app.derivation_origin='https://igniteclubhq.app';},
+ x=>{x.app.app_url='https://igniteclubhq.app';},
+ x=>{x.app.app_url='https://ignite-club-launchpad.lovable.app';},
  x=>{x.app.canisters[1].declared=false;},
  x=>{x.authority.pii_canister='zt5a6-yiaaa-aaaal-qxp5q-cai';},
  x=>{x.authority.owner_principal='2vxsx-fae';},
