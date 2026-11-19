@@ -10,6 +10,10 @@ on:
       - "docs/integrations/icp-mcp-ignite-onboarding.md"
       - "scripts/icp-mcp-onboarding-doc.test.mjs"
       - "frontend/scripts/test-icp-mcp-onboarding-replica.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-private-name.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-private-name.test.mjs"
       - "frontend/scripts/iiOriginPolicy.mjs"
       - "frontend/scripts/iiOriginPolicy.test.mjs"
       - "frontend/scripts/iiOriginDist.test.mjs"
@@ -92,6 +96,10 @@ jobs:
           bun add -g ic-mops@3.5.1
           mops toolchain use moc 1.16.1
           (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
+      - name: Verify offline secure-profile encryption and strict DEV connector provenance
+        working-directory: frontend
+        run: |
+          node --test scripts/prepare-icp-chatgpt-private-name.test.mjs scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs
       - name: Compile disposable identity and club canisters (never deploy)
         run: |
           MOC="$HOME/.cache/mops/moc/1.16.1/moc"
