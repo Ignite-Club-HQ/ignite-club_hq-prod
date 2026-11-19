@@ -12,6 +12,11 @@ test('new DEV stage workflow is manual-only, check-default, protected and serial
   assert.match(workflow,/options: \[check, upgrade\]/);
   assert.match(workflow,/options: \[identity, g2_club\]/);
   assert.match(workflow,/environment: group-2-admin-controls/);
+  assert.match(workflow,/recovery_run_id:/);
+  assert.match(workflow,/if: inputs.action == 'upgrade'\n        run: \|\n          set -euo pipefail\n          \[\[ "\$RECOVERY_RUN_ID"/);
+  assert.match(workflow,/assertRecoveryRunMetadata\(run\)/);
+  assert.match(workflow,/gh run download "\$RECOVERY_RUN_ID"/);
+  assert.match(workflow,/verifyExactPreviousWasms/);
   assert.match(workflow,/group: ignite-mainnet-governor-deployment/);
   assert.match(workflow,/test "\$GITHUB_REF" = "refs\/heads\/main"/);
   assert.match(workflow,/upgrade-all-groups\.ts check dev_first_content_admission_preflight/);
@@ -24,6 +29,8 @@ test('only one approved install is possible; no implicit other-canister writes o
   assert.match(runner,/const expectedBefore=stage==='identity'\?\[pins\.identity\.old,pins\.club\.old\]:\[pins\.identity\.next,pins\.club\.old\]/);
   assert.match(runner,/verifyUpgradeStatus\(/);
   assert.match(runner,/IGNITE_FIRST_CONTENT_COMBINED_ADMISSION/);
+  assert.match(runner,/if\(!previousWasmDirectory\)throw Error/);
+  assert.match(runner,/verifyExactPreviousWasms\(\{/);
   assert.match(runner,/get\('subnet'\)/);
   assert.doesNotMatch(runner,/update_settings|set_pii_canister|set_service_authorities|update_settings|icp deploy|icp sync|stopCanister|upgradeCanister/);
   assert.match(policy,/dev_first_content_admission_preflight/);
