@@ -32,7 +32,8 @@ test('fast success uses the existing stronger trusted service-account proof, not
   assert.match(body, /if \(not accountAdmissionEnabled\) \{ await admitAccount\(subject\); return \}/);
   assert.match(body, /AccountProtection\.valid\(accountProtectionMode\)/);
   assert.match(body, /removalReceiver\.denied\(subject\)/);
-  const successful = between('func admitAccountForFirstContent(', 'case null {');
+  const legacyStart = body.indexOf('// Legacy fallback');
+  const successful = body.slice(legacyStart, body.indexOf('case null {', legacyStart));
   assert.match(successful, /let account = await accountAdmission\.account\(subject\);/);
   assert.match(successful, /authority != accountAdmissionAuthority or epoch != membershipEpoch\(\)/);
   assert.match(successful, /AccountUnlinkFence\.rejects\(/);
@@ -48,7 +49,7 @@ test('fast success uses the existing stronger trusted service-account proof, not
 
 test('fallback still requires fresh eligibility and rejects revoked or changed account authority', () => {
   const body = between('func admitAccountForFirstContent(', 'func denyLegacyAccountQuery(');
-  const fallback = body.slice(body.indexOf('case null {'));
+  const fallback = body.slice(body.indexOf('case null {', body.indexOf('// Legacy fallback')));
   assert.match(fallback, /await accountAdmission\.eligible\(subject\)/);
   assert.match(fallback, /authority != accountAdmissionAuthority/);
   assert.match(fallback, /epoch != membershipEpoch\(\)/);
@@ -61,9 +62,27 @@ test('fallback still requires fresh eligibility and rejects revoked or changed a
   assert.match(gate, /version > denied/);
 });
 
-test('no new Identity canister API is necessary or silently exposed', () => {
-  assert.doesNotMatch(gate, /read_member_admission_snapshot/);
-  assert.doesNotMatch(identity, /read_member_admission_snapshot/);
+test('existing Identity reads remain available alongside combined member admission', () => {
+  assert.match(gate, /read_member_admission : shared \(Principal\)/);
+  assert.match(identity, /async fn read_member_admission\(subject: Principal\)/);
   assert.match(identity, /fn principal_eligibility\(subject: Principal\) -> PrincipalEligibility/);
   assert.match(identity, /async fn verify_member_reader\(caller:Principal,club_only:bool\)/);
+});
+
+test('combined proof verifies reader before reconstruction and fail-closed club admission', () => {
+  const combined = between('func admitAccountForFirstContent(', 'func denyLegacyAccountQuery(');
+  assert.match(combined, /await accountAdmission\.combined\(subject\)/);
+  assert.match(club, /IGNITE_FIRST_CONTENT_COMBINED_ADMISSION/);
+  assert.match(combined, /if \(combinedAdmissionEnabled\) await accountAdmission\.combined\(subject\) else null/);
+  assert.match(combined, /AccountAdmission\.matches\(subject, proof\.eligibility\)/);
+  assert.match(combined, /AccountAdmission\.owns\(subject, current\)/);
+  assert.match(combined, /proof\.eligibility\.account_version != \?current\.version/);
+  assert.match(combined, /AccountUnlinkFence\.rejects/);
+  assert.match(combined, /case null \{\};[\s\S]*await accountAdmission\.account\(subject\)/);
+  assert.match(gate, /with timeout = 10\) service\.read_member_admission\(subject\)/);
+  assert.match(identity, /verify_member_reader\(caller, false\)\.await\?/);
+  assert.match(identity, /verify_production_account_reader\(caller, false, &\[subject\]\)\.await\?/);
+  assert.match(identity, /let eligibility = principal_eligibility\(subject\)/);
+  assert.match(identity, /current_service_account\(subject\)\.ok\(\)/);
+  assert.match(identity, /service_authorities\(\)\.contains\(&caller\)/);
 });
