@@ -114,9 +114,19 @@ journal.stages[stage]={phase:'pending',sourceRevision,checkedPlan:planHash,
   canisterId:target.id,oldHash:target.old,candidate:target.next,
   settings:target.settings};
 stored=persistGroup2Journal(api,path,branch,stored,journal,'first-content '+stage+' install intent');
+// Resolve the explicit, reviewed mainnet project: running icp from frontend
+// searches upward and instead loads root icp.yaml (the disposable local lab),
+// which expects .local-icp/identity-init.bin and prevents installation.
+// Validate this configuration BEFORE recording a durable install intent.
+const mainnetProject=resolve(import.meta.dirname,'../../deploy/mainnet');
+const mainnetConfig=readFileSync(join(mainnetProject,'icp.yaml'),'utf8');
+if(!mainnetConfig.includes('- ../../backend/identity_access')||
+   !mainnetConfig.includes('- ../../backend/club_domain')||
+   !mainnetConfig.includes('- name: ic')||mainnetConfig.includes('.local-icp/'))
+  throw Error('Expected reviewed deploy/mainnet ICP project; refusing install before intent');
 // Pending acknowledgement is durable BEFORE the only IC installation attempt.
 const args=installArgs({name:target.name,groupId:target.groupId,canisterId:target.id,subnetId:pins.subnet},resolve(artifactDirectory,target.name));
-const installed=spawnSync('icp',args,{stdio:'inherit'});
+const installed=spawnSync('icp',args,{cwd:mainnetProject,stdio:'inherit'});
 if(installed.status!==0)throw Error('Install failed/unknown; pending intent retained. DO NOT RETRY; reconcile exact live module and receipt first.');
 const afterExpected=stage==='identity'?[pins.identity.next,pins.club.old]:[pins.identity.next,pins.club.next];
 const after=await observeBoth(afterExpected as [string,string]);
