@@ -64,6 +64,22 @@ The CI job `rehearse-onboarding` in `.github/workflows/test-icp-mcp-onboarding.y
 
 This proves a **local subset of the current canister behavior**, not a first-use ChatGPT plugin experience, group-placement end-to-end behavior, encrypted-name secure release, current policy version or native-app onboarding. It does not authorize production release.
 
+## Post-setup app download handoff (ad → club → team)
+
+After the **authenticated user's club and first team have both been created and read back successfully**, the assistant should immediately acknowledge those exact verified names and show these three fixed, brand-owned options:
+
+- **iPhone / iPad:** https://igniteclubhq.app/get/ios
+- **Android:** https://igniteclubhq.app/get/android
+- **Keep using Ignite in a browser:** https://igniteclubhq.app
+
+Show both store links in ChatGPT so the user can choose a device; the Ignite app's on-device completion screen may emphasise the detected mobile platform. The existing `AppStoreDownloadGuide` component owns the app store destinations; do not invent alternate store links or URL parameters. Tell the customer to use the **same account and sign-in method** they used to register, and remind them they can invite members and schedule their first game next.
+
+**Do not show a setup-success claim or imply a club/team exists** after an ad click, sign-in, or a pending/failed creation. A successful club record alone is not a completed club+team onboarding. If the user merely asks about downloads, links can be given without claiming setup completion. Retain all existing legal-consent, account linking, club placement, private-name and idempotent readback checks before declaring success.
+
+**DEV guard:** If setup used a DEV test identity or test canister, state prominently that the consumer iOS/Android apps and branded browser URL are **PROD**, so the DEV club/team will not appear there. Send customers the store links as optional downloads, not as a way to inspect the DEV test data. Never switch connectors or copy DEV account/club/team records to PROD.
+
+**Advertising guard:** This is a completion UX change only, not permission to create ads, campaigns, tracking pixels, Stripe checkout sessions or live accounts. No campaign budget, purchase or ad activation is needed for the simulated click-to-signup test.
+
 ## Branded app links and paid plans
 
 When an onboarding customer has created or joined their team, display the three **production-branded links** (regardless of whether ChatGPT is operating against DEV):
