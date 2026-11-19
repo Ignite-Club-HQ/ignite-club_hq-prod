@@ -17,13 +17,13 @@
       "name": "club_domain",
       "canisterId": "yfwyv-nyaaa-aaaal-qxpyq-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "84ea7c5c55a0e4d3ed3948a8780bcafb1ca8b696e6e7ee234f5eeb31700941b0"
+      "moduleHash": "3c55bec919ea4d839d6f292a2e86272e32f21328cbf16213dc9b851059ff42fa"
     },
     {
       "name": "events_domain",
       "canisterId": "ymvtj-3qaaa-aaaal-qxpza-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "04a23bd6702a49d5e4c12a4a2cd9309ab4d6ff5d01904d840d09fe935c7aa267"
+      "moduleHash": "b7f1f9bfd6165c006a9708c87862b53e3dceb54d434e4ea6ca7f2f4a11a8ec1e"
     },
     {
       "name": "messaging_domain",
@@ -77,7 +77,7 @@
       "name": "pii_access_control",
       "canisterId": "zt5a6-yiaaa-aaaal-qxp5q-cai",
       "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
-      "moduleHash": "d777c5fbc952f3a1485a1f0706332c1fe99e72fedcf39bb50f0d2b4a95ba62b9"
+      "moduleHash": "f2570db6810c596495f09cbc43046fe99e8ac75a273e3ad4a220205f23776329"
     },
     {
       "name": "timer_jobs",
