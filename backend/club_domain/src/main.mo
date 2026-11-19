@@ -115,6 +115,45 @@ persistent actor class Main(governorInit : Principal) = this {
       };
     };
   };
+  // Read-only DEV first-content fast path: the existing trusted Identity
+  // read_service_account gives the same subject-bound active account plus
+  // freshly filtered aliases. It is stronger than eligibility alone, so a
+  // successful account answer avoids repeating the full eligibility RPC.
+  // Only the indexed membership and caller role-grant readers use this path;
+  // all writes, directory/roster reads and other services retain admitAccount.
+  func admitAccountForFirstContent(subject : Principal) : async () {
+    if (not accountAdmissionEnabled) { await admitAccount(subject); return };
+    if (not AccountProtection.valid(accountProtectionMode)) throw Error.reject("Conflicting account protection configuration");
+    if (nameCleanup.locked()) throw Error.reject("Name cleanup pending; membership changes remain locked");
+    if (removalReceiver.denied(subject)) throw Error.reject("Account removal fenced");
+    let authority = accountAdmissionAuthority;
+    let epoch = membershipEpoch();
+    // AccountAdmission.account verifies the exact caller's active Identity
+    // account; Identity itself applies account deletion and alias-revocation
+    // fences and the pinned service-reader authorization on every call.
+    let account = await accountAdmission.account(subject);
+    if (authority != accountAdmissionAuthority or epoch != membershipEpoch() or nameCleanup.locked() or removalReceiver.denied(subject))
+      throw Error.reject("Account authority changed; retry");
+    switch (account) {
+      case (?current) {
+        // Preserve the existing receiver-side unlink tombstone and never
+        // cache the response as durable authorisation across calls.
+        let verified = if (AccountUnlinkFence.rejects(current.id, current.version, current.principals, identityUnlinkReceipts)) ({ current with principals = [subject] }) else current;
+        if (linkedMembershipSnapshots.size() >= 256) linkedMembershipSnapshots.clear();
+        linkedMembershipSnapshots.add(subject, { account = verified; observed = Time.now() });
+      };
+      case null {
+        // Keep exact-principal availability from the original path when a
+        // linked-account reply is unavailable. This fallback still requires
+        // the original live eligibility proof; never assume membership.
+        let eligible = await accountAdmission.eligible(subject);
+        if (authority != accountAdmissionAuthority or epoch != membershipEpoch() or nameCleanup.locked() or removalReceiver.denied(subject) or not eligible)
+          throw Error.reject("Account admission denied or unavailable");
+        linkedMembershipSnapshots.remove(subject);
+      };
+    };
+  };
+
   func denyLegacyAccountQuery() {
     if (AccountProtection.admissionRequired(accountProtectionMode) or removalReceiver.protectedReadsRequired()) Runtime.trap("Use protected consensus account read");
   };
@@ -3804,7 +3843,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
-    await admitAccount(caller);
+    await admitAccountForFirstContent(caller);
     if (caller.equal(Principal.anonymous())) return #Err("Authentication required");
     if (limit == 0 or limit > 100) return #Err("Invalid membership page");
     let principals = membershipAliases(caller);
@@ -9457,7 +9496,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
-    await admitAccount(caller);
+    await admitAccountForFirstContent(caller);
     auth(caller);
     acl.roles.filter(func(grant) = ownsMembershipPrincipal(caller, grant.user) and roleEffective(grant.club, grant.team) and (switch (grant.club) { case (?club) not isExcluded(caller, club); case null true }))
   
