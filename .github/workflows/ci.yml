@@ -31,6 +31,8 @@ jobs:
         run: node --test scripts/test-assistant-discovery.test.mjs frontend/scripts/iiOriginDist.test.mjs frontend/scripts/prepare-canister-dist-identity.test.mjs
       - name: Protect DEV first-content service-account admission and revocation fallback
         run: node --test scripts/dev-first-content-admission-contract.test.mjs
+      - name: Guard exact DEV first-content admission check-only scope
+        run: node --test scripts/dev-first-content-preflight-policy.test.mjs
       # Offline source consistency only; live target checks remain in promotion.
       - name: Install pinned offline SQL parser for PROD PR
         if: github.base_ref == 'prod'
