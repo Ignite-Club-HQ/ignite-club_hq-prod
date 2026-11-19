@@ -37,7 +37,10 @@ function checkRead(method, label) {
   assert.match(method, /let epoch = mediaAuthEpoch;/);
   assert.match(method, /let ownerChildNames = ownsEveryRequestedChildName\(caller, pii_ids, field_id\);/);
   for (const methodName of ["resolveAllowedClubs", "resolveAllowedCompetitions", "verifiedTeamChildNames"]) {
-    assert.match(method, new RegExp("if \\(ownerChildNames\\) \\[\\] else await " + methodName + "\\\(caller, pii_ids, field_id\\\)"));
+    assert.ok(
+      method.includes(`if (ownerChildNames) [] else await ${methodName}(caller, pii_ids, field_id)`),
+      label + " must retain external checks unless direct owner covers the entire batch",
+    );
   }
   assert.match(method, /let direct = await directRead\(caller, r\);/);
   assert.match(method, /let allowed = direct or canReadViaClub\(r, allowedClubs\) or canReadViaCompetition\(r, allowedCompetitions\) or teamChildNames\.any\(/);
