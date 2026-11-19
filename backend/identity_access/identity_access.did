@@ -283,6 +283,8 @@ type PrincipalEligibility = record {
   subject : principal;
   denied_through_version : opt nat64;
 };
+// Admission is only a subject-bound proof, never a role grant.
+type MemberAdmission = record { eligibility : PrincipalEligibility; account : opt Account };
 type PrivacyConsent = record {
   account_id : text;
   updated_at_ns : nat64;
@@ -457,6 +459,7 @@ type Result_5 = variant { Ok : Progress; Err : text };
 type Result_50 = variant { Ok : PrivacyConsent; Err : text };
 type Result_51 = variant { Ok : TermsAcceptance; Err : text };
 type Result_52 = variant { Ok : vec Receipt; Err : text };
+type Result_53 = variant { Ok : MemberAdmission; Err : text };
 type Result_6 = variant { Ok : WriteWindow; Err : text };
 type Result_7 = variant { Ok : CleanupAccount; Err : text };
 type Result_8 = variant { Ok : nat64; Err : text };
@@ -742,6 +745,8 @@ service : (Init) -> {
   read_principal_eligibilities : (vec principal) -> (Result_35);
   // Consensus reads; never create an account or grant resource permissions.
   // Versions are account-scoped evidence, NOT globally atomic access tokens.
+  // One verified member-reader call, with optional linked aliases.
+  read_member_admission : (principal) -> (Result_53);
   read_principal_eligibility : (principal) -> (Result_36);
   read_private_name_account_inventory : (
       text,

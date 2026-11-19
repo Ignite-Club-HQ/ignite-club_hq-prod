@@ -33,7 +33,8 @@ try {
     const group = await pic.setupCanister({ idlFactory: clubIdl, wasm: process.env.CLUB_DOMAIN_WASM,
       sender: governor, controllers: [governor], environmentVariables: [
         { name: "IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL", value: "1" },
-        { name: "IGNITE_ACCOUNT_SERVICE_IDENTITY", value: identity.canisterId.toText() }
+        { name: "IGNITE_ACCOUNT_SERVICE_IDENTITY", value: identity.canisterId.toText() },
+        { name: "IGNITE_FIRST_CONTENT_COMBINED_ADMISSION", value: "1" }
       ], arg: IDL.encode([IDL.Principal], [governor]) });
     service.setPrincipal(governor);
     ok(await service.set_service_authorities([...groups, group].map(g => g.canisterId)));
@@ -63,8 +64,17 @@ try {
   const approvedAccount = ok(await service.read_service_account(linked));
   assert.equal(approvedAccount.id, account.id, 'trusted service account matches the linked identity');
   assert.ok(approvedAccount.principals.some(p => p.toText() === linked.toText()));
+  // Same exact proof in one reader-verified update, with fresh alias state.
+  const combined = ok(await service.read_member_admission(linked));
+  assert.ok('Eligible' in combined.eligibility.decision);
+  assert.equal(combined.eligibility.subject.toText(), linked.toText());
+  assert.equal(combined.eligibility.account_version[0], account.version + 1n);
+  assert.equal(combined.account.length, 1);
+  assert.equal(combined.account[0].id, account.id);
+  assert.ok(combined.account[0].principals.some(p => p.toText() === linked.toText()));
   service.setPrincipal(stranger);
   assert.ok('Err' in await service.read_service_account(linked), 'untrusted service cannot get linked principals');
+  assert.ok('Err' in await service.read_member_admission(linked), 'untrusted service cannot obtain combined proof or aliases');
   service.setPrincipal(stranger); assert.ok('Err' in await service.read_linked_account(primary));
   assert.ok('Err' in await service.read_principal_eligibility(primary));
   service.setPrincipal(groups[0].canisterId);
@@ -104,6 +114,9 @@ try {
   service.setPrincipal(groups[0].canisterId);
   const pendingEligibility = ok(await service.read_principal_eligibility(linked));
   assert.ok('Denied' in pendingEligibility.decision);
+  const pendingCombined = ok(await service.read_member_admission(linked));
+  assert.ok('Denied' in pendingCombined.eligibility.decision);
+  assert.equal(pendingCombined.account.length, 0, 'revoked login never receives linked account');
   assert.equal(pendingEligibility.denied_through_version[0], 1n);
   service.setPrincipal(governor); assert.ok('Err' in await service.set_club_authorities(groups.map(g => g.canisterId)));
   await pic.upgradeCanister({ canisterId: identity.canisterId, wasm: process.env.IDENTITY_ACCESS_WASM, sender: governor,

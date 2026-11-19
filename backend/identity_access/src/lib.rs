@@ -445,6 +445,14 @@ struct PrincipalEligibility {
     account_version: Option<u64>,
     denied_through_version: Option<u64>,
 }
+/// Single subject-bound proof for first-content readers. Eligibility is
+/// never a club role or resource grant; aliases are returned only to a
+/// separately validated trusted service reader.
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
+struct MemberAdmission {
+    eligibility: PrincipalEligibility,
+    account: Option<Account>,
+}
 fn principal_eligibility(subject: Principal) -> PrincipalEligibility {
     let account = account_for_write(subject).ok().filter(|a| !DELETION_TICKETS.with(|m| m.borrow().contains_key(&a.id)));
     PrincipalEligibility {
@@ -541,6 +549,39 @@ fn current_service_account(subject: Principal) -> Outcome<Account> {
 async fn read_service_account(subject: Principal) -> Outcome<Account> {
     if account_group_rehearsal_enabled() {return service_account(ic_cdk::api::msg_caller(),subject);}
     production_service_account(ic_cdk::api::msg_caller(),subject,false).await
+}
+
+/// Combine eligibility and the optional linked-account view behind one
+/// existing member-reader inventory verification. Construct after the final
+/// await so suspensions, deletion tickets and unlink fences remain current.
+/// Missing account aliases never turn a denied eligibility into an admission.
+#[ic_cdk::update]
+async fn read_member_admission(subject: Principal) -> Outcome<MemberAdmission> {
+    let caller = ic_cdk::api::msg_caller();
+    if account_group_rehearsal_enabled() {
+        // The legacy admission authority may read eligibility only. It must
+        // never receive linked aliases without its distinct service grant.
+        let mut evidence = authority_eligibilities(caller, vec![subject])?;
+        let eligibility = evidence.remove(0);
+        let account = if eligibility.decision == EligibilityDecision::Eligible
+            && service_authorities().contains(&caller) {
+            current_service_account(subject).ok()
+        } else { None };
+        return Ok(MemberAdmission { eligibility, account });
+    }
+    if group2_admission().member_access {
+        verify_member_reader(caller, false).await?;
+    } else if production_authorization().approval.is_some() {
+        verify_production_account_reader(caller, false, &[subject]).await?;
+    } else {
+        return Err("Member admission unavailable".into());
+    }
+    // No await after the final authority and inventory verification.
+    let eligibility = principal_eligibility(subject);
+    let account = if eligibility.decision == EligibilityDecision::Eligible {
+        current_service_account(subject).ok()
+    } else { None };
+    Ok(MemberAdmission { eligibility, account })
 }
 
 fn unlink_targets(job: &UnlinkIntent) -> Outcome<Vec<Principal>> {
