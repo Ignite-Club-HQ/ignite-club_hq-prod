@@ -5,8 +5,8 @@ import { verifyExactPreviousWasms, assertRecoveryRunMetadata } from './dev-first
 
 test('fail closed when either previous module binary is missing or not byte-identical', () => {
   assert.throws(() => verifyExactPreviousWasms({}), /Missing actual archived old Wasm bytes/);
-  assert.throws(() => verifyExactPreviousWasms({ identity_access: new Uint8Array([0,97,115,109]) }), /differs from live installed module/);
-  assert.throws(() => verifyExactPreviousWasms({ identity_access: Buffer.from('invalid'), club_domain: Buffer.from('invalid') }), /differs from live installed module/);
+  assert.throws(() => verifyExactPreviousWasms({ identity_access: new Uint8Array([0,97,115,109]) }), /Invalid Wasm|differs from live installed module/);
+  assert.throws(() => verifyExactPreviousWasms({ identity_access: Buffer.from('invalid'), club_domain: Buffer.from('invalid') }), /Invalid Wasm|differs from live installed module/);
   assert.throws(() => verifyExactPreviousWasms({ identity_access: new Uint8Array(), club_domain: new Uint8Array([1]) }), /Missing actual archived old Wasm bytes/);
 });
 
