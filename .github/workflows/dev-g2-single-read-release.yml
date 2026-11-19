@@ -71,6 +71,7 @@ jobs:
       CONFIRMATION: ${{ inputs.confirmation }}
       EXPECTED_RELEASE_SHA: ${{ inputs.expected_release_sha }}
       EXPECTED_CLUB_HASH: ${{ inputs.expected_club_hash }}
+      EXPECTED_CANDIDATE_HASH: ${{ inputs.expected_candidate_hash }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Initialise isolated ICP tool home
