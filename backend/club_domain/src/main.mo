@@ -9538,6 +9538,59 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
+  // ChatGPT/ICP first-content optimisation: one caller-signed canister update
+  // returns the same authorised indexed memberships and own role grants.
+  // No bridge, cached authorisation, cross-canister fan-out or PII export.
+  // Keep the original two endpoints unchanged for backwards compatibility.
+  public shared ({ caller }) func read_account_my_clubs_and_roles_indexed(after : ?Text, limit : Nat16) : async {
+    #Ok : { clubs : [Text]; next : ?Text; acl_revision : Nat64; roles : [Types.RoleGrant] };
+    #Err : Text
+  } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+      if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+      try {
+        // Exactly one existing Identity admission, with current unlink/removal
+        // fencing. No further awaits between verifying access and reading rows.
+        await admitAccountForFirstContent(caller);
+        if (caller.equal(Principal.anonymous())) return #Err("Authentication required");
+        if (limit == 0 or limit > 100) return #Err("Invalid membership page");
+        auth(caller);
+        let principals = membershipAliases(caller);
+        let ix = currentMemberIndex();
+        if (principals.any(func(p) = MembershipIndex.has(ix, p.toText(), APP_WIDE))) {
+          return #Err("Use read_my_club_memberships for app-wide accounts");
+        };
+        let candidates = MembershipIndex.empty();
+        for (p in principals.values()) {
+          var cursor : ?Text = null;
+          label pages loop {
+            let page = MembershipIndex.page(ix, p.toText(), cursor, 100);
+            for (club in page.clubs.values()) MembershipIndex.add(candidates, "c", club);
+            switch (page.next) { case null break pages; case (?n) cursor := ?n };
+          };
+        };
+        var out : [Text] = [];
+        var cursor = after;
+        var more = false;
+        label scan loop {
+          let page = MembershipIndex.page(candidates, "c", cursor, 100);
+          for (club in page.clubs.values()) {
+            if (out.size() == Nat16.toNat(limit)) { more := true; break scan };
+            let live = profiles.any(func(pr) = pr.id == club and pr.deleted_at_ms == null);
+            if (live and isMember(caller, club)) out := out.concat([club]);
+            cursor := ?club;
+          };
+          switch (page.next) { case null break scan; case (?_) {} };
+        };
+        // Identical caller/role/club checks as read_account_my_role_grants.
+        // Role grants cannot be inferred from a club ID or from OQL data.
+        let roles = acl.roles.filter(func(grant) = ownsMembershipPrincipal(caller, grant.user) and roleEffective(grant.club, grant.team) and (switch (grant.club) { case (?club) not isExcluded(caller, club); case null true }));
+        #Ok({ clubs = out; next = if (more and out.size() > 0) ?out[out.size() - 1] else null; acl_revision = aclVersion; roles = roles })
+      } finally { removalReceiver.leave(caller) };
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
   public shared func read_account_has_club_staff_role(user : Principal, club_id : Text) : async Bool {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
