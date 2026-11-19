@@ -1,0 +1,78 @@
+# One bounded state check. No governor, no production/mainnet canister calls.
+name: "[TEST] DEV first-content old-to-new persistence (PocketIC only)"
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dev-first-content-persistence.yml"
+      - "frontend/scripts/test-first-content-staged-persistence-replica.mjs"
+      - "frontend/scripts/dev-first-content-staged-upgrade.ts"
+      - "scripts/dev-first-content-stage-policy.mjs"
+      - "scripts/dev-first-content-recovery-gate.mjs"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read # Fetch the previously hash-verified old module artifact
+jobs:
+  persistence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Prepare the local compiler, dependencies and PocketIC
+        env:
+          ICP_HOME: ${{ runner.temp }}/first-content-pocketic-build
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          node scripts/ensure-frontend-deps.mjs
+          (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
+          # The historical prefetch helper insists on a main-branch label.
+          # This is only a compiler download; no governor secret or install is available.
+          GITHUB_REF=refs/heads/main node scripts/prefetch-test-icp-tools.mjs
+          (cd deploy/mainnet && icp build identity_access club_domain)
+      - name: Fetch previously reproduced exact old DEV binaries (read-only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/first-content-old-wasm"
+          gh run download 44498170065 --repo Ignite-Club-HQ/ignite-club_hq-prod --name dev-first-content-old-modules --dir "$RUNNER_TEMP/first-content-old-wasm"
+          node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          import {wasmHash} from './scripts/group2-upgrade-rules.mjs';
+          import {FIRST_CONTENT_DEV as pins} from './scripts/dev-first-content-stage-policy.mjs';
+          import {verifyExactPreviousWasms} from './scripts/dev-first-content-recovery-gate.mjs';
+          const old=process.env.RUNNER_TEMP+'/first-content-old-wasm';
+          verifyExactPreviousWasms({
+            identity_access:readFileSync(join(old,'identity_access.wasm')),
+            club_domain:readFileSync(join(old,'club_domain.wasm')),
+          });
+          for(const service of [pins.identity,pins.club]){
+            const bytes=readFileSync('deploy/mainnet/.icp/cache/artifacts/'+service.name);
+            if(wasmHash(bytes)!==service.next)throw Error('Candidate source does not match preflight: '+service.name);
+          }
+          console.log('Both old and new module hashes match the exact DEV preflight');
+          JS
+      - name: Run ONE real old-to-new PocketIC membership and stable-memory rehearsal
+        working-directory: frontend
+        run: |
+          R="$GITHUB_WORKSPACE"
+          POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic" \
+          OLD_IDENTITY_ACCESS_WASM="$RUNNER_TEMP/first-content-old-wasm/identity_access.wasm" \
+          OLD_CLUB_DOMAIN_WASM="$RUNNER_TEMP/first-content-old-wasm/club_domain.wasm" \
+          IDENTITY_ACCESS_WASM="$R/deploy/mainnet/.icp/cache/artifacts/identity_access" \
+          CLUB_DOMAIN_WASM="$R/deploy/mainnet/.icp/cache/artifacts/club_domain" \
+          node scripts/test-first-content-staged-persistence-replica.mjs
+      - name: Remove temporary old modules and build cache
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/first-content-old-wasm" "$RUNNER_TEMP/first-content-pocketic-build"
