@@ -661,12 +661,13 @@ persistent actor class Main(governorInit : Principal) = this {
     if (transport_public_key.size() == 0) return #Err("Invalid transport key");
     if (pii_ids.any(func(id) = reservedMediaIdentity(id, field_id))) return #Err("Reserved or invalid PII identity");
     let epoch = mediaAuthEpoch;
-    let allowedClubs = await resolveAllowedClubs(caller, pii_ids, field_id);
-    let allowedCompetitions = await resolveAllowedCompetitions(caller, pii_ids, field_id);
-    // Skip the costly Club cross-canister team-visibility read only when
-    // every requested child-name record is directly owned by this caller.
-    // Mixed/guardian/club-staff audiences retain all authority checks.
+    // A directly owned set of exact child-name records needs no unrelated
+    // club-staff, competition or team-audience check: the owner is already
+    // authorized by can_read. For any mixed/unowned/missing record, perform
+    // the complete existing external authority chain (fail closed).
     let ownerChildNames = ownsEveryRequestedChildName(caller, pii_ids, field_id);
+    let allowedClubs = if (ownerChildNames) [] else await resolveAllowedClubs(caller, pii_ids, field_id);
+    let allowedCompetitions = if (ownerChildNames) [] else await resolveAllowedCompetitions(caller, pii_ids, field_id);
     let teamChildNames = if (ownerChildNames) [] else await verifiedTeamChildNames(caller, pii_ids, field_id);
     if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
     var out : [?Blob] = [];
@@ -684,8 +685,8 @@ persistent actor class Main(governorInit : Principal) = this {
             // Never return a key authorized by a revoked record, stale club
             // role, removed guardian, changed authority or intervening fence.
             await admitAccount(caller);
-            let freshClubs = await resolveAllowedClubs(caller, [pii_id], field_id);
-            let freshCompetitions = await resolveAllowedCompetitions(caller, [pii_id], field_id);
+            let freshClubs = if (ownerChildNames) [] else await resolveAllowedClubs(caller, [pii_id], field_id);
+            let freshCompetitions = if (ownerChildNames) [] else await resolveAllowedCompetitions(caller, [pii_id], field_id);
             let freshDirect = await directRead(caller, r);
             let freshTeamChildNames = if (ownerChildNames) [] else await verifiedTeamChildNames(caller, [pii_id], field_id);
             await admitAccount(caller);
@@ -1405,12 +1406,13 @@ persistent actor class Main(governorInit : Principal) = this {
     if (pii_ids.size() > 100) return #Err("Batch too large");
     if (pii_ids.any(func(id) = reservedMediaIdentity(id, field_id))) return #Err("Reserved or invalid PII identity");
     let epoch = mediaAuthEpoch;
-    let allowedClubs = await resolveAllowedClubs(caller, pii_ids, field_id);
-    let allowedCompetitions = await resolveAllowedCompetitions(caller, pii_ids, field_id);
-    // Skip the costly Club cross-canister team-visibility read only when
-    // every requested child-name record is directly owned by this caller.
-    // Mixed/guardian/club-staff audiences retain all authority checks.
+    // A directly owned set of exact child-name records needs no unrelated
+    // club-staff, competition or team-audience check: the owner is already
+    // authorized by can_read. For any mixed/unowned/missing record, perform
+    // the complete existing external authority chain (fail closed).
     let ownerChildNames = ownsEveryRequestedChildName(caller, pii_ids, field_id);
+    let allowedClubs = if (ownerChildNames) [] else await resolveAllowedClubs(caller, pii_ids, field_id);
+    let allowedCompetitions = if (ownerChildNames) [] else await resolveAllowedCompetitions(caller, pii_ids, field_id);
     let teamChildNames = if (ownerChildNames) [] else await verifiedTeamChildNames(caller, pii_ids, field_id);
     if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
     var out : [EncryptedPii] = [];
