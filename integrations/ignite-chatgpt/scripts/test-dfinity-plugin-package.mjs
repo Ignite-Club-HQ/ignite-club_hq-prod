@@ -29,7 +29,8 @@ test("remote server is exactly DFINITY ICP MCP; OAuth via host, no impersonation
   assert.match(dep,/url: "https:\/\/mcp\.internetcomputer\.org\/mcp"/);
 });
 test("skill pins DEV and forbids PROD, privileged/writing/billing paths",()=>{
-  assert.match(skill,/https:\/\/ignite-club-launchpad\.lovable\.app/);
+  assert.match(skill, /Pilot app URL: `https:\/\/proe7-kqaaa-aaaas-qg6gq-cai\.icp\.net`/);
+  assert.match(skill, /https:\/\/ignite-club-launchpad\.lovable\.app.*legacy DEV preview/);
   assert.match(skill,/https:\/\/proe7-kqaaa-aaaas-qg6gq-cai\.ic0\.app/);
   assert.match(skill,/NEVER switch/);
   assert.match(skill,/read_account_list_events/);
@@ -48,4 +49,23 @@ test("documentation distinguishes prior ICP connector proof from new branded plu
   assert.match(doc,/local marketplace entry/);
   assert.match(doc,/issues\/1491/);
   assert.match(doc,/cannot be submitted publicly/);
+});
+
+test("DEV startup avoids unnecessary full discovery and blocking first-data reads without bypassing auth",()=>{
+  assert.match(skill, /Fast first meaningful response/);
+  assert.match(skill, /open_app` once/);
+  assert.match(skill, /get_app_principal/);
+  assert.match(skill, /read_my_club_memberships_indexed\(null, 50:nat16\)/);
+  assert.match(skill, /identity_access\.whoami/);
+  assert.match(skill, /candid:service/);
+  assert.match(skill, /backend\/identity_access\/identity_access\.did/);
+  assert.match(skill, /show the verified signed-in account promptly/);
+  assert.match(skill, /Never cache privileges across calls/);
+  assert.match(skill, /expired/);
+  assert.match(skill, /Do not impose them as serial blockers/);
+  assert.match(skill, /incomplete next cursor/);
+  assert.match(skill, /No.*server-side restriction|read-only guidance, not an enforceable server-side restriction/);
+  const doc=read("README.md");
+  assert.match(doc, /https:\/\/proe7-kqaaa-aaaas-qg6gq-cai\.icp\.net/);
+  assert.match(doc, /original DFINITY plugin run faster by itself/);
 });
