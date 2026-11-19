@@ -1,1 +1,39 @@
-{"version":1,"repo":"Ignite-Club-HQ/ignite-club_hq-prod","governor":"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae","stages":{"identity":{"phase":"pending","sourceRevision":"d51d1bd908118a3d9e122b07dd81a79347fd2411","checkedPlan":"bb6b0c46c1c7de935647d6ab7abfeed9e208bd157cee4ee619b91e8b5396c8e9","canisterId":"mq2sj-fiaaa-aaaal-qxlqa-cai","oldHash":"579d4d7983858cde6c6aa817c809159ccc1448a227a8947e58da7ef4fefa2b65","candidate":"6fa6b030be740ccdcd0293fb463333e6e7eb4770ad9c3828ef3b65fbf914eb4c","settings":"d6752c81f2b0a38107b196f696dfe8a61f1c363f05fade25aec5d740db643e98"}}}
+{
+  "version": 1,
+  "repo": "Ignite-Club-HQ/ignite-club_hq-prod",
+  "governor": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+  "stages": {},
+  "reconciliationHistory": [
+    {
+      "stage": "identity",
+      "resolution": "abandoned_before_install_no_live_change",
+      "originalPendingIntent": {
+        "phase": "pending",
+        "sourceRevision": "d51d1bd908118a3d9e122b07dd81a79347fd2411",
+        "checkedPlan": "bb6b0c46c1c7de935647d6ab7abfeed9e208bd157cee4ee619b91e8b5396c8e9",
+        "canisterId": "mq2sj-fiaaa-aaaal-qxlqa-cai",
+        "oldHash": "579d4d7983858cde6c6aa817c809159ccc1448a227a8947e58da7ef4fefa2b65",
+        "candidate": "6fa6b030be740ccdcd0293fb463333e6e7eb4770ad9c3828ef3b65fbf914eb4c",
+        "settings": "d6752c81f2b0a38107b196f696dfe8a61f1c363f05fade25aec5d740db643e98"
+      },
+      "evidence": {
+        "failedWorkflowRun": {
+          "id": 44507760450,
+          "sourceRevision": "d51d1bd908118a3d9e122b07dd81a79347fd2411",
+          "conclusion": "failure",
+          "failure": "ICP project load failed before installation: root local-lab config expected absent .local-icp/identity-init.bin"
+        },
+        "subsequentReadOnlyStageCheck": {
+          "id": 44509933279,
+          "sourceRevision": "d51d1bd908118a3d9e122b07dd81a79347fd2411",
+          "conclusion": "success",
+          "observedIdentityModuleHash": "579d4d7983858cde6c6aa817c809159ccc1448a227a8947e58da7ef4fefa2b65",
+          "observedG2ClubModuleHash": "84ea7c5c55a0e4d3ed3948a8780bcafb1ca8b696e6e7ee234f5eeb31700941b0",
+          "observedIdentitySettingsHash": "d6752c81f2b0a38107b196f696dfe8a61f1c363f05fade25aec5d740db643e98"
+        },
+        "fixedInstallerMainCommit": "51bb9578ec7888acf21dddcdfc488eb6580d1408"
+      },
+      "futureRelease": "A fresh source-and-live check and new, separate upgrade approval are mandatory. This reconciliation does not approve an install."
+    }
+  ]
+}
