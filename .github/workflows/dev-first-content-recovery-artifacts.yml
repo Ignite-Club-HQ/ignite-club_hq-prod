@@ -1,0 +1,88 @@
+# Builds old Wasm from the exact source commits recorded by DEV release receipts.
+# No identity credentials, canister management, network calls to ICP or installs.
+name: "[TEST] Prepare exact DEV prior modules (no canister calls)"
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/dev-first-content-recovery-artifacts.yml"
+      - "scripts/dev-first-content-recovery-gate.mjs"
+      - "scripts/dev-first-content-recovery-gate.test.mjs"
+permissions:
+  contents: read
+jobs:
+  verify-previous:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout current policy without using any governor credential
+        uses: actions/checkout@v4
+        with:
+          path: policy-source
+      - name: Checkout previous installed Identity release source
+        uses: actions/checkout@v4
+        with:
+          ref: 4aeae3a09103b067ac289e602a1efa0b5ac757ca
+          path: prior-identity
+      - name: Checkout previous installed Group 2 Club release source
+        uses: actions/checkout@v4
+        with:
+          ref: 4b9650f219c2ee0985fd6deda5cb6670c14252f4
+          path: prior-club
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Verify source refs and install historical pinned build tools
+        run: |
+          set -euo pipefail
+          test "$(git -C prior-identity rev-parse HEAD)" = 4aeae3a09103b067ac289e602a1efa0b5ac757ca
+          test "$(git -C prior-club rev-parse HEAD)" = 4b9650f219c2ee0985fd6deda5cb6670c14252f4
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          rustc --version
+          icp --version
+      - name: Rebuild old Rust Identity exactly as its original secure-name release
+        working-directory: prior-identity
+        run: |
+          set -euo pipefail
+          unset IGNITE_PRIVATE_NAME_CLEANUP_RELEASE
+          for name in $(env | cut -d= -f1 | grep REHEARSAL || true); do unset "$name"; done
+          cargo build --locked --release --target wasm32-unknown-unknown --target-dir target/private-name-cleanup -p identity_access
+          mkdir -p "$RUNNER_TEMP/recovery-modules"
+          cp target/private-name-cleanup/wasm32-unknown-unknown/release/identity_access.wasm "$RUNNER_TEMP/recovery-modules/identity_access.wasm"
+      - name: Rebuild old Group 2 Club exactly from historical mainnet recipe
+        working-directory: prior-club
+        run: |
+          set -euo pipefail
+          node scripts/prefetch-test-icp-tools.mjs
+          cd deploy/mainnet
+          icp build club_domain
+          cp .icp/cache/artifacts/club_domain "$RUNNER_TEMP/recovery-modules/club_domain.wasm"
+      - name: Require exact historical module hashes before preserving any binaries
+        working-directory: policy-source
+        run: |
+          RECOVERY_DIR="$RUNNER_TEMP/recovery-modules" node --input-type=module <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          import {verifyExactPreviousWasms} from './scripts/dev-first-content-recovery-gate.mjs';
+          const path=process.env.RECOVERY_DIR;
+          const checked=verifyExactPreviousWasms({
+            identity_access: readFileSync(join(path,'identity_access.wasm')),
+            club_domain: readFileSync(join(path,'club_domain.wasm')),
+          });
+          writeFileSync(join(path,'recovery-evidence.json'),JSON.stringify({
+            sourceIdentity:'4aeae3a09103b067ac289e602a1efa0b5ac757ca',
+            sourceG2Club:'4b9650f219c2ee0985fd6deda5cb6670c14252f4',
+            verified:checked.verified,liveCanisterWrites:false,stableMemoryRollbackRehearsed:false,
+          },null,2)+'\n');
+          console.log('Both exact old DEV modules reproduced. No canister touched; durable bytes archived for manual recovery.');
+          JS
+      - name: Retain verified old Wasm recovery binaries (no secrets)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-first-content-old-modules
+          path: ${{ runner.temp }}/recovery-modules/
+          retention-days: 90
+          if-no-files-found: error
