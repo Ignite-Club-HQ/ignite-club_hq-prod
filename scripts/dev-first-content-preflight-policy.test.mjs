@@ -6,7 +6,7 @@ import { planInventory, PRIMARY_SUBNET, SCOPES, validateRequest } from './all-gr
 const shared = JSON.parse(readFileSync(new URL('../deploy/mainnet/.icp/data/mappings/ic.ids.json', import.meta.url)));
 const provision = JSON.parse(readFileSync(new URL('../deploy/groups/g2/provision.json', import.meta.url)));
 const principal = id => ({ toText: () => id });
-const hashes = Object.fromEntries(new Set(Object.values(SCOPES).flat()).values().map(name => [name, 'a'.repeat(64)]));
+const hashes = Object.fromEntries([...new Set(Object.values(SCOPES).flat())].map(name => [name, 'a'.repeat(64)]));
 function fixture() {
   const group = structuredClone(provision);
   const domains = [...Object.entries(group.canisters), ['secret_workload_identity', shared.secret_workload_identity]]
