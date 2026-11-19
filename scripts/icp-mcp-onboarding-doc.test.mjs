@@ -88,6 +88,23 @@ test("branded download links resolve to fixed verified store destinations", () =
   }
 });
 
+test("new team setup offers iOS/Android store links without claiming DEV data appears in PROD", () => {
+  const created = fs.readFileSync(path.join(root, "frontend/src/pages/CreateTeamPage.tsx"), "utf8");
+  const detail = fs.readFileSync(path.join(root, "frontend/src/pages/TeamDetailPage.tsx"), "utf8");
+  const count = (created.match(/justCreatedTeam: true/g) ?? []).length;
+  assert.equal(count, 6, "Every club/team creation success branch must carry the completion state");
+  assert.match(detail, /locationState\?\.justCreatedTeam && !Capacitor\.isNativePlatform\(\)/);
+  assert.match(detail, /<AppStoreDownloadGuide/);
+  assert.match(detail, /onContinueInBrowser=/);
+  assert.match(detail, /justCreatedTeam: false/);
+  assert.match(detail, /Test clubs and teams/);
+  assert.match(detail, /production iOS or Android apps/);
+  assert.match(guide, /Post-setup app download handoff/);
+  assert.match(guide, /club and first team have both been created and read back successfully/);
+  assert.match(guide, /DEV club\/team will not appear there/);
+  assert.match(guide, /not permission to create ads/);
+});
+
 test("ChatGPT reuses existing Stripe-to-ICP subscription synchronisation", () => {
   assert.match(guide, /website and app are already integrated/);
   assert.match(guide, /when a Stripe payment succeeds/);
