@@ -10,6 +10,8 @@ import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, 
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamRankCard } from "@/components/team/TeamRankCard";
 import { TeamNextStepsCard } from "@/components/team/TeamNextStepsCard";
+import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
+import { Capacitor } from "@capacitor/core";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
@@ -182,7 +184,7 @@ export default function TeamDetailPage() {
   const [selectedChild, setSelectedChild] = useState<{ childId: string; childName: string; parentDisplay: string | null; isPending: boolean; linkInviteIds?: string[] } | null>(null);
   
   // Handle admin invite dialog from team creation flow
-  const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string; inviteLink?: string } | null;
+  const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string; inviteLink?: string; justCreatedTeam?: boolean } | null;
   const [showAdminInviteDialog, setShowAdminInviteDialog] = useState(!!locationState?.showAdminInvite);
   const adminInviteName = locationState?.inviteName || "";
   const adminInviteEmail = locationState?.inviteEmail || "";
@@ -1926,6 +1928,34 @@ export default function TeamDetailPage() {
         />
       )}
 
+      {/* This appears only after a confirmed team creation and never on native
+          devices (where Ignite is already installed). It does not create users,
+          links, invitations or payment sessions. */}
+      {locationState?.justCreatedTeam && team?.id === id && !Capacitor.isNativePlatform() && (
+        <section className="rounded-xl border border-primary/25 bg-primary/5 p-4 space-y-3" aria-label="Install Ignite after team setup">
+          <div>
+            <h2 className="font-semibold">Your team is ready!</h2>
+            <p className="text-sm text-muted-foreground">
+              Download Ignite for iPhone or Android, or keep using it in your browser.
+              {isIcpAccount ? "Use the same Internet Identity to access your club and team." : "Sign in with your existing Ignite account to access your club and team."}
+            </p>
+          </div>
+          <AppStoreDownloadGuide
+            compact
+            onContinueInBrowser={() => navigate(location.pathname, {
+              replace: true,
+              state: { ...locationState, justCreatedTeam: false },
+            })}
+          />
+          {(!["igniteclubhq.app", "www.igniteclubhq.app", "igniteclubhq.com", "www.igniteclubhq.com"].includes(window.location.hostname)) && (
+            <p className="text-xs text-muted-foreground">
+              You are using a DEV or preview environment. Test clubs and teams
+              will not appear in the production iOS or Android apps.
+            </p>
+          )}
+        </section>
+      )}
+
       {/* Post-creation onboarding nudge — shown to admins until both
           "invite members" and "add first event" are complete (or dismissed). */}
       {(isAdmin || isClubAdmin) && (
@@ -2110,7 +2140,7 @@ export default function TeamDetailPage() {
           setShowAdminInviteDialog(open);
           // Clear the location state when dialog is closed to prevent re-showing on refresh
           if (!open && locationState?.showAdminInvite) {
-            navigate(location.pathname, { replace: true, state: {} });
+            navigate(location.pathname, { replace: true, state: locationState?.justCreatedTeam ? { justCreatedTeam: true } : {} });
           }
         }}
         teamName={adminInviteTeamName || team?.name || ""}
@@ -2119,7 +2149,7 @@ export default function TeamDetailPage() {
         inviteLink={locationState?.inviteLink}
         onDone={() => {
           setShowAdminInviteDialog(false);
-          navigate(location.pathname, { replace: true, state: {} });
+          navigate(location.pathname, { replace: true, state: locationState?.justCreatedTeam ? { justCreatedTeam: true } : {} });
         }}
       />
 
