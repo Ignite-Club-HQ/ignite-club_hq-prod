@@ -656,7 +656,7 @@ export default function CreateTeamPage() {
         });
       }
       await invalidateTeamLists(queryClient, user?.id);
-      navigate(`/teams/${team.id}`);
+      navigate(`/teams/${team.id}`, { state: { justCreatedTeam: true } });
     } else if (adminAssignment?.type === 'email_invite' && adminAssignment.inviteEmail && adminAssignment.inviteName && membershipOnIcp) {
       // club_domain has no email-sending capability; create a pending invite
       // record (PII email registered via createLivePendingInvite) and show
@@ -677,6 +677,7 @@ export default function CreateTeamPage() {
         await invalidateTeamLists(queryClient, user?.id);
         navigate(`/teams/${team.id}`, {
           state: {
+            justCreatedTeam: true,
             showAdminInvite: true,
             inviteName: adminAssignment.inviteName,
             inviteEmail: adminAssignment.inviteEmail,
@@ -692,7 +693,7 @@ export default function CreateTeamPage() {
           variant: "destructive",
         });
         await invalidateTeamLists(queryClient, user?.id);
-        navigate(`/teams/${team.id}`);
+        navigate(`/teams/${team.id}`, { state: { justCreatedTeam: true } });
       }
     } else if (adminAssignment?.type === 'email_invite' && adminAssignment.inviteEmail && adminAssignment.inviteName) {
       // Create pending invite with email
@@ -718,7 +719,7 @@ export default function CreateTeamPage() {
           variant: "destructive",
         });
         await invalidateTeamLists(queryClient, user?.id);
-      navigate(`/teams/${team.id}`);
+      navigate(`/teams/${team.id}`, { state: { justCreatedTeam: true } });
         return;
       }
       
@@ -759,6 +760,7 @@ export default function CreateTeamPage() {
       await invalidateTeamLists(queryClient, user?.id);
       navigate(`/teams/${team.id}`, {
         state: { 
+          justCreatedTeam: true,
           showAdminInvite: true, 
           inviteName: adminAssignment.inviteName,
           inviteEmail: adminAssignment.inviteEmail,
@@ -805,7 +807,7 @@ export default function CreateTeamPage() {
         return;
       }
       await invalidateTeamLists(queryClient, user?.id);
-      navigate(`/teams/${team.id}`);
+      navigate(`/teams/${team.id}`, { state: { justCreatedTeam: true } });
     }
   };
 
