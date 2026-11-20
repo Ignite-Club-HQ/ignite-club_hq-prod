@@ -19,6 +19,8 @@ jobs:
       - run: node --test scripts/auth-release-preflight.test.mjs scripts/prod-push-config.test.mjs scripts/workflow-env-names.test.mjs
       - name: Validate published ICP MCP onboarding contract
         run: node --test scripts/icp-mcp-onboarding-doc.test.mjs
+      - name: Verify limited application-only release behaviors
+        run: node --test scripts/app-release-scope.test.mjs
       # Offline source consistency only; live target checks remain in promotion.
       - name: Install pinned offline SQL parser for PROD PR
         if: github.base_ref == 'prod'
@@ -47,6 +49,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck:product
       - run: npx vitest run --config vitest.legacy.config.mjs src/live/localRuntimeMode.test.ts src/live/disabledLabRuntime.test.ts
+      - run: npx vitest run --config vitest.legacy.config.mjs src/components/events/ClubDaySummary.dedupe.test.ts
       - run: npm run build
         env:
           IGNITE_LIVE_SUPABASE_ALIAS: dev-ci
