@@ -1,0 +1,14 @@
+{
+  "startedAt": "2026-11-20T09:23:34.520Z",
+  "finishedAt": "2026-11-20T09:45:14.954Z",
+  "status": "completed",
+  "results": [
+    {
+      "backendMode": "icp",
+      "status": "passed",
+      "exitCode": 0,
+      "signal": null,
+      "log": "/dev-server/docs/testing/baseline-2026-11-20-0922/icp/icp.log"
+    }
+  ]
+}
