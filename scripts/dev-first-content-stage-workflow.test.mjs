@@ -53,3 +53,21 @@ test('stages do not reuse old preflight hash as the upgrade approval plan',()=>{
   assert.match(policy,/checkedPlan!==planHash/);
   assert.match(policy,/current\.moduleHash!==expected\(stage,s\)/);
 });
+
+test('historical DEV persistence checks use the immutable preflight source and never live install',()=>{
+  const persistence=readFileSync(new URL('../.github/workflows/dev-first-content-persistence.yml',import.meta.url),'utf8');
+  const snapshot='e7b74c79f7604e4383e957c826f5f34e2d4bf2d4';
+  assert.match(policy,new RegExp("sourceBaseline: '"+snapshot+"'"));
+  assert.match(persistence,new RegExp('ref: '+snapshot));
+  assert.match(persistence,/path: first-content-pinned-source/);
+  assert.match(persistence,/persist-credentials: false/);
+  assert.match(persistence,/\(cd first-content-pinned-source\/deploy\/mainnet && icp build identity_access club_domain\)/);
+  assert.match(persistence,/checkedOut!==pins\.sourceBaseline/);
+  assert.match(persistence,/verifyExactPreviousWasms/);
+  assert.match(persistence,/wasmHash\(bytes\)!==service\.next/);
+  assert.match(persistence,/IDENTITY_ACCESS_WASM="\$R\/first-content-pinned-source\/deploy\/mainnet/);
+  assert.match(persistence,/CLUB_DOMAIN_WASM="\$R\/first-content-pinned-source\/deploy\/mainnet/);
+  assert.doesNotMatch(persistence,/\(cd deploy\/mainnet && icp build identity_access club_domain\)/);
+  assert.doesNotMatch(persistence,/GOVERNOR_PEM|DEPLOYER_PEM|icp canister install|icp deploy|icp sync|update_settings/);
+  assert.match(persistence,/permissions:\n  contents: read\n  actions: read/);
+});
