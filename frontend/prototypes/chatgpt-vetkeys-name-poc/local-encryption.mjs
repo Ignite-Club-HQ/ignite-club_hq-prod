@@ -24,6 +24,16 @@ const ORIGINAL_DEV_PII_CANISTER = 'iui5p-aaaaa-aaaal-qxllq-cai';
  * This is ONLY a local demonstration and cannot register an account.
  */
 export function encryptInventedNameLocally(inventedName) {
+  // Reject hidden controls and oversized Unicode before the original Ignite
+  // SDK does the actual encryption. This is only a synthetic demo; never
+  // transform or log the raw name or invent a lower-security fallback.
+  if (typeof inventedName !== 'string' ||
+      /[\u0000-\u001f\u007f-\u009f]/u.test(inventedName) ||
+      !inventedName.trim() ||
+      [...inventedName.trim()].length > 80 ||
+      new TextEncoder().encode(inventedName.trim()).length > 512) {
+    throw new Error('Invalid invented display name');
+  }
   let prepared;
   try {
     prepared = prepareEncryptedChatgptProfileName({
