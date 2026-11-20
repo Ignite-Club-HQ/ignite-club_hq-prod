@@ -1,0 +1,1010 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded array-init v2.1.0
+  Downloaded typed-arena v2.0.2
+  Downloaded version_check v0.9.5
+  Downloaded zeroize v1.9.1
+  Downloaded unicode-ident v1.0.24
+  Downloaded slotmap v1.1.1
+  Downloaded zerocopy-derive v0.8.57
+  Downloaded serde v1.0.229
+  Downloaded typenum v1.20.1
+  Downloaded ic-stable-structures v0.7.2
+  Downloaded num-bigint v0.4.8
+  Downloaded memchr v2.8.3
+  Downloaded cc v1.4.5
+  Downloaded ed25519-dalek v2.2.0
+  Downloaded der v0.7.10
+  Downloaded serde_derive v1.0.229
+  Downloaded unicode-width v0.2.2
+  Downloaded serde_core v1.0.229
+  Downloaded zerocopy v0.8.57
+  Downloaded syn v3.0.5
+  Downloaded object v0.39.1
+  Downloaded syn v2.0.119
+  Downloaded curve25519-dalek v4.1.3
+  Downloaded num-traits v0.2.19
+  Downloaded ic-cdk v0.19.0
+  Downloaded darling_core v0.20.11
+  Downloaded candid v0.10.35
+  Downloaded binrw v0.15.2
+  Downloaded ar_archive_writer v0.5.3
+  Downloaded thiserror v1.0.69
+  Downloaded smallvec v1.16.1
+  Downloaded semver v1.0.28
+  Downloaded proc-macro2 v1.0.107
+  Downloaded pin-project-lite v0.2.17
+  Downloaded lazy_static v1.5.0
+  Downloaded ic-management-canister-types v0.5.0
+  Downloaded half v2.7.1
+  Downloaded darling v0.20.11
+  Downloaded crc32fast v1.5.2
+  Downloaded const-oid v0.9.6
+  Downloaded ciborium v0.2.2
+  Downloaded bytemuck v1.25.2
+  Downloaded binrw_derive v0.15.2
+  Downloaded thiserror-impl v1.0.69
+  Downloaded stacker v0.1.25
+  Downloaded shlex v2.0.1
+  Downloaded rustversion v1.0.23
+  Downloaded quote v1.0.47
+  Downloaded libc v0.2.189
+  Downloaded psm v0.1.32
+  Downloaded pretty v0.12.5
+  Downloaded pkcs8 v0.10.2
+  Downloaded paste v1.0.15
+  Downloaded num-integer v0.1.47
+  Downloaded ic-cdk-macros v0.19.0
+  Downloaded find-msvc-tools v0.1.12
+  Downloaded either v1.18.0
+  Downloaded ed25519 v2.2.3
+  Downloaded digest v0.10.7
+  Downloaded data-encoding v2.11.1
+  Downloaded cpufeatures v0.2.17
+  Downloaded ciborium-io v0.2.2
+  Downloaded autocfg v1.5.1
+  Downloaded arrayvec v0.5.2
+  Downloaded anyhow v1.0.104
+  Downloaded thiserror-impl v2.0.20
+  Downloaded thiserror v2.0.20
+  Downloaded subtle v2.6.1
+  Downloaded strum_macros v0.26.4
+  Downloaded strsim v0.11.1
+  Downloaded spki v0.7.3
+  Downloaded signature v2.2.0
+  Downloaded sha2 v0.10.9
+  Downloaded serde_bytes v0.11.19
+  Downloaded ic0 v1.1.0
+  Downloaded heck v0.5.0
+  Downloaded fnv v1.0.7
+  Downloaded ciborium-ll v0.2.2
+  Downloaded cfg-if v1.0.4
+  Downloaded candid_derive v0.10.35
+  Downloaded base64ct v1.8.3
+  Downloaded strum v0.26.3
+  Downloaded rustc_version v0.4.1
+  Downloaded leb128 v0.2.7
+  Downloaded ident_case v1.0.1
+  Downloaded ic_principal v0.1.5
+  Downloaded ic-error-types v0.2.0
+  Downloaded ic-cdk-executor v2.0.0
+  Downloaded hex v0.4.3
+  Downloaded generic-array v0.14.7
+  Downloaded darling_macro v0.20.11
+  Downloaded curve25519-dalek-derive v0.1.1
+  Downloaded crypto-common v0.1.7
+  Downloaded byteorder v1.5.0
+  Downloaded block-buffer v0.10.4
+warning: output filename collision at /dev-server/target/debug/examples/export_candid
+  |
+  = note: the example target `export_candid` in package `shard_router v0.1.0 (/dev-server/backend/shard_router)` has the same output filename as the example target `export_candid` in package `identity_access v0.1.0 (/dev-server/backend/identity_access)`
+  = note: this may become a hard error in the future; see <https://github.com/rust-lang/cargo/issues/6313>
+  = help: consider changing their names to be unique or compiling them separately
+warning: output filename collision at /dev-server/target/debug/examples/export_candid.dwp
+  |
+  = note: the example target `export_candid` in package `shard_router v0.1.0 (/dev-server/backend/shard_router)` has the same output filename as the example target `export_candid` in package `identity_access v0.1.0 (/dev-server/backend/identity_access)`
+  = note: this may become a hard error in the future; see <https://github.com/rust-lang/cargo/issues/6313>
+  = help: consider changing their names to be unique or compiling them separately
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling version_check v0.9.5
+   Compiling cfg-if v1.0.4
+   Compiling typenum v1.20.1
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.12
+   Compiling serde_core v1.0.229
+   Compiling object v0.39.1
+   Compiling memchr v2.8.3
+   Compiling autocfg v1.5.1
+   Compiling cpufeatures v0.2.17
+   Compiling crc32fast v1.5.2
+   Compiling thiserror v1.0.69
+   Compiling serde v1.0.229
+   Compiling libc v0.2.189
+   Compiling cc v1.4.5
+   Compiling binrw_derive v0.15.2
+   Compiling data-encoding v2.11.1
+   Compiling generic-array v0.14.7
+   Compiling num-traits v0.2.19
+   Compiling binrw v0.15.2
+   Compiling paste v1.0.15
+   Compiling anyhow v1.0.104
+   Compiling either v1.18.0
+   Compiling bytemuck v1.25.2
+   Compiling rustversion v1.0.23
+   Compiling array-init v2.1.0
+   Compiling unicode-width v0.2.2
+   Compiling stacker v0.1.25
+   Compiling typed-arena v2.0.2
+   Compiling arrayvec v0.5.2
+   Compiling lazy_static v1.5.0
+   Compiling hex v0.4.3
+   Compiling ident_case v1.0.1
+   Compiling zerocopy v0.8.57
+   Compiling fnv v1.0.7
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling pretty v0.12.5
+   Compiling byteorder v1.5.0
+   Compiling digest v0.10.7
+   Compiling strsim v0.11.1
+   Compiling leb128 v0.2.7
+   Compiling slotmap v1.1.1
+   Compiling sha2 v0.10.9
+   Compiling num-integer v0.1.47
+   Compiling heck v0.5.0
+   Compiling ic-cdk-executor v2.0.0
+   Compiling thiserror v2.0.20
+   Compiling smallvec v1.16.1
+   Compiling ic0 v1.1.0
+   Compiling ciborium-io v0.2.2
+   Compiling syn v2.0.119
+   Compiling syn v3.0.5
+   Compiling pin-project-lite v0.2.17
+   Compiling semver v1.0.28
+   Compiling signature v2.2.0
+   Compiling zeroize v1.9.1
+   Compiling subtle v2.6.1
+   Compiling ed25519 v2.2.3
+   Compiling serde_bytes v0.11.19
+   Compiling rustc_version v0.4.1
+   Compiling curve25519-dalek v4.1.3
+   Compiling ar_archive_writer v0.5.3
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.20
+   Compiling psm v0.1.32
+   Compiling darling_core v0.20.11
+   Compiling thiserror-impl v1.0.69
+   Compiling candid_derive v0.10.35
+   Compiling zerocopy-derive v0.8.57
+   Compiling strum_macros v0.26.4
+   Compiling curve25519-dalek-derive v0.1.1
+   Compiling num-bigint v0.4.8
+   Compiling darling_macro v0.20.11
+   Compiling ic_principal v0.1.5
+   Compiling ic-stable-structures v0.7.2
+   Compiling strum v0.26.3
+   Compiling ic-error-types v0.2.0
+   Compiling ed25519-dalek v2.2.0
+   Compiling darling v0.20.11
+   Compiling candid v0.10.35
+   Compiling half v2.7.1
+   Compiling ciborium-ll v0.2.2
+   Compiling ciborium v0.2.2
+   Compiling ic-management-canister-types v0.5.0
+   Compiling ic-cdk-macros v0.19.0
+   Compiling ic-cdk v0.19.0
+   Compiling identity_access v0.1.0 (/dev-server/backend/identity_access)
+   Compiling shard_router v0.1.0 (/dev-server/backend/shard_router)
+   Compiling timer_jobs v0.1.0 (/dev-server/backend/timer_jobs)
+   Compiling placement_registry v0.1.0 (/dev-server/backend/placement_registry)
+   Compiling recovery_witness v0.1.0 (/dev-server/backend/recovery_witness)
+warning: function `open` is never used
+  --> backend/placement_registry/src/../../shared/private_name_writer_window.rs:77:8
+   |
+77 | pub fn open(request: WriterRequest) -> Result<(),String> {
+   |        ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `enter_conversion` is never used
+   --> backend/placement_registry/src/../../shared/private_name_writer_window.rs:118:8
+    |
+118 | pub fn enter_conversion(request: &WriterRequest) -> Result<Lease,String> {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: function `require_window` is never used
+   --> backend/placement_registry/src/../../shared/private_name_writer_window.rs:130:8
+    |
+130 | pub fn require_window() { if preparation_pending() || (enabled() && current().is_none_or(|i|i.closing || exclusive(&i.request))) {i...
+    |        ^^^^^^^^^^^^^^
+
+warning: unused import: `self`
+ --> backend/identity_access/src/production_account_protection.rs:6:30
+  |
+6 | use crate::group_inventory::{self, RemovalInventory};
+  |                              ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ConversionProfileRow`
+  --> backend/identity_access/src/lib.rs:75:47
+   |
+75 | use private_name_conversion::{ConversionPage, ConversionProfileRow};
+   |                                               ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `open` is never used
+  --> backend/shard_router/src/../../shared/private_name_writer_window.rs:77:8
+   |
+77 | pub fn open(request: WriterRequest) -> Result<(),String> {
+   |        ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `enter_conversion` is never used
+   --> backend/shard_router/src/../../shared/private_name_writer_window.rs:118:8
+    |
+118 | pub fn enter_conversion(request: &WriterRequest) -> Result<Lease,String> {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: constant `PREPARE_PERCENT` is never used
+  --> backend/shard_router/src/groups.rs:11:11
+   |
+11 | pub const PREPARE_PERCENT: u128 = 70;
+   |           ^^^^^^^^^^^^^^^
+
+warning: function `needs_preparation` is never used
+  --> backend/shard_router/src/groups.rs:92:8
+   |
+92 | pub fn needs_preparation(group: &ShardGroup) -> bool {
+   |        ^^^^^^^^^^^^^^^^^
+
+warning: function `select` is never used
+   --> backend/shard_router/src/groups.rs:102:8
+    |
+102 | pub fn select<'a>(groups: &'a [ShardGroup], target: &str, now: u64) -> Option<&'a ShardGroup> {
+    |        ^^^^^^
+
+warning: unused import: `ConversionProfileRow`
+  --> backend/identity_access/src/lib.rs:75:47
+   |
+75 | use private_name_conversion::{ConversionPage, ConversionProfileRow};
+   |                                               ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `placement_registry` (lib test) generated 3 warnings (3 duplicates)
+warning: `placement_registry` (lib) generated 3 warnings
+warning: `shard_router` (lib) generated 5 warnings
+warning: function `require_window` is never used
+   --> backend/identity_access/src/../../shared/private_name_writer_window.rs:130:8
+    |
+130 | pub fn require_window() { if preparation_pending() || (enabled() && current().is_none_or(|i|i.closing || exclusive(&i.request))) {i...
+    |        ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `WitnessReceipt` is never constructed
+  --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:18:12
+   |
+18 | pub struct WitnessReceipt { pub request: WitnessRequest }
+   |            ^^^^^^^^^^^^^^
+
+warning: struct `Participant` is never constructed
+  --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:26:12
+   |
+26 | pub struct Participant { pub canister: Principal, pub module: Vec<u8>, pub changes: u64 }
+   |            ^^^^^^^^^^^
+
+warning: struct `Acceptance` is never constructed
+  --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:28:12
+   |
+28 | pub struct Acceptance {
+   |            ^^^^^^^^^^
+
+warning: struct `SignedAcceptance` is never constructed
+  --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:38:12
+   |
+38 | pub struct SignedAcceptance { pub body: Acceptance, pub signature: Vec<u8> }
+   |            ^^^^^^^^^^^^^^^^
+
+warning: struct `Head` is never constructed
+  --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:51:12
+   |
+51 | pub struct Head { pub epoch: u64, pub revision: u64, pub digest: Vec<u8>, pub accepted: Option<SignedAcceptance> }
+   |            ^^^^
+
+warning: function `advance` is never used
+  --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:77:8
+   |
+77 | pub fn advance(head: &Head, r: &Record) -> Outcome<Head> {
+   |        ^^^^^^^
+
+warning: function `close` is never used
+  --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:85:8
+   |
+85 | pub fn close(head:&Head)->Outcome<Head> {
+   |        ^^^^^
+
+warning: function `signing_bytes` is never used
+  --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:88:8
+   |
+88 | pub fn signing_bytes(b: &Acceptance)->Outcome<Vec<u8>> {
+   |        ^^^^^^^^^^^^^
+
+warning: function `encoding` is never used
+  --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:93:8
+   |
+93 | pub fn encoding(b: &Acceptance)->Outcome<Vec<u8>> {
+   |        ^^^^^^^^
+
+warning: function `accept` is never used
+   --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:104:8
+    |
+104 | pub fn accept(head:&Head,a:&SignedAcceptance,witness:Principal,version:u64,now:u64,key:&VerifyingKey)->Outcome<Head> {
+    |        ^^^^^^
+
+warning: function `verify` is never used
+   --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:112:8
+    |
+112 | pub fn verify(head:&Head,r:&WitnessRequest,caller:Principal,now:u64)->Outcome<WitnessReceipt> {
+    |        ^^^^^^
+
+warning: function `verify_account_baseline` is never used
+   --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:124:8
+    |
+124 | pub fn verify_account_baseline(a:&SignedAcceptance,r:&AccountReadRequest,caller:Principal,now:u64)->Outcome<AccountReadReceipt> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `subject_progress_signing_bytes` is never used
+   --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:135:8
+    |
+135 | pub fn subject_progress_signing_bytes(b:&Acceptance)->Outcome<Vec<u8>> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_subject_progress` is never used
+   --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:140:8
+    |
+140 | pub fn validate_subject_progress(a:&SignedAcceptance,key:&VerifyingKey)->Outcome<()> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `verify_protection_baseline` is never used
+   --> backend/identity_access/src/../../recovery_witness/src/protocol.rs:146:8
+    |
+146 | pub fn verify_protection_baseline(head:&Head,baseline:&SignedAcceptance,r:&WitnessRequest,
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `check_armed` is never used
+  --> backend/identity_access/src/../../shared/recovery_lifecycle.rs:16:8
+   |
+16 | pub fn check_armed(armed: u64, live: u64) -> Result<(), String> {
+   |        ^^^^^^^^^^^
+
+warning: function `readers` is never used
+  --> backend/identity_access/src/admission.rs:57:8
+   |
+57 | pub fn readers(groups: &[Group], placements: &[Placement], binding: &Binding) -> Result<Vec<Principal>, String> {
+   |        ^^^^^^^
+
+warning: struct `Source` is never constructed
+ --> backend/identity_access/src/membership_directory.rs:9:12
+  |
+9 | pub struct Source {
+  |            ^^^^^^
+
+warning: struct `Directory` is never constructed
+  --> backend/identity_access/src/membership_directory.rs:18:12
+   |
+18 | pub struct Directory {
+   |            ^^^^^^^^^
+
+warning: struct `Snapshot` is never constructed
+  --> backend/identity_access/src/membership_directory.rs:25:12
+   |
+25 | pub struct Snapshot {
+   |            ^^^^^^^^
+
+warning: methods `bind`, `commit_complete_snapshot`, `complete`, and `invalidate` are never used
+  --> backend/identity_access/src/membership_directory.rs:33:12
+   |
+32 | impl Directory {
+   | -------------- methods in this implementation
+33 |     pub fn bind(&mut self, generation: u64, bindings: Vec<(String, Principal)>) -> Result<(), String> {
+   |            ^^^^
+...
+49 |     pub fn commit_complete_snapshot(&mut self, caller: Principal, snapshot: Snapshot) -> Result<(), String> {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+66 |     pub fn complete(&self) -> bool {
+   |            ^^^^^^^^
+...
+69 |     pub fn invalidate(&mut self, caller: Principal, club: &str, generation: u64, revision: u64) -> Result<(), String> {
+   |            ^^^^^^^^^^
+
+warning: struct `Stage` is never constructed
+  --> backend/identity_access/src/membership_directory_store.rs:10:12
+   |
+10 | pub struct Stage {
+   |            ^^^^^
+
+warning: struct `Store` is never constructed
+  --> backend/identity_access/src/membership_directory_store.rs:18:12
+   |
+18 | pub struct Store<M: Memory> {
+   |            ^^^^^
+
+warning: function `encode` is never used
+  --> backend/identity_access/src/membership_directory_store.rs:23:4
+   |
+23 | fn encode<T: Serialize>(value: &T) -> Vec<u8> { let mut bytes=vec![]; ciborium::into_writer(value,&mut bytes).expect("directory enco...
+   |    ^^^^^^
+
+warning: function `decode` is never used
+  --> backend/identity_access/src/membership_directory_store.rs:24:4
+   |
+24 | fn decode<T: for<'a> Deserialize<'a>>(bytes: &[u8]) -> T { ciborium::from_reader(bytes).expect("directory decode") }
+   |    ^^^^^^
+
+warning: multiple associated items are never used
+  --> backend/identity_access/src/membership_directory_store.rs:26:12
+   |
+25 | impl<M: Memory> Store<M> {
+   | ------------------------ associated items in this implementation
+26 |     pub fn open(manifests: M, stages: M, chunks: M) -> Self {
+   |            ^^^^
+...
+29 |     pub fn source(&self, club: &str) -> Option<Source> { self.manifests.get(&club.to_string()).map(|b|decode(&b)) }
+   |            ^^^^^^
+30 |     pub fn stage(&self, club: &str) -> Option<Stage> { self.stages.get(&club.to_string()).map(|b|decode(&b)) }
+   |            ^^^^^
+31 |     pub fn begin(&mut self, source: &Source, revision: u64) -> Result<(), String> {
+   |            ^^^^^
+...
+51 |     pub fn append(&mut self, club: &str, generation: u64, revision: u64, sequence: u64, rows: Vec<Vec<u8>>, terminal: bool) -> Resul...
+   |            ^^^^^^
+...
+67 |     pub fn staged_chunk(&self, club: &str, sequence: u64) -> Option<Vec<Vec<u8>>> {
+   |            ^^^^^^^^^^^^
+...
+74 |     pub fn persist_verified_source(&mut self, source: &Source) -> Result<(), String> {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `reclaim_obsolete` is never used
+  --> backend/identity_access/src/membership_updates.rs:66:12
+   |
+19 | impl<M:Memory> Journal<M>{
+   | ------------------------- method in this implementation
+...
+66 |     pub fn reclaim_obsolete(&mut self,current_generation:u64,after:Option<String>)->Result<(usize,Option<String>),String>{
+   |            ^^^^^^^^^^^^^^^^
+
+warning: method `reclaim` is never used
+   --> backend/identity_access/src/membership_private_lookup.rs:133:12
+    |
+ 66 | impl<M:Memory> Sessions<M>{
+    | -------------------------- method in this implementation
+...
+133 |     pub fn reclaim(&mut self,now:u64,after:Option<String>)->(usize,Option<String>){
+    |            ^^^^^^^
+
+warning: methods `verified_generation`, `acknowledge`, `retire_source`, and `reclaim_obsolete_updates` are never used
+   --> backend/identity_access/src/membership_coordinator.rs:89:12
+    |
+ 86 | impl<M:Memory+Clone> Coordinator<M>{
+    | ----------------------------------- methods in this implementation
+...
+ 89 |     pub fn verified_generation(&self)->Outcome<u64>{Ok(self.inventory()?.generation)}
+    |            ^^^^^^^^^^^^^^^^^^^
+...
+254 |     pub fn acknowledge(&mut self,source:&str,binding:&Binding,readback:u64)->Outcome<()>{
+    |            ^^^^^^^^^^^
+...
+312 |     pub fn retire_source(&mut self,source:&str)->Outcome<Option<u64>>{
+    |            ^^^^^^^^^^^^^
+...
+331 |     pub fn reclaim_obsolete_updates(&mut self,after:Option<String>)->Outcome<(usize,Option<String>)>{
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `reclaim_obsolete` is never used
+  --> backend/identity_access/src/membership_propagation.rs:81:12
+   |
+21 | impl<M:Memory> Worker<M>{
+   | ------------------------ method in this implementation
+...
+81 |     pub fn reclaim_obsolete<N:Memory+Clone>(&mut self,c:&Coordinator<N>,after:Option<String>)->Result<(usize,Option<String>),String>{
+   |            ^^^^^^^^^^^^^^^^
+
+warning: constant `RELEASE_SWITCH` is never used
+  --> backend/identity_access/src/legacy_g1_private_name.rs:11:11
+   |
+11 | pub const RELEASE_SWITCH:&str="IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE";
+   |           ^^^^^^^^^^^^^^
+
+warning: constant `SHARED_CLUB_NAMES_SWITCH` is never used
+  --> backend/identity_access/src/legacy_g1_private_name.rs:14:11
+   |
+14 | pub const SHARED_CLUB_NAMES_SWITCH:&str="IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE";
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `APPROVED_KEY_SHA256` is never used
+  --> backend/identity_access/src/legacy_g1_private_name.rs:17:11
+   |
+17 | pub const APPROVED_KEY_SHA256:&str="IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256";
+   |           ^^^^^^^^^^^^^^^^^^^
+
+warning: struct `GroupAssignment` is never constructed
+  --> backend/shard_router/tests/../src/groups.rs:47:12
+   |
+47 | pub struct GroupAssignment {
+   |            ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `shard_router` (lib test) generated 2 warnings (2 duplicates)
+warning: `shard_router` (test "scale_lookup") generated 1 warning
+warning: `identity_access` (lib) generated 36 warnings (run `cargo fix --lib -p identity_access` to apply 2 suggestions)
+warning: methods `subjects`, `next_ownership_club`, and `ownership_claim` are never used
+   --> backend/identity_access/examples/../src/membership_materializer.rs:147:12
+    |
+ 66 | impl<M: Memory> Builder<M> {
+    | -------------------------- methods in this implementation
+...
+147 |     pub fn subjects(&self,binding:&Binding,cursor:Option<String>)->Result<(Vec<Principal>,Option<String>,usize),String>{
+    |            ^^^^^^^^
+...
+162 |     pub fn next_ownership_club(&self,binding:&Binding,cursor:Option<String>)->Result<Option<(String,u8)>,String>{
+    |            ^^^^^^^^^^^^^^^^^^^
+...
+168 |     pub fn ownership_claim(&self,binding:&Binding,club:&str)->Result<Option<u8>,String>{
+    |            ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `identity_access` (example "check_membership_backfill") generated 1 warning
+warning: `identity_access` (lib test) generated 5 warnings (4 duplicates) (run `cargo fix --lib -p identity_access --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3m 24s
+     Running unittests src/lib.rs (target/debug/deps/identity_access-016344319a5a2d69)
+
+running 250 tests
+test admin_accounts::tests::admin_directory_authorizes_existing_global_roles_not_scoped_or_suspended ... ok
+test admin_accounts::tests::admin_directory_pages_actual_status_and_only_target_roles ... ok
+test admission::tests::exact_group2_only_readers_and_dedicated_store ... ok
+test admission::tests::group_ids_and_merge_never_drop_readers ... ok
+test admission::tests::later_group_readers_are_exact_and_separate ... ok
+test admission::tests::production_binding_matches_every_placement_without_authorizing_base ... ok
+test club_profiles::tests::atomic_membership_batches_bind_requester_club_order_and_revision ... ok
+test club_profiles::tests::authority_location_never_substitutes_for_registered_scope ... ok
+test club_profiles::tests::both_caller_and_subject_membership_are_required ... ok
+test club_profiles::tests::candidate_lists_are_bounded_and_deduplicated ... ok
+test club_profiles::tests::identity_or_configuration_drift_denies_disclosure ... ok
+test dev_g2_private_name_source::tests::admits_only_operator_released_exact_dev_group2_service ... ok
+test dev_g2_private_name_source::tests::never_approves_foreign_canisters_schemes_scopes_or_unreleased_routes ... ok
+test expected_removal_inventory::tests::duplicate_authorities_and_media_rows_are_rejected_before_normalization ... ok
+test expected_removal_inventory::tests::exact_inventory_accepts_order_changes_without_releasing_anything ... ok
+test expected_removal_inventory::tests::foreign_store_owner_and_role_substitution_are_rejected ... ok
+test expected_removal_inventory::tests::history_and_registry_binding_drift_are_rejected ... ok
+test expected_removal_inventory::tests::internally_consistent_omission_of_original_infrastructure_is_rejected ... ok
+test expected_removal_inventory::tests::omitted_groups_and_extra_allowlisted_authorities_are_rejected ... ok
+test group_inventory::tests::complete_media_and_delegated_service_inventory_rejects_every_omission ... ok
+test group_inventory::tests::complete_two_group_inventory_and_legacy_coverage ... ok
+test group_inventory::tests::every_domain_and_placement_required ... ok
+test group_inventory::tests::foreign_revision_deployment_and_shared_authorities_denied ... ok
+test group_inventory::tests::optional_subnet_requires_explicit_approval ... ok
+test group_inventory::tests::shared_global_is_exact_and_cannot_alias_a_routed_domain ... ok
+test group_inventory::tests::unlisted_media_reader_and_untrusted_origins_fail_closed ... ok
+test guardian_search::tests::account_or_authority_drift_refuses_disclosure ... ok
+test guardian_search::tests::cursors_bind_exact_revision_viewer_child_authority_and_expiry ... ok
+test guardian_search::tests::full_search_requires_a_specific_child_and_bounded_term ... ok
+test guardian_search::tests::non_guardians_never_receive_full_search_results ... ok
+test guardian_search::tests::only_registered_child_authorities_can_be_called ... ok
+test guardian_search::tests::retained_legacy_names_refuse_profile_or_subject_link_mutation_during_final_await ... ok
+test legacy_g1_private_name::tests::compile_time_source_pin_never_admits_a_foreign_reader ... ok
+test legacy_g1_private_name::tests::exact_original_pii_and_g2_team_only_with_verified_observed_key ... ok
+test legacy_g1_private_name::tests::foreign_service_browser_and_other_scope_fail_closed ... ok
+test legacy_g1_private_name::tests::mismatched_malformed_or_short_key_refused_even_if_every_other_guard_passes ... ok
+test legacy_g1_private_name::tests::optional_shared_club_name_scope_is_pinned_and_default_off ... ok
+test legacy_g1_private_name::tests::stale_directory_foreign_sources_and_invented_legacy_placement_fail ... ok
+test member_access_tests::legacy_saved_config_does_not_implicitly_release_account_aliases ... ok
+test member_access_tests::member_reads_follow_newer_registry_revision_but_never_older ... ok
+test member_access_tests::ordinary_access_defers_global_erasure_without_erasing_accounts ... ok
+test member_access_tests::ordinary_access_has_no_approval_expiry_dependency ... ok
+test member_access_tests::ordinary_access_keeps_pending_recovery_and_unlink_closed ... ok
+test member_access_tests::ordinary_access_still_filters_revoked_aliases_and_deletion_tickets ... ok
+test member_access_tests::production_inventory_requires_exact_24_readers_and_separate_stores ... ok
+test membership_acceptance::tests::delayed_notifications_and_between_collect_mutations_cannot_pass ... ok
+test membership_acceptance::tests::rollback_aba_in_revisions_requires_unchanged_independent_history ... ok
+test membership_acceptance::tests::snapshot_load_same_module_and_restored_acceptance_fail_against_replica_history ... ok
+test membership_coordinator::tests::app_wide_and_family_aliases_are_indexed_but_exclusions_and_incomplete_sources_cannot_hide_access ... ok
+test membership_coordinator::tests::bounded_exclusive_legacy_acceptance_survives_upgrade_and_rejects_new_notifications ... ok
+test membership_coordinator::tests::bounded_subject_staging_blocks_publication_and_cleanup_preserves_newer_members ... ok
+test membership_coordinator::tests::changed_group_inventory_reclaims_old_update_rows_only_after_generation_fence ... ok
+test membership_coordinator::tests::consensus_status_cannot_regress_below_retained_observation_after_reopen ... ok
+test membership_coordinator::tests::disposable_test_directory_rebinds_cleanly_without_erasing_other_stable_memory ... ok
+test membership_coordinator::tests::duplicate_clubs_including_tombstones_never_accept_ownership ... ok
+test membership_coordinator::tests::explicitly_pinned_original_writer_needs_no_invented_placement ... ok
+test membership_coordinator::tests::foreign_authority_stale_callback_and_inventory_replacement_never_publish ... ok
+test membership_coordinator::tests::incomplete_unchecked_and_nonlegacy_missing_assignments_cannot_be_accepted ... ok
+test membership_coordinator::tests::old_partial_build_cannot_certify_unchecked_earlier_pages ... ok
+test membership_coordinator::tests::original_inventory_rejects_omissions_duplicates_collisions_and_stale_binding ... ok
+test membership_coordinator::tests::original_mainnet_pin_matches_exact_existing_canisters_and_deployment ... ok
+test membership_coordinator::tests::private_pages_refuse_until_club_ownership_coverage_is_resolved ... ok
+test membership_coordinator::tests::registered_original_is_not_duplicated_and_changes_bind_the_digest ... ok
+test membership_coordinator::tests::retired_binding_cannot_reuse_an_acknowledgement_or_leak_namespaces_on_failed_begin ... ok
+test membership_coordinator::tests::single_source_members_skip_empty_groups_after_reopen_and_removal_clears_the_index ... ok
+test membership_coordinator::tests::two_source_join_publish_readback_reopen_and_removal ... ok
+test membership_coordinator::tests::unrelated_notification_blocks_replay_before_worker_and_old_ack_cannot_clear_it ... ok
+test membership_coordinator::tests::unresolved_legacy_ownership_survives_reopen_and_cannot_certify_readiness ... ok
+test membership_directory::tests::authority_generation_replacement_invalidates_old_evidence ... ok
+test membership_directory::tests::incomplete_source_never_establishes_global_completeness ... ok
+test membership_directory::tests::invalidation_requires_a_complete_replacement ... ok
+test membership_directory::tests::obsolete_generation_invalidation_cannot_poison_replacement_source ... ok
+test membership_directory::tests::registered_writer_cannot_publish_another_groups_club ... ok
+test membership_directory::tests::replay_is_exact_and_removed_members_cannot_return_from_old_snapshot ... ok
+test membership_directory_store::tests::bounds_and_generation_drift_leave_progress_unchanged ... ok
+test membership_directory_store::tests::durable_chunks_resume_and_exact_replays_survive_reopen ... ok
+test membership_locations::tests::exact_assignment_resolves_only_to_its_registered_writer ... ok
+test membership_materializer::tests::app_wide_scan_is_bounded_and_applies_active_clubs_and_exclusions ... ok
+test membership_materializer::tests::family_join_resumes_with_251_teams_and_preserves_or_exclusion_semantics ... ok
+test membership_materializer::tests::missing_or_deleted_team_never_establishes_family_membership ... ok
+test membership_materializer::tests::pre_index_completed_build_cannot_claim_empty_subject_coverage ... ok
+test membership_materializer::tests::validation_and_exact_replay_leave_progress_unchanged ... ok
+test membership_namespace::tests::isolated_trees_survive_reopen_and_reclamation_never_reuses_a_generation ... ok
+test membership_namespace::tests::reclamation_is_bounded_and_resumes_after_reopen ... ok
+test membership_namespace::tests::sparse_growth_has_a_shared_budget_and_retired_handles_cannot_grow ... ok
+test membership_private_lookup::tests::cleanup_scans_at_most_one_hundred_rows_and_never_recycles_instance_counter ... ok
+test membership_private_lookup::tests::completed_traversal_can_refresh_on_a_new_consumer_without_mixing_old_pages ... ok
+test membership_private_lookup::tests::concurrent_consumers_have_independent_deduplication_and_bounded_capacity ... ok
+test membership_private_lookup::tests::conflicting_owners_and_changed_completeness_reject_before_reply_replay ... ok
+test membership_private_lookup::tests::expired_token_cannot_advance_replacement_even_after_cleanup ... ok
+test membership_private_lookup::tests::failed_start_does_not_consume_instance_and_counter_exhaustion_rejects_before_read ... ok
+test membership_private_lookup::tests::incomplete_or_foreign_accounts_never_read_sources ... ok
+test membership_private_lookup::tests::instance_tokens_survive_reopen_reject_skips_and_foreign_consumers ... ok
+test membership_private_lookup::tests::one_local_source_page_per_call_and_alias_version_pinned ... ok
+test membership_private_lookup::tests::proven_empty_sources_skip_all_reads_but_remain_in_the_completeness_pin ... ok
+test membership_private_lookup::tests::two_hundred_empty_sources_do_not_add_content_page_reads ... ok
+test membership_propagation::tests::bounded_pull_reopens_and_new_revision_rejects_old_callbacks ... ok
+test membership_propagation::tests::fenced_replacement_reclaims_old_jobs_and_retains_current_pending_after_reopen ... ok
+test membership_propagation::tests::malformed_page_cannot_advance_a_durable_cursor ... ok
+test membership_propagation::tests::ongoing_mutations_finish_retained_job_but_never_certify_current_reads ... ok
+test membership_runtime::disposable_dev_reset_tests::cannot_reset_released_or_foreign_sources ... ok
+test membership_runtime::disposable_dev_reset_tests::disposable_reset_preflight_allows_progress_but_refuses_authority_drift ... ok
+test membership_runtime::disposable_dev_reset_tests::exact_dev_test_configuration_only ... ok
+test membership_runtime::disposable_dev_reset_tests::exact_released_dev_test_directory_requires_distinct_acknowledgement ... ok
+test membership_runtime::tests::only_exact_writer_can_raise_durable_watermark ... ok
+test membership_transport::tests::malformed_status_cannot_acknowledge_a_source ... ok
+test membership_transport::tests::nat_overflow_never_truncates ... ok
+test membership_transport::tests::oversized_or_nonadvancing_pages_are_rejected_before_ingest ... ok
+test membership_updates::tests::foreign_generation_and_source_cannot_clear_or_poison_updates ... ok
+test membership_updates::tests::replacement_reclamation_preserves_current_pending_and_preflight_rejects_reused_revision ... ok
+test membership_updates::tests::unknown_delivery_retains_pending_and_reopen_replays_exact_revision ... ok
+test membership_wire::tests::diagnostic_never_certifies_freshness_or_reveals_aliases ... ok
+test membership_wire::tests::exact_instance_and_sequence_survive_wire_conversion ... ok
+test private_name_account_inventory::tests::duplicate_anonymous_and_foreign_profile_are_refused ... ok
+test private_name_account_inventory::tests::original_authority_can_bind_nonfirst_alias_only_in_inventory ... ok
+test private_name_account_inventory::tests::plaintext_authority_is_never_guessed_from_first_alias ... ok
+test private_name_account_inventory::tests::profileless_suspended_accounts_and_all_aliases_survive ... ok
+test private_name_account_inventory::tests::source_digest_binds_aliases_status_version_and_profile_presence ... ok
+test private_name_audience::tests::broadcast_names_require_the_canonical_resource_and_bounded_subjects ... ok
+test private_name_audience::tests::direct_names_are_exact_two_person_requests_not_broadcasts ... ok
+test private_name_audience::tests::exact_child_and_distinct_bounded_humans_are_required ... ok
+test private_name_audience::tests::only_the_five_name_audiences_are_accepted ... ok
+test private_name_cleanup::tests::ambiguous_aliases_and_foreign_profiles_refuse ... ok
+test private_name_cleanup::tests::foreign_reference_and_unregistered_original_refuse ... ok
+test private_name_cleanup::tests::plaintext_and_profileless_accounts_never_infer_a_sink ... ok
+test private_name_cleanup::tests::removal_requires_every_alias_absent_and_exact_saved_authority ... ok
+test private_name_cleanup::tests::suspended_accounts_retain_all_aliases_and_nonfirst_original ... ok
+test private_name_conversion::tests::different_existing_reference_is_never_overwritten ... ok
+test private_name_conversion::tests::plaintext_converts_to_exact_bound_reference ... ok
+test private_name_conversion::tests::reference_must_bind_an_account_principal ... ok
+test private_name_conversion::tests::same_reference_is_idempotent_resume ... ok
+test private_name_conversion_approval::tests::absent_signer_refuses ... ok
+test private_name_conversion_approval::tests::completion_and_authorization_do_not_share_conversion_journals ... ok
+test private_name_conversion_approval::tests::forged_signature_refuses ... ok
+test private_name_coordination::tests::acknowledged_boundary_survives_later_global_epochs ... ok
+test private_name_coordination::tests::captures_every_group_and_supplemental_original_sink ... ok
+test private_name_coordination::tests::completion_requires_commit_and_new_epoch ... ok
+test private_name_coordination::tests::delayed_prepare_cannot_overwrite_committed_state ... ok
+test private_name_coordination::tests::durable_recovery_keeps_reservation_until_all_completions ... ok
+test private_name_coordination::tests::every_sink_must_acknowledge_before_commit ... ok
+test private_name_coordination::tests::overlapping_callback_merges_preserve_both_receipts ... ok
+test private_name_coordination::tests::stable_roundtrip_retains_unknown_and_completed_intents ... ok
+test private_name_coordination::tests::wrong_operation_generation_digest_receiver_or_phase_refuses ... ok
+test private_name_write_coordinator::tests::every_completion_is_durable_before_done ... ok
+test private_name_write_coordinator::tests::exclusive_opening_refuses_active_receipts_and_retains_phase ... ok
+test private_name_write_coordinator::tests::interrupted_window_resumes_from_journal_bytes ... ok
+test private_name_write_coordinator::tests::late_reply_cannot_regress_phase_or_replace_receipts ... ok
+test private_name_write_coordinator::tests::no_sink_reopens_until_every_writer_drains ... ok
+test private_name_write_coordinator::tests::no_writer_opens_until_every_original_sink_fenced ... ok
+test private_name_write_coordinator::tests::receiver_request_and_generation_are_exact ... ok
+test private_name_write_coordinator::tests::trapped_callback_rolls_back_its_own_lease ... ok
+test private_name_writer_window::accounting_tests::rehearsal_off_ordinary_leases_are_counted_and_cleanup_exactly_once ... ok
+test private_profile_reference::tests::first_private_save_and_legacy_names_are_not_bulk_conversion ... ok
+test private_profile_reference::tests::long_references_bind_original_authority_and_owner ... ok
+test private_profile_reference::tests::malformed_anonymous_and_future_references_are_refused ... ok
+test private_profile_reference::tests::ordinary_save_cannot_put_an_encrypted_name_back_in_plaintext ... ok
+test private_profile_reference::tests::ordinary_save_cannot_redirect_original_pii_authority ... ok
+test production_account_authorization::tests::default_and_review_alone_never_grant_aliases ... ok
+test production_account_authorization::tests::disable_expiry_and_aba_reject_old_signed_approval ... ok
+test production_account_authorization::tests::exact_signature_grants_only_24_readers_not_28_targets ... ok
+test production_account_authorization::tests::inventory_readers_and_full_removal_are_distinct_signed_purposes ... ok
+test production_account_authorization::tests::oversized_nested_inputs_refuse_before_signing_and_authorization ... ok
+test production_account_authorization::tests::signatures_bind_identity_operator_evidence_and_complete_review ... ok
+test production_account_authorization::tests::witness_rejects_old_request_epoch_generation_or_signed_digest ... ok
+test production_account_protection::tests::any_receiver_missing_wrong_authority_or_rehearsal_is_refused ... ok
+test production_account_protection::tests::exact_base_g2_review_never_grants_release_or_infrastructure_aliases ... ok
+test production_account_protection::tests::foreign_binding_duplicate_modules_and_eligibility_only_refused ... ok
+test production_account_protection::tests::lifecycle_rollback_module_drift_and_omitted_router_fail ... ok
+test recovery_journal::tests::disable_unknown_outcome_retains_exact_generation ... ok
+test recovery_journal::tests::first_semantic_operation_id_readback_is_valid_but_not_another_event ... ok
+test recovery_journal::tests::unknown_write_survives_serialization_and_exact_retry ... ok
+test recovery_journal::tests::wrong_generation_target_or_ack_revision_cannot_clear_pending ... ok
+test recovery_lifecycle::tests::ordinary_updates_do_not_require_a_new_lifecycle_acceptance ... ok
+test recovery_lifecycle::tests::restore_or_same_module_upgrade_never_reuses_armed_evidence ... ok
+test recovery_protocol::tests::bounded_records_and_exhaustion_refuse_before_mutation ... ok
+test recovery_protocol::tests::closed_by_default_and_only_exact_signed_acceptance_grants_reads ... ok
+test recovery_protocol::tests::effectiveness_requires_both_armed_signatures_and_reacceptance_disarms_subjects ... ok
+test recovery_protocol::tests::full_participant_budget_accepts_155_and_rejects_156_or_duplicates ... ok
+test recovery_protocol::tests::identity_lifecycle_must_match_the_signed_participant ... ok
+test recovery_protocol::tests::old_recovery_signature_cannot_activate_subject_progress_policy ... ok
+test recovery_protocol::tests::old_runtime_version_signatures_cannot_authorize_lifecycle_v2 ... ok
+test recovery_protocol::tests::removal_and_progress_close_reads_and_prevent_old_checkpoint_acceptance ... ok
+test recovery_protocol::tests::removal_inventory_supports_1088_targets_but_not_1089 ... ok
+test recovery_protocol::tests::restoring_identity_history_version_or_generation_is_denied ... ok
+test recovery_protocol::tests::signatures_bind_complete_inventory_history_and_journal ... ok
+test recovery_protocol::tests::survivor_baseline_allows_forward_progress_not_restore_expiry_or_foreign_identity ... ok
+test recovery_protocol::tests::witness_restore_or_upgrade_version_never_reuses_old_acceptance ... ok
+test removal_barrier::tests::invalid_generation_subjects_and_digest_cannot_create_a_fence ... ok
+test removal_barrier::tests::receiver_receipts_require_exact_generation_subjects_digest_and_target ... ok
+test secure_name_save::tests::explicit_ordinary_first_save_can_replace_legacy_but_never_anonymous ... ok
+test secure_name_save::tests::only_operator_pinned_original_and_owner_are_accepted ... ok
+test secure_name_save::tests::release_is_separate_and_closed_by_default ... ok
+test tests::actual_account_registration_crosses_10000_and_keeps_first_identity ... ok
+test tests::another_accounts_pending_removal_does_not_block_production_reads ... ok
+test tests::completed_denial_blocks_registration_even_without_account_index ... ok
+test tests::cross_group_account_lifecycle_is_off_outside_local_canisters ... ok
+test tests::denial_accepts_only_a_newer_same_account_relink ... ok
+test tests::denied_batch_conflict_does_not_partially_erase_an_account ... ok
+test tests::dev_reopen_gives_moved_sign_in_its_own_empty_account ... ok
+test tests::direct_team_roles_are_exact_membership_without_admin_bypass ... ok
+test tests::eligibility_denies_unknown_suspended_and_removed_but_keeps_survivor ... ok
+test tests::eligibility_transport_remains_unreleased ... ok
+test tests::entitlement_replay_by_different_principal_is_rejected ... ok
+test tests::erase_account_cleanup_clears_maps_and_blob_entries ... ok
+test tests::erase_removes_profiles ... ok
+test tests::erased_account_history_blocks_old_unlinked_and_restored_accounts ... ok
+test tests::erased_original_never_reattaches ... ok
+test tests::erasure_blocks_all_current_identities_and_preserves_other_accounts ... ok
+test tests::erasure_cleanup_contract_is_explicit ... ok
+test tests::exclusions_override_scoped_roles_but_not_global_role_detection ... ok
+test tests::exhausted_versions_refuse_erasure_and_rekey_without_mutation ... ok
+test tests::exported_candid_matches_the_checked_in_contract ... ok
+test tests::field_access_requires_explicit_consent_or_self_access ... ok
+test tests::genuine_legacy_pending_cbor_migrates_using_its_frozen_inventory ... ok
+test tests::guardian_access_respects_club_exclusion ... ok
+test tests::guardian_profile_revision_invalidates_on_profile_and_account_mutations ... ok
+test tests::guardian_storage_traversal_is_bounded_ordered_and_preserves_private_references ... ok
+test tests::history_access_is_local_governor_only ... ok
+test tests::history_lifecycle_preserves_exact_legacy_receipts_without_drain_claim ... ok
+test tests::history_pages_preserve_terminal_fields_and_reject_stale_snapshots ... ok
+test tests::history_retains_beyond_old_lifetime_caps ... ok
+test tests::ids_and_role_scope_are_bounded ... ok
+test tests::legacy_denial_cbor_defaults_to_relinkable_unlink_only ... ok
+test tests::legacy_schema4_blob_splits_into_maps_on_migration ... ok
+test tests::lost_principal_index_self_heals_only_for_listed_owner ... ok
+test tests::missing_legacy_targets_and_foreign_acknowledgements_fail_closed ... ok
+test tests::multi_site_roles_and_exclusions_are_isolated ... ok
+test tests::pending_unlink_blocks_private_shared_account_access ... ok
+test tests::pending_unlink_does_not_expose_revoked_identity_to_group_sync ... ok
+test tests::private_lookup_resolves_verified_aliases_and_fails_on_lifecycle_changes ... ok
+test tests::production_admission_keeps_suspension_erasure_and_deletion_denied ... ok
+test tests::production_admission_releases_only_exact_readers_not_lifecycle ... ok
+test tests::profile_replacement_keeps_one_entry_per_account ... ok
+test tests::profile_validation_is_bounded ... ok
+test tests::reauthorization_retains_history_and_rejects_mismatched_restored_accounts ... ok
+test tests::rekey_and_dry_run_cannot_bypass_durable_denial ... ok
+test tests::rekey_moves_account_to_new_principal_and_drops_bare_account ... ok
+test tests::rekey_refuses_when_new_principal_has_a_profile ... ok
+test tests::rekey_replay_requires_exact_destination_and_non_erased_account ... ok
+test tests::removal_intent_survives_restored_accounts_and_cannot_complete_without_receivers ... ok
+test tests::schema1_blob_without_profiles_decodes_via_serde_default ... ok
+test tests::schema2_blob_without_terms_acceptances_decodes_via_serde_default ... ok
+test tests::service_account_denies_deletion_reservations_without_alias_disclosure ... ok
+test tests::service_account_never_returns_stale_indexed_aliases ... ok
+test tests::service_inventory_rejects_duplicate_anonymous_and_over_capacity ... ok
+test tests::service_readers_remain_separate_and_unreleased ... ok
+test tests::sign_in_parked_on_empty_duplicate_moves_back_to_original ... ok
+test tests::stale_restored_index_cannot_grant_access_or_rekey ... ok
+test tests::terms_acceptance_is_monotonic_and_scoped_to_account ... ok
+test tests::unlink_recovery_uses_the_persisted_targets_not_a_new_registry ... ok
+
+test result: ok. 250 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 64.96s
+
+     Running unittests src/lib.rs (target/debug/deps/placement_registry-39e3c6dc04a6d802)
+
+running 12 tests
+test placement_policy::tests::country_and_backend_cannot_change_through_ordinary_assignment ... ok
+test placement_policy::tests::residency_cannot_silently_move_to_another_deployment ... ok
+test private_name_writer_window::accounting_tests::rehearsal_off_ordinary_leases_are_counted_and_cleanup_exactly_once ... ok
+test private_writer_contract_export::export_contract_when_requested ... ok
+test tests::availability_policy_starts_enabled ... ok
+test tests::backend_validation_is_fail_closed ... ok
+test tests::country_policy_requires_uppercase_iso_code ... ok
+test tests::identifiers_are_bounded ... ok
+test tests::operator_roles_and_residency_profiles_must_be_unique_and_valid ... ok
+test tests::registry_version_bump_is_monotonic_and_fail_closed_on_overflow ... ok
+test tests::site_availability_starts_enabled_by_default ... ok
+test tests::target_must_be_enabled_and_healthy_for_writes ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running unittests src/lib.rs (target/debug/deps/recovery_witness-c83c0c99d6683588)
+
+running 20 tests
+test protocol::tests::bounded_records_and_exhaustion_refuse_before_mutation ... ok
+test protocol::tests::closed_by_default_and_only_exact_signed_acceptance_grants_reads ... ok
+test protocol::tests::effectiveness_requires_both_armed_signatures_and_reacceptance_disarms_subjects ... ok
+test protocol::tests::full_participant_budget_accepts_155_and_rejects_156_or_duplicates ... ok
+test protocol::tests::identity_lifecycle_must_match_the_signed_participant ... ok
+test protocol::tests::old_recovery_signature_cannot_activate_subject_progress_policy ... ok
+test protocol::tests::old_runtime_version_signatures_cannot_authorize_lifecycle_v2 ... ok
+test protocol::tests::removal_and_progress_close_reads_and_prevent_old_checkpoint_acceptance ... ok
+test protocol::tests::removal_inventory_supports_1088_targets_but_not_1089 ... ok
+test protocol::tests::restoring_identity_history_version_or_generation_is_denied ... ok
+test protocol::tests::signatures_bind_complete_inventory_history_and_journal ... ok
+test protocol::tests::survivor_baseline_allows_forward_progress_not_restore_expiry_or_foreign_identity ... ok
+test protocol::tests::witness_restore_or_upgrade_version_never_reuses_old_acceptance ... ok
+test recovery_lifecycle::tests::ordinary_updates_do_not_require_a_new_lifecycle_acceptance ... ok
+test recovery_lifecycle::tests::restore_or_same_module_upgrade_never_reuses_armed_evidence ... ok
+test tests::actual_stable_journal_retries_conflicts_and_both_group_completion ... ok
+test tests::equivalent_events_have_same_semantic_identity_despite_retry_ids ... ok
+test tests::export_contract_when_requested ... ok
+test tests::independent_tombstones_reject_restored_accounts_and_alias_reassignment_not_survivors ... ok
+test tests::journal_keeps_both_group_progress_and_idempotent_retries ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.63s
+
+     Running unittests src/lib.rs (target/debug/deps/shard_router-bdb0882ff1ac828d)
+
+running 56 tests
+test account_removal_receiver::tests::configuration_is_authenticated_effective_state_not_an_alias_grant ... ok
+test account_removal_receiver::tests::fence_is_immutable_denies_and_drains ... ok
+test account_removal_receiver::tests::invalid_requests_write_nothing ... ok
+test account_removal_receiver::tests::unconfigured_and_wrong_callers_are_refused ... ok
+test discovery::tests::assignment_reads_bounded_and_distinct ... ok
+test discovery::tests::complete_bound_placement_required ... ok
+test discovery::tests::destination_and_origin_substitution_denied ... ok
+test discovery::tests::subnet_expansion_requires_explicit_gate ... ok
+test group_index::tests::exact_ratio_ties_preserve_smallest_id_and_updated_budgets ... ok
+test group_index::tests::healthy_common_path_verifies_one_candidate_at_4096_groups ... ok
+test group_index::tests::indexed_pick_matches_scan_for_4096_groups_and_changing_health ... ok
+test groups::tests::closed_sibling_never_receives_clubs_and_no_safe_group_blocks ... ok
+test groups::tests::complete_distinct_domains_required ... ok
+test groups::tests::configured_capacity_has_explicit_bounds ... ok
+test groups::tests::fill_first_assignment_is_deterministic ... ok
+test groups::tests::full_groups_are_not_assigned ... ok
+test groups::tests::memory_and_cycles_gate_admission ... ok
+test groups::tests::old_records_without_photo_store_still_decode ... ok
+test groups::tests::ordinary_assignment_cannot_move_existing_clubs ... ok
+test groups::tests::photo_store_must_be_distinct ... ok
+test groups::tests::prepare_at_exactly_70_percent ... ok
+test groups::tests::rollover_at_exactly_80_percent ... ok
+test groups::tests::stale_or_future_readings_close_admission ... ok
+test media_growth::tests::concurrent_promises_preserve_existing_headroom ... ok
+test media_growth::tests::exact_fit_retry_and_downgrade_never_refund ... ok
+test media_growth::tests::exact_store_import_rejects_missing_reduced_duplicate_and_oversold_promises ... ok
+test media_growth::tests::store_binding_cannot_be_reused_for_another_group_authority_or_target ... ok
+test media_growth::tests::store_protects_existing_future_promise_before_new_clubs ... ok
+test owner_opening_tests::bounded_owner_uuid_admission_never_opens_general_group ... ok
+test owner_opening_tests::deletion_locks_block_owner_opening_and_placement ... ok
+test owner_opening_tests::exact_revision_inventory_and_health_are_mandatory ... ok
+test owner_opening_tests::general_stop_also_stops_trial_and_respects_deletion_locks ... ok
+test owner_opening_tests::general_stop_preserves_existing_assignments_and_other_groups ... ok
+test owner_opening_tests::general_stop_requires_governor_and_exact_deployment_revision ... ok
+test owner_opening_tests::only_governor_can_open_or_stop_owner_test ... ok
+test owner_opening_tests::removal_obligation_is_an_accepting_owner_opening_until_governor_stop ... ok
+test owner_opening_tests::stopping_preserves_existing_assignment_and_refuses_unused_uuid ... ok
+test private_name_writer_window::accounting_tests::rehearsal_off_ordinary_leases_are_counted_and_cleanup_exactly_once ... ok
+test private_writer_contract_export::export_contract_when_requested ... ok
+test routing_approval::tests::evidence_must_be_lowercase_sha256 ... ok
+test routing_approval::tests::exact_revision_and_group_set_required ... ok
+test self_health::tests::refreshes_only_stale_open_groups_and_skips_shared_identity ... ok
+test tests::assignment_retry_is_persistent_and_does_not_consume_capacity_twice ... ok
+test tests::conflicting_revision_does_not_reserve_a_slot ... ok
+test tests::consecutive_creator_reservations_preserve_configuration_and_upgrade ... ok
+test tests::domain_key_formatting_is_deterministic ... ok
+test tests::growth_is_group_bound_and_reserved_with_assignment ... ok
+test tests::hosted_lookup_returns_only_assigned_group_for_matching_deployment ... ok
+test tests::ids_and_pages_are_bounded ... ok
+test tests::priority_index_rebuild_rollover_health_and_immutable_retry ... ok
+test tests::reservation_blocks_registry_mutations_and_self_placement_until_settled ... ok
+test tests::routing_approval_is_governor_only_revision_bound_and_does_not_move_revisions ... ok
+test tests::self_service_placement_is_authenticated_capped_and_retry_free ... ok
+test tests::shard_principals_reject_system_callers ... ok
+test website::tests::redirects_to_owning_club_domain ... ok
+test website::tests::rejects_bad_input_and_unknown_clubs ... ok
+
+test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.98s
+
+     Running tests/scale_lookup.rs (target/debug/deps/scale_lookup-cf95c70dbb266e3b)
+
+running 16 tests
+test group_index::tests::exact_ratio_ties_preserve_smallest_id_and_updated_budgets ... ok
+test group_index::tests::healthy_common_path_verifies_one_candidate_at_4096_groups ... ok
+test group_index::tests::indexed_pick_matches_scan_for_4096_groups_and_changing_health ... ok
+test groups::tests::closed_sibling_never_receives_clubs_and_no_safe_group_blocks ... ok
+test groups::tests::complete_distinct_domains_required ... ok
+test groups::tests::configured_capacity_has_explicit_bounds ... ok
+test groups::tests::fill_first_assignment_is_deterministic ... ok
+test groups::tests::full_groups_are_not_assigned ... ok
+test groups::tests::memory_and_cycles_gate_admission ... ok
+test groups::tests::old_records_without_photo_store_still_decode ... ok
+test groups::tests::ordinary_assignment_cannot_move_existing_clubs ... ok
+test groups::tests::photo_store_must_be_distinct ... ok
+test groups::tests::prepare_at_exactly_70_percent ... ok
+test groups::tests::rollover_at_exactly_80_percent ... ok
+test groups::tests::stale_or_future_readings_close_admission ... ok
+test scale_lookup ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.85s
+
+     Running unittests src/lib.rs (target/debug/deps/timer_jobs-3af62dd7cf34ed17)
+
+running 9 tests
+test account_removal_receiver::tests::configuration_is_authenticated_effective_state_not_an_alias_grant ... ok
+test account_removal_receiver::tests::fence_is_immutable_denies_and_drains ... ok
+test account_removal_receiver::tests::invalid_requests_write_nothing ... ok
+test account_removal_receiver::tests::unconfigured_and_wrong_callers_are_refused ... ok
+test tests::legacy_blob_is_migrated_into_stable_map_exactly_once ... ok
+test tests::normal_operation_schedules_claims_and_completes_via_stable_map ... ok
+test tests::removal_obligations_count_and_settle_only_fenced_subjects ... ok
+test tests::stable_state_round_trips_callback_and_lease_metadata ... ok
+test tests::upgrade_round_trip_preserves_metadata_and_jobs ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.22s
+
+     Running tests/timer_jobs.rs (target/debug/deps/timer_jobs-3f154c84414f7d56)
+
+running 9 tests
+test callback_jobs_require_approved_callback_scope ... ok
+test callback_scope_cannot_cross_timer_domain ... ok
+test callback_workflow_schedule_is_idempotent_by_job_id ... ok
+test expired_timer_lease_is_recovered_and_retry_budget_dead_letters ... ok
+test failed_timer_retries_before_failure ... ok
+test scoped_worker_only_claims_matching_timer_domain ... ok
+test timer_job_claim_and_completion_flow ... ok
+test timer_worker_scope_must_not_be_empty ... ok
+test zero_lease_and_empty_claims_fail_closed ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests identity_access
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests placement_registry
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests recovery_witness
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests shard_router
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests timer_jobs
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

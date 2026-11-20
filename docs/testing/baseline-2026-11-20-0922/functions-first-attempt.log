@@ -1,0 +1,14 @@
+[0m[1m[31merror[0m: Could not find a matching package for 'npm:zod@3.25.76' in the node_modules directory. Ensure you have all your JSR and npm dependencies listed in your deno.json or package.json, then run `deno install`. Alternatively, turn on auto-install by specifying `"nodeModulesDir": "auto"` in your deno.json file.
+    at [0m[36mfile:///dev-server/supabase/functions/score-history-review/policy.ts[0m:[0m[33m1[0m:[0m[33m19[0m
+
+Stack backtrace:
+   0: anyhow::error::<impl core::convert::From<E> for anyhow::Error>::from
+   1: deno::graph_container::MainModuleGraphContainer::check_specifiers::{{closure}}
+   2: deno::spawn_subcommand::{{closure}}
+   3: tokio::runtime::task::raw::poll
+   4: deno::main
+   5: std::sys::backtrace::__rust_begin_short_backtrace
+   6: main
+   7: __libc_start_call_main
+   8: __libc_start_main@GLIBC_2.2.5
+   9: _start

@@ -1,0 +1,367 @@
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fcomponents
+[0m[32mDownload[0m https://registry.npmjs.org/react
+[0m[32mDownload[0m https://registry.npmjs.org/zod
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fbody
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fbutton
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fcode-block
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fcode-inline
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fcolumn
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fcontainer
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2ffont
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fhead
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fheading
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fhr
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fhtml
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fimg
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2flink
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fmarkdown
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fpreview
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2frender
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2frow
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2fsection
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2ftailwind
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email%2ftext
+[0m[32mDownload[0m https://registry.npmjs.org/loose-envify
+[0m[32mDownload[0m https://registry.npmjs.org/prismjs
+[0m[32mDownload[0m https://registry.npmjs.org/@radix-ui%2freact-slot
+[0m[32mDownload[0m https://registry.npmjs.org/md-to-react-email
+[0m[32mDownload[0m https://registry.npmjs.org/html-to-text
+[0m[32mDownload[0m https://registry.npmjs.org/js-beautify
+[0m[32mDownload[0m https://registry.npmjs.org/react-dom
+[0m[32mDownload[0m https://registry.npmjs.org/react-promise-suspense
+[0m[32mDownload[0m https://registry.npmjs.org/js-tokens
+[0m[32mDownload[0m https://registry.npmjs.org/@radix-ui%2freact-compose-refs
+[0m[32mDownload[0m https://registry.npmjs.org/@types%2freact
+[0m[32mDownload[0m https://registry.npmjs.org/marked
+[0m[32mDownload[0m https://registry.npmjs.org/@selderee%2fplugin-htmlparser2
+[0m[32mDownload[0m https://registry.npmjs.org/deepmerge
+[0m[32mDownload[0m https://registry.npmjs.org/dom-serializer
+[0m[32mDownload[0m https://registry.npmjs.org/htmlparser2
+[0m[32mDownload[0m https://registry.npmjs.org/selderee
+[0m[32mDownload[0m https://registry.npmjs.org/config-chain
+[0m[32mDownload[0m https://registry.npmjs.org/editorconfig
+[0m[32mDownload[0m https://registry.npmjs.org/glob
+[0m[32mDownload[0m https://registry.npmjs.org/js-cookie
+[0m[32mDownload[0m https://registry.npmjs.org/nopt
+[0m[32mDownload[0m https://registry.npmjs.org/fast-deep-equal
+[0m[32mDownload[0m https://registry.npmjs.org/domhandler
+[0m[32mDownload[0m https://registry.npmjs.org/domelementtype
+[0m[32mDownload[0m https://registry.npmjs.org/entities
+[0m[32mDownload[0m https://registry.npmjs.org/domutils
+[0m[32mDownload[0m https://registry.npmjs.org/parseley
+[0m[32mDownload[0m https://registry.npmjs.org/ini
+[0m[32mDownload[0m https://registry.npmjs.org/proto-list
+[0m[32mDownload[0m https://registry.npmjs.org/@one-ini%2fwasm
+[0m[32mDownload[0m https://registry.npmjs.org/commander
+[0m[32mDownload[0m https://registry.npmjs.org/minimatch
+[0m[32mDownload[0m https://registry.npmjs.org/semver
+[0m[32mDownload[0m https://registry.npmjs.org/foreground-child
+[0m[32mDownload[0m https://registry.npmjs.org/jackspeak
+[0m[32mDownload[0m https://registry.npmjs.org/minipass
+[0m[32mDownload[0m https://registry.npmjs.org/package-json-from-dist
+[0m[32mDownload[0m https://registry.npmjs.org/path-scurry
+[0m[32mDownload[0m https://registry.npmjs.org/abbrev
+[0m[32mDownload[0m https://registry.npmjs.org/leac
+[0m[32mDownload[0m https://registry.npmjs.org/peberminta
+[0m[32mDownload[0m https://registry.npmjs.org/brace-expansion
+[0m[32mDownload[0m https://registry.npmjs.org/cross-spawn
+[0m[32mDownload[0m https://registry.npmjs.org/signal-exit
+[0m[32mDownload[0m https://registry.npmjs.org/@isaacs%2fcliui
+[0m[32mDownload[0m https://registry.npmjs.org/@pkgjs%2fparseargs
+[0m[32mDownload[0m https://registry.npmjs.org/lru-cache
+[0m[32mDownload[0m https://registry.npmjs.org/balanced-match
+[0m[32mDownload[0m https://registry.npmjs.org/path-key
+[0m[32mDownload[0m https://registry.npmjs.org/shebang-command
+[0m[32mDownload[0m https://registry.npmjs.org/which
+[0m[32mDownload[0m https://registry.npmjs.org/string-width
+[0m[32mDownload[0m https://registry.npmjs.org/strip-ansi
+[0m[32mDownload[0m https://registry.npmjs.org/wrap-ansi
+[0m[32mDownload[0m https://registry.npmjs.org/shebang-regex
+[0m[32mDownload[0m https://registry.npmjs.org/isexe
+[0m[32mDownload[0m https://registry.npmjs.org/eastasianwidth
+[0m[32mDownload[0m https://registry.npmjs.org/emoji-regex
+[0m[32mDownload[0m https://registry.npmjs.org/is-fullwidth-code-point
+[0m[32mDownload[0m https://registry.npmjs.org/ansi-regex
+[0m[32mDownload[0m https://registry.npmjs.org/ansi-styles
+[0m[32mDownload[0m https://registry.npmjs.org/color-convert
+[0m[32mDownload[0m https://registry.npmjs.org/color-name
+[0m[32mDownload[0m https://registry.npmjs.org/scheduler
+[0m[32mDownload[0m https://registry.npmjs.org/zod/-/zod-3.25.76.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/react/-/react-18.3.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/components/-/components-0.0.22.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/loose-envify/-/loose-envify-1.4.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/font/-/font-0.0.7.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/body/-/body-0.0.9.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/hr/-/hr-0.0.9.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/code-inline/-/code-inline-0.0.3.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/column/-/column-0.0.11.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/head/-/head-0.0.10.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/html/-/html-0.0.9.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/code-block/-/code-block-0.0.6.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/container/-/container-0.0.13.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/img/-/img-0.0.9.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/section/-/section-0.0.13.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/text/-/text-0.0.9.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/heading/-/heading-0.0.13.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/row/-/row-0.0.9.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/preview/-/preview-0.0.10.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/render/-/render-0.0.17.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/markdown/-/markdown-0.0.11.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/link/-/link-0.0.9.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/button/-/button-0.0.16.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@react-email/tailwind/-/tailwind-0.0.19.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/prismjs/-/prismjs-1.29.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@radix-ui/react-slot/-/react-slot-1.1.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/html-to-text/-/html-to-text-9.0.5.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/js-beautify/-/js-beautify-1.15.4.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/react-promise-suspense/-/react-promise-suspense-0.3.4.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/md-to-react-email/-/md-to-react-email-5.0.2.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@radix-ui/react-compose-refs/-/react-compose-refs-1.1.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/scheduler/-/scheduler-0.23.2.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/deepmerge/-/deepmerge-4.3.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/htmlparser2/-/htmlparser2-8.0.2.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/selderee/-/selderee-0.11.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/dom-serializer/-/dom-serializer-2.0.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@selderee/plugin-htmlparser2/-/plugin-htmlparser2-0.11.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/editorconfig/-/editorconfig-1.0.7.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/js-cookie/-/js-cookie-3.0.8.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/config-chain/-/config-chain-1.1.13.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/glob/-/glob-10.5.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/nopt/-/nopt-7.2.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/fast-deep-equal/-/fast-deep-equal-2.0.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/marked/-/marked-7.0.4.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/entities/-/entities-4.5.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/domhandler/-/domhandler-5.0.3.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/domutils/-/domutils-3.2.2.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/domelementtype/-/domelementtype-2.3.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/parseley/-/parseley-0.12.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@one-ini/wasm/-/wasm-0.1.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/minimatch/-/minimatch-9.0.9.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/semver/-/semver-7.8.6.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/commander/-/commander-10.0.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/ini/-/ini-1.3.8.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/proto-list/-/proto-list-1.2.4.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/minipass/-/minipass-7.1.3.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/foreground-child/-/foreground-child-3.3.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/package-json-from-dist/-/package-json-from-dist-1.0.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/jackspeak/-/jackspeak-3.4.3.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/path-scurry/-/path-scurry-1.11.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/abbrev/-/abbrev-2.0.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/leac/-/leac-0.6.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/peberminta/-/peberminta-0.9.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.8.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/cross-spawn/-/cross-spawn-7.0.6.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/signal-exit/-/signal-exit-4.1.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@pkgjs/parseargs/-/parseargs-0.11.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/@isaacs/cliui/-/cliui-8.0.2.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/lru-cache/-/lru-cache-10.4.3.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/balanced-match/-/balanced-match-1.0.2.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/shebang-command/-/shebang-command-2.0.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/which/-/which-2.0.2.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/path-key/-/path-key-3.1.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/wrap-ansi/-/wrap-ansi-8.1.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/wrap-ansi/-/wrap-ansi-7.0.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/string-width/-/string-width-5.1.2.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/string-width/-/string-width-4.2.3.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/strip-ansi/-/strip-ansi-7.2.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/strip-ansi/-/strip-ansi-6.0.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/shebang-regex/-/shebang-regex-3.0.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/isexe/-/isexe-2.0.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/ansi-styles/-/ansi-styles-6.2.3.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/ansi-styles/-/ansi-styles-4.3.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/eastasianwidth/-/eastasianwidth-0.2.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/emoji-regex/-/emoji-regex-9.2.2.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/is-fullwidth-code-point/-/is-fullwidth-code-point-3.0.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/emoji-regex/-/emoji-regex-8.0.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/ansi-regex/-/ansi-regex-6.6.0.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/ansi-regex/-/ansi-regex-5.0.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/color-convert/-/color-convert-2.0.1.tgz
+[0m[32mDownload[0m https://registry.npmjs.org/color-name/-/color-name-1.1.4.tgz
+[0m[38;5;245mrunning 1 test from ./supabase/functions/_shared/reminder-auth.test.ts[0m
+reminder jobs reject public and ordinary user credentials and fail closed without secrets ... [0m[32mok[0m [0m[38;5;245m(85ms)[0m
+[0m[38;5;245mrunning 13 tests from ./supabase/functions/cleanup-old-notifications/batchDelete.test.ts[0m
+deletes everything eligible across many batches (no premature exit) ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[CLEANUP] test: batch 2 removed 500 (total: 1000)
+[CLEANUP] test: batch 3 removed 500 (total: 1500)
+[CLEANUP] test: batch 4 removed 500 (total: 2000)
+[CLEANUP] test: batch 5 removed 500 (total: 2500)
+[CLEANUP] test: batch 6 removed 500 (total: 3000)
+[CLEANUP] test: batch 7 removed 500 (total: 3500)
+[CLEANUP] test: batch 8 removed 500 (total: 4000)
+[CLEANUP] test: batch 9 removed 321 (total: 4321)
+[0m[38;5;245m----- post-test output end -----[0m
+deletes everything eligible across many batches (no premature exit) ... [0m[32mok[0m [0m[38;5;245m(75ms)[0m
+regression: a short batch does not stop the loop ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 300 (total: 300)
+[CLEANUP] test: batch 2 removed 300 (total: 600)
+[CLEANUP] test: batch 3 removed 300 (total: 900)
+[CLEANUP] test: batch 4 removed 300 (total: 1200)
+[0m[38;5;245m----- post-test output end -----[0m
+regression: a short batch does not stop the loop ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+no eligible rows is a clean no-op ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+second run over already-clean data deletes nothing (idempotent) ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[CLEANUP] test: batch 2 removed 400 (total: 900)
+[0m[38;5;245m----- post-test output end -----[0m
+second run over already-clean data deletes nothing (idempotent) ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+batch cap bounds work per invocation and flags more work ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[CLEANUP] test: batch 2 removed 500 (total: 1000)
+[CLEANUP] test: batch 3 removed 500 (total: 1500)
+[CLEANUP] test: hit batch cap (3), deferring rest to next run
+[0m[38;5;245m----- post-test output end -----[0m
+batch cap bounds work per invocation and flags more work ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+runtime budget stops the loop and flags more work ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[CLEANUP] test: hit runtime budget, deferring rest to next run
+[0m[38;5;245m----- post-test output end -----[0m
+runtime budget stops the loop and flags more work ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a delete that removes nothing stops instead of looping forever ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 0 (total: 0)
+[CLEANUP] test: batch deleted 0 rows, stopping to avoid an infinite loop
+[0m[38;5;245m----- post-test output end -----[0m
+a delete that removes nothing stops instead of looping forever ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+select error aborts with partial progress reported ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] Select error (test): { message: "boom-select" }
+[0m[38;5;245m----- post-test output end -----[0m
+select error aborts with partial progress reported ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+delete error aborts with partial progress reported ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] Delete error (test): { message: "boom-delete" }
+[0m[38;5;245m----- post-test output end -----[0m
+delete error aborts with partial progress reported ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+extra filters are applied to the select (is_read scoping) ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 10 (total: 10)
+[0m[38;5;245m----- post-test output end -----[0m
+extra filters are applied to the select (is_read scoping) ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+regression: deletes are chunked so the request URL stays small ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[CLEANUP] test: batch 2 removed 500 (total: 1000)
+[CLEANUP] test: batch 3 removed 500 (total: 1500)
+[CLEANUP] test: batch 4 removed 250 (total: 1750)
+[0m[38;5;245m----- post-test output end -----[0m
+regression: deletes are chunked so the request URL stays small ... [0m[32mok[0m [0m[38;5;245m(3ms)[0m
+a 500-row batch is deleted as five 100-id chunks ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[0m[38;5;245m----- post-test output end -----[0m
+a 500-row batch is deleted as five 100-id chunks ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a failing chunk reports the rows already deleted in that batch ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] Delete error (test): { message: "Bad Request" }
+[0m[38;5;245m----- post-test output end -----[0m
+a failing chunk reports the rows already deleted in that batch ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+[0m[38;5;245mrunning 12 tests from ./supabase/functions/process-event-notifications/event_notify_characterization_test.ts[0m
+team event: exact member set, creator excluded, roles deduped ... [0m[32mok[0m [0m[38;5;245m(93ms)[0m
+team event: recipient counts around the old 20-batch boundary are complete ... [0m[32mok[0m [0m[38;5;245m(3ms)[0m
+team event: pagination requests deterministic ordered pages ... [0m[32mok[0m [0m[38;5;245m(3ms)[0m
+mini-league event: league members + league admins only ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+club-wide event: all club members except creator ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+club-wide event: restricted_to_roles limits audience to those roles + club_admin ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+targeted club-wide event: targeted teams + club admins + guardians only ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+notification rows: exact shape, one per recipient, skip_push true ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+notification insert: 200 recipients -> 200 rows, no RSVP rows created ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+notification insert: batches of 500 ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+push payload: exact shape and tag format ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+update message wording is unchanged ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+[0m[38;5;245mrunning 20 tests from ./supabase/functions/process-event-notifications/push_delivery_queue_test.ts[0m
+multiple worker invocations drain 200 jobs, nothing dropped or duplicated ... [0m[32mok[0m [0m[38;5;245m(54ms)[0m
+termination after the first batch leaves the rest recoverable; a later cron run drains them ... [0m[32mok[0m [0m[38;5;245m(4ms)[0m
+one failed recipient does not block later recipients ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+network timeout retries with backoff ... [0m[32mok[0m [0m[38;5;245m(7ms)[0m
+HTTP 429 and 5xx retry; 400/404/410 are terminal ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+permanent failure marks failed immediately without exhausting attempts ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+retryable failures reach a terminal failed state after MAX_ATTEMPTS ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+backoff is capped exponential ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+preference-disabled response becomes skipped, not delivered ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+HTTP 200 alone is not proof of delivery ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a successfully delivered job is never left in processing ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+queue status-update failure is detected and left recoverable ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+recovery cannot convert an already-delivered job to skipped ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+concurrent workers cannot claim the same job twice ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+future next_attempt_at jobs are not claimed early ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+stale processing jobs are reclaimed, fresh ones are not ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+no service-role key or vault secret appears in recorded errors ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+queue enqueue is idempotent per notification ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+invite dedupe key is one per event/user; updates are versioned ... [0m[32mok[0m [0m[38;5;245m(2ms)[0m
+changed-field order does not change the update version ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+[0m[38;5;245mrunning 12 tests from ./supabase/functions/process-push-delivery-queue/internal_auth_test.ts[0m
+no Authorization header is rejected 401 ... [0m[32mok[0m [0m[38;5;245m(57ms)[0m
+non-Bearer scheme is rejected 401 ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+anon key is rejected (403) — a public caller cannot trigger fan-out ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a user JWT is rejected — end users cannot drain or fan out ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a same-length wrong token is rejected 403 (no length oracle short-circuit) ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a one-character-off token is rejected 403 ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+the short-form Supabase secret key format is accepted ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a legacy long-form JWT service key is accepted ... [0m[32mok[0m [0m[38;5;245m(3ms)[0m
+surrounding whitespace in the header is tolerated ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+missing server key fails closed with 500, never open ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejection bodies never echo the expected key or the presented token ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+CORS headers are present on every rejection (browser callers see the error) ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+[0m[38;5;245mrunning 5 tests from ./supabase/functions/score-history-review/policy.test.ts[0m
+only exact club administrators can review ... [0m[32mok[0m [0m[38;5;245m(30ms)[0m
+explicit reversed order preserves zero ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+missing and conflicting scores hold without merging ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+unknown orientation remains unresolved ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+consent and distinct team anchors required ... [0m[32mok[0m [0m[38;5;245m(4ms)[0m
+[0m[38;5;245mrunning 9 tests from ./supabase/functions/send-event-view-reminder/event-view-reminder_test.ts[0m
+event title with img/onerror is escaped, no element or handler is created ... [0m[32mok[0m [0m[38;5;245m(79ms)[0m
+team name with anchor tag is escaped, no external link created (rsvp variant) ... [0m[32mok[0m [0m[38;5;245m(9ms)[0m
+club name with tracking image is escaped, no img created (non-rsvp variant) ... [0m[32mok[0m [0m[38;5;245m(4ms)[0m
+legitimate punctuation, accents, apostrophes and emoji render intact ... [0m[32mok[0m [0m[38;5;245m(14ms)[0m
+RSVP-style wording preserved for game events ... [0m[32mok[0m [0m[38;5;245m(5ms)[0m
+Non-RSVP wording preserved for social events ... [0m[32mok[0m [0m[38;5;245m(8ms)[0m
+CTA and fallback link are normalized to production domain ... [0m[32mok[0m [0m[38;5;245m(9ms)[0m
+template contains no dangerouslySetInnerHTML output artefacts ... [0m[32mok[0m [0m[38;5;245m(5ms)[0m
+source file no longer references dangerouslySetInnerHTML ... [0m[31mFAILED[0m [0m[38;5;245m(7ms)[0m
+[0m[38;5;245mrunning 9 tests from ./supabase/functions/verify-iap-receipt-icp/receiptChecks_test.ts[0m
+accepts matching product, app and future expiry ... [0m[32mok[0m [0m[38;5;245m(31ms)[0m
+rejects a different product ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+rejects a receipt from another app ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejects refunded purchases ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejects expired subscriptions ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejects non-Apple (Android) purchase data ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejects a purchase linked to another account ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejects a purchase with no account link ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+account token matches the app's derivation ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+
+[0m[1m[37m[41m ERRORS [0m
+
+source file no longer references dangerouslySetInnerHTML [0m[38;5;245m=> ./supabase/functions/send-event-view-reminder/event-view-reminder_test.ts:103:6[0m
+[0m[1m[31merror[0m: NotCapable: Requires read access to "/dev-server/supabase/functions/send-event-view-reminder/_templates/event-view-reminder.tsx", run again with the --allow-read flag
+  const src = await Deno.readTextFile(new URL("./_templates/event-view-reminder.tsx", import.meta.url));
+[0m[31m                         ^[0m
+    [0m[2m[38;5;245mat [0m[0m[2m[38;5;245mObject.readTextFile[0m[0m[2m[38;5;245m ([0m[0m[2m[38;5;245mext:deno_fs/30_fs.js[0m[0m[2m[38;5;245m:[0m[0m[2m[38;5;245m856[0m[0m[2m[38;5;245m:[0m[0m[2m[38;5;245m24[0m[0m[2m[38;5;245m)[0m
+    at [0m[2m[38;5;245mfile:///dev-server/[0m[0m[36msupabase/functions/send-event-view-reminder/event-view-reminder_test.ts[0m:[0m[33m104[0m:[0m[33m26[0m
+
+[0m[1m[37m[41m FAILURES [0m
+
+source file no longer references dangerouslySetInnerHTML [0m[38;5;245m=> ./supabase/functions/send-event-view-reminder/event-view-reminder_test.ts:103:6[0m
+
+[0m[31mFAILED[0m | 80 passed | 1 failed [0m[38;5;245m(6s)[0m
+
+[0m[1m[31merror[0m: Test failed
+
+Stack backtrace:
+   0: anyhow::error::<impl anyhow::Error>::msg
+   1: deno::tools::test::report_tests::{{closure}}
+   2: <deno_unsync::tokio::task::MaskFutureAsSend<F> as core::future::future::Future>::poll
+   3: tokio::runtime::task::raw::poll
+   4: deno::main
+   5: std::sys::backtrace::__rust_begin_short_backtrace
+   6: main
+   7: __libc_start_call_main
+   8: __libc_start_main@GLIBC_2.2.5
+   9: _start
