@@ -4,34 +4,34 @@
 
 ## Why this exists
 
-Ignite already encrypts private names *on-device* using \`@icp-sdk/vetkeys\` and writes ciphertext to the original PII canister. The canister is **not** an automatic plaintext-encryption endpoint, and ChatGPT's private plugin is currently a **skills layer** attached to DFINITY's existing official ICP MCP plugin. Typing a real name as ordinary chat text would process plaintext through ChatGPT before client-side encryption.
+Ignite already encrypts private names *on-device* using `@icp-sdk/vetkeys` and writes ciphertext to the original PII canister. The canister is **not** an automatic plaintext-encryption endpoint, and ChatGPT's private plugin is currently a **skills layer** attached to DFINITY's existing official ICP MCP plugin. Typing a real name as ordinary chat text would process plaintext through ChatGPT before client-side encryption.
 
-This experiment demonstrates that the **existing** \`prepareEncryptedChatgptProfileName\` function can run in a browser-only entry screen. It does **not** demonstrate a private UI inside the ChatGPT iframe or a signed canister write.
+This experiment demonstrates that the **existing** `prepareEncryptedChatgptProfileName` function can run in a browser-only entry screen. It does **not** demonstrate a private UI inside the ChatGPT iframe or a signed canister write.
 
 ## What the proof actually does
 
 - Uses an invented sample name and a fixed **synthetic test principal/public verification key** from Ignite's existing crypto tests; the original DEV PII canister ID is used only as a scheme identifier.
-- Imports the **same original** \`@icp-sdk/vetkeys\` implementation from \`frontend/scripts/prepare-icp-chatgpt-private-name.mjs\`. Identity bytes remain \`principal + "\\u001f" + "display_name"\`; encryption uses existing IBE.
+- Imports the **same original** `@icp-sdk/vetkeys` implementation from `frontend/scripts/prepare-icp-chatgpt-private-name.mjs`. Identity bytes remain `principal + "\\u001f" + "display_name"`; encryption uses existing IBE.
 - Produces a ciphertext **in local memory only**, checks the plaintext is not embedded in its Candid arguments, and returns a display-only success bit and ciphertext byte count.
-- Does not expose the name, ciphertext, derived keys or Candid arguments to the DOM or tool outputs; makes no \`fetch\`, MCP call, signing call, \`postMessage\`, storage write or canister update; it discards its ciphertext buffer after the proof.
-- HTML adds a restrictive development CSP including \`connect-src 'none'\` and \`form-action 'none'\`. A real MCP Apps resource must separately declare the equivalent \`_meta.ui.csp\` restrictions (and verify effective browser/network behaviour).
+- Does not expose the name, ciphertext, derived keys or Candid arguments to the DOM or tool outputs; makes no `fetch`, MCP call, signing call, `postMessage`, storage write or canister update; it discards its ciphertext buffer after the proof.
+- HTML adds a restrictive development CSP including `connect-src 'none'` and `form-action 'none'`. A real MCP Apps resource must separately declare the equivalent `_meta.ui.csp` restrictions (and verify effective browser/network behaviour).
 - Does not require changing or duplicating Ignite's original adult-name authority, per-club name-key scheme, parent/child permissions, or any existing registered profile.
 
 ## Run locally with **synthetic data only**
 
-After the repository's pinned \`frontend\` dependencies are installed:
+After the repository's pinned `frontend` dependencies are installed:
 
-\`\`\`sh
+```sh
 cd frontend
 node --test scripts/chatgpt-vetkeys-name-poc.test.mjs
 node node_modules/vite/bin/vite.js build --config prototypes/chatgpt-vetkeys-name-poc/vite.config.mjs
-\`\`\`
+```
 
-The built static output is under \`frontend/prototypes/chatgpt-vetkeys-name-poc/dist/\` and is **not** part of the Ignite frontend or automatic DEV deployment. Only inspect the proof locally or in a controlled test browser. CI must not upload real names or keys.
+The built static output is under `frontend/prototypes/chatgpt-vetkeys-name-poc/dist/` and is **not** part of the Ignite frontend or automatic DEV deployment. Only inspect the proof locally or in a controlled test browser. CI must not upload real names or keys.
 
 ## Critical ChatGPT integration gate
 
-OpenAI's documented MCP Apps UI resources belong to an MCP server and use a hosted iframe bridge. An Ignite UI **is not automatically permitted to invoke DFINITY's separate authenticated tool** simply because the Ignite skill's \`.app.json\` references the existing official plugin. Do NOT invent a cross-plugin \`callTool\`, introduce an Ignite signing proxy, route Internet Identity credentials through a custom backend, or send the entered name through \`sendFollowUpMessage\` / model-visible structured content.
+OpenAI's documented MCP Apps UI resources belong to an MCP server and use a hosted iframe bridge. An Ignite UI **is not automatically permitted to invoke DFINITY's separate authenticated tool** simply because the Ignite skill's `.app.json` references the existing official plugin. Do NOT invent a cross-plugin `callTool`, introduce an Ignite signing proxy, route Internet Identity credentials through a custom backend, or send the entered name through `sendFollowUpMessage` / model-visible structured content.
 
 An acceptable in-ChatGPT architecture must be verified with DFINITY/OpenAI:
 
