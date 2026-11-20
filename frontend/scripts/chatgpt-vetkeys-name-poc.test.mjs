@@ -15,8 +15,16 @@ test('synthetic browser name encrypts with existing VetKeys helper but only retu
 });
 
 test('user input is validated by the original Ignite encryption helper', () => {
-  for (const bad of ['', '   ', 'X'.repeat(81)]) {
+  for (const bad of ['', '   ', 'X'.repeat(81), 'bad' + String.fromCharCode(10) + 'name', 'bad' + String.fromCharCode(0) + 'name', '😀'.repeat(81)]) {
     assert.throws(() => encryptInventedNameLocally(bad));
+  }
+});
+
+test('synthetic Unicode names encrypt safely without exposing inputs', () => {
+  for (const name of ['Coach 😀', '  Example Coach  ', 'Åsa Østberg']) {
+    const receipt = encryptInventedNameLocally(name);
+    assert.equal(receipt.encryptedLocally, true);
+    assert.equal(JSON.stringify(receipt).includes(name.trim()), false);
   }
 });
 
