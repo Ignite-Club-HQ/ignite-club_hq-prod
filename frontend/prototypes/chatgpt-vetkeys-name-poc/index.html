@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <!-- Standalone proof only. A real MCP Apps widget must also declare an
+       equally restrictive _meta.ui.csp at its serving MCP resource. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'none'; connect-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';">
+  <meta name="referrer" content="no-referrer"/>
+  <title>Ignite DEV — local VetKeys proof</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color-scheme: light; color: #18262d; background: #f4f7f9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; }
+    main { max-width: 480px; margin: 0 auto; padding: 24px; background: white; border-radius: 18px; border: 1px solid #d9e3e9; }
+    .eyebrow { letter-spacing: .09em; font-weight: 700; font-size: 12px; color: #3d6873; }
+    h1 { margin: 8px 0; font-size: 23px; line-height: 1.2; }
+    p { font-size: 14px; line-height: 1.5; }
+    .warning { padding: 12px; background: #fff6e7; border-radius: 10px; font-size: 13px; }
+    label { display: block; margin: 18px 0 7px; font-size: 14px; font-weight: 650; }
+    input { width: 100%; min-height: 45px; border-radius: 8px; border: 1px solid #93aab5; padding: 10px; font: inherit; }
+    button { margin-top: 14px; cursor: pointer; border: none; background: #16677b; color: white; font-weight: 600; padding: 12px 18px; border-radius: 10px; }
+    button:disabled { opacity: .65; cursor: default; }
+    #result { padding: 12px; margin-top: 14px; background: #eff6f7; min-height: 48px; border-radius: 10px; }
+    small { display:block; margin-top: 14px; color: #50646d; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="eyebrow">IGNITE CLUB HQ / DEV EXPERIMENT</span>
+    <h1>Test on-device name encryption</h1>
+    <p>This isolated proof uses Ignite's existing <strong>@icp-sdk/vetkeys</strong> encryption. It has no canister connection, signing ability, network calls, or ChatGPT bridge.</p>
+    <p class="warning"><strong>Use invented names only.</strong> This is not an approved secure registration form. The synthetic principal and demo public key are test fixtures, not your real account.</p>
+    <form id="demo-form" autocomplete="off" novalidate>
+      <label for="test-name">Invented display name</label>
+      <input id="test-name" name="test-name" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Example Coach" required/>
+      <button id="encrypt-button" type="submit">Test local encryption</button>
+    </form>
+    <output id="result" role="status" aria-live="polite">Nothing submitted. No data has been sent.</output>
+    <small>The ciphertext is discarded after this local test. No name, ciphertext, key or credentials are sent to ChatGPT or ICP. A full in-ChatGPT release needs an approved MCP Apps host-to-DFINITY handoff.</small>
+  </main>
+  <script type="module" src="./main.mjs"></script>
+</body>
+</html>

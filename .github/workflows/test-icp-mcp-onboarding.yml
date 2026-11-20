@@ -10,6 +10,8 @@ on:
       - "docs/integrations/icp-mcp-ignite-onboarding.md"
       - "scripts/icp-mcp-onboarding-doc.test.mjs"
       - "frontend/scripts/test-icp-mcp-onboarding-replica.mjs"
+      - "frontend/scripts/test-chatgpt-vetkeys-secure-form-replica.mjs"
+      - "frontend/prototypes/chatgpt-vetkeys-name-poc/**"
       - "frontend/scripts/prepare-icp-chatgpt-private-name.mjs"
       - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.mjs"
       - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs"
@@ -102,10 +104,11 @@ jobs:
         working-directory: frontend
         run: |
           node --test scripts/prepare-icp-chatgpt-private-name.test.mjs scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs scripts/plan-icp-chatgpt-existing-profile-name.test.mjs
-      - name: Compile disposable identity and club canisters (never deploy)
+      - name: Compile disposable identity, club and PII canisters (never deploy)
         run: |
           MOC="$HOME/.cache/mops/moc/1.16.1/moc"
           (cd backend/club_domain && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/club_domain.wasm src/main.mo)
+          (cd backend/pii_access_control && mops install && mkdir -p .mops/.build && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o .mops/.build/pii_access_control.wasm src/main.mo)
           cargo build --locked --release --target wasm32-unknown-unknown -p identity_access
       - name: Rehearse first-time signup and invitation with synthetic identities
         working-directory: frontend
@@ -115,6 +118,15 @@ jobs:
           IDENTITY_ACCESS_WASM="$R/target/wasm32-unknown-unknown/release/identity_access.wasm" \
           CLUB_DOMAIN_WASM="$R/backend/club_domain/.mops/.build/club_domain.wasm" \
           node scripts/test-icp-mcp-onboarding-replica.mjs
+
+      - name: Rehearse real VetKeys own-name crypto, signed synthetic registration and profile in PocketIC
+        working-directory: frontend
+        run: |
+          R="$GITHUB_WORKSPACE"
+          POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic" \
+          CHATGPT_NAME_IDENTITY_WASM="$R/target/wasm32-unknown-unknown/release/identity_access.wasm" \
+          CHATGPT_NAME_PII_WASM="$R/backend/pii_access_control/.mops/.build/pii_access_control.wasm" \
+          node scripts/test-chatgpt-vetkeys-secure-form-replica.mjs
 
       - name: Rehearse parent-owned child roster and admin-only access on disposable PocketIC
         working-directory: frontend
