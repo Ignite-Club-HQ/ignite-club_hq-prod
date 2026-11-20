@@ -14,6 +14,8 @@ on:
       - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.mjs"
       - "frontend/scripts/prepare-icp-chatgpt-profile-name-cli.mjs"
       - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs"
+      - "frontend/prototypes/chatgpt-vetkeys-name-poc/**"
+      - "frontend/scripts/chatgpt-vetkeys-name-poc.test.mjs"
       - ".github/workflows/test-icp-chatgpt-private-name.yml"
   workflow_dispatch:
 
@@ -45,6 +47,13 @@ jobs:
       - name: Validate own-profile name client encryption using synthetic principal
         working-directory: frontend
         run: node --test scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs
+      - name: Validate synthetic-only browser VetKeys form and bundle without network or account access
+        working-directory: frontend
+        run: |
+          node --test scripts/chatgpt-vetkeys-name-poc.test.mjs
+          node node_modules/vite/bin/vite.js build --config prototypes/chatgpt-vetkeys-name-poc/vite.config.mjs
+          test -f prototypes/chatgpt-vetkeys-name-poc/dist/index.html
+      # Proof output is local and never deployed, attached, or imported into the live app.
       # Copy only lockfile-pinned SDK runtime packages, not all node_modules.
       # Produces a portable offline runner without installing a new bundler.
       # Uses synthetic fixtures; no canisters, identities or PROD operations.
