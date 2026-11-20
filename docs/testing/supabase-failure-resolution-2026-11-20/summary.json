@@ -1,0 +1,14 @@
+{
+  "startedAt": "2026-11-20T06:45:16.982Z",
+  "finishedAt": "2026-11-20T07:01:22.872Z",
+  "status": "completed",
+  "results": [
+    {
+      "backendMode": "supabase",
+      "status": "passed",
+      "exitCode": 0,
+      "signal": null,
+      "log": "/dev-server/docs/testing/supabase-failure-resolution-2026-11-20/supabase.log"
+    }
+  ]
+}

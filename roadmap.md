@@ -1,8 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
 ## Full two-mode test run — 20 November
+- [x] Fresh full Supabase-mode rerun confirms the earlier fixture corrections resolve all four reported failures: 8,021 passed, 0 failed, 387 skipped (1,001 files passed, 9 skipped). Evidence: docs/testing/supabase-failure-resolution-2026-11-20. No additional runtime changes or running DEV/PROD changes.
 - [x] Resolved all five ICP application failures and two Rust fixture failures: full ICP rerun completed with 7,643 passed, 0 failed, 765 skipped (1,002 files passed, 8 skipped); Rust workspace 372 passed, 0 failed. Corrected tests also pass in Supabase mode. Evidence: docs/testing/icp-failure-resolution-2026-11-20. Running DEV and PROD unchanged.
-- [ ] Run the complete configured application suite in Supabase and ICP modes and record counts, failures and skips.
+- [x] Complete configured application suites recorded for both modes: Supabase 8,021 passed / 0 failed / 387 skipped; ICP 7,643 passed / 0 failed / 765 skipped. Durable evidence in the corresponding docs/testing failure-resolution directories.
 - [ ] Run isolated Supabase function tests; record unavailable live/device acceptance separately. No running DEV or PROD changes.
 
 ## Three DEV improvements — 18 November
