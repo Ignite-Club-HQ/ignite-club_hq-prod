@@ -30,7 +30,7 @@ Deno.test("rejects a purchase linked to another account", () => {
   assertThrows(() => checkAppleReceipt(ok({ expires_date_ms: "5000" }), "t1", "pro", B, now, "99999999-2222-5333-8444-555555555555"), Error, "not linked");
 });
 Deno.test("rejects a purchase with no account link", () => {
-  assertThrows(() => checkAppleReceipt(ok({ expires_date_ms: "5000", app_account_token: "" }), "t1", "pro", B, now), Error, "not linked");
+  assertThrows(() => checkAppleReceipt(ok({ expires_date_ms: "5000", app_account_token: "" }), "t1", "pro", B, now, T), Error, "not linked");
 });
 Deno.test("account token matches the app's derivation", async () => {
   assertEquals(await iapAccountToken("aaaaa-aa"), "7672e609-fcfd-5e38-9746-21afc967474b");

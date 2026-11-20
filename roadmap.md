@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Full two-mode test run — 20 November
+- [ ] Run the complete configured application suite in Supabase and ICP modes and record counts, failures and skips.
+- [ ] Run isolated Supabase function tests; record unavailable live/device acceptance separately. No running DEV or PROD changes.
+
 ## Three DEV improvements — 18 November
 - [x] Name-unlock route closings run together and pinned DEV sources share only overlapping full-registry confirmations; fresh checks, exact club keys and denied access retained.
 - [x] Invitation acceptance waits for child names but not optional birth-year/jersey grants; exact committed receipt and eight-second name cap retained, fast-completion timer cleared.
