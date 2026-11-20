@@ -10,7 +10,7 @@ const ctx = { identity, target: { host: 'https://dev.invalid', canisterIds: { ev
 const row = { id: 'event-1', club_id: 'club', title: 'Training', team_id: [] };
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.connect.mockResolvedValue({ actor: { list_events: mocks.list } });
+  mocks.connect.mockResolvedValue({ actor: { read_account_list_events: mocks.list } });
   mocks.list.mockResolvedValue([row]);
 });
 describe('schedule event read deduplication', () => {

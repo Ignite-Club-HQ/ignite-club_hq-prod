@@ -1,0 +1,14 @@
+{
+  "startedAt": "2026-11-20T06:13:37.413Z",
+  "finishedAt": "2026-11-20T06:36:46.087Z",
+  "status": "completed",
+  "results": [
+    {
+      "backendMode": "icp",
+      "status": "passed",
+      "exitCode": 0,
+      "signal": null,
+      "log": "/dev-server/docs/testing/icp-failure-resolution-2026-11-20/icp.log"
+    }
+  ]
+}

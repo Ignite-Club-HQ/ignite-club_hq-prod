@@ -4563,6 +4563,8 @@ mod tests {
     }
     #[test]
     fn lost_principal_index_self_heals_only_for_listed_owner() {
+        // Recovery reads CoreState, populated by canister installation.
+        init(Init { governor: principal(190) });
         let owner = principal(170);
         let id = ensure_account(owner).unwrap();
         deindex_principal(owner);
@@ -4621,6 +4623,7 @@ mod tests {
     }
     #[test]
     fn erased_original_never_reattaches() {
+        init(Init { governor: principal(190) });
         let user = principal(178);
         let original = Account { id: account_id(user), principals: vec![principal(179)], version: 1, status: AccountStatus::Active };
         put_account(&original);
