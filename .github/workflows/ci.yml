@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
@@ -21,6 +23,16 @@ jobs:
         run: node --test scripts/icp-mcp-onboarding-doc.test.mjs
       - name: Verify limited application-only release behaviors
         run: node --test scripts/app-release-scope.test.mjs
+      - name: Assert application-only PROD PR schedules zero ICP backend upgrades
+        if: github.event_name == 'pull_request' && github.base_ref == 'prod'
+        run: |
+          set -euo pipefail
+          UPGRADES="$(node scripts/icp-environments.mjs changed prod "$GITHUB_SHA")"
+          if [ -n "$UPGRADES" ]; then
+            echo "::error::This PROD PR would automatically upgrade canisters: $UPGRADES"
+            exit 1
+          fi
+          echo "Verified: zero PROD backend canister upgrades scheduled by the per-canister release receipts."
       # Offline source consistency only; live target checks remain in promotion.
       - name: Install pinned offline SQL parser for PROD PR
         if: github.base_ref == 'prod'
