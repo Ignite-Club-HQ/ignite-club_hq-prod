@@ -16,6 +16,7 @@ on:
       - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs"
       - "frontend/prototypes/chatgpt-vetkeys-name-poc/**"
       - "frontend/scripts/chatgpt-vetkeys-name-poc.test.mjs"
+      - "frontend/scripts/chatgpt-vetkeys-name-browser.test.mjs"
       - ".github/workflows/test-icp-chatgpt-private-name.yml"
   workflow_dispatch:
 
@@ -25,7 +26,7 @@ permissions:
 jobs:
   verify-local-vetkeys:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,6 +54,12 @@ jobs:
           node --test scripts/chatgpt-vetkeys-name-poc.test.mjs
           node node_modules/vite/bin/vite.js build --config prototypes/chatgpt-vetkeys-name-poc/vite.config.mjs
           test -f prototypes/chatgpt-vetkeys-name-poc/dist/index.html
+      - name: Install pinned Playwright Chromium for real client-side crypto smoke test
+        working-directory: frontend
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Verify real browser encrypts synthetic input without off-origin requests
+        working-directory: frontend
+        run: node --test scripts/chatgpt-vetkeys-name-browser.test.mjs
       # Proof output is local and never deployed, attached, or imported into the live app.
       # Copy only lockfile-pinned SDK runtime packages, not all node_modules.
       # Produces a portable offline runner without installing a new bundler.
