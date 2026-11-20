@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Fresh baseline suites — 20 November, 07:09 UTC
+- [ ] Run the complete configured application baseline in both Supabase and ICP modes and preserve counts, failures and skips.
+- [ ] Run isolated Supabase function and Rust workspace baselines; record limits separately. No live DEV/PROD changes or deployments.
+
 ## Full two-mode test run — 20 November
 - [x] Fresh full Supabase-mode rerun confirms the earlier fixture corrections resolve all four reported failures: 8,021 passed, 0 failed, 387 skipped (1,001 files passed, 9 skipped). Evidence: docs/testing/supabase-failure-resolution-2026-11-20. No additional runtime changes or running DEV/PROD changes.
 - [x] Resolved all five ICP application failures and two Rust fixture failures: full ICP rerun completed with 7,643 passed, 0 failed, 765 skipped (1,002 files passed, 8 skipped); Rust workspace 372 passed, 0 failed. Corrected tests also pass in Supabase mode. Evidence: docs/testing/icp-failure-resolution-2026-11-20. Running DEV and PROD unchanged.
