@@ -29,6 +29,12 @@ node node_modules/vite/bin/vite.js build --config prototypes/chatgpt-vetkeys-nam
 
 The built static output is under `frontend/prototypes/chatgpt-vetkeys-name-poc/dist/` and is **not** part of the Ignite frontend or automatic DEV deployment. Only inspect the proof locally or in a controlled test browser. CI must not upload real names or keys.
 
+## Disposable cryptographic signup rehearsal (separate from UI)
+
+A dedicated, synthetic-only **real canister** acceptance test now lives at `frontend/scripts/test-chatgpt-vetkeys-secure-form-replica.mjs`. The `rehearse-onboarding` GitHub CI job compiles fresh local PII and identity canisters, then exercises owner-only VetKeys ciphertext registration, exact readback, live-derived key and genuine local decrypt, outsider/tamper refusal, private-name profile-reference write and separate simulated legal consent. The test uses PocketIC, not DEV mainnet or PROD. Its identity canister does not release production secure-name enforcement; that gate and an authenticated ChatGPT widget still require separate live verification.
+
+The actual DFINITY/OpenAI UI-and-signing interface request is fully specified at `docs/integrations/dfinity-chatgpt-vetkeys-secure-form-handoff.md`, including a proposed same-server `ui://` resource, trust boundaries, signed tool flow and required answers. It is an engineering contract, **not an implemented MCP server or an approved cross-plugin call**.
+
 ## Critical ChatGPT integration gate
 
 OpenAI's documented MCP Apps UI resources belong to an MCP server and use a hosted iframe bridge. An Ignite UI **is not automatically permitted to invoke DFINITY's separate authenticated tool** simply because the Ignite skill's `.app.json` references the existing official plugin. Do NOT invent a cross-plugin `callTool`, introduce an Ignite signing proxy, route Internet Identity credentials through a custom backend, or send the entered name through `sendFollowUpMessage` / model-visible structured content.
