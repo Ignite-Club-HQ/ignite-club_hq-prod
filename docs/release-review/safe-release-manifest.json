@@ -333,6 +333,30 @@
       "sha256": "84c18a5ef114c16816e4380487a4403292961a1e5919cb4fe51976f903b4ea21",
       "disposition": "candidate",
       "reason": "Owner-approved 12 Nov 2026 (Paul): competition chat vault pins; structure-only constraint and policies, no data writes"
+    },
+    {
+      "file": "20261116085314_683fa371-acd8-47b9-b075-dfb0ab364037.sql",
+      "sha256": "8a6d38db5ea976df07f6e291922683b12c20811d28b1fc657e65cea54471dbbb",
+      "disposition": "hold",
+      "reason": "Held: 16 Nov email-signup/parent-invite access function rewrites; separate security and PROD target-dependent review required; no approval to execute"
+    },
+    {
+      "file": "20261116085410_2513732e-4dfa-47f6-95c3-2286246d2fbf.sql",
+      "sha256": "76b59a34224abc2a8badc3a120e304441b1d71ffea7eca97423674c6e98d643b",
+      "disposition": "hold",
+      "reason": "Held: 16 Nov email-signup refusal function replacement; separate security and PROD target-dependent review required; no approval to execute"
+    },
+    {
+      "file": "20261116085524_4b841888-bc21-4ad7-a0a7-46a281a453f5.sql",
+      "sha256": "3f351cef36bd88205ef10294ec8dad5db13c048dc176d1295b4fc2482b038bf5",
+      "disposition": "hold",
+      "reason": "Held: 16 Nov invitation claimant function rewrites; separate security and PROD target-dependent review required; no approval to execute"
+    },
+    {
+      "file": "20261116085655_e85f1309-b328-4abb-a5d8-08714960627e.sql",
+      "sha256": "fec51a7b79ba4f1fd3ee7e2097308bda1df20c06052dbca97bab70d81636f70a",
+      "disposition": "hold",
+      "reason": "Held: DEV-only fixture INSERTs into pending_invites; must not run against PROD; no approval to execute"
     }
   ]
 }
