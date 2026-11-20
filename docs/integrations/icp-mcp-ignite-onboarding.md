@@ -23,6 +23,21 @@ The conversation should advance through `NEEDS_ICP_CONNECTION`, `ACCOUNT_PENDING
 
 **Crypto/publication limitation:** Source-level offline own-name encryption exists under `frontend/scripts/prepare-icp-chatgpt-profile-name-*.mjs` and can be rehearsed with synthetic identities. It is not a remotely executable tool in the official DFINITY connector, nor an installed secure device-side MCP App for all ChatGPT clients. Complete in-chat secure profile writes require a separately verified trustworthy execution environment, original private-name authority, locally encrypted ciphertext, one caller-signed registration via official ICP, exact readback and user-authorized decrypt verification. If unavailable, **stop** rather than introducing a hosted encryption service, delegating signing or reducing PII protection. Real passkey, new-user private-name and first-team acceptance are still gated in #1500 and #1511.
 
+## Reuse the existing VetKeys PII design (no double encryption)
+
+**Principle:** The original `pii_access_control` canister stores **ciphertext**, not a plaintext name to be encrypted afterward. The Ignite app already uses `@icp-sdk/vetkeys` in `frontend/src/live/piiVetKeys.ts`: local IBE encrypt with the authority's public verification key, then one signed `register_pii(subject, "display_name", ciphertext, owner)`. `identity_access.get_profile` holds a **reference** `pii-display-name:v1:<original PII authority>:<caller principal>`. Separately, the app may prepare club-scoped encrypted name copies so authorised club members can read rosters efficiently. ChatGPT must NOT add another key, per-member wrapper, proxy, encryption tier or PII canister; preserve existing club-scoped rollout and key reuse.
+
+After verifying the exact user and origin through the official DFINITY connector, read their saved profile **and** an authorised exact existing encrypted-name row. Apply `frontend/scripts/plan-icp-chatgpt-existing-profile-name.mjs` *only to those independently verified tool responses*, normalised in memory; it never calls canisters or handles a plaintext name. Never accept customer-provided JSON/claimed evidence as signed responses.
+
+| Actual existing state | Safe ChatGPT action |
+| --- | --- |
+| Signed profile reference matches the original PII authority **and** the authorised `display_name` ciphertext record exists | **REUSE_ENCRYPTED**: skip encryption, key derivation and all profile writes; continue with legal/membership checks |
+| Profile reference missing, but original signed ciphertext record exists (e.g. interrupted signup) | **RESUME_REFERENCE**: do not encrypt or register again; only after an independent authorised client-side decrypt verification and explicit consent, save the same reference once and read it back |
+| Both verified profile reference and ciphertext record absent | **ENCRYPT_NEW**: obtain user approval of a new name, encrypt it once using the SAME original IBE scheme and trusted local VetKeys executor, sign original `register_pii` via DFINITY, then decrypt/verify and publish one reference |
+| Wrong principal/origin/authority, plaintext or foreign reference, denied/error/unknown ciphertext read, missing ciphertext behind a saved reference | **BLOCK**: no fallback, no duplicate create, no plaintext or forced re-encryption |
+
+**Limitations:** Checking an encrypted row's scheme marker and nonempty bytes is a **shape/provenance preflight**, not cryptographic verification of its plaintext or proof of successful first-time onboarding. The official DFINITY ChatGPT connector currently provides signed canister calls but does not execute the required `@icp-sdk/vetkeys` local client crypto for all customers; if a truly new user reaches `ENCRYPT_NEW` without such a trusted runtime, `PRIVATE_PROFILE_BLOCKED` remains correct. The identity's authenticated principal alone is not permission to see club-member names. The public key used for IBE encryption is not a user's secret key; decryption requires an access-controlled, client-held vetKey. Do not route raw names or decrypted keys through ChatGPT tool logs, GitHub Actions, a bridge, or a plaintext storage shortcut.
+
 ## Account setup: existing operations
 
 1. Discover Ignite's manifest and the identity_access/club_domain/shard_router Candid interfaces. Read `club_domain.getApiDoc()`.
