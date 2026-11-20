@@ -21,8 +21,13 @@ describe('DEV ICP push boundary', () => {
 });
 import { groupPushQueues as __groupPushQueues } from './icpPushMode';
 describe('second member group alert registration', () => {
-  it('LIVE phones also register on the second group queue; TEST does not', () => {
-    expect(__groupPushQueues({ canisterIds: { notification_queue: 'w263o-3aaaa-aaaai-ayesq-cai' } })).toEqual(['zu4gk-vqaaa-aaaal-qxp5a-cai']);
+  it('keeps PROD Base registration intact while holding G2 until separate production approval', () => {
+    expect(usesDevIcpPush()).toBe(true);
+    expect(__groupPushQueues({ canisterIds: { notification_queue: 'w263o-3aaaa-aaaai-ayesq-cai' } })).toEqual([]);
     expect(__groupPushQueues({ canisterIds: { notification_queue: 'jfcdq-yiaaa-aaaal-qxloa-cai' } })).toEqual([]);
+  });
+  it('never sends PROD phone tokens to the DEV Group 2 notification queue', () => {
+    const queue = __groupPushQueues({ canisterIds: { notification_queue: 'w263o-3aaaa-aaaai-ayesq-cai' } });
+    expect(queue).not.toContain('zu4gk-vqaaa-aaaal-qxp5a-cai');
   });
 });
