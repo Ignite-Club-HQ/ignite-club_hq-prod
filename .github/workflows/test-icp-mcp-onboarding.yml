@@ -13,6 +13,8 @@ on:
       - "frontend/scripts/prepare-icp-chatgpt-private-name.mjs"
       - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.mjs"
       - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs"
+      - "frontend/scripts/plan-icp-chatgpt-existing-profile-name.mjs"
+      - "frontend/scripts/plan-icp-chatgpt-existing-profile-name.test.mjs"
       - "frontend/scripts/prepare-icp-chatgpt-private-name.test.mjs"
       - "frontend/scripts/iiOriginPolicy.mjs"
       - "frontend/scripts/iiOriginPolicy.test.mjs"
@@ -99,7 +101,7 @@ jobs:
       - name: Verify offline secure-profile encryption and strict DEV connector provenance
         working-directory: frontend
         run: |
-          node --test scripts/prepare-icp-chatgpt-private-name.test.mjs scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs
+          node --test scripts/prepare-icp-chatgpt-private-name.test.mjs scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs scripts/plan-icp-chatgpt-existing-profile-name.test.mjs
       - name: Compile disposable identity and club canisters (never deploy)
         run: |
           MOC="$HOME/.cache/mops/moc/1.16.1/moc"
