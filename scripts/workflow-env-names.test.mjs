@@ -47,7 +47,7 @@ test('only explicitly allowlisted PROD setup, checks, promotion, funding and iso
   const prod = workflows.filter(({ name }) => name.startsWith('[PROD] '));
   assert.deepEqual(prod.map(({ file }) => file).sort(),
     ['apply-prod-lifecycle-wiring.yml', 'check-prod-canister-connections.yml', 'check-prod-routing-gates.yml', 'create-prod-second-group.yml', 'execute-prod-cycles-topup.yml', 'fund-prod-canisters-by-card.yml', 'icp-push-deliver-prod.yml',
-      'link-prod-account-service.yml', 'prod-app-admin.yml', 'prod-native-push-sender.yml', 'prod-sign-in-routing.yml',
+      'link-prod-account-service.yml', 'prod-app-admin.yml', 'prod-native-push-rollout.yml', 'prod-native-push-sender.yml', 'prod-sign-in-routing.yml',
       'plan-prod-cycles-topup.yml', 'plan-prod-second-group.yml', 'prod-create-governor.yml', 'prod-create-push-key.yml', 'promote-icp-prod.yml',
       'register-prod-second-group.yml', 'reload-prod-member-services.yml', 'prod-enable-secure-name-save.yml', 'check-prod-group-opening.yml', 'open-prod-group.yml', 'publish-prod-routing-approval.yml', 'set-prod-group-settings.yml', 'setup-prod-base-group.yml',
       'check-prod-control-record.yml', 'prod-activate-protections.yml', 'prod-create-account-approval-key.yml', 'prod-enable-member-access.yml', 'prod-setup-safeguard.yml', 'prod-verify-account-approval-key.yml'].sort());
@@ -62,6 +62,24 @@ test('only explicitly allowlisted PROD setup, checks, promotion, funding and iso
       assert.match(runner, /GITHUB_REF/);
       assert.match(runner, /refs\/heads\/(main|prod)/);
       assert.match(runner, /IGNITE_ICP_ENV[^\n]*prod/);
+      continue;
+    }
+    // Explicitly permit the existing manual PROD governor workflow only after
+    // proving it cannot enable all-member delivery or target the DEV G2 queue.
+    if (workflow.file === 'prod-native-push-rollout.yml') {
+      assert.match(workflow.text, /workflow_dispatch:/);
+      assert.doesNotMatch(workflow.text, /^\s*(?:push|schedule|pull_request):/m);
+      assert.match(workflow.text, /options: \[inspect, disable\]/);
+      assert.match(workflow.text, /test "\$GITHUB_REF" = 'refs\/heads\/prod'/);
+      assert.match(workflow.text, /scripts\/prod-native-push-rollout\.mjs/);
+      const runner = readFileSync(path.join(ROOT, 'scripts/prod-native-push-rollout.mjs'), 'utf8');
+      assert.match(runner, /assertSafeProdPushTargets\(\)/);
+      assert.match(runner, /if \(action === 'enable'\) throw/);
+      assert.match(runner, /'vnmx4-kyaaa-aaaai-aye2a-cai'/);
+      assert.doesNotMatch(runner, /LIVE_GROUP_QUEUES\s*=\s*\['zu4gk-vqaaa-aaaal-qxp5a-cai'\]/);
+      const client = readFileSync(path.join(ROOT, 'frontend/src/live/icpPushMode.ts'), 'utf8');
+      assert.match(client, /LIVE_GROUP_PUSH_QUEUES: readonly string\[\] = \[\]/);
+      assert.doesNotMatch(client, /LIVE_GROUP_PUSH_QUEUES: readonly string\[\] = \['zu4gk-vqaaa-aaaal-qxp5a-cai'\]/);
       continue;
     }
     if (workflow.file === 'prod-native-push-sender.yml') {
