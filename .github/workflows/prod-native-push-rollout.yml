@@ -1,16 +1,16 @@
 name: "[PROD] Native push for all members (switch)"
-# Governor-only on/off switch for all-member native push on the live alert queue.
-# inspect reads only. enable/disable need the exact confirmation phrase.
+# Governor-only read-only inspection or emergency disable on PROD native push.
+# All-member enable remains held until the separately approved infrastructure rollout.
 on:
   workflow_dispatch:
     inputs:
       action:
-        description: "inspect reads only; enable turns alerts on for all members; disable returns to pilot only"
+        description: "inspect reads only; disable is the emergency OFF switch. Enable is held."
         type: choice
         default: inspect
-        options: [inspect, enable, disable]
+        options: [inspect, disable]
       confirmation:
-        description: "enable: ENABLE PUSH FOR ALL MEMBERS; disable: DISABLE PUSH FOR ALL MEMBERS"
+        description: "disable: DISABLE PUSH FOR ALL MEMBERS"
         required: false
 permissions:
   contents: read
