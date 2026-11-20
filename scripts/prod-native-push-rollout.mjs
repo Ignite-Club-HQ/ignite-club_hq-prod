@@ -1,18 +1,52 @@
 // Governor-only switch for all-member native push on the live alert queue.
-// inspect reads only; enable/disable call configure_native_push_rollout with the
-// queue's currently bound sender, then read the state back.
+// inspect reads only; disable is the emergency off-switch.
+// Enabling all-member native push stays held until the separate PROD rollout.
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { identityFromPem } from './prod-connection-check.mjs';
 
 export const LIVE_QUEUE = 'w263o-3aaaa-aaaai-ayesq-cai';
 // Second member group's queue: commissioned with the base queue's own sender.
-export const LIVE_GROUP_QUEUES = ['zu4gk-vqaaa-aaaal-qxp5a-cai'];
+export const LIVE_GROUP_QUEUES = Object.freeze(['vnmx4-kyaaa-aaaai-aye2a-cai']);
+const PROD_ROUTER_ID = 'tgfbl-qiaaa-aaaai-ayena-cai';
 export const CONFIRMATIONS = { enable: 'ENABLE PUSH FOR ALL MEMBERS', disable: 'DISABLE PUSH FOR ALL MEMBERS' };
 
 export function assertRequest(action, confirmation) {
   if (!['inspect', 'enable', 'disable'].includes(action)) throw new Error('Only inspect, enable or disable supported');
+  if (action === 'enable') throw new Error('All-member PROD native push enable is held until an independently approved PROD G2 security release');
   if (action !== 'inspect' && confirmation !== CONFIRMATIONS[action]) throw new Error(`Exact confirmation required: ${CONFIRMATIONS[action]}`);
+}
+
+/** Match pinned PROD group identities to the reviewed governor-signed routing snapshot.
+ * An unreviewed snapshot change must block any manual governor action.
+ */
+export function readProdPushSnapshot() {
+  const source = readFileSync(new URL('../frontend/src/live/generated/routingGates.ts', import.meta.url), 'utf8');
+  const start = source.indexOf('= {');
+  const end = source.lastIndexOf(';');
+  if (start < 0 || end <= start) throw new Error('PROD routing snapshot not parseable; refusing push action');
+  return JSON.parse(source.slice(start + 2, end).trim());
+}
+
+export function assertSafeProdPushTargets(snapshot = readProdPushSnapshot()) {
+  if (snapshot?.approved !== true || snapshot.targetAlias !== 'mainnet' ||
+      snapshot.host !== 'https://icp-api.io' || snapshot.routerCanisterId !== PROD_ROUTER_ID ||
+      !Array.isArray(snapshot.groups) || snapshot.groups.length !== 2 ||
+      snapshot.groups.map(g => g.id).sort().join(',') !== 'base,g2') {
+    throw new Error('PROD routing topology does not match the reviewed base/G2 snapshot');
+  }
+  const queue = id => {
+    const domains = snapshot.groups.find(g => g.id === id)?.domains;
+    if (!Array.isArray(domains)) throw new Error('PROD group domains unavailable');
+    const matches = domains.filter(d => d.domain === 'notification_queue');
+    if (matches.length !== 1) throw new Error('PROD notification queue identity is missing or ambiguous');
+    return matches[0].canisterId;
+  };
+  if (queue('base') !== LIVE_QUEUE || queue('g2') !== LIVE_GROUP_QUEUES[0] ||
+      LIVE_GROUP_QUEUES.length !== 1 || new Set([LIVE_QUEUE, ...LIVE_GROUP_QUEUES]).size !== 2) {
+    throw new Error('PROD native push queue mismatch; refusing all governor actions');
+  }
+  return true;
 }
 
 export const idlFactory = ({ IDL }) => IDL.Service({
@@ -25,6 +59,7 @@ export const idlFactory = ({ IDL }) => IDL.Service({
 async function main() {
   const env = process.env;
   assertRequest(env.ROLLOUT_ACTION, env.CONFIRMATION);
+  assertSafeProdPushTargets();
   const require = createRequire(`${env.CHECK_DEPS_DIR}/package.json`);
   const { HttpAgent, Actor } = require('@icp-sdk/core/agent');
   const { Ed25519KeyIdentity } = require('@icp-sdk/core/identity');
