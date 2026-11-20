@@ -8,9 +8,11 @@ export const DEV_PUSH_IDENTITY = 'mq2sj-fiaaa-aaaal-qxlqa-cai';
 // LIVE base queue + identity (the LIVE sender delivers only to its allowlist).
 export const LIVE_PUSH_QUEUE = 'w263o-3aaaa-aaaai-ayesq-cai';
 export const LIVE_PUSH_IDENTITY = 'wb3hl-byaaa-aaaai-ayeqa-cai';
-// LIVE second member group's queue. Phones also register here so that group's
-// alerts can find them; the base queue stays the primary registration.
-export const LIVE_GROUP_PUSH_QUEUES: readonly string[] = ['zu4gk-vqaaa-aaaal-qxp5a-cai'];
+// PROD G2 token registration is intentionally held until the separate, reviewed
+// admission/native-push rollout. Never route PROD devices to DEV G2. Base queue
+// registration remains unchanged; a future release must attest the real PROD
+// G2 canister before enabling cross-group phone registration.
+export const LIVE_GROUP_PUSH_QUEUES: readonly string[] = [];
 export function groupPushQueues(target: { canisterIds: Record<string, string> }): readonly string[] {
   return target.canisterIds.notification_queue === LIVE_PUSH_QUEUE ? LIVE_GROUP_PUSH_QUEUES : [];
 }
