@@ -26,6 +26,62 @@ class DocumentWiring(unittest.TestCase):
             self.assertEqual(plugin.read_text().count('resolveActivity'), 1)
             self.assertIn('ACTION_CREATE_DOCUMENT', (front / 'native/NativeFileExportPlugin.java').read_text())
 
+    def test_pristine_capacitor_android_scaffold_registers_all_native_plugins(self):
+        # A clean Capacitor MainActivity has no onCreate() until status-bar
+        # configuration generates one. Reproduce that exact starting state.
+        spec = importlib.util.spec_from_file_location('statusbar', ROOT / 'scripts/configure-android-status-bar.py')
+        statusbar = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(statusbar)
+        spec = importlib.util.spec_from_file_location('foregroundpush', ROOT / 'scripts/configure-icp-foreground-push.py')
+        push = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(push)
+
+        with tempfile.TemporaryDirectory() as directory:
+            front = Path(directory)
+            def write(path, value):
+                p = front / path; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(value); return p
+            shutil.copytree(ROOT / 'frontend/native', front / 'native')
+            activity = write('android/app/src/main/java/app/lovable/igniteteamhub/MainActivity.java',
+                             'package app.lovable.igniteteamhub;\nimport com.getcapacitor.BridgeActivity;\n'
+                             'public class MainActivity extends BridgeActivity {}\n')
+            write('android/app/src/main/res/values/styles.xml',
+                  '<resources><style name="AppTheme"/><style name="AppTheme.NoActionBar"/>'
+                  '<style name="AppTheme.NoActionBarLaunch"/></resources>')
+            write('android/app/src/main/assets/capacitor.plugins.json', '[{"classpath":"FileOpenerPlugin"}]')
+            write('android/app/src/main/AndroidManifest.xml', '<manifest><application /></manifest>')
+            write('android/app/build.gradle', 'dependencies {\n}\n')
+            write('node_modules/@capacitor-community/file-opener/android/src/main/java/com/ryltsov/alex/plugins/file/opener/FileOpenerPlugin.java',
+                  'if (openWithDefault) { }')
+            statusbar.configure(front)
+            module.configure(front, 'android')
+            push.configure(front)
+            content = activity.read_text()
+            registrations = [
+                'registerPlugin(StatusBarBackdropPlugin.class);',
+                'registerPlugin(app.ignite.documents.NativeFileExportPlugin.class);',
+                'registerPlugin(IcpForegroundPushPlugin.class);',
+            ]
+            for registration in registrations:
+                self.assertEqual(content.count(registration), 1)
+                self.assertLess(content.index(registration), content.index('super.onCreate('))
+            self.assertIn('compileOnly "com.google.firebase:firebase-messaging:',
+                          (front / 'android/app/build.gradle').read_text())
+            self.assertTrue((activity.parent / 'IcpForegroundPushPlugin.java').is_file())
+
+    def test_both_codemagic_android_scaffolds_preserve_required_plugin_order(self):
+        workflow = (ROOT / 'codemagic.yaml').read_text()
+        for name, next_name in [('android-debug', 'android-workflow'), ('android-workflow', 'ios-debug')]:
+            section = workflow.split('  ' + name + ':', 1)[1].split('  ' + next_name + ':', 1)[0]
+            commands = [
+                'python3 ../scripts/configure-android-status-bar.py',
+                'python3 ../scripts/configure-native-documents.py android',
+                'python3 ../scripts/configure-icp-foreground-push.py',
+            ]
+            for command in commands:
+                self.assertEqual(section.count(command), 1, name + ' must configure each plugin once')
+            self.assertTrue(all(section.index(a) < section.index(b) for a, b in zip(commands, commands[1:])),
+                            name + ' must create the Android onCreate hook before document registration')
+
     def test_ios_registration_and_export_are_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
             front = Path(directory)
