@@ -25,6 +25,12 @@ import { readInvitePreview } from "./invitePreview";
 beforeEach(() => { state.backend = "supabase"; });
 
 describe("signed-out team invitation preview backend isolation", () => {
+  it("resolves ICP pending invitations anonymously on an email-default device", async () => {
+    const supabase = vi.fn();
+    const icp = vi.fn(async (ctx: any) => ctx.target.canisterIds.club_domain === "g2" ? { id: "pinv-member", club_id: "club" } : null);
+    expect(await readInvitePreview("pinv-member", { supabase, icp })).toEqual({ id: "pinv-member", club_id: "club" });
+    expect(supabase).not.toHaveBeenCalled();
+  });
   it("uses anonymous ICP lookup for an explicit on-chain invite despite email default", async () => {
     const supabase = vi.fn(async () => ({ source: "email" }));
     const icp = vi.fn(async (ctx: any) => ctx.target.canisterIds.club_domain === "g2"

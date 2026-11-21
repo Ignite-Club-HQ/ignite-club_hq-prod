@@ -50,6 +50,22 @@ import { withFeatureBackend } from "./featureRouter";
 import { FEATURE_AREAS } from "./featureBackend";
 
 describe("withFeatureBackend", () => {
+  it("never creates a new email club, including for a legacy member", async () => {
+    mocks.isSignedInWithEmail.mockReturnValue(true);
+    const supabase = vi.fn();
+    const icp = vi.fn();
+    await expect(withFeatureBackend("membership", { supabase, icp }, { newClubId: "new-club" })).rejects.toThrow("New clubs require Internet Identity");
+    expect(supabase).not.toHaveBeenCalled();
+    expect(icp).not.toHaveBeenCalled();
+  });
+
+  it.each(["966bdaec-ebf1-46da-b2b3-cc53bf05c422", "493ee2e3-c834-487d-93be-d1c8a0dbc4a8"])("preserves legacy team writes for %s", async clubId => {
+    mocks.isSignedInWithEmail.mockReturnValue(true);
+    const supabase = vi.fn(async () => "legacy-team");
+    expect(await withFeatureBackend("membership", { supabase, icp: vi.fn() }, { clubId })).toBe("legacy-team");
+    expect(supabase).toHaveBeenCalledTimes(1);
+  });
+
   beforeEach(() => {
     localStorage.clear();
     mocks.getEffectiveBackendForFeature.mockReset();

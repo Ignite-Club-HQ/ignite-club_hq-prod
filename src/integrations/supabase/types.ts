@@ -11227,6 +11227,7 @@ export type Database = {
         Args: { _invite_id: string }
         Returns: Json
       }
+      accept_legacy_club_invite: { Args: { _token: string }; Returns: Json }
       accept_parent_team_invite: {
         Args: { _invite_id?: string; _invite_token?: string }
         Returns: Json
@@ -13134,6 +13135,24 @@ export type Database = {
         }
         Returns: undefined
       }
+      onboarding_can_create_child: {
+        Args: { _parent: string; _uid: string }
+        Returns: boolean
+      }
+      onboarding_can_manage_child: {
+        Args: { _child: string; _uid: string }
+        Returns: boolean
+      }
+      onboarding_can_manage_role: {
+        Args: {
+          _club: string
+          _role: Database["public"]["Enums"]["app_role"]
+          _team: string
+          _uid: string
+        }
+        Returns: boolean
+      }
+      onboarding_platform_admin: { Args: { _uid: string }; Returns: boolean }
       post_chat_photo_gallery_reminder: {
         Args: {
           _author_id: string

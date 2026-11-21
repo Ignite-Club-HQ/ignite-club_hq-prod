@@ -75,6 +75,8 @@ function SupabaseShortInviteRedirect() {
   const { code } = useParams<{ code: string }>();
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     // Reset transient state whenever the route's short code changes so a
@@ -82,6 +84,7 @@ function SupabaseShortInviteRedirect() {
     // never leaks into the render for the current code.
     setInviteToken(null);
     setNotFound(false);
+    setFailed(false);
 
     if (!code) {
       setNotFound(true);
@@ -94,6 +97,14 @@ function SupabaseShortInviteRedirect() {
     let cancelled = false;
 
     const resolve = async () => {
+      try {
+      const [{ getActiveIcpTarget }, { resolvePublicInviteCode }] = await Promise.all([
+        import("@/live/targetRegistry"), import("@/live/invitePublicRead"),
+      ]);
+      // Definitive absence permits legacy lookup; ICP transport loss does not.
+      const onChain = await resolvePublicInviteCode(getActiveIcpTarget(), resolvingCode);
+      if (cancelled) return;
+      if (onChain) { setInviteToken(onChain); return; }
       const { data, error } = await supabase.rpc("resolve_invite_short_code", {
         _code: resolvingCode,
       });
@@ -106,6 +117,9 @@ function SupabaseShortInviteRedirect() {
       }
 
       setInviteToken(data as string);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
     };
 
     resolve();
@@ -113,7 +127,9 @@ function SupabaseShortInviteRedirect() {
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, attempt]);
+
+  if (failed) return <div className="min-h-screen flex flex-col items-center justify-center gap-4"><p>Couldn’t open this invitation.</p><Button onClick={() => setAttempt(a => a + 1)}>Try again</Button></div>;
 
   if (notFound) {
     return <Navigate to="/auth" replace />;

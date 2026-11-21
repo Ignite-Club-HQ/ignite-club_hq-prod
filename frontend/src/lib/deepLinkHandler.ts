@@ -7,6 +7,8 @@ import {
   markLaunchUrlReceived,
 } from '@/lib/nativeLaunchIntent';
 import { abandonPendingNotificationNavigation } from '@/lib/notificationLaunchHandler';
+import { strictIcpActive } from '@/live/strictIcpTransport';
+import { toast } from '@/hooks/use-toast';
 
 /**
  * Initialize deep link handling for native apps
@@ -101,6 +103,11 @@ async function handleDeepLinkUrl(rawUrl: string) {
       
       // PKCE flow returns code in search params
       const code = searchParams.get('code');
+      if ((code || (accessToken && refreshToken)) && strictIcpActive()) {
+        // A stale email callback is not permission to replace a secure account.
+        toast({ title: "This link is for email sign-in", description: "Switch to email sign-in, then reopen this link. Your secure account is unchanged." });
+        return;
+      }
       
       if (accessToken && refreshToken) {
         console.log('[DeepLink] OAuth tokens found in hash, setting session...');

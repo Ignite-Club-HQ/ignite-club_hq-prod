@@ -581,7 +581,7 @@ const App = () => {
                 <Route path="/join/p/:token" element={<WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate>} />
                 <Route path="/j/:code" element={<WithDeepLinkGate><ShortInviteRedirect /></WithDeepLinkGate>} />
                 <Route path="/i/:code" element={<WithDeepLinkGate><ShortInviteRedirect /></WithDeepLinkGate>} />
-                <Route path="/join-club/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinClubPage /></WithDeepLinkGate></NativeOnlyGate>} />
+                <Route path="/join-club/:token" element={<WithDeepLinkGate><JoinClubPage /></WithDeepLinkGate>} />
                 <Route path="/signup-pro" element={<SignupProPage />} />
                 <Route path="/terms" element={<TermsOfServicePage />} />
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />

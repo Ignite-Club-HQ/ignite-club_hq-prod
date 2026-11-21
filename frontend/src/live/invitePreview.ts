@@ -9,7 +9,8 @@ export async function readInvitePreview<T>(token: string, providers: FeatureBack
   // A signed-out visitor may default to email auth even for a genuine on-chain
   // shareable team link. The caller opts into ICP preview ONLY for that
   // server-minted token format; this does not change their login or accept it.
-  if (resolveAuthBackend() !== "icp" && !options.forceIcp) return withFeatureBackend("membership", providers, { inviteToken: token });
+  const onChainToken = token.startsWith("pinv-") || /^tok-[a-f0-9]{32}$/.test(token);
+  if (resolveAuthBackend() !== "icp" && !options.forceIcp && !onChainToken) return withFeatureBackend("membership", providers, { inviteToken: token });
   const { AnonymousIdentity } = await import("@icp-sdk/core/agent");
   const identity = new AnonymousIdentity();
   const targets = [...new Map((await readFreshPublicTargets(getActiveIcpTarget())).map(t => [t.canisterIds.club_domain, t])).values()];

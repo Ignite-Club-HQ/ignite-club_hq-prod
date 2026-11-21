@@ -33,9 +33,15 @@ import { ISO_COUNTRY_CODES, countryName } from "@/lib/countries";
 import { getCurrentCountry } from "@/live/userCountry";
 import { clubCreationErrorMessage } from "@/lib/clubCreationError";
 
+import { NewClubAuthGate } from "@/components/NewClubAuthGate";
+
 const SPORTS = Object.keys(SPORT_EMOJIS);
 
 export default function CreateClubPage() {
+  return <NewClubAuthGate><IcpCreateClubPage /></NewClubAuthGate>;
+}
+
+function IcpCreateClubPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -253,86 +259,7 @@ export default function CreateClubPage() {
           return profile.id;
         },
         supabase: async () => {
-          // Check for duplicate club name
-          const { data: existingClub } = await supabase
-            .from("clubs")
-            .select("id")
-            .ilike("name", name.trim())
-            .maybeSingle();
-
-          if (existingClub) {
-            throw new Error("A club with this name already exists.");
-          }
-
-          // Create the club first (without logo)
-          const { data: club, error: clubError } = await supabase
-            .from("clubs")
-            .insert({
-              name: name.trim(),
-              description: description.trim() || null,
-              logo_url: null, // Will be updated after upload
-              sport: sport || null,
-              created_by: user!.id,
-              class_mode_enabled: isClassModeSport(sport),
-              home_country: homeCountry,
-              backend: "supabase",
-            } as any)
-            .select()
-            .single();
-
-          if (clubError) {
-            throw new Error(
-              clubError.message.includes("idx_unique_club_name")
-                ? "A club with this name already exists."
-                : "Failed to create club. Please try again.",
-            );
-          }
-
-          // Upload logo to storage if one was selected
-          if (logoFile) {
-            try {
-              const fileExt = logoFile.name.split('.').pop();
-              const fileName = `${club.id}/${Date.now()}.${fileExt}`;
-
-              const { error: uploadError } = await supabase.storage
-                .from('club-logos')
-                .upload(fileName, logoFile, { upsert: true });
-
-              if (uploadError) throw uploadError;
-
-              const { data: urlData } = supabase.storage
-                .from('club-logos')
-                .getPublicUrl(fileName);
-
-              // Update the club with the logo URL
-              await supabase
-                .from("clubs")
-                .update({ logo_url: urlData.publicUrl })
-                .eq("id", club.id);
-            } catch (error) {
-              console.error('Logo upload error:', error);
-              // Continue without logo - club is still created
-            }
-          }
-
-          // Assign creator as club_admin
-          const { error: roleError } = await supabase
-            .from("user_roles")
-            .insert({
-              user_id: user!.id,
-              role: "club_admin",
-              club_id: club.id,
-            });
-
-          if (roleError) {
-            toast({
-              title: "Warning",
-              description: "Club created but couldn't assign admin role.",
-              variant: "destructive",
-            });
-          }
-
-          return club.id as string;
+          throw new Error("New clubs require Internet Identity. Your existing email clubs are unchanged.");
         },
       }, creationScope);
 

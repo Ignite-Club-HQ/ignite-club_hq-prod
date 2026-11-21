@@ -192,11 +192,11 @@ describe("resolveAuthBackend with the ?auth= device override", () => {
     expect(resolveAuthBackend()).toBe("icp");
   });
 
-  it("?auth=icp cannot force ICP before canisters exist", () => {
+  it("an explicit ICP choice stays ICP when canisters are unavailable", () => {
     vi.stubEnv("IGNITE_LIVE_ICP_CANISTER_IDS_JSON", "{}");
     applyIcpAdminOverrides(null);
     setUrlSearch("?auth=icp");
-    expect(resolveAuthBackend()).toBe("supabase");
+    expect(resolveAuthBackend()).toBe("icp");
   });
 });
 

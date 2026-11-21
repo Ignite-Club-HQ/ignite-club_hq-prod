@@ -1,5 +1,14 @@
 # Roadmap — launch the live (PROD) system
 
+## Authentication and onboarding security — 21 November, DEV only
+- [x] Close privileged-role and child/guardian scope gaps: socket-only SQL rehearsal passed; DEV migration applied and definitions read back; ICP role policy and full club canister compile passed. No existing data cleanup or PROD changes.
+- [x] Require Internet Identity at new-club page/wizard/Pro entry points and newClubId dispatch; authenticated DEV Supabase club inserts refused. Existing legacy team creation and both-club invited signup retained.
+- [x] Repair ICP pending/short invitation routing, atomic legacy club acceptance/web presentation, public destinations, team-only signup previews and stale native email callbacks.
+- [x] Run focused two-mode regressions and inspect desktop/mobile sign-in; source/compiler/database verification is separate from unavailable authenticated/physical-device acceptance.
+- [ ] Full application baselines remain incomplete: both owned runs stopped after hundreds of files because concurrent runs slowed and affected time-based checks; no final baseline totals or complete pass claimed.
+- [ ] Deploy/read back the reviewed ICP club authorization code on DEV via the existing governor workflow; no governor deployment credential is available here. Local compilation is not deployment.
+- [ ] PROD catalog/provider review, historical-club continuity decisions and installed-phone acceptance remain held on approved access/devices; no PROD changes or automatic migration.
+
 ## Remaining ICP fallback audit — 21 November
 - [x] Audited central dispatch/session recovery and realtime call-site guards; closed mounted-ICP restoration gaps, legacy media refresh and same-account media-channel cleanup. All 14 feature areas refuse missing-canister fallback. Expanded suites: 1,699 Supabase / 1,691 ICP passed, zero failures, 35 / 43 existing skips; preview build OK. Approved external boundaries and PROD unchanged.
 - [ ] Confirm no blocked application fallbacks recur across the updated signed-in phone flows; Paul's Internet Identity delegation/device are unavailable. Complete all-application reruns were interrupted after about 500 files per mode; no final baseline totals claimed.

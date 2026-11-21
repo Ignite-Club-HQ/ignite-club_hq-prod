@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
+import { acceptLegacyClubInvite } from "@/lib/legacyClubInvite";
 import { useToast } from "@/hooks/use-toast";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
@@ -16,7 +17,7 @@ import { safeSessionSet, buildAuthPathWithIntent } from "@/lib/authRedirectStora
 import type { Database } from "@/integrations/supabase/types";
 import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
 import { getLocalLabProfile } from "@/lab/fixtureDataLayer";
-import { resolveAuthBackend } from "@/live/authBackendMode";
+import { resolveAuthBackend, setAuthMethodChoice } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { acceptLiveMembershipPendingInvite } from "@/live/features/membership";
 import { getLiveClubProfile, getLivePendingInvite } from "@/live/features/club";
@@ -40,11 +41,14 @@ const roleLabels: Record<AppRole, string> = {
 export default function JoinClubPage() {
   const { token } = useParams<{ token: string }>();
   const [searchParams] = useSearchParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const useIcpLab = resolveLocalAuthMode(window.location.search, true);
-  const isIcp = resolveAuthBackend() === "icp";
+  const onChainInvite = token?.startsWith("pinv-") === true;
+  const isIcp = resolveAuthBackend() === "icp" || onChainInvite;
+  const wrongProvider = onChainInvite ? user?.app_metadata?.provider !== "icp" : isIcp;
+  const [switching, setSwitching] = useState(false);
   const [joined, setJoined] = useState(false);
   const autoJoinAttempted = useRef(false);
 
@@ -52,7 +56,7 @@ export default function JoinClubPage() {
   // query; the id is the secret) — resolve its club for the pre-accept card.
   const [icpInviteClub, setIcpInviteClub] = useState<{ name: string; logoUrl: string | null } | null>(null);
   useEffect(() => {
-    if (!isIcp || !token || !user) return;
+    if (!isIcp || wrongProvider || !token || !user) return;
     let cancelled = false;
     void withFeatureBackend("membership", {
       supabase: async () => undefined,
@@ -63,13 +67,13 @@ export default function JoinClubPage() {
         const name = profile[0]?.name;
         if (name && !cancelled) setIcpInviteClub({ name, logoUrl: profile[0]?.logo_url?.[0] ?? null });
       },
-    }, { inviteToken: token! }).catch(() => {
+    }, { inviteToken: token }).catch(() => {
       // Preview is best-effort; accepting still works without it.
     });
     return () => {
       cancelled = true;
     };
-  }, [isIcp, token, user]);
+  }, [isIcp, wrongProvider, token, user]);
   
   // Check if we should auto-join (returning from auth after install flow)
   const shouldAutoJoin = sessionStorage.getItem("autoJoinAfterAuth") === "true";
@@ -80,8 +84,9 @@ export default function JoinClubPage() {
     enabled: !isIcp && !!token,
     queryFn: async () => {
       if (useIcpLab) return null;
+      if (!token) return null;
       const { data, error } = await supabase
-        .rpc("get_club_invite_by_token", { _token: token! });
+        .rpc("get_club_invite_by_token", { _token: token });
       if (error) throw error;
       // Transform RPC result to match expected shape
       if (data && data.length > 0) {
@@ -168,6 +173,7 @@ export default function JoinClubPage() {
 
   const joinMutation = useMutation({
     mutationFn: async () => {
+      if (wrongProvider) throw new Error("Please switch sign-in methods before accepting this invitation.");
       if (isIcp) {
         // II users: the share token is the club_domain PendingInvite id —
         // accept it directly (there is no separate "preview before
@@ -201,71 +207,14 @@ export default function JoinClubPage() {
             });
             return roleToAdd;
           },
-        }, { inviteToken: token! });
+        }, { inviteToken: token });
       }
       if (!invite || !user) throw new Error("Missing data");
 
-      // Check if invite is expired
-      if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
-        throw new Error("This invite link has expired");
-      }
-
-      // Check if max uses reached
-      if (invite.max_uses && invite.uses_count >= invite.max_uses) {
-        throw new Error("This invite link has reached its usage limit");
-      }
-
+      // The server validates the token, issuer and limits, then commits both
+      // membership and usage under the same lock. Never replay a failed write.
+      await acceptLegacyClubInvite(token ?? "", { clubId: invite.club_id, role: invite.role });
       const roleToAdd = invite.role as AppRole;
-
-      // Check if user already has this role
-      if (existingRoles?.includes(roleToAdd)) {
-        throw new Error(`You already have the ${roleLabels[roleToAdd]} role in this club`);
-      }
-
-      // Add user to club with the invite role
-      const { error: roleError } = await supabase.from("user_roles").insert({
-        user_id: user.id,
-        club_id: invite.club_id,
-        role: roleToAdd,
-      });
-
-      if (roleError) {
-        const isDuplicate = roleError.code === '23505' || roleError.message.includes('duplicate key');
-        if (!isDuplicate) {
-          throw new Error(`Failed to join: ${roleError.message}`);
-        }
-      }
-
-      // Increment uses_count
-      await supabase
-        .from("club_invites")
-        .update({ uses_count: invite.uses_count + 1 })
-        .eq("id", invite.id);
-
-      // Send notification to the new member
-      const { resolveAuthBackend } = await import("@/live/authBackendMode");
-      if (resolveAuthBackend() === "icp") {
-        try {
-          const { sendGamificationNotification } = await import("@/lib/gamificationNotify");
-          await sendGamificationNotification({
-            userId: user.id,
-            clubId: invite.club_id,
-            kind: "membership",
-            message: `You've joined ${invite.clubs?.name} as ${roleLabels[roleToAdd]}`,
-            relatedId: invite.club_id,
-            dedupHours: 0,
-          });
-        } catch (e) {
-          console.error("[JoinClub] Failed to send join notification:", e);
-        }
-      } else {
-        await supabase.from("notifications").insert({
-          user_id: user.id,
-          type: "membership",
-          message: `You've joined ${invite.clubs?.name} as ${roleLabels[roleToAdd]}`,
-          related_id: invite.club_id,
-        });
-      }
 
       return roleToAdd;
     },
@@ -280,6 +229,7 @@ export default function JoinClubPage() {
 
   // Auto-join effect: when user returns from auth and shouldAutoJoin is true
   useEffect(() => {
+    if (wrongProvider) return;
     // Wait for profile to finish loading before making any decisions
     if (profileLoading) return;
     
@@ -312,7 +262,7 @@ export default function JoinClubPage() {
         joinMutation.mutate();
       }, 500);
     }
-  }, [shouldAutoJoin, user, invite, userProfile, joined, joinMutation, token, navigate, profileLoading, inviteLoading]);
+  }, [wrongProvider, shouldAutoJoin, user, invite, userProfile, joined, joinMutation, token, navigate, profileLoading, inviteLoading]);
 
   // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
@@ -340,6 +290,15 @@ export default function JoinClubPage() {
     // User is logged in with complete profile - proceed with join
     joinMutation.mutate();
   };
+
+  if (wrongProvider) return <main className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center bg-background"><h1 className="text-xl font-semibold">{onChainInvite ? "Internet Identity required" : "Email sign-in required"}</h1><p className="text-muted-foreground">Switch sign-in methods to open this invitation. Your existing memberships remain unchanged.</p><Button disabled={switching} onClick={() => {
+    if (switching) return;
+    setSwitching(true);
+    void (async () => {
+      try { if (user) await signOut(); setAuthMethodChoice(onChainInvite ? "icp" : "supabase"); navigate(buildAuthPathWithIntent({ next: `/join-club/${token}`, mode: "signin", invite: token })); }
+      catch { setSwitching(false); toast({ title: "Couldn't switch sign-in methods. Please try again.", variant: "destructive" }); }
+    })();
+  }}>{onChainInvite ? "Continue with Internet Identity" : "Continue with email"}</Button></main>;
 
   if (inviteLoading) {
     return (
@@ -402,16 +361,17 @@ export default function JoinClubPage() {
     );
   }
 
-  // Club shareable invite links are no longer supported - only email invites work
-  // This page handles /join-club/:token which are all shareable links
+  // Legacy web links use the same server-authorised acceptance as native links.
+  if (!inviteError && invite) return <main className="min-h-screen flex items-center justify-center bg-background p-4"><Card className="w-full max-w-md"><CardContent className="p-6 text-center space-y-4"><h1 className="text-xl font-semibold">{joined ? "You've joined!" : `Join ${invite.clubs.name}`}</h1><p className="text-muted-foreground">{joined ? "Your club membership is confirmed." : `Invitation to join as ${roleLabels[invite.role as AppRole]}.`}</p><Button onClick={joined ? () => navigate("/") : handleJoinClick} disabled={joinMutation.isPending}>{joined ? "Go to Home" : joinMutation.isPending ? "Joining..." : user ? "Accept Invite" : "Create account or sign in"}</Button></CardContent></Card></main>;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardContent className="p-6 text-center">
           <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Invite Links Disabled</h2>
+          <h2 className="text-xl font-semibold mb-2">{inviteError ? "Couldn't check invitation" : "Invitation unavailable"}</h2>
           <p className="text-muted-foreground mb-4">
-            Shareable invite links are no longer supported. Please ask your club admin to send you an email invite instead.
+            Please reopen this link or ask your club administrator for a new invitation.
           </p>
           <Button onClick={() => navigate("/")}>Go to Home</Button>
         </CardContent>

@@ -205,8 +205,8 @@ export function resolveAuthBackend(): BackendProvider {
   // backend for an already-restored II account. Native resume usually has
   // no ?auth=icp URL, so forgetting this session mounted the email provider
   // while strict transport correctly refused its membership reads.
-  if (hasInternetIdentitySessionStored() && isIcpAuthAvailable()) return "icp";
-  if (choice === "icp" && isIcpAuthAvailable()) return "icp";
+  if (hasInternetIdentitySessionStored()) return "icp";
+  if (choice === "icp") return "icp";
   const config = getBackendRoutingConfig();
   const { country } = getCurrentCountry();
   // The sign-in screen follows the visitor's country only (club pins retired).

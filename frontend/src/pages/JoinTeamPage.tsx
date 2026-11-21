@@ -1887,6 +1887,7 @@ function SupabaseJoinTeamPage() {
 
   const handleCreateAccountClick = () => {
     persistInviteAuthContext();
+    if (token?.startsWith("pinv-") || isIcpShareableLink) setAuthMethodChoice("icp");
     navigate(
       buildAuthPathWithIntent({
         next: location.pathname + location.search,
@@ -1898,6 +1899,7 @@ function SupabaseJoinTeamPage() {
 
   const handleSignInClick = () => {
     persistInviteAuthContext();
+    if (token?.startsWith("pinv-") || isIcpShareableLink) setAuthMethodChoice("icp");
     navigate(
       buildAuthPathWithIntent({
         next: location.pathname + location.search,
@@ -1990,7 +1992,7 @@ function SupabaseJoinTeamPage() {
   // A verified ICP invite must never be redeemed through the email/Supabase
   // membership writer, even when the visitor is already signed in by email.
   // Switching auth providers requires this explicit user action.
-  if (isIcpShareableLink && !isIcpAccount) {
+  if ((isIcpShareableLink || token?.startsWith("pinv-")) && !isIcpAccount) {
     return (
       <JoinTeamStatusCard
         tone="warning"
@@ -1999,7 +2001,6 @@ function SupabaseJoinTeamPage() {
         actions={
           <Button onClick={() => {
             safeSessionRemove("autoJoinAfterAuth");
-            setAuthMethodChoice("icp");
             handleSignInClick();
           }}>Continue with Internet Identity</Button>
         }

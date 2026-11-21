@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { markMountedAuthProvider, resolveAuthBackend } from "./authBackendMode";
 import { applyBackendRoutingConfig } from "./backendRouting";
 import { applyIcpAdminOverrides } from "./icpAdminOverrides";
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   localStorage.clear();
   markMountedAuthProvider("supabase");
   applyBackendRoutingConfig(null);
@@ -19,6 +20,13 @@ describe("restored Internet Identity account routing", () => {
 
   it("keeps a restored II account on ICP before provider mount without a URL choice", () => {
     restore();
+    expect(resolveAuthBackend()).toBe("icp");
+  });
+
+  it("keeps a restored ICP account on ICP even when its targets are unavailable", () => {
+    restore();
+    applyIcpAdminOverrides(null);
+    vi.stubEnv("IGNITE_LIVE_ICP_CANISTER_IDS_JSON", "{}");
     expect(resolveAuthBackend()).toBe("icp");
   });
 

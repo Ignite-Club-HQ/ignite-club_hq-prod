@@ -9,7 +9,11 @@ const mocks = vi.hoisted(() => ({
   addListener: vi.fn(),
   setSession: vi.fn(),
   exchangeCodeForSession: vi.fn(),
+  strictIcp: false,
+  toast: vi.fn(),
 }));
+vi.mock("@/live/strictIcpTransport", () => ({ strictIcpActive: () => mocks.strictIcp }));
+vi.mock("@/hooks/use-toast", () => ({ toast: mocks.toast }));
 
 vi.mock("@capacitor/core", () => ({
   Capacitor: {
@@ -65,6 +69,7 @@ describe.each(["android", "ios"] as const)("%s emailed invite native entry", (pl
     vi.restoreAllMocks();
     vi.clearAllMocks();
     mocks.urlOpenHandler = null;
+    mocks.strictIcp = false;
     mocks.setSession.mockResolvedValue({ data: { user: null }, error: null });
     mocks.exchangeCodeForSession.mockResolvedValue({ data: { user: null }, error: null });
   });
@@ -82,6 +87,29 @@ describe.each(["android", "ios"] as const)("%s emailed invite native entry", (pl
     navigator.setAppNavigator(navigate);
     expect(navigate).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledWith(signupInvitePath, undefined);
+  });
+
+  it.each(["?code=synthetic-email-code", "#access_token=synthetic-access&refresh_token=synthetic-refresh"])("keeps ICP authenticated when a stale email callback arrives (%s)", async suffix => {
+    mocks.strictIcp = true;
+    const { deepLinks } = await loadHandler(platform, null);
+    deepLinks.initDeepLinkHandler();
+    await settleLaunchUrl();
+    const handler = mocks.urlOpenHandler;
+    if (!handler) throw new Error("Native listener missing");
+    await handler({ url: "https://igniteclubhq.app/auth" + suffix });
+    await vi.waitFor(() => expect(mocks.toast).toHaveBeenCalledTimes(1));
+    expect(mocks.setSession).not.toHaveBeenCalled();
+    expect(mocks.exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  it("retains normal email callback exchange in email mode", async () => {
+    const { deepLinks } = await loadHandler(platform, null);
+    deepLinks.initDeepLinkHandler(); await settleLaunchUrl();
+    const handler=mocks.urlOpenHandler;
+    if (!handler) throw new Error("Native listener missing");
+    await handler({url:"https://igniteclubhq.app/auth?code=synthetic-email-code"});
+    await vi.waitFor(() => expect(mocks.exchangeCodeForSession).toHaveBeenCalledWith("synthetic-email-code"));
+    expect(mocks.toast).not.toHaveBeenCalled();
   });
 
   it("opens the invite immediately from a warm email tap and never detours through Auth", async () => {
