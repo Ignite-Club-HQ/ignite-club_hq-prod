@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## ICP startup and presence warnings — 21 November
+- [x] Native connectivity probes now use the current ICP target's status endpoint instead of email-auth health. Obsolete email presence/activity callbacks stop during an ICP switch; 54 focused checks pass in each mode, zero failures/skips, preview build OK. Strict transport guard and PROD unchanged.
+- [ ] Confirm these warnings no longer recur in Paul's updated installed app; Internet Identity delegation and physical phone are unavailable here, and no native release was made.
+
 ## Direct-message ICP live-update crash — 21 November
 - [x] Replace the unconditional Supabase subscription with authenticated transport selection; ICP socket pokes/visible polling and email subscription cleanup verified. Focused suites: 42 Supabase / 39 ICP passed, 2 / 5 existing mode skips; preview build OK. No PROD changes.
 - [ ] Installed-phone signed-in direct-message acceptance requires Paul's Internet Identity session/device, unavailable here; no live phone confirmation or promotion claimed.

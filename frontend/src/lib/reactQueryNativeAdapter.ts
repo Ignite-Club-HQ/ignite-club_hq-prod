@@ -2,6 +2,8 @@ import { supabaseOrigin } from "@/lib/supabaseEndpoint";
 import { onlineManager, focusManager, type QueryClient } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
 import { abortAllInFlightRestGets } from '@/lib/supabaseAuthRetry';
+import { strictIcpActive } from '@/live/strictIcpTransport';
+import { getActiveIcpTarget } from '@/live/targetRegistry';
 
 const CHAT_RESUME_QUERY_KEYS = new Set([
   'team-messages',
@@ -29,7 +31,7 @@ const CHAT_RESUME_QUERY_KEYS = new Set([
  * foreground/background state. Because iOS Low Power Mode and Android
  * Battery Saver/Doze can deliver stale `connected: false` callbacks and
  * then suppress further updates for minutes, we also run a lightweight
- * HEAD probe against Supabase (with exponential backoff, foreground-only)
+ * probe against the active backend (with exponential backoff, foreground-only)
  * to recover from a stuck-offline state, and re-probe on every app resume.
  *
  * When `queryClient` is provided, we ALSO actively refetch errored queries
@@ -83,7 +85,6 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
 
   const runProbe = async (opts?: { force?: boolean }) => {
     if (probing) return;
-    if (!supabaseUrl) return;
     if (!isForeground) return;
     if (onlineManager.isOnline() && !opts?.force) {
       clearProbe();
@@ -91,10 +92,17 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     }
     probing = true;
     try {
+      // Resolve at each probe, not at adapter setup: native sessions can switch
+      // sign-in methods without restarting the WebView. Connectivity evidence
+      // is not authentication or authorization evidence.
+      const probeUrl = strictIcpActive()
+        ? new URL('/api/v2/status', getActiveIcpTarget().host).href
+        : supabaseUrl ? `${supabaseUrl}/auth/v1/health` : null;
+      if (!probeUrl) return;
       const ctrl = new AbortController();
       const timeout = setTimeout(() => ctrl.abort(), 4000);
-      // Hit Supabase root; any 2xx/3xx/4xx response means the network works.
-      const res = await fetch(`${supabaseUrl}/auth/v1/health`, {
+      // Any HTTP response means the selected backend is reachable.
+      const res = await fetch(probeUrl, {
         method: 'GET',
         cache: 'no-store',
         signal: ctrl.signal,

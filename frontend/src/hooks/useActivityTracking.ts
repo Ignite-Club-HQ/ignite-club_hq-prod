@@ -3,7 +3,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { resolveAuthBackend } from "@/live/authBackendMode";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { getCurrentInternetIdentity } from "@/live/internetIdentityAuth";
 import { getActiveIcpTarget } from "@/live/targetRegistry";
@@ -69,7 +69,7 @@ export function useActivityTracking() {
   // degrade safely (getSession returns null -> early return), but make the
   // gate explicit rather than relying on that fallthrough — activity
   // tracking is Supabase-only until there's an ICP equivalent.
-  const icpRouted = resolveAuthBackend() === "icp";
+  const icpRouted = strictIcpActive();
   const activeLogIdRef = useRef<string | null>(null);
   const startTimeRef = useRef<number>(Date.now());
   // Dual-write bookkeeping for the insights_domain canister, kept separate
@@ -84,6 +84,7 @@ export function useActivityTracking() {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flushDuration = useCallback(async () => {
+    if (strictIcpActive()) return;
     if (!activeLogIdRef.current) return;
     if (Date.now() < suppressUntil) return;
     const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
@@ -91,7 +92,7 @@ export function useActivityTracking() {
 
     // Only update if we still have a live session.
     const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) return;
+    if (strictIcpActive() || !sessionData.session) return;
 
     try {
       await (supabase as any).rpc("update_user_activity_duration", {
@@ -133,7 +134,7 @@ export function useActivityTracking() {
 
   const startTracking = useCallback(async (path: string) => {
     if (!user) return;
-    if (icpRouted) return;
+    if (icpRouted || strictIcpActive()) return;
     if (inflightInsert) return;
     if (Date.now() < suppressUntil) return;
 
@@ -142,7 +143,7 @@ export function useActivityTracking() {
     // inserting without a session triggers an RLS violation which retries
     // on every route change and exhausts the connection pool.
     const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session || sessionData.session.user.id !== user.id) {
+    if (strictIcpActive() || !sessionData.session || sessionData.session.user.id !== user.id) {
       return;
     }
 
@@ -150,6 +151,7 @@ export function useActivityTracking() {
 
     // Flush previous
     await flushDuration();
+    if (strictIcpActive()) { inflightInsert = false; return; }
 
     const clubId = extractClubIdFromPath(path);
     startTimeRef.current = Date.now();
@@ -235,13 +237,13 @@ export function useActivityTracking() {
   // "new row violates row-level security policy" errors.
   const accessTokenRef = useRef<string | null>(null);
   useEffect(() => {
-    if (icpRouted) return;
+    if (icpRouted) { accessTokenRef.current = null; activeLogIdRef.current = null; return; }
     let cancelled = false;
     supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled) accessTokenRef.current = data.session?.access_token ?? null;
+      if (!cancelled && !strictIcpActive()) accessTokenRef.current = data.session?.access_token ?? null;
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      accessTokenRef.current = session?.access_token ?? null;
+      accessTokenRef.current = strictIcpActive() ? null : session?.access_token ?? null;
     });
     return () => {
       cancelled = true;
@@ -259,6 +261,7 @@ export function useActivityTracking() {
     };
 
     const handleBeforeUnload = () => {
+      if (strictIcpActive()) return;
       // Use fetch with keepalive for reliable delivery during page unload
       // (sendBeacon only supports POST, but we need PATCH)
       if (!activeLogIdRef.current) return;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { hasInternetIdentitySessionStored } from "@/live/authBackendMode";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 
 /**
  * Global Realtime presence tracker.
@@ -82,6 +83,7 @@ function isCurrentChannel(
   return (
     !!expectedChannel &&
     !!expectedUserId &&
+    !strictIcpActive() &&
     channel === expectedChannel &&
     currentUserId === expectedUserId
   );
@@ -96,9 +98,9 @@ async function trackPresence(
   expectedChannel: PresenceChannel | null,
   expectedUserId: string | null,
 ) {
-  if (!isCurrentChannel(expectedChannel, expectedUserId)) return;
+  if (!expectedChannel || !isCurrentChannel(expectedChannel, expectedUserId)) return;
   try {
-    await expectedChannel!.track({
+    await expectedChannel.track({
       user_id: expectedUserId,
       online_at: new Date().toISOString(),
     });
@@ -128,6 +130,7 @@ async function trackSelf() {
 }
 
 function scheduleReconnect(userId: string, expectedChannel?: PresenceChannel | null) {
+  if (strictIcpActive()) return;
   if (reconnectTimer) return;
   // Reconnect timers retain their expected identity: if ownership changed
   // before the timer fires, it becomes a harmless no-op.
@@ -135,6 +138,7 @@ function scheduleReconnect(userId: string, expectedChannel?: PresenceChannel | n
   const ownsChannel = expectedChannel !== undefined;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
+    if (strictIcpActive()) return;
     if (currentUserId !== userId) return;
     if (ownsChannel && ownedChannel && channel !== ownedChannel) return;
     // Force tear-down then re-init
@@ -199,6 +203,7 @@ function attachVisibilityHandlers() {
 }
 
 async function ensureChannel(userId: string) {
+  if (strictIcpActive()) return;
   if (channel && currentUserId === userId) return;
 
   // Tear down any previous channel (sign-out / user switch).
@@ -213,6 +218,7 @@ async function ensureChannel(userId: string) {
     notify();
   }
 
+  if (strictIcpActive()) return;
   clearTimers();
   currentUserId = userId;
   attachVisibilityHandlers();
@@ -284,17 +290,20 @@ async function ensureChannel(userId: string) {
 
 async function teardown() {
   clearTimers();
-  if (!channel) return;
-  try {
-    await channel.untrack();
-    await supabase.removeChannel(channel);
-  } catch {
-    /* ignore */
-  }
+  // Retire ownership before awaiting transport cleanup. A late SUBSCRIBED
+  // callback must not reinstall a heartbeat during a sign-in method switch.
+  const retiredChannel = channel;
   channel = null;
   currentUserId = null;
   onlineUsers = new Set();
   notify();
+  if (!retiredChannel) return;
+  try {
+    await retiredChannel.untrack();
+    await supabase.removeChannel(retiredChannel);
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
@@ -302,6 +311,7 @@ async function teardown() {
  * Safe to call from many components — only one channel will be created.
  */
 export function useTrackPresence(userId: string | null | undefined) {
+  const presenceOnIcp = strictIcpActive() || isFeatureRoutedToIcp("messaging") || hasInternetIdentitySessionStored();
   useEffect(() => {
     if (!userId) {
       teardown();
@@ -309,7 +319,7 @@ export function useTrackPresence(userId: string | null | undefined) {
     }
     // Internet Identity sessions must never fall through to the Supabase
     // presence channel/RPC (e.g. on /auth before routing has loaded).
-    if (isFeatureRoutedToIcp("messaging") || hasInternetIdentitySessionStored()) {
+    if (presenceOnIcp) {
       void teardown();
       let cancelled = false;
       let pending = false;
@@ -342,7 +352,7 @@ export function useTrackPresence(userId: string | null | undefined) {
       // Don't tear down on unmount — other components may still be listening.
       // The channel is torn down when the user changes or signs out.
     };
-  }, [userId]);
+  }, [userId, presenceOnIcp]);
 }
 
 /** Reactive: returns true if the given user is currently online. */
