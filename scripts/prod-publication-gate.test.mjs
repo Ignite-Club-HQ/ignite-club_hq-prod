@@ -133,3 +133,75 @@ test('polling a running promotion reads only the run list', async () => {
   assert.equal(polls, 3);
   assert.equal(jobReadsWhilePending, 0);
 });
+
+test('Codemagic checks the original source through four real PROD release receipts', async () => {
+  // Real commit ancestry from the November 21 production retries.
+  const chain = [
+    'd13fb5bc8aff1c5cfdfe7ba26c41e82d14de0345',
+    '6ebaab699baea7c443454a3984b3a9b6daeda2c3',
+    'd642981223c3f08c93c9d7d77f2165fc76ed45af',
+    '9f303674f765d3bf7eac958d793047139560ab1c',
+  ];
+  const source = 'cc0a411486754f0a21fb2b154c61fa57b6084271';
+  const calls = [];
+  const respond = data => ({ ok: true, json: async () => data });
+  const fetcher = async url => {
+    calls.push(url);
+    const pathname = new URL(url).pathname;
+    if (pathname.includes('/commits/')) {
+      const ref = pathname.split('/').pop();
+      const i = chain.indexOf(ref);
+      if (i < 0) return respond({ commit: { message: 'Merge pull request #1627' }, parents: [{ sha: 'a'.repeat(40) }, { sha: 'b'.repeat(40) }] });
+      return respond({
+        commit: { message: 'Record PROD canister release [skip ci]', author: { name: 'github-actions[bot]' } },
+        parents: [{ sha: chain[i + 1] ?? source }],
+        files: [{ filename: 'deploy/prod/release.json', status: 'modified' }],
+      });
+    }
+    if (pathname.includes('/compare/')) throw new Error('No compare request is necessary for complete commit-file evidence');
+    if (pathname.includes('/actions/workflows/')) {
+      assert.doesNotMatch(url, /(?:branch|head_sha)=/);
+      const workflow = pathname.includes('promote-to-prod.yml') ? 'promote-to-prod.yml' : 'promote-icp-prod.yml';
+      const id = workflow === 'promote-to-prod.yml' ? 101 : 202;
+      const shared = { path: '.github/workflows/' + workflow, event: 'push', status: 'completed', conclusion: 'success' };
+      return respond({ total_count: 3, workflow_runs: [
+        { ...shared, id: id + 1, head_sha: source, head_branch: 'main' },
+        { ...shared, id: id + 2, head_sha: '0'.repeat(40), head_branch: 'prod' },
+        { ...shared, id, head_sha: source, head_branch: 'prod' },
+      ] });
+    }
+    if (/\/actions\/runs\/\d+\/jobs$/.test(pathname)) {
+      const name = pathname.includes('/101/') ? 'Production database deployment' : 'backend';
+      return respond({ total_count: 1, jobs: [{ name, status: 'completed', conclusion: 'success' }] });
+    }
+    throw new Error('Unexpected GitHub API read: ' + url);
+  };
+  await verifyProdPublication({ CM_BRANCH: 'prod', CM_COMMIT: chain[0] }, { fetcher });
+  assert.equal(calls.filter(url => url.includes('/commits/')).length, 5);
+  assert.equal(calls.filter(url => url.includes('/actions/workflows/')).length, 2);
+  assert.equal(calls.filter(url => url.includes('/jobs?')).length, 2);
+});
+
+test('a bot receipt with a changed source file cannot inherit a deployed parent', async () => {
+  const sha = 'e'.repeat(40);
+  const parent = 'f'.repeat(40);
+  const respond = data => ({ ok: true, json: async () => data });
+  const fetcher = async url => {
+    if (url.includes('/commits/')) return respond({
+      commit: { message: 'Record PROD canister release [skip ci]', author: { name: 'github-actions[bot]' } },
+      parents: [{ sha: parent }],
+      files: [
+        { filename: 'deploy/prod/release.json', status: 'modified' },
+        { filename: 'frontend/src/App.tsx', status: 'modified' },
+      ],
+    });
+    if (url.includes('/actions/workflows/')) return respond({ total_count: 1, workflow_runs: [
+      { id: 1, path: '.github/workflows/promote-to-prod.yml', head_sha: parent, head_branch: 'prod', event: 'push', status: 'completed' },
+    ] });
+    throw new Error('Unexpected GitHub API read: ' + url);
+  };
+  await assert.rejects(
+    verifyProdPublication({ CM_BRANCH: 'prod', CM_COMMIT: sha }, { fetcher }),
+    /Production publication blocked/,
+  );
+});
