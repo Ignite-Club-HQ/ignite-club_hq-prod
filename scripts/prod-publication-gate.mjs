@@ -6,7 +6,9 @@ export const RELEASE_REPOSITORY = 'Ignite-Club-HQ/ignite-club_hq-prod';
 // They carry [skip ci], so no promotion runs for them; evidence is read from their parent.
 export const RELEASE_RECORD_MESSAGE = 'Record PROD canister release [skip ci]';
 export const RELEASE_RECORD_FILES = new Set(['deploy/prod/release.json', 'deploy/prod/.icp/data/mappings/ic.ids.json', 'deploy/frontend-prod/.icp/data/mappings/ic.ids.json']);
-const MAX_RECORD_HOPS = 3;
+// A failed/retried release can write one authenticated receipt per attempt.
+// Keep the walk bounded, but allow more than three verified bookkeeping commits.
+const MAX_RECORD_HOPS = 24;
 
 /** Returns the parent when `commit`/`comparison` prove a pure release-record commit, else null. */
 export function releaseRecordParent(commit, comparison) {
@@ -80,15 +82,35 @@ export async function verifyProdPublication(env, { databaseOnly = false, fetcher
     const commit = await read(`commits/${evidenceSha}`);
     const parent = commit?.parents?.length === 1 ? commit.parents[0].sha : null;
     if (!parent || (commit?.commit?.message ?? '').trim() !== RELEASE_RECORD_MESSAGE) break;
-    const next = releaseRecordParent(commit, await read(`compare/${parent}...${evidenceSha}`));
+    // GitHub's commit API includes the changed-file inventory for small commits.
+    // Prefer that direct proof rather than depending on a second compare API call,
+    // which can return incomplete results under GitHub indexing delays.
+    const comparison = Array.isArray(commit.files) && commit.files.length > 0 && commit.files.length < 300
+      ? { files: commit.files, ahead_by: 1, behind_by: 0 }
+      : await read(`compare/${parent}...${evidenceSha}`);
+    const next = releaseRecordParent(commit, comparison);
     if (!next) break;
+    console.log(`Verified production release receipt ${evidenceSha.slice(0, 7)} -> ${next.slice(0, 7)}`);
     evidenceSha = next;
   }
   for (const [workflow, job] of databaseOnly ? requirements.slice(0, 1) : requirements) {
    for (;;) {
-    const result = await read(`actions/workflows/${workflow}/runs?head_sha=${evidenceSha}&branch=prod&per_page=100`);
-    if (!Array.isArray(result.workflow_runs) || result.total_count > 100) throw new Error('Incomplete promotion evidence');
-    const runs = result.workflow_runs;
+    // GitHub workflow-list branch/head_sha filters occasionally return empty lists
+    // despite an existing successful run. Read bounded unfiltered history and
+    // enforce the exact source SHA, branch, workflow, event and job below.
+    const runs = [];
+    for (let page = 1; page <= 5; page++) {
+      const result = await read(`actions/workflows/${workflow}/runs?per_page=100&page=${page}`);
+      if (!Array.isArray(result.workflow_runs) || result.workflow_runs.length > 100)
+        throw new Error('Incomplete promotion evidence');
+      runs.push(...result.workflow_runs);
+      const found = runs.some(run => run.head_sha === evidenceSha && run.head_branch === 'prod'
+        && run.path === `.github/workflows/${workflow}`
+        && ['push', 'workflow_dispatch'].includes(run.event));
+      if (found || result.workflow_runs.length < 100
+        || (Number.isFinite(result.total_count) && page * 100 >= result.total_count)) break;
+      if (page === 5) throw new Error('Production promotion history exceeded bounded 500-run lookup; publication blocked');
+    }
     const candidates = runs.filter(run => run.head_sha === evidenceSha && run.head_branch === 'prod'
       && run.path === `.github/workflows/${workflow}` && ['push', 'workflow_dispatch'].includes(run.event))
       .sort((a, b) => b.id - a.id).slice(0, 5);
