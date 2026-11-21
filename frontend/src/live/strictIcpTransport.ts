@@ -1,4 +1,4 @@
-import { hasInternetIdentitySessionStored, isSignedInWithEmail, readAuthChoice, resolveAuthBackend } from "./authBackendMode";
+import { hasInternetIdentitySessionStored, isIcpProviderMounted, isSignedInWithEmail, readAuthChoice, resolveAuthBackend } from "./authBackendMode";
 import { getActiveSupabaseTarget } from "./targetRegistry";
 
 export const ICP_FALLBACK_BLOCKED_EVENT = "ignite:icp-fallback-blocked";
@@ -6,7 +6,7 @@ export const ICP_FALLBACK_BLOCKED_EVENT = "ignite:icp-fallback-blocked";
 /** No SDK imports: this guard also runs before the app's first render. */
 export function strictIcpActive(): boolean {
   if (isSignedInWithEmail()) return false;
-  return hasInternetIdentitySessionStored() || readAuthChoice() === "icp" || resolveAuthBackend() === "icp";
+  return isIcpProviderMounted() || hasInternetIdentitySessionStored() || readAuthChoice() === "icp" || resolveAuthBackend() === "icp";
 }
 
 export function reportBlockedFallback(label: string): Error {

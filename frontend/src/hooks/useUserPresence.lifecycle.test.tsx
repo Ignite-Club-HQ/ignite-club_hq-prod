@@ -13,6 +13,13 @@ import { renderHook, act } from "@testing-library/react";
 
 type StatusCb = (status: string) => void | Promise<void>;
 
+const backend = vi.hoisted(() => ({ icp: false }));
+vi.mock("@/live/strictIcpTransport", () => ({ strictIcpActive: () => backend.icp }));
+vi.mock("@/live/loadBackendRouting", () => ({ isFeatureRoutedToIcp: () => false }));
+vi.mock("@/live/authBackendMode", () => ({ hasInternetIdentitySessionStored: () => false }));
+vi.mock("@/live/featureRouter", () => ({ withFeatureBackend: async (_feature: unknown, handlers: any) => handlers.icp({}) }));
+vi.mock("@/live/features/messaging", () => ({ livePresenceHeartbeat: vi.fn().mockResolvedValue(undefined) }));
+
 interface FakeChannel {
   name: string;
   key: string;
@@ -90,6 +97,7 @@ beforeEach(async () => {
   vi.useFakeTimers();
   channels.length = 0;
   rpcCalls.length = 0;
+  backend.icp = false;
   mod = await import("./useUserPresence");
 });
 
@@ -172,6 +180,45 @@ describe("presence channel ownership", () => {
     });
     return ch;
   };
+
+  it("does not open email presence before an ICP session has finished restoring", async () => {
+    backend.icp = true;
+    renderHook(() => mod.useTrackPresence("u1"));
+    await flush();
+    expect(channels).toHaveLength(0);
+    expect(rpcCalls).toHaveLength(0);
+  });
+
+  it("blocks an email heartbeat already awaiting track when ICP becomes active", async () => {
+    const hook = renderHook(() => mod.useTrackPresence("u1"));
+    await flush();
+    const ch = channels[0];
+    let finishTrack: (() => void) | undefined;
+    ch.track = () => new Promise<void>(resolve => { finishTrack = resolve; });
+    const pending = ch.statusCb?.("SUBSCRIBED");
+    backend.icp = true;
+    hook.rerender();
+    await act(async () => { finishTrack?.(); await pending; });
+    expect(rpcCalls).toHaveLength(0);
+    await act(async () => { vi.advanceTimersByTime(25_000); await Promise.resolve(); });
+    expect(rpcCalls).toHaveLength(0);
+    expect(channels).toHaveLength(1);
+    expect(ch.removed).toBe(true);
+  });
+
+  it("cancels obsolete email reconnects when switching to ICP with the same account ID", async () => {
+    const hook = renderHook(() => mod.useTrackPresence("u1"));
+    await flush();
+    const ch = channels[0];
+    await act(async () => { await ch.statusCb?.("CHANNEL_ERROR"); });
+    backend.icp = true;
+    hook.rerender();
+    await flush();
+    await act(async () => { await ch.statusCb?.("SUBSCRIBED"); vi.advanceTimersByTime(5_000); });
+    expect(channels).toHaveLength(1);
+    expect(rpcCalls).toHaveLength(0);
+    expect(ch.removed).toBe(true);
+  });
 
   it("re-tracks on a second SUBSCRIBED but keeps exactly one heartbeat timer", async () => {
     renderHook(() => mod.useTrackPresence("u1"));

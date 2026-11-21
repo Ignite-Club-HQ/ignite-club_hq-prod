@@ -216,16 +216,15 @@ export function getEffectiveTarget(): ApprovedBackendTarget | undefined {
 /**
  * Which backend should serve one feature area right now: the same rule as
  * getEffectiveBackend(), narrowed per feature — a secure sign-in session only
- * gets "icp" when that feature's canister is actually configured, so a
- * feature whose canister is not deployed yet keeps using Supabase instead of
- * failing every request.
+ * stays on "icp" even when a feature's canister is missing. Its dispatcher
+ * reports unavailable coverage instead of querying unrelated Supabase data.
  */
 export function getEffectiveBackendForFeature(feature: FeatureArea): BackendProvider {
   // Signed in with email: every feature reads Supabase. Without this,
   // isFeatureRoutedToIcp() returned true for email users and Messages/Media
   // went to the canisters (blank).
   if (isSignedInWithEmail()) return "supabase";
-  if (isIcpProviderMounted() || hasStoredInternetIdentitySession()) {
+  if (isIcpProviderMounted() || hasStoredInternetIdentitySession() || readAuthChoice() === "icp") {
     return "icp";
   }
   const config = getBackendRoutingConfig();

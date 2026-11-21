@@ -7,9 +7,15 @@ const mocks = vi.hoisted(() => ({
   tryGetActiveIcpTarget: vi.fn<() => unknown>(() => null),
   isSignedInWithEmail: vi.fn(() => false),
   groupActive: false,
+  mounted: false,
   readFor: vi.fn(),
   writeFor: vi.fn(),
 }));
+
+vi.mock("./authBackendMode", async importOriginal => {
+  const actual = await importOriginal<typeof import("./authBackendMode")>();
+  return { ...actual, isIcpProviderMounted: () => mocks.mounted };
+});
 
 vi.mock("./loadBackendRouting", () => ({
   getEffectiveBackendForFeature: mocks.getEffectiveBackendForFeature,
@@ -41,6 +47,7 @@ vi.mock("./groupDispatch", () => ({
 }));
 
 import { withFeatureBackend } from "./featureRouter";
+import { FEATURE_AREAS } from "./featureBackend";
 
 describe("withFeatureBackend", () => {
   beforeEach(() => {
@@ -50,6 +57,7 @@ describe("withFeatureBackend", () => {
     mocks.tryGetActiveIcpTarget.mockReturnValue(null);
     mocks.isSignedInWithEmail.mockReturnValue(false);
     mocks.groupActive = false;
+    mocks.mounted = false;
     mocks.readFor.mockReset(); mocks.writeFor.mockReset();
   });
 
@@ -67,6 +75,25 @@ describe("withFeatureBackend", () => {
     mocks.getEffectiveBackendForFeature.mockReturnValue("supabase");
     const supabase = vi.fn();
     await expect(withFeatureBackend("events", { supabase, icp: vi.fn() }, { clubId: "club" })).rejects.toThrow("not configured");
+    expect(supabase).not.toHaveBeenCalled();
+  });
+
+  it("never invokes a Supabase provider while the mounted ICP provider is restoring its delegation", async () => {
+    mocks.mounted = true;
+    mocks.getEffectiveBackendForFeature.mockReturnValue("supabase");
+    const supabase = vi.fn();
+    await expect(withFeatureBackend("events", { supabase, icp: vi.fn() }, { clubId: "club" })).rejects.toThrow("not configured");
+    mocks.tryGetActiveIcpTarget.mockReturnValue({ alias: "t", canisterIds: { events_domain: "aaaaa-aa" } });
+    mocks.getCurrentInternetIdentity.mockResolvedValue(null);
+    await expect(withFeatureBackend("events", { supabase, icp: vi.fn() }, { clubId: "club" })).rejects.toThrow("Internet Identity session");
+    expect(supabase).not.toHaveBeenCalled();
+  });
+
+  it.each(FEATURE_AREAS)("%s never falls back to Supabase when its ICP canister is absent", async feature => {
+    mocks.mounted = true;
+    mocks.getEffectiveBackendForFeature.mockReturnValue("supabase");
+    const supabase = vi.fn();
+    await expect(withFeatureBackend(feature, { supabase, icp: vi.fn() }, { shared: "app" })).rejects.toThrow("not configured");
     expect(supabase).not.toHaveBeenCalled();
   });
 

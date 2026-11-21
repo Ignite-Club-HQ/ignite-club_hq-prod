@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 
 /**
  * Ensures the Supabase session is valid before performing an authenticated
@@ -13,9 +14,10 @@ import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
  * with "new row violates row-level security" or 401/403 errors.
  */
 export async function ensureFreshSession(bufferSeconds = 30): Promise<string> {
+  if (strictIcpActive()) throw new Error("This action requires email sign-in. Please return to your Internet Identity account action instead.");
   const { data: { session } } = await supabase.auth.getSession();
 
-  if (!session) {
+  if (strictIcpActive() || !session) {
     throw new Error("Not authenticated");
   }
 
@@ -37,6 +39,7 @@ export async function ensureFreshSession(bufferSeconds = 30): Promise<string> {
     // replay an already-rotated refresh token and trigger a spurious
     // SIGNED_OUT.
     const { session: refreshed, error } = await refreshSessionOnce(REFRESH_TIMEOUT_MS);
+    if (strictIcpActive()) throw new Error("Your sign-in method changed. Please try this action again.");
 
     if (!refreshed) {
       if (error) throw error;

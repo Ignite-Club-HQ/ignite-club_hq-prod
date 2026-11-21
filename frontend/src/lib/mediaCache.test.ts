@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const backend = vi.hoisted(() => ({ icp: false }));
+vi.mock("@/live/strictIcpTransport", () => ({ strictIcpActive: () => backend.icp }));
+
 const { from, refreshResult, queries } = vi.hoisted(() => ({
   from: vi.fn(),
   refreshResult: { data: [] as any[] | null, error: null as any, throws: null as any },
@@ -47,6 +50,7 @@ const photo = (id: string, overrides: Record<string, any> = {}) => ({
 
 describe("mediaCache isolation and expiry", () => {
   beforeEach(() => {
+    backend.icp = false;
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-20T12:00:00Z"));
     clearMediaCache();
@@ -57,6 +61,12 @@ describe("mediaCache isolation and expiry", () => {
     refreshResult.throws = null;
     queries.length = 0;
     from.mockImplementation(() => photosQuery());
+  });
+
+  it("never runs the legacy Supabase background refresh for stale ICP media", async () => {
+    backend.icp = true;
+    await expect(backgroundRefreshPhotos(null, "club-1", null)).resolves.toBeNull();
+    expect(from).not.toHaveBeenCalled();
   });
 
   afterEach(() => {

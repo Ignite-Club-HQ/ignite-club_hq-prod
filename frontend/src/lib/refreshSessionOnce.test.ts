@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const mode = vi.hoisted(() => ({ icp: false, sessionCalls: 0 }));
+vi.mock("@/live/strictIcpTransport", () => ({ strictIcpActive: () => mode.icp }));
+
 const state = {
   refreshCalls: 0,
   session: { access_token: "new", user: { id: "u1" } } as any,
@@ -15,7 +18,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         await new Promise((r) => setTimeout(r, 20));
         return { data: { session: state.session }, error: null };
       },
-      getSession: async () => ({ data: { session: state.session }, error: null }),
+      getSession: async () => { mode.sessionCalls++; return { data: { session: state.session }, error: null }; },
     },
   },
 }));
@@ -24,10 +27,26 @@ import { refreshSessionOnce, __resetRefreshSessionOnce, isStaleRefreshTokenError
 
 describe("refreshSessionOnce", () => {
   beforeEach(() => {
+    mode.icp = false; mode.sessionCalls = 0;
     state.refreshCalls = 0;
     state.refreshImpl = null;
     state.session = { access_token: "new", user: { id: "u1" } };
     __resetRefreshSessionOnce();
+  });
+
+  it("never refreshes or reads an email session in ICP mode", async () => {
+    mode.icp = true;
+    expect((await refreshSessionOnce(10)).session).toBeNull();
+    expect(state.refreshCalls).toBe(0);
+    expect(mode.sessionCalls).toBe(0);
+  });
+
+  it("does not perform email recovery after an in-flight refresh fails during an ICP switch", async () => {
+    state.refreshImpl = async () => { mode.icp = true; throw new Error("old refresh failed"); };
+    const result = await refreshSessionOnce();
+    expect(result.session).toBeNull();
+    expect(mode.sessionCalls).toBe(0);
+    expect(state.refreshCalls).toBe(1);
   });
 
   it("fires exactly one refresh for concurrent callers and shares the result", async () => {

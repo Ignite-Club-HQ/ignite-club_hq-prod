@@ -1,5 +1,17 @@
 # Roadmap — launch the live (PROD) system
 
+## Remaining ICP fallback audit — 21 November
+- [x] Audited central dispatch/session recovery and realtime call-site guards; closed mounted-ICP restoration gaps, legacy media refresh and same-account media-channel cleanup. All 14 feature areas refuse missing-canister fallback. Expanded suites: 1,699 Supabase / 1,691 ICP passed, zero failures, 35 / 43 existing skips; preview build OK. Approved external boundaries and PROD unchanged.
+- [ ] Confirm no blocked application fallbacks recur across the updated signed-in phone flows; Paul's Internet Identity delegation/device are unavailable. Complete all-application reruns were interrupted after about 500 files per mode; no final baseline totals claimed.
+
+## ICP startup and presence warnings — 21 November
+- [x] Native connectivity probes now use the current ICP target's status endpoint instead of email-auth health. Obsolete email presence/activity callbacks stop during an ICP switch; 54 focused checks pass in each mode, zero failures/skips, preview build OK. Strict transport guard and PROD unchanged.
+- [ ] Confirm these warnings no longer recur in Paul's updated installed app; Internet Identity delegation and physical phone are unavailable here, and no native release was made.
+
+## Direct-message ICP live-update crash — 21 November
+- [x] Replace the unconditional Supabase subscription with authenticated transport selection; ICP socket pokes/visible polling and email subscription cleanup verified. Focused suites: 42 Supabase / 39 ICP passed, 2 / 5 existing mode skips; preview build OK. No PROD changes.
+- [ ] Installed-phone signed-in direct-message acceptance requires Paul's Internet Identity session/device, unavailable here; no live phone confirmation or promotion claimed.
+
 ## Fresh baseline suites — 20 November, 07:09 UTC
 - [x] Paul approved a fresh rerun at 09:22 UTC after the interrupted run: Supabase 8,021 passed / 0 failed / 387 skipped; ICP 7,643 passed / 0 failed / 765 skipped. Both completed at 09:45 UTC; separate durable summaries and full logs in docs/testing/baseline-2026-11-20-0922.
 - [x] Isolated Supabase functions: 81 passed / 0 failed; Rust workspace: 372 passed / 0 failed. Function runner required isolated Deno package resolution and scoped source-read permission; failed setup attempts retained. Existing exclusions/skips and live/device acceptance remain separate. No live DEV/PROD changes or deployments.

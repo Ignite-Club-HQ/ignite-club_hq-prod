@@ -1,5 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
+import { strictIcpActive } from "@/live/strictIcpTransport";
+
+const noEmailSession = (): RefreshOnceResult => ({ session: null, error: null, shared: false, benign: true });
 
 /**
  * Single-flight wrapper around `supabase.auth.refreshSession()`.
@@ -55,8 +58,10 @@ export function isStaleRefreshTokenError(err: unknown): boolean {
 }
 
 async function performRefresh(): Promise<RefreshOnceResult> {
+  if (strictIcpActive()) return noEmailSession();
   try {
     const { data, error } = await supabase.auth.refreshSession();
+    if (strictIcpActive()) return noEmailSession();
     if (!error && data?.session) {
       return { session: data.session, error: null, shared: false, benign: false };
     }
@@ -77,6 +82,7 @@ async function performRefresh(): Promise<RefreshOnceResult> {
       benign: false,
     };
   } catch (err) {
+    if (strictIcpActive()) return noEmailSession();
     const { data: current } = await supabase.auth.getSession().catch(() => ({ data: { session: null } } as any));
     const session = current?.session ?? null;
     if (session && isStaleRefreshTokenError(err)) {
@@ -95,6 +101,7 @@ async function performRefresh(): Promise<RefreshOnceResult> {
  *   socket after Android Doze / iOS suspension.
  */
 export async function refreshSessionOnce(timeoutMs?: number): Promise<RefreshOnceResult> {
+  if (strictIcpActive()) return noEmailSession();
   const shared = inFlight !== null;
   if (!inFlight) {
     inFlight = performRefresh().finally(() => {
@@ -105,6 +112,7 @@ export async function refreshSessionOnce(timeoutMs?: number): Promise<RefreshOnc
 
   if (!timeoutMs) {
     const res = await pending;
+    if (strictIcpActive()) return noEmailSession();
     return shared ? { ...res, shared: true } : res;
   }
 
@@ -113,6 +121,7 @@ export async function refreshSessionOnce(timeoutMs?: number): Promise<RefreshOnc
     new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
   ]);
 
+  if (strictIcpActive()) return noEmailSession();
   if (raced) return shared ? { ...raced, shared: true } : raced;
 
   const { data } = await supabase.auth.getSession().catch(() => ({ data: { session: null } } as any));

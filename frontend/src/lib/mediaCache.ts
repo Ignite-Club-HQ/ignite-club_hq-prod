@@ -2,6 +2,7 @@ import { writeBoundedReadCache } from "./deviceCacheBudget";
 // Local media cache for faster loading and offline support with stale-while-revalidate
 
 import { supabase } from "@/integrations/supabase/client";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 
 export interface CachedPhoto {
   id: string;
@@ -315,6 +316,9 @@ export async function backgroundRefreshPhotos(
   folderId: string | null,
   limit: number = 50
 ): Promise<CachedPhoto[] | null> {
+  // ICP pages already refresh via their authorized feed query. This legacy
+  // Supabase warmer must not turn stale on-device ciphertext into a fallback.
+  if (strictIcpActive()) return null;
   try {
     let query = supabase
       .from("photos")
@@ -329,7 +333,7 @@ export async function backgroundRefreshPhotos(
 
     const { data, error } = await query;
     
-    if (error || !data) return null;
+    if (strictIcpActive() || error || !data) return null;
     
     // Update cache with fresh data
     cachePhotos(teamId, clubId, folderId, data);

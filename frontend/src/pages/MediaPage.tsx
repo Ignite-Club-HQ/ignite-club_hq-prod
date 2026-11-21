@@ -188,7 +188,7 @@ function SupabaseMediaPage() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   // Secure-sign-in (ICP) feeds are always club-scoped; cache per club so the
   // last-seen photos paint instantly while the canister read refreshes.
-  const isIcpMode = resolveAuthBackend() === "icp";
+  const isIcpMode = resolveAuthBackend() === "icp" || isFeatureRoutedToIcp("media");
   const feedCacheClubRef = useRef<string | null>(null);
   const PHOTOS_PER_PAGE = 9; // Smaller initial load for faster first paint
 
@@ -705,6 +705,13 @@ function SupabaseMediaPage() {
   // viewers already on the page see new uploads instantly without refresh.
   useEffect(() => {
     if (!user) return;
+    if (isIcpMode) {
+      const interval = window.setInterval(() => {
+        if (document.visibilityState !== "visible") return;
+        void queryClient.invalidateQueries({ queryKey: ["photos", user.id] });
+      }, 30_000);
+      return () => window.clearInterval(interval);
+    }
     const channel = supabase
       .channel(`media-feed-${user.id}`)
       .on(
@@ -718,18 +725,18 @@ function SupabaseMediaPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, queryClient]);
+  }, [user, isIcpMode, queryClient]);
 
   // Background refresh if cache was stale
   useEffect(() => {
-    if (isCacheStale && user) {
+    if (isCacheStale && user && !isIcpMode) {
       backgroundRefreshPhotos(null, null, null, 50).then(freshPhotos => {
         if (freshPhotos) {
           setIsCacheStale(false);
         }
       });
     }
-  }, [isCacheStale, user]);
+  }, [isCacheStale, user, isIcpMode]);
 
   // Flatten all pages into single photos array - prefer real data, fallback to cache
   const allPhotos = useMemo<any[]>(() => {
@@ -985,7 +992,7 @@ function SupabaseMediaPage() {
     if (!user?.id || allPhotoIds.length === 0) return;
     // ICP-routed media has no realtime channel (canisters are request/response)
     // — poll instead of subscribing to Supabase postgres_changes.
-    if (isFeatureRoutedToIcp("media")) {
+    if (isIcpMode) {
       const interval = window.setInterval(() => {
         if (document.visibilityState !== "visible") return;
         queryClient.invalidateQueries({ queryKey: ["photo-comments", user.id] });
@@ -1019,7 +1026,7 @@ function SupabaseMediaPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, allPhotoIds, queryClient]);
+  }, [user?.id, isIcpMode, allPhotoIds, queryClient]);
 
   // Refresh comments/reactions when the tab/app becomes visible again so
   // returning to the app surfaces anything posted while away.

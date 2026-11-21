@@ -13,6 +13,7 @@
  * message is safe to surface directly to the user.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 
 export const SESSION_EXPIRED_MESSAGE =
   "Your session has expired. Please sign in again to continue.";
@@ -26,8 +27,9 @@ export class SessionExpiredError extends Error {
 }
 
 export async function requireAccessToken(): Promise<string> {
+  if (strictIcpActive()) throw new SessionExpiredError("This action requires email sign-in. Please use your Internet Identity account action instead.");
   const { data, error } = await supabase.auth.getSession();
-  if (error) throw new SessionExpiredError();
+  if (strictIcpActive() || error) throw new SessionExpiredError();
   const session = data?.session ?? null;
   if (!session) throw new SessionExpiredError();
   const token = (session as any).access_token;
