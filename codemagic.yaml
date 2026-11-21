@@ -94,6 +94,9 @@ workflows:
           # Capacitor writes capacitor.settings.gradle during update; regenerate if absent.
           [ -f android/capacitor.settings.gradle ] || npx cap update android
           npx cap sync android
+          # Capacitor's clean MainActivity has no onCreate hook. Install it first,
+          # then register document export before the ICP notification adapter.
+          python3 ../scripts/configure-android-status-bar.py
           python3 ../scripts/configure-native-documents.py android
           test -f android/capacitor.settings.gradle || { echo "capacitor.settings.gradle was not generated"; exit 1; }
           # Optional: notifications in the test build when the Firebase file is set.
@@ -121,7 +124,6 @@ workflows:
               s = s.replace("</activity>", a + "</activity>", 1)
           open(p, "w").write(s)
           PY
-          python3 ../scripts/configure-android-status-bar.py
           python3 ../scripts/configure-icp-foreground-push.py
       - name: Build debug APK
         working_directory: frontend/android
@@ -191,6 +193,9 @@ workflows:
           # Capacitor writes capacitor.settings.gradle during update; regenerate if absent.
           [ -f android/capacitor.settings.gradle ] || npx cap update android
           npx cap sync android
+          # Capacitor's clean MainActivity has no onCreate hook. Install it first,
+          # then register document export before the ICP notification adapter.
+          python3 ../scripts/configure-android-status-bar.py
           python3 ../scripts/configure-native-documents.py android
           test -f android/capacitor.settings.gradle || { echo "capacitor.settings.gradle was not generated"; exit 1; }
           # Internet Identity sign-in returns via com.igniteclubhq.app://ii-callback
@@ -214,7 +219,6 @@ workflows:
               s = s.replace("</activity>", a + "</activity>", 1)
           open(p, "w").write(s)
           PY
-          python3 ../scripts/configure-android-status-bar.py
           python3 ../scripts/configure-icp-foreground-push.py
       - name: Decode signing and Firebase files
         working_directory: frontend/android
