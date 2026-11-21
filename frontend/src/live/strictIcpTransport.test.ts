@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mode = vi.hoisted(() => ({ icp: true, email: false, stored: true }));
+const mode = vi.hoisted(() => ({ icp: true, email: false, stored: true, mounted: false }));
 vi.mock("./authBackendMode", () => ({
   hasInternetIdentitySessionStored: () => mode.stored,
+  isIcpProviderMounted: () => mode.mounted,
   isSignedInWithEmail: () => mode.email,
   readAuthChoice: () => null,
   resolveAuthBackend: () => mode.icp ? "icp" : "supabase",
@@ -10,8 +11,13 @@ vi.mock("./targetRegistry", () => ({ getActiveSupabaseTarget: () => ({ url: "htt
 import { assertStrictIcpRequest, ICP_FALLBACK_BLOCKED_EVENT, installStrictIcpTransport } from "./strictIcpTransport";
 const host = "https://project.supabase.co";
 const post = (body: unknown) => ({ method: "POST", body: JSON.stringify(body) });
-beforeEach(() => { mode.icp = true; mode.email = false; mode.stored = true; });
+beforeEach(() => { mode.icp = true; mode.email = false; mode.stored = true; mode.mounted = false; });
 describe("strict ICP fallback boundary", () => {
+  it("blocks Supabase during mounted ICP session restoration even without a saved delegation or configured target", async () => {
+    mode.icp = false; mode.stored = false; mode.mounted = true;
+    await expect(assertStrictIcpRequest(`${host}/rest/v1/clubs`)).rejects.toThrow("data clubs");
+    await expect(assertStrictIcpRequest(`${host}/auth/v1/token`, post({}))).rejects.toThrow("email authentication");
+  });
   it("blocks table reads and writes before network, without filters or identifiers in errors", async () => {
     await expect(assertStrictIcpRequest(`${host}/rest/v1/clubs?id=eq.private-value`)).rejects.toThrow("data clubs");
     await expect(assertStrictIcpRequest(`${host}/rest/v1/clubs`, post({ name: "private" }))).rejects.not.toThrow("private");

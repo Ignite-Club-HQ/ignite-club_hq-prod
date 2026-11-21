@@ -51,6 +51,19 @@ describe("useMediaRealtime", () => {
     delete (window as any).Capacitor;
   });
 
+  it("retires both email media channels when the same account switches to ICP", () => {
+    realtimeMode.icp = false;
+    const { rerender } = setup("user-a", ["photo-a"]);
+    const feed = channels.get("media-feed-user-a");
+    const engagement = channels.get("media-comments-user-a");
+    expect(channel).toHaveBeenCalledTimes(2);
+    realtimeMode.icp = true;
+    rerender({ id: "user-a", ids: ["photo-a"] });
+    expect(removeChannel).toHaveBeenCalledWith(feed);
+    expect(removeChannel).toHaveBeenCalledWith(engagement);
+    expect(channel).toHaveBeenCalledTimes(2);
+  });
+
   it.runIf(process.env.IGNITE_TEST_BACKEND_MODE !== "icp")("does not subscribe without an authenticated user", () => {
     setup(undefined, ["photo-a"]);
     expect(channel).not.toHaveBeenCalled();

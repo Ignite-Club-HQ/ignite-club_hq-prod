@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 import { getActiveSupabaseTarget } from "@/live/targetRegistry";
-import { hasInternetIdentitySessionStored } from "@/live/authBackendMode";
+import { hasInternetIdentitySessionStored, isIcpProviderMounted } from "@/live/authBackendMode";
 import { assertStrictIcpRequest, reportBlockedFallback, strictIcpActive } from "@/live/strictIcpTransport";
 
 // Lazy singleton: the Supabase client (and its target resolution) is only
@@ -29,7 +29,7 @@ export const supabase = new Proxy({} as SupabaseClient<Database>, {
       // Signed out (e.g. just left email mode on /auth): screens still
       // unmounting may ask for a channel. Nothing private flows, so hand back
       // an inert channel instead of reporting a false testing issue.
-      if (!hasInternetIdentitySessionStored()) return () => inertChannel();
+      if (!hasInternetIdentitySessionStored() && !isIcpProviderMounted()) return () => inertChannel();
       return () => { throw reportBlockedFallback("live updates"); };
     }
     const client = getSupabase();

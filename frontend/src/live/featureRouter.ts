@@ -7,7 +7,7 @@ import { clubDispatch } from "./groupDispatch";
 import type { GroupDomain } from "./groupRouting";
 import { getActiveIcpTarget, type IcpTargetConfig } from "./targetRegistry";
 import { readOwnerTestRouteCached, nextOwnerTestClubId } from './ownerTestRouting';
-import { hasInternetIdentitySessionStored, readAuthChoice } from "./authBackendMode";
+import { hasInternetIdentitySessionStored, isIcpProviderMounted, readAuthChoice } from "./authBackendMode";
 import { reportBlockedFallback } from "./strictIcpTransport";
 import { IcpSessionRequiredError } from "./icpSessionErrors";
 import { timeChatOperation } from '@/lib/chatOpenTrace';
@@ -24,8 +24,8 @@ import { dispatchMixedMembership } from './mixedMembershipRuntime';
  * - ICP provider: calls the domain canister through live/domains.ts with the
  *   signed-in Internet Identity.
  *
- * Until a feature's canister ID is configured the dispatcher always takes the
- * Supabase branch, so nothing changes for anyone before canisters exist.
+ * A secure session never falls back to Supabase: absent canisters and expired
+ * delegations fail closed. Signed-in email sessions retain Supabase routing.
  */
 
 export interface FeatureBackendContext {
@@ -84,7 +84,7 @@ async function dispatchFeatureBackend<T>(
   scope?: ClubScope,
 ): Promise<T> {
   if (isSignedInWithEmail()) return providers.supabase();
-  const knownIcpSession = hasInternetIdentitySessionStored() || readAuthChoice() === "icp";
+  const knownIcpSession = isIcpProviderMounted() || hasInternetIdentitySessionStored() || readAuthChoice() === "icp";
   if (knownIcpSession) {
     const target = tryGetActiveIcpTarget();
     if (!target || !isFeatureCanisterConfigured(target, feature)) {

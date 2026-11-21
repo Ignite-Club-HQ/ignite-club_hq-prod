@@ -34,7 +34,7 @@ export function useMediaRealtime(userId: string | undefined, photoIds: readonly 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, queryClient]);
+  }, [userId, mediaOnIcp, queryClient]);
 
   useEffect(() => {
     if (!userId || visiblePhotoIds.size === 0 || mediaOnIcp) return;
@@ -64,7 +64,7 @@ export function useMediaRealtime(userId: string | undefined, photoIds: readonly 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, photoIdsSignature, visiblePhotoIds, queryClient]);
+  }, [userId, mediaOnIcp, photoIdsSignature, visiblePhotoIds, queryClient]);
 
   useEffect(() => {
     if (!userId) return;

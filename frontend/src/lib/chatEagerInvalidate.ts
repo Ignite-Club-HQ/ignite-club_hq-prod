@@ -35,6 +35,7 @@
  */
 
 import { resolveAuthBackend } from "@/live/authBackendMode";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 
 export type ChatSurface = "group" | "dm" | "team" | "club" | "broadcast";
 
@@ -55,9 +56,11 @@ let sessionApplied: boolean | null = null;
  * been able to probe yet (don't block the optimisation on the probe).
  */
 export async function ensureSessionApplied(): Promise<boolean> {
+  if (strictIcpActive()) return false;
   if (sessionApplied) return true;
   try {
     const { supabase } = await import("@/integrations/supabase/client");
+    if (strictIcpActive()) return false;
     const { data } = await supabase.auth.getSession();
     sessionApplied = !!data?.session?.access_token;
     return sessionApplied;
