@@ -11,13 +11,13 @@
     "competition_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "mini_league_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "messaging_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
-    "notification_queue": "8ea6fd56f148b80f7fc89639efa1787ce0fa77da",
-    "media_metadata": "fd17a007942dead067dd8d8e14ac43d16b1c92f8",
-    "media_blob_store": "fd17a007942dead067dd8d8e14ac43d16b1c92f8",
-    "vault_domain": "fd17a007942dead067dd8d8e14ac43d16b1c92f8",
-    "club_points_domain": "fd17a007942dead067dd8d8e14ac43d16b1c92f8",
-    "insights_domain": "fd17a007942dead067dd8d8e14ac43d16b1c92f8",
+    "notification_queue": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "media_metadata": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "media_blob_store": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "vault_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "club_points_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "insights_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "shard_router": "fd17a007942dead067dd8d8e14ac43d16b1c92f8"
   },
-  "updatedAt": "2026-11-21T03:35:22.838Z"
+  "updatedAt": "2026-11-21T03:49:50.032Z"
 }
