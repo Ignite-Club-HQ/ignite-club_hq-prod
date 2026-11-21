@@ -6,13 +6,29 @@ export const PRIMARY_SUBNET = 'e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3
 export const SHARED_SERVICES = Object.freeze(['shard_router', 'identity_access', 'placement_registry', 'migration_coordinator', 'secret_workload_identity']);
 export const SCOPES = Object.freeze({
   full_backend: [...SHARED_SERVICES.filter(name=>name!=='shard_router'), ...GROUP_BUILD_SERVICES, 'shard_router'],
+  dev_identity_directory: ['identity_access'],
+  // Check-only: read exact shared DEV Identity and G2 club; cannot upgrade.
+  dev_first_content_admission_preflight: ['identity_access', 'club_domain'],
   app_admin: ['identity_access', 'notification_queue'],
   club_migration: ['club_domain'],
   private_name_cleanup: ['identity_access', 'pii_access_control', 'club_domain'],
   secure_name_save: ['pii_access_control', 'identity_access'],
   private_club_name_display: ['pii_access_control', 'club_domain', 'identity_access'],
+  // Only DEV G1+G2 PII and DEV shared Identity; the new release does not
+  // install club services, touch PROD or change child/PII ownership.
+  shared_club_name_enforcement: ['pii_access_control', 'identity_access'],
+  // Install only the DEV G1/G2 governor-only copy-status reader. This is a
+  // NORMAL PII Wasm upgrade, not a name-release/settings activation.
+  dev_club_name_coverage_reader: ['pii_access_control'],
+  // DEV Group 2 ONLY: exact existing PII canister for the directly-owned
+  // child-name performance fix. Reuse journaled upgrades, photo-key checks and
+  // original settings; never upgrade G1, a third group or shared identity.
+  dev_g2_pii_owner_fastpath: ['pii_access_control'],
   team_invites: ['club_domain', 'mini_league_domain'],
   messaging: ['messaging_domain'],
+  plugin_member_access: ['events_domain', 'messaging_domain'],
+  rsvp_integrity: ['events_domain'],
+  guardian_rsvp_authority: ['club_domain', 'events_domain'],
   browser_push_test: ['notification_queue'],
   competition: ['notification_queue', 'club_domain', 'events_domain', 'competition_domain'],
   history: ['events_domain', 'competition_domain'],
@@ -26,7 +42,8 @@ export const normalizeConfirmation = v => String(v ?? '').replace(/[\u200b-\u200
 export function validateRequest(action, scope, confirmation, checkedPlan) {
   action = String(action ?? '').trim(); scope = String(scope ?? '').trim();
   if (!['check', 'upgrade', 'recover'].includes(action) || !Object.hasOwn(SCOPES, scope)) throw Error('Choose a reviewed scope and check, upgrade or recover');
-  const words = { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
+  if (scope === 'dev_first_content_admission_preflight' && action !== 'check') throw Error('DEV first-content admission preflight is check-only; upgrading either canister requires a separately reviewed release');
+  const words = action === 'upgrade' && scope === 'dev_identity_directory' ? 'UPGRADE DEV IDENTITY DIRECTORY ONLY' : action === 'upgrade' && scope === 'plugin_member_access' ? 'UPGRADE DEV MEMBER ACCESS' : action === 'upgrade' && scope === 'rsvp_integrity' ? 'UPGRADE DEV RSVP ONLY' : action === 'upgrade' && scope === 'guardian_rsvp_authority' ? 'UPGRADE DEV GUARDIAN RSVP' : action === 'upgrade' && scope === 'shared_club_name_enforcement' ? 'UPGRADE DEV SHARED CLUB NAMES ONLY' : action === 'upgrade' && scope === 'dev_club_name_coverage_reader' ? 'UPGRADE DEV NAME COVERAGE READER ONLY' : action === 'upgrade' && scope === 'dev_g2_pii_owner_fastpath' ? 'UPGRADE DEV GROUP 2 PII ONLY' : { recover: 'RECOVER COMPLETED MAINNET RELEASE', upgrade: 'UPGRADE ALL MAINNET GROUPS' }[action];
   if (words) {
     const c = normalizeConfirmation(confirmation), plan = normalizePlan(checkedPlan);
     if (c !== words) throw Error(`Confirmation box must say ${words} (received ${c.length} characters${c ? ` starting "${c.slice(0, 12)}"` : ''})`);
@@ -67,8 +84,106 @@ export function planInventory(shared, provisions, registry, scope, hashes) {
     }
     if (text(live.photo_store[0]) !== g.services.find(s=>s.name==='media_blob_store')?.canisterId) throw Error('Photo store differs');
   }
-  const targets = names.flatMap(name => SHARED_SERVICES.includes(name) ? [{groupId:'shared',name,canisterId:shared[name],subnetId:PRIMARY_SUBNET,newHash:hashes[name]}] : all.map(g => ({ groupId:g.id, ...g.services.find(s=>s.name===name), newHash:hashes[name] })));
+  const group2Pii = all.find(g => g.id === 'g2')?.services.find(service => service.name === 'pii_access_control');
+  const group2Club = all.find(g => g.id === 'g2')?.services.find(service => service.name === 'club_domain');
+  const targets = scope === 'dev_g2_pii_owner_fastpath'
+    ? (group2Pii ? [{ groupId: 'g2', ...group2Pii, newHash: hashes.pii_access_control }] : [])
+    : scope === 'dev_first_content_admission_preflight'
+      ? (group2Club ? [
+          {groupId:'shared',name:'identity_access',canisterId:shared.identity_access,subnetId:PRIMARY_SUBNET,newHash:hashes.identity_access},
+          {groupId:'g2',...group2Club,newHash:hashes.club_domain},
+        ] : [])
+    : names.flatMap(name => SHARED_SERVICES.includes(name) ? [{groupId:'shared',name,canisterId:shared[name],subnetId:PRIMARY_SUBNET,newHash:hashes[name]}] : all.map(g => ({ groupId:g.id, ...g.services.find(s=>s.name===name), newHash:hashes[name] })));
   if (targets.some(t=>!t.name || !validId(t.canisterId) || !/^[a-f0-9]{64}$/.test(t.newHash ?? '')) || new Set(targets.map(t=>t.canisterId)).size!==targets.length) throw Error('Incomplete upgrade artifacts/targets');
+  // Preflight ONLY: never silently include G1 Club or a third group, never
+  // let this scope become a general upgrade/recovery target.
+  if (scope === 'dev_first_content_admission_preflight') {
+    if (all.length !== 2 || all[0].id !== 'g1' || all[1].id !== 'g2' ||
+        targets.length !== 2 ||
+        targets[0].groupId !== 'shared' || targets[0].name !== 'identity_access' ||
+        targets[0].canisterId !== 'mq2sj-fiaaa-aaaal-qxlqa-cai' ||
+        targets[1].groupId !== 'g2' || targets[1].name !== 'club_domain' ||
+        targets[1].canisterId !== 'yfwyv-nyaaa-aaaal-qxpyq-cai')
+      throw Error('DEV first-content preflight requires exact shared Identity and Group 2 Club only');
+  }
+  // A separately reviewed PII-only DEV performance release. Check both the
+  // exact group AND the immutable canister principal after reading the entire
+  // saved/live registry; an unregistered G2, replacement service or extra
+  // target must fail before an install or a release journal is written.
+  if (scope === 'dev_g2_pii_owner_fastpath') {
+    const t = targets[0];
+    if (targets.length !== 1 || !t || t.groupId !== 'g2' ||
+        t.name !== 'pii_access_control' ||
+        t.canisterId !== 'zt5a6-yiaaa-aaaal-qxp5q-cai')
+      throw Error('DEV PII performance upgrade requires exactly pinned G2 PII only');
+  }
+  // Separate universal-club-key release across the TWO existing DEV canister
+  // groups. A newly opened group or unknown PII service blocks this rollout
+  // until a separate source/key/replica audit is reviewed.
+  if (scope === 'shared_club_name_enforcement') {
+    const expected = [
+      ['g1','pii_access_control','iui5p-aaaaa-aaaal-qxllq-cai'],
+      ['g2','pii_access_control','zt5a6-yiaaa-aaaal-qxp5q-cai'],
+      ['shared','identity_access','mq2sj-fiaaa-aaaal-qxlqa-cai'],
+    ];
+    if (targets.length !== expected.length || expected.some(([groupId,name,canisterId],i) => {
+      const t = targets[i];
+      return !t || t.groupId !== groupId || t.name !== name || t.canisterId !== canisterId;
+    })) throw Error('DEV shared-club-name release requires exactly G1/G2 PII and shared DEV Identity');
+  }
+  // Metadata-only reader must never upgrade Identity, Club, notifications,
+  // PROD or a newly registered group. It does not activate global name
+  // release flags or rewrite a member's encrypted copy.
+  if (scope === 'dev_club_name_coverage_reader') {
+    const expected = [
+      ['g1','pii_access_control','iui5p-aaaaa-aaaal-qxllq-cai'],
+      ['g2','pii_access_control','zt5a6-yiaaa-aaaal-qxp5q-cai'],
+    ];
+    if (targets.length !== expected.length || expected.some(([groupId,name,canisterId],i) => {
+      const t = targets[i];
+      return !t || t.groupId !== groupId || t.name !== name || t.canisterId !== canisterId;
+    })) throw Error('DEV club-name coverage reader requires exactly pinned G1/G2 PII');
+  }
+  // Only the four pinned DEV instances are authorised for this narrow plugin
+  // release. Never silently include a third group or an unknown replacement.
+  if (scope === 'plugin_member_access') {
+    const expected = [
+      ['g1', 'events_domain', 'm6y7b-6yaaa-aaaal-qxlra-cai'],
+      ['g2', 'events_domain', 'ymvtj-3qaaa-aaaal-qxpza-cai'],
+      ['g1', 'messaging_domain', 'mx3u5-iqaaa-aaaal-qxlqq-cai'],
+      ['g2', 'messaging_domain', 'yluv5-wiaaa-aaaal-qxpzq-cai'],
+    ];
+    if (targets.length !== 4 || expected.some(([groupId, name, canisterId], i) => {
+      const t = targets[i];
+      return !t || t.groupId !== groupId || t.name !== name || t.canisterId !== canisterId;
+    })) throw Error('DEV member-access upgrade requires exactly four pinned Group 1 and Group 2 canisters');
+  }
+  // RSVP repair is an events-only DEV release. Never silently touch club,
+  // messaging, identity or PROD canisters; refuse any new group until reviewed.
+  if (scope === 'rsvp_integrity') {
+    const expected = [
+      ['g1', 'events_domain', 'm6y7b-6yaaa-aaaal-qxlra-cai'],
+      ['g2', 'events_domain', 'ymvtj-3qaaa-aaaal-qxpza-cai'],
+    ];
+    if (targets.length !== 2 || expected.some(([groupId, name, canisterId], i) => {
+      const t = targets[i];
+      return !t || t.groupId !== groupId || t.name !== name || t.canisterId !== canisterId;
+    })) throw Error('DEV RSVP upgrade requires exactly two pinned Group 1 and Group 2 events canisters');
+  }
+  // Guardian RSVP authority needs both canisters. This scope may only touch
+  // these four pinned DEV group targets, with no shared/PROD infrastructure.
+  if (scope === 'guardian_rsvp_authority') {
+    const expected = [
+      ['g1', 'club_domain', 'mzzzv-taaaa-aaaal-qxlrq-cai'],
+      ['g2', 'club_domain', 'yfwyv-nyaaa-aaaal-qxpyq-cai'],
+      ['g1', 'events_domain', 'm6y7b-6yaaa-aaaal-qxlra-cai'],
+      ['g2', 'events_domain', 'ymvtj-3qaaa-aaaal-qxpza-cai'],
+    ];
+    if (targets.length !== 4 || expected.some(([groupId, name, canisterId], i) => {
+      const t = targets[i];
+      return !t || t.groupId !== groupId || t.name !== name || t.canisterId !== canisterId;
+    })) throw Error('DEV guardian RSVP authority requires exactly four pinned Group 1 and Group 2 canisters');
+  }
   return { groups: all, targets, pii: Object.fromEntries(all.map(g=>[g.id,g.services.find(s=>s.name==='pii_access_control').canisterId])) };
 }
 export function installArgs(target, path) {
@@ -86,7 +201,7 @@ export function validateJournal(journal, binding) {
     const s=journal.steps.find(s=>s.canisterId===t.canisterId);
     if (!s || ['name','groupId','subnetId','newHash'].some(k=>s[k]!==t[k]) || !/^[a-f0-9]{64}$/.test(s.oldHash ?? '') || !/^[a-f0-9]{64}$/.test(s.settingsHash ?? '') || !['ready','pending','complete'].includes(s.phase)) throw Error('Invalid all-group journal step');
   }
-  if(['private_name_cleanup','secure_name_save','private_club_name_display'].includes(binding.scope)) {
+  if(['private_name_cleanup','secure_name_save','private_club_name_display','shared_club_name_enforcement'].includes(binding.scope)) {
     const plan=binding.cleanupPlan,rows=journal.cleanupActivation;
     if(!Array.isArray(plan)||plan.length!==binding.targets.length||new Set(plan.map(s=>s.canisterId)).size!==plan.length||plan.some(p=>!binding.targets.some(t=>['canisterId','name','groupId','subnetId','newHash'].every(k=>t[k]===p[k]))||!['oldSettingsHash','newSettingsHash'].every(k=>/^[a-f0-9]{64}$/.test(p[k]??''))))throw Error('Invalid checked cleanup activation plan');
     if(rows!==undefined && (!Array.isArray(rows)||rows.length!==plan.length||plan.some(p=>rows.filter(s=>Object.keys(p).every(k=>s[k]===p[k])&&['ready','pending','complete'].includes(s.phase)).length!==1)))throw Error('Foreign cleanup activation journal');

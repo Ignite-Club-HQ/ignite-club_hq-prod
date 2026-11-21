@@ -402,6 +402,15 @@ type Main =
                                                   text;
                                                   text;
                                                 });
+   read_trusted_dev_test2_event_delivery: (event_id: text, recipient: principal) ->
+    (variant {
+       Err: text;
+       Ok: opt record {
+                 attempts: nat32;
+                 created_at_ms: nat64;
+                 status: text;
+               };
+     });
    record_chat_notify_batch: (message_id: text, conversation_id: text,
     sender: text, preview: text, recipients: vec text, mute_list:
     vec text) -> (ChatNotifyBatchResult);

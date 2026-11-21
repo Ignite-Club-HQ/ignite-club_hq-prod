@@ -41,17 +41,31 @@ jobs:
         run: node --test scripts/membership-lookup-recovery.test.mjs scripts/membership-acceptance-checks.test.mjs scripts/membership-lookup-release-policy.test.mjs scripts/membership-ownership-acceptance.test.mjs scripts/membership-source-configuration.test.mjs scripts/membership-legacy-ownership.test.mjs frontend/scripts/membership-fill-contract.test.mjs scripts/group2-journal.test.mjs scripts/group2-upgrade-rules.test.mjs
       - name: Restore existing governor only
         env:
-          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+          # The DEV governor key is distinct from the frontend publisher key.
+          # Use the same protected precedence as the successful DEV reset/upgrade.
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
         run: |
           set -euo pipefail
-          test -n "$DEPLOYER_PEM"
+          test "$GITHUB_REF" = "refs/heads/main" || { echo "::error::Run DEV lookup checks from main only; no credential imported."; exit 1; }
+          test -n "${DEPLOYER_PEM:-}" || { echo "::error::Original protected DEV governor key is missing; no canisters changed."; exit 1; }
           umask 077
           echo "ICP_HOME=$RUNNER_TEMP/lookup-icp-home" >> "$GITHUB_ENV"
           export ICP_HOME="$RUNNER_TEMP/lookup-icp-home"
-          printf '%s' "$DEPLOYER_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$RUNNER_TEMP/lookup.pem"
+          # Accept existing multiline, escaped-newline and space-flattened PEM
+          # without logging or weakening the exact governor principal check.
+          PEM_IN="$DEPLOYER_PEM" node scripts/normalize-pem.mjs > "$RUNNER_TEMP/lookup.pem"
+          test -s "$RUNNER_TEMP/lookup.pem" || { echo "::error::Could not normalise the protected DEV governor key."; exit 1; }
           icp identity import --from-pem "$RUNNER_TEMP/lookup.pem" --storage plaintext ignite-governor
           icp identity default ignite-governor
-          test "$(icp identity principal)" = vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae
+          if ! governor_identity="$(icp identity principal --identity ignite-governor 2>/dev/null)"; then
+            echo "::error::Could not read imported DEV governor identity; no canisters changed."
+            exit 1
+          fi
+          if [ "$governor_identity" != vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae ]; then
+            echo "::error::Imported key is not the original DEV governor; check protected GOVERNOR_PEM precedence. No canisters changed."
+            exit 1
+          fi
+          unset governor_identity
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown

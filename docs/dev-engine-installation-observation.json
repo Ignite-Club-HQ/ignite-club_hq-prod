@@ -1,0 +1,468 @@
+{
+  "observedAtUtc": "2026-11-17T03:02:00Z",
+  "source": "Owner screenshots; checksum-validated principals; anonymous query responses from https://icp-api.io",
+  "certifiedModuleInventoryVerified": false,
+  "setupVerified": false,
+  "encryptionVerified": false,
+  "frontendReady": false,
+  "activeRoutingChanged": false,
+  "splitUploadInventory": {
+    "source": "Owner detail screenshots supplied 2026-11-17 at 04:22 UTC; no live module or setup verification implied",
+    "part1App": "ignite-engine-bundle-1of3",
+    "part1CanisterIds": {
+      "club_domain": "rrmq2-waaaa-aaac5-aaaka-cai",
+      "club_points_domain": "rwnwo-3yaaa-aaac5-aaakq-cai",
+      "competition_domain": "r7o5s-nqaaa-aaac5-aaala-cai",
+      "events_domain": "ryp3g-aiaaa-aaac5-aaalq-cai",
+      "identity_access": "qvb7i-paaaa-aaac5-aaama-cai",
+      "insights_domain": "qsaz4-cyaaa-aaac5-aaamq-cai"
+    },
+    "part2App": "ignite-engine-bundle-2of3",
+    "part2CanisterIds": {
+      "mini_league_domain": "qagof-oiaaa-aaac5-aaapq-cai",
+      "messaging_domain": "qhhir-dqaaa-aaac5-aaapa-cai",
+      "notification_queue": "qoedn-vyaaa-aaac5-aaaoq-cai",
+      "media_blob_store": "qjffz-yaaaa-aaac5-aaaoa-cai",
+      "migration_coordinator": "q4cuu-ziaaa-aaac5-aaanq-cai",
+      "media_metadata": "q3dsa-uqaaa-aaac5-aaana-cai"
+    },
+    "part2FullIdsAwaited": false,
+    "part3Prepared": true,
+    "part3SetupIncluded": false,
+    "setupHold": "Official sync-plugin@0.2 permits only named canisters resolved within the upload project. Baking external IDs into plugin bytes does not authorize calls to apps 1 and 2. Part 3 is installation-only; cross-app owner-signed wiring remains outstanding."
+  },
+  "canisterIds": {
+    "secret_workload_identity": "s22gz-qyaaa-aaac5-aaaaq-cai",
+    "identity_access": "stznf-gqaaa-aaac5-aaaba-cai",
+    "notification_queue": "suylr-liaaa-aaac5-aaabq-cai",
+    "timer_jobs": "sb724-kaaaa-aaac5-aaaca-cai",
+    "vault_domain": "sg64i-hyaaa-aaac5-aaacq-cai",
+    "club_points_domain": "sp5xu-rqaaa-aaac5-aaada-cai",
+    "pii_access_control": "si4ra-4iaaa-aaac5-aaadq-cai",
+    "competition_domain": "tfsvo-taaaa-aaac5-aaaea-cai",
+    "club_domain": "tctt2-6yaaa-aaac5-aaaeq-cai",
+    "events_domain": "tlqyg-iqaaa-aaac5-aaafa-cai",
+    "insights_domain": "tmr6s-fiaaa-aaac5-aaafq-cai",
+    "placement_registry": "tzwp7-eaaaa-aaac5-aaaga-cai",
+    "shard_router": "t6xjl-jyaaa-aaac5-aaagq-cai",
+    "media_blob_store": "txucx-7qaaa-aaac5-aaaha-cai",
+    "media_metadata": "tqved-siaaa-aaac5-aaahq-cai",
+    "mini_league_domain": "rnikl-baaaa-aaac5-aaaia-cai",
+    "messaging_domain": "rkjm7-myaaa-aaac5-aaaiq-cai",
+    "migration_coordinator": "rdkhd-2qaaa-aaac5-aaaja-cai"
+  },
+  "queryReportedNoWasmIC0537": [
+    "notification_queue",
+    "timer_jobs",
+    "vault_domain",
+    "pii_access_control",
+    "club_domain",
+    "events_domain",
+    "insights_domain",
+    "placement_registry",
+    "shard_router",
+    "media_blob_store",
+    "media_metadata",
+    "mini_league_domain"
+  ],
+  "queryReportedMethodMissingIC0536": [
+    "secret_workload_identity",
+    "identity_access",
+    "club_points_domain",
+    "competition_domain",
+    "messaging_domain",
+    "migration_coordinator"
+  ],
+  "limitations": "getApiDoc probe is read-only; a method-missing response does not verify the installed module fingerprint, expected interface or service wiring. Query rejections are not certified module-state evidence. No installations, retries, settings, admission or key derivation were executed. Owner-signed installation rejection details remain required to diagnose the cause.",
+  "standardNetworkRehearsal": {
+    "observedAtUtc": "2026-11-17T03:57:00Z",
+    "source": "GitHub [TEST] Install DEV engine bundle on a throwaway local network (owner screenshot)",
+    "bundleSha256": "308bfd95b3914b11bb55ceaa5880014c37dbfe4df61edfe66eb79c8a5eccdcfa",
+    "installed": 17,
+    "failed": [
+      "vault_domain"
+    ],
+    "vaultDomainReason": "Expected: setup step refuses because the throwaway network's installer is not the OpenCloud owner principal; vault_domain code itself installed before setup ran.",
+    "conclusion": "All 18 programs install on a standard network; the 12 empty engine services are an engine-side installation failure, not a bundle program defect."
+  },
+  "singleAppV2Readback": {
+    "observedAtUtc": "2026-11-17T05:13:17.376658+00:00",
+    "source": "Owner full-ID screenshot; anonymous ICP SDK certified canister state at https://icp-api.io plus public cycles_balance/memory_stats queries",
+    "bundleSha256": "0cf28ad3f32c64603d7ae5ce4a1ddd1e085a85bbb80a4664db015098fe2a0fe4",
+    "canisterIds": {
+      "migration_coordinator": "v45ua-faaaa-aaac5-aaaqa-cai",
+      "placement_registry": "v34su-iyaaa-aaac5-aaaqq-cai",
+      "media_blob_store": "vs7zi-6qaaa-aaac5-aaara-cai",
+      "messaging_domain": "vv674-tiaaa-aaac5-aaarq-cai",
+      "insights_domain": "vazor-saaaa-aaac5-aaasa-cai",
+      "club_domain": "vhyif-7yaaa-aaac5-aaasq-cai",
+      "competition_domain": "vo3dz-jqaaa-aaac5-aaata-cai",
+      "pii_access_control": "vj2fn-eiaaa-aaac5-aaatq-cai",
+      "events_domain": "ueubd-laaaa-aaac5-aaaua-cai",
+      "identity_access": "udvhx-gyaaa-aaac5-aaauq-cai",
+      "timer_jobs": "ukwml-qqaaa-aaac5-aaava-cai",
+      "shard_router": "unxk7-5iaaa-aaac5-aaavq-cai",
+      "secret_workload_identity": "uyq3s-4aaaa-aaac5-aaawa-cai",
+      "notification_queue": "u7r5g-ryaaa-aaac5-aaawq-cai",
+      "club_points_domain": "uwsw2-hqaaa-aaac5-aaaxa-cai",
+      "vault_domain": "urtqo-kiaaa-aaac5-aaaxq-cai",
+      "media_metadata": "wmo6g-zaaaa-aaac5-aaaya-cai",
+      "mini_league_domain": "wlpys-uyaaa-aaac5-aaayq-cai"
+    },
+    "installedModules": 18,
+    "uploadedArtifactHashMatches": 18,
+    "memoryQuerySuccesses": 18,
+    "expectedSubnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+    "allOnExpectedSubnet": true,
+    "soleExpectedOwner": true,
+    "zeroCyclesExpectedForCloudEngine": true,
+    "moduleHashSemantics": "Certified module hashes match exact gzip-compressed program bytes in v2 manifest; decompressed hashes retained separately are not the installed artifact hash.",
+    "results": [
+      {
+        "name": "placement_registry",
+        "id": "v34su-iyaaa-aaac5-aaaqq-cai",
+        "moduleHash": "09900755db0705c8699c0d1c99b33479481626b57d79a559d4bff0f6d609dd57",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "0f22ce21f92895a35b396b668a54ce9f8986c36d933852c9c4b7af50362f1e82",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "09900755db0705c8699c0d1c99b33479481626b57d79a559d4bff0f6d609dd57",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "18087936",
+          "stable_bytes": "16842752",
+          "heap_bytes": "1245184"
+        }
+      },
+      {
+        "name": "migration_coordinator",
+        "id": "v45ua-faaaa-aaac5-aaaqa-cai",
+        "moduleHash": "c6b08691606f373c8f6fbcc16605d89def958f4c1119c4977c2059bd7e6c4922",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "57358bbf2d0bf5a0dba55c78caf6572beee794c33ba68b73d11c4c00f9747994",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "c6b08691606f373c8f6fbcc16605d89def958f4c1119c4977c2059bd7e6c4922",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5308416",
+          "stable_bytes": "0",
+          "heap_bytes": "5264904"
+        }
+      },
+      {
+        "name": "media_blob_store",
+        "id": "vs7zi-6qaaa-aaac5-aaara-cai",
+        "moduleHash": "34cbc67e9d157d67f24ce1d45750eafb1d2ee42731fcff737ea808214a957903",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "f822c1a3203abb301ea1e88e76a9e45379e05a99253861a799f5fa17c94b2835",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "34cbc67e9d157d67f24ce1d45750eafb1d2ee42731fcff737ea808214a957903",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5373952",
+          "stable_bytes": "0",
+          "heap_bytes": "5360216"
+        }
+      },
+      {
+        "name": "club_domain",
+        "id": "vhyif-7yaaa-aaac5-aaasq-cai",
+        "moduleHash": "679f03caaedf696c6932357a8daef34c33c1e5122026a0fb7f3af62d9103c583",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "0e7df98ae95c334445edcbbb99f6be9add0d008fadda0beaedc0abf7e24e7ecd",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "679f03caaedf696c6932357a8daef34c33c1e5122026a0fb7f3af62d9103c583",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "6488064",
+          "stable_bytes": "0",
+          "heap_bytes": "6423696"
+        }
+      },
+      {
+        "name": "insights_domain",
+        "id": "vazor-saaaa-aaac5-aaasa-cai",
+        "moduleHash": "43148b67f2ed0bb7141475b1590ec12619cf523efd54a775d5f2b8c4c5e14444",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "ee6031bc4bcf10a17c465614a131fb5acc66cef3554e05b48f8f8f654208afb9",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "43148b67f2ed0bb7141475b1590ec12619cf523efd54a775d5f2b8c4c5e14444",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5373952",
+          "stable_bytes": "0",
+          "heap_bytes": "5361768"
+        }
+      },
+      {
+        "name": "messaging_domain",
+        "id": "vv674-tiaaa-aaac5-aaarq-cai",
+        "moduleHash": "60ccfd8224d48c2aeb90a7a59ca0f7b2110b9cacbb671b952af1b903fd0a431b",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "48b8319410f795d9dedab7021542f1d035539bcecb5b6447cb8e41892ca949e1",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "60ccfd8224d48c2aeb90a7a59ca0f7b2110b9cacbb671b952af1b903fd0a431b",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5701632",
+          "stable_bytes": "0",
+          "heap_bytes": "5692184"
+        }
+      },
+      {
+        "name": "competition_domain",
+        "id": "vo3dz-jqaaa-aaac5-aaata-cai",
+        "moduleHash": "9614c61d2fb3643085f28c36e0fa987507bd4fecd1832d52c4671d19d29f8da1",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "89b014fe10dd0fd37b1bcdb7865db078b1f385f4780245e8e324fa8a3e139bd1",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "9614c61d2fb3643085f28c36e0fa987507bd4fecd1832d52c4671d19d29f8da1",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5570560",
+          "stable_bytes": "0",
+          "heap_bytes": "5528352"
+        }
+      },
+      {
+        "name": "pii_access_control",
+        "id": "vj2fn-eiaaa-aaac5-aaatq-cai",
+        "moduleHash": "6ed3bf671b94875fd651cc20c80e0500be4712607064c5533a0f824c0d9f60b5",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "35c7abe95c8fb3d09abc109fd90eaef5e72fde410e547872d1e89fe45c74158b",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "6ed3bf671b94875fd651cc20c80e0500be4712607064c5533a0f824c0d9f60b5",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5439488",
+          "stable_bytes": "0",
+          "heap_bytes": "5394200"
+        }
+      },
+      {
+        "name": "events_domain",
+        "id": "ueubd-laaaa-aaac5-aaaua-cai",
+        "moduleHash": "dd8b40e08172782988d607327d9f95b6aed54c9c17bacdf742f729477fc7b411",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "284233e97cde4e62b85b5527c7482a72fe24a225aa2982cc05147d5c05d5e893",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "dd8b40e08172782988d607327d9f95b6aed54c9c17bacdf742f729477fc7b411",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5701632",
+          "stable_bytes": "0",
+          "heap_bytes": "5684960"
+        }
+      },
+      {
+        "name": "timer_jobs",
+        "id": "ukwml-qqaaa-aaac5-aaava-cai",
+        "moduleHash": "4bb68e349219ca4d8260fa87674b21c26d5c699fbb5275d6d7c9ea6f4f3a19d4",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "239f5cad86d10cf65cdb2caaada57ca9c13eb82e71f4732e8f0f9fe8ac9b4d87",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "4bb68e349219ca4d8260fa87674b21c26d5c699fbb5275d6d7c9ea6f4f3a19d4",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "18087936",
+          "stable_bytes": "16842752",
+          "heap_bytes": "1245184"
+        }
+      },
+      {
+        "name": "identity_access",
+        "id": "udvhx-gyaaa-aaac5-aaauq-cai",
+        "moduleHash": "24934be0019d68cf4efe41b68173ea5d86fd12cf5fba455af40688973f5c7862",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "d50916eb2d9d46d32327eba1b39be0dadfdcc75b206fc7877d49afb5cec4b23c",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "24934be0019d68cf4efe41b68173ea5d86fd12cf5fba455af40688973f5c7862",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "43384832",
+          "stable_bytes": "42008576",
+          "heap_bytes": "1376256"
+        }
+      },
+      {
+        "name": "shard_router",
+        "id": "unxk7-5iaaa-aaac5-aaavq-cai",
+        "moduleHash": "7f27e9b05f6a81694436c168207cf2ee026f7b0ee69104d236a9fb4b918540f3",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "5f7599f2681719ddb6109574f8923269d7c8eae81c07f08bb71f2844846980d7",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "7f27e9b05f6a81694436c168207cf2ee026f7b0ee69104d236a9fb4b918540f3",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "26542080",
+          "stable_bytes": "25231360",
+          "heap_bytes": "1310720"
+        }
+      },
+      {
+        "name": "secret_workload_identity",
+        "id": "uyq3s-4aaaa-aaac5-aaawa-cai",
+        "moduleHash": "15e180bc653059cc458aff10ca138b3ce11c454127df5211d2dd2e39ba5eca5b",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "764e298c292821e1e4d23cd4af26d550eb1023de97c87f25e8e77f411b1f5abf",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "15e180bc653059cc458aff10ca138b3ce11c454127df5211d2dd2e39ba5eca5b",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5308416",
+          "stable_bytes": "0",
+          "heap_bytes": "5268880"
+        }
+      },
+      {
+        "name": "club_points_domain",
+        "id": "uwsw2-hqaaa-aaac5-aaaxa-cai",
+        "moduleHash": "386f5ceab4d1b0ddacb27635f4a5b56372580840ea28bb7c72b9d0d204be4d6e",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "9373360787306df9bd55cd0fde5614b3bec454086f0e77b428ce67a34805735e",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "386f5ceab4d1b0ddacb27635f4a5b56372580840ea28bb7c72b9d0d204be4d6e",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5373952",
+          "stable_bytes": "0",
+          "heap_bytes": "5323792"
+        }
+      },
+      {
+        "name": "notification_queue",
+        "id": "u7r5g-ryaaa-aaac5-aaawq-cai",
+        "moduleHash": "10b96e275f38de808d52efd66fe484502a944ff24cda8b336ed395fe52cba811",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "f282ccf0f9cb7f27e1a024a76cd5c3a59ea42be68745d7d5989625e959d857e5",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "10b96e275f38de808d52efd66fe484502a944ff24cda8b336ed395fe52cba811",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5570560",
+          "stable_bytes": "0",
+          "heap_bytes": "5525448"
+        }
+      },
+      {
+        "name": "media_metadata",
+        "id": "wmo6g-zaaaa-aaac5-aaaya-cai",
+        "moduleHash": "890803edb33b09b840a158fc7254db56dbb55a3661e91351f799f8b0f5499afe",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "9d4cb0583584ac93be9762287f032b0a3b08f2921eff894eebc21ef010d53531",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "890803edb33b09b840a158fc7254db56dbb55a3661e91351f799f8b0f5499afe",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5373952",
+          "stable_bytes": "0",
+          "heap_bytes": "5345792"
+        }
+      },
+      {
+        "name": "mini_league_domain",
+        "id": "wlpys-uyaaa-aaac5-aaayq-cai",
+        "moduleHash": "5804926e55caed1d152272533eca11fad9958c865970e5c61842b5cd7f033054",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "e3a1b01721fc5411c4391f224175182eed1820b5e6fca248317ab0116028d89b",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "5804926e55caed1d152272533eca11fad9958c865970e5c61842b5cd7f033054",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5439488",
+          "stable_bytes": "0",
+          "heap_bytes": "5383192"
+        }
+      },
+      {
+        "name": "vault_domain",
+        "id": "urtqo-kiaaa-aaac5-aaaxq-cai",
+        "moduleHash": "df49c21fbf5b22b9596883f5b677b5e0dd6f4093a9df88dd693e1c6063cd135c",
+        "controllers": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae"
+        ],
+        "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+        "expectedModuleHash": "f4c27d2fc8b3ace806f2ad33110814c0313cb777aef430133f29421c54dd7a7d",
+        "matchesBundle": false,
+        "cycles": "0",
+        "expectedUploadedHash": "df49c21fbf5b22b9596883f5b677b5e0dd6f4093a9df88dd693e1c6063cd135c",
+        "matchesUploadedArtifact": true,
+        "memory": {
+          "memory_bytes": "5439488",
+          "stable_bytes": "0",
+          "heap_bytes": "5383368"
+        }
+      }
+    ],
+    "setupVerified": false,
+    "encryptionVerified": false,
+    "limitations": "Governor-only setup readbacks cannot be called with available anonymous access; no owner installation log supplied. No key derivation or signed-in club/photo/file roundtrip performed. No mutation or routing change."
+  }
+}

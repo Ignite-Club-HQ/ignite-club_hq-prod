@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Sheet,
   Trash2,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +28,7 @@ import { VaultPhotoItem } from "@/components/vault/VaultPhotoItem";
 import { formatVaultFileSize, getVaultExternalLinkInfo, isVaultDocumentFile, isVaultSpreadsheetFile } from "@/features/vault/vaultFilePresentation";
 import { toast } from "sonner";
 import { downloadStoredFile } from "@/lib/downloadStoredFile";
+import { presentFileAction } from "@/lib/safeOpenFile";
 
 import type { VaultFile, VaultPhoto } from "@/components/vault/VaultTypes";
 
@@ -209,12 +211,10 @@ export function ContentSection({
                   if (isExternalLink) {
                     import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
                   } else {
-                    import("@/lib/safeOpenFile").then(({ safeOpenFile }) =>
-                      safeOpenFile(file.file_url, {
+                    void presentFileAction("open", file.file_url, {
                         fileName: file.name || undefined,
                         mimeType: file.file_type || undefined,
-                      }),
-                     ).catch(() => toast.error("Could not open file", { description: "Please try again." }));
+                      });
                   }
                 }}
               >
@@ -336,25 +336,20 @@ export function ContentSection({
                         icon={ExternalLink}
                         label="Open"
                         onClick={() =>
-                          import("@/lib/safeOpenFile").then(({ safeOpenFile }) =>
-                            safeOpenFile(file.file_url, {
+                          presentFileAction("open", file.file_url, {
                               fileName: file.name || undefined,
                               mimeType: file.file_type || undefined,
-                            }),
-                           ).catch(() => toast.error("Could not open file", { description: "Please try again." }))
+                            })
                         }
                       />
                       <Item
                         icon={Download}
                         label="Download"
                         onClick={async () => {
-                           try {
-                             await downloadStoredFile(file.file_url, file.name || 'file', file.file_type || undefined);
-                           } catch {
-                             toast.error("Could not download file", { description: "Please try again." });
-                           }
+                           await presentFileAction("download", file.file_url, { fileName: file.name || 'file', mimeType: file.file_type || undefined });
                         }}
                       />
+                      <Item icon={Share2} label="Share" onClick={() => presentFileAction("share", file.file_url, { fileName: file.name, mimeType: file.file_type || undefined })} />
                     </>
                   )}
                   {!isExternalLink && isVaultSpreadsheetFile(file.name || '') && (

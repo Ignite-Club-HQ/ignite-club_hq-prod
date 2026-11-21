@@ -2230,6 +2230,16 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Vec(TeamInvite), 'Err' : IDL.Text })],
         [],
       ),
+    'read_can_team_child_name_visibility' : IDL.Func(
+      [IDL.Principal, IDL.Vec(IDL.Text)],
+      [IDL.Vec(IDL.Text)],
+      [],
+    ),
+    'read_account_list_team_child_ids' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [IDL.Variant({ 'Ok' : IDL.Vec(IDL.Text), 'Err' : IDL.Text })],
+      [],
+    ),
     'read_account_list_team_role_grants' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Vec(AccountRole), 'Err' : IDL.Text })],
@@ -2245,6 +2255,35 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Bool],
         [],
       ),
+    'read_account_my_dev_test2_event_delivery' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Opt(IDL.Record({
+              'status' : IDL.Text,
+              'attempts' : IDL.Nat32,
+              'created_at_ms' : IDL.Nat64,
+            })),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
+    'read_account_my_clubs_and_roles_indexed' : IDL.Func(
+      [IDL.Opt(IDL.Text), IDL.Nat16],
+      [
+        IDL.Variant({
+          'Ok' : IDL.Record({
+            'clubs' : IDL.Vec(IDL.Text),
+            'next' : IDL.Opt(IDL.Text),
+            'acl_revision' : IDL.Nat64,
+            'roles' : IDL.Vec(RoleGrant),
+          }),
+          'Err' : IDL.Text,
+        }),
+      ],
+      [],
+    ),
     'read_account_my_role_grants' : IDL.Func([], [IDL.Vec(RoleGrant)], []),
     'read_account_profile_team_history' : IDL.Func(
         [IDL.Text],
@@ -2378,11 +2417,42 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
         [],
       ),
+    'read_can_list_guardian_children' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(IDL.Record({ 'id' : IDL.Text, 'parent_id' : IDL.Opt(IDL.Text) }))],
+        [],
+      ),
+    'read_can_guardian_rsvp_child' : IDL.Func(
+        [IDL.Principal, IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Vec(IDL.Text)],
+        [IDL.Bool],
+        [],
+      ),
     'read_has_child_guardian' : IDL.Func(
         [IDL.Principal, IDL.Text],
         [IDL.Bool],
         [],
       ),
+    'read_chat_scope_access_batch' : IDL.Func(
+      [IDL.Principal, IDL.Vec(IDL.Text), IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
+      [
+        IDL.Variant({
+          'Ok' : IDL.Record({
+            'clubs' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Bool)),
+            'teams' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text, IDL.Bool)),
+          }),
+          'Err' : IDL.Text,
+        }),
+      ],
+      [],
+    ),
+    'read_event_member_roles_if_current' : IDL.Func(
+      [IDL.Principal, IDL.Text],
+      [IDL.Variant({
+        'Ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Opt(IDL.Text))),
+        'Err' : IDL.Text,
+      })],
+      [],
+    ),
     'read_has_club_membership' : IDL.Func(
         [IDL.Principal, IDL.Text],
         [IDL.Bool],
@@ -2498,6 +2568,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'read_profile_family_batch' : IDL.Func(
+        [IDL.Principal, IDL.Text, IDL.Vec(IDL.Principal), IDL.Opt(IDL.Nat)],
+        [IDL.Variant({ 'Ok' : Batch, 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_profile_team_membership_batch' : IDL.Func(
         [IDL.Principal, IDL.Text, IDL.Vec(IDL.Principal), IDL.Opt(IDL.Nat)],
         [IDL.Variant({ 'Ok' : Batch, 'Err' : IDL.Text })],
         [],

@@ -82,7 +82,17 @@ test('workflow runner safe-plan stops before every write and records a held phas
     assert.equal(report.deploymentAuthorized, false);
     assert.deepEqual(report.functions, []);
     assert.equal(report.candidates.length, 16);
-    assert.equal(report.held.length, 39);
+    assert.equal(report.held.length, 43);
+    // All four November 16 DEV signup/test sources are inventoried but not release candidates.
+    for (const file of [
+          "20261116085314_683fa371-acd8-47b9-b075-dfb0ab364037.sql",
+          "20261116085410_2513732e-4dfa-47f6-95c3-2286246d2fbf.sql",
+          "20261116085524_4b841888-bc21-4ad7-a0a7-46a281a453f5.sql",
+          "20261116085655_e85f1309-b328-4abb-a5d8-08714960627e.sql"
+    ]) {
+      assert.equal(report.sourceInventory.find(entry => entry.file === file)?.disposition, 'hold');
+      assert.equal(report.candidates.some(entry => entry.file === file), false);
+    }
     const approved = JSON.parse(readFileSync('docs/release-review/safe-apply-approval.json', 'utf8')).migrations.map(m => m.file);
     assert.deepEqual(approved.slice().sort(), report.candidates.map(c => c.file).filter(f => approved.includes(f)).sort());
     const commands = readFileSync(log, 'utf8');

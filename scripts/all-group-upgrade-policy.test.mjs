@@ -46,6 +46,126 @@ test('includes Group 1 and Group 2 and upgrades shared identity exactly once',()
   assert.equal(plan.targets.length,3);assert.equal(plan.targets.filter(t=>t.name==='identity_access').length,1);
   assert.equal(plan.targets.find(t=>t.groupId==='g2').canisterId,original.canisters.notification_queue);
 });
+test('DEV plugin member access can upgrade only the four pinned events and chat instances',()=>{
+  const fixture2=fixture();
+  const plan=planInventory(shared,fixture2.provisions,fixture2.registry,'plugin_member_access',fixture2.hashes);
+  assert.deepEqual(SCOPES.plugin_member_access,['events_domain','messaging_domain']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g1','events_domain','m6y7b-6yaaa-aaaal-qxlra-cai'],
+    ['g2','events_domain','ymvtj-3qaaa-aaaal-qxpza-cai'],
+    ['g1','messaging_domain','mx3u5-iqaaa-aaaal-qxlqq-cai'],
+    ['g2','messaging_domain','yluv5-wiaaa-aaaal-qxpzq-cai'],
+  ]);
+  for (const name of ['notification_queue','club_domain','identity_access','pii_access_control']) {
+    assert.ok(!plan.targets.some(t=>t.name===name),'unrelated service must not be upgraded');
+  }
+  validateRequest('check','plugin_member_access');
+  validateRequest('upgrade','plugin_member_access','UPGRADE DEV MEMBER ACCESS',hash(1));
+  assert.throws(()=>validateRequest('upgrade','plugin_member_access','UPGRADE ALL MAINNET GROUPS',hash(1)),/UPGRADE DEV MEMBER ACCESS/);
+  assert.throws(()=>validateRequest('upgrade','plugin_member_access','UPGRADE DEV MEMBER ACCESS',''),/Checked plan/);
+  assert.throws(()=>planInventory(shared,fixture(3).provisions,fixture(3).registry,'plugin_member_access',fixture(3).hashes),/exactly four pinned/);
+  const changed=fixture();
+  changed.provisions[0].canisters.events_domain='other-canister-cai';
+  changed.registry.groups[0].domains.find(d=>d.domain==='events_domain').canister=p('other-canister-cai');
+  changed.registry.placements[0].domains.find(d=>d.domain==='events_domain').canister=p('other-canister-cai');
+  assert.throws(()=>planInventory(shared,changed.provisions,changed.registry,'plugin_member_access',changed.hashes),/exactly four pinned/);
+});
+test('DEV universal club-name release pins exactly G1/G2 PII and original Identity with a distinct confirmation',()=>{
+  const f=fixture();
+  const plan=planInventory(shared,f.provisions,f.registry,'shared_club_name_enforcement',f.hashes);
+  assert.deepEqual(SCOPES.shared_club_name_enforcement,['pii_access_control','identity_access']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g1','pii_access_control','iui5p-aaaaa-aaaal-qxllq-cai'],
+    ['g2','pii_access_control','zt5a6-yiaaa-aaaal-qxp5q-cai'],
+    ['shared','identity_access','mq2sj-fiaaa-aaaal-qxlqa-cai'],
+  ]);
+  validateRequest('check','shared_club_name_enforcement');
+  validateRequest('upgrade','shared_club_name_enforcement','UPGRADE DEV SHARED CLUB NAMES ONLY',hash(1));
+  assert.throws(()=>validateRequest('upgrade','shared_club_name_enforcement','UPGRADE ALL MAINNET GROUPS',hash(1)),/UPGRADE DEV SHARED CLUB NAMES ONLY/);
+  assert.throws(()=>validateRequest('upgrade','shared_club_name_enforcement','UPGRADE DEV SHARED CLUB NAMES ONLY',''),/Checked plan/);
+  assert.throws(()=>planInventory(shared,fixture(3).provisions,fixture(3).registry,'shared_club_name_enforcement',fixture(3).hashes),/exactly G1\/G2 PII/);
+  const bad=fixture();
+  bad.provisions[0].canisters.pii_access_control='foreign-pii-cai';
+  bad.registry.groups[0].domains.find(d=>d.domain==='pii_access_control').canister=p('foreign-pii-cai');
+  bad.registry.placements[0].domains.find(d=>d.domain==='pii_access_control').canister=p('foreign-pii-cai');
+  assert.throws(()=>planInventory(shared,bad.provisions,bad.registry,'shared_club_name_enforcement',bad.hashes),/exactly G1\/G2 PII/);
+  assert.equal(plan.targets.some(t=>['club_domain','notification_queue','messaging_domain','events_domain'].includes(t.name)),false);
+});
+test('DEV name coverage reader installs exactly two PII Wasms without activating shared club-name release',()=>{
+  const f=fixture();
+  const plan=planInventory(shared,f.provisions,f.registry,'dev_club_name_coverage_reader',f.hashes);
+  assert.deepEqual(SCOPES.dev_club_name_coverage_reader,['pii_access_control']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g1','pii_access_control','iui5p-aaaaa-aaaal-qxllq-cai'],
+    ['g2','pii_access_control','zt5a6-yiaaa-aaaal-qxp5q-cai'],
+  ]);
+  const hashValue=hash(1);
+  validateRequest('check','dev_club_name_coverage_reader');
+  validateRequest('upgrade','dev_club_name_coverage_reader','UPGRADE DEV NAME COVERAGE READER ONLY',hashValue);
+  assert.throws(()=>validateRequest('upgrade','dev_club_name_coverage_reader','UPGRADE DEV SHARED CLUB NAMES ONLY',hashValue),/NAME COVERAGE READER/);
+  assert.throws(()=>validateRequest('upgrade','dev_club_name_coverage_reader','UPGRADE DEV NAME COVERAGE READER ONLY',''),/Checked plan/);
+  assert.throws(()=>validateRequest('upgrade','dev_club_name_coverage_reader','UPGRADE ALL MAINNET GROUPS',hashValue),/NAME COVERAGE READER/);
+  assert.throws(()=>planInventory(shared,fixture(3).provisions,fixture(3).registry,'dev_club_name_coverage_reader',fixture(3).hashes),/exactly pinned G1\/G2 PII/);
+  const corrupt=fixture();
+  corrupt.provisions[0].canisters.pii_access_control='foreign-pii-cai';
+  corrupt.registry.groups[0].domains.find(d=>d.domain==='pii_access_control').canister=p('foreign-pii-cai');
+  corrupt.registry.placements[0].domains.find(d=>d.domain==='pii_access_control').canister=p('foreign-pii-cai');
+  assert.throws(()=>planInventory(shared,corrupt.provisions,corrupt.registry,'dev_club_name_coverage_reader',corrupt.hashes),/exactly pinned G1\/G2 PII/);
+  for(const target of plan.targets) {
+    assert.equal(target.name,'pii_access_control');
+    assert.ok(installArgs(target,'/tmp/pii').includes('--wasm-memory-persistence'));
+  }
+});
+
+test('DEV child-name performance release only upgrades the exact Group 2 PII canister',()=>{
+  const fx=fixture();
+  const plan=planInventory(shared,fx.provisions,fx.registry,'dev_g2_pii_owner_fastpath',fx.hashes);
+  assert.deepEqual(SCOPES.dev_g2_pii_owner_fastpath,['pii_access_control']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g2','pii_access_control','zt5a6-yiaaa-aaaal-qxp5q-cai'],
+  ]);
+  const only=plan.targets[0];
+  assert.equal(only.newHash,fx.hashes.pii_access_control);
+  assert.ok(installArgs(only,'/tmp/exact-g2-pii').includes('--wasm-memory-persistence'));
+  assert.equal(plan.targets.some(t=>t.groupId==='g1'||t.groupId==='shared'),false);
+  validateRequest('check','dev_g2_pii_owner_fastpath');
+  validateRequest('upgrade','dev_g2_pii_owner_fastpath','UPGRADE DEV GROUP 2 PII ONLY',hash(1));
+  assert.throws(()=>validateRequest('upgrade','dev_g2_pii_owner_fastpath','UPGRADE ALL MAINNET GROUPS',hash(1)),/GROUP 2 PII/);
+  assert.throws(()=>validateRequest('upgrade','dev_g2_pii_owner_fastpath','UPGRADE DEV GROUP 2 PII ONLY',''),/Checked plan/);
+  assert.throws(()=>validateRequest('upgrade','dev_g2_pii_owner_fastpath','UPGRADE DEV GROUP 2 PII ONLY','wrong'),/Checked plan/);
+  // An otherwise valid third group cannot accidentally be included.
+  const extra=fixture(3);
+  assert.deepEqual(planInventory(shared,extra.provisions,extra.registry,'dev_g2_pii_owner_fastpath',extra.hashes).targets.map(t=>t.canisterId),[only.canisterId]);
+  // Missing G2 and a rotated/replaced G2 PII principal both fail closed.
+  const missing=fixture();
+  missing.provisions=[];missing.registry.groups=[];missing.registry.placements=[];
+  assert.throws(()=>planInventory(shared,missing.provisions,missing.registry,'dev_g2_pii_owner_fastpath',missing.hashes));
+  const changed=fixture();
+  changed.provisions[0].canisters.pii_access_control='unapproved-foreign-pii-cai';
+  changed.registry.groups[0].domains.find(d=>d.domain==='pii_access_control').canister=p('unapproved-foreign-pii-cai');
+  changed.registry.placements[0].domains.find(d=>d.domain==='pii_access_control').canister=p('unapproved-foreign-pii-cai');
+  assert.throws(()=>planInventory(shared,changed.provisions,changed.registry,'dev_g2_pii_owner_fastpath',changed.hashes),/exactly pinned G2 PII/);
+});
+
+test('DEV RSVP-only release requires exact confirmation and only two pinned events canisters',()=>{
+  const f=fixture();
+  const plan=planInventory(shared,f.provisions,f.registry,'rsvp_integrity',f.hashes);
+  assert.deepEqual(SCOPES.rsvp_integrity,['events_domain']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g1','events_domain','m6y7b-6yaaa-aaaal-qxlra-cai'],
+    ['g2','events_domain','ymvtj-3qaaa-aaaal-qxpza-cai'],
+  ]);
+  assert.equal(plan.targets.some(t=>t.name!=='events_domain'),false);
+  validateRequest('check','rsvp_integrity');
+  validateRequest('upgrade','rsvp_integrity','UPGRADE DEV RSVP ONLY',hash(1));
+  assert.throws(()=>validateRequest('upgrade','rsvp_integrity','UPGRADE ALL MAINNET GROUPS',hash(1)),/UPGRADE DEV RSVP ONLY/);
+  assert.throws(()=>validateRequest('upgrade','rsvp_integrity','UPGRADE DEV RSVP ONLY',''),/Checked plan/);
+  assert.throws(()=>planInventory(shared,fixture(3).provisions,fixture(3).registry,'rsvp_integrity',fixture(3).hashes),/exactly two pinned/);
+  const changed=fixture();changed.provisions[0].canisters.events_domain='other-events-cai';
+  changed.registry.groups[0].domains.find(d=>d.domain==='events_domain').canister=p('other-events-cai');
+  changed.registry.placements[0].domains.find(d=>d.domain==='events_domain').canister=p('other-events-cai');
+  assert.throws(()=>planInventory(shared,changed.provisions,changed.registry,'rsvp_integrity',changed.hashes),/exactly two pinned/);
+});
 test('future Group 3 and Group 4 cannot be silently skipped',()=>{
   const f=fixture(4),plan=planInventory(shared,f.provisions,f.registry,'messaging',f.hashes);
   assert.deepEqual(plan.targets.map(t=>t.groupId),['g1','g2','g3','g4']);
@@ -107,7 +227,7 @@ test('collisions, wrong placement, incomplete domain inventory and registry over
   }
 });
 test('every scope uses the same artifact hash across all group instances',()=>{
-  const f=fixture(3);for(const scope of Object.keys(SCOPES)){const plan=planInventory(shared,f.provisions,f.registry,scope,f.hashes);for(const t of plan.targets)assert.equal(t.newHash,hash(2));}
+  const f=fixture(3);for(const scope of Object.keys(SCOPES)){const selected=['plugin_member_access','rsvp_integrity','guardian_rsvp_authority','shared_club_name_enforcement','dev_club_name_coverage_reader','dev_first_content_admission_preflight'].includes(scope)?fixture(2):f;const plan=planInventory(shared,selected.provisions,selected.registry,scope,selected.hashes);for(const t of plan.targets)assert.equal(t.newHash,hash(2));}
   delete f.hashes.notification_queue;assert.throws(()=>planInventory(shared,f.provisions,f.registry,'app_admin',f.hashes));
 });
 test('unexpected or duplicated saved domain names fail before target creation',()=>{
@@ -206,4 +326,34 @@ test('recover accepts pasted hash/wording with stray spaces, quotes or line brea
   assert.ok(validateRequest('recover', 'full_backend', ' “RECOVER  COMPLETED MAINNET RELEASE”\n', `\`${plan.toUpperCase()}\` \n`).length);
   assert.throws(() => validateRequest('recover', 'full_backend', 'UPGRADE ALL MAINNET GROUPS', plan), /Confirmation box must say RECOVER/);
   assert.throws(() => validateRequest('recover', 'full_backend', 'RECOVER COMPLETED MAINNET RELEASE', plan.slice(1)), /received 63 characters/);
+});
+
+test('DEV guardian RSVP authority requires only four pinned club/event canisters and exact confirmation',()=>{
+  const f=fixture();
+  const plan=planInventory(shared,f.provisions,f.registry,'guardian_rsvp_authority',f.hashes);
+  assert.deepEqual(SCOPES.guardian_rsvp_authority,['club_domain','events_domain']);
+  assert.deepEqual(plan.targets.map(t=>[t.groupId,t.name,t.canisterId]),[
+    ['g1','club_domain','mzzzv-taaaa-aaaal-qxlrq-cai'],
+    ['g2','club_domain','yfwyv-nyaaa-aaaal-qxpyq-cai'],
+    ['g1','events_domain','m6y7b-6yaaa-aaaal-qxlra-cai'],
+    ['g2','events_domain','ymvtj-3qaaa-aaaal-qxpza-cai'],
+  ]);
+  validateRequest('check','guardian_rsvp_authority');
+  validateRequest('upgrade','guardian_rsvp_authority','UPGRADE DEV GUARDIAN RSVP',hash(1));
+  assert.throws(()=>validateRequest('upgrade','guardian_rsvp_authority','UPGRADE ALL MAINNET GROUPS',hash(1)),/UPGRADE DEV GUARDIAN RSVP/);
+  assert.throws(()=>validateRequest('upgrade','guardian_rsvp_authority','UPGRADE DEV GUARDIAN RSVP',''),/Checked plan/);
+  assert.throws(()=>planInventory(shared,fixture(3).provisions,fixture(3).registry,'guardian_rsvp_authority',fixture(3).hashes),/exactly four pinned/);
+});
+
+test('DEV disposable directory upgrade scope installs only the shared original Identity canister',()=>{
+  assert.deepEqual(SCOPES.dev_identity_directory,['identity_access']);
+  validateRequest('check','dev_identity_directory');
+  validateRequest('upgrade','dev_identity_directory','UPGRADE DEV IDENTITY DIRECTORY ONLY',hash(1));
+  assert.throws(()=>validateRequest('upgrade','dev_identity_directory','UPGRADE ALL MAINNET GROUPS',hash(1)));
+  assert.throws(()=>validateRequest('upgrade','dev_identity_directory','UPGRADE DEV IDENTITY DIRECTORY ONLY',''));
+  const f=fixture();
+  const plan=planInventory(shared,f.provisions,f.registry,'dev_identity_directory',f.hashes);
+  assert.equal(plan.targets.length,1);
+  assert.equal(plan.targets[0].name,'identity_access');
+  assert.equal(plan.targets[0].canisterId,shared.identity_access);
 });

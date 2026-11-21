@@ -94,14 +94,18 @@ export async function acceptParentTeamInvite(params: {
         // grant failure here must not roll that back — the guardian can
         // still be granted read access later.
         const guardian = ctx.identity.getPrincipal();
-        try {
-          await addLiveGuardianRelationship(ctx, guardian, childId);
-          await grantLivePiiRead(ctx, childId, "name", guardian);
-        } catch (error) {
-          console.error("[acceptParentTeamInvite] guardian PII grant failed", {
-            message: (error as Error)?.message,
-          });
-        }
+        const setup = (async () => {
+          try {
+            await addLiveGuardianRelationship(ctx, guardian, childId);
+            await grantLivePiiRead(ctx, childId, "name", guardian);
+          } catch (error) {
+            console.error("[acceptParentTeamInvite] guardian PII grant failed", {
+              message: (error as Error)?.message,
+            });
+          }
+        })();
+        // Don't hold the accept screen on slow best-effort grants.
+        await Promise.race([setup, new Promise((resolve) => setTimeout(resolve, 8_000))]);
       }
       return {
         childIds: childId ? [childId] : [],

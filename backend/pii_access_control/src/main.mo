@@ -52,6 +52,7 @@ import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
+import EngineVetKd "EngineVetKd";
 
 persistent actor class Main(governorInit : Principal) = this {
   // Opt-in local rehearsal only; production deploy scripts must never set these.
@@ -270,12 +271,37 @@ persistent actor class Main(governorInit : Principal) = this {
   var clubMediaAuthorities : Map.Map<Text, ClubMediaAuthority>;
   var mediaAuthEpoch : Nat;
   var establishedVetkdKeyName : ?Text;
+  var establishedVetkdRoute : ?{ #Direct; #Proxy : Principal };
   var privateMediaAuthorities : Map.Map<Text, { competition : ?Principal; revision : Nat; move_id : Text }>;
   // A legacy upgrade captures its existing environment key, so the operator
   // must attest it matches the original deployment BEFORE that first upgrade.
   // All subsequent upgrades ignore environment changes and preserve the key.
   if (establishedVetkdKeyName == null) {
     establishedVetkdKeyName := ?(Runtime.envVar<system>("VETKD_KEY_NAME") ?? "test_key_1");
+  };
+  if (establishedVetkdRoute == null) {
+    // Only an offline fresh-engine candidate includes this compile sentinel.
+    // Ordinary mainnet upgrades cannot adopt a proxy from environment drift.
+    let freshEngineBuild = false; // IGNITE_FRESH_ENGINE_BUILD
+    establishedVetkdRoute := ?(if (freshEngineBuild) {
+      let id = Runtime.envVar<system>("PROXY_CANISTER_ID") ?? Runtime.trap("Engine encryption proxy required");
+      #Proxy(Principal.fromText(id))
+    } else #Direct);
+  };
+  func encryptionProxy<system>() : ?Principal {
+    EngineVetKd.select(establishedVetkdRoute ?? Runtime.trap("Encryption authority unset"), Runtime.envVar<system>("PROXY_CANISTER_ID"))
+  };
+  func encryptionPublicKey<system>(canister : ?Principal, context : Blob, key : ManagementCanister.VetKdKeyid) : async Blob {
+    switch (encryptionProxy<system>()) {
+      case null await ManagementCanister.vetKdPublicKey(canister, context, key);
+      case (?p) await EngineVetKd.publicKey(p, context, key)
+    }
+  };
+  func encryptionDeriveKey<system>(input : Blob, context : Blob, key : ManagementCanister.VetKdKeyid, transport : Blob) : async Blob {
+    switch (encryptionProxy<system>()) {
+      case null await ManagementCanister.vetKdDeriveKey(input, context, key, transport);
+      case (?p) await EngineVetKd.derive(p, input, context, key, transport)
+    }
   };
 
   // ==================== Helper Functions ====================
@@ -509,7 +535,7 @@ persistent actor class Main(governorInit : Principal) = this {
           get_vault_access : shared (Text, Principal) -> async { #Ok : { club_id : Text; is_member : Bool; can_manage : Bool }; #Err : Text };
         } = actor (Principal.toText(canister));
           let result = try {
-            await competitionDomain.get_vault_access(competitionId, caller)
+            await (with timeout = 10) competitionDomain.get_vault_access(competitionId, caller)
           } catch (_) {
             continue;
           };
@@ -570,6 +596,41 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
 
+  // A parent who authored EVERY requested child-name record already passes
+  // can_read as its domain_owner. The separate same-team visibility route is
+  // needed for members/guardians who rely on that audience, not to establish
+  // the owner's own record access. Never skip it for a missing record, a mixed
+  // batch, an explicit reader grant, an old guardian mirror, or any other PII
+  // field. Account admission, removal fences, local authorization epochs and
+  // closing checks still run in both read and vetKey endpoints.
+  func ownsEveryRequestedChildName(caller : Principal, ids : [Text], fieldId : Text) : Bool {
+    if (caller.isAnonymous() or fieldId != "name" or ids.size() == 0) return false;
+    ids.all(func(id) =
+      switch (pii_records.find(func(r) = r.pii_id == id and r.field_id == fieldId)) {
+        case (?record) record.domain_owner == caller;
+        case null false;
+      }
+    )
+  };
+
+  // Pinned club-domain source verifies *same-team* child names only.
+  // Input child IDs cannot grant access: the Club canister checks its own
+  // Child.teams and the viewer's currently admitted team membership.
+  // Any unavailable authority or denial fails closed.
+  func verifiedTeamChildNames(viewer : Principal, ids : [Text], fieldId : Text) : async [Text] {
+    if (fieldId != "name" or ids.size() == 0 or ids.size() > 100) return [];
+    switch (club_domain_canister) {
+      case null [];
+      case (?cid) {
+        let clubDomain : actor {
+          read_can_team_child_name_visibility : shared (Principal, [Text]) -> async [Text];
+        } = actor(cid.toText());
+        try { await (with timeout = 10) clubDomain.read_can_team_child_name_visibility(viewer, ids) }
+        catch (_) { [] }
+      };
+    }
+  };
+
   // ==================== vetKeys (IBE) ====================
 
   // The canister's IBE public key for the vetKD context. Not sensitive —
@@ -577,7 +638,7 @@ persistent actor class Main(governorInit : Principal) = this {
   // authorization is required. Writers use it to encrypt new records without
   // any canister call; readers use it to verify derived vetKeys.
   public shared func pii_vetkey_verification_key() : async Blob {
-    await ManagementCanister.vetKdPublicKey(null, vetkdContext(), vetkdKeyId<system>());
+    await encryptionPublicKey<system>(null, vetkdContext(), vetkdKeyId<system>());
   };
 
   // Relays the caller's vetKeys for the requested records, each encrypted
@@ -600,8 +661,14 @@ persistent actor class Main(governorInit : Principal) = this {
     if (transport_public_key.size() == 0) return #Err("Invalid transport key");
     if (pii_ids.any(func(id) = reservedMediaIdentity(id, field_id))) return #Err("Reserved or invalid PII identity");
     let epoch = mediaAuthEpoch;
-    let allowedClubs = await resolveAllowedClubs(caller, pii_ids, field_id);
-    let allowedCompetitions = await resolveAllowedCompetitions(caller, pii_ids, field_id);
+    // A directly owned set of exact child-name records needs no unrelated
+    // club-staff, competition or team-audience check: the owner is already
+    // authorized by can_read. For any mixed/unowned/missing record, perform
+    // the complete existing external authority chain (fail closed).
+    let ownerChildNames = ownsEveryRequestedChildName(caller, pii_ids, field_id);
+    let allowedClubs = if (ownerChildNames) [] else await resolveAllowedClubs(caller, pii_ids, field_id);
+    let allowedCompetitions = if (ownerChildNames) [] else await resolveAllowedCompetitions(caller, pii_ids, field_id);
+    let teamChildNames = if (ownerChildNames) [] else await verifiedTeamChildNames(caller, pii_ids, field_id);
     if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
     var out : [?Blob] = [];
     for (pii_id in pii_ids.values()) {
@@ -609,20 +676,21 @@ persistent actor class Main(governorInit : Principal) = this {
         case (?r) {
           let direct = await directRead(caller, r);
           if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
-          let allowed = direct or canReadViaClub(r, allowedClubs) or canReadViaCompetition(r, allowedCompetitions);
+          let allowed = direct or canReadViaClub(r, allowedClubs) or canReadViaCompetition(r, allowedCompetitions) or teamChildNames.any(func(id) = id == pii_id);
           log_audit(caller, pii_id, field_id, "vetkey_derive", allowed, "PII vetKey derivation");
           if (allowed) {
-            let encryptedKey = await ManagementCanister.vetKdDeriveKey(
+            let encryptedKey = await encryptionDeriveKey<system>(
               ibeIdentity(pii_id, field_id), vetkdContext(), vetkdKeyId<system>(), transport_public_key
             );
             // Never return a key authorized by a revoked record, stale club
             // role, removed guardian, changed authority or intervening fence.
             await admitAccount(caller);
-            let freshClubs = await resolveAllowedClubs(caller, [pii_id], field_id);
-            let freshCompetitions = await resolveAllowedCompetitions(caller, [pii_id], field_id);
+            let freshClubs = if (ownerChildNames) [] else await resolveAllowedClubs(caller, [pii_id], field_id);
+            let freshCompetitions = if (ownerChildNames) [] else await resolveAllowedCompetitions(caller, [pii_id], field_id);
             let freshDirect = await directRead(caller, r);
+            let freshTeamChildNames = if (ownerChildNames) [] else await verifiedTeamChildNames(caller, [pii_id], field_id);
             await admitAccount(caller);
-            if (epoch != mediaAuthEpoch or not (freshDirect or canReadViaClub(r, freshClubs) or canReadViaCompetition(r, freshCompetitions)))
+            if (epoch != mediaAuthEpoch or not (freshDirect or canReadViaClub(r, freshClubs) or canReadViaCompetition(r, freshCompetitions) or freshTeamChildNames.any(func(id) = id == pii_id)))
               return #Err("PII authorization changed");
             out := out.concat([?encryptedKey]);
           } else {
@@ -649,6 +717,22 @@ persistent actor class Main(governorInit : Principal) = this {
   // choose the trusted identity verifier; no new permanent reader grants.
   transient let privateNamesRehearsal = Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") == ?"1";
   transient let privateClubNameDisplays = Runtime.envVar<system>("IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE") == ?"1";
+  // The original G1 encrypted profiles are legacy. Do not turn a team-name
+  // read into a club-wide name grant merely by upgrading a DEV canister.
+  transient let devG2SharedClubNames = Runtime.envVar<system>("IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE") == ?"1";
+  // This global release enforces shared club-name ciphertext on EVERY club
+  // served by this PII canister, including each team under its owning club.
+  // It is off until the encrypted-copy inventory is prepared for all clubs.
+  transient let sharedClubNameEnforcement = Runtime.envVar<system>("IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE") == ?"1";
+  func devG2SharedClubScope(scope : PrivateNameScope) : Bool {
+    let self = Principal.fromActor(this).toText();
+    (self == "iui5p-aaaaa-aaaal-qxllq-cai" or self == "zt5a6-yiaaa-aaaal-qxp5q-cai")
+    and scope.kind == "club" and validMediaClub(scope.resource)
+    and scope.authority.toText() == "yfwyv-nyaaa-aaaal-qxpyq-cai"
+  };
+  func devG1SharedClubScope(scope : PrivateNameScope) : Bool {
+    Principal.fromActor(this).toText() == "iui5p-aaaaa-aaaal-qxllq-cai" and devG2SharedClubScope(scope)
+  };
   transient let privateNamesIdentity = Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_IDENTITY");
   var private_name_release_intents : Map.Map<Text, PrivateNameReleaseFence.Intent>;
   var private_name_release_epoch : Nat;
@@ -662,7 +746,11 @@ persistent actor class Main(governorInit : Principal) = this {
   };
   transient let privateNameReleaseFence = PrivateNameReleaseFence.Gate(privateNamesRehearsal, privateNameVerifier(), private_name_release_intents, 4096);
   func canReleasePrivateName(captured : Nat, scope : PrivateNameScope) : Bool {
-    (privateNamesRehearsal or (privateClubNameDisplays and scope.kind == "club")) and privateNameVerifier() != null and captured == private_name_release_epoch and not privateNameReleaseFence.blocked()
+    // Teams inherit their club key, never a team-specific or personal key.
+    (not sharedClubNameEnforcement or scope.kind != "team")
+    and (not devG1SharedClubScope(scope) or devG2SharedClubNames)
+    and (privateNamesRehearsal or (privateClubNameDisplays and (scope.kind == "club" or scope.kind == "team")))
+    and privateNameVerifier() != null and captured == private_name_release_epoch and not privateNameReleaseFence.blocked()
   };
   // Sink acknowledgements certify only this receiver. The coordinator must
   // fence the COMPLETE original-PII inventory before acknowledging revocation.
@@ -687,6 +775,37 @@ persistent actor class Main(governorInit : Principal) = this {
       }
     }
   };
+  // DEV Group 2 direct club check (Paul 2026-11-18): for the pinned G2
+  // shared-club-name scope, ask the pinned G2 club service directly instead of
+  // the shared identity service (which crossed groups twice per check).
+  // Caller and every subject must be current club members; account removal
+  // fences and admission still apply. One check per request: removal is
+  // prompt (next unlock), not mid-request.
+  func directG2ClubNames(scope : PrivateNameScope) : Bool {
+    devG2SharedClubNames and devG2SharedClubScope(scope)
+  };
+  func authorizeDirectG2ClubNames(caller : Principal, ids : [Text], scope : PrivateNameScope) : async () {
+    if (ids.size() == 0 or ids.size() > 25 or ids.any(func id = id == "" or id.size() > 63)) throw Error.reject("Bounded exact private-name audience required");
+    let subjects = ids.map(func id = Principal.fromText(id));
+    if (subjects.any(func p = p.isAnonymous() or p.toText() == "aaaaa-aa") or subjects.size() != ids.filter(func id = ids.filter(func x = x == id).size() == 1).size()) throw Error.reject("Distinct active private-name subjects required");
+    let club : actor { read_has_club_membership : shared (Principal, Text) -> async Bool } = actor(scope.authority.toText());
+    let epoch = mediaAuthEpoch;
+    // Start every membership check at once, then collect.
+    let callerCheck = club.read_has_club_membership(caller, scope.resource);
+    var pending : [async Bool] = [];
+    for (p in subjects.values()) { pending := pending.concat([club.read_has_club_membership(p, scope.resource)]) };
+    let callerOk = try { await callerCheck } catch (_) { false };
+    if (not callerOk) throw Error.reject("Not a member of this club");
+    for (f in pending.values()) {
+      let ok = try { await f } catch (_) { false };
+      if (not ok) throw Error.reject("Private-name subject is not a club member");
+    };
+    if (epoch != mediaAuthEpoch or removalReceiver.denied(caller) or subjects.any(func p = removalReceiver.denied(p))) throw Error.reject("Private-name authority changed");
+    for (i in ids.keys()) {
+      let record = pii_records.find(func r = r.pii_id == ids[i] and r.field_id == "display_name") ?? throw Error.reject("Private name not found");
+      if (record.domain_owner != subjects[i]) throw Error.reject("Private-name owner changed");
+    };
+  };
   func authorizePrivateNames(caller : Principal, ids : [Text], scope : PrivateNameScope) : async [PrivateNameRow] {
     let verifier = privateNameVerifier() ?? throw Error.reject("Private name audiences are not released or configured");
     if (ids.size() > 25 or ids.any(func id = id == "" or id.size() > 63) or scope.resource == "" or scope.resource.size() > 128) throw Error.reject("Bounded exact private-name audience required");
@@ -694,7 +813,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (subjects.any(func p = p.isAnonymous() or p.toText() == "aaaaa-aa") or subjects.size() != ids.filter(func id = ids.filter(func x = x == id).size() == 1).size()) throw Error.reject("Distinct active private-name subjects required");
     let identity : actor { read_private_profile_name_authorization : shared (Principal, [Principal], PrivateNameScope) -> async { #Ok : [PrivateNameRow]; #Err : Text } } = actor(verifier.toText());
     let epoch = mediaAuthEpoch;
-    let reply = await (with timeout = 10) identity.read_private_profile_name_authorization(caller, subjects, scope);
+    let reply = await (with timeout = 60) identity.read_private_profile_name_authorization(caller, subjects, scope);
     if (epoch != mediaAuthEpoch or privateNameVerifier() != ?verifier or removalReceiver.denied(caller)) throw Error.reject("Private-name authority changed");
     let rows = switch (reply) { case (#Err(e)) throw Error.reject(e); case (#Ok(rows)) rows };
     if (rows.size() != ids.size()) throw Error.reject("Incomplete private-name authorization");
@@ -715,15 +834,29 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
       await admitAccount(caller); auth(caller);
       let epoch = mediaAuthEpoch;
-      let first = await authorizePrivateNames(caller, ids, scope);
-      await admitAccount(caller);
-      let final = await authorizePrivateNames(caller, ids, scope);
-      if (epoch != mediaAuthEpoch or first != final or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
+      if (directG2ClubNames(scope)) {
+        await authorizeDirectG2ClubNames(caller, ids, scope);
+        if (epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
+      } else {
+        let first = await authorizePrivateNames(caller, ids, scope);
+        await admitAccount(caller);
+        let final = await authorizePrivateNames(caller, ids, scope);
+        if (epoch != mediaAuthEpoch or first != final or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
+      };
       var out : [EncryptedPii] = [];
       for (id in ids.values()) {
         let r = pii_records.find(func r = r.pii_id == id and r.field_id == "display_name") ?? return #Err("Private name not found");
         let selected = if (scope.kind == "club") {
-          pii_records.find(func row = row.pii_id == id and row.field_id == clubNameField(scope.resource)) ?? r
+          let replica = pii_records.find(func row = row.pii_id == id and row.field_id == clubNameField(scope.resource));
+          if (scope.kind == "club" and (sharedClubNameEnforcement or (devG2SharedClubNames and devG2SharedClubScope(scope)))) {
+            // One shared key for all adult name copies in this exact club (per source).
+            // Never fall back to the original individual IBE ciphertext.
+            let copy = replica ?? return #Err("Club-encrypted name copy missing");
+            if (copy.domain_owner.toText() != id or copy.master_key_id != clubNameScheme(scope.resource)) {
+              return #Err("Invalid club-encrypted name copy");
+            };
+            copy
+          } else replica ?? r
         } else r;
         log_audit(caller, id, "display_name", "private_name_read", true, scope.kind);
         out := out.concat([{ pii_id = id; field_id = "display_name"; ciphertext = selected.ciphertext; nonce = selected.nonce; master_key_id = selected.master_key_id }]);
@@ -733,6 +866,13 @@ persistent actor class Main(governorInit : Principal) = this {
   };
   public shared ({ caller }) func get_private_profile_name_vetkeys_batch(ids : [Text], scope : PrivateNameScope, transport : Blob) : async { #Ok : [?Blob]; #Err : Text } {
     let releaseEpoch = private_name_release_epoch;
+    // A club's shared-name release must NEVER expose individually derived
+    // display-name keys to every club member. Only the separate, one-key-per-
+    // club relay may issue a key for this exact, opt-in DEV audience.
+    // Personal-key reads for other existing restricted audiences are unchanged.
+    if ((scope.kind == "club" and sharedClubNameEnforcement) or (devG2SharedClubNames and devG2SharedClubScope(scope))) {
+      return #Err("Shared club name audience requires club-key relay");
+    };
     if (not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name release fenced or not configured");
     if (not removalReceiver.enter(caller)) return #Err("Account removal fenced");
     try {
@@ -742,7 +882,7 @@ persistent actor class Main(governorInit : Principal) = this {
       let first = await authorizePrivateNames(caller, ids, scope);
       var out : [?Blob] = [];
       for (id in ids.values()) {
-        let key = await ManagementCanister.vetKdDeriveKey(ibeIdentity(id, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
+        let key = await encryptionDeriveKey<system>(ibeIdentity(id, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
         if (epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
         out := out.concat([?key]);
       };
@@ -834,6 +974,53 @@ persistent actor class Main(governorInit : Principal) = this {
         #Ok(?{ pii_id = subject.toText(); field_id = "display_name"; ciphertext = r.ciphertext; nonce = []; master_key_id = r.master_key_id })
       }
     }
+  };
+
+  // DEV-only, governor-only encrypted-copy METADATA audit. Unlike the
+  // owner-only lifecycle read, this returns no ciphertext, names, derived
+  // keys, saved original bytes, readers or grants. A valid copy must match
+  // the exact original owner and the reusable per-club key scheme. Never
+  // infer an active membership or approved release from this response.
+  public shared ({ caller }) func read_dev_private_club_name_replica_coverage(
+    subjects : [Principal], club : Text,
+  ) : async { #Ok : [{ subject : Principal; state : Text }]; #Err : Text } {
+    let self = Principal.fromActor(this).toText();
+    if (self != "iui5p-aaaaa-aaaal-qxllq-cai" and
+        self != "zt5a6-yiaaa-aaaal-qxp5q-cai") return #Err("Only pinned DEV name authorities permitted");
+    if (not isGovernor(caller)) return #Err("Governor required");
+    if (not validMediaClub(club) or subjects.size() == 0 or subjects.size() > 25)
+      return #Err("Bounded exact DEV club-name coverage required");
+    var seen : [Principal] = [];
+    for (subject in subjects.vals()) {
+      if (subject.isAnonymous() or subject.toText() == "aaaaa-aa" or
+          seen.any(func (p : Principal) : Bool { p == subject }))
+        return #Err("Distinct nonanonymous subjects required");
+      seen := seen.concat([subject]);
+    };
+    let rows = subjects.map(func (subject : Principal) : { subject : Principal; state : Text } {
+      let id = subject.toText();
+      let originals = pii_records.filter(func (r) : Bool {
+        r.pii_id == id and r.field_id == "display_name"
+      });
+      let copies = pii_records.filter(func (r) : Bool {
+        r.pii_id == id and r.field_id == clubNameField(club)
+      });
+      let state =
+        if (originals.size() > 1 or copies.size() > 1) "ambiguous"
+        else if (originals.size() == 0) "original_missing"
+        else if (originals[0].domain_owner != subject or
+                 originals[0].master_key_id != vetkeySchemeId() or
+                 originals[0].ciphertext.size() == 0 or
+                 originals[0].ciphertext.size() > 4096) "original_invalid"
+        else if (copies.size() == 0) "copy_missing"
+        else if (copies[0].domain_owner != subject or
+                 copies[0].master_key_id != clubNameScheme(club) or
+                 copies[0].ciphertext.size() == 0 or
+                 copies[0].ciphertext.size() > 4096) "copy_invalid"
+        else "copy_verified";
+      { subject; state }
+    });
+    #Ok(rows)
   };
 
   // Create-only refresh pins the ORIGINAL saved bytes, not just a subject or
@@ -949,15 +1136,19 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
       await admitAccount(caller); auth(caller);
       let epoch = mediaAuthEpoch;
-      let first = await authorizePrivateNames(caller, ids, scope);
+      let direct = directG2ClubNames(scope);
+      let first = if (direct) { await authorizeDirectG2ClubNames(caller, ids, scope); [] } else await authorizePrivateNames(caller, ids, scope);
       for (id in ids.values()) {
         let r = pii_records.find(func r = r.pii_id == id and r.field_id == clubNameField(scope.resource)) ?? return #Err("Club name replica not found");
         if (r.master_key_id != clubNameScheme(scope.resource) or r.domain_owner.toText() != id) return #Err("Invalid club name replica");
       };
-      let key = await ManagementCanister.vetKdDeriveKey(ibeIdentity("clubnames:" # scope.resource, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
-      await admitAccount(caller);
-      let final = await authorizePrivateNames(caller, ids, scope);
-      if (first != final or epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
+      let key = await encryptionDeriveKey<system>(ibeIdentity("clubnames:" # scope.resource, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
+      if (not direct) {
+        await admitAccount(caller);
+        let final = await authorizePrivateNames(caller, ids, scope);
+        if (first != final) return #Err("Private-name authorization changed");
+      } else if (removalReceiver.denied(caller)) return #Err("Account removal fenced");
+      if (epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
       log_audit(caller, "clubnames:" # scope.resource, "display_name", "club_name_vetkey", true, scope.kind);
       #Ok(key)
     } catch (e) { #Err(Error.message(e)) } finally { removalReceiver.leave(caller) }
@@ -1058,14 +1249,14 @@ persistent actor class Main(governorInit : Principal) = this {
     let pii_id = "clubmedia:" # club_id;
     log_audit(caller, pii_id, "blob", "vetkey_derive", allowed, "Club media vetKey derivation");
     if (not allowed) return #Err("Not a member of this club");
-    let encryptedKey = await ManagementCanister.vetKdDeriveKey(
+    let encryptedKey = await encryptionDeriveKey<system>(
       ibeIdentity(pii_id, "blob"), vetkdContext(), vetkdKeyId<system>(), transport_public_key
     );
     await admitAccount(caller);
     if (not isGovernor(caller)) {
       let cid = switch (authority) { case null return #Err("Club authority unavailable"); case (?id) id };
       let clubDomain : actor { read_has_club_membership : shared (Principal, Text) -> async Bool } = actor(cid.toText());
-      let member = try { await clubDomain.read_has_club_membership(caller, club_id) } catch (_) { false };
+      let member = try { await (with timeout = 10) clubDomain.read_has_club_membership(caller, club_id) } catch (_) { false };
       if (not member) return #Err("Club membership changed");
     };
     await admitAccount(caller);
@@ -1099,7 +1290,7 @@ persistent actor class Main(governorInit : Principal) = this {
     let allowed = await ask();
     log_audit(caller, pii_id, "shared", "vetkey_derive", allowed, "Shared audience vetKey derivation");
     if (not allowed or club_domain_canister != configured) return #Err("Not in this audience");
-    let encryptedKey = await ManagementCanister.vetKdDeriveKey(
+    let encryptedKey = await encryptionDeriveKey<system>(
       ibeIdentity(pii_id, "shared"), vetkdContext(), vetkdKeyId<system>(), transport_public_key
     );
     await admitAccount(caller);
@@ -1215,8 +1406,14 @@ persistent actor class Main(governorInit : Principal) = this {
     if (pii_ids.size() > 100) return #Err("Batch too large");
     if (pii_ids.any(func(id) = reservedMediaIdentity(id, field_id))) return #Err("Reserved or invalid PII identity");
     let epoch = mediaAuthEpoch;
-    let allowedClubs = await resolveAllowedClubs(caller, pii_ids, field_id);
-    let allowedCompetitions = await resolveAllowedCompetitions(caller, pii_ids, field_id);
+    // A directly owned set of exact child-name records needs no unrelated
+    // club-staff, competition or team-audience check: the owner is already
+    // authorized by can_read. For any mixed/unowned/missing record, perform
+    // the complete existing external authority chain (fail closed).
+    let ownerChildNames = ownsEveryRequestedChildName(caller, pii_ids, field_id);
+    let allowedClubs = if (ownerChildNames) [] else await resolveAllowedClubs(caller, pii_ids, field_id);
+    let allowedCompetitions = if (ownerChildNames) [] else await resolveAllowedCompetitions(caller, pii_ids, field_id);
+    let teamChildNames = if (ownerChildNames) [] else await verifiedTeamChildNames(caller, pii_ids, field_id);
     if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
     var out : [EncryptedPii] = [];
     for (pii_id in pii_ids.values()) {
@@ -1224,7 +1421,7 @@ persistent actor class Main(governorInit : Principal) = this {
         case (?r) {
           let direct = await directRead(caller, r);
           if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
-          let allowed = direct or canReadViaClub(r, allowedClubs) or canReadViaCompetition(r, allowedCompetitions);
+          let allowed = direct or canReadViaClub(r, allowedClubs) or canReadViaCompetition(r, allowedCompetitions) or teamChildNames.any(func(id) = id == pii_id);
           log_audit(caller, pii_id, field_id, operation, allowed, purpose);
           if (allowed) {
             out := out.concat([{
@@ -1242,6 +1439,10 @@ persistent actor class Main(governorInit : Principal) = this {
       };
     };
     await admitAccount(caller);
+    // An in-flight team removal/revocation must not release ciphertext after
+    // the viewer loses access. The verifier rechecks the authoritative ACL.
+    if (teamChildNames.size() > 0 and (await verifiedTeamChildNames(caller, pii_ids, field_id)) != teamChildNames)
+      return #Err("Team child-name authorization changed");
     if (epoch != mediaAuthEpoch) return #Err("PII authorization changed");
     #Ok(out)
   
@@ -1703,6 +1904,27 @@ persistent actor class Main(governorInit : Principal) = this {
 
     rekeyImpl(caller, old, new, dry_run, false)
   
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  /// DEV only: a sign-in ID reopened as its own new account (identity_access
+  /// dev_reopen_moved_principal) cannot save its own name while records keyed by
+  /// that ID still belong to the account it was moved to. Remove only those
+  /// records (pii_id == subject, owner != subject). Returns the count removed.
+  public shared ({ caller }) func dev_release_reopened_sign_in_records(subject : Principal, dry_run : Bool) : async { #ok : Nat; #err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+      auth(caller);
+      if (not isGovernor(caller)) return #err("Forbidden");
+      if (Principal.fromActor(this).toText() != "iui5p-aaaaa-aaaal-qxllq-cai") return #err("DEV only");
+      if (subject.isAnonymous() or isGovernor(subject)) return #err("Invalid principal");
+      let key = subject.toText();
+      let stale = pii_records.filter(func(r : PiiRecord) : Bool = r.pii_id == key and not r.domain_owner.equal(subject));
+      if (dry_run or stale.size() == 0) return #ok(stale.size());
+      pii_records := pii_records.filter(func(r : PiiRecord) : Bool = not (r.pii_id == key and not r.domain_owner.equal(subject)));
+      mediaAuthEpoch += 1;
+      log_audit(caller, key, "*", "dev_release_reopened_sign_in", true, "DEV reopened sign-in ID");
+      #ok(stale.size())
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 

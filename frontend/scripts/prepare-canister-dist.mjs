@@ -4,6 +4,7 @@
 // @dfinity/static-site recipe; see deploy/frontend/icp.yaml.
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync, copyFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { reviewedDevGroup2Canisters, reviewedDevAssistantBaseCanisters } from "../../scripts/group2-mcp-discovery.mjs";
 import { PROD_MEMBER_II_ORIGIN, DEV_FRONTEND_II_CANISTER, alternativeOriginsForBuild, derivationOriginForBuild } from "./iiOriginPolicy.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -103,37 +104,28 @@ const canisterIds = loadCanisterIds();
 function devGroup2Discovery() {
   if (isProdBuild || frontendCanisterId !== DEV_FRONTEND_II_CANISTER ||
       process.env.IGNITE_MCP_DEV_GROUP2_DISCOVERY === "0") return [];
-  const location = fileURLToPath(new URL("../../deploy/groups/g2/provision.json", import.meta.url));
-  if (!existsSync(location)) throw new Error("DEV MCP Group 2 discovery requires its checked provision.json");
-  const provision = JSON.parse(readFileSync(location, "utf8"));
-  if (provision.groupId !== "g2" || provision.deploymentId !== "mainnet" ||
-      provision.phase !== "checked" || !provision.installedDomains?.includes("club_domain")) {
-    throw new Error("DEV MCP Group 2 discovery requires reviewed, installed club_domain");
-  }
-  // Least privilege: club/team onboarding only. Do not advertise Group 2's
-  // messaging, vault, PII, or other sensitive canisters to the general MCP
-  // connector until a specific workflow needs them and is separately reviewed.
-  const id = provision.canisters?.club_domain;
-  if (typeof id !== "string" || !/^[a-z0-9]{5}(?:-[a-z0-9]{5}){3}-cai$/.test(id) ||
-      id === frontendCanisterId || Object.values(canisterIds).includes(id)) {
-    throw new Error("Invalid or duplicate DEV Group 2 club_domain");
-  }
-  return [{
-    id,
-    name: "g2/club_domain",
-    role: "backend",
-    description: "DEV Group 2 — clubs, teams and creator permissions; caller-scoped access.",
-  }];
+  return reviewedDevGroup2Canisters({
+    sharedIds: canisterIds,
+    frontendId: frontendCanisterId,
+    // Separate, exact DEV-only pin: the owner-approved main frontend release
+    // workflow now persists this opt-in across automatic deployments. Local
+    // builds remain off by default and PROD/pinned-other frontends fail closed.
+    includeChildNamePii: process.env.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY === "1",
+  });
 }
 
 const manifest = {
   version: "1.0.0",
   canisters: [
     { id: frontendCanisterId, name: "frontend", role: "the frontend" },
-    ...Object.entries(canisterIds).map(([key, id]) => {
-      const [name, description] = CANISTER_ROLES[key] ?? [key, undefined];
-      return description ? { id, name, role: "backend", description } : { id, name, role: "backend" };
-    }),
+    // The PROD artifact/manifest is a separate release and is unchanged.
+    // DEV MCP discovery only advertises the reviewed caller-facing services;
+    // privileged workload, migration and worker canisters remain outside the manifest.
+    ...(isProdBuild ? Object.entries(canisterIds) : reviewedDevAssistantBaseCanisters(canisterIds))
+      .map(([key, id]) => {
+        const [name, description] = CANISTER_ROLES[key] ?? [key, undefined];
+        return description ? { id, name, role: "backend", description } : { id, name, role: "backend" };
+      }),
     ...devGroup2Discovery(),
   ],
 };

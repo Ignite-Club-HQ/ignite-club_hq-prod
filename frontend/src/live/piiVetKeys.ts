@@ -11,6 +11,7 @@ import { connectLivePiiAccessControl } from "./domains";
 import type { FeatureBackendContext } from "./featureRouter";
 import type { PrivateProfileAudience } from './privateProfileAudience';
 import { unwrapCandid } from "./features/candid";
+import { readSharedVetKeyMaterialsConcurrently } from "./sharedVetKeyReadParallel";
 import { clearDeviceCachedPhotos, forgetStoredClubKey, loadStoredClubKey, storeClubKey } from "./deviceMediaCache";
 
 /**
@@ -111,12 +112,16 @@ export async function fetchClubNameVetKey(
       if (stored) {
         try { return VetKey.deserialize(stored); } catch { forgetStoredClubKey(cid, principal, slot); }
       }
-      const { key: verification } = await getPiiVerificationKey(ctx);
-      active();
+      // A club shares ONE name key, and both prerequisites are independent:
+      // begin its authenticated relay while the public verification key loads.
+      // The protected read of each club-name ciphertext remains mandatory.
       const transport = TransportSecretKey.random();
-      const bytes = await unwrapCandid((actor as unknown as {
-        get_private_profile_club_name_vetkey: (ids: string[], scope: PrivateProfileAudience, transport: Uint8Array) => Promise<{ Ok: Uint8Array | number[] } | { Err: string }>;
-      }).get_private_profile_club_name_vetkey(subjects, scope, transport.publicKeyBytes()), 'Unlock club names');
+      const [{ key: verification }, bytes] = await readSharedVetKeyMaterialsConcurrently(
+        () => getPiiVerificationKey(ctx),
+        () => unwrapCandid((actor as unknown as {
+          get_private_profile_club_name_vetkey: (ids: string[], scope: PrivateProfileAudience, transport: Uint8Array) => Promise<{ Ok: Uint8Array | number[] } | { Err: string }>;
+        }).get_private_profile_club_name_vetkey(subjects, scope, transport.publicKeyBytes()), 'Unlock club names'),
+      );
       active();
       const key = EncryptedVetKey.deserialize(Uint8Array.from(bytes)).decryptAndVerify(transport, verification, piiIbeIdentity(piiId, 'display_name'));
       active();
@@ -373,8 +378,12 @@ export async function fetchPiiVetKeys(
     return out;
   }
 
-  const { key: verificationKey } = await getPiiVerificationKey(ctx);
-  active();
+  // The PUBLIC verification key and transport-bound encrypted vetKeys are
+  // independent. On a cold device these were sequential consensus calls,
+  // delaying child-name unlock. Start the public read once and overlap it with
+  // the first authorised relay batch; decrypt only after BOTH succeed.
+  // No additional derivations, persistent key grants or bridge are introduced.
+  const verificationRequest = getPiiVerificationKey(ctx);
 
   for (let start = 0; start < missing.length; start += VETKEY_BATCH_SIZE) {
     active();
@@ -382,11 +391,14 @@ export async function fetchPiiVetKeys(
     // One fresh transport key per relay call; every derived key in the
     // batch is encrypted under it.
     const transport = TransportSecretKey.random();
-    const keys = await unwrapCandid(
-      options.audience
-        ? actor.get_private_profile_name_vetkeys_batch(chunk, options.audience, transport.publicKeyBytes())
-        : actor.get_encrypted_pii_vetkeys_batch(chunk, fieldId, transport.publicKeyBytes()),
-      "Fetch PII vetKeys",
+    const [{ key: verificationKey }, keys] = await readSharedVetKeyMaterialsConcurrently(
+      () => verificationRequest,
+      () => unwrapCandid(
+        options.audience
+          ? actor.get_private_profile_name_vetkeys_batch(chunk, options.audience, transport.publicKeyBytes())
+          : actor.get_encrypted_pii_vetkeys_batch(chunk, fieldId, transport.publicKeyBytes()),
+        "Fetch PII vetKeys",
+      ),
     );
     active();
     if (keys.length !== chunk.length) throw new Error("Invalid PII key response length.");
@@ -525,11 +537,17 @@ export function fetchSharedAudienceVetKey(ctx: FeatureBackendContext, a: SharedA
       if (stored) {
         try { return VetKey.deserialize(stored); } catch { forgetStoredClubKey(cid, principal, slot); }
       }
-      const { key: verification } = await getPiiVerificationKey(ctx);
       const transport = TransportSecretKey.random();
-      const bytes = await unwrapCandid((actor as unknown as {
-        get_shared_audience_vetkey: (k: string, s: string, t: Uint8Array) => Promise<{ Ok: Uint8Array | number[] } | { Err: string }>;
-      }).get_shared_audience_vetkey(a.kind, a.scope, transport.publicKeyBytes()), 'Unlock shared details');
+      // These calls are independent: the encrypted vetKey is bound to the
+      // transport public key, while the PII canister's verification key is
+      // PUBLIC. Previously waiting for the latter before requesting the vetKey
+      // added a full remote round trip on a cold device.
+      const [{ key: verification }, bytes] = await readSharedVetKeyMaterialsConcurrently(
+        () => getPiiVerificationKey(ctx),
+        () => unwrapCandid((actor as unknown as {
+          get_shared_audience_vetkey: (k: string, s: string, t: Uint8Array) => Promise<{ Ok: Uint8Array | number[] } | { Err: string }>;
+        }).get_shared_audience_vetkey(a.kind, a.scope, transport.publicKeyBytes()), 'Unlock shared details'),
+      );
       const key = EncryptedVetKey.deserialize(Uint8Array.from(bytes)).decryptAndVerify(transport, verification, piiIbeIdentity(sharedAudiencePiiId(a), SHARED_FIELD));
       storeClubKey(cid, principal, slot, key.serialize());
       return key;

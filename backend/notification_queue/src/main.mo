@@ -303,7 +303,7 @@ persistent actor class Main(governorInit : Principal) = this {
       switch (await appAdminOnly(p)) { case (#Ok) { true }; case (#Err(_)) { false } }
     };
     func memberCheck(p : Principal, clubId : Text) : async Bool {
-      await clubs.is_club_member(p, clubId)
+      await (with timeout = 10) clubs.is_club_member(p, clubId)
     };
     await UpdateReminderAccess.authorize(caller, users, club, adminCheck, memberCheck)
   };
@@ -323,6 +323,19 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?owner) { if (not owner.equal(caller)) { Runtime.trap("Governor required") } };
       case null { Runtime.trap("Governor required") };
     };
+  };
+
+  // Event invitations have one trusted route:
+  // events_domain -> club_domain.relay_event_notice -> queue.fan_out.
+  // Also reserve the canonical event_invite-* notification id/key namespace.
+  // Otherwise an ordinary caller could pre-seed that ID under another kind
+  // and cause fan_out's idempotency lookup to suppress the genuine invitation.
+  // Check both before admission and after all awaits, immediately pre-write.
+  func eventInviteWriteAllowed(kind : Text, id : Text, key : Text, caller : Principal) : Bool {
+    let reserved = kind == "event_invite" or
+      Text.startsWith(id, #text "event_invite-") or
+      Text.startsWith(key, #text "event_invite-");
+    not reserved or clubDomainCanister == ?caller
   };
 
   func valid(value : Text) : Bool { value != "" };
@@ -495,6 +508,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     let trustedService = clubDomainCanister == ?caller or messagingDomainCanister == ?caller;
+    if (not eventInviteWriteAllowed(kind, id, key, caller)) return #Err("Trusted club event-invitation relay required");
     if (kind == "competition_broadcast") return #Err("Use trusted competition broadcast relay");
     if ((kind == "photo_uploaded" or kind == "photo_comment" or kind == "photo_reaction" or kind == "comment_reply") and clubDomainCanister != ?caller) return #Err("Trusted gallery relay required");
     if (not trustedService) do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
@@ -511,6 +525,7 @@ persistent actor class Main(governorInit : Principal) = this {
     };
     if (not trustedService) do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (isFenced(club)) return #Err("Notification scope changed");
+    if (not eventInviteWriteAllowed(kind, id, key, caller)) return #Err("Event invitation authority changed");
     switch (get(id)) {
       case (?existing) {
         if (existing.idempotency_key != key) return #Err("Notification id already exists with a different idempotency key");
@@ -557,6 +572,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     let trustedService = clubDomainCanister == ?caller or messagingDomainCanister == ?caller;
+    if (not eventInviteWriteAllowed(kind, "", key_prefix, caller)) return #Err("Trusted club event-invitation relay required");
     if (kind == "competition_broadcast") return #Err("Use trusted competition broadcast relay");
     if ((kind == "photo_uploaded" or kind == "photo_comment" or kind == "photo_reaction" or kind == "comment_reply") and clubDomainCanister != ?caller) return #Err("Trusted gallery relay required");
     if (not trustedService) do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
@@ -591,9 +607,9 @@ persistent actor class Main(governorInit : Principal) = this {
         is_app_admin : shared query (Principal) -> async Bool;
       };
       let permitted = try {
-        let roles = do { let removalReply = await clubs.list_user_club_roles(caller, club); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
+        let roles = do { let removalReply = await (with timeout = 10) clubs.list_user_club_roles(caller, club); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
         if (ScheduleAccess.canBroadcast(roles, related_id)) { true }
-        else { do { let removalReply = await clubs.is_app_admin(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } }
+        else { do { let removalReply = await (with timeout = 10) clubs.is_app_admin(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } }
       } catch (_) { false };
       if (not permitted) { return #Err("Schedule manager required") };
       // Validate the full batch before writing any notification. Never trust
@@ -601,7 +617,7 @@ persistent actor class Main(governorInit : Principal) = this {
       for (user in users.values()) {
         let principal = Principal.fromText(user);
         if (Principal.isAnonymous(principal)) { return #Err("Invalid recipient") };
-        let roles = try { do { let removalReply = await clubs.list_user_club_roles(principal, club); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } }
+        let roles = try { do { let removalReply = await (with timeout = 10) clubs.list_user_club_roles(principal, club); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } }
           catch (_) { return #Err("Could not verify schedule recipient") };
         if (not ScheduleAccess.recipient(roles, related_id)) {
           return #Err("Recipient is not in the schedule scope")
@@ -610,6 +626,7 @@ persistent actor class Main(governorInit : Principal) = this {
     };
     if (not trustedService) do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (isFenced(club)) return #Err("Notification scope changed");
+    if (not eventInviteWriteAllowed(kind, "", key_prefix, caller)) return #Err("Event invitation authority changed");
     let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
     var created : Nat16 = 0;
     for (user in users.values()) {
@@ -954,6 +971,48 @@ persistent actor class Main(governorInit : Principal) = this {
         #Ok(failed)
       };
     }
+  };
+
+  // Temporary, read-only DEV integration. This queue lives on mainnet G2, so
+  // *both* the exact queue canister and Test2 event/recipient are pinned. The
+  // trusted club-domain broker is the only caller; this never exposes a
+  // general-purpose inbox, body, user list, token, or notification id.
+  // "delivered" means worker/provider completion, not device display.
+  public shared ({ caller }) func read_trusted_dev_test2_event_delivery(event_id : Text, recipient : Principal) : async {
+    #Ok : ?{ status : Text; attempts : Nat32; created_at_ms : Nat64 };
+    #Err : Text;
+  } {
+    let devQueue = "zu4gk-vqaaa-aaaal-qxp5a-cai";
+    let devClub = "70eccd5e-28cd-54b5-9bbd-d0dc74eea9ca";
+    let devEvent = "evt-70eccd5e-28cd-54b5-9bbd-d0dc74eea9ca-1";
+    let devUser = "pfslb-rpozk-543m5-zll3a-a3ay4-rdg3b-elojg-ukmfs-e624l-6rjyp-jae";
+    if (clubDomainCanister != ?caller or Principal.toText(Principal.fromActor(this)) != devQueue) {
+      return #Err("Trusted DEV club authority required");
+    };
+    if (event_id != devEvent or recipient.toText() != devUser or isFenced(devClub) or recipientFenced(devUser)) {
+      return #Err("DEV event readback scope forbidden");
+    };
+    // Match the exact notification ID and idempotency key emitted by
+    // events_domain.sendEventNotice -> club_domain.relay_event_notice.
+    // A generic event_invite with the same related_id is not proof of the
+    // official event-invitation workflow.
+    let expectedKey = "event_invite-" # devEvent # "-invite";
+    let expectedId = expectedKey # "-" # devUser;
+    let matches = items.filter(func(n) =
+      n.id == expectedId and n.idempotency_key == expectedKey and
+      n.user == devUser and n.club == devClub and n.kind == "event_invite" and n.related_id == ?devEvent
+    );
+    // Duplicate rows mean the provenance is ambiguous: fail closed.
+    if (matches.size() > 1) return #Err("Ambiguous DEV event delivery records");
+    if (matches.size() == 0) return #Ok(null);
+    let item = matches[0];
+    let status = switch (item.status) {
+      case (#Pending) "pending";
+      case (#Processing) "processing";
+      case (#Delivered) "delivered";
+      case (#Failed) "failed";
+    };
+    #Ok(?{ status; attempts = item.attempts; created_at_ms = item.created_at_ms })
   };
 
   public shared ({ caller }) func get_notification(id : Text) : async ?Types.Notification {
@@ -1662,11 +1721,16 @@ persistent actor class Main(governorInit : Principal) = this {
       };
       var status : ?Nat = null;
       try {
-        let response = await (with cycles = 300_000_000) wakeManagement.http_request({
+        let request = {
           url;
-          max_response_bytes = ?1024; method = #post; headers = []; body = null;
+          max_response_bytes = ?(1024 : Nat64); method = #post; headers = []; body = null;
           transform = null; is_replicated = ?false;
-        });
+        };
+        let response = if (Runtime.envVar<system>("IGNITE_CLOUD_ENGINE") == ?"1") {
+          await wakeManagement.http_request(request)
+        } else {
+          await (with cycles = 300_000_000) wakeManagement.http_request(request)
+        };
         status := ?response.status
       } catch (_) {};
       nativeWakePending := false;
@@ -2284,7 +2348,7 @@ persistent actor class Main(governorInit : Principal) = this {
     let configured = messagingDomainCanister;
     let messaging = switch (configured) { case null return #Err("Chat authority unavailable"); case (?id) id };
     let domain : actor { read_account_can_read_digest : shared (Principal, Text) -> async Bool } = actor(messaging.toText());
-    let allowed = try { do { let removalReply = await domain.read_account_can_read_digest(caller, chat_scope_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { false };
+    let allowed = try { do { let removalReply = await (with timeout = 10) domain.read_account_can_read_digest(caller, chat_scope_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply } } catch (_) { return #Err("Chat authority unavailable") };
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (not allowed or configured != messagingDomainCanister) return #Err("Chat scope access forbidden");
     authenticated(caller);

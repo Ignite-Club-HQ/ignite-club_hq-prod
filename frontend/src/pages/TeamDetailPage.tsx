@@ -1,6 +1,6 @@
 import { readIcpPitchRoster } from '@/lib/pitchEntryRoster';
 import { readGoingGameRsvps, readGameSubsDuty } from '@/lib/gameEventReads';
-import { useState, useEffect, useRef, Suspense, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useRef, Suspense, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { prefetchProfiles } from "@/hooks/useProfiles";
 import { cacheProfiles, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { invalidateTeamLists } from "@/lib/invalidateTeamLists";
@@ -10,6 +10,8 @@ import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, 
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamRankCard } from "@/components/team/TeamRankCard";
 import { TeamNextStepsCard } from "@/components/team/TeamNextStepsCard";
+import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
+import { Capacitor } from "@capacitor/core";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
@@ -88,6 +90,7 @@ import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
+import { getActiveIcpTarget } from "@/live/targetRegistry";
 import { writeOnce } from "@/live/clubScope";
 import {
   softDeleteLiveTeam,
@@ -100,6 +103,9 @@ import {
 } from "@/live/features/membership";
 import { getLiveTeam, getLiveClubProfile, getLiveClubSubscription, getLiveTeamSubscription, saveLiveTeamSubscription, saveLiveTeamPitchSettings } from "@/live/features/club";
 import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
+import { createNameUnlockTracker } from "@/lib/nameUnlockProgress";
+import { loadSavedRosterNames, saveRosterNames } from "@/lib/savedRosterNames";
+import { clubNameDisplaysActive } from "@/live/devCrossGroupTeamNameRoute";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { Principal } from "@icp-sdk/core/principal";
 import * as fixtureData from "@/lab/fixtureDataLayer";
@@ -128,6 +134,7 @@ import { TeamDetailAccordionSections } from "@/components/team/TeamDetailAccordi
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { readIcpTeamPendingInvites } from "@/features/membership/teamPendingInvites";
 import { readTeamChildRows, teamRoleRows } from '@/lib/teamRosterReads';
+import { scopedIcpTeamRosterKey, teamRosterHeaderStatus, visibleChildRosterName, needsChildNameRetry, needsAdultNameRetry , requestedClubAdultNameIds } from '@/lib/teamRosterDisplay';
 
 
 type TeamRole = TeamJoinRole;
@@ -153,6 +160,7 @@ export default function TeamDetailPage() {
   // in ICP mode rather than falling through to Supabase against a principal id.
   const isIcpAccount = isFeatureRoutedToIcp("membership");
   const navigate = useNavigate();
+  const [nameUnlockTracker] = useState(() => createNameUnlockTracker());
   const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -182,7 +190,7 @@ export default function TeamDetailPage() {
   const [selectedChild, setSelectedChild] = useState<{ childId: string; childName: string; parentDisplay: string | null; isPending: boolean; linkInviteIds?: string[] } | null>(null);
   
   // Handle admin invite dialog from team creation flow
-  const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string; inviteLink?: string } | null;
+  const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string; inviteLink?: string; justCreatedTeam?: boolean } | null;
   const [showAdminInviteDialog, setShowAdminInviteDialog] = useState(!!locationState?.showAdminInvite);
   const adminInviteName = locationState?.inviteName || "";
   const adminInviteEmail = locationState?.inviteEmail || "";
@@ -694,14 +702,27 @@ export default function TeamDetailPage() {
 
   // Fetch children assigned to the team
   const { data: teamChildrenData = [], isLoading: isChildrenLoading, isFetching: isChildrenFetching, isError: isChildrenError, error: childrenError, refetch: refetchChildren } = useQuery({
-    queryKey: membershipKeys.teamChildren(id),
+    queryKey: isIcpAccount
+      ? scopedIcpTeamRosterKey(membershipKeys.teamChildren(id), user?.id, team?.club_id)
+      : membershipKeys.teamChildren(id),
     queryFn: async () => {
       if (isIcpAccount) {
         if (!id || !team?.club_id) return [];
-        return withFeatureBackend('membership', {
+        // The deadline covers club lookup too: a stalled group lookup
+        // must end in a retryable error, never an endless spinner.
+        return withRosterDeadline(withFeatureBackend('membership', {
           supabase: () => { throw new Error('ICP roster required'); },
-          icp: ctx => withRosterDeadline(readTeamChildRows(ctx, team.club_id, id), 30_000, 'team player list'),
-        }, { clubId: team.club_id });
+          icp: async ctx => {
+            // Optional public vetKey prewarm must NEVER block child roster IDs.
+            // On cold phones the dynamic crypto import can be slow or fail;
+            // prewarm asynchronously while starting the authorised Club read
+            // immediately, and keep all PII name unlocks separately gated.
+            void import('@/live/piiVetKeys')
+              .then(({ prewarmPiiVerificationKey }) => prewarmPiiVerificationKey(ctx))
+              .catch(() => undefined);
+            return readTeamChildRows(ctx, team.club_id, id);
+          },
+        }, { clubId: team.club_id }), 35_000, 'team player list');
       }
       const { data: rpcChildren, error: rpcError } = await supabase.rpc("get_team_children_for_pitch_board", {
         p_team_id: id!,
@@ -774,6 +795,13 @@ export default function TeamDetailPage() {
       });
     },
     enabled: !!id && !useIcpLab && (!isIcpAccount || !!team?.club_id),
+    // The ICP player-ID read is already bounded. Avoid React Query silently
+    // repeating a failed 30-second request several times; explicit Retry players
+    // owns the next attempt and now shows its progress and outcome.
+    // Leave the existing email/Supabase retry behaviour unchanged.
+    retry: isIcpAccount ? 0 : 3,
+    // Keep identity- and club-scoped keys, but always revalidate live
+    // membership on mount so a revoked role is never trusted as fresh.
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
     refetchOnMount: 'always',
@@ -782,7 +810,9 @@ export default function TeamDetailPage() {
 
   // Fetch roles data with profiles - with caching for faster loads
   const { data: rawMembersData = [], isLoading: isMembersLoading, isFetching: isMembersFetching, isError: isMembersError, error: membersError, refetch: refetchMembers } = useQuery({
-    queryKey: membershipKeys.teamRoles(id),
+    queryKey: isIcpAccount
+      ? scopedIcpTeamRosterKey(membershipKeys.teamRoles(id), user?.id, team?.club_id)
+      : membershipKeys.teamRoles(id),
     queryFn: async () => {
       if (isFeatureRoutedToIcp("membership")) {
         // Live ICP: the member list comes from club_domain role grants, not
@@ -834,43 +864,112 @@ export default function TeamDetailPage() {
     // rather than probing every group for the team owner.
     enabled: !!id && !useIcpLab && (!isIcpAccount || !!team?.club_id),
     retry: isIcpAccount ? 1 : 3,
-    staleTime: 0, // Always fetch fresh data
+    staleTime: 0, // Revalidate member access on mount
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-    refetchOnMount: 'always', // Always refetch when component mounts
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   });
 
-  const adultNameIds = useMemo(() => [...new Set(rawMembersData.map(row => row.user_id))].sort(), [rawMembersData]);
   const childNameIds = useMemo(() => teamChildrenData.map(row => row.child_id).sort(), [teamChildrenData]);
-  const { data: adultNames = [] } = useQuery({
-    queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id, adultNameIds],
-    enabled: isIcpAccount && adultNameIds.length > 0,
-    queryFn: () => withFeatureBackend('membership', {
+  // Only the pinned disposable DEV Identity receives the extra name-refresh UI.
+  // PROD ICP, Supabase and child-name paths retain their existing behaviour.
+  const devIcpAdultNames = isIcpAccount && (() => {
+    try { return getActiveIcpTarget().canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai'; }
+    catch { return false; }
+  })();
+  // When the global ICP release is enabled, ALL teams inherit the owning
+  // club's name key; no team/person-key fallback is allowed.
+  const devSharedClubNames = isIcpAccount && (() => {
+    try { return clubNameDisplaysActive(getActiveIcpTarget()) && Boolean(team?.club_id); }
+    catch { return false; }
+  })();
+  const adultNameIds = useMemo(() => requestedClubAdultNameIds(
+    rawMembersData.map(row => row.user_id),
+    [user?.id, user?.id ? `principal:${user.id}` : null, (myProfile as any)?.id],
+    myProfile?.display_name,
+    devSharedClubNames,
+  ), [rawMembersData, user?.id, (myProfile as any)?.id, myProfile?.display_name, devSharedClubNames]);
+  const { data: adultNames = [], isLoading: isAdultNamesLoading, isFetching: isAdultNamesFetching,
+    isError: isAdultNamesError, refetch: refetchAdultNames } = useQuery({
+    queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id,
+      devSharedClubNames ? 'shared-club-vetkey' : 'legacy-team-individual', adultNameIds],
+    enabled: isIcpAccount && !!id && !!team?.club_id && adultNameIds.length > 0,
+    queryFn: () => { nameUnlockTracker.start(); return withRosterDeadline(withFeatureBackend('membership', {
       supabase: () => { throw new Error('ICP names required'); },
       icp: ctx => {
         if (!team?.club_id) throw new Error('Team club required for member names');
-        return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds, { kind: 'club', resource: team.club_id }), 8_000, 'member names');
+        return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds,
+          devSharedClubNames ? { kind: 'club', resource: team.club_id } : { kind: 'team', resource: id! },
+          undefined, { ...(devSharedClubNames ? { partialNames: true } : {}), onStep: nameUnlockTracker.mark },
+        ), 160_000, 'member names').then(rows => {
+          if (user?.id) saveRosterNames(user.id, team.club_id!, id!, rows as any);
+          return rows;
+        });
       },
-    }, { clubId: team?.club_id ?? '' }),
-    staleTime: 60_000,
-    retry: 1,
+    }, { clubId: team?.club_id ?? '' }), 170_000, 'member names')
+      .then(rows => { nameUnlockTracker.mark('done'); return rows; },
+        error => { nameUnlockTracker.mark('failed'); throw error; }); },
+    // Names unlocked on an earlier visit show at once; the fresh read replaces
+    // them (or clears them if access was withdrawn).
+    placeholderData: () => (user?.id && team?.club_id && id
+      ? loadSavedRosterNames(user.id, team.club_id, id) as any : undefined),
+    staleTime: devIcpAdultNames ? 0 : 60_000,
+    refetchOnMount: devIcpAdultNames ? 'always' : undefined,
+    refetchOnWindowFocus: devIcpAdultNames,
+    // Authorization is checked on each read. Never automatically repeat a
+    // denied or timed-out private-name call; permit explicit user retry only.
+    retry: 0,
   });
-  const { data: childNames } = useQuery({
+  const { data: childNames, isLoading: isChildNamesLoading, isFetching: isChildNamesFetching, refetch: refetchChildNames } = useQuery({
     queryKey: ['team-roster-child-names', user?.id, id, team?.club_id, childNameIds],
     enabled: isIcpAccount && !!team?.club_id && childNameIds.length > 0,
-    queryFn: () => withFeatureBackend('membership', {
+    queryFn: () => withRosterDeadline(withFeatureBackend('membership', {
       supabase: () => { throw new Error('ICP names required'); },
       icp: async ctx => {
         const { resolveLivePiiTextBatch } = await import('@/live/features/vault');
-        return withRosterDeadline(resolveLivePiiTextBatch(ctx, childNameIds, 'name', 'Read team roster', 'Team player names'), 20_000, 'player names');
+        return resolveLivePiiTextBatch(ctx, childNameIds, 'name', 'Read team roster', 'Team player names');
       },
-    }, { clubId: team?.club_id ?? '' }),
+    }, { clubId: team?.club_id ?? '' }), 25_000, 'player names'),
     staleTime: 60_000,
-    retry: 1,
+    // The PII helper already treats denied/unknown reads as missing. A failed
+    // cold-key unlock can be retried explicitly without silently waiting 40s.
+    retry: 0,
   });
-  const teamChildren = useMemo(() => !isIcpAccount || !childNames ? teamChildrenData : teamChildrenData.map(row => ({
-    ...row, children: { ...row.children, name: childNames.get(row.child_id) ?? row.children.name },
-  })), [isIcpAccount, teamChildrenData, childNames]);
+  const adultNamesPending = isAdultNamesLoading || isAdultNamesFetching;
+  const nameUnlockProgress = useSyncExternalStore(nameUnlockTracker.subscribe, nameUnlockTracker.get);
+  // Per-person reasons from the club-key read (never raw IDs or names).
+  const adultNameIssues = useMemo(() => {
+    if (adultNamesPending) return [];
+    const rows = new Map((adultNames as Array<{ account_id: string; display_name: string | null; name_error?: string }>)
+      .map(row => [String(row.account_id).replace(/^principal:/, ''), row]));
+    // Diagnose every requested parent, including silent blanks: missing profile
+    // rows and profiles that never saved any name previously showed no reason.
+    return adultNameIds.map(id => {
+      const row = rows.get(String(id).replace(/^principal:/, ''));
+      if (!row) return 'No sign-in profile found.';
+      if (row.name_error) return row.name_error;
+      if (!row.display_name?.trim()) return 'No name saved on profile.';
+      return '';
+    }).filter(Boolean);
+  }, [adultNames, adultNameIds, adultNamesPending]);
+  const hasUnresolvedAdultNames = devIcpAdultNames && needsAdultNameRetry(
+    adultNameIds, adultNames, adultNamesPending,
+  );
+  const childNamesPending = isIcpAccount && (isChildNamesLoading || (isChildNamesFetching && !childNames));
+  const teamChildren = useMemo(() => !isIcpAccount ? teamChildrenData : teamChildrenData.map(row => {
+    const unlocked = childNames?.get(row.child_id);
+    return {
+      ...row,
+      children: {
+        ...row.children,
+        name: unlocked ?? row.children.name,
+        // UI-only: never pass a placeholder into selection/roster mutations.
+        rosterDisplayName: visibleChildRosterName(unlocked, childNamesPending),
+      },
+    };
+  }), [isIcpAccount, teamChildrenData, childNames, childNamesPending]);
+  const hasUnresolvedChildNames = isIcpAccount
+    && needsChildNameRetry(childNameIds, childNames, childNamesPending || isChildNamesFetching);
 
   // Fill in the signed-in member's own name at render time too — the cached
   // member list may have been fetched before their profile finished loading.
@@ -904,7 +1003,11 @@ export default function TeamDetailPage() {
       
       if (!acc[userId]) {
         // Try to get cached profile data for faster initial render
-        const cachedProfile = getProfileFromCache(userId);
+        // ICP team-member names are relationship-scoped. Never allow an
+        // unscoped/stale global profile cache (including "Unknown User") to
+        // override a refused or pending private team-name read. Supabase keeps
+        // its existing cached-profile behaviour unchanged.
+        const cachedProfile = isIcpAccount ? null : getProfileFromCache(userId);
         acc[userId] = {
           profile: role.profiles || (cachedProfile ? {
             id: userId,
@@ -917,7 +1020,7 @@ export default function TeamDetailPage() {
       acc[userId].roles.push({ id: role.id, role: role.role });
       return acc;
     }, {} as Record<string, { profile: any; roles: { id: string; role: string }[] }>);
-  }, [rawMembers, team?.clubs?.bot_user_id]);
+  }, [rawMembers, team?.clubs?.bot_user_id, isIcpAccount]);
 
   /**
    * Adult members whose primary role is "player". Used purely for presentation:
@@ -1574,7 +1677,11 @@ export default function TeamDetailPage() {
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold truncate leading-tight">{team.name}</h1>
           <p className="text-xs text-muted-foreground leading-tight">
-            {isMembersLoading || isChildrenLoading ? 'Loading members…' : isMembersError || isChildrenError ? 'Members unavailable' : <>{Object.keys(members).length + teamChildren.length} member{Object.keys(members).length + teamChildren.length !== 1 ? 's' : ''}</>}
+            {teamRosterHeaderStatus({
+              members: Object.keys(members).length, children: teamChildren.length,
+              loadingMembers: isMembersLoading, loadingChildren: isChildrenLoading,
+              memberError: isMembersError, childError: isChildrenError,
+            })}
           </p>
         </div>
         {showInvite && (
@@ -1926,6 +2033,34 @@ export default function TeamDetailPage() {
         />
       )}
 
+      {/* This appears only after a confirmed team creation and never on native
+          devices (where Ignite is already installed). It does not create users,
+          links, invitations or payment sessions. */}
+      {locationState?.justCreatedTeam && !Capacitor.isNativePlatform() && (
+        <section className="rounded-xl border border-primary/25 bg-primary/5 p-4 space-y-3" aria-label="Install Ignite after team setup">
+          <div>
+            <h2 className="font-semibold">Your team is ready!</h2>
+            <p className="text-sm text-muted-foreground">
+              Download Ignite for iPhone or Android, or keep using it in your browser.
+              {isIcpAccount ? "Use the same Internet Identity to access your club and team." : "Sign in with your existing Ignite account to access your club and team."}
+            </p>
+          </div>
+          <AppStoreDownloadGuide
+            compact
+            onContinueInBrowser={() => navigate(location.pathname, {
+              replace: true,
+              state: { ...locationState, justCreatedTeam: false },
+            })}
+          />
+          {(devIcpAdultNames || !["igniteclubhq.app", "www.igniteclubhq.app", "igniteclubhq.com", "www.igniteclubhq.com"].includes(window.location.hostname)) && (
+            <p className="text-xs text-muted-foreground">
+              You are using a DEV or preview environment. Test clubs and teams
+              will not appear in the production iOS or Android apps.
+            </p>
+          )}
+        </section>
+      )}
+
       {/* Post-creation onboarding nudge — shown to admins until both
           "invite members" and "add first event" are complete (or dismissed). */}
       {(isAdmin || isClubAdmin) && (
@@ -2018,6 +2153,13 @@ export default function TeamDetailPage() {
           membersSectionProps={{
             members, teamChildren, pendingInvites, memberRoleFilter, adultPlayerCount, isAdmin, isClubAdmin, currentUserId: user?.id,
             isMembersLoading, isMembersFetching, isChildrenLoading, isChildrenFetching, isMembersError, membersError, isChildrenError, childrenError, refetchMembers, refetchChildren,
+            // Only the pinned disposable DEV Identity can expose diagnostic categories;
+            // never publish raw errors or profile identifiers to the UI.
+            isAdultNamesError,
+            isAdultNamesFetching: adultNamesPending, hasUnresolvedAdultNames, refetchAdultNames,
+            adultNameIssues, nameUnlockProgress,
+            showIcpRosterFailureCode: devIcpAdultNames,
+    isChildNamesLoading: childNamesPending, hasUnresolvedChildNames, refetchChildNames,
             isSoccerClub: !!isSoccerClub, onOpenHeaderInvite: () => setHeaderInviteOpen(true), onOpenAddPlayer: () => setAddPlayerOpen(true),
             onSelectChild: setSelectedChild, onLinkChildToParent: setLinkChildToParent, onMoveToTeam: setMoveToTeam, onAddRoleMember: setAddRoleMember,
             onSelectMember: setSelectedMember, onInviteParentChild: setInviteParentChild, onOpenPositionSheet: setPositionSheetPlayer, onRemoveMember: setRemoveMember,
@@ -2110,7 +2252,7 @@ export default function TeamDetailPage() {
           setShowAdminInviteDialog(open);
           // Clear the location state when dialog is closed to prevent re-showing on refresh
           if (!open && locationState?.showAdminInvite) {
-            navigate(location.pathname, { replace: true, state: {} });
+            navigate(location.pathname, { replace: true, state: locationState?.justCreatedTeam ? { justCreatedTeam: true } : {} });
           }
         }}
         teamName={adminInviteTeamName || team?.name || ""}
@@ -2119,7 +2261,7 @@ export default function TeamDetailPage() {
         inviteLink={locationState?.inviteLink}
         onDone={() => {
           setShowAdminInviteDialog(false);
-          navigate(location.pathname, { replace: true, state: {} });
+          navigate(location.pathname, { replace: true, state: locationState?.justCreatedTeam ? { justCreatedTeam: true } : {} });
         }}
       />
 

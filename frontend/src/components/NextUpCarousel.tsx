@@ -14,7 +14,7 @@ import { writeOnce } from "@/live/clubScope";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { resolveLivePiiTextBatch } from "@/live/features/vault";
 import { resolveAuthBackend } from "@/live/authBackendMode";
-import { setLiveEventRsvp, adminUpsertLiveRsvp, getMyLiveChildRsvps } from "@/live/features/events";
+import { setLiveEventRsvp, setLiveChildRsvp, getMyLiveChildRsvps } from "@/live/features/events";
 import { fetchLiveHomeChildren } from "@/live/features/homeFeed";
 import { listLivePlayers } from "@/live/features/miniLeagues";
 import { resolveRsvpChildren } from "@/lib/resolveEventChildScope";
@@ -698,7 +698,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
           if (accountId !== ctx.identity.getPrincipal().toText()) {
             throw new Error("RSVP account does not match the signed-in identity");
           }
-          await adminUpsertLiveRsvp(ctx, event.id, accountId, status, { childId });
+          await setLiveChildRsvp(ctx, event.id, accountId, childId, status);
           return true;
         },
       }, writeOnce({ eventId: event.id }));

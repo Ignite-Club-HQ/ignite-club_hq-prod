@@ -1,0 +1,98 @@
+# DEV only: reopen a secure-sign-in ID that "[TEST] Move account" closed, as
+# its OWN new empty account. The account it was moved to keeps everything and
+# the two are never merged. Dry run unless confirm = yes.
+# Needs identity_access upgraded first ([TEST] Upgrade backend, scope
+# private_club_name_display) so the canister has dev_reopen_moved_principal.
+
+name: "[TEST] Reopen moved sign-in ID as new account"
+
+on:
+  workflow_dispatch:
+    inputs:
+      principal:
+        description: "Closed sign-in ID to reopen as a separate new account"
+        required: true
+        default: "tavrz-s2z7n-5jkdv-dpho3-pvd3c-yog77-euqar-egkuv-xbzei-ftw3d-eqe"
+      confirm:
+        description: "Type yes to actually reopen (otherwise dry run)"
+        required: false
+        default: "no"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: move-account
+  cancel-in-progress: false
+
+jobs:
+  reopen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: group-2-admin-controls
+    env:
+      ICP_HOME: ${{ github.workspace }}/.icp-home
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+
+      - name: Install icp CLI
+        run: npm install -g @icp-sdk/icp-cli --no-fund --no-audit
+
+      - name: Restore existing governor
+        env:
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOYER_PEM" || { echo "::error::No governor key secret is available."; exit 1; }
+          umask 077
+          PEM_IN="$DEPLOYER_PEM" node -e '
+            const s=process.env.PEM_IN.replace(/\r/g,"").replace(/\\n/g,"\n");
+            const m=s.match(/-----BEGIN ([A-Z0-9 ]*PRIVATE KEY)-----([\s\S]*?)-----END \1-----/);
+            if(!m){console.error("Governor key secret has no BEGIN/END block");process.exit(1);}
+            const body=m[2].replace(/\s+/g,"").match(/.{1,64}/g).join("\n");
+            process.stdout.write(`-----BEGIN ${m[1]}-----\n${body}\n-----END ${m[1]}-----\n`);
+          ' > "$RUNNER_TEMP/governor.pem"
+          icp identity import --from-pem "$RUNNER_TEMP/governor.pem" --storage plaintext ignite-governor
+          rm -f "$RUNNER_TEMP/governor.pem"
+          icp identity default ignite-governor
+          if [ "$(icp identity principal --identity ignite-governor 2>/dev/null)" != vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae ]; then
+            echo "::error::The key is not the TEST governor. Nothing changed."
+            exit 1
+          fi
+
+      - name: Reopen sign-in ID
+        env:
+          PRINCIPAL: ${{ inputs.principal }}
+          CONFIRM: ${{ inputs.confirm }}
+        working-directory: deploy/mainnet
+        run: |
+          set -euo pipefail
+          [[ "$PRINCIPAL" =~ ^[a-z0-9]{5}(-[a-z0-9]{1,5})+$ ]] || { echo "::error::That is not a sign-in ID."; exit 1; }
+          DRY=true; [ "$CONFIRM" = "yes" ] && DRY=false
+          # DEV identity_access only; the canister also refuses on any other ID.
+          OUT="$(icp canister call mq2sj-fiaaa-aaaal-qxlqa-cai dev_reopen_moved_principal "(principal \"$PRINCIPAL\", $DRY)" -e ic 2>&1)" || { echo "$OUT"; echo "::error::The call failed. If it says the method does not exist, run [TEST] Upgrade backend with scope private_club_name_display first."; exit 1; }
+          echo "$OUT"
+          if echo "$OUT" | grep -q "Err"; then echo "::error::DEV refused. Nothing changed."; exit 1; fi
+          if [ "$DRY" = true ]; then
+            echo "### Trial run passed. Nothing changed. Run again with confirm = yes." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Reopened $PRINCIPAL as a separate new DEV account." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Release old name records for the reopened sign-in ID
+        env:
+          PRINCIPAL: ${{ inputs.principal }}
+          CONFIRM: ${{ inputs.confirm }}
+        working-directory: deploy/mainnet
+        run: |
+          set -euo pipefail
+          DRY=true; [ "$CONFIRM" = "yes" ] && DRY=false
+          # DEV pii_access_control only; the canister also refuses on any other ID.
+          OUT="$(icp canister call iui5p-aaaaa-aaaal-qxllq-cai dev_release_reopened_sign_in_records "(principal \"$PRINCIPAL\", $DRY)" -e ic 2>&1)" || { echo "$OUT"; echo "::error::The call failed. If it says the method does not exist, run [TEST] Upgrade backend with scope private_club_name_display first."; exit 1; }
+          echo "$OUT"
+          if echo "$OUT" | grep -q "err"; then echo "::error::DEV refused. Nothing changed."; exit 1; fi
+          echo "### Old name records for $PRINCIPAL: $OUT (dry run: $DRY)" >> "$GITHUB_STEP_SUMMARY"

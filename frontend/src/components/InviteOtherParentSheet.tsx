@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -218,7 +219,7 @@ export default function InviteOtherParentSheet({
     setResolvedClubName("Your Club");
     setResolvedTeamName("");
 
-    const link = `${window.location.origin}/join/p/${invite.id}`;
+    const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${invite.id}`;
     const delivery: EmailDeliveryState = effectiveDelivery === "email" && trimmedEmail ? "not_requested" : "not_requested";
     return { link, delivery, email: trimmedEmail || null };
   };
@@ -267,7 +268,7 @@ export default function InviteOtherParentSheet({
 
       if (inviteError) throw inviteError;
 
-      const link = `${window.location.origin}/join/p/${inviteToken}`;
+      const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteToken}`;
 
       let clubName = "Your Club";
       let clubLogoUrl: string | undefined;

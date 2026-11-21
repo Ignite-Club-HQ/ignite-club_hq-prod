@@ -1,0 +1,25 @@
+{
+  "frontend": "7pfcq-raaaa-aaac5-aabia-cai",
+  "host": "https://icp-api.io",
+  "canisterIds": {
+    "club_domain": "4krz3-miaaa-aaac5-aabdq-cai",
+    "club_points_domain": "72ct5-qiaaa-aaac5-aablq-cai",
+    "competition_domain": "5symy-ciaaa-aaac5-aabhq-cai",
+    "events_domain": "533he-uaaaa-aaac5-aabga-cai",
+    "identity_access": "5j5q5-yqaaa-aaac5-aabfa-cai",
+    "insights_domain": "7bhpy-kqaaa-aaac5-aabja-cai",
+    "media_blob_store": "5h75v-daaaa-aaac5-aabea-cai",
+    "media_metadata": "5o4wj-viaaa-aaac5-aabfq-cai",
+    "messaging_domain": "7ua6v-lyaaa-aaac5-aabkq-cai",
+    "migration_coordinator": "7ieee-4yaaa-aaac5-aabiq-cai",
+    "mini_league_domain": "7ggjm-hiaaa-aaac5-aabjq-cai",
+    "notification_queue": "6xmxt-7aaaa-aaac5-aabma-cai",
+    "pii_access_control": "5a63b-oyaaa-aaac5-aabeq-cai",
+    "placement_registry": "5vzkm-pqaaa-aaac5-aabha-cai",
+    "secret_workload_identity": "6qnrh-syaaa-aaac5-aabmq-cai",
+    "shard_router": "75dvj-5qaaa-aaac5-aabla-cai",
+    "timer_jobs": "542bq-zyaaa-aaac5-aabgq-cai",
+    "vault_domain": "7tbyb-gaaaa-aaac5-aabka-cai"
+  },
+  "note": "DEV runs fully on the OpenCloud engine app (19 canisters, fresh data); PROD stays on mainnet (Paul 2026-11-17)."
+}

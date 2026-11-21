@@ -1,0 +1,88 @@
+name: "[TEST] Update DEV engine frontend"
+# Cloud Engine is NOT release-ready. Never publish it on a main branch push.
+# Explicit review and a separately set release-readiness variable are required.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type RELEASE DEV ENGINE FRONTEND only after engine readiness and controller verification"
+        required: true
+        type: string
+concurrency:
+  group: dev-engine-frontend
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  update:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      vars.IGNITE_DEV_ENGINE_RELEASE_READY == 'true' &&
+      inputs.confirmation == 'RELEASE DEV ENGINE FRONTEND'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      ICP_HOME: ${{ github.workspace }}/.icp-engine-home
+      ICP_CLI_PLUGIN_COMPUTE_LIMIT_SECS: '1800'
+      IGNITE_ICP_ENV: dev
+      IGNITE_FRONTEND_ENV: dev
+      FRONTEND_CANISTER_ID: 7pfcq-raaaa-aaac5-aabia-cai
+      IGNITE_LIVE_BUILD: '1'
+      IGNITE_LIVE_SUPABASE_URL: https://ecsdwrarzfexssxtrymj.supabase.co
+      IGNITE_LIVE_SUPABASE_ANON_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0' }}
+      IGNITE_LIVE_ICP_HOST: https://icp-api.io
+      IGNITE_LIVE_ICP_ALIAS: ignite-dev-engine
+      IGNITE_MCP_DEV_GROUP2_DISCOVERY: '0'
+      IGNITE_LIVE_BACKEND_ROUTING_JSON: '{"defaultBackend":"icp","countryRules":{},"targets":[],"countryTargets":{},"clubBackendOverrides":{},"emailAuthClubs":[]}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Validate exact DEV destination
+        run: |
+          node --test scripts/dev-engine-frontend-policy.test.mjs
+          node --input-type=module <<'JS'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          import { assertEngineFrontendContext } from './scripts/dev-engine-frontend-policy.mjs';
+          const target = JSON.parse(readFileSync('deploy/frontend-engine/target.json'));
+          assertEngineFrontendContext({branch:process.env.GITHUB_REF_NAME,frontend:process.env.FRONTEND_CANISTER_ID,database:process.env.IGNITE_LIVE_SUPABASE_URL,ids:target.canisterIds});
+          appendFileSync(process.env.GITHUB_ENV, `IGNITE_LIVE_ICP_CANISTER_IDS_JSON=${JSON.stringify(target.canisterIds)}\n`);
+          JS
+      - name: Restore existing DEV deploy identity
+        env:
+          PEM_IN: ${{ secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "$PEM_IN" || { echo '::error::Existing DEV deploy identity is missing'; exit 1; }
+          npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
+          umask 077
+          mkdir -p "$ICP_HOME"
+          node scripts/normalize-dev-engine-publisher-pem.mjs > "$ICP_HOME/deployer.pem"
+          icp identity import --from-pem "$ICP_HOME/deployer.pem" --storage plaintext engine-dev
+          icp identity default engine-dev
+          # Do not publish with the backend governor or an arbitrary signing identity.
+          signer="$(icp identity principal --identity engine-dev)"
+          if [ "$signer" != "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe" ]; then
+            echo "::error::The existing DEV publisher credential does not match the pinned frontend publishing identity."
+            exit 1
+          fi
+          echo "DEV frontend publisher verified against pinned identity"
+      - name: Build DEV engine website
+        run: |
+          set -euo pipefail
+          test -n "$IGNITE_LIVE_SUPABASE_ANON_KEY" || { echo '::error::Set the DEV public Supabase key repository variable'; exit 1; }
+          node scripts/ensure-frontend-deps.mjs
+          npm --prefix frontend run build:live
+          node frontend/scripts/prepare-canister-dist.mjs
+          cp -r frontend/dist-canister deploy/frontend-engine/dist
+          mkdir -p deploy/frontend-engine/.icp/data/mappings
+          printf '{"frontend":"%s"}\n' "$FRONTEND_CANISTER_ID" > deploy/frontend-engine/.icp/data/mappings/ic.ids.json
+      - name: Update existing website files only
+        working-directory: deploy/frontend-engine
+        run: |
+          set -euo pipefail
+          # Sync only: no creation, reinstall, settings change or engine cycles.
+          icp sync frontend -e ic
+          echo "### DEV engine frontend updated: https://$FRONTEND_CANISTER_ID.icp.net" >> "$GITHUB_STEP_SUMMARY"

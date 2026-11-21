@@ -11,16 +11,20 @@ import { membershipTransport } from './membershipTransport';
 import { MEMBERSHIP_LOOKUP_RELEASE_ENABLED, releasedMembershipDirectoryReader } from './membershipDirectoryLive';
 
 export async function openLiveGroupReadSession(ctx: FeatureBackendContext, ownerGroupId?: 'g2') {
+  return openGroupSession(ctx, await createLiveGroupSessionTransport(ctx, ownerGroupId));
+}
+
+export async function createLiveGroupSessionTransport(ctx: FeatureBackendContext, ownerGroupId?: 'g2', destinationAlias?: string) {
   const { connectLiveShardRouter, connectLiveClubDomain } = await import('./domains');
   const { actor: router } = await connectLiveShardRouter(ctx.target, ctx.identity);
   // The router filters by its on-chain deployment name; the frontend's own
   // target alias is a different, local name for the same deployment.
-  const routerAlias = ownerGroupId ? ctx.target.alias : (generalRoutingDeploymentAlias() ?? ctx.target.alias);
+  const routerAlias = destinationAlias ?? (ownerGroupId ? ctx.target.alias : (generalRoutingDeploymentAlias() ?? ctx.target.alias));
   // Groups carry the router's on-chain deployment name; the frontend's own
   // target alias is a different, local name for the same deployment. Routing
   // must bind to the on-chain name or every resolve rejects as foreign.
   let onChainAlias: string | undefined;
-  return openGroupSession(ctx, membershipTransport({
+  return membershipTransport({
     async readRegistry(): Promise<GroupRegistry> {
       const principal = ctx.identity.getPrincipal().toText();
       const snapshot = await readPinnedGroupRegistry((revision, cursor, limit) => router.read_group_registry_page(routerAlias, revision, cursor, limit), undefined,
@@ -100,7 +104,7 @@ export async function openLiveGroupReadSession(ctx: FeatureBackendContext, owner
       if ('Err' in reply) throw new Error(reply.Err);
       return { clubId: reply.Ok.club_id, groupId: reply.Ok.group_id, revision: reply.Ok.revision };
     },
-  }, { enabled: MEMBERSHIP_LOOKUP_RELEASE_ENABLED && !ownerGroupId, read: releasedMembershipDirectoryReader() }));
+  }, { enabled: MEMBERSHIP_LOOKUP_RELEASE_ENABLED && !ownerGroupId, read: releasedMembershipDirectoryReader() });
 }
 /** Which club owns an event, chat or team in this group's canister (null = not held here). */
 export async function lookupEntityClub(ctx: FeatureBackendContext, kind: EntityKind, id: string): Promise<string | null> {

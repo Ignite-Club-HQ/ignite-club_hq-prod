@@ -1,10 +1,12 @@
 import { afterMembershipAcknowledgement } from "../roleGrantsMemo";
+import { afterConfirmedDevMembershipNameReadiness } from "../devOwnerClubNameReadiness";
 import type { Principal } from "@icp-sdk/core/principal";
 import { connectLiveClubDomain } from "../domains";
 import { fetchMyRoleGrantsEverywhere } from "./myRoleGrants";
 import type { FeatureBackendContext } from "../featureRouter";
 import { candidOpt, unwrapCandid } from "./candid";
 import { batched as batchedCall } from "./batching";
+import { acceptShareableInviteWithRetry } from "../acceptShareableInviteWithRetry";
 
 /**
  * Club data -> club_domain canister. Shared by the membership and news
@@ -469,7 +471,9 @@ export async function getLiveParentInvite(ctx: FeatureBackendContext, token: str
 
 export async function acceptLiveParentInvite(ctx: FeatureBackendContext, token: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return afterMembershipAcknowledgement(unwrapCandid(actor.accept_parent_invite(token), "Accept parent invite"));
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_parent_invite(token), "Accept parent invite"));
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
+  return accepted;
 }
 
 export async function liveClubWhoami(ctx: FeatureBackendContext) {
@@ -1068,6 +1072,7 @@ export async function createLiveClub(
     }
   }
   syncAvatarClubGrantsBestEffort(ctx);
+  await afterConfirmedDevMembershipNameReadiness(ctx,created.id);
   return created;
 }
 
@@ -1233,6 +1238,7 @@ export async function acceptPendingLiveInvite(ctx: FeatureBackendContext, invite
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
   const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_pending_invite(inviteId), "Accept pending invite"));
   syncAvatarClubGrantsBestEffort(ctx);
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
   return accepted;
 }
 
@@ -1253,8 +1259,15 @@ export async function getLivePendingInvite(ctx: FeatureBackendContext, inviteId:
 /** Redeem a shareable team-invite link token (grants the link's role, idempotent). */
 export async function acceptLiveTeamInviteLink(ctx: FeatureBackendContext, token: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_team_invite_link(token), "Accept team invite link"));
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(
+    acceptShareableInviteWithRetry(
+      () => actor.accept_team_invite_link(token),
+      () => ctx.identity.getPrincipal().toText(),
+    ),
+    "Accept team invite link",
+  ));
   syncAvatarClubGrantsBestEffort(ctx);
+  await afterConfirmedDevMembershipNameReadiness(ctx,accepted.club_id);
   return accepted;
 }
 
@@ -1523,9 +1536,33 @@ export async function sendLiveFeeReminders(
 }
 
 /** Parent self-service children (Children page, ICP mode). */
+/** Caller-only membership proof for notification club switching.
+ * Does not expose the club's roster or principals to guardians/parents. */
+export async function isMyLiveClubMember(ctx: FeatureBackendContext, clubId: string): Promise<boolean> {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  return actor.read_account_is_club_member(ctx.identity.getPrincipal(), clubId);
+}
+
+/** Caller-scoped protected role view for a single group.
+ * Used by My Children while fan-out already supplies the owning group;
+ * never call the legacy my_role_grants query in admission-protected G2.
+ */
+export async function listMyLiveGroupRoleGrants(ctx: FeatureBackendContext) {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  return actor.read_account_my_role_grants();
+}
+
+/** Authorized roster IDs from club_domain's canonical Child.teams. No PII or guardian export. */
+export async function listLiveTeamChildIds(ctx: FeatureBackendContext, clubId: string, teamId: string): Promise<string[]> {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  return unwrapCandid(actor.read_account_list_team_child_ids(clubId, teamId), "List team children");
+}
+
 export async function listMyLiveOwnChildren(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return actor.list_my_children();
+  // Group 2 requires protected consensus account reads; its legacy query
+  // traps instead of consulting identity_access for a current linked account.
+  return actor.read_account_list_my_children();
 }
 export async function createMyLiveChild(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
@@ -1541,7 +1578,7 @@ export async function setMyLiveChildTeam(ctx: FeatureBackendContext, childId: st
 }
 export async function listLiveChildGuardians(ctx: FeatureBackendContext, childId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.list_child_guardians(childId), "List guardians");
+  return unwrapCandid(actor.read_account_list_child_guardians(childId), "List guardians");
 }
 export async function setMyLiveChildGuardian(ctx: FeatureBackendContext, childId: string, user: Principal, linked: boolean) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);

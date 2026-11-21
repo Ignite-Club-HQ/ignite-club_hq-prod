@@ -131,6 +131,14 @@ describe("acceptParentTeamInvite", () => {
   });
 
   describe("Supabase branch (not ICP-routed)", () => {
+    it("passes the exact share token, not a public preview ID, for child acceptance", async () => {
+      mocks.supabaseRpc.mockResolvedValueOnce({ data: { child_ids: ["child"], team_id: "team", club_id: "club" }, error: null });
+      const result = await acceptParentTeamInvite({ inviteToken: "exact-share-token" });
+      expect(mocks.supabaseRpc).toHaveBeenCalledWith("accept_parent_team_invite", {
+        _invite_id: null, _invite_token: "exact-share-token",
+      });
+      expect(result.childIds).toEqual(["child"]);
+    });
     it("calls the Supabase RPC directly and never touches ICP helpers", async () => {
       mocks.supabaseRpc.mockResolvedValueOnce({
         data: { child_ids: ["child-2"], already_accepted: false, team_id: "team-2", club_id: "club-2" },

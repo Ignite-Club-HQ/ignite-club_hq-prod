@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -456,7 +457,7 @@ export default function ClubSetupWizardPage() {
       return;
     }
 
-    const link = `${window.location.origin}/join/p/${inviteToken}`;
+    const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteToken}`;
     const roleLabel = isTeamRole
       ? TEAM_ROLE_LABEL[invite.role as TeamRole]
       : CLUB_ROLE_LABEL[invite.role as ClubRole];

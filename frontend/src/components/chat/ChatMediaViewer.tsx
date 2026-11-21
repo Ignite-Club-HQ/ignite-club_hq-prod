@@ -29,6 +29,7 @@ import { isVideoUrl } from "@/lib/videoUtils";
 import { SecureImage } from "@/components/SecureImage";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { cn } from "@/lib/utils";
+import { VaultFileCard } from "./VaultFileCard";
 
 interface ChatMediaViewerProps {
   open: boolean;
@@ -311,6 +312,7 @@ function FilesList({
   return (
     <div className="p-4 space-y-3">
       {items.map((item) => (
+        item.vaultFileId ? <VaultFileCard key={item.id} fileId={item.vaultFileId} /> :
         <button
           key={item.id}
           type="button"
@@ -427,6 +429,7 @@ function AllList({
           );
         }
         if (item.kind === "file") {
+          if (item.vaultFileId) return <VaultFileCard key={item.id} fileId={item.vaultFileId} />;
           return (
             <button
               key={item.id}

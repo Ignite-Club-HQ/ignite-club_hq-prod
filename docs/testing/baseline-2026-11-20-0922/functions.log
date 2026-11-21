@@ -1,0 +1,160 @@
+[0m[38;5;245mrunning 1 test from ./supabase/functions/_shared/reminder-auth.test.ts[0m
+reminder jobs reject public and ordinary user credentials and fail closed without secrets ... [0m[32mok[0m [0m[38;5;245m(60ms)[0m
+[0m[38;5;245mrunning 13 tests from ./supabase/functions/cleanup-old-notifications/batchDelete.test.ts[0m
+deletes everything eligible across many batches (no premature exit) ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[CLEANUP] test: batch 2 removed 500 (total: 1000)
+[CLEANUP] test: batch 3 removed 500 (total: 1500)
+[CLEANUP] test: batch 4 removed 500 (total: 2000)
+[CLEANUP] test: batch 5 removed 500 (total: 2500)
+[CLEANUP] test: batch 6 removed 500 (total: 3000)
+[CLEANUP] test: batch 7 removed 500 (total: 3500)
+[CLEANUP] test: batch 8 removed 500 (total: 4000)
+[CLEANUP] test: batch 9 removed 321 (total: 4321)
+[0m[38;5;245m----- post-test output end -----[0m
+deletes everything eligible across many batches (no premature exit) ... [0m[32mok[0m [0m[38;5;245m(49ms)[0m
+regression: a short batch does not stop the loop ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 300 (total: 300)
+[CLEANUP] test: batch 2 removed 300 (total: 600)
+[CLEANUP] test: batch 3 removed 300 (total: 900)
+[CLEANUP] test: batch 4 removed 300 (total: 1200)
+[0m[38;5;245m----- post-test output end -----[0m
+regression: a short batch does not stop the loop ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+no eligible rows is a clean no-op ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+second run over already-clean data deletes nothing (idempotent) ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[CLEANUP] test: batch 2 removed 400 (total: 900)
+[0m[38;5;245m----- post-test output end -----[0m
+second run over already-clean data deletes nothing (idempotent) ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+batch cap bounds work per invocation and flags more work ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[CLEANUP] test: batch 2 removed 500 (total: 1000)
+[CLEANUP] test: batch 3 removed 500 (total: 1500)
+[CLEANUP] test: hit batch cap (3), deferring rest to next run
+[0m[38;5;245m----- post-test output end -----[0m
+batch cap bounds work per invocation and flags more work ... [0m[32mok[0m [0m[38;5;245m(2ms)[0m
+runtime budget stops the loop and flags more work ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[CLEANUP] test: hit runtime budget, deferring rest to next run
+[0m[38;5;245m----- post-test output end -----[0m
+runtime budget stops the loop and flags more work ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a delete that removes nothing stops instead of looping forever ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 0 (total: 0)
+[CLEANUP] test: batch deleted 0 rows, stopping to avoid an infinite loop
+[0m[38;5;245m----- post-test output end -----[0m
+a delete that removes nothing stops instead of looping forever ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+select error aborts with partial progress reported ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] Select error (test): { message: "boom-select" }
+[0m[38;5;245m----- post-test output end -----[0m
+select error aborts with partial progress reported ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+delete error aborts with partial progress reported ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] Delete error (test): { message: "boom-delete" }
+[0m[38;5;245m----- post-test output end -----[0m
+delete error aborts with partial progress reported ... [0m[32mok[0m [0m[38;5;245m(4ms)[0m
+extra filters are applied to the select (is_read scoping) ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 10 (total: 10)
+[0m[38;5;245m----- post-test output end -----[0m
+extra filters are applied to the select (is_read scoping) ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+regression: deletes are chunked so the request URL stays small ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[CLEANUP] test: batch 2 removed 500 (total: 1000)
+[CLEANUP] test: batch 3 removed 500 (total: 1500)
+[CLEANUP] test: batch 4 removed 250 (total: 1750)
+[0m[38;5;245m----- post-test output end -----[0m
+regression: deletes are chunked so the request URL stays small ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a 500-row batch is deleted as five 100-id chunks ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] test: batch 1 removed 500 (total: 500)
+[0m[38;5;245m----- post-test output end -----[0m
+a 500-row batch is deleted as five 100-id chunks ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a failing chunk reports the rows already deleted in that batch ...
+[0m[38;5;245m------- post-test output -------[0m
+[CLEANUP] Delete error (test): { message: "Bad Request" }
+[0m[38;5;245m----- post-test output end -----[0m
+a failing chunk reports the rows already deleted in that batch ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+[0m[38;5;245mrunning 12 tests from ./supabase/functions/process-event-notifications/event_notify_characterization_test.ts[0m
+team event: exact member set, creator excluded, roles deduped ... [0m[32mok[0m [0m[38;5;245m(62ms)[0m
+team event: recipient counts around the old 20-batch boundary are complete ... [0m[32mok[0m [0m[38;5;245m(2ms)[0m
+team event: pagination requests deterministic ordered pages ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+mini-league event: league members + league admins only ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+club-wide event: all club members except creator ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+club-wide event: restricted_to_roles limits audience to those roles + club_admin ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+targeted club-wide event: targeted teams + club admins + guardians only ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+notification rows: exact shape, one per recipient, skip_push true ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+notification insert: 200 recipients -> 200 rows, no RSVP rows created ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+notification insert: batches of 500 ... [0m[32mok[0m [0m[38;5;245m(4ms)[0m
+push payload: exact shape and tag format ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+update message wording is unchanged ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+[0m[38;5;245mrunning 20 tests from ./supabase/functions/process-event-notifications/push_delivery_queue_test.ts[0m
+multiple worker invocations drain 200 jobs, nothing dropped or duplicated ... [0m[32mok[0m [0m[38;5;245m(58ms)[0m
+termination after the first batch leaves the rest recoverable; a later cron run drains them ... [0m[32mok[0m [0m[38;5;245m(4ms)[0m
+one failed recipient does not block later recipients ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+network timeout retries with backoff ... [0m[32mok[0m [0m[38;5;245m(7ms)[0m
+HTTP 429 and 5xx retry; 400/404/410 are terminal ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+permanent failure marks failed immediately without exhausting attempts ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+retryable failures reach a terminal failed state after MAX_ATTEMPTS ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+backoff is capped exponential ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+preference-disabled response becomes skipped, not delivered ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+HTTP 200 alone is not proof of delivery ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a successfully delivered job is never left in processing ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+queue status-update failure is detected and left recoverable ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+recovery cannot convert an already-delivered job to skipped ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+concurrent workers cannot claim the same job twice ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+future next_attempt_at jobs are not claimed early ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+stale processing jobs are reclaimed, fresh ones are not ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+no service-role key or vault secret appears in recorded errors ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+queue enqueue is idempotent per notification ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+invite dedupe key is one per event/user; updates are versioned ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+changed-field order does not change the update version ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+[0m[38;5;245mrunning 12 tests from ./supabase/functions/process-push-delivery-queue/internal_auth_test.ts[0m
+no Authorization header is rejected 401 ... [0m[32mok[0m [0m[38;5;245m(62ms)[0m
+non-Bearer scheme is rejected 401 ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+anon key is rejected (403) — a public caller cannot trigger fan-out ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+a user JWT is rejected — end users cannot drain or fan out ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a same-length wrong token is rejected 403 (no length oracle short-circuit) ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a one-character-off token is rejected 403 ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+the short-form Supabase secret key format is accepted ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+a legacy long-form JWT service key is accepted ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+surrounding whitespace in the header is tolerated ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+missing server key fails closed with 500, never open ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejection bodies never echo the expected key or the presented token ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+CORS headers are present on every rejection (browser callers see the error) ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+[0m[38;5;245mrunning 5 tests from ./supabase/functions/score-history-review/policy.test.ts[0m
+only exact club administrators can review ... [0m[32mok[0m [0m[38;5;245m(57ms)[0m
+explicit reversed order preserves zero ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+missing and conflicting scores hold without merging ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+unknown orientation remains unresolved ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+consent and distinct team anchors required ... [0m[32mok[0m [0m[38;5;245m(3ms)[0m
+[0m[38;5;245mrunning 9 tests from ./supabase/functions/send-event-view-reminder/event-view-reminder_test.ts[0m
+event title with img/onerror is escaped, no element or handler is created ... [0m[32mok[0m [0m[38;5;245m(63ms)[0m
+team name with anchor tag is escaped, no external link created (rsvp variant) ... [0m[32mok[0m [0m[38;5;245m(8ms)[0m
+club name with tracking image is escaped, no img created (non-rsvp variant) ... [0m[32mok[0m [0m[38;5;245m(5ms)[0m
+legitimate punctuation, accents, apostrophes and emoji render intact ... [0m[32mok[0m [0m[38;5;245m(6ms)[0m
+RSVP-style wording preserved for game events ... [0m[32mok[0m [0m[38;5;245m(6ms)[0m
+Non-RSVP wording preserved for social events ... [0m[32mok[0m [0m[38;5;245m(5ms)[0m
+CTA and fallback link are normalized to production domain ... [0m[32mok[0m [0m[38;5;245m(3ms)[0m
+template contains no dangerouslySetInnerHTML output artefacts ... [0m[32mok[0m [0m[38;5;245m(4ms)[0m
+source file no longer references dangerouslySetInnerHTML ... [0m[32mok[0m [0m[38;5;245m(2ms)[0m
+[0m[38;5;245mrunning 9 tests from ./supabase/functions/verify-iap-receipt-icp/receiptChecks_test.ts[0m
+accepts matching product, app and future expiry ... [0m[32mok[0m [0m[38;5;245m(22ms)[0m
+rejects a different product ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+rejects a receipt from another app ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejects refunded purchases ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejects expired subscriptions ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejects non-Apple (Android) purchase data ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejects a purchase linked to another account ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+rejects a purchase with no account link ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+account token matches the app's derivation ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+
+[0m[32mok[0m | 81 passed | 0 failed [0m[38;5;245m(5s)[0m
+

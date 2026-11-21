@@ -14,7 +14,7 @@ import { restoreLiveClub, restoreLiveMember, removeLiveMember as removeViaClub, 
   moveLiveMemberToTeam, moveLiveChildToTeam, bulkAddLiveTeamMembers, createLiveChildForParentInClub, deleteMyLiveChild,
   setMyLiveChildGuardian } from './club';
 import { claimLiveAdminJoinLink } from './miniLeagues';
-const ctx = {} as FeatureBackendContext;
+const ctx = { target: {} } as FeatureBackendContext;
 beforeEach(() => { clearRoleGrantsMemo(); vi.clearAllMocks(); });
 describe('membership mutation discovery hooks', () => {
   it.each([

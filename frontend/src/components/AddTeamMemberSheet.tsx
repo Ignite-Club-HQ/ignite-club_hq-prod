@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -481,7 +482,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           .maybeSingle();
 
         if (existingInvite?.token) {
-          return `${window.location.origin}/join/${existingInvite.token}`;
+          return `${PUBLIC_INVITE_ORIGIN}/join/${existingInvite.token}`;
         }
 
         // Create new invite
@@ -494,14 +495,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         } as any);
 
         if (error) throw error;
-        return `${window.location.origin}/join/${token}`;
+        return `${PUBLIC_INVITE_ORIGIN}/join/${token}`;
       },
       icp: async (ctx) => {
         const link = (await createLiveTeamInviteLink(ctx, clubId, teamId, role)) as {
           token?: string;
         } | undefined;
         if (!link?.token) throw new Error("Failed to create team invite link");
-        return `${window.location.origin}/join/${link.token}`;
+        return `${PUBLIC_INVITE_ORIGIN}/join/${link.token}`;
       },
     }, writeOnce({ clubId: clubId! }));
   };

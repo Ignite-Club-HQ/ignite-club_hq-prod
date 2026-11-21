@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { useState, useEffect, useRef, Suspense, type CSSProperties } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -404,7 +405,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
               if (!inviteError) {
                 try {
-                  const link = `${window.location.origin}/join/p/${inviteToken}`;
+                  const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteToken}`;
                   const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
                     body: {
                       to: player.parentEmail.trim(),
@@ -638,7 +639,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                             <p className="text-xs text-muted-foreground truncate">{result.parentEmail}</p>
                           )}
                         </div>
-                        {result.inviteToken && <Button variant="outline" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(`${window.location.origin}/join/p/${result.inviteToken}`); toast({ title: "Invite link copied" }); } catch { toast({ title: "Couldn't copy invite", variant: "destructive" }); } }}>Copy link</Button>}
+                        {result.inviteToken && <Button variant="outline" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(`${PUBLIC_INVITE_ORIGIN}/join/p/${result.inviteToken}`); toast({ title: "Invite link copied" }); } catch { toast({ title: "Couldn't copy invite", variant: "destructive" }); } }}>Copy link</Button>}
                         <Badge variant={result.parentEmail ? (result.sent ? "default" : "secondary") : "outline"}>
                           {result.parentEmail
                             ? (result.sent ? "Email sent" : "Invite pending")

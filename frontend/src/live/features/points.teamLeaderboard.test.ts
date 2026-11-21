@@ -13,7 +13,7 @@ vi.mock("../domains", () => ({
     actor: { get_leaderboard: mocks.getLeaderboard },
   })),
   connectLiveClubDomain: async () => ({ actor: {
-    list_team_role_grants: async (teamId: string) => ({ Ok: await mocks.listLiveTeamRoleGrants(teamId) }),
+    read_account_list_team_role_grants: async (teamId: string) => ({ Ok: await mocks.listLiveTeamRoleGrants(teamId) }),
   } }),
   connectLiveEventsDomain: async () => ({ actor: {
     list_child_team_assignments: async (clubId: string, teamId: string) => ({ Ok: await mocks.listLiveChildTeamAssignments(clubId, teamId) }),

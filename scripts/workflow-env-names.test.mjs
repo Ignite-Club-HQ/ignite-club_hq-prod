@@ -47,7 +47,7 @@ test('only explicitly allowlisted PROD setup, checks, promotion, funding and iso
   const prod = workflows.filter(({ name }) => name.startsWith('[PROD] '));
   assert.deepEqual(prod.map(({ file }) => file).sort(),
     ['apply-prod-lifecycle-wiring.yml', 'check-prod-canister-connections.yml', 'check-prod-routing-gates.yml', 'create-prod-second-group.yml', 'execute-prod-cycles-topup.yml', 'fund-prod-canisters-by-card.yml', 'icp-push-deliver-prod.yml',
-      'link-prod-account-service.yml', 'prod-app-admin.yml', 'prod-native-push-sender.yml', 'prod-sign-in-routing.yml',
+      'link-prod-account-service.yml', 'prod-app-admin.yml', 'prod-native-push-rollout.yml', 'prod-native-push-sender.yml', 'prod-sign-in-routing.yml',
       'plan-prod-cycles-topup.yml', 'plan-prod-second-group.yml', 'prod-create-governor.yml', 'prod-create-push-key.yml', 'promote-icp-prod.yml',
       'register-prod-second-group.yml', 'reload-prod-member-services.yml', 'prod-enable-secure-name-save.yml', 'check-prod-group-opening.yml', 'open-prod-group.yml', 'publish-prod-routing-approval.yml', 'set-prod-group-settings.yml', 'setup-prod-base-group.yml',
       'check-prod-control-record.yml', 'prod-activate-protections.yml', 'prod-create-account-approval-key.yml', 'prod-enable-member-access.yml', 'prod-setup-safeguard.yml', 'prod-verify-account-approval-key.yml'].sort());
@@ -104,4 +104,52 @@ test('tags match what the workflow actually deploys', () => {
     assert.ok(byFile[file].name.startsWith('[TEST] '), `${file} targets the test canister set`);
     assert.match(byFile[file].text, /deploy\/mainnet|deploy\/groups/);
   }
+});
+
+test('global ICP club-name rollout is explicit, DEV-only and off without the readiness approval', () => {
+  const deploy = workflows.find(w => w.file === 'deploy-frontend-canister.yml')?.text ?? '';
+  assert.match(deploy, /IGNITE_LIVE_SHARED_CLUB_NAMES:/);
+  assert.match(deploy, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(deploy, /vars\.IGNITE_DEV_SHARED_CLUB_NAMES_RELEASE_READY == 'true'/);
+  assert.match(deploy, /&& '1' \|\| '0'/);
+  assert.match(deploy, /Invalid DEV shared-club-name activation state/);
+  assert.match(deploy, /Shared-club-name release attempted outside main/);
+  assert.match(deploy, /export IGNITE_ICP_ENV=dev/);
+  assert.doesNotMatch(deploy, /IGNITE_ICP_ENV=prod|deploy\/frontend-prod/);
+  // The PR can be merged without enabling client-side decryption for clubs
+  // whose encrypted club copies have not yet been established.
+  assert.doesNotMatch(deploy, /^\s*IGNITE_LIVE_SHARED_CLUB_NAMES:\s*["']?1["']?\s*$/m);
+});
+
+test('reviewed global shared-club-name backend release is DEV-only and never implicit',()=>{
+  const w=workflows.find(x=>x.file==='upgrade-all-groups.yml')?.text??'';
+  assert.match(w,/shared_club_name_enforcement/);
+  assert.match(w,/UPGRADE DEV SHARED CLUB NAMES ONLY/);
+  assert.match(w,/group-2-admin-controls/);
+  assert.match(w,/inputs\.scope == 'shared_club_name_enforcement'/);
+  assert.match(w,/inputs\.action == 'upgrade'/);
+  assert.match(w,/require release from main|Require release from main/i);
+  assert.doesNotMatch(w,/deploy\/prod|deploy\/frontend-prod|IGNITE_ICP_ENV=prod/);
+});
+test('approved DEV Group 2 PII discovery does not depend on an unset repo variable', () => {
+  const text = workflows.find(w => w.file === 'deploy-frontend-canister.yml')?.text ?? '';
+  assert.match(text, /enable_dev_g2_child_pii:/);
+  assert.match(text, /type: boolean/);
+  assert.match(text, /default: true/);
+  assert.match(text, /IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY:/);
+  assert.match(text, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(text, /github\.event_name == 'push'/);
+  assert.match(text, /github\.event_name == 'workflow_dispatch' && inputs\.enable_dev_g2_child_pii/);
+  assert.doesNotMatch(text, /vars\.IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY/);
+  // Reject an accidental green deployment with Group 2 PII omitted, as seen
+  // on the previously successful but opt-out DEV push.
+  assert.match(text, /GITHUB_EVENT_NAME:-/);
+  assert.match(text, /IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY:-/);
+  assert.match(text, /Approved DEV Group 2 PII discovery unexpectedly disabled on main push/);
+  assert.match(text, /'zt5a6-yiaaa-aaaal-qxp5q-cai'/);
+  assert.match(text, /ids\.filter\(id => id === g2Pii\)\.length !== \(enabled \? 1 : 0\)/);
+  assert.match(text, /'zu4gk-vqaaa-aaaal-qxp5a-cai'/);
+  assert.match(text, /'zg2rt-zaaaa-aaaal-qxp6a-cai'/);
+  assert.match(text, /node scripts\/prepare-canister-dist\.mjs/);
+  assert.doesNotMatch(text, /deploy\/prod|IGNITE_ICP_ENV=prod|deploy\/frontend-prod/);
 });

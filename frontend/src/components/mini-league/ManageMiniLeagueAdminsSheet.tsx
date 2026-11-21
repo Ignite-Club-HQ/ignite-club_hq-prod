@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -260,7 +261,7 @@ export function ManageMiniLeagueAdminsSheet({
         .insert(invitePayload);
       if (insertErr) throw insertErr;
 
-      const link = `${window.location.origin}/join/p/${inviteToken}`;
+      const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteToken}`;
       let emailSent = false;
       let emailError: string | null = null;
       try {
@@ -334,7 +335,7 @@ export function ManageMiniLeagueAdminsSheet({
   });
 
   const handleCopyLink = async (token: string) => {
-    const link = `${window.location.origin}/join/p/${token}`;
+    const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${token}`;
     try {
       await navigator.clipboard.writeText(link);
       setCopiedToken(token);
@@ -346,7 +347,7 @@ export function ManageMiniLeagueAdminsSheet({
   };
 
   const handleShareLink = async (token: string, recipientName?: string | null) => {
-    const link = `${window.location.origin}/join/p/${token}`;
+    const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${token}`;
     const title = `League Admin invite — ${miniLeagueName}`;
     const text = `${recipientName ? `${recipientName}, you're` : "You're"} invited to be a League Admin for ${miniLeagueName}. Tap to accept:`;
     if (Capacitor.isNativePlatform()) {

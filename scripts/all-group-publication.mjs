@@ -1,5 +1,21 @@
 import { digest } from './all-group-upgrade-policy.mjs';
 export const EVIDENCE_BRANCH = 'refs/heads/all-group-upgrade-evidence';
+/** GitHub's ref read may temporarily lag an acknowledged non-force PATCH.
+ * Never replay a write: only retry an authenticated GET of the exact ref. */
+export function requireEvidenceHead(api, expectedCommit, { attempts = 6, pauseMs = 350, pause = ms => {
+  // CLI release code uses a synchronous journal API. A small bounded wait
+  // avoids racing eventual ref visibility without repeating the PATCH.
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}} = {}) {
+  if (!/^[a-f0-9]{40}$/.test(expectedCommit ?? '') || !Number.isInteger(attempts) || attempts < 1 || attempts > 10)
+    throw Error('Invalid evidence readback request');
+  for (let n = 0; n < attempts; n++) {
+    if (api(`git/ref/${EVIDENCE_REF}`).object.sha === expectedCommit) return;
+    if (n < attempts - 1) pause(pauseMs);
+  }
+  throw Error('Publication branch readback failed; no writes retried');
+}
+
 const EVIDENCE_REF = 'heads/all-group-upgrade-evidence';
 /** CAS publication on the dedicated evidence branch. Workflows never push to the
  * Lovable-synced main branch: the two-way sync reverts direct pushes, which is
@@ -17,7 +33,7 @@ export function publishVerifiedFiles(api, { branch, release, journal, files }) {
     if (commit.tree.sha!==journal.publication.tree || commit.parents?.[0]?.sha!==journal.publication.parent || digest(journal.publication.files)!==digest(files.map(f=>({path:f.path,content:f.content})))) throw Error('Publication acknowledgement differs');
     if (head===journal.publication.parent) api(`git/refs/${EVIDENCE_REF}`,'PATCH',{sha:journal.publication.commit,force:false});
     else if (head!==journal.publication.commit) throw Error('Evidence branch advanced; retain publication evidence');
-    if (api(`git/ref/${EVIDENCE_REF}`).object.sha!==journal.publication.commit) throw Error('Publication branch readback failed');
+    requireEvidenceHead(api, journal.publication.commit);
     return journal.publication;
   }
   const original=api(`git/commits/${head}`);
@@ -29,7 +45,8 @@ export function publishVerifiedFiles(api, { branch, release, journal, files }) {
 }
 export function requirePublicationReadback(api, _sourceBranch, publication) {
   const commit=api(`git/commits/${publication.commit}`);
-  if(commit.tree.sha!==publication.tree || api(`git/ref/${EVIDENCE_REF}`).object.sha!==publication.commit)throw Error('Publication not read back');
+  if(commit.tree.sha!==publication.tree)throw Error('Publication tree not read back');
+  requireEvidenceHead(api, publication.commit);
   for(const file of publication.files){const reply=api(`contents/${file.path}?ref=${publication.commit}`);if(reply.encoding!=='base64'||Buffer.from(reply.content,'base64').toString()!==file.content)throw Error('Published file readback differs');}
 }
 /** A release whose on-chain upgrade completed but whose main-branch evidence was

@@ -1,0 +1,22 @@
+name: "[TEST] Parent invite chat sync"
+on:
+  pull_request:
+    paths:
+      - "backend/club_domain/src/main.mo"
+      - "scripts/parent-invite-chat-sync.test.mjs"
+      - ".github/workflows/test-parent-invite-chat-sync.yml"
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Check role-limited, idempotent invite chat refresh
+        run: node --test scripts/parent-invite-chat-sync.test.mjs

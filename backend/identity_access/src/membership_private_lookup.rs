@@ -65,6 +65,14 @@ const COUNTER:&str="!instance";
 pub struct Sessions<M:Memory>{rows:StableBTreeMap<String,Vec<u8>,M>}
 impl<M:Memory> Sessions<M>{
     pub fn open(memory:M)->Self{Self{rows:StableBTreeMap::init(memory)}}
+    /// Drop disposable DEV private membership pages, but NEVER roll back the
+    /// instance counter (an old continuation must not match a new session).
+    pub fn dev_disposal_within_budget(&self)->bool {self.rows.len()<=4096}
+    pub fn dev_discard_test_sessions(&mut self) {
+        let keys:Vec<String>=self.rows.iter().map(|e|e.key().clone())
+            .filter(|key| key!=COUNTER).collect();
+        for key in keys { self.rows.remove(&key); }
+    }
     pub fn instance(&self,caller:Principal,consumer:u64)->Result<u64,String>{
         self.rows.get(&format!("{}:{consumer:020}",caller.to_text()))
             .map(|b|ciborium::from_reader::<Session,_>(b.as_slice()).expect("lookup session").instance)

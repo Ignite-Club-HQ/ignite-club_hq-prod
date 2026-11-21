@@ -1,0 +1,23 @@
+name: "[TEST] Ignite ChatGPT customer tool boundary"
+
+on:
+  pull_request:
+    paths:
+      - "integrations/ignite-chatgpt/**"
+      - ".github/workflows/test-ignite-chatgpt-tools.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  tool-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Test Ignite caller-bound, read-only plugin interface
+        run: node --test integrations/ignite-chatgpt/src/core.test.mjs

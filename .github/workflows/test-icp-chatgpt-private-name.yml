@@ -1,0 +1,82 @@
+name: "[TEST] Secure ChatGPT private-name preparation"
+
+on:
+  pull_request:
+    paths:
+      - "frontend/scripts/prepare-icp-chatgpt-private-name.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-private-name.test.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-child-name.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-child-name.test.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-child-name-connector.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-child-name-cli.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-child-name-connector.test.mjs"
+      - "frontend/scripts/package-icp-chatgpt-child-name-offline.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-profile-name-cli.mjs"
+      - "frontend/scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs"
+      - "frontend/prototypes/chatgpt-vetkeys-name-poc/**"
+      - "frontend/scripts/chatgpt-vetkeys-name-poc.test.mjs"
+      - "frontend/scripts/chatgpt-vetkeys-name-browser.test.mjs"
+      - ".github/workflows/test-icp-chatgpt-private-name.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-local-vetkeys:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install pinned frontend libraries
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Verify offline encrypted-name preparation
+        working-directory: frontend
+        run: node --test scripts/prepare-icp-chatgpt-private-name.test.mjs
+      - name: Verify DEV-only encrypted child-name preparation and guards
+        working-directory: frontend
+        run: node --test scripts/prepare-icp-chatgpt-child-name.test.mjs
+      - name: Verify actual connector Candid bridge and local stdin CLI with synthetic data only
+        working-directory: frontend
+        run: node --test scripts/prepare-icp-chatgpt-child-name-connector.test.mjs
+      - name: Validate own-profile name client encryption using synthetic principal
+        working-directory: frontend
+        run: node --test scripts/prepare-icp-chatgpt-profile-name-connector.test.mjs
+      - name: Validate synthetic-only browser VetKeys form and bundle without network or account access
+        working-directory: frontend
+        run: |
+          node --test scripts/chatgpt-vetkeys-name-poc.test.mjs
+          node node_modules/vite/bin/vite.js build --config prototypes/chatgpt-vetkeys-name-poc/vite.config.mjs
+          test -f prototypes/chatgpt-vetkeys-name-poc/dist/index.html
+      - name: Install pinned Playwright Chromium for real client-side crypto smoke test
+        working-directory: frontend
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Verify real browser encrypts synthetic input without off-origin requests
+        working-directory: frontend
+        run: node --test scripts/chatgpt-vetkeys-name-browser.test.mjs
+      # Proof output is local and never deployed, attached, or imported into the live app.
+      # Copy only lockfile-pinned SDK runtime packages, not all node_modules.
+      # Produces a portable offline runner without installing a new bundler.
+      # Uses synthetic fixtures; no canisters, identities or PROD operations.
+      - name: Package offline ChatGPT vetKeys runtime and execute its CLI
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          node scripts/package-icp-chatgpt-child-name-offline.mjs "$RUNNER_TEMP/ignite-child-crypto"
+          test -f "$RUNNER_TEMP/ignite-child-crypto/scripts/prepare-icp-chatgpt-profile-name-cli.mjs"
+          node --check "$RUNNER_TEMP/ignite-child-crypto/scripts/prepare-icp-chatgpt-profile-name-cli.mjs"
+          IGNITE_CHATGPT_BUNDLED_CLI="$RUNNER_TEMP/ignite-child-crypto/scripts/prepare-icp-chatgpt-child-name-cli.mjs" \
+            node --test scripts/prepare-icp-chatgpt-child-name-connector.test.mjs
+      - name: Attach verified offline crypto runtime (code only, no child data)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ignite-dev-g2-child-name-offline-cli
+          path: ${{ runner.temp }}/ignite-child-crypto/
+          if-no-files-found: error
+          retention-days: 3

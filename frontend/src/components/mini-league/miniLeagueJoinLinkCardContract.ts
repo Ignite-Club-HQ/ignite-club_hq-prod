@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 export interface MiniLeagueJoinLinkCardCopy {
   heading: string;
   description: (miniLeagueName: string) => string;
@@ -56,7 +57,7 @@ export function generateShortToken(): string {
 }
 
 export function buildMiniLeagueJoinLinkUrl(inviteToken: string): string {
-  return `https://reference.invalid/join/p/${inviteToken}`;
+  return `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteToken}`;
 }
 
 export function buildMiniLeagueJoinLinkQrFilename(prefix: string, miniLeagueName: string): string {

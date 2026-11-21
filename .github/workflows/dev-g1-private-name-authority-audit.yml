@@ -1,0 +1,92 @@
+name: "[TEST] DEV original G1 PII authority and observed key continuity (read-only)"
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dev-g1-private-name-authority-audit.yml"
+      - "frontend/scripts/audit-dev-g1-private-name-authority.ts"
+      - "scripts/dev-g1-private-name-authority-policy.mjs"
+      - "scripts/dev-g1-private-name-authority-policy.test.mjs"
+      - "scripts/dev-g1-private-name-authority-contract.test.mjs"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Read-only authority and public-key observation only"
+        required: true
+        type: choice
+        options: [check]
+      confirmation:
+        description: "Type AUDIT DEV ORIGINAL G1 PII AUTHORITY READ ONLY"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+jobs:
+  contract-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test original G1 PII privacy, read-only and continuity rules
+        run: node --test scripts/dev-g1-private-name-authority-policy.test.mjs scripts/dev-g1-private-name-authority-contract.test.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Parse audit runner without executing any canister method
+        run: npx --yes esbuild@0.25.12 frontend/scripts/audit-dev-g1-private-name-authority.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/dev-g1-authority-syntax.mjs"
+  operator-read-only:
+    if: github.event_name == 'workflow_dispatch'
+    needs: contract-only
+    environment: group-2-admin-controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Validate exact original DEV repository, main branch and read-only approval
+        env:
+          AUDIT_ACTION: ${{ inputs.action }}
+          AUDIT_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY,,}" = "ignite-club-hq/ignite-club_hq-prod"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$AUDIT_ACTION" = "check"
+          test "$AUDIT_CONFIRMATION" = "AUDIT DEV ORIGINAL G1 PII AUTHORITY READ ONLY"
+      - name: Install existing pinned frontend dependencies
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Restore existing governor credential without printing it
+        env:
+          GOVERNOR_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "${GOVERNOR_PEM:-}" || { echo "::error::Exact original DEV governor secret is required"; exit 1; }
+          umask 077
+          PEM_IN="$GOVERNOR_PEM" node scripts/normalize-pem.mjs > "$RUNNER_TEMP/legacy-g1-authority-audit.pem"
+          test -s "$RUNNER_TEMP/legacy-g1-authority-audit.pem"
+      - name: Read only G1 settings, original public key and pinned directory authority
+        working-directory: frontend
+        env:
+          DEV_G1_PII_AUTHORITY_ACTION: ${{ inputs.action }}
+          DEV_G1_PII_AUTHORITY_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          npx --yes tsx@4 scripts/audit-dev-g1-private-name-authority.ts \
+            "$RUNNER_TEMP/legacy-g1-authority-audit.pem" "$RUNNER_TEMP/dev-g1-authority-audit-report"
+      - name: Delete temporary governor material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/legacy-g1-authority-audit.pem"
+      - name: Upload only non-PII pass/fail audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-g1-private-name-authority-audit
+          path: ${{ runner.temp }}/dev-g1-authority-audit-report
+          if-no-files-found: ignore

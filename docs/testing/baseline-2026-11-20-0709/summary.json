@@ -1,0 +1,21 @@
+{
+  "startedAt": "2026-11-20T07:10:50.023Z",
+  "finishedAt": null,
+  "status": "running",
+  "results": [
+    {
+      "backendMode": "supabase",
+      "status": "failed",
+      "exitCode": 1,
+      "signal": null,
+      "log": "/dev-server/docs/testing/baseline-2026-11-20-0709/supabase.log"
+    },
+    {
+      "backendMode": "icp",
+      "status": "running",
+      "exitCode": null,
+      "signal": null,
+      "log": "/dev-server/docs/testing/baseline-2026-11-20-0709/icp.log"
+    }
+  ]
+}

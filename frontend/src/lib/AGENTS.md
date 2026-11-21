@@ -1,4 +1,7 @@
 - Retired URLs: App.tsx ParamRedirect, not 404.
+- Stored document actions share safeOpenFile's authorized pipeline; bundle FileOpener normally, Open never shares, Download uses native export and Share requires explicit selection. Why: hidden package imports fail in WebViews and cache writes are not accessible downloads.
+- Invitation copy/share/QR/email addresses use inviteLinks' public origin, never browser/WebView origins or placeholder hosts; preserve routes and tokens. Why: device-local addresses cannot be opened by invitees.
+- Email signup handoffs parse pending-invite tokens from /join/p; email-less parent acceptance uses the bearer token, never the preview ID or name. Why: a public preview is not ownership and retries must preserve child membership.
 - Pending sends are QueryClient-scoped; settle temp IDs from server acknowledgements, not photo presence. Why: avoid duplicates after navigation.
 - Profile batches: get_profile for missing linked IDs.
 - Share helpers prevent empty vault bubbles in both renderers. Schedule dates validate Date range, not just finiteness. Why: invalid dates crash calendars.
@@ -19,3 +22,4 @@
 - DEV ICP push uses icpPushMode's fixed identity/directory boundary and separate native lifecycle/tap manager; registration remains commissioning-held until device ownership and gateway acceptance exist. Shared entry guards preserve legacy email/PROD behavior; ICP cleanup uses captured signers, never Firebase token deletion. Why: asynchronous refresh/sign-out must not cross accounts or backend modes.
 - Competition-vault Storage writes are allowed only for competition managers into `clubs/<host>/competitions/<id>/<own uid>/<file>` (restrictive + permissive INSERT pair); updates stay service-only. Competition chats use the shared Attach sheet with From Vault disabled. Why: the old service-only write policy had no server uploader, so every competition chat/Vault file upload was refused.
 - Native email alert taps are handled only by notificationLaunchHandler, started at the top of product-main; it skips ICP payloads (ignite_backend=icp-dev), which icpPushTap owns. Why: the initializer was dropped in the frontend migration, so taps opened the home page.
+- Team roster parent names unlocked on a visit are saved per account/club/team (savedRosterNames, ignite_ prefix, 7 days) and shown only as placeholder until the fresh authorized read replaces them; never save failed or errored names. Why: instant repeat visits while every read still re-authorizes.

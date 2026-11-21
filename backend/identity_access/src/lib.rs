@@ -58,6 +58,8 @@ mod membership_acceptance;
 mod admin_accounts;
 mod guardian_search;
 mod private_name_audience;
+mod legacy_g1_private_name;
+mod dev_g2_private_name_source;
 mod private_name_conversion;
 mod private_name_account_inventory;
 mod private_name_cleanup;
@@ -331,6 +333,10 @@ pub struct CoreState {
     #[serde(default)]
     pub attestation_secret: Vec<u8>,
     pub next_challenge: u64,
+    /// DEV only: closed (moved) sign-in IDs reopened as their own separate
+    /// account; never reattached to the account they were moved away from.
+    #[serde(default)]
+    pub dev_separate_principals: Vec<Principal>,
 }
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Init {
@@ -439,6 +445,14 @@ struct PrincipalEligibility {
     account_version: Option<u64>,
     denied_through_version: Option<u64>,
 }
+/// Single subject-bound proof for first-content readers. Eligibility is
+/// never a club role or resource grant; aliases are returned only to a
+/// separately validated trusted service reader.
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
+struct MemberAdmission {
+    eligibility: PrincipalEligibility,
+    account: Option<Account>,
+}
 fn principal_eligibility(subject: Principal) -> PrincipalEligibility {
     let account = account_for_write(subject).ok().filter(|a| !DELETION_TICKETS.with(|m| m.borrow().contains_key(&a.id)));
     PrincipalEligibility {
@@ -535,6 +549,39 @@ fn current_service_account(subject: Principal) -> Outcome<Account> {
 async fn read_service_account(subject: Principal) -> Outcome<Account> {
     if account_group_rehearsal_enabled() {return service_account(ic_cdk::api::msg_caller(),subject);}
     production_service_account(ic_cdk::api::msg_caller(),subject,false).await
+}
+
+/// Combine eligibility and the optional linked-account view behind one
+/// existing member-reader inventory verification. Construct after the final
+/// await so suspensions, deletion tickets and unlink fences remain current.
+/// Missing account aliases never turn a denied eligibility into an admission.
+#[ic_cdk::update]
+async fn read_member_admission(subject: Principal) -> Outcome<MemberAdmission> {
+    let caller = ic_cdk::api::msg_caller();
+    if account_group_rehearsal_enabled() {
+        // The legacy admission authority may read eligibility only. It must
+        // never receive linked aliases without its distinct service grant.
+        let mut evidence = authority_eligibilities(caller, vec![subject])?;
+        let eligibility = evidence.remove(0);
+        let account = if eligibility.decision == EligibilityDecision::Eligible
+            && service_authorities().contains(&caller) {
+            current_service_account(subject).ok()
+        } else { None };
+        return Ok(MemberAdmission { eligibility, account });
+    }
+    if group2_admission().member_access {
+        verify_member_reader(caller, false).await?;
+    } else if production_authorization().approval.is_some() {
+        verify_production_account_reader(caller, false, &[subject]).await?;
+    } else {
+        return Err("Member admission unavailable".into());
+    }
+    // No await after the final authority and inventory verification.
+    let eligibility = principal_eligibility(subject);
+    let account = if eligibility.decision == EligibilityDecision::Eligible {
+        current_service_account(subject).ok()
+    } else { None };
+    Ok(MemberAdmission { eligibility, account })
 }
 
 fn unlink_targets(job: &UnlinkIntent) -> Outcome<Vec<Principal>> {
@@ -694,6 +741,85 @@ async fn configure_membership_directory(binding:group_inventory::Binding,authori
 fn disable_membership_directory()->Outcome<()>{
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 require_governor(&state(),ic_cdk::api::msg_caller())?;let mut c=directory_config()?;c.enabled=false;save_directory_config(&c);Ok(())}
+/// Disposable test-only membership DIRECTORY reset for the original DEV
+/// mainnet Identity canister. Not an account reset, data migration or reader
+/// release. Never expose this method on a different canister or as a general
+/// purpose revision-repair API. Governed by exact hard-coded 7 -> 11 scope.
+#[ic_cdk::update]
+async fn reset_disposable_dev_membership_directory(
+    expected_saved_revision:u64, expected_router_revision:u64, confirmation:String,
+)->Outcome<()> {
+    let _private_writer_lease=private_name_writer_window::enter()
+        .unwrap_or_else(|reason|ic_cdk::trap(reason));
+    let caller=ic_cdk::api::msg_caller();
+    require_governor(&state(),caller)?;
+    admission_configuration_clear()?;
+    // Prevent this operation on a shared Identity ever authorized for PROD.
+    if production_authorization().approval.is_some() {
+        return Err("Production account authorization is present; DEV reset forbidden".into());
+    }
+    if DIRECTORY_TIMER_BUSY.with(|busy|*busy.borrow()) {
+        return Err("Membership directory timer is active; retry only after quiescence".into());
+    }
+    let before=directory_config()?;
+    membership_runtime::require_exact_dev_disposable_reset(
+        ic_cdk::api::canister_self(), caller, state().governor, &before,
+        expected_saved_revision, expected_router_revision, &confirmation,
+    )?;
+    let mut current_binding=before.binding.clone();
+    current_binding.registry_revision=expected_router_revision;
+    let unchanged=||->Outcome<()>{
+        // The timer may advance next_source and an authenticated source may
+        // advance pending invalidation watermarks while router reads await.
+        // These are disposable directory progress, not authority changes.
+        // Keep strict fencing of binding, generation, source inventory,
+        // lifecycle, enabled state and released-reader marker.
+        if !directory_config()?.same_configuration(&before) {
+            return Err("DEV directory authority changed during preflight; no reset performed".into());
+        }
+        if DIRECTORY_TIMER_BUSY.with(|busy|*busy.borrow()) {
+            return Err("Directory refresh became active; no reset performed".into());
+        }
+        admission_configuration_clear()
+    };
+    // Authenticated consensus reads of the complete registered inventory.
+    // Modern G1 was never registered: original G1 stays separately pinned
+    // in the *existing* directory source list checked above.
+    let first=read_registry_pages(&current_binding,unchanged).await?;
+    let second=read_registry_pages(&current_binding,unchanged).await?;
+    unchanged()?;
+    if first!=second || first.revision!=expected_router_revision ||
+       first.groups.len()!=1 || first.placements.len()!=1 ||
+       first.groups[0].id!="g2" || first.placements[0].group_id!="g2" ||
+       first.groups[0].domains.iter().find(|d|d.domain=="club_domain")
+           .map(|d|d.canister.to_text())!=Some("yfwyv-nyaaa-aaaal-qxpyq-cai".into()) ||
+       first.groups[0].domains.iter().find(|d|d.domain=="pii_access_control")
+           .map(|d|d.canister.to_text())!=Some("zt5a6-yiaaa-aaaal-qxp5q-cai".into()) {
+        return Err("Exact registered DEV G2 inventory changed; no reset performed".into());
+    }
+    let clubs=vec![Principal::from_text("yfwyv-nyaaa-aaaal-qxpyq-cai")
+        .map_err(|_|"Invalid pinned DEV G2 Club")?];
+    group_inventory::validate(&first,&current_binding,&clubs,&[])?;
+    // All size checks occur before the first mutation. These are small DEV
+    // test indexes, not a general-purpose unbounded production reset.
+    let small_coordinator=DIRECTORY_COORDINATOR.with(|x|x.borrow().dev_disposal_within_budget());
+    let small_worker=DIRECTORY_WORKER.with(|x|x.borrow().dev_disposal_within_budget());
+    let small_sessions=DIRECTORY_SESSIONS.with(|x|x.borrow().dev_disposal_within_budget());
+    if !small_coordinator || !small_worker || !small_sessions {
+        return Err("DEV directory exceeded disposable test budget; stop without modifying data".into());
+    }
+    unchanged()?;
+    // No await between final recheck and disposal. Never touch ACCOUNTS,
+    // PRINCIPAL_INDEX, PROFILES, family links, club records, roles or PII.
+    DIRECTORY_WORKER.with(|x|x.borrow_mut().dev_discard_test_jobs());
+    DIRECTORY_SESSIONS.with(|x|x.borrow_mut().dev_discard_test_sessions());
+    DIRECTORY_COORDINATOR.with(|x|x.borrow_mut().dev_discard_test_directory());
+    DIRECTORY_CONFIG.with(|x|{x.borrow_mut().set(Vec::new());});
+    // The reader stays CLOSED. A separate explicitly approved owner workflow
+    // must configure g1/g2 sources using a new generation (>=2), materialize
+    // and verify fresh ownership before separately releasing any reader.
+    Ok(())
+}
 /// Exact operator readback of the separate directory configuration. Does not
 /// return memberships, grant lifecycle readers, or certify currentness.
 #[derive(CandidType,Deserialize)]
@@ -2310,15 +2436,72 @@ async fn read_guardian_profile_candidates(authority: Principal, child: String, c
     Ok(GuardianProfilePage{revision,rows,scanned,next})
 }
 
-/// Service-delegated name permission only. Registry placement authenticates
-/// both the ORIGINAL PII caller and owning audience service; location alone
-/// never admits a human. References must name this precise original PII caller.
+/// Service-delegated name permission only. The modern registry authenticates
+/// registered PII callers. The original DEV G1 PII is an explicit, gated
+/// Identity-directory legacy source; its observed public key and service origin
+/// must be checked, NEVER inferred from a browser-supplied reference.
+/// Even a verified source never authorises a human without team membership.
+fn dev_g1_team_name_release_enabled() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    { ic_cdk::api::env_var_name_exists(legacy_g1_private_name::RELEASE_SWITCH)
+        && ic_cdk::api::env_var_value(legacy_g1_private_name::RELEASE_SWITCH) == "1" }
+    #[cfg(not(target_arch = "wasm32"))]
+    { false }
+}
+fn dev_g2_shared_club_names_enabled() -> bool {
+    // A separate, explicit operator release: enabling historical team-name
+    // reads must NOT silently widen them to every member of a club.
+    #[cfg(target_arch = "wasm32")]
+    { ic_cdk::api::env_var_name_exists(legacy_g1_private_name::SHARED_CLUB_NAMES_SWITCH)
+        && ic_cdk::api::env_var_value(legacy_g1_private_name::SHARED_CLUB_NAMES_SWITCH) == "1" }
+    #[cfg(not(target_arch = "wasm32"))]
+    { false }
+}
+fn dev_g1_observed_key_sha256() -> Option<String> {
+    #[cfg(target_arch = "wasm32")]
+    { if ic_cdk::api::env_var_name_exists(legacy_g1_private_name::APPROVED_KEY_SHA256) {
+        Some(ic_cdk::api::env_var_value(legacy_g1_private_name::APPROVED_KEY_SHA256))
+    } else { None } }
+    #[cfg(not(target_arch = "wasm32"))]
+    { None }
+}
+async fn verify_dev_g1_public_key(service: Principal, observed_sha256: &str) -> Outcome<()> {
+    // Only public verification-key bytes are requested; no ciphertext,
+    // plaintext profile, derived vetKey, owner change or PII grant.
+    let reply = ic_cdk::call::Call::bounded_wait(service, "pii_vetkey_verification_key")
+        .with_args(&()).await.map_err(|_| "Original G1 public key unavailable")?;
+    let public_key: Vec<u8> = reply.candid().map_err(|_| "Invalid original G1 public-key reply")?;
+    legacy_g1_private_name::verify_current_public_key(&public_key, observed_sha256)
+}
 #[ic_cdk::update]
 async fn read_private_profile_name_authorization(viewer_principal: Principal, subjects: Vec<Principal>, scope: private_name_audience::Scope) -> Outcome<Vec<ProfileSearchResult>> {
-    if option_env!("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != Some("1") && !(scope.kind == "club" && private_club_name_displays_released()) { return Err("Private name audiences are not released".into()); }
+    if option_env!("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != Some("1") &&
+        !((scope.kind == "club" || scope.kind == "team") && private_club_name_displays_released()) {
+        return Err("Private name audiences are not released".into());
+    }
     private_name_audience::validate(viewer_principal, &subjects, &scope)?;
     let service = ic_cdk::api::msg_caller();
-    if !service_authorities().contains(&service) { return Err("Configured private-name service required".into()); }
+    // The historically persisted service-reader list can omit the registered
+    // G2 PII. Accept ONLY the pinned DEV PII/Identity/club triple, in an
+    // explicitly released club-audience read. The full router proof is below.
+    // This never changes the service allowlist or grants a human a name.
+    let dev_g2_candidate = dev_g2_private_name_source::candidate(
+        ic_cdk::api::canister_self(), service, &scope.kind, scope.authority,
+        dev_g2_shared_club_names_enabled(), private_club_name_displays_released(),
+    );
+    let mut allowed_services = service_authorities();
+    // The legacy G1 PII is absent from the modern router by design. Include
+    // exactly this compiled DEV principal only when the owner has separately
+    // enabled the original-name release switch. This does not mutate the
+    // persisted service allowlist or open a browser-readable endpoint.
+    if dev_g1_team_name_release_enabled()
+        && legacy_g1_private_name::exact_original_dev_pii_caller(ic_cdk::api::canister_self(), service)
+        && !allowed_services.contains(&service) {
+        allowed_services.push(service);
+    }
+    if !allowed_services.contains(&service) && !dev_g2_candidate {
+        return Err("Configured private-name service required".into());
+    }
     let viewer = membership_lookup_viewer(viewer_principal)?;
     let config = directory_config()?;
     let history = removal_history_revision();
@@ -2334,9 +2517,39 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
     active()?;
     let registry_clubs = inventory.groups.iter().flat_map(|g| g.domains.iter().filter(|d| d.domain == "club_domain").map(|d| d.canister)).collect::<Vec<_>>();
     group_inventory::validate(&inventory, &config.binding, &registry_clubs, &[])?;
-    if !inventory.groups.iter().any(|g| g.domains.iter().any(|d| d.domain == "pii_access_control" && d.canister == service)) {
-        return Err("Original private-name service is not registered".into());
+    let modern_pii_registered = inventory.groups.iter().any(|g|
+        g.domains.iter().any(|d| d.domain == "pii_access_control" && d.canister == service));
+    // The registry must independently bind the approved DEV source and the
+    // requested owning club authority to the SAME active group. Neither the
+    // browser-selected scope nor a PII profile reference can assert this.
+    let dev_g2_registered_pair = inventory.groups.iter().any(|g| {
+        g.domains.iter().any(|d| d.domain == "pii_access_control" && d.canister == service)
+            && g.domains.iter().any(|d| d.domain == "club_domain" && d.canister == scope.authority)
+    });
+    if !dev_g2_private_name_source::registered_same_group(
+        dev_g2_candidate, modern_pii_registered && dev_g2_registered_pair,
+    ) {
+        return Err("DEV G2 private-name service authority changed".into());
     }
+    // This original DEV legacy fallback requires the exact source,
+    // owner-verified observed public key, existing configured PII service
+    // allowlist and explicit default-off DEV release. Historical test data
+    // continuity is an availability concern, not a substitute for access ACLs.
+    // Unregistered service callers get no general club/family/PII audience.
+    let legacy_key_digest = if modern_pii_registered { None } else {
+        let release = dev_g1_team_name_release_enabled();
+        let approved_key = dev_g1_observed_key_sha256();
+        let digest = legacy_g1_private_name::require_exact_origin(
+            ic_cdk::api::canister_self(), service, &scope, &config, &inventory,
+            &allowed_services, release, dev_g2_shared_club_names_enabled(), approved_key.as_deref())?;
+        verify_dev_g1_public_key(service, &digest).await?;
+        active()?;
+        if !dev_g1_team_name_release_enabled()
+            || dev_g1_observed_key_sha256().as_deref()!=Some(digest.as_str()) {
+            return Err("Original DEV PII release evidence changed".into());
+        }
+        Some(digest)
+    };
     let domain = match scope.kind.as_str() { "competition" => "competition_domain", "league" => "mini_league_domain", "direct" | "broadcast" | "competition_admin" => "messaging_domain", _ => "club_domain" };
     if !inventory.groups.iter().any(|g| g.domains.iter().any(|d| d.domain == domain && d.canister == scope.authority)) {
         return Err("Private-name audience authority is not registered".into());
@@ -2356,7 +2569,7 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         verify_guardian_search(viewer_principal, scope.authority, &scope.resource, &viewer, &config).await?;
         active()?;
     } else {
-        let method = match scope.kind.as_str() { "club" => "read_profile_membership_batch", "family" => "read_profile_family_batch", "competition" | "league" => "read_profile_audience_batch", "direct" => "read_profile_direct_batch", "broadcast" => "read_profile_broadcast_batch", "competition_admin" => "read_profile_competition_admin_batch", _ => return Err("Invalid audience".into()) };
+        let method = match scope.kind.as_str() { "club" => "read_profile_membership_batch", "team" => "read_profile_team_membership_batch", "family" => "read_profile_family_batch", "competition" | "league" => "read_profile_audience_batch", "direct" => "read_profile_direct_batch", "broadcast" => "read_profile_broadcast_batch", "competition_admin" => "read_profile_competition_admin_batch", _ => return Err("Invalid audience".into()) };
         let mut retained: Option<club_profiles::MembershipBatch> = None;
         for _ in 0..2 {
             let expected = retained.as_ref().map(|r| r.revision.clone());
@@ -2370,6 +2583,23 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
             if batch.members.iter().any(|member| !member) || retained.as_ref().is_some_and(|prior| prior != &batch) { return Err("Private-name relationship denied or changed".into()); }
             retained = Some(batch);
         }
+    }
+    // The observed original G1 public key pin cannot drift across
+    // the two *team-only* relationship checks. No private key is derived here.
+    if let Some(observed_sha256) = legacy_key_digest.as_deref() {
+        verify_dev_g1_public_key(service, observed_sha256).await?;
+        active()?;
+        if !dev_g1_team_name_release_enabled()
+            || dev_g1_observed_key_sha256().as_deref()!=Some(observed_sha256) {
+            return Err("Original DEV PII key approval changed".into());
+        }
+    }
+    // Re-evaluate the exact DEV-only release after both membership checks.
+    if dev_g2_candidate && !dev_g2_private_name_source::candidate(
+        ic_cdk::api::canister_self(), service, &scope.kind, scope.authority,
+        dev_g2_shared_club_names_enabled(), private_club_name_displays_released(),
+    ) {
+        return Err("DEV G2 private-name release changed".into());
     }
     // No await after these final subject/reference and caller rechecks.
     active()?;
@@ -2516,6 +2746,7 @@ fn reclaimable_original_account(principal: Principal) -> Option<Account> {
     let derived = account_id(principal);
     let existing = get_account(&derived)?;
     if existing.principals.contains(&principal) { return Some(existing); }
+    if state().dev_separate_principals.contains(&principal) { return None; }
     if principal_denial(principal).is_some() || account_is_erased(&derived) || removal_intent(&derived).is_some()
         || link_lifecycle().pending.iter().any(|job| job.account_id == derived)
         || DELETION_TICKETS.with(|m| m.borrow().contains_key(&derived))
@@ -2725,6 +2956,7 @@ fn init(init: Init) {
         verifiers: vec![],
         attestation_secret: vec![],
         next_challenge: 0,
+        dev_separate_principals: vec![],
     };
     store(&state);
     arm_directory_timer();
@@ -2766,6 +2998,7 @@ fn migrate_legacy_state(legacy: State) -> CoreState {
         verifiers: legacy.verifiers,
         attestation_secret: legacy.attestation_secret,
         next_challenge: legacy.next_challenge,
+        dev_separate_principals: vec![],
     }
 }
 
@@ -3585,6 +3818,83 @@ fn rekey_principal(old: Principal, new: Principal, dry_run: bool) -> Outcome<u64
     Ok(changed)
 }
 
+/// The DEV identity_access canister only (never PROD): moving an account back
+/// to the exact sign-in ID it was moved away from reopens that ID. Requires
+/// the recorded rekey destination to be `old` and still own the same account.
+const DEV_IDENTITY_ACCESS_CANISTER: &str = "mq2sj-fiaaa-aaaal-qxlqa-cai";
+fn dev_rekey_reversal_allowed(old: Principal, new: Principal) -> bool {
+    let Some(denial) = principal_denial(new) else { return false };
+    denial.reason == DenialReason::Rekeyed && denial.rekey_destination == Some(old) &&
+        ic_cdk::api::canister_self().to_text() == DEV_IDENTITY_ACCESS_CANISTER &&
+        !account_is_erased(&denial.account_id) &&
+        find_account_by_principal(old).is_some_and(|a| a.id == denial.account_id && a.principals.contains(&old))
+}
+
+/// DEV only: reopen a sign-in ID that an account move closed, as its OWN new
+/// empty account. The account it was moved to keeps everything and is not
+/// touched; the reopened ID is never reattached to it. Returns 1 when it
+/// reopens (or would reopen when `dry_run`), 0 when already reopened.
+#[ic_cdk::update]
+fn dev_reopen_moved_principal(principal: Principal, dry_run: bool) -> Outcome<u64> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+    let caller = ic_cdk::api::msg_caller();
+    let mut state = state();
+    require_governor(&state, caller)?;
+    if ic_cdk::api::canister_self().to_text() != DEV_IDENTITY_ACCESS_CANISTER {
+        return Err("Reopening a moved sign-in ID is DEV only".into());
+    }
+    if !link_lifecycle().pending.is_empty() { return Err("Unlink recovery pending".into()); }
+    let changed = dev_reopen_moved_principal_core(&mut state, principal, dry_run)?;
+    if !dry_run && changed > 0 { store(&state); }
+    Ok(changed)
+}
+
+fn dev_reopen_moved_principal_core(state: &mut CoreState, principal: Principal, dry_run: bool) -> Outcome<u64> {
+    if principal == Principal::anonymous() || principal == Principal::management_canister() || principal == state.governor {
+        return Err("This sign-in ID cannot be reopened".into());
+    }
+    if state.dev_separate_principals.contains(&principal) && principal_denial(principal).is_none() &&
+        find_account_by_principal(principal).is_some_and(|a| a.principals == vec![principal]) {
+        return Ok(0);
+    }
+    let Some(denial) = principal_denial(principal) else { return Err("That sign-in ID is not closed".into()) };
+    if denial.reason != DenialReason::Rekeyed || denial.rekey_destination.is_none() {
+        return Err("Only a sign-in ID closed by an account move can be reopened".into());
+    }
+    if removal_subject_fenced(principal) { return Err("Removal barrier pending".into()); }
+    if find_account_by_principal(principal).is_some() || ACCOUNTS.with(|m| m.borrow().iter().any(|e| {
+        let a: Account = decode(&e.value()); a.principals.contains(&principal)
+    })) {
+        return Err("That sign-in ID is still attached to an account".into());
+    }
+    let id = fresh_separate_account_id(principal)?;
+    if account_count() >= MAX_ACCOUNTS as u64 { return Err("Account quota reached".into()); }
+    if dry_run { return Ok(1); }
+    bump_removal_history();
+    PRINCIPAL_DENIALS.with(|m| m.borrow_mut().remove(&principal.to_text()));
+    if !state.dev_separate_principals.contains(&principal) { state.dev_separate_principals.push(principal); }
+    put_account(&Account { id: id.clone(), principals: vec![principal], version: 0, status: AccountStatus::Active });
+    index_principal(principal, &id);
+    Ok(1)
+}
+
+/// Salted id never equal to the derived id (that slot belongs to the
+/// account the sign-in ID was moved away from).
+fn fresh_separate_account_id(principal: Principal) -> Outcome<String> {
+    for n in 1u8..=16 {
+        let mut hasher = Sha256::new();
+        hasher.update(b"ignite-account-salt");
+        hasher.update([n]);
+        hasher.update(principal.as_slice());
+        let digest = hasher.finalize();
+        let hex: String = digest[..16].iter().map(|b| format!("{b:02x}")).collect();
+        let candidate = format!("{}-{}-{}-{}-{}", &hex[..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..]);
+        if get_account(&candidate).is_some() || account_is_erased(&candidate) { continue; }
+        return Ok(candidate);
+    }
+    Err("Account ID collision".into())
+}
+
 fn rekey_principal_core(
     state: &mut CoreState,
     old: Principal,
@@ -3610,7 +3920,8 @@ fn rekey_principal_core(
         }
         return Err("Revoked identity cannot be rekeyed".into());
     }
-    if principal_denial(new).is_some() {
+    let reverse_dev_rekey = dev_rekey_reversal_allowed(old, new);
+    if principal_denial(new).is_some() && !reverse_dev_rekey {
         return Err("Revoked identity cannot be rekeyed".into());
     }
     if old == new {
@@ -3647,6 +3958,10 @@ fn rekey_principal_core(
     };
     // All refusal checks precede the durable terminal denial and data moves.
     if !dry_run {
+        if reverse_dev_rekey {
+            bump_removal_history();
+            PRINCIPAL_DENIALS.with(|m| m.borrow_mut().remove(&new.to_text()));
+        }
         deny_principals(&[old], &account.id, next_version, DenialReason::Rekeyed)?;
         let mut denial = principal_denial(old).ok_or("Rekey denial missing")?;
         denial.rekey_destination = Some(new);
@@ -4248,6 +4563,8 @@ mod tests {
     }
     #[test]
     fn lost_principal_index_self_heals_only_for_listed_owner() {
+        // Recovery reads CoreState, populated by canister installation.
+        init(Init { governor: principal(190) });
         let owner = principal(170);
         let id = ensure_account(owner).unwrap();
         deindex_principal(owner);
@@ -4306,6 +4623,7 @@ mod tests {
     }
     #[test]
     fn erased_original_never_reattaches() {
+        init(Init { governor: principal(190) });
         let user = principal(178);
         let original = Account { id: account_id(user), principals: vec![principal(179)], version: 1, status: AccountStatus::Active };
         put_account(&original);
@@ -4678,6 +4996,7 @@ mod tests {
             verifiers: vec![],
             attestation_secret: vec![],
             next_challenge: 0,
+            dev_separate_principals: vec![],
         }
     }
     #[test]
@@ -4703,6 +5022,44 @@ mod tests {
         assert!(rekey_principal_core(&mut core, old, alias, false).is_err());
         ERASED_ACCOUNTS.with(|m| m.borrow_mut().insert(account.id.clone(), 5));
         assert!(rekey_principal_core(&mut core, old, target, false).is_err());
+    }
+    #[test]
+    fn dev_reopen_gives_moved_sign_in_its_own_empty_account() {
+        let governor = principal(1);
+        let old = principal(50);
+        let new = principal(51);
+        let old_id = account_id(old);
+        put_account(&Account { id: old_id.clone(), principals: vec![old], version: 3, status: AccountStatus::Active });
+        index_principal(old, &old_id);
+        put_profile_entry(&Profile { account_id: old_id.clone(), display_name: "Paul".into(), avatar_ref: None,
+            updated_at_ns: 1, theme_preference: None, club_switcher_hint_seen_at: None });
+        let mut state = empty_core_state(governor);
+        state.roles.push(RoleGrant { account_id: old_id.clone(), role: "app_admin".into(), site_id: None, club: None, team: None });
+        rekey_principal_core(&mut state, old, new, false).unwrap();
+        assert!(ensure_account(old).is_err());
+
+        // Not closed / not a move: refused.
+        assert!(dev_reopen_moved_principal_core(&mut state, principal(52), false).is_err());
+        // Dry run changes nothing.
+        assert_eq!(dev_reopen_moved_principal_core(&mut state, old, true), Ok(1));
+        assert!(principal_denial(old).is_some());
+
+        assert_eq!(dev_reopen_moved_principal_core(&mut state, old, false), Ok(1));
+        store(&state);
+        let reopened = ensure_account(old).expect("reopened sign-in works");
+        assert_ne!(reopened, old_id);
+        assert!(get_profile_entry(&reopened).is_none());
+        assert!(!state.roles.iter().any(|g| g.account_id == reopened));
+        // The moved-to account keeps its profile, admin role and sole sign-in.
+        let kept = find_account_by_principal(new).unwrap();
+        assert_eq!(kept.id, old_id);
+        assert_eq!(kept.principals, vec![new]);
+        assert_eq!(get_profile_entry(&old_id).map(|p| p.display_name), Some("Paul".into()));
+        // Signing in again never merges it back into the original account.
+        assert_eq!(ensure_account(old), Ok(reopened.clone()));
+        assert_eq!(find_account_by_principal(new).unwrap().principals, vec![new]);
+        assert_eq!(dev_reopen_moved_principal_core(&mut state, old, false), Ok(0));
+        assert!(dev_reopen_moved_principal_core(&mut state, governor, false).is_err());
     }
     #[test]
     fn rekey_moves_account_to_new_principal_and_drops_bare_account() {

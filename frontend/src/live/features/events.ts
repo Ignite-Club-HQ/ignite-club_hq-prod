@@ -105,7 +105,22 @@ export async function listLiveEvents(
   clubId?: string | null,
   teamId?: string | null,
 ) {
-  const rows = await listLiveEventsRaw(ctx, clubId, teamId);
+  // Schedule/Home/Next Up can ask for the same scope after the microtask
+  // batching window has closed. Join only the still-running read, never a
+  // completed result; every subsequent visit remains server-authorized.
+  const key = JSON.stringify([ctx.identity.getPrincipal().toText(), ctx.target, clubId ?? null, teamId ?? null]);
+  let reads = eventListReads.get(ctx.identity);
+  if (!reads) { reads = new Map(); eventListReads.set(ctx.identity, reads); }
+  let pending = reads.get(key);
+  if (!pending) {
+    const bucket = reads;
+    pending = listLiveEventsRaw(ctx, clubId, teamId).then(rows =>
+      [...new Map(rows.map(row => [JSON.stringify([row.club_id, row.id]), row])).values()],
+    ).finally(() => { if (bucket.get(key) === pending) bucket.delete(key); });
+    bucket.set(key, pending);
+  }
+  // Independent arrays: a consumer must not reorder its sibling's schedule.
+  const rows = [...await pending];
   rememberLiveEvents(rows);
   // Each listed event's club is known here: record it so opening the event
   // goes straight to its group instead of asking every group first.
@@ -119,6 +134,7 @@ export async function listLiveEvents(
 // can show it at once and refresh only its own club. Session memory only;
 // it is a display hint, never an access decision.
 type ListedLiveEvent = Awaited<ReturnType<typeof listLiveEventsRaw>>[number];
+const eventListReads = new WeakMap<FeatureBackendContext['identity'], Map<string, Promise<ListedLiveEvent[]>>>();
 const listedEvents = new Map<string, ListedLiveEvent>();
 function rememberLiveEvents(rows: readonly ListedLiveEvent[]) {
   for (const row of rows) {
@@ -139,7 +155,8 @@ async function listLiveEventsRaw(
   clubId?: string | null,
   teamId?: string | null,
 ) {
-  // Exactly one scope -> coalesce with sibling calls into list_events_multi.
+  // Exactly one scope -> coalesce with sibling calls into the protected consensus list_events_multi twin.
+  // Use the protected methods directly: legacy queries can trap on account-protected groups.
   if (!!clubId !== !!teamId) {
     const key = clubId ? `c:${clubId}` : `t:${teamId}`;
     return batched(
@@ -147,7 +164,7 @@ async function listLiveEventsRaw(
       async (actor: EventsActor, keys) => {
         const clubs = keys.filter((k) => k.startsWith("c:")).map((k) => k.slice(2));
         const teams = keys.filter((k) => k.startsWith("t:")).map((k) => k.slice(2));
-        const rows = await unwrapCandid(actor.list_events_multi(clubs, teams), "List events");
+        const rows = await unwrapCandid(actor.read_account_list_events_multi(clubs, teams), "List events");
         const m = new Map(keys.map((k) => [k, [] as typeof rows]));
         for (const e of rows) {
           m.get(`c:${e.club_id}`)?.push(e);
@@ -157,11 +174,11 @@ async function listLiveEventsRaw(
         return m;
       },
       (actor: EventsActor, k) =>
-        k.startsWith("c:") ? actor.list_events([k.slice(2)], []) : actor.list_events([], [k.slice(2)]),
+        k.startsWith("c:") ? actor.read_account_list_events([k.slice(2)], []) : actor.read_account_list_events([], [k.slice(2)]),
     );
   }
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return actor.list_events(candidOpt(clubId), candidOpt(teamId));
+  return actor.read_account_list_events(candidOpt(clubId), candidOpt(teamId));
 }
 
 /**
@@ -208,13 +225,13 @@ export async function listLiveEventDutyTeams(
 }
 
 /**
- * The caller's own RSVPs (events_domain `my_rsvps` query). Caller-scoped
+ * The caller's own RSVPs (events_domain protected `read_account_my_rsvps`). Caller-scoped
  * counterpart of the governor-gated export_state snapshot, for member-facing
- * surfaces like the home feed. Plain query result (no Ok/Err variant).
+ * surfaces like the home feed. Protected consensus result (no Ok/Err variant).
  */
 export async function listLiveMyRsvps(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return actor.my_rsvps();
+  return actor.read_account_my_rsvps();
 }
 
 export async function createLiveEvent(ctx: FeatureBackendContext, input: LiveEventInput) {
@@ -833,7 +850,7 @@ export async function getMyLiveChildRsvps(
   clubId?: string | null,
 ) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return actor.my_child_rsvps(candidOpt(eventId), candidOpt(clubId));
+  return actor.read_account_my_child_rsvps(candidOpt(eventId), candidOpt(clubId));
 }
 
 /** Whether a child is part of an event's audience (roster/guardian scope). */
@@ -1629,7 +1646,7 @@ export async function listLiveDuties(ctx: FeatureBackendContext, eventId: string
 /** The caller's own linked children (events-domain self-service roster). */
 export async function getLiveMyChildren(ctx: FeatureBackendContext) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return actor.my_children();
+  return actor.read_account_my_children();
 }
 
 /** Admin upsert of a child->team assignment. */

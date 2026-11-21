@@ -13,6 +13,8 @@ import { clearOwnerTestRouting, readOwnerTestRouteCached } from './ownerTestRout
 import { markScopedContext } from './scopedContext';
 const READ_ACROSS_LEG_MS = 15_000;
 import { clearRoleGrantsMemo } from './roleGrantsMemo';
+import { timeCarouselRead } from '@/lib/carouselReadTiming';
+import { clearMixedMembershipRuntime } from './mixedMembershipRuntime';
 
 type Session = { readClub<T>(c: string, d: GroupDomain, r: (ctx: FeatureBackendContext) => Promise<T>): Promise<T>;
   writeClub<T>(c: string, d: GroupDomain, k: string, w: (ctx: FeatureBackendContext, k: string) => Promise<T>, attempts?: number): Promise<T>;
@@ -91,7 +93,7 @@ async function sessionFor(deps: DispatchDeps): Promise<{ ctx: FeatureBackendCont
     Object.entries(ctx.target.canisterIds ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
   if (!cached || cached.principal !== principal || cached.targetKey !== targetKey) {
     clearGroupDispatchCache();
-    const entry = { principal, targetKey, session: deps.open(ctx), ready: false };
+    const entry = { principal, targetKey, session: timeCarouselRead('membership', () => deps.open(ctx)), ready: false };
     cached = entry;
     entry.session.then(() => { entry.ready = true; }, () => {});
   }
@@ -215,7 +217,12 @@ export function createClubDispatcher(deps: DispatchDeps) {
     },
     /** Data spanning the caller's clubs: shared canisters + every group, asked
      * at the same time (load time = slowest group, not the sum). */
-    readAcross: async <T, R>(feature: FeatureArea, domain: GroupDomain, fn0: (ctx: FeatureBackendContext) => Promise<T>, merge: (parts: T[]) => R, requireComplete = false): Promise<R> => {
+    readAcross: async <T, R>(feature: FeatureArea, domain: GroupDomain, fn0: (ctx: FeatureBackendContext) => Promise<T>, merge: (parts: T[]) => R, requireComplete = false, readDeadlineMs = READ_ACROSS_LEG_MS): Promise<R> => {
+      // Only high-latency reads (e.g. vetted local IBE name unlock) may opt into a longer deadline.
+      // Preserve the 15s default for every other screen; never make a user-supplied timeout unbounded.
+      if (!Number.isSafeInteger(readDeadlineMs) || readDeadlineMs < READ_ACROSS_LEG_MS || readDeadlineMs > 45_000) {
+        throw new Error('Invalid bounded group read deadline');
+      }
       if (!await active()) return merge([await deps.legacy(feature, '', fn0)]);
       const fn = (ctx: FeatureBackendContext) => fn0(ctx && typeof ctx === 'object' ? markScopedContext(ctx) : ctx);
       const { s } = await sessionFor(deps);
@@ -224,9 +231,9 @@ export function createClubDispatcher(deps: DispatchDeps) {
       type Part = { ok: true; value: T } | { ok: false; error: unknown };
       // A stalled group must not hold the whole screen: after the leg deadline it
       // counts as failed (partial results still show; requireComplete throws).
-      const legDeadline = <V,>(p: Promise<V>, ms = READ_ACROSS_LEG_MS) => { let t: ReturnType<typeof setTimeout> | undefined; return Promise.race([p, new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error('A club group took too long to answer')), ms); })]).finally(() => clearTimeout(t)); };
+      const legDeadline = <V,>(p: Promise<V>, ms = readDeadlineMs) => { let t: ReturnType<typeof setTimeout> | undefined; return Promise.race([p, new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error('A club group took too long to answer')), ms); })]).finally(() => clearTimeout(t)); };
       const attempt = async (ctx: FeatureBackendContext): Promise<Part> => { try { return { ok: true, value: await legDeadline(fn(ctx)) }; } catch (error) { return { ok: false, error }; } };
-      const [shared, groups] = await Promise.all([legDeadline(deps.legacy(feature, '', fn)).then((value): Part => ({ ok: true, value }), (error): Part => ({ ok: false, error })), legDeadline(s.readEveryGroup(domain, async ctx => [await attempt(ctx)], Number.MAX_SAFE_INTEGER), READ_ACROSS_LEG_MS + 10_000).catch((error): Part[] => [{ ok: false, error }])]);
+      const [shared, groups] = await Promise.all([legDeadline(deps.legacy(feature, '', fn)).then((value): Part => ({ ok: true, value }), (error): Part => ({ ok: false, error })), legDeadline(s.readEveryGroup(domain, async ctx => [await attempt(ctx)], Number.MAX_SAFE_INTEGER), readDeadlineMs + 10_000).catch((error): Part[] => [{ ok: false, error }])]);
       const parts = [shared, ...groups];
       if (requireComplete) {
         const failure = parts.find(p => !p.ok);
@@ -338,6 +345,7 @@ export const clubDispatch = createClubDispatcher({
 
 /** Sign-out: forget every entity→club answer kept on this device. */
 export function wipeGroupOwnerCache() {
+  clearMixedMembershipRuntime();
   clearRoleGrantsMemo();
   clearOwnerTestRouting();
   clearGroupDispatchCache();

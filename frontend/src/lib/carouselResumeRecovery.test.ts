@@ -20,7 +20,7 @@ describe('carousel resume recovery', () => {
     expect(observer.getCurrentResult().data).toEqual([{ id: 'fresh' }]);
   });
   it('releases a recovery that was itself suspended on a later return', async () => {
-    const c = client(); c.setQueryData(key, []);
+    const c = client();
     const read = vi.fn().mockImplementationOnce(({ signal }: { signal: AbortSignal }) => new Promise(() => {
       signal.addEventListener('abort', () => {});
     })).mockResolvedValue([{ id: 'fresh' }]);
@@ -56,12 +56,12 @@ describe('carousel resume recovery', () => {
     await createCarouselResumeRecovery(c, key)();
     expect(read).not.toHaveBeenCalled(); expect(refetch).not.toHaveBeenCalled();
   });
-  it('recovers an empty session-raced result but accepts a verified empty result', async () => {
+  it('accepts a confirmed empty inventory without restarting it on resume', async () => {
     const c = client(); c.setQueryData(key, []);
     const read = vi.fn().mockResolvedValue([]);
     const observer = new QueryObserver(c, { queryKey: key, queryFn: read }); listeners.push(observer.subscribe(() => {}));
     await createCarouselResumeRecovery(c, key)();
-    expect(read).toHaveBeenCalledTimes(1); expect(c.getQueryData(key)).toEqual([]);
+    expect(read).not.toHaveBeenCalled(); expect(c.getQueryData(key)).toEqual([]);
   });
   it('never starts reads for an inactive or different account carousel', async () => {
     const c = client(); c.setQueryData(key, []);

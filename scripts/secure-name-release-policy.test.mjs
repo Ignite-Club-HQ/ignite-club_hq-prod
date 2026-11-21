@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {secureNameEnvironment,secureNameChangedSettings,requireSecureNameGithubProtection,SAVE_RELEASE,DISPLAY_RELEASE} from './secure-name-release-policy.mjs';
+import {secureNameEnvironment,secureNameChangedSettings,requireSecureNameGithubProtection,SAVE_RELEASE,DISPLAY_RELEASE,SHARED_CLUB_NAME_RELEASE,DEV_G2_SHARED_CLUB_RELEASE} from './secure-name-release-policy.mjs';
 const pins={identity:'identity-cai',originalPii:'original-pii-cai'};
 test('secure saving pins original authority without enabling display, cleanup or conversion',()=>{
   const env=[{name:'VETKD_KEY_NAME',value:'key_1'},{name:'custom',value:'keep'}];
@@ -49,4 +49,75 @@ test('foreign keys, active rehearsals, duplicate settings and unrelated targets 
   assert.throws(()=>secureNameChangedSettings('secure_name_save','club_domain'));
   assert.throws(()=>secureNameChangedSettings('private_name_cleanup','identity_access'));
   assert.throws(()=>requireSecureNameGithubProtection({can_admins_bypass:true,protection_rules:[],deployment_branch_policy:null},{}));
+});
+
+test('exact disposable DEV private display release prepares original G1 team-name authority, not a global profile grant',()=>{
+  const dev={identity:'mq2sj-fiaaa-aaaal-qxlqa-cai',originalPii:'iui5p-aaaaa-aaaal-qxllq-cai'};
+  const baseline=[
+    {name:'IGNITE_SECURE_ADULT_NAME_PII',value:dev.originalPii},
+    {name:SAVE_RELEASE,value:'1'},
+    {name:'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL',value:'1'},
+    {name:'custom_setting',value:'retain'},
+  ];
+  const rows=secureNameEnvironment(baseline,'identity_access','private_club_name_display',dev);
+  assert.equal(rows.find(x=>x.name===DISPLAY_RELEASE)?.value,'1');
+  assert.equal(rows.find(x=>x.name==='IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE')?.value,'1');
+  assert.equal(rows.find(x=>x.name==='IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256')?.value,
+    'f80ed20bc0d8a244f40b31fdbd0024ff469d24254197dce9242dce669fa1f34d');
+  assert.equal(rows.find(x=>x.name==='custom_setting')?.value,'retain');
+  assert.equal(rows.find(x=>x.name==='IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL')?.value,'1');
+  assert.equal(baseline.length,4,'original environment remains unmodified');
+  const repeated=secureNameEnvironment(rows,'identity_access','private_club_name_display',dev);
+  assert.deepEqual(repeated,rows,'replaying a vetted release plan does not change the release');
+  assert.throws(()=>secureNameEnvironment([...baseline,{name:'IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256',value:'0'.repeat(64)}],'identity_access','private_club_name_display',dev),/fingerprint differs/);
+  const completePii=[
+    {name:'VETKD_KEY_NAME',value:'key_1'},
+    {name:SAVE_RELEASE,value:'1'},
+    {name:'IGNITE_SECURE_ADULT_NAME_IDENTITY',value:dev.identity},
+    {name:'IGNITE_PRIVATE_PROFILE_IDENTITY',value:dev.identity},
+    {name:'IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE',value:'1'},
+  ];
+  assert.throws(()=>secureNameEnvironment(completePii,'pii_access_control','private_club_name_display',dev),/original DEV Identity only/);
+});
+
+test('foreign and PROD authority inventories never auto-release DEV original team names',()=>{
+  const baseline=[{name:'IGNITE_SECURE_ADULT_NAME_PII',value:'foreign-pii-cai'},{name:SAVE_RELEASE,value:'1'}];
+  const res=secureNameEnvironment(baseline,'identity_access','private_club_name_display',
+    {identity:'foreign-identity-cai',originalPii:'foreign-pii-cai'});
+  assert.equal(res.some(x=>x.name.startsWith('IGNITE_DEV_LEGACY_G1_')),false);
+  assert.throws(()=>secureNameEnvironment([...baseline,{name:'IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE',value:'1'}],
+    'identity_access','private_club_name_display',{identity:'foreign-identity-cai',originalPii:'foreign-pii-cai'}),/original DEV Identity only/);
+});
+
+test('DEV-only universal club-name release changes exactly three PII/Identity settings and preserves keys',()=>{
+  const dev={identity:'mq2sj-fiaaa-aaaal-qxlqa-cai',originalPii:'iui5p-aaaaa-aaaal-qxllq-cai'};
+  const common=[{name:SAVE_RELEASE,value:'1'},{name:DISPLAY_RELEASE,value:'1'},{name:'custom_setting',value:'retain'}];
+  const pii=[...common,
+    {name:'VETKD_KEY_NAME',value:'key_1'},
+    {name:'IGNITE_SECURE_ADULT_NAME_IDENTITY',value:dev.identity},
+    {name:'IGNITE_PRIVATE_PROFILE_IDENTITY',value:dev.identity},
+  ];
+  const id=[...common,
+    {name:'IGNITE_SECURE_ADULT_NAME_PII',value:dev.originalPii},
+    {name:'IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE',value:'1'},
+    {name:'IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256',value:'f80ed20bc0d8a244f40b31fdbd0024ff469d24254197dce9242dce669fa1f34d'},
+  ];
+  const piiResult=secureNameEnvironment(pii,'pii_access_control','shared_club_name_enforcement',dev);
+  const idResult=secureNameEnvironment(id,'identity_access','shared_club_name_enforcement',dev);
+  assert.equal(piiResult.find(x=>x.name===SHARED_CLUB_NAME_RELEASE)?.value,'1');
+  assert.equal(piiResult.find(x=>x.name===DEV_G2_SHARED_CLUB_RELEASE)?.value,'1');
+  assert.equal(idResult.find(x=>x.name===DEV_G2_SHARED_CLUB_RELEASE)?.value,'1');
+  for(const original of pii)assert.deepEqual(piiResult.find(x=>x.name===original.name),original);
+  for(const original of id)assert.deepEqual(idResult.find(x=>x.name===original.name),original);
+  assert.deepEqual(secureNameEnvironment(piiResult,'pii_access_control','shared_club_name_enforcement',dev),piiResult);
+  assert.deepEqual(secureNameEnvironment(idResult,'identity_access','shared_club_name_enforcement',dev),idResult);
+  assert.deepEqual(secureNameChangedSettings('shared_club_name_enforcement','identity_access'),[DEV_G2_SHARED_CLUB_RELEASE]);
+  assert.deepEqual(secureNameChangedSettings('shared_club_name_enforcement','pii_access_control'),[SHARED_CLUB_NAME_RELEASE,DEV_G2_SHARED_CLUB_RELEASE]);
+  assert.throws(()=>secureNameChangedSettings('shared_club_name_enforcement','club_domain'));
+  assert.throws(()=>secureNameEnvironment(pii.filter(x=>x.name!==DISPLAY_RELEASE),'pii_access_control','shared_club_name_enforcement',dev));
+  assert.throws(()=>secureNameEnvironment(pii.filter(x=>x.name!=='VETKD_KEY_NAME'),'pii_access_control','shared_club_name_enforcement',dev));
+  assert.throws(()=>secureNameEnvironment(id.filter(x=>x.name!=='IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256'),'identity_access','shared_club_name_enforcement',dev));
+  assert.throws(()=>secureNameEnvironment(id.map(x=>x.name==='IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256'?{...x,value:'0'.repeat(64)}:x),'identity_access','shared_club_name_enforcement',dev));
+  assert.throws(()=>secureNameEnvironment(id,'identity_access','shared_club_name_enforcement',{identity:'prod-identity',originalPii:'prod-pii'}),/DEV-only|mismatch|DEV legacy/);
+  assert.throws(()=>secureNameEnvironment(pii,'pii_access_control','shared_club_name_enforcement',{identity:'prod-identity',originalPii:'prod-pii'}),/DEV-only|mismatch/);
 });

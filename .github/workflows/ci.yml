@@ -17,8 +17,24 @@ jobs:
         with:
           node-version: "22.12.0"
       - run: node --test scripts/auth-release-preflight.test.mjs scripts/prod-push-config.test.mjs scripts/workflow-env-names.test.mjs
-      - name: Validate published ICP MCP onboarding contract
-        run: node --test scripts/icp-mcp-onboarding-doc.test.mjs
+      - name: Preserve DEV engine frontend legacy publisher and public configuration
+        run: node --test scripts/dev-engine-frontend-policy.test.mjs scripts/dev-engine-frontend-credential.test.mjs
+      - name: Ensure original DEV mainnet frontend uses sync-only publication
+        run: node --test scripts/dev-mainnet-frontend-sync-only.test.mjs
+      - name: Guard DEV Group 2 governor restore against malformed key imports
+        run: node --test scripts/group2-upgrade-workflow.test.mjs scripts/messaging-upgrade-workflow.test.mjs
+      - name: Verify pinned shared club-name release and settings-only safeguards
+        run: node --test scripts/all-group-upgrade-policy.test.mjs scripts/dev-name-copy-reader-upgrade-contract.test.mjs scripts/dev-g2-pii-only-upgrade-contract.test.mjs scripts/secure-name-release-policy.test.mjs
+      - name: Validate ICP MCP onboarding and DEV legal-release OQL contracts
+        run: node --test scripts/icp-mcp-onboarding-doc.test.mjs scripts/legal-release-oql-contract.test.mjs scripts/dev-legal-release-policy.test.mjs
+      - name: Verify restricted DEV ICP connector manifests and canonical-origin parity
+        run: node --test scripts/test-assistant-discovery.test.mjs frontend/scripts/iiOriginDist.test.mjs frontend/scripts/prepare-canister-dist-identity.test.mjs
+      - name: Protect DEV first-content service-account admission and revocation fallback
+        run: node --test scripts/dev-first-content-admission-contract.test.mjs
+      - name: Guard exact DEV first-content admission check-only scope
+        run: node --test scripts/dev-first-content-preflight-policy.test.mjs
+      - name: Guard exact DEV first-content staged release and no-replay journal
+        run: node --test scripts/dev-first-content-stage-policy.test.mjs scripts/dev-first-content-stage-workflow.test.mjs scripts/dev-first-content-recovery-gate.test.mjs
       # Offline source consistency only; live target checks remain in promotion.
       - name: Install pinned offline SQL parser for PROD PR
         if: github.base_ref == 'prod'
@@ -45,8 +61,46 @@ jobs:
       - run: npm run check:step1
       - run: node --test scripts/generated-contract-syntax.test.mjs
       - run: npm run lint
+      - name: Verify idempotent ICP club-name copy repair and key-cycle limits
+        run: npx vitest run --config vitest.legacy.config.mjs src/live/privateProfileNames.test.ts src/live/devOwnerClubNameReadiness.test.ts
+      - name: Verify DEV membership receipt/name-copy lifecycle source boundaries
+        run: node --test ../scripts/dev-owner-name-lifecycle-contract.test.mjs
+      - name: Verify deleted-team membership and PII permission revocation guards
+        run: node --test ../scripts/dev-deleted-team-membership-contract.test.mjs
+      - name: Verify deleted-team chat and protected event-feed guards
+        run: node --test ../scripts/dev-team-cross-service-security-contract.test.mjs
+      - name: Verify protected event, RSVP and child frontend reads
+        run: node --test ../scripts/frontend-protected-read-contract.test.mjs
+      - name: Verify home performance outliers and timeout instrumentation
+        run: node --test ../scripts/home-performance-telemetry-contract.test.mjs
+      - name: Check protected message-page equivalence and cursors
+        run: node --test ../scripts/message-history-page-equivalence.test.mjs
+      - name: Guard self-read admission reduction and cross-principal permissions
+        run: node --test ../scripts/messaging-self-admission-contract.test.mjs
+      - name: Verify protected event result buffering and live access checks
+        run: node --test ../scripts/protected-event-result-buffer.test.mjs
       - run: npm run typecheck:product
       - run: npx vitest run --config vitest.legacy.config.mjs src/live/localRuntimeMode.test.ts src/live/disabledLabRuntime.test.ts
+      - name: Verify club roster privacy and parent-child inclusion source gates
+        run: node --test scripts/test-club-roster-gate-source.test.mjs
+      - name: Verify interactive player roster retry feedback
+        run: npx vitest run --config vitest.legacy.config.mjs src/components/team/TeamMembersSection.test.tsx
+      - name: Verify DEV Ted-U10 transfer read-only preflight contract
+        run: node --test scripts/test-dev-ted-transfer-preflight.mjs
+      - name: Test DEV Ted-U10 source/target preflight and transfer refusal
+        run: npx vitest run --config vitest.legacy.config.mjs src/features/membership/devTedU10TransferPreflight.test.ts
+      - name: Verify ICP children group provenance and duplicate protection
+        run: npx vitest run --config vitest.legacy.config.mjs src/features/membership/icpChildrenGroupSafety.test.ts
+      - name: Verify ICP child pages cannot send unscoped group writes
+        run: node --test scripts/test-icp-children-group-routing.mjs
+      - name: Verify direct child-name owner optimisation retains all non-owner ACL and closing revocation checks
+        run: node --test ../scripts/dev-pii-owner-read-fastpath-contract.test.mjs
+      - name: Verify bounded child-name unlock and retryable guardian display
+        run: npx vitest run --config vitest.legacy.config.mjs src/live/groupDispatch.test.ts src/pages/IcpChildrenPage.loading.test.tsx src/live/sharedVetKeyReadParallel.test.ts src/live/piiVetKeys.fresh.test.ts src/live/piiVetKeys.clubNames.test.ts
+      - name: Verify DEV invite lookups, authority retry, and Internet Identity handoff
+        run: npx vitest run --config vitest.legacy.config.mjs src/live/invitePreview.test.ts src/live/acceptShareableInviteWithRetry.test.ts src/features/membership/createIcpInviteChild.test.ts src/features/membership/verifyIcpChildNameAcrossGroups.test.ts src/pages/JoinTeamPage.icp.test.tsx
+      - name: Verify signed-in principal isolation during session restore
+        run: npx vitest run --config vitest.legacy.config.mjs src/hooks/useAuth.profileSave.test.tsx src/live/identityProfileCache.test.ts src/live/internetIdentitySessionHealth.test.ts
       - run: npm run build
         env:
           IGNITE_LIVE_SUPABASE_ALIAS: dev-ci

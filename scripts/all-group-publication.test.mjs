@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { publishVerifiedFiles, requirePublicationReadback, settlePublishedEvidence, EVIDENCE_BRANCH } from './all-group-publication.mjs';
+import { publishVerifiedFiles, requirePublicationReadback, requireEvidenceHead, settlePublishedEvidence, EVIDENCE_BRANCH } from './all-group-publication.mjs';
 import { digest } from './all-group-upgrade-policy.mjs';
 const release='a'.repeat(40),commit='b'.repeat(40),tree='c'.repeat(40),branch='refs/heads/main';
 const files=[{path:'frontend/src/live/generated/routingGates.ts',content:'verified'}];
@@ -64,4 +64,27 @@ test('settle passes only when the exact snapshot files reached the source branch
   assert.throws(()=>settlePublishedEvidence(differing,branch,journal),/missing/);
   const changed=(path)=>path.startsWith('contents/')?{encoding:'base64',content:Buffer.from('changed').toString('base64')}:(()=>{throw Error(path);})();
   assert.throws(()=>settlePublishedEvidence(changed,branch,journal),/not yet on heads\/main/);
+});
+
+test('delayed branch visibility settles with bounded reads and no second PATCH',()=>{
+  const f=fixture(),journal=verified(),options={branch,release,journal,files};
+  journal.publication=publishVerifiedFiles(f.api,options);
+  let staleReads=2,reads=0,patches=0,pauses=0;
+  const eventually=(path,method='GET',body)=>{
+    if(path==='git/ref/heads/all-group-upgrade-evidence'&&method==='GET') {
+      reads++;
+      if(staleReads-->0) return {object:{sha:release}};
+    }
+    if(path==='git/refs/heads/all-group-upgrade-evidence'&&method==='PATCH')patches++;
+    return f.api(path,method,body);
+  };
+  publishVerifiedFiles(eventually,options);
+  assert.equal(patches,1,'never repeat a branch write');
+  assert.equal(reads,3,'first head lookup plus two readback attempts');
+  const stale=(path)=>{
+    if(path==='git/ref/heads/all-group-upgrade-evidence') return {object:{sha:release}};
+    throw Error('unexpected call');
+  };
+  assert.throws(()=>requireEvidenceHead(stale,commit,{attempts:3,pauseMs:1,pause:()=>{pauses++;}}),/Publication branch readback failed/);
+  assert.equal(pauses,2);
 });

@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -255,7 +256,7 @@ export async function ensureSecondParent(
   const email = normalizeEmail(params.email);
   const childIds = (params.childIds ?? []).filter(Boolean);
   const childrenMetadata = (params.childrenMetadata ?? []).filter((c) => !!c?.name);
-  const origin = params.origin ?? (typeof window !== "undefined" ? window.location.origin : "");
+  const origin = PUBLIC_INVITE_ORIGIN;
 
   // --- Existing profile: grant access now, but still create a real invite ----
   if (selectedProfile) {

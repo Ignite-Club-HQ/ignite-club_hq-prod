@@ -1,0 +1,63 @@
+name: "[TEST] Verify isolated engine encrypted photos and files"
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-media:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+      - name: Install pinned local tools only
+        run: |
+          node scripts/ensure-frontend-deps.mjs
+          bun add -g ic-mops@3.5.1
+          mops toolchain use moc 1.16.1
+          (cd frontend && node node_modules/@dfinity/pic/postinstall.mjs)
+      - name: Compile candidate service bytes and disposable proxy
+        run: |
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          for service in club_domain media_blob_store pii_access_control; do
+            (cd "backend/$service" && mops install)
+          done
+          (cd backend/club_domain && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o "$RUNNER_TEMP/club_domain.wasm" src/main.mo)
+          (cd backend/media_blob_store && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o "$RUNNER_TEMP/media_blob_store.wasm" src/main.mo)
+          mkdir -p "$RUNNER_TEMP/engine-candidate/backend"
+          cp -a backend/pii_access_control "$RUNNER_TEMP/engine-candidate/backend/pii_access_control"
+          cp -a backend/shared "$RUNNER_TEMP/engine-candidate/backend/shared"
+          python3 - <<'PY'
+          import os, pathlib
+          p = pathlib.Path(os.environ['RUNNER_TEMP']) / 'engine-candidate/backend/pii_access_control/src/main.mo'
+          s = p.read_text()
+          assert s.count('let freshEngineBuild = false;') == 1
+          p.write_text(s.replace('let freshEngineBuild = false;', 'let freshEngineBuild = true;'))
+          PY
+          (cd "$RUNNER_TEMP/engine-candidate/backend/pii_access_control" && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations -o "$RUNNER_TEMP/pii_access_control.wasm" src/main.mo)
+          (cd backend/pii_access_control && "$MOC" $(mops sources) --default-persistent-actors -o "$RUNNER_TEMP/test-proxy.wasm" ../../scripts/engine-browser/test-proxy.mo)
+      - name: Verify exact module pins and encrypted media on disposable canisters
+        working-directory: frontend
+        env:
+          CLUB_DOMAIN_WASM: ${{ runner.temp }}/club_domain.wasm
+          PII_ACCESS_CONTROL_WASM: ${{ runner.temp }}/pii_access_control.wasm
+          MEDIA_BLOB_STORE_WASM: ${{ runner.temp }}/media_blob_store.wasm
+          ENGINE_TEST_PROXY_WASM: ${{ runner.temp }}/test-proxy.wasm
+          ENGINE_MEDIA_REPORT: ${{ runner.temp }}/engine-media.json
+        run: |
+          export POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic"
+          timeout --kill-after=5s 330s node scripts/test-engine-encrypted-media-replica.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: engine-encrypted-media-local-evidence
+          path: ${{ runner.temp }}/engine-media.json
+          if-no-files-found: warn

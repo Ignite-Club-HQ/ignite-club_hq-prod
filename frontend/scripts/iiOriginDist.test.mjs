@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { testAssistantDiscoveryFiles } from "../../scripts/test-assistant-discovery.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const DEV_FRONTEND = "proe7-kqaaa-aaaas-qg6gq-cai";
@@ -12,8 +13,12 @@ const PROD_FRONTEND = "pjx2u-tiaaa-aaaac-qhj3a-cai";
 const DEV_CLUB = "mzzzv-taaaa-aaaal-qxlrq-cai";
 const PROD_CLUB = "tbeh7-5qaaa-aaaai-ayenq-cai";
 const GROUP2_CLUB = "yfwyv-nyaaa-aaaal-qxpyq-cai";
+const GROUP2_PII = "zt5a6-yiaaa-aaaal-qxp5q-cai";
 const provisionFile = path.join(scriptDirectory, "../../deploy/groups/g2/provision.json");
 const provision = JSON.parse(readFileSync(provisionFile, "utf8"));
+const sharedDevCanisters = JSON.parse(readFileSync(path.join(scriptDirectory, "../../deploy/mainnet/.icp/data/mappings/ic.ids.json"), "utf8"));
+const approval = JSON.parse(readFileSync(path.join(scriptDirectory, "../../deploy/groups/g2/general-opening.json"), "utf8"));
+const CUSTOMER_DOMAINS = ["club_domain", "events_domain", "messaging_domain", "vault_domain", "competition_domain", "club_points_domain", "mini_league_domain", "media_metadata", "media_blob_store", "insights_domain"];
 const marketing = ["https://igniteclubhq.com", "https://www.igniteclubhq.com"];
 
 function generatedManifest(environment, opts = {}) {
@@ -28,6 +33,9 @@ function generatedManifest(environment, opts = {}) {
   const g2Dir = path.join(dir, "deploy", "groups", "g2");
   mkdirSync(g2Dir, { recursive: true });
   writeFileSync(path.join(g2Dir, "provision.json"), JSON.stringify(opts.badProvision ?? provision));
+  writeFileSync(path.join(g2Dir, "general-opening.json"), JSON.stringify(approval));
+  mkdirSync(path.join(dir, "scripts"), { recursive: true });
+  cpSync(path.join(scriptDirectory, "../../scripts/group2-mcp-discovery.mjs"), path.join(dir, "scripts", "group2-mcp-discovery.mjs"));
   for (const filename of ["prepare-canister-dist.mjs", "iiOriginPolicy.mjs"]) {
     cpSync(path.join(scriptDirectory, filename), path.join(scripts, filename));
   }
@@ -45,8 +53,9 @@ function generatedManifest(environment, opts = {}) {
         ...process.env,
         IGNITE_FRONTEND_ENV: environment,
         IGNITE_MCP_DEV_GROUP2_DISCOVERY: opts.enableGroup2 === undefined ? "" : (opts.enableGroup2 ? "1" : "0"),
+        IGNITE_MCP_DEV_GROUP2_CHILD_PII_DISCOVERY: opts.enableChildNamePii ? "1" : "0",
         FRONTEND_CANISTER_ID: frontId,
-        IGNITE_LIVE_ICP_CANISTER_IDS_JSON: JSON.stringify({ club_domain: clubId }),
+        IGNITE_LIVE_ICP_CANISTER_IDS_JSON: JSON.stringify(isProd ? { club_domain: clubId } : sharedDevCanisters),
       },
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -71,6 +80,24 @@ test("generated DEV files never advertise the production website or backend", ()
   assert.ok(dev.manifest.canisters.every(c => c.id !== PROD_CLUB && c.id !== PROD_FRONTEND));
 });
 
+test("DEV preview and ICP-hosted discovery use the same reduced base and G2 customer allowlists", () => {
+  const preview = JSON.parse(testAssistantDiscoveryFiles()["/.well-known/ic-architecture"].body);
+  const hosted = generatedManifest("dev", { enableGroup2: true, enableChildNamePii: false }).manifest;
+  assert.deepEqual(
+    preview.canisters.map(row => row.id).sort(),
+    hosted.canisters.map(row => row.id).sort(),
+    "Shared base/G2 member services must not drift between the two DEV generators",
+  );
+  for (const key of ["secret_workload_identity", "migration_coordinator", "timer_jobs"]) {
+    assert.ok(!hosted.canisters.some(row => row.id === sharedDevCanisters[key]), key);
+    assert.ok(!preview.canisters.some(row => row.id === sharedDevCanisters[key]), key);
+  }
+  // Only the exact pinned ICP-hosted DEV origin opts into the already approved
+  // Group 2 PII connector path; Lovable preview remains less privileged.
+  assert.ok(!preview.canisters.some(row => row.id === GROUP2_PII));
+  assert.ok(generatedManifest("dev", { enableChildNamePii: true }).manifest.canisters.some(row => row.id === GROUP2_PII));
+});
+
 test("generated PROD files preserve production website login continuity", () => {
   const prod = generatedManifest("prod");
   for (const origin of marketing) assert.ok(prod.origins.includes(origin));
@@ -82,9 +109,9 @@ test("generated PROD files preserve production website login continuity", () => 
 });
 
 
-test("opt-in DEV discovery declares only the Group 2 club/team canister", () => {
+test("opt-in DEV discovery declares only pinned customer-facing Group 2 services", () => {
   const dev = generatedManifest("dev", { enableGroup2: true });
-  const expected = [provision.canisters.club_domain];
+  const expected = CUSTOMER_DOMAINS.map(n => n === "media_blob_store" ? provision.dedicatedBlobStore.canisterId : provision.canisters[n]);
   const declared = dev.manifest.canisters.filter(c => c.name.startsWith("g2/"));
   assert.equal(declared.length, expected.length);
   assert.deepEqual(new Set(declared.map(c => c.id)), new Set(expected));
@@ -93,10 +120,37 @@ test("opt-in DEV discovery declares only the Group 2 club/team canister", () => 
   assert.deepEqual(
     generatedManifest("dev").manifest.canisters.filter(c => c.name.startsWith("g2/")),
     declared,
-    "pinned DEV frontend enables least-privilege club discovery by default",
+    "pinned DEV frontend enables reviewed customer discovery by default",
   );
   assert.equal(dev.derivation, `https://${DEV_FRONTEND}.icp0.io`);
   assert.ok(!dev.manifest.canisters.some(c => c.id === PROD_CLUB || c.id === PROD_FRONTEND));
+  for (const name of ["pii_access_control", "notification_queue", "timer_jobs"]) {
+    assert.ok(!declared.some(c => c.id === provision.canisters[name]), "do not expose private/worker canisters");
+  }
+});
+
+test("exact DEV opt-in exposes only the pinned Group 2 PII canister beyond reviewed customer services", () => {
+  const dev = generatedManifest("dev", { enableGroup2: true, enableChildNamePii: true });
+  const baseline = generatedManifest("dev");
+  const declared = dev.manifest.canisters.filter(c => c.name.startsWith("g2/"));
+  const extra = declared.filter(c => !baseline.manifest.canisters.some(base => base.id === c.id));
+  assert.equal(extra.length, 1);
+  assert.equal(extra[0].id, GROUP2_PII);
+  assert.equal(extra[0].name, "g2/pii_access_control");
+  assert.equal(new Set(dev.manifest.canisters.map(c => c.id)).size, dev.manifest.canisters.length);
+  for (const internal of ["notification_queue", "timer_jobs"]) {
+    assert.ok(!declared.some(c => c.id === provision.canisters[internal]));
+  }
+  assert.ok(!dev.manifest.canisters.some(c => c.id === PROD_CLUB || c.id === PROD_FRONTEND));
+  const prod = generatedManifest("prod", { enableGroup2: true, enableChildNamePii: true });
+  assert.ok(!prod.manifest.canisters.some(c => c.id === GROUP2_PII));
+  assert.ok(!prod.manifest.canisters.some(c => c.id === GROUP2_CLUB));
+});
+
+test("misconfigured Group 2 PII ID fails closed rather than publishing an arbitrary service", () => {
+  const bad = structuredClone(provision);
+  bad.canisters.pii_access_control = "yfwyv-nyaaa-aaaal-qxpyq-cai"; // wrong authority, duplicated canister
+  assert.throws(() => generatedManifest("dev", { enableGroup2: true, enableChildNamePii: true, badProvision: bad }));
 });
 
 test("Group 2 discovery can be disabled on DEV and is always disabled on PROD", () => {
@@ -122,6 +176,8 @@ test("generated manifest refuses PROD builds without an explicit frontend canist
     mkdirSync(path.join(frontend, "dist-live"));
     cpSync(path.join(scriptDirectory, "prepare-canister-dist.mjs"), path.join(frontend, "scripts", "prepare-canister-dist.mjs"));
     cpSync(path.join(scriptDirectory, "iiOriginPolicy.mjs"), path.join(frontend, "scripts", "iiOriginPolicy.mjs"));
+    mkdirSync(path.join(baseDir, "scripts"), { recursive: true });
+    cpSync(path.join(scriptDirectory, "../../scripts/group2-mcp-discovery.mjs"), path.join(baseDir, "scripts", "group2-mcp-discovery.mjs"));
     writeFileSync(path.join(frontend, "package.json"), '{"type":"module"}\n');
     writeFileSync(path.join(frontend, "dist-live", "index.html"), "TEST");
     const env = { ...process.env, IGNITE_FRONTEND_ENV: "prod", IGNITE_LIVE_ICP_CANISTER_IDS_JSON: "{}" };

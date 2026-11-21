@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -303,7 +304,7 @@ export function AddSecondParentDialog({
         .eq("id", clubId)
         .maybeSingle();
 
-      const link = `${window.location.origin}/join/p/${inviteToken}`;
+      const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteToken}`;
       const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
         body: {
           to: trimmedEmail,

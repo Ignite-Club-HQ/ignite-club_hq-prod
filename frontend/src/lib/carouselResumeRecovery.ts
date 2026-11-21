@@ -10,7 +10,7 @@ export function createCarouselResumeRecovery(client: QueryClient, key: QueryKey)
     const query = client.getQueryCache().find({ queryKey: key, exact: true });
     if (!query || !query.isActive()) return Promise.resolve();
     const state = query.state;
-    const hasCards = Array.isArray(state.data) && state.data.length > 0;
+    const hasCards = Array.isArray(state.data);
     const suspended = restart && state.fetchStatus === 'fetching';
     if (hasCards && state.status !== 'error' && state.fetchStatus !== 'paused' && !suspended) return Promise.resolve();
     if (!suspended && Date.now() - lastStarted < 2500) return Promise.resolve();

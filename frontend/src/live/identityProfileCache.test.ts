@@ -31,6 +31,16 @@ describe("identityProfileCache", () => {
     expect(localStorage.getItem("ignite_icp_identity_profile:principal-1")).toBeNull();
   });
 
+  it("never reads or writes another principal's profile under this session's key", () => {
+    cacheIcpIdentityProfile("principal-2", profile);
+    expect(getCachedIcpIdentityProfile("principal-2")).toBeNull();
+
+    // Old/malformed browser cache: a Test2 profile stored under Test's key.
+    localStorage.setItem("ignite_icp_identity_profile:principal-2", JSON.stringify(profile));
+    expect(getCachedIcpIdentityProfile("principal-2")).toBeNull();
+    expect(localStorage.getItem("ignite_icp_identity_profile:principal-2")).toBeNull();
+  });
+
   it("clears one principal or every cached profile", () => {
     cacheIcpIdentityProfile("principal-1", profile);
     cacheIcpIdentityProfile("principal-2", { ...profile, accountId: "principal-2" });

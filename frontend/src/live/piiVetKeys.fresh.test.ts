@@ -6,7 +6,7 @@ vi.mock("./domains", () => ({ connectLivePiiAccessControl: async () => ({ canist
 vi.mock("./deviceMediaCache", () => ({ loadStoredClubKey: mocks.load, storeClubKey: mocks.store, forgetStoredClubKey: vi.fn(), clearDeviceMediaCaches: vi.fn(), clearDeviceCachedPhotos: mocks.clearPhotos, clearStoredDeviceKeys: mocks.wipeKeys }));
 vi.mock("./mediaDecrypt", () => ({ clearIcpPhotoResolutionCache: vi.fn() }));
 vi.mock("@icp-sdk/vetkeys", () => ({ DerivedPublicKey: { deserialize: () => "public" }, EncryptedVetKey: { deserialize: () => ({ decryptAndVerify: mocks.decrypt }) }, TransportSecretKey: { random: () => ({ publicKeyBytes: () => new Uint8Array([1]) }) }, VetKey: { deserialize: () => "stored" }, IbeCiphertext: {}, IbeIdentity: {}, IbeSeed: {} }));
-import { fetchPiiVetKeys } from "./piiVetKeys";
+import { clearPiiVetKeyCache, fetchPiiVetKeys } from "./piiVetKeys";
 // @ts-expect-error -- test fixture intentionally narrower than the generated service type
 const ctx = { identity: { getPrincipal: () => Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai") }, target: { host: "https://icp-api.io", canisterIds: { pii_access_control: "rrkah-fqaaa-aaaaa-aaaaq-cai" } } } as FeatureBackendContext;
 beforeEach(() => {
@@ -17,6 +17,27 @@ beforeEach(() => {
   mocks.decrypt.mockReturnValue("fresh-key");
 });
 describe("fresh private profile keys", () => {
+  it("overlaps a cold public verification-key read with the authorised child vetKey relay", async () => {
+    // No existing device/public-key cache: simulate first sign-in. The private
+    // relay must start without waiting for the PUBLIC verification key.
+    clearPiiVetKeyCache();
+    localStorage.removeItem("ignite_pii_verification_key:https://icp-api.io|rrkah-fqaaa-aaaaa-aaaaq-cai");
+    let releasePublic!: (bytes: number[]) => void;
+    mocks.publicKey.mockImplementation(() => new Promise<number[]>(resolve => { releasePublic = resolve; }));
+    const pending = fetchPiiVetKeys(ctx, ["cold-child"], "name", { fresh: true });
+    await vi.waitFor(() => {
+      expect(mocks.publicKey).toHaveBeenCalledTimes(1);
+      expect(mocks.keys).toHaveBeenCalledTimes(1);
+    });
+    // Nothing is decrypted while the verification key is still missing.
+    expect(mocks.decrypt).not.toHaveBeenCalled();
+    expect(mocks.keys).toHaveBeenCalledWith(["cold-child"], "name", new Uint8Array([1]));
+    releasePublic([1]);
+    await expect(pending).resolves.toEqual(new Map([["cold-child", "fresh-key"]]));
+    expect(mocks.decrypt).toHaveBeenCalledTimes(1);
+    expect(mocks.store).not.toHaveBeenCalled(); // fresh key must not persist
+  });
+
   it('forces fresh scoped name keys without loading/storing media keys',async()=>{
     const audience={kind:'guardian_search' as const,authority:Principal.fromText('rrkah-fqaaa-aaaaa-aaaaq-cai'),resource:'child-1',profile_revision:7n};
     mocks.scopedKeys.mockResolvedValue({Ok:[[[1]]]});

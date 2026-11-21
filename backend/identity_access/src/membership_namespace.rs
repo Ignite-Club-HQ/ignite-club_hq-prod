@@ -34,6 +34,25 @@ impl<M: Memory + Clone> Pool<M> {
         }
         Ok(Self{state:Rc::new(RefCell::new(state))})
     }
+    /// One-off DEV-only disposal. Callers must verify the exact DEV canister,
+    /// governor, routing revision, and every other store's row budget first.
+    /// Preserves the monotonic namespace counter (never reuse old cursor IDs).
+    pub fn dev_disposal_within_budget(&self) -> bool {
+        let s = self.state.borrow();
+        s.metadata.len() <= 1024 && s.blocks.len() <= 10_000
+    }
+    pub fn dev_discard_small_test_pool(&self) {
+        let mut s = self.state.borrow_mut();
+        let prior: Budget = decode(&s.metadata.get(&"budget".into()).expect("namespace budget"));
+        let metadata: Vec<String> = s.metadata.iter().map(|e|e.key().clone()).collect();
+        let blocks: Vec<String> = s.blocks.iter().map(|e|e.key().clone()).collect();
+        for key in blocks { s.blocks.remove(&key); }
+        for key in metadata { s.metadata.remove(&key); }
+        s.metadata.insert("budget".into(),encode(&Budget {
+            next: prior.next, pages: 0,
+            max_pages: prior.max_pages, max_builds: prior.max_builds,
+        }));
+    }
     pub fn allocate(&self) -> Result<u64,String> {
         let mut s=self.state.borrow_mut();let mut b:Budget=decode(&s.metadata.get(&"budget".into()).ok_or("Namespace budget missing")?);
         // Retired builds count until bounded reclamation finishes.

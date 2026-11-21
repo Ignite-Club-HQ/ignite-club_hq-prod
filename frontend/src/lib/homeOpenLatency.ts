@@ -38,6 +38,15 @@ interface LogArgs {
   userId?: string | null;
 }
 
+export const HOME_LONG_OPEN_MS = 60_000;
+export const HOME_MAX_RECORDED_MS = 600_000;
+
+/** Long successful opens remain measurable; never discard them as bad data. */
+export function boundedHomeDuration(startTs: number, endTs = Date.now()) {
+  const durationMs = Math.max(0, Math.round(endTs - startTs));
+  return { durationMs: Math.min(durationMs, HOME_MAX_RECORDED_MS), outlier: durationMs > HOME_LONG_OPEN_MS, capped: durationMs > HOME_MAX_RECORDED_MS };
+}
+
 let logged = false;
 
 /** Reset when the user leaves `/` so the next open logs again. */
@@ -52,8 +61,8 @@ export async function logHomeOpenLatency(args: LogArgs): Promise<void> {
     logged = true;
 
     coldMark("home_first_paint");
-    const tap_to_paint_ms = Math.max(0, Math.round(Date.now() - args.startTs));
-    if (tap_to_paint_ms > 60_000) return;
+    const duration = boundedHomeDuration(args.startTs);
+    const tap_to_paint_ms = duration.durationMs;
 
     let platform = "web";
     try {
@@ -87,6 +96,7 @@ export async function logHomeOpenLatency(args: LogArgs): Promise<void> {
         supabase: async () => { supabaseInsert(); },
         icp: async (ctx) => {
           await recordLivePerfSample(ctx, "home_open", args.source, tap_to_paint_ms, args.cacheHit, platform);
+          if (duration.outlier) await recordLivePerfSample(ctx, "home_open_outlier", duration.capped ? "capped" : args.source, tap_to_paint_ms, args.cacheHit, platform);
         },
       }, { shared: "app" }).catch(() => {});
     };
@@ -98,7 +108,7 @@ export async function logHomeOpenLatency(args: LogArgs): Promise<void> {
         query_ms,
         first_paint_ms,
         cache_hit: args.cacheHit,
-        context: args.context,
+        context: { ...args.context, outlier: duration.outlier, capped: duration.capped },
         platform,
         stages,
         primary_club_id: args.primaryClubId ?? null,
@@ -111,4 +121,20 @@ export async function logHomeOpenLatency(args: LogArgs): Promise<void> {
   } catch {
     // ignore
   }
+}
+
+// Independent watchdog: a home query that never completes still sends a
+// bounded, privacy-safe duration sample. It does not claim first paint,
+// change the one-per-open paint sample, or serialize any account reads.
+export async function logHomeDataTimeout(startTs: number): Promise<void> {
+  try {
+    const { durationMs } = boundedHomeDuration(startTs);
+    const platform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : "web";
+    void withFeatureBackend("analytics", {
+      supabase: async () => { /* No timeout-specific legacy table; startup mark remains local. */ },
+      icp: async (ctx) => {
+        await recordLivePerfSample(ctx, "home_data_timeout", "membership", durationMs, false, platform);
+      },
+    }, { shared: "app" }).catch(() => {});
+  } catch { /* best effort, no personal data in error logs */ }
 }

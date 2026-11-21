@@ -1,0 +1,103 @@
+name: "[TEST] DEV legacy G1 name origin read-only check"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dev-legacy-g1-name-origin-check.yml"
+      - "frontend/scripts/check-dev-legacy-adult-name-origin.ts"
+      - "frontend/src/live/crossGroupTeamNameReadiness.ts"
+      - "frontend/src/live/crossGroupTeamNameReadiness.test.ts"
+      - "scripts/dev-legacy-name-origin-check.test.mjs"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Read-only only — type CHECK LEGACY G1 SOURCE ONLY"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+
+jobs:
+  no-write-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Contract check (offline, no live canisters)
+        run: node --test scripts/dev-legacy-name-origin-check.test.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Bundle-check TypeScript audit runner without executing it
+        run: npx --yes esbuild@0.25.12 frontend/scripts/check-dev-legacy-adult-name-origin.ts --bundle --platform=node --format=esm --packages=external --outfile="$RUNNER_TEMP/legacy-origin-check-syntax.mjs"
+
+  approved-read-only-check:
+    if: github.event_name == 'workflow_dispatch'
+    needs: no-write-policy
+    runs-on: ubuntu-latest
+    environment: group-2-admin-controls
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Require exact source, main branch and read-only confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          # GitHub repository names are case-insensitive. Do not reject a
+          # legitimate repo solely because Actions normalises owner casing.
+          # Keep the exact main branch and confirmation requirements.
+          if [[ "${GITHUB_REPOSITORY,,}" != "ignite-club-hq/ignite-club_hq-prod" ]]; then
+            echo "::error title=Wrong repository::This workflow must run in Ignite-Club-HQ/ignite-club_hq-prod; observed GITHUB_REPOSITORY='${GITHUB_REPOSITORY:-unset}'"
+            exit 1
+          fi
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error title=Wrong branch::Choose 'main' under 'Use workflow from'. Observed GITHUB_REF='${GITHUB_REF:-unset}'"
+            exit 1
+          fi
+          if [[ "$CONFIRMATION" != "CHECK LEGACY G1 SOURCE ONLY" ]]; then
+            echo "::error title=Wrong confirmation::Enter exactly CHECK LEGACY G1 SOURCE ONLY"
+            exit 1
+          fi
+          echo "Read-only workflow source, main branch and confirmation verified."
+      - name: Install existing frontend dependencies only (no ICP CLI or canister build)
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Restore exact original governor PEM
+        env:
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOYER_PEM:-}" || { echo "::error::Existing governor PEM secret required"; exit 1; }
+          umask 077
+          if ! PEM_IN="$DEPLOYER_PEM" node scripts/normalize-pem.mjs > "$RUNNER_TEMP/legacy-g1-check.pem"; then
+            echo "::error::Existing PEM could not be normalized"
+            exit 1
+          fi
+          test -s "$RUNNER_TEMP/legacy-g1-check.pem"
+      - name: Compare only router and Identity source reads and original public key
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          npx --yes tsx@4 scripts/check-dev-legacy-adult-name-origin.ts \
+            "$RUNNER_TEMP/legacy-g1-check.pem" "$RUNNER_TEMP/dev-legacy-g1-check"
+      - name: Destroy signing credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/legacy-g1-check.pem"
+      - name: Upload non-PII, non-secret check result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-legacy-g1-name-origin-check
+          path: ${{ runner.temp }}/dev-legacy-g1-check
+          if-no-files-found: ignore

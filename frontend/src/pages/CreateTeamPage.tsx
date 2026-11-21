@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { effectiveTeamLimit } from "@/lib/subscriptionPlans";
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -656,7 +657,7 @@ export default function CreateTeamPage() {
         });
       }
       await invalidateTeamLists(queryClient, user?.id);
-      navigate(`/teams/${team.id}`);
+      navigate(`/teams/${team.id}`, { state: { justCreatedTeam: true } });
     } else if (adminAssignment?.type === 'email_invite' && adminAssignment.inviteEmail && adminAssignment.inviteName && membershipOnIcp) {
       // club_domain has no email-sending capability; create a pending invite
       // record (PII email registered via createLivePendingInvite) and show
@@ -677,11 +678,12 @@ export default function CreateTeamPage() {
         await invalidateTeamLists(queryClient, user?.id);
         navigate(`/teams/${team.id}`, {
           state: {
+            justCreatedTeam: true,
             showAdminInvite: true,
             inviteName: adminAssignment.inviteName,
             inviteEmail: adminAssignment.inviteEmail,
             teamName: team.name,
-            inviteLink: inviteId ? `${window.location.origin}/join/p/${inviteId}` : undefined,
+            inviteLink: inviteId ? `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteId}` : undefined,
           },
         });
       } catch (error) {
@@ -692,12 +694,12 @@ export default function CreateTeamPage() {
           variant: "destructive",
         });
         await invalidateTeamLists(queryClient, user?.id);
-        navigate(`/teams/${team.id}`);
+        navigate(`/teams/${team.id}`, { state: { justCreatedTeam: true } });
       }
     } else if (adminAssignment?.type === 'email_invite' && adminAssignment.inviteEmail && adminAssignment.inviteName) {
       // Create pending invite with email
       const inviteToken = crypto.randomUUID();
-      const link = `${window.location.origin}/join/p/${inviteToken}`;
+      const link = `${PUBLIC_INVITE_ORIGIN}/join/p/${inviteToken}`;
       
       const { error: inviteError } = await supabase.from("pending_invites").insert({
         team_id: team.id,
@@ -718,7 +720,7 @@ export default function CreateTeamPage() {
           variant: "destructive",
         });
         await invalidateTeamLists(queryClient, user?.id);
-      navigate(`/teams/${team.id}`);
+      navigate(`/teams/${team.id}`, { state: { justCreatedTeam: true } });
         return;
       }
       
@@ -759,6 +761,7 @@ export default function CreateTeamPage() {
       await invalidateTeamLists(queryClient, user?.id);
       navigate(`/teams/${team.id}`, {
         state: { 
+          justCreatedTeam: true,
           showAdminInvite: true, 
           inviteName: adminAssignment.inviteName,
           inviteEmail: adminAssignment.inviteEmail,
@@ -805,7 +808,7 @@ export default function CreateTeamPage() {
         return;
       }
       await invalidateTeamLists(queryClient, user?.id);
-      navigate(`/teams/${team.id}`);
+      navigate(`/teams/${team.id}`, { state: { justCreatedTeam: true } });
     }
   };
 

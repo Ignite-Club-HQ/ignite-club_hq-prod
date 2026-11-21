@@ -19,6 +19,19 @@ test('manual upgrade is protected and serialized with existing mainnet deploymen
   assert.match(workflow, /icp-cli@1\.7\.0/);
   assert.doesNotMatch(workflow, /identity new|cycles mint|icp deploy|install-group-closed/);
 });
+test('Group 2 check restores the original protected governor without changing key or canisters', () => {
+  const restore = workflow.split('      - name: Restore existing Group 2 governor only (never create a replacement)')[1]
+    ?.split('      - name: Build and stage the thirteen recipe artifacts')[0] ?? '';
+  assert.ok(restore, 'protected Group 2 governor restore must exist');
+  assert.ok(restore.includes('secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM'));
+  assert.ok(restore.includes('PEM_IN="$DEPLOYER_PEM" node scripts/normalize-pem.mjs'));
+  assert.ok(restore.includes('icp identity import --from-pem'));
+  assert.ok(restore.includes('icp identity principal --identity ignite-governor'));
+  assert.ok(restore.includes('vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae'));
+  assert.doesNotMatch(restore, /sed -n|identity new|icp canister install/);
+  assert.match(workflow, /environment: group-2-owner-opening/);
+});
+
 test('explicit confirmation is checked before any upgrade', () => {
   assert.ok(runner.indexOf("CONFIRMATION?.trim() !== `UPGRADE GROUP ${NUM}`") > 0);
   assert.ok(runner.indexOf("CONFIRMATION?.trim() !== `UPGRADE GROUP ${NUM}`") < runner.indexOf("spawnSync('icp'"));

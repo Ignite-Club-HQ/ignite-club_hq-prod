@@ -9,9 +9,13 @@ const getLiveTeamInviteMock = vi.fn();
 const acceptLiveTeamInviteMock = vi.fn();
 const getLiveTeamInviteLinkByTokenMock = vi.fn();
 const acceptLiveTeamInviteLinkMock = vi.fn();
+const getLiveTeamMock = vi.fn();
+const getLiveClubProfileMock = vi.fn();
 vi.mock("@/live/features/club", () => ({
   getLiveTeamInviteLinkByToken: (...args: unknown[]) => getLiveTeamInviteLinkByTokenMock(...args),
   acceptLiveTeamInviteLink: (...args: unknown[]) => acceptLiveTeamInviteLinkMock(...args),
+  getLiveTeam: (...args: unknown[]) => getLiveTeamMock(...args),
+  getLiveClubProfile: (...args: unknown[]) => getLiveClubProfileMock(...args),
 }));
 vi.mock("@/live/features/membership", () => ({
   getLiveTeamInvite: (...args: unknown[]) => getLiveTeamInviteMock(...args),
@@ -32,10 +36,12 @@ vi.mock("@/live/features/miniLeagues", () => ({
 }));
 
 let membershipRoutedToIcp = false;
+let currentIcpPrincipal = "principal-abc";
 vi.mock("@/live/invitePreview", () => ({
-  readInvitePreview: async (_token: string, providers: any) => membershipRoutedToIcp
-    ? providers.icp({ identity: {}, target: {} })
-    : providers.supabase(),
+  readInvitePreview: async (_token: string, providers: any, options?: { forceIcp?: boolean }) =>
+    membershipRoutedToIcp || options?.forceIcp
+      ? providers.icp({ identity: { getPrincipal: () => ({ toText: () => currentIcpPrincipal }) }, target: {} })
+      : providers.supabase(),
 }));
 vi.mock("@/live/loadBackendRouting", () => ({
   isFeatureRoutedToIcp: (feature: string) => feature === "membership" && membershipRoutedToIcp,
@@ -44,7 +50,7 @@ vi.mock("@/live/loadBackendRouting", () => ({
 vi.mock("@/live/featureRouter", () => ({
   withFeatureBackend: async (_feature: string, providers: any) =>
     membershipRoutedToIcp
-      ? providers.icp({ identity: {}, target: {} })
+      ? providers.icp({ identity: { getPrincipal: () => ({ toText: () => currentIcpPrincipal }) }, target: {} })
       : providers.supabase(),
 }));
 
@@ -52,8 +58,10 @@ vi.mock("@/lab/localRuntimeMode", () => ({
   resolveLocalAuthMode: () => false,
 }));
 
+const setAuthMethodChoiceMock = vi.fn();
 vi.mock("@/live/authBackendMode", () => ({
   resolveAuthBackend: () => (membershipRoutedToIcp ? "icp" : "supabase"),
+  setAuthMethodChoice: (...args: unknown[]) => setAuthMethodChoiceMock(...args),
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -136,13 +144,17 @@ const regularInviteRow = {
 beforeEach(() => {
   sessionStorage.clear();
   membershipRoutedToIcp = false;
+  currentIcpPrincipal = "principal-abc";
   rpcMock.mockReset();
   getLiveTeamInviteMock.mockReset();
   acceptLiveTeamInviteMock.mockReset();
   getLiveTeamInviteLinkByTokenMock.mockReset().mockResolvedValue(null);
   acceptLiveTeamInviteLinkMock.mockReset().mockResolvedValue(undefined);
+  getLiveTeamMock.mockReset().mockResolvedValue([]);
+  getLiveClubProfileMock.mockReset().mockResolvedValue([]);
   toastMock.mockClear();
   sendGamificationNotificationMock.mockClear();
+  setAuthMethodChoiceMock.mockClear();
   playerPreviewMock.mockReset().mockResolvedValue(null);
   claimPlayerMock.mockReset();
   getLiveJoinLinkByTokenMock.mockReset();
@@ -212,6 +224,102 @@ describe("JoinTeamPage team-invite acceptance routing", () => {
     await waitFor(() => expect(acceptLiveTeamInviteLinkMock).toHaveBeenCalledWith(expect.anything(), "share-token"));
     expect(acceptLiveTeamInviteMock).not.toHaveBeenCalled();
     expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses shareable invite redemption when the signer and displayed account differ", async () => {
+    membershipRoutedToIcp = true;
+    currentIcpPrincipal = "different-principal";
+    getLiveTeamInviteLinkByTokenMock.mockResolvedValue({
+      id: "link-1", team_id: "team-1", club_id: "club-1", role: "coach",
+      revoked: false, created_at_ms: 1000n,
+    });
+    renderAt("/join/share-token");
+    const joinButton = await screen.findByRole("button", { name: /join/i });
+    await waitFor(() => expect(joinButton).toBeEnabled());
+    fireEvent.click(joinButton);
+    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Couldn't complete your join",
+        description: expect.stringContaining("Internet Identity changed during joining"),
+      }),
+    ));
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
+  });
+
+  it("ICP tok-hex parent invites are previewed even when signed-out routing defaults to email", async () => {
+    membershipRoutedToIcp = false;
+    const token = "tok-0123456789abcdef0123456789abcdef";
+    getLiveTeamInviteLinkByTokenMock.mockResolvedValue({
+      id: "tlink-" + token, token, team_id: "team-1", club_id: "club-1",
+      role: "parent", revoked: false, created_at_ms: 1000n,
+    });
+
+    renderAt("/join/" + token);
+    expect(await screen.findByText("Internet Identity Required")).toBeInTheDocument();
+    expect(getLiveTeamInviteLinkByTokenMock).toHaveBeenCalledWith(expect.anything(), token);
+    expect(rpcMock).not.toHaveBeenCalledWith("get_team_invite_by_token", expect.anything());
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /continue with internet identity/i }));
+    expect(setAuthMethodChoiceMock).toHaveBeenCalledTimes(1);
+    expect(setAuthMethodChoiceMock).toHaveBeenCalledWith("icp");
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
+  });
+
+  it("renders the actual team and club names for a verified ICP shareable parent invite", async () => {
+    membershipRoutedToIcp = true;
+    const token = "tok-0123456789abcdef0123456789abcdef";
+    getLiveTeamInviteLinkByTokenMock.mockResolvedValue({
+      id: "tlink-" + token, token, team_id: "team-1", club_id: "club-1",
+      role: "parent", revoked: false, created_at_ms: 1000n,
+    });
+    getLiveTeamMock.mockResolvedValue([{ id: "team-1", club_id: "club-1", name: "ChatGPT Plugin Test U10", logo_url: [] }]);
+    getLiveClubProfileMock.mockResolvedValue([{ id: "club-1", name: "Group 2 test", logo_url: [] }]);
+
+    renderAt("/join/" + token);
+
+    expect(await screen.findByRole("heading", { name: "Join ChatGPT Plugin Test U10" })).toBeInTheDocument();
+    expect(screen.getByText("Group 2 test")).toBeInTheDocument();
+    expect(getLiveTeamMock).toHaveBeenCalledWith(expect.anything(), "team-1");
+    expect(getLiveClubProfileMock).toHaveBeenCalledWith(expect.anything(), "club-1");
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("does not display unrelated team names when an invite's team/club ownership mismatches", async () => {
+    membershipRoutedToIcp = true;
+    const token = "tok-0123456789abcdef0123456789abcdef";
+    getLiveTeamInviteLinkByTokenMock.mockResolvedValue({
+      id: "tlink-" + token, token, team_id: "team-1", club_id: "club-1",
+      role: "parent", revoked: false, created_at_ms: 1000n,
+    });
+    getLiveTeamMock.mockResolvedValue([{ id: "team-1", club_id: "other-club", name: "Someone Else's Team", logo_url: [] }]);
+    getLiveClubProfileMock.mockResolvedValue([{ id: "club-1", name: "Group 2 test", logo_url: [] }]);
+
+    renderAt("/join/" + token);
+
+    // The page intentionally retries failed invite reads twice (1s delay)
+    // before showing an error. Keep the security assertion, but give that
+    // existing retry policy time to finish.
+    expect(await screen.findByText("Couldn't Verify Invitation", {}, { timeout: 6000 })).toBeInTheDocument();
+    expect(screen.queryByText("Someone Else's Team")).not.toBeInTheDocument();
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps a valid ICP invite usable when public label reads are temporarily unavailable", async () => {
+    membershipRoutedToIcp = true;
+    const token = "tok-0123456789abcdef0123456789abcdef";
+    getLiveTeamInviteLinkByTokenMock.mockResolvedValue({
+      id: "tlink-" + token, token, team_id: "team-1", club_id: "club-1",
+      role: "parent", revoked: false, created_at_ms: 1000n,
+    });
+    getLiveTeamMock.mockRejectedValue(new Error("temporary public read outage"));
+    getLiveClubProfileMock.mockResolvedValue([]);
+
+    renderAt("/join/" + token);
+
+    expect(await screen.findByRole("heading", { name: "Join this team" })).toBeInTheDocument();
+    expect(acceptLiveTeamInviteLinkMock).not.toHaveBeenCalled();
   });
 
   it("mini-league join under ICP shows an unavailable message instead of joining", async () => {

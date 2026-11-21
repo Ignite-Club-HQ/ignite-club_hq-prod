@@ -18,6 +18,12 @@ fn encode(v:&Update)->Vec<u8>{let mut b=vec![];ciborium::into_writer(v,&mut b).e
 fn decode(b:&[u8])->Update{ciborium::from_reader(b).expect("update decode")}
 impl<M:Memory> Journal<M>{
     pub fn open(memory:M)->Self{Self{rows:StableBTreeMap::init(memory)}}
+    /// Must only be used after an exact DEV owner-approved directory disposal.
+    pub fn dev_disposal_within_budget(&self)->bool {self.rows.len()<=512}
+    pub fn dev_discard_test_updates(&mut self) {
+        let keys:Vec<String>=self.rows.iter().map(|e|e.key().clone()).collect();
+        for key in keys { self.rows.remove(&key); }
+    }
     pub fn source(&self,source:&str)->Option<Update>{self.rows.get(&source.to_string()).map(|b|decode(&b))}
     pub fn validate_new_build(&self,source:&str,binding:&Binding)->Result<(),String>{
         if source.is_empty()||source.len()>128||source.contains('\u{1f}')||binding.generation==0||binding.revision==0||binding.inventory_digest==[0;32]||binding.authority==Principal::anonymous()||binding.authority==Principal::management_canister(){return Err("Invalid update binding".into());}

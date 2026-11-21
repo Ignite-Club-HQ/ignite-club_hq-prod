@@ -1,7 +1,7 @@
 // Live assistants must request members' igniteclubhq.app identity; TEST keeps the canister's.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -11,19 +11,31 @@ const script = fileURLToPath(new URL("./prepare-canister-dist.mjs", import.meta.
 const PROD_ID = "u3mrq-uiaaa-aaaac-bgioq-cai";
 
 function run(env) {
+  // The generator imports both a sibling II policy and the parent scripts
+  // discovery module. Reproduce their actual relative layout in this isolated
+  // fixture rather than relying on files accidentally present under /tmp.
   const root = mkdtempSync(join(tmpdir(), "canister-dist-"));
-  mkdirSync(join(root, "scripts"));
-  mkdirSync(join(root, "dist-live"));
-  writeFileSync(join(root, "dist-live", "index.html"), "<html></html>");
-  cpSync(script, join(root, "scripts", "prepare-canister-dist.mjs"));
-  execFileSync(process.execPath, [join(root, "scripts", "prepare-canister-dist.mjs")], {
-    cwd: root, env: { PATH: process.env.PATH, IGNITE_MCP_DEV_GROUP2_DISCOVERY: "0", ...env }, stdio: "pipe",
-  });
-  const wk = join(root, "dist-canister", ".well-known");
-  return {
-    derivation: readFileSync(join(wk, "ii-derivation-origin"), "utf8").trim(),
-    alts: JSON.parse(readFileSync(join(wk, "ii-alternative-origins"), "utf8")).alternativeOrigins,
-  };
+  const frontend = join(root, "frontend");
+  mkdirSync(join(frontend, "scripts"), { recursive: true });
+  mkdirSync(join(frontend, "dist-live"), { recursive: true });
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(join(frontend, "package.json"), '{"type":"module"}\n');
+  writeFileSync(join(frontend, "dist-live", "index.html"), "<html></html>");
+  cpSync(script, join(frontend, "scripts", "prepare-canister-dist.mjs"));
+  cpSync(new URL("./iiOriginPolicy.mjs", import.meta.url), join(frontend, "scripts", "iiOriginPolicy.mjs"));
+  cpSync(new URL("../../scripts/group2-mcp-discovery.mjs", import.meta.url), join(root, "scripts", "group2-mcp-discovery.mjs"));
+  try {
+    execFileSync(process.execPath, [join(frontend, "scripts", "prepare-canister-dist.mjs")], {
+      cwd: frontend, env: { PATH: process.env.PATH, IGNITE_MCP_DEV_GROUP2_DISCOVERY: "0", ...env }, stdio: "pipe",
+    });
+    const wk = join(frontend, "dist-canister", ".well-known");
+    return {
+      derivation: readFileSync(join(wk, "ii-derivation-origin"), "utf8").trim(),
+      alts: JSON.parse(readFileSync(join(wk, "ii-alternative-origins"), "utf8")).alternativeOrigins,
+    };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 }
 
 test("PROD assistants derive igniteclubhq.app and the list admits the canister", () => {

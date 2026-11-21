@@ -12282,6 +12282,10 @@ export type Database = {
           status: string
         }[]
       }
+      get_email_signup_invite_refusal: {
+        Args: { _email: string; _token: string }
+        Returns: string
+      }
       get_engagement_streak: {
         Args: { _club_id: string; _user_id: string }
         Returns: number

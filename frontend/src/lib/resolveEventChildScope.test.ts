@@ -50,6 +50,17 @@ vi.mock("@/live/features/events", () => ({
   getLiveMyChildren: (...args: unknown[]) => backendMocks.children(...args),
   getLiveMyChildTeamAssignments: (...args: unknown[]) => backendMocks.assignments(...args),
 }));
+vi.mock("@/live/features/club", () => ({
+  listLiveTeams: async () => ["t1", "t2", "team-1", "team-2"].map((id) => ({ id, is_active: true, archived: false, deleted_at_ms: [] })),
+  listMyLiveOwnChildren: async (ctx: unknown) => {
+    const kids = (await backendMocks.children(ctx)) as Array<{ id: string; parent_id: string[] }>;
+    return Promise.all(kids.map(async (k) => ({
+      id: k.id,
+      parent: k.parent_id.map((p) => ({ toText: () => p })),
+      teams: ((await backendMocks.assignments(ctx, k.id)) as Array<{ team_id: string }>).map((a) => a.team_id),
+    })));
+  },
+}));
 vi.mock("@/live/features/vault", () => ({
   resolveLivePiiTextBatch: (...args: unknown[]) => backendMocks.piiNames(...args),
 }));
@@ -141,7 +152,7 @@ describe.runIf(backendMocks.mode === "icp")("ICP child RSVP scope", () => {
       event: { ...base, target_team_ids: ["t1"] },
       userId: "principal-me",
     });
-    expect(out).toEqual([{ id: "kidA", name: "A", parent_id: "principal-me" }]);
+    expect(out).toEqual([{ id: "kidA", name: "A", parent_id: "principal-me", teamIds: ["t1"] }]);
     expect(backendMocks.children).toHaveBeenCalledWith(backendMocks.context);
     expect(backendMocks.assignments).toHaveBeenCalledWith(backendMocks.context, "kidA");
     expect(backendMocks.piiNames).toHaveBeenCalledWith(

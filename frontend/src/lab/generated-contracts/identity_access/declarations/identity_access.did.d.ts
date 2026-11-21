@@ -319,6 +319,10 @@ export interface PrincipalEligibility {
   'subject' : Principal,
   'denied_through_version' : [] | [bigint],
 }
+export interface MemberAdmission {
+  'eligibility' : PrincipalEligibility,
+  'account' : [] | [Account],
+}
 export interface PrivacyConsent {
   'account_id' : string,
   'updated_at_ns' : bigint,
@@ -546,7 +550,8 @@ export type Result_51 = { 'Ok' : TermsAcceptance } |
   { 'Err' : string };
 export type Result_52 = { 'Ok' : Array<Receipt> } |
   { 'Err' : string };
-export type Result_6 = { 'Ok' : WriteWindow } |
+
+export type Result_53 = { 'Ok' : MemberAdmission } | { 'Err' : string };export type Result_6 = { 'Ok' : WriteWindow } |
   { 'Err' : string };
 export type Result_7 = { 'Ok' : CleanupAccount } |
   { 'Err' : string };
@@ -821,6 +826,13 @@ export interface _SERVICE {
    * Public: remaining cycles (shown in admin settings).
    */
   'cycles_balance' : ActorMethod<[], bigint>,
+  /**
+   * DEV identity_access only, governor-only: reopens a sign-in ID that an
+   * account move closed, as its own new empty account. The account it was
+   * moved to is untouched and the two are never merged. Returns 1 when it
+   * reopens (or would when dry_run), 0 when already reopened.
+   */
+  'dev_reopen_moved_principal' : ActorMethod<[Principal, boolean], Result_8>,
   'disable_group2_admission' : ActorMethod<[], Result_2>,
   'disable_membership_directory' : ActorMethod<[], Result_2>,
   'disable_production_account_readers' : ActorMethod<[], Result_8>,
@@ -995,6 +1007,7 @@ export interface _SERVICE {
    * Consensus reads; never create an account or grant resource permissions.
    * Versions are account-scoped evidence, NOT globally atomic access tokens.
    */
+  'read_member_admission' : ActorMethod<[Principal], Result_53>,
   'read_principal_eligibility' : ActorMethod<[Principal], Result_36>,
   'read_private_name_account_inventory' : ActorMethod<
     [string, Request_1, [] | [AccountInventoryCursor], number],
@@ -1083,6 +1096,14 @@ export interface _SERVICE {
    * Governor-only: revokes a verifier principal.
    */
   'remove_verifier' : ActorMethod<[Principal], Result_2>,
+  /**
+   * One-off exact original DEV Identity directory disposal (not account/PII reset).
+   * Owner must verify the subsequent fresh generation/ownership separately.
+   */
+  'reset_disposable_dev_membership_directory' : ActorMethod<
+    [bigint, bigint, string],
+    Result_2
+  >,
   /**
    * No-write bootstrap review: authenticate candidate receiver configuration and
    * collect management lifecycle evidence before the first inventory signature.

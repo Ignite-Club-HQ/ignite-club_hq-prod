@@ -22,6 +22,7 @@ import {
   LEGAL_REACCEPTANCE_CONFIRM_PHRASE,
   LEGAL_REACCEPTANCE_KEY,
   fetchLegalReacceptanceSetting,
+  icpTermsVersionFromSetting,
 } from "@/hooks/useLegalReacceptance";
 
 /**
@@ -69,6 +70,9 @@ export function LegalReacceptanceAdminCard() {
               summary: summary.trim() || null,
             }
           : { required: false, version: null, effective_at: null, summary: null };
+        if (required && icpTermsVersionFromSetting(value) === 0) {
+          throw new Error("ICP legal version must be a valid YYYY-MM-DD document release date.");
+        }
         await withFeatureBackend("admin", {
           supabase: async () => {},
           icp: async (ctx) => setLiveAppSetting(ctx, LEGAL_REACCEPTANCE_KEY, value),

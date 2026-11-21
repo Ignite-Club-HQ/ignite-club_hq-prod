@@ -5,8 +5,11 @@ import { readFreshPublicTargets } from "./publicGroupReads";
 import { getActiveIcpTarget } from "./targetRegistry";
 
 /** Public bearer previews are independent of sign-in and Supabase. */
-export async function readInvitePreview<T>(token: string, providers: FeatureBackendProviders<T>): Promise<T | null> {
-  if (resolveAuthBackend() !== "icp") return withFeatureBackend("membership", providers, { inviteToken: token });
+export async function readInvitePreview<T>(token: string, providers: FeatureBackendProviders<T>, options: { forceIcp?: boolean } = {}): Promise<T | null> {
+  // A signed-out visitor may default to email auth even for a genuine on-chain
+  // shareable team link. The caller opts into ICP preview ONLY for that
+  // server-minted token format; this does not change their login or accept it.
+  if (resolveAuthBackend() !== "icp" && !options.forceIcp) return withFeatureBackend("membership", providers, { inviteToken: token });
   const { AnonymousIdentity } = await import("@icp-sdk/core/agent");
   const identity = new AnonymousIdentity();
   const targets = [...new Map((await readFreshPublicTargets(getActiveIcpTarget())).map(t => [t.canisterIds.club_domain, t])).values()];

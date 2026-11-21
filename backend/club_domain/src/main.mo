@@ -65,6 +65,9 @@ persistent actor class Main(governorInit : Principal) = this {
     Runtime.envVar<system>("IGNITE_ACCOUNT_REMOVAL_RELEASE") == ?"1");
   // Effective protection, not the local rehearsal flag, governs every guarded path.
   transient let accountAdmissionEnabled = AccountProtection.admissionRequired(accountProtectionMode);
+  // Opt-in only after the exact Identity method is verified on the target group.
+  // Missing Identity versions must not impose an extra RPC on routine reads.
+  transient let combinedAdmissionEnabled = Runtime.envVar<system>("IGNITE_FIRST_CONTENT_COMBINED_ADMISSION") == ?"1";
   transient let accountAdmissionAuthority = switch (Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")) {
     case (?id) ?Principal.fromText(id); case null null
   };
@@ -115,6 +118,75 @@ persistent actor class Main(governorInit : Principal) = this {
       };
     };
   };
+  // Read-only DEV first-content fast path: the existing trusted Identity
+  // read_service_account gives the same subject-bound active account plus
+  // freshly filtered aliases. It is stronger than eligibility alone, so a
+  // successful account answer avoids repeating the full eligibility RPC.
+  // Only the indexed membership and caller role-grant readers use this path;
+  // all writes, directory/roster reads and other services retain admitAccount.
+  func admitAccountForFirstContent(subject : Principal) : async () {
+    if (not accountAdmissionEnabled) { await admitAccount(subject); return };
+    if (not AccountProtection.valid(accountProtectionMode)) throw Error.reject("Conflicting account protection configuration");
+    if (nameCleanup.locked()) throw Error.reject("Name cleanup pending; membership changes remain locked");
+    if (removalReceiver.denied(subject)) throw Error.reject("Account removal fenced");
+    let authority = accountAdmissionAuthority;
+    let epoch = membershipEpoch();
+    // AccountAdmission.account verifies the exact caller's active Identity
+    // account; Identity itself applies account deletion and alias-revocation
+    // fences and the pinned service-reader authorization on every call.
+    // Newer Identity can return eligibility and optional aliases under one
+    // inventory-validated authority check. Older deployments keep the exact
+    // established account-first/eligibility fallback below.
+    let combined = if (combinedAdmissionEnabled) await accountAdmission.combined(subject) else null;
+    if (authority != accountAdmissionAuthority or epoch != membershipEpoch() or nameCleanup.locked() or removalReceiver.denied(subject))
+      throw Error.reject("Account authority changed; retry");
+    switch (combined) {
+      case (?proof) {
+        if (not AccountAdmission.matches(subject, proof.eligibility))
+          throw Error.reject("Account admission denied or unavailable");
+        switch (proof.account) {
+          case null { linkedMembershipSnapshots.remove(subject) };
+          case (?current) {
+            // The account is optional, but if provided it must bind to this
+            // exact subject and eligibility generation, not a cached alias.
+            if (not AccountAdmission.owns(subject, current) or
+              proof.eligibility.account_version != ?current.version)
+              throw Error.reject("Identity account evidence changed");
+            let verified = if (AccountUnlinkFence.rejects(current.id, current.version, current.principals, identityUnlinkReceipts)) ({ current with principals = [subject] }) else current;
+            if (linkedMembershipSnapshots.size() >= 256) linkedMembershipSnapshots.clear();
+            linkedMembershipSnapshots.add(subject, { account = verified; observed = Time.now() });
+          };
+        };
+        return
+      };
+      case null {};
+    };
+    // Legacy fallback (or a method unavailable during a staged rollout).
+    // The old verified account method still prevents duplicated eligibility
+    // checks on success and requires live eligibility on failure.
+    let account = await accountAdmission.account(subject);
+    if (authority != accountAdmissionAuthority or epoch != membershipEpoch() or nameCleanup.locked() or removalReceiver.denied(subject))
+      throw Error.reject("Account authority changed; retry");
+    switch (account) {
+      case (?current) {
+        // Preserve the existing receiver-side unlink tombstone and never
+        // cache the response as durable authorisation across calls.
+        let verified = if (AccountUnlinkFence.rejects(current.id, current.version, current.principals, identityUnlinkReceipts)) ({ current with principals = [subject] }) else current;
+        if (linkedMembershipSnapshots.size() >= 256) linkedMembershipSnapshots.clear();
+        linkedMembershipSnapshots.add(subject, { account = verified; observed = Time.now() });
+      };
+      case null {
+        // Keep exact-principal availability from the original path when a
+        // linked-account reply is unavailable. This fallback still requires
+        // the original live eligibility proof; never assume membership.
+        let eligible = await accountAdmission.eligible(subject);
+        if (authority != accountAdmissionAuthority or epoch != membershipEpoch() or nameCleanup.locked() or removalReceiver.denied(subject) or not eligible)
+          throw Error.reject("Account admission denied or unavailable");
+        linkedMembershipSnapshots.remove(subject);
+      };
+    };
+  };
+
   func denyLegacyAccountQuery() {
     if (AccountProtection.admissionRequired(accountProtectionMode) or removalReceiver.protectedReadsRequired()) Runtime.trap("Use protected consensus account read");
   };
@@ -682,6 +754,17 @@ persistent actor class Main(governorInit : Principal) = this {
   func ownsMembershipPrincipal(subject : Principal, stored : Principal) : Bool {
     membershipAliases(subject).any(func p = p == stored)
   };
+  // Canonical team tombstones override legacy ACL team mirrors. Never use
+  // a role belonging to a soft-deleted team to authorize club-wide access.
+  func roleEffective(club : ?Text, team : ?Text) : Bool {
+    switch (team) {
+      case null true;
+      case (?id) switch (club) {
+        case (?c) liveTeamClub(id) == ?c;
+        case null false;
+      };
+    }
+  };
 
   // A parent or guardian of a child assigned to one of the club's teams is
   // a member of that club, even without an explicit role grant.
@@ -713,13 +796,13 @@ persistent actor class Main(governorInit : Principal) = this {
     if (memberIndexEpoch == ?membershipEpoch()) return memberIndex;
     let ix = MembershipIndex.empty();
     for (g in acl.roles.values()) {
-      MembershipIndex.add(ix, g.user.toText(), switch (g.club) { case (?c) c; case null APP_WIDE });
+      if (roleEffective(g.club, g.team)) MembershipIndex.add(ix, g.user.toText(), switch (g.club) { case (?c) c; case null APP_WIDE });
     };
     for (c in acl.children.values()) {
       let parents = switch (c.parent) { case (?p) [p]; case null [] };
       let guardians = acl.guardians.filter(func(g) = g.child == c.id).map(func(g) = g.user);
       for (teamId in c.teams.values()) {
-        for (t in acl.teams.values()) if (t.id == teamId) for (u in parents.concat(guardians).values()) MembershipIndex.add(ix, u.toText(), t.club);
+        for (t in acl.teams.values()) if (t.id == teamId and liveTeamClub(teamId) == ?t.club) for (u in parents.concat(guardians).values()) MembershipIndex.add(ix, u.toText(), t.club);
         for (t in teams.values()) if (t.id == teamId and t.deleted_at_ms == null) for (u in parents.concat(guardians).values()) MembershipIndex.add(ix, u.toText(), t.club_id);
       };
     };
@@ -728,14 +811,28 @@ persistent actor class Main(governorInit : Principal) = this {
 
   func isMember(caller : Principal, club : Text) : Bool {
     not isExcluded(caller, club) and (
-      acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (grant.club == ?club or grant.club == null))
+      acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and roleEffective(grant.club, grant.team) and (grant.club == ?club or grant.club == null))
       or membershipAliases(caller).any(func p = isFamilyMember(p, club))
     )
   };
 
   func isAdmin(caller : Principal, club : Text) : Bool {
-    isGovernor(caller) or (not isExcluded(caller, club) and acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (grant.role == "club_admin" or grant.role == "app_admin") and (grant.club == ?club or grant.club == null)))
+    isGovernor(caller) or (not isExcluded(caller, club) and acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (grant.role == "club_admin" or grant.role == "app_admin") and roleEffective(grant.club, grant.team) and (grant.club == ?club or grant.club == null)))
   };
+  // A full roster is a staff-only inventory, not a membership-wide read.
+  // Preserve existing coach/team-admin workflows while excluding parents,
+  // players and club-only non-staff users from principal-level role rows.
+  // The separate has_club_staff_role API is deliberately membership-wide
+  // for PII club audiences and must not be reused for roster permissions.
+  func canReadClubRoster(caller : Principal, club : Text) : Bool {
+    if (isAdmin(caller, club)) return true;
+    if (isExcluded(caller, club) or removalReceiver.denied(caller)) return false;
+    acl.roles.any(func(grant) =
+      ownsMembershipPrincipal(caller, grant.user) and grant.club == ?club and roleEffective(grant.club, grant.team) and
+      (grant.role == "team_admin" or grant.role == "coach" or grant.role == "committee_member" or grant.role == "committee")
+    )
+  };
+
 
   func nowNs() : Nat64 { Nat.toNat64(Int.abs(Time.now())) };
 
@@ -752,7 +849,7 @@ persistent actor class Main(governorInit : Principal) = this {
         acl.roles.any(func(grant) =
           ownsMembershipPrincipal(caller, grant.user) and
           (grant.role == "team_admin" or grant.role == "coach") and
-          (grant.club == ?club or grant.club == null) and
+          (grant.club == ?club or grant.club == null) and roleEffective(grant.club, grant.team) and
           (grant.team == ?team))
       };
     }
@@ -1499,13 +1596,13 @@ persistent actor class Main(governorInit : Principal) = this {
   // A team belongs to a club if either the ACL mirror or the team records
   // say so — teams created via save_team only exist in the records store.
   func teamInClub(teamId : Text, club : Text) : Bool {
-    acl.teams.any(func(t) = t.id == teamId and t.club == club)
-    or teams.any(func(t) = t.id == teamId and t.club_id == club and t.deleted_at_ms == null)
+    liveTeamClub(teamId) == ?club
   };
 
   // Caller belongs to (or parents a child on) the given team.
   func isOnTeam(caller : Principal, teamId : Text) : Bool {
-    acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and grant.team == ?teamId)
+    if (liveTeamClub(teamId) == null) return false;
+    acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and roleEffective(grant.club, grant.team) and grant.team == ?teamId)
     or acl.children.any(func(c) {
       let isParent = switch (c.parent) { case (?p) ownsMembershipPrincipal(caller, p); case null false };
       let isGuardian = acl.guardians.any(func(g) = g.child == c.id and ownsMembershipPrincipal(caller, g.user));
@@ -1532,14 +1629,15 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (liveTeamClub(teamId)) { case (?club) ?{ id = teamId; club }; case null null }
   };
   func liveTeamClub(teamId : Text) : ?Text {
-    switch (teams.find(func(t) = t.id == teamId and t.deleted_at_ms == null)) {
-      case (?t) ?t.club_id;
+    switch (teams.find(func(t) = t.id == teamId)) {
+      case (?t) if (t.deleted_at_ms == null) ?t.club_id else null;
       case null switch (acl.teams.find(func(t) = t.id == teamId)) { case (?t) ?t.club; case null null };
     }
   };
   public shared query ({ caller }) func read_competition_team_access(team_id : Text, user : Principal) : async { club_id : ?Text; is_member : Bool; can_manage : Bool } {
     denyLegacyAccountQuery();
-    if (not trustedCompetition(caller) or user.equal(Principal.anonymous()) or team_id.size() > 128) return { club_id = null; is_member = false; can_manage = false };
+    let trusted = trustedCompetition(caller) or (switch (messagingDomainCanister) { case (?p) p.equal(caller); case null false });
+    if (not trusted or user.equal(Principal.anonymous()) or team_id.size() > 128) return { club_id = null; is_member = false; can_manage = false };
     switch (liveTeamClub(team_id)) {
       case null ({ club_id = null; is_member = false; can_manage = false });
       case (?club) {
@@ -2848,7 +2946,7 @@ persistent actor class Main(governorInit : Principal) = this {
     await admitAccount(caller);
     if (isTransferFenced(club_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
-    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id)) return #Err("Club staff required");
+    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id and roleEffective(grant.club, grant.team))) return #Err("Club staff required");
     let updated : Types.ClubGeneralSettings = { club_id; class_mode_enabled; allow_guests_default; max_guests_per_member_default; events_sponsor_strip_enabled };
     clubGeneralSettings := clubGeneralSettings.filter(func(s) = s.club_id != club_id).concat([updated]);
     #Ok(updated)
@@ -3377,6 +3475,19 @@ persistent actor class Main(governorInit : Principal) = this {
     "- Denied calls return #Err(\"...\"); anonymous calls to authenticated methods trap."
   };
 
+  // Initial-signup policy version, published separately from the global
+  // legal_reacceptance switch. No unapproved or synthetic fallback exists.
+  // The governor/app admin must first attest that the matching legal documents
+  // are published before setting this public, non-secret exact key.
+  func publishedLegalReleaseRows() : [Text] {
+    switch (appConfig.find(func((key, _)) = key == "legal_document_release")) {
+      case (?(_, version)) {
+        if (version == "") [] else [version]
+      };
+      case null [];
+    }
+  };
+
   public query func schema() : async Text {
     Oql.schema(OqlClubs.entities, "{\"entity\":\"clubs\",\"select\":[\"id\",\"name\"],\"limit\":50}")
   };
@@ -3393,6 +3504,11 @@ persistent actor class Main(governorInit : Principal) = this {
       Oql.run<Types.ClubSubscription>(request, clubSubscriptions,
         func(sub) = profiles.any(func(c) = c.id == sub.club_id and c.deleted_at_ms == null) and (isMember(caller, sub.club_id) or isAdmin(caller, sub.club_id)),
         func(sub) = OqlClubs.clubSubscriptionRow(sub, timestamp))
+    } else if (request.entity == "legal_release") {
+      // Only the single whitelisted published release label; no arbitrary
+      // app settings, private terms records or subscription metadata.
+      Oql.run<Text>(request, publishedLegalReleaseRows(),
+        func(_) = true, OqlClubs.legalReleaseRow)
     } else {
       let timestamp = nowMs();
       Oql.run<Types.TeamSubscription>(request, teamSubscriptions,
@@ -3543,9 +3659,9 @@ persistent actor class Main(governorInit : Principal) = this {
     denyLegacyAccountQuery();
     // Members see their own club's roster (account ids + roles, no names) so
     // they can message people; app-wide grants stay admin-only.
-    if (isAdmin(caller, club)) return #Ok(accountRoles.filter(func(grant) = grant.club == ?club or grant.club == null));
+    if (isAdmin(caller, club)) return #Ok(accountRoles.filter(func(grant) = roleEffective(grant.club, grant.team) and (grant.club == ?club or grant.club == null)));
     if (not isMember(caller, club)) return #Err("Club membership required");
-    #Ok(accountRoles.filter(func(grant) = grant.club == ?club))
+    #Ok(accountRoles.filter(func(grant) = roleEffective(grant.club, grant.team) and grant.club == ?club))
   };
 
   // Team-scoped roster read for the team page member list: any member of the
@@ -3554,20 +3670,12 @@ persistent actor class Main(governorInit : Principal) = this {
   public query ({ caller }) func list_team_role_grants(team : Text) : async { #Ok : [Types.AccountRole]; #Err : Text } {
     denyLegacyAccountQuery();
     auth(caller);
-    var club : ?Text = null;
-    label search {
-      for (t in teams.vals()) {
-        if (t.id == team) { club := ?t.club_id; break search };
-      };
-      for (t in acl.teams.vals()) {
-        if (t.id == team) { club := ?t.club; break search };
-      };
-    };
+    let club = liveTeamClub(team);
     switch (club) {
       case null { #Err("Unknown team") };
       case (?clubId) {
         if (not isMember(caller, clubId)) return #Err("Club membership required");
-        #Ok(accountRoles.filter(func(grant) = grant.team == ?team))
+        #Ok(accountRoles.filter(func(grant) = grant.team == ?team and roleEffective(grant.club, grant.team)))
       };
     };
   };
@@ -3579,7 +3687,7 @@ persistent actor class Main(governorInit : Principal) = this {
   public query ({ caller }) func my_role_grants() : async [Types.RoleGrant] {
     denyLegacyAccountQuery();
     auth(caller);
-    acl.roles.filter(func(grant) = grant.user.equal(caller))
+    acl.roles.filter(func(grant) = grant.user.equal(caller) and roleEffective(grant.club, grant.team))
   };
 
   // Operator-only consensus source export. Bounded raw edges pin the durable
@@ -3594,14 +3702,23 @@ persistent actor class Main(governorInit : Principal) = this {
     func edge(phase : Nat, offset : Nat, nested : Nat) : ?MembershipSource.Edge {
       switch (phase) {
         case (0) { let c = profiles[offset]; ?#Club({ id = c.id; deleted = c.deleted_at_ms != null }) };
-        case (1) { let g = acl.roles[offset]; ?#Role({ subject = g.user; club = g.club }) };
+        case (1) {
+          let g = acl.roles[offset];
+          if (roleEffective(g.club, g.team)) ?#Role({ subject = g.user; club = g.club }) else null
+        };
         case (2) {
           let c = acl.children[offset];
           if (nested == 0) switch (c.parent) { case (?subject) ?#Parent({ child = c.id; subject }); case null null }
-          else ?#ChildTeam({ child = c.id; team = c.teams[nested - 1] })
+          else {
+            let team = c.teams[nested - 1];
+            if (liveTeamClub(team) == null) null else ?#ChildTeam({ child = c.id; team })
+          }
         };
         case (3) { let g = acl.guardians[offset]; ?#Guardian({ child = g.child; subject = g.user }) };
-        case (4) { let t = acl.teams[offset]; ?#Team({ id = t.id; club = t.club; deleted = false }) };
+        case (4) {
+          let t = acl.teams[offset];
+          ?#Team({ id = t.id; club = t.club; deleted = liveTeamClub(t.id) != ?t.club })
+        };
         case (5) { let t = teams[offset]; ?#Team({ id = t.id; club = t.club_id; deleted = t.deleted_at_ms != null }) };
         case (6) { let e = acl.exclusions[offset]; ?#Excluded({ subject = e.user; club = e.club }) };
         case (7) { let e = removedMembers[offset]; ?#Excluded({ subject = e.user; club = e.club }) };
@@ -3759,7 +3876,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
-    await admitAccount(caller);
+    await admitAccountForFirstContent(caller);
     if (caller.equal(Principal.anonymous())) return #Err("Authentication required");
     if (limit == 0 or limit > 100) return #Err("Invalid membership page");
     let principals = membershipAliases(caller);
@@ -3804,7 +3921,7 @@ persistent actor class Main(governorInit : Principal) = this {
   public query func has_club_staff_role(user : Principal, club_id : Text) : async Bool {
     denyLegacyAccountQuery();
     if (user.equal(Principal.anonymous())) return false;
-    acl.roles.any(func(grant) = grant.user.equal(user) and grant.club == ?club_id)
+    acl.roles.any(func(grant) = grant.user.equal(user) and grant.club == ?club_id and roleEffective(grant.club, grant.team))
   };
 
   // True when `user` belongs to `club_id` (any role in the club, an app-wide
@@ -3829,6 +3946,95 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(user) };
   };
 
+  // One live membership+role proof for the configured events service only.
+  // Previously events_domain called read_has_club_membership and
+  // read_account_list_user_club_roles sequentially; each independently
+  // admitted the same subject. This combines those exact decisions in ONE
+  // consensus message and never returns roles to a browser or other canister.
+  // Grants are request-local, not durable admission or a membership cache.
+  public shared ({ caller }) func read_event_member_roles_if_current(
+    user : Principal, club_id : Text
+  ) : async { #Ok : [(Text, ?Text)]; #Err : Text } {
+    let ?eventsService = eventsDomainCanister else return #Err("Events authority unavailable");
+    if (caller != eventsService) return #Err("Configured events service required");
+    if (user == Principal.anonymous() or club_id == "" or club_id.size() > 128)
+      return #Err("Invalid event membership scope");
+    let privateWriterLease = switch (privateNameWriterGate.enter()) {
+      case (#Ok(key)) key;
+      case (#Err(reason)) throw Error.reject(reason);
+    };
+    try {
+      if (not removalReceiver.enter(user))
+        throw Error.reject("Account removal fenced or operation capacity reached");
+      try {
+        await admitAccount(user);
+        if (eventsDomainCanister != ?caller or nameCleanup.locked() or removalReceiver.denied(user))
+          return #Err("Event membership authority changed");
+        // Equivalent to read_has_club_membership, followed by
+        // read_account_list_user_club_roles only for a current member.
+        if (isExcluded(user, club_id) or not isMember(user, club_id))
+          return #Err("Club membership unavailable");
+        let grants = acl.roles.filter(func(grant) =
+          not isExcluded(user, club_id) and ownsMembershipPrincipal(user, grant.user) and
+          grant.club == ?club_id and roleEffective(grant.club, grant.team)
+        ).map(func(grant) = (grant.role, grant.team));
+        if (eventsDomainCanister != ?caller or nameCleanup.locked() or removalReceiver.denied(user))
+          return #Err("Event membership authority changed");
+        #Ok(grants)
+      } finally { removalReceiver.leave(user) };
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  // Restricted batch authority for the trusted messaging canister. One
+  // account admission establishes the linked-principal snapshot for all exact
+  // club/team checks in this single consensus message. The result is boolean
+  // scope proof only: no roster, private names, identity aliases or PII.
+  //
+  // This is NOT a public membership probe. A browser/user must not call this
+  // method directly or select an unrelated subject principal.
+  public shared ({ caller }) func read_chat_scope_access_batch(
+    user : Principal, club_ids : [Text], team_scopes : [(Text, Text)]
+  ) : async { #Ok : { clubs : [(Text, Bool)]; teams : [(Text, Text, Bool)] }; #Err : Text } {
+    let ?messaging = messagingDomainCanister else return #Err("Trusted messaging authority unavailable");
+    if (caller != messaging) return #Err("Trusted messaging canister required");
+    if (user == Principal.anonymous()) return #Err("Authenticated subject required");
+    // The messaging service chunks larger requests; no silent truncation.
+    if (club_ids.size() > 64 or team_scopes.size() > 64) return #Err("Chat scope batch too large");
+    for (club in club_ids.vals()) {
+      if (club == "" or club.size() > 128) return #Err("Invalid club scope");
+    };
+    for ((club, team) in team_scopes.vals()) {
+      if (club == "" or club.size() > 128 or team == "" or team.size() > 128)
+        return #Err("Invalid team scope");
+    };
+    let privateWriterLease = switch (privateNameWriterGate.enter()) {
+      case (#Ok(key)) key;
+      case (#Err(reason)) throw Error.reject(reason);
+    };
+    try {
+      if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
+      try {
+        await admitAccount(user);
+        // Admission can suspend; confirm the caller is still the *configured*
+        // messaging service and the subject is not being removed.
+        if (messagingDomainCanister != ?caller or removalReceiver.denied(user) or nameCleanup.locked())
+          return #Err("Chat authority changed");
+        let clubs = Array.map<Text, (Text, Bool)>(club_ids, func(club) {
+          (club, not isExcluded(user, club) and isMember(user, club))
+        });
+        let teamProofs = Array.map<(Text, Text), (Text, Text, Bool)>(team_scopes, func((club, team)) {
+          let live = liveTeamClub(team) == ?club;
+          let allowed = live and not isExcluded(user, club)
+            and (isOnTeam(user, team) or isAdmin(user, club));
+          (club, team, allowed)
+        });
+        if (removalReceiver.denied(user) or messagingDomainCanister != ?caller or nameCleanup.locked())
+          return #Err("Chat authority changed");
+        #Ok({ clubs; teams = teamProofs })
+      } finally { removalReceiver.leave(user) };
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
   // Shared-key private-detail audiences, asked only by the configured PII
   // canister. kind/scope: "clubchildren"/<club>, "teamnames"/<team>,
   // "vaultrole"/"<club>|<team or empty>|<role,role,...>". Boolean only.
@@ -3844,7 +4050,7 @@ persistent actor class Main(governorInit : Principal) = this {
       excluded = func(club : Text) : Bool = isExcluded(user, club);
       onTeam = func(team : Text) : Bool = isOnTeam(user, team);
       hasRole = func(role : Text, club : Text, team : ?Text) : Bool = acl.roles.any(func(g) =
-        ownsMembershipPrincipal(user, g.user) and g.role == role and g.club == ?club and
+        ownsMembershipPrincipal(user, g.user) and g.role == role and g.club == ?club and roleEffective(g.club, g.team) and
         (switch (team) { case null true; case (?t) g.team == ?t or g.team == null }));
     })
     } finally { removalReceiver.leave(user) };
@@ -3927,6 +4133,69 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(requester) };
   };
 
+  // Exact team-scoped private adult name audience for the configured Identity
+  // service. Unlike club-wide profile membership, a verified parent must
+  // actually belong to this team (including current child guardianship).
+  // This returns only booleans, never names or a discoverable adult roster.
+  public shared ({ caller }) func read_profile_team_membership_batch(
+    requester : Principal, team_id : Text, subjects : [Principal], expected : ?Nat
+  ) : async { #Ok : ProfileMembership.Batch; #Err : Text } {
+    if (Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != ?"1"
+        and Runtime.envVar<system>("IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE") != ?"1")
+      return #Err("Private team-name membership reads are not released");
+    let authority = identityAccessCanister;
+    if (authority != ?caller or caller.isAnonymous()) return #Err("Configured identity authority required");
+    switch (ProfileMembership.validate(requester, team_id, subjects)) {
+      case (?message) return #Err(message);
+      case null {};
+    };
+    let club_id = switch (liveTeamClub(team_id)) {
+      case (?club) club;
+      case null return #Err("Active team required");
+    };
+    if (not profiles.any(func p = p.id == club_id and p.deleted_at_ms == null))
+      return #Err("Active club required");
+    if (not removalReceiver.enter(requester)) return #Err("Account removal fenced or operation capacity reached");
+    try {
+      let revision = membershipEpoch();
+      switch (expected) {
+        case (?value) { if (value != revision) return #Err("Profile membership revision changed") };
+        case null {};
+      };
+      await admitAccount(requester);
+      func unchanged() : Bool =
+        ProfileMembership.unchanged(revision, membershipEpoch(),
+          identityAccessCanister == authority, removalReceiver.denied(requester)
+            or isTransferFenced(club_id))
+        and liveTeamClub(team_id) == ?club_id;
+      if (not unchanged()) return #Err("Private team authority changed");
+      var eligible : [Bool] = [];
+      for (subject in subjects.values()) {
+        let allowed = try { await admitAccount(subject); true } catch (_) { false };
+        if (not unchanged()) return #Err("Private team authority changed");
+        eligible := eligible.concat([allowed]);
+      };
+      if (not unchanged()) return #Err("Private team authority changed");
+      func onExactTeam(subject : Principal) : Bool {
+        if (subject.isAnonymous() or removalReceiver.denied(subject) or isExcluded(subject, club_id)) return false;
+        let aliases = switch (accountFor(subject)) {
+          case (?account) account.principals;
+          case null [subject];
+        };
+        // A club administrator who is not on THIS team is not an adult
+        // teammate. Do not repurpose broad club-management permission to
+        // unlock the names of parents and coaches on unrelated teams.
+        aliases.any(func p =
+          not removalReceiver.denied(p) and isMember(p, club_id)
+          and isOnTeam(p, team_id)
+        )
+      };
+      if (not onExactTeam(requester)) return #Err("Team membership required");
+      let members = Array.tabulate<Bool>(subjects.size(), func i = eligible[i] and onExactTeam(subjects[i]));
+      #Ok({ revision; requester; club = team_id; subjects; members })
+    } finally { removalReceiver.leave(requester) };
+  };
+
   // Trusted relationship services pin the exact membership generation across
   // ALL their requester/subject checks; boolean replies alone are insufficient.
   public shared ({ caller }) func read_profile_remote_revision(subjects : [Principal], expected : ?Nat) : async { #Ok : Nat; #Err : Text } {
@@ -3968,7 +4237,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(user);
     if (user.equal(Principal.anonymous())) return false;
-    acl.roles.any(func(grant) = ownsMembershipPrincipal(user, grant.user) and grant.club == ?club_id)
+    acl.roles.any(func(grant) = ownsMembershipPrincipal(user, grant.user) and grant.club == ?club_id and roleEffective(grant.club, grant.team))
   
     } finally { removalReceiver.leave(user) };
   };
@@ -3993,6 +4262,56 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(user) };
   };
 
+  // Authoritative, boolean-only parent/child eligibility for the pinned events
+  // domain. Never trust the events canister's older child/team mirror.
+  // The caller must be the configured events canister, not a browser/admin.
+  public shared ({ caller }) func read_can_guardian_rsvp_child(
+    user : Principal, child_id : Text, club_id : Text,
+    team_id : ?Text, target_team_ids : [Text]
+  ) : async Bool {
+    if (switch (eventsDomainCanister) { case (?id) not id.equal(caller); case null true }) return false;
+    if (Principal.isAnonymous(user) or child_id == "" or club_id == "" or target_team_ids.size() > 100) return false;
+    if (not removalReceiver.enter(user)) return false;
+    try {
+      await admitAccount(user);
+      if (removalReceiver.denied(user) or isTransferFenced(club_id) or not isMember(user, club_id)) return false;
+      let child = switch (acl.children.find(func(c) = c.id == child_id)) {
+        case (?c) c;
+        case null return false;
+      };
+      if (not currentChildGuardian(user, child_id)) return false;
+      if (switch (child.club_id) { case (?c) c != club_id; case null false }) return false;
+      child.teams.any(func(t) =
+        teams.any(func(team) = team.id == t and team.club_id == club_id and team.deleted_at_ms == null and team.is_active and not team.archived) and
+        (switch (team_id) {
+          case (?team) t == team;
+          case null if (target_team_ids.size() > 0) target_team_ids.any(func(target) = target == t)
+            else true;
+        })
+      )
+    } finally { removalReceiver.leave(user) };
+  };
+
+  // Minimal caller-scoped child IDs for the configured events canister.
+  // Guardian links are evaluated against the authoritative club ACL.
+  // Never expose child names or unrelated family records.
+  public shared ({ caller }) func read_can_list_guardian_children(user : Principal) : async [{ id : Text; parent_id : ?Text }] {
+    if (switch (eventsDomainCanister) { case (?id) not id.equal(caller); case null true }) return [];
+    if (Principal.isAnonymous(user)) return [];
+    if (not removalReceiver.enter(user)) return [];
+    try {
+      await admitAccount(user);
+      if (removalReceiver.denied(user)) return [];
+      acl.children.filter(func(child) =
+        currentChildGuardian(user, child.id) and
+        (switch (child.club_id) { case (?club) not isTransferFenced(club); case null true })
+      ).map(func(child) : { id : Text; parent_id : ?Text } = {
+        id = child.id;
+        parent_id = switch (child.parent) { case (?parent) ?parent.toText(); case null null };
+      })
+    } finally { removalReceiver.leave(user) };
+  };
+
   // The user's role grants in one club as (role, team) pairs. events_domain
   // mirrors these on create/update so club and team admins set up here can
   // schedule events without a separate grant there. Public query, same
@@ -4000,7 +4319,7 @@ persistent actor class Main(governorInit : Principal) = this {
   public query func list_user_club_roles(user : Principal, club_id : Text) : async [(Text, ?Text)] {
     denyLegacyAccountQuery();
     if (user.equal(Principal.anonymous())) return [];
-    acl.roles.filter(func(grant) = grant.user.equal(user) and grant.club == ?club_id).map(func(grant) = (grant.role, grant.team))
+    acl.roles.filter(func(grant) = grant.user.equal(user) and grant.club == ?club_id and roleEffective(grant.club, grant.team)).map(func(grant) = (grant.role, grant.team))
   };
 
   // Platform (app) admin check exposed for sibling canisters — mirrors the
@@ -4019,7 +4338,7 @@ persistent actor class Main(governorInit : Principal) = this {
   public query func list_club_admins(club_id : Text) : async [Principal] {
     var out : [Principal] = [];
     for (grant in acl.roles.values()) {
-      if (grant.role == "club_admin" and grant.club == ?club_id) {
+      if (grant.role == "club_admin" and grant.club == ?club_id and roleEffective(grant.club, grant.team)) {
         out := out.concat([grant.user]);
       };
     };
@@ -4033,12 +4352,17 @@ persistent actor class Main(governorInit : Principal) = this {
   // vetKey-gated pii_access_control relay.
   public query ({ caller }) func get_club_roster(club_id : Text) : async { #Ok : { children : [Types.Child]; roles : [Types.RoleGrant] }; #Err : Text } {
     denyLegacyAccountQuery();
-    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id)) {
-      return #Err("Club staff role required");
-    };
+    // The full roster contains child/parent principals and club-wide roles.
+    // Only actual club staff may read it; parents and players need
+    // caller-scoped family/team views, not the whole club's family metadata.
+    if (not canReadClubRoster(caller, club_id)) return #Err("Club staff role required");
+    let scopedTeamIds = teams.filter(func(t) = t.club_id == club_id and t.deleted_at_ms == null).map(func(t) = t.id);
     #Ok({
-      children = acl.children.filter(func(c) = c.club_id == ?club_id);
-      roles = acl.roles.filter(func(g) = g.club == ?club_id);
+      // A parent-created child begins with club_id=null; placement on a
+      // verified team in this club must still make that child visible to staff.
+      // Reuse the exact club/team inclusion boundary used by snapshots.
+      children = acl.children.filter(func(c) = clubChild(club_id, scopedTeamIds, c));
+      roles = acl.roles.filter(func(g) = g.club == ?club_id and roleEffective(g.club, g.team));
     })
   };
 
@@ -4242,6 +4566,7 @@ persistent actor class Main(governorInit : Principal) = this {
     auth(caller);
     if (not isAdmin(caller, club)) return #Err("Club admin required");
     if (role == "") return #Err("Invalid role");
+    switch (team) { case (?id) if (not inviteTeamValid(club, id)) return #Err("Active team required"); case null {} };
     bumpMembershipDiscovery();
     acl := { acl with roles = acl.roles.concat([{ user; role; club = ?club; team }]) };
     let accountId = accountIdFor(user);
@@ -4502,9 +4827,13 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Team not found") };
       case (?team) {
         if (not isAdmin(caller, team.club_id)) return #Err("Club admin required");
-        let updated : Types.ClubTeam = { team with deleted_at_ms = ?nowMs() };
+        let updated : Types.ClubTeam = { team with deleted_at_ms = if (team.deleted_at_ms == null) ?nowMs() else team.deleted_at_ms };
         bumpMembershipDiscovery();
         teams := teams.map(func(t) = if (t.id == id) updated else t);
+        // Revoke only this team's grants; keep real account, family records,
+        // other team memberships and independent club-wide roles intact.
+        acl := { acl with roles = acl.roles.filter(func(g) = g.team != ?id) };
+        accountRoles := accountRoles.filter(func(g) = g.team != ?id);
         #Ok(updated)
       };
     }
@@ -5045,6 +5374,14 @@ persistent actor class Main(governorInit : Principal) = this {
           acl := { acl with roles = acl.roles.concat([grant]) };
           accountRoles := accountRoles.concat([{ account_id = accountIdFor(caller); role = link.role; club = ?link.club_id; team = ?link.team_id }]);
         };
+        // The invite grants membership in club_domain, but messaging keeps a
+        // separate participant roster. Refresh only the canonical club/team
+        // conversations for this invite. These are idempotent, best-effort
+        // messages to the already-configured messaging authority; they never
+        // mint new roles or widen chat privileges, and an unavailable chat
+        // service must not roll back valid membership.
+        ignore fanOutEnsureConversation(link.club_id, null, clubChatParticipants(link.club_id));
+        ignore fanOutEnsureConversation(link.club_id, ?link.team_id, teamChatParticipants(link.club_id, link.team_id));
         #Ok(link)
       };
     }
@@ -5167,7 +5504,12 @@ persistent actor class Main(governorInit : Principal) = this {
     invite_emails_sent := (if (invite_emails_sent.size() >= 5000) invite_emails_sent.sliceToArray(1000, invite_emails_sent.size()) else invite_emails_sent).concat([invite_id]);
     let ic : actor { http_request : InviteEmail.Request -> async InviteEmail.HttpResult } = actor ("aaaaa-aa");
     let result = try {
-      await (with cycles = 20_000_000_000) ic.http_request(InviteEmail.request(sender, invite_id, invite.kind, to))
+      let request = InviteEmail.request(sender, invite_id, invite.kind, to);
+      if (Runtime.envVar<system>("IGNITE_CLOUD_ENGINE") == ?"1") {
+        await ic.http_request(request)
+      } else {
+        await (with cycles = 20_000_000_000) ic.http_request(request)
+      }
     } catch (_) {
       return #Err("Email delivery outcome unknown; share the link instead")
     };
@@ -5316,7 +5658,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
   public query ({ caller }) func find_pending_invite_by_email_hash(club_id : Text, hash : Text) : async { #Ok : ?Types.PendingInviteEmailHash; #Err : Text } {
     denyLegacyAccountQuery();
-    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id)) return #Err("Club staff required");
+    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id and roleEffective(grant.club, grant.team))) return #Err("Club staff required");
     #Ok(pendingInviteEmailHashes.find(func(h) = h.club_id == club_id and h.hash == hash))
   };
 
@@ -7369,7 +7711,7 @@ persistent actor class Main(governorInit : Principal) = this {
   func clubChatParticipants(clubId : Text) : [Principal] {
     var result : [Principal] = [];
     for (grant in acl.roles.values()) {
-      if (grant.club == ?clubId and result.size() < 500 and not result.any(func(p) = p.equal(grant.user))) {
+      if (grant.club == ?clubId and roleEffective(grant.club, grant.team) and result.size() < 500 and not result.any(func(p) = p.equal(grant.user))) {
         result := result.concat([grant.user]);
       };
     };
@@ -7383,7 +7725,7 @@ persistent actor class Main(governorInit : Principal) = this {
     var result : [Principal] = [];
     for (grant in acl.roles.values()) {
       let inScope = grant.club == ?clubId and (grant.team == ?teamId or grant.role == "club_admin");
-      if (inScope and result.size() < 500 and not result.any(func(p) = p.equal(grant.user))) {
+      if (inScope and roleEffective(grant.club, grant.team) and result.size() < 500 and not result.any(func(p) = p.equal(grant.user))) {
         result := result.concat([grant.user]);
       };
     };
@@ -8570,7 +8912,7 @@ persistent actor class Main(governorInit : Principal) = this {
   var pitchNotifyFlags : [PitchNotifyFlags];
 
   func teamClub(team_id : Text) : ?Text {
-    switch (teams.find(func(t) = t.id == team_id)) { case (?t) ?t.club_id; case null null }
+    liveTeamClub(team_id)
   };
 
   public shared query ({ caller }) func list_pitch_formations(team_id : Text) : async { #Ok : [PitchFormation]; #Err : Text } {
@@ -8739,7 +9081,10 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(user);
-    if (not trustedCompetition(caller) or user.equal(Principal.anonymous()) or team_id.size() > 128) return { club_id = null; is_member = false; can_manage = false };
+    // Messaging uses the same exact live-team authority for club chat checks.
+    // Only configured first-party canisters are admitted, never browser callers.
+    let trusted = trustedCompetition(caller) or (switch (messagingDomainCanister) { case (?p) p.equal(caller); case null false });
+    if (not trusted or user.equal(Principal.anonymous()) or team_id.size() > 128) return { club_id = null; is_member = false; can_manage = false };
     switch (liveTeamClub(team_id)) {
       case null ({ club_id = null; is_member = false; can_manage = false });
       case (?club) {
@@ -9049,6 +9394,11 @@ persistent actor class Main(governorInit : Principal) = this {
       Oql.run<Types.ClubSubscription>(request, clubSubscriptions,
         func(sub) = profiles.any(func(c) = c.id == sub.club_id and c.deleted_at_ms == null) and (isMember(caller, sub.club_id) or isAdmin(caller, sub.club_id)),
         func(sub) = OqlClubs.clubSubscriptionRow(sub, timestamp))
+    } else if (request.entity == "legal_release") {
+      // Only the single whitelisted published release label; no arbitrary
+      // app settings, private terms records or subscription metadata.
+      Oql.run<Text>(request, publishedLegalReleaseRows(),
+        func(_) = true, OqlClubs.legalReleaseRow)
     } else {
       let timestamp = nowMs();
       Oql.run<Types.TeamSubscription>(request, teamSubscriptions,
@@ -9088,12 +9438,66 @@ persistent actor class Main(governorInit : Principal) = this {
     await admitAccount(caller);
     // Members see their own club's roster (account ids + roles, no names) so
     // they can message people; app-wide grants stay admin-only.
-    if (isAdmin(caller, club)) return #Ok(accountRoles.filter(func(grant) = grant.club == ?club or grant.club == null));
+    if (isAdmin(caller, club)) return #Ok(accountRoles.filter(func(grant) = roleEffective(grant.club, grant.team) and (grant.club == ?club or grant.club == null)));
     if (not isMember(caller, club)) return #Err("Club membership required");
-    #Ok(accountRoles.filter(func(grant) = grant.club == ?club))
+    #Ok(accountRoles.filter(func(grant) = roleEffective(grant.club, grant.team) and grant.club == ?club))
   
     } finally { removalReceiver.leave(caller) };
   
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  // Team roster IDs come from the same child->team source of truth used by
+  // set_own_child_team. A club member can read IDs for a verified team, never
+  // all families, guardians, or unencrypted names. PII reads remain separate.
+  // PII-to-club authority check for a *named child*, not a general roster
+  // export. Only the configured PII canister can ask whether a currently
+  // admitted viewer shares an actual team with each child. No principal,
+  // guardian, name or club-wide family inventory is returned. Revoked,
+  // excluded, deleted-team and transfer-fenced access fail closed.
+  public shared ({ caller }) func read_can_team_child_name_visibility(
+    viewer : Principal, child_ids : [Text],
+  ) : async [Text] {
+    if (switch (piiCanister) { case (?configured) not configured.equal(caller); case null true }) return [];
+    if (viewer.isAnonymous() or child_ids.size() > 100) return [];
+    if (not removalReceiver.enter(viewer)) return [];
+    try {
+      await admitAccount(viewer);
+      if (removalReceiver.denied(viewer)) return [];
+      child_ids.filter(func(childId) {
+        switch (acl.children.find(func(child) = child.id == childId)) {
+          case null false;
+          case (?child) child.teams.any(func(teamId) {
+            switch (liveTeamClub(teamId)) {
+              case null false;
+              case (?clubId) {
+                not isExcluded(viewer, clubId)
+                  and not isTransferFenced(clubId)
+                  and isMember(viewer, clubId)
+                  and isOnTeam(viewer, teamId)
+              };
+            }
+          });
+        }
+      })
+    } finally { removalReceiver.leave(viewer) };
+  };
+
+  public shared ({ caller }) func read_account_list_team_child_ids(club_id : Text, team_id : Text) : async { #Ok : [Text]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+      if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+      try {
+        await admitAccount(caller);
+        auth(caller);
+        if (not teamInClub(team_id, club_id)) return #Err("Team not found in club");
+        if (not isMember(caller, club_id)) return #Err("Club membership required");
+        // A parent on another team in this club must not enumerate these
+        // children. Team staff and club admins keep their existing access.
+        if (not (isOnTeam(caller, team_id) or canManageTeam(caller, club_id, ?team_id)))
+          return #Err("Team membership required");
+        #Ok(acl.children.filter(func(child) = child.teams.any(func(t) = t == team_id)).map(func(child) = child.id))
+      } finally { removalReceiver.leave(caller) };
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
@@ -9105,20 +9509,12 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(caller);
     auth(caller);
-    var club : ?Text = null;
-    label search {
-      for (t in teams.vals()) {
-        if (t.id == team) { club := ?t.club_id; break search };
-      };
-      for (t in acl.teams.vals()) {
-        if (t.id == team) { club := ?t.club; break search };
-      };
-    };
+    let club = liveTeamClub(team);
     switch (club) {
       case null { #Err("Unknown team") };
       case (?clubId) {
         if (not isMember(caller, clubId)) return #Err("Club membership required");
-        #Ok(accountRoles.filter(func(grant) = grant.team == ?team))
+        #Ok(accountRoles.filter(func(grant) = grant.team == ?team and roleEffective(grant.club, grant.team)))
       };
     };
   
@@ -9133,12 +9529,65 @@ persistent actor class Main(governorInit : Principal) = this {
 
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
-    await admitAccount(caller);
+    await admitAccountForFirstContent(caller);
     auth(caller);
-    acl.roles.filter(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (switch (grant.club) { case (?club) not isExcluded(caller, club); case null true }))
+    acl.roles.filter(func(grant) = ownsMembershipPrincipal(caller, grant.user) and roleEffective(grant.club, grant.team) and (switch (grant.club) { case (?club) not isExcluded(caller, club); case null true }))
   
     } finally { removalReceiver.leave(caller) };
   
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  // ChatGPT/ICP first-content optimisation: one caller-signed canister update
+  // returns the same authorised indexed memberships and own role grants.
+  // No bridge, cached authorisation, cross-canister fan-out or PII export.
+  // Keep the original two endpoints unchanged for backwards compatibility.
+  public shared ({ caller }) func read_account_my_clubs_and_roles_indexed(after : ?Text, limit : Nat16) : async {
+    #Ok : { clubs : [Text]; next : ?Text; acl_revision : Nat64; roles : [Types.RoleGrant] };
+    #Err : Text
+  } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+      if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+      try {
+        // Exactly one existing Identity admission, with current unlink/removal
+        // fencing. No further awaits between verifying access and reading rows.
+        await admitAccountForFirstContent(caller);
+        if (caller.equal(Principal.anonymous())) return #Err("Authentication required");
+        if (limit == 0 or limit > 100) return #Err("Invalid membership page");
+        auth(caller);
+        let principals = membershipAliases(caller);
+        let ix = currentMemberIndex();
+        if (principals.any(func(p) = MembershipIndex.has(ix, p.toText(), APP_WIDE))) {
+          return #Err("Use read_my_club_memberships for app-wide accounts");
+        };
+        let candidates = MembershipIndex.empty();
+        for (p in principals.values()) {
+          var cursor : ?Text = null;
+          label pages loop {
+            let page = MembershipIndex.page(ix, p.toText(), cursor, 100);
+            for (club in page.clubs.values()) MembershipIndex.add(candidates, "c", club);
+            switch (page.next) { case null break pages; case (?n) cursor := ?n };
+          };
+        };
+        var out : [Text] = [];
+        var cursor = after;
+        var more = false;
+        label scan loop {
+          let page = MembershipIndex.page(candidates, "c", cursor, 100);
+          for (club in page.clubs.values()) {
+            if (out.size() == Nat16.toNat(limit)) { more := true; break scan };
+            let live = profiles.any(func(pr) = pr.id == club and pr.deleted_at_ms == null);
+            if (live and isMember(caller, club)) out := out.concat([club]);
+            cursor := ?club;
+          };
+          switch (page.next) { case null break scan; case (?_) {} };
+        };
+        // Identical caller/role/club checks as read_account_my_role_grants.
+        // Role grants cannot be inferred from a club ID or from OQL data.
+        let roles = acl.roles.filter(func(grant) = ownsMembershipPrincipal(caller, grant.user) and roleEffective(grant.club, grant.team) and (switch (grant.club) { case (?club) not isExcluded(caller, club); case null true }));
+        #Ok({ clubs = out; next = if (more and out.size() > 0) ?out[out.size() - 1] else null; acl_revision = aclVersion; roles = roles })
+      } finally { removalReceiver.leave(caller) };
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
@@ -9150,7 +9599,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(user);
     if (user.equal(Principal.anonymous())) return false;
-    not isExcluded(user, club_id) and acl.roles.any(func(grant) = ownsMembershipPrincipal(user, grant.user) and grant.club == ?club_id)
+    not isExcluded(user, club_id) and acl.roles.any(func(grant) = ownsMembershipPrincipal(user, grant.user) and grant.club == ?club_id and roleEffective(grant.club, grant.team))
   
     } finally { removalReceiver.leave(user) };
   
@@ -9192,7 +9641,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(user);
     if (user.equal(Principal.anonymous())) return [];
-    acl.roles.filter(func(grant) = not isExcluded(user, club_id) and ownsMembershipPrincipal(user, grant.user) and grant.club == ?club_id).map(func(grant) = (grant.role, grant.team))
+    acl.roles.filter(func(grant) = not isExcluded(user, club_id) and ownsMembershipPrincipal(user, grant.user) and grant.club == ?club_id and roleEffective(grant.club, grant.team)).map(func(grant) = (grant.role, grant.team))
   
     } finally { removalReceiver.leave(user) };
   
@@ -9214,6 +9663,52 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
+  // Temporary Test2-only DEV diagnostic, *not* a general inbox endpoint.
+  // G2 services are live mainnet canisters: pin service, signed recipient,
+  // exact synthetic club/team/event, and current Parent membership. Calls
+  // the queue only through its existing trusted club-domain wiring.
+  // No queue or delivery-admin API is added to ICP MCP discovery.
+  public shared ({ caller }) func read_account_my_dev_test2_event_delivery(event_id : Text) : async {
+    #Ok : ?{ status : Text; attempts : Nat32; created_at_ms : Nat64 };
+    #Err : Text;
+  } {
+    let devClubCanister = "yfwyv-nyaaa-aaaal-qxpyq-cai";
+    let devQueue = "zu4gk-vqaaa-aaaal-qxp5a-cai";
+    let devClub = "70eccd5e-28cd-54b5-9bbd-d0dc74eea9ca";
+    let devTeam = "ef943494-1c7f-58e3-a28d-db39e545319f";
+    let devEvent = "evt-70eccd5e-28cd-54b5-9bbd-d0dc74eea9ca-1";
+    let devUser = "pfslb-rpozk-543m5-zll3a-a3ay4-rdg3b-elojg-ukmfs-e624l-6rjyp-jae";
+    if (Principal.toText(Principal.fromActor(this)) != devClubCanister or caller.toText() != devUser or event_id != devEvent) {
+      return #Err("DEV test readback unavailable");
+    };
+    if (not removalReceiver.enter(caller)) return #Err("Account removal fenced");
+    try {
+      await admitAccount(caller);
+      let eligible = func() : Bool {
+        not removalReceiver.denied(caller) and not isTransferFenced(devClub) and
+        not isExcluded(caller, devClub) and isMember(caller, devClub) and
+        acl.roles.any(func(grant) =
+          ownsMembershipPrincipal(caller, grant.user) and grant.club == ?devClub and
+          roleEffective(grant.club, grant.team) and grant.team == ?devTeam and grant.role == "parent"
+        )
+      };
+      if (not eligible()) return #Err("Parent access required");
+      let configured = notificationQueueCanister ?? return #Err("Notification queue unavailable");
+      if (configured.toText() != devQueue) return #Err("DEV queue identity mismatch");
+      let queue : actor {
+        read_trusted_dev_test2_event_delivery : shared (Text, Principal) -> async {
+          #Ok : ?{ status : Text; attempts : Nat32; created_at_ms : Nat64 };
+          #Err : Text;
+        }
+      } = actor(configured.toText());
+      let result = try {
+        await (with timeout = 10) queue.read_trusted_dev_test2_event_delivery(event_id, caller)
+      } catch (_) { return #Err("DEV delivery readback unavailable") };
+      if (not eligible() or notificationQueueCanister != ?configured) return #Err("Membership or routing changed");
+      result
+    } finally { removalReceiver.leave(caller) }
+  };
+
   public shared ({ caller }) func read_account_get_club_roster(club_id : Text) : async { #Ok : { children : [Types.Child]; roles : [Types.RoleGrant] }; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
@@ -9221,12 +9716,13 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    if (not acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and grant.club == ?club_id)) {
-      return #Err("Club staff role required");
-    };
+    // Admission/linked-principal checks have already run. Apply the same
+    // staff-only roster boundary as the legacy query variant.
+    if (not canReadClubRoster(caller, club_id)) return #Err("Club staff role required");
+    let scopedTeamIds = teams.filter(func(t) = t.club_id == club_id and t.deleted_at_ms == null).map(func(t) = t.id);
     #Ok({
-      children = acl.children.filter(func(c) = c.club_id == ?club_id);
-      roles = acl.roles.filter(func(g) = g.club == ?club_id);
+      children = acl.children.filter(func(c) = clubChild(club_id, scopedTeamIds, c));
+      roles = acl.roles.filter(func(g) = g.club == ?club_id and roleEffective(g.club, g.team));
     })
   
     } finally { removalReceiver.leave(caller) };
@@ -9401,7 +9897,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id)) return #Err("Club staff required");
+    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id and roleEffective(grant.club, grant.team))) return #Err("Club staff required");
     #Ok(pendingInviteEmailHashes.find(func(h) = h.club_id == club_id and h.hash == hash))
   
     } finally { removalReceiver.leave(caller) };

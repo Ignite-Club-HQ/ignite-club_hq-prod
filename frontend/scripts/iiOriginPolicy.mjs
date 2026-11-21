@@ -15,6 +15,13 @@ export const DEV_APP_ORIGINS = Object.freeze([
   "https://id-preview--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app",
   "https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app",
   "https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6-dev.lovable.app",
+  // DEV Cloud Engine website shares the DEV sign-in identity.
+  "https://7pfcq-raaaa-aaac5-aabia-cai.icp0.io",
+  "https://7pfcq-raaaa-aaac5-aabia-cai.icp.net",
+  "https://7pfcq-raaaa-aaac5-aabia-cai.raw.icp0.io",
+  "https://7pfcq-raaaa-aaac5-aabia-cai.raw.icp.net",
+  "https://7pfcq-raaaa-aaac5-aabia-cai.ic0.app",
+  "https://7pfcq-raaaa-aaac5-aabia-cai.raw.ic0.app",
 ]);
 export function derivationOriginForBuild({ isProdBuild, frontendCanisterId }) {
   if (!frontendCanisterId) throw new Error("frontendCanisterId required");

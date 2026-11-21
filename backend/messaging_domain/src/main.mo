@@ -581,6 +581,25 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not member) throw Error.reject("Club chat access forbidden");
   };
 
+  // Club membership alone cannot authorize an old team conversation: a user
+  // may legitimately belong to another team in the same club. Ask the current
+  // club authority for this exact team's effective membership and owner.
+  func requireChatTeamMember(subject : Principal, club : Text, team : Text) : async* () {
+    let configured = clubDomainCanister;
+    let cd = configured ?? throw Error.reject("Team chat authority unavailable");
+    let authority : actor {
+      read_account_read_competition_team_access : shared (Text, Principal) -> async {
+        club_id : ?Text; is_member : Bool; can_manage : Bool
+      }
+    } = actor(cd.toText());
+    let proof = try {
+      await (with timeout = 10) authority.read_account_read_competition_team_access(team, subject)
+    } catch (_) { throw Error.reject("Team chat authority unavailable") };
+    if (configured != clubDomainCanister or isFenced(club) or removalReceiver.denied(subject) or
+        proof.club_id != ?club or not proof.is_member)
+      throw Error.reject("Team chat membership revoked or team deleted");
+  };
+
   func requireChatAccess(subject : Principal, conversation_id : Text) : async* () {
     if (removalReceiver.denied(subject)) throw Error.reject("Account removal fenced");
     let captured = conversations.find(func(c) = c.id == conversation_id);
@@ -589,6 +608,10 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?c) {
         if (requiresClubMembership(c)) {
           await* requireChatClubMember(subject, c.club_id);
+          switch (c.team_id) {
+            case (?team) { await* requireChatTeamMember(subject, c.club_id, team) };
+            case null {};
+          };
           let fresh = conversations.find(func(item) = item.id == conversation_id);
           switch (fresh) {
             case (?current) {
@@ -2008,7 +2031,24 @@ persistent actor class Main(governorInit : Principal) = this {
           if (isFenced(c.club_id)) return #Err("Club chat authorization changed");
           let authority : actor { is_club_member : shared query (Principal, Text) -> async Bool } = actor(cd.toText());
           let member = try { await authority.is_club_member(caller, c.club_id) } catch (_) { return #Err("Club chat authority unavailable") };
-          if (not member) return #Err("Club chat access forbidden");
+          if (not member or clubDomainCanister != ?cd or isFenced(c.club_id)) return #Err("Club chat access forbidden");
+          switch (c.team_id) {
+            case (?team) {
+              // Fast-path query must meet the exact-team permission boundary
+              // of the protected update path, including deleted-team tombstones.
+              let scoped : actor {
+                read_competition_team_access : shared query (Text, Principal) -> async {
+                  club_id : ?Text; is_member : Bool; can_manage : Bool
+                }
+              } = actor(cd.toText());
+              let proof = try { await scoped.read_competition_team_access(team, caller) }
+                catch (_) { return #Err("Team chat authority unavailable") };
+              if (clubDomainCanister != ?cd or isFenced(c.club_id) or
+                  proof.club_id != ?c.club_id or not proof.is_member)
+                return #Err("Team chat membership revoked or team deleted");
+            };
+            case null {};
+          };
         };
       };
     };
@@ -5305,7 +5345,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    await* requireChatAccess(caller, conversation_id);
+    await* requireBatchedReadChatAccess(caller, conversation_id);
     if (not canReadTeamMessages(caller, conversation_id)) return #Err("Conversation access forbidden");
     if (limit == 0 or limit > 100) return #Err("Invalid page size");
     let latest = conversationLatestSequence(conversation_id);
@@ -5314,31 +5354,24 @@ persistent actor class Main(governorInit : Principal) = this {
       case null {};
     };
     let cap : Nat64 = switch (before) { case (?cursor) { cursor }; case null { latest + 1 } };
-    // Messages are appended in send order, so sequence ascends within a
-    // conversation: count the matching rows, then drop the surplus oldest.
-    var matching : Nat = 0;
-    for (m in messages.values()) {
-      if (m.conversation_id == conversation_id and m.sequence < cap) { matching += 1 };
-    };
+    // Append-only messages remain in send order. Read backwards and stop after
+    // the latest (limit + 1) matching entries, then reverse only the bounded
+    // page. The extra entry proves an older page exists without scanning the
+    // full log twice. No permission checks or cursor semantics are changed.
     let limit_n = Nat16.toNat(limit);
-    let skip = if (matching > limit_n) { matching - limit_n } else { 0 };
-    var page_messages : [Types.Message] = [];
-    var seen : Nat = 0;
-    var oldest_in_page : Nat64 = 0;
-    var oldest_set = false;
-    for (m in messages.values()) {
+    var newest : [Types.Message] = [];
+    var index = messages.size();
+    while (index > 0 and newest.size() <= limit_n) {
+      index -= 1;
+      let m = messages[index];
       if (m.conversation_id == conversation_id and m.sequence < cap) {
-        if (seen >= skip) {
-          page_messages := page_messages.concat([m]);
-          if (not oldest_set or m.sequence < oldest_in_page) {
-            oldest_in_page := m.sequence;
-            oldest_set := true;
-          };
-        };
-        seen += 1;
+        newest := newest.concat([m]);
       };
     };
-    let next_seq : ?Nat64 = if (skip > 0 and oldest_set) ?oldest_in_page else null;
+    let has_older = newest.size() > limit_n;
+    let page_size = if (has_older) limit_n else newest.size();
+    let page_messages = Array.tabulate<Types.Message>(page_size, func(i) = newest[page_size - 1 - i]);
+    let next_seq : ?Nat64 = if (has_older and page_size > 0) ?page_messages[0].sequence else null;
     #Ok({ messages = page_messages; next_sequence = next_seq; latest_sequence = latest })
   
     } finally { removalReceiver.leave(caller) };
@@ -5407,7 +5440,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    await* requireChatAccess(caller, conversation_id);
+    await* requireBatchedReadChatAccess(caller, conversation_id);
     if (not canReadTeamMessages(caller, conversation_id)) return #Err("Conversation access forbidden");
     if (limit == 0 or limit > 100) return #Err("Invalid page size");
     let latest = conversationLatestSequence(conversation_id);
@@ -5579,9 +5612,29 @@ persistent actor class Main(governorInit : Principal) = this {
     await admitAccount(caller);
     await* requireChatClubMember(caller, club_id);
     if (not valid(club_id)) return #Err("Invalid club id");
-    if (not canBrowseClubGroups(caller, club_id)) return #Err("Club access forbidden");
-    let matches = groupMetadata.filter(func(m) = m.club_id == ?club_id and m.team_id == null and not m.deleted);
-    #Ok(Array.map<Types.GroupMetadata, Types.GroupSummary>(matches, func(m) = toGroupSummary(caller, m)))
+    let privileged = isGovernor(caller) or hasRole(caller, "app_admin", null, null) or hasRole(caller, "club_admin", ?club_id, null);
+    // Authoritative club membership was checked above. Ordinary members see
+    // only groups they actually joined or that are explicitly discoverable;
+    // invite-only coach/committee groups remain private.
+    let matches = groupMetadata.filter(func(m) =
+      m.club_id == ?club_id and m.team_id == null and not m.deleted and
+      (privileged or m.members.any(func(p) = p.equal(caller)) or
+       joinPolicyOf(m.conversation_id).join_policy != "invite_only")
+    );
+    let listed = Array.map<Types.GroupMetadata, Types.GroupSummary>(matches, func(m) = toGroupSummary(caller, m));
+    // The standard club chat can exist without a GroupMetadata record.
+    let canonical = conversations.filter(func(c) =
+      c.id == club_id and c.club_id == club_id and c.team_id == null and
+      c.participants.any(func(p) = p.equal(caller)) and
+      not isGroupDeleted(c.id) and
+      not matches.any(func(meta) = meta.conversation_id == c.id)
+    ).map<Types.Conversation, Types.GroupSummary>(func(c) = {
+      conversation_id = c.id; name = "Club chat"; kind = "group";
+      club_id = ?club_id; team_id = null; avatar = null; description = null;
+      member_count = Nat32.fromNat(c.participants.size()); is_member = true;
+    });
+    if (removalReceiver.denied(caller) or isFenced(club_id)) return #Err("Club access changed");
+    #Ok(listed.concat(canonical))
   
     } finally { removalReceiver.leave(caller) };
   
@@ -5597,11 +5650,44 @@ persistent actor class Main(governorInit : Principal) = this {
     await admitAccount(caller);
     if (not valid(team_id)) return #Err("Invalid team id");
     var club_of_team = "";
-    for (m in groupMetadata.values()) { if (m.team_id == ?team_id) { club_of_team := Option.get(m.club_id, "") } };
+    // Canonical team chats need not have a GroupMetadata row. Locate their
+    // club from the original conversation before checking current membership.
+    for (c in conversations.values()) {
+      if (c.team_id == ?team_id and c.club_id != "dm") {
+        if (club_of_team != "" and club_of_team != c.club_id) return #Err("Conflicting team chat owners");
+        club_of_team := c.club_id;
+      };
+    };
+    for (meta in groupMetadata.values()) {
+      if (meta.team_id == ?team_id) {
+        let candidate = Option.get(meta.club_id, "");
+        if (candidate == "" or (club_of_team != "" and club_of_team != candidate)) return #Err("Conflicting team chat owners");
+        club_of_team := candidate;
+      };
+    };
+    if (club_of_team == "") return #Ok([]);
     await* requireChatClubMember(caller, club_of_team);
-    if (not canBrowseTeamGroups(caller, club_of_team, team_id)) return #Err("Team access forbidden");
-    let matches = groupMetadata.filter(func(m) = m.team_id == ?team_id and not m.deleted);
-    #Ok(Array.map<Types.GroupMetadata, Types.GroupSummary>(matches, func(m) = toGroupSummary(caller, m)))
+    let privileged = isGovernor(caller) or hasRole(caller, "app_admin", null, null) or
+      hasRole(caller, "club_admin", ?club_of_team, null) or
+      hasRole(caller, "team_admin", ?club_of_team, ?team_id) or
+      hasRole(caller, "coach", ?club_of_team, ?team_id);
+    let matches = groupMetadata.filter(func(meta) =
+      meta.team_id == ?team_id and meta.club_id == ?club_of_team and not meta.deleted and
+      (privileged or meta.members.any(func(p) = p.equal(caller)))
+    );
+    let listed = Array.map<Types.GroupMetadata, Types.GroupSummary>(matches, func(meta) = toGroupSummary(caller, meta));
+    let canonical = conversations.filter(func(c) =
+      c.team_id == ?team_id and c.club_id == club_of_team and
+      c.participants.any(func(p) = p.equal(caller)) and
+      not isGroupDeleted(c.id) and
+      not matches.any(func(meta) = meta.conversation_id == c.id)
+    ).map<Types.Conversation, Types.GroupSummary>(func(c) = {
+      conversation_id = c.id; name = "Team chat"; kind = "team";
+      club_id = ?club_of_team; team_id = ?team_id; avatar = null; description = null;
+      member_count = Nat32.fromNat(c.participants.size()); is_member = true;
+    });
+    if (removalReceiver.denied(caller) or isFenced(club_of_team)) return #Err("Team access changed");
+    #Ok(listed.concat(canonical))
   
     } finally { removalReceiver.leave(caller) };
   
@@ -5632,13 +5718,59 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(caller);
     if (caller.equal(Principal.anonymous())) return [];
-    var result : [Types.UnreadSummary] = [];
+    // Collect unread-positive participating conversations before asking the
+    // live authority. Other users' chats and fully-read threads never trigger
+    // external membership checks or enter the result.
+    var candidates : [Types.Conversation] = [];
+    var clubs : [Text] = [];
+    var teams : [(Text, Text)] = [];
     for (conversation in conversations.values()) {
-      let visible = try { await* requireChatAccess(caller, conversation.id); true } catch (_) { false };
-      if (visible and conversation.participants.any(func(p) = p.equal(caller))) {
-        let u = unreadFor(caller, conversation.id);
-        if (u.count > 0) {
-          result := result.concat([{ conversation_id = conversation.id; kind = inferConversationKind(conversation); count = u.count }]);
+      if (conversation.participants.any(func(p) = p.equal(caller))) {
+        let candidate = unreadFor(caller, conversation.id);
+        if (candidate.count > 0) {
+          candidates := candidates.concat([conversation]);
+          if (requiresClubMembership(conversation)) {
+            if (not clubs.any(func(id) = id == conversation.club_id))
+              clubs := clubs.concat([conversation.club_id]);
+            switch (conversation.team_id) {
+              case (?team) {
+                if (not teams.any(func((club, id)) = club == conversation.club_id and id == team))
+                  teams := teams.concat([(conversation.club_id, team)]);
+              };
+              case null {};
+            };
+          };
+        };
+      };
+    };
+    // One bounded first-party club/team proof per batch instead of sequential
+    // club then team admissions for each unread conversation. Missing, stale
+    // or malformed authority fails closed, not as a misleading "all read".
+    let ?proofs = await* readRecentChatScopeProofs(caller, clubs, teams)
+      else throw Error.reject("Unread authorization unavailable; retry");
+    var result : [Types.UnreadSummary] = [];
+    for (conversation in candidates.vals()) {
+      // Local roles, participants, team ownership and metadata can change
+      // while the authority is awaited: only use the current matching scope.
+      switch (conversations.find(func(c) = c.id == conversation.id)) {
+        case null {};
+        case (?current) {
+          let visible = recentChatScopeAllowed(caller, conversation, proofs) and
+            current.participants.any(func(p) = p.equal(caller)) and
+            current.club_id == conversation.club_id and
+            current.team_id == conversation.team_id and
+            requiresClubMembership(current) == requiresClubMembership(conversation) and
+            not isGroupDeleted(current.id);
+          if (visible) {
+            let u = unreadFor(caller, conversation.id);
+            if (u.count > 0) {
+              result := result.concat([{
+                conversation_id = current.id;
+                kind = inferConversationKind(current);
+                count = u.count;
+              }]);
+            };
+          };
         };
       };
     };
@@ -5968,6 +6100,118 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
+  // Live, exact-scope, per-request club/team evidence. One external account
+  // admission covers up to 64 clubs and 64 (club,team) scopes per consensus
+  // message. Larger legitimate inboxes are chunked, never silently truncated.
+  // No result or membership proof is retained between requests.
+  type ChatScopeProofs = {
+    clubs : [(Text, Bool)];
+    teams : [(Text, Text, Bool)];
+  };
+
+  func readRecentChatScopeProofs(
+    user : Principal, clubIds : [Text], teamIds : [(Text, Text)]
+  ) : async* ?ChatScopeProofs {
+    if (clubIds.size() == 0 and teamIds.size() == 0)
+      return ?{ clubs = []; teams = [] };
+    let configured = clubDomainCanister;
+    let ?cd = configured else return null;
+    let authority : actor {
+      read_chat_scope_access_batch : shared (
+        Principal, [Text], [(Text, Text)]
+      ) -> async { #Ok : ChatScopeProofs; #Err : Text };
+    } = actor(cd.toText());
+
+    var clubs : [(Text, Bool)] = [];
+    var teams : [(Text, Text, Bool)] = [];
+    var clubOffset : Nat = 0;
+    var teamOffset : Nat = 0;
+    while (clubOffset < clubIds.size() or teamOffset < teamIds.size()) {
+      let clubCount = Nat.min(64, clubIds.size() - clubOffset);
+      let teamCount = Nat.min(64, teamIds.size() - teamOffset);
+      let clubChunk = Array.tabulate<Text>(clubCount, func(i) = clubIds[clubOffset + i]);
+      let teamChunk = Array.tabulate<(Text, Text)>(teamCount, func(i) = teamIds[teamOffset + i]);
+      let result = try {
+        ?(await (with timeout = 15) authority.read_chat_scope_access_batch(user, clubChunk, teamChunk))
+      } catch (_) { null };
+      let ?(#Ok(proofs)) = result else return null;
+      if (proofs.clubs.size() != clubCount or proofs.teams.size() != teamCount)
+        return null;
+      // The trusted service must echo only the exact requested scopes. A
+      // mismatched or stale authority never becomes an authorisation grant.
+      var i : Nat = 0;
+      while (i < clubCount) {
+        if (proofs.clubs[i].0 != clubChunk[i]) return null;
+        i += 1;
+      };
+      i := 0;
+      while (i < teamCount) {
+        if (proofs.teams[i].0 != teamChunk[i].0 or proofs.teams[i].1 != teamChunk[i].1)
+          return null;
+        i += 1;
+      };
+      if (configured != clubDomainCanister or removalReceiver.denied(user))
+        return null;
+      clubs := clubs.concat(proofs.clubs);
+      teams := teams.concat(proofs.teams);
+      clubOffset += clubCount;
+      teamOffset += teamCount;
+    };
+    ?{ clubs; teams }
+  };
+
+  // This mirrors requireChatAccess's split scope rules. The caller has
+  // already established local participant candidacy, and will repeat the
+  // participant/deleted/scope comparison immediately before return.
+  func recentChatScopeAllowed(
+    user : Principal, c : Types.Conversation, proofs : ChatScopeProofs
+  ) : Bool {
+    if (not requiresClubMembership(c)) return true;
+    // Governor bypass applies only to club membership in the legacy path;
+    // exact current team access is still mandatory.
+    let clubAllowed = isGovernor(user) or
+      proofs.clubs.any(func((club, allowed)) = club == c.club_id and allowed);
+    if (not clubAllowed or isFenced(c.club_id)) return false;
+    switch (c.team_id) {
+      case null true;
+      case (?team) proofs.teams.any(func((club, id, allowed)) =
+        club == c.club_id and id == team and allowed
+      );
+    }
+  };
+
+  // Read-only chat page fast path: reuse the pinned first-party club authority
+  // to check the exact club and team together, with one current admission.
+  // DMs, broadcasts, competition chats and governor operations keep their
+  // original independent access logic. No cross-call proof is cached.
+  func requireBatchedReadChatAccess(subject : Principal, conversation_id : Text) : async* () {
+    if (removalReceiver.denied(subject)) throw Error.reject("Account removal fenced");
+    let captured = conversations.find(func(c) = c.id == conversation_id);
+    let ?c = captured else {
+      await* requireChatAccess(subject, conversation_id);
+      return;
+    };
+    if (not requiresClubMembership(c) or isGovernor(subject)) {
+      await* requireChatAccess(subject, conversation_id);
+      return;
+    };
+    auth(subject);
+    let teams : [(Text, Text)] = switch (c.team_id) {
+      case (?team) [(c.club_id, team)];
+      case null [];
+    };
+    let ?proofs = await* readRecentChatScopeProofs(subject, [c.club_id], teams)
+      else throw Error.reject("Chat authority unavailable; retry");
+    if (not recentChatScopeAllowed(subject, c, proofs))
+      throw Error.reject("Chat access forbidden or team revoked");
+    let ?fresh = conversations.find(func(current) = current.id == conversation_id)
+      else throw Error.reject("Conversation no longer exists");
+    if (fresh.club_id != c.club_id or fresh.team_id != c.team_id or
+        not requiresClubMembership(fresh) or removalReceiver.denied(subject) or
+        isFenced(c.club_id))
+      throw Error.reject("Conversation authorization changed");
+  };
+
   public shared ({ caller }) func read_account_recent_conversations(principal : Principal, limit : Nat16) : async { #Ok : [Types.RecentConversation]; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
@@ -5978,17 +6222,81 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not caller.equal(principal) and not isGovernor(caller) and not hasRole(caller, "app_admin", null, null)) return #Err("Access forbidden");
     if (not removalReceiver.enter(principal)) return #Err("Account removal fenced or operation capacity reached");
     try {
-    await admitAccount(principal);
+    // Self-reads have already admitted this exact subject above, with no
+    // intervening await. Do not repeat the expensive identity-service call.
+    // Elevated cross-principal requests must still admit their subject.
+    if (not caller.equal(principal)) { await admitAccount(principal) };
     if (limit == 0 or limit > 100) return #Err("Invalid limit");
-    var entries : [Types.RecentConversation] = [];
-    for (conversation in conversations.values()) {
-      let visible = try { await* requireChatAccess(principal, conversation.id); true } catch (_) { false };
-      if (visible and conversation.participants.any(func(p) = p.equal(principal)) and not isGroupDeleted(conversation.id)) {
-        let lastSeq : Nat64 = if (conversation.next_sequence == 0) 0 else conversation.next_sequence - 1;
-        entries := entries.concat([{ conversation_id = conversation.id; kind = inferConversationKind(conversation); last_message_sequence = lastSeq; last_message_at_ms = null }]);
+    // Participants and non-deleted group state are local prefilters, never
+    // authority grants. Collect every distinct exact club/team scope first.
+    let candidates = conversations.filter(func(c) =
+      c.participants.any(func(p) = p.equal(principal)) and not isGroupDeleted(c.id)
+    );
+    var clubs : [Text] = [];
+    var teams : [(Text, Text)] = [];
+    for (c in candidates.vals()) {
+      if (requiresClubMembership(c)) {
+        if (not clubs.any(func(id) = id == c.club_id))
+          clubs := clubs.concat([c.club_id]);
+        switch (c.team_id) {
+          case (?team) {
+            if (not teams.any(func((club, id)) = club == c.club_id and id == team))
+              teams := teams.concat([(c.club_id, team)]);
+          };
+          case null {};
+        };
       };
     };
-    let sorted = entries.sort(func(a, b) = Nat64.compare(b.last_message_sequence, a.last_message_sequence));
+    // A missing, old or drifting club authority fails CLOSED. It returns an
+    // explicit retryable Err rather than a misleading empty inbox.
+    let ?initial = await* readRecentChatScopeProofs(principal, clubs, teams)
+      else return #Err("Chat authorization temporarily unavailable");
+    var entries : [Types.Conversation] = [];
+    for (c in candidates.vals()) {
+      let current = conversations.find(func(item) = item.id == c.id);
+      switch (current) {
+        case (?item) {
+          if (recentChatScopeAllowed(principal, c, initial)
+            and item.participants.any(func(p) = p.equal(principal))
+            and not isGroupDeleted(c.id)
+            and item.club_id == c.club_id and item.team_id == c.team_id
+            and requiresClubMembership(item) == requiresClubMembership(c)) {
+            entries := entries.concat([c]);
+          };
+        };
+        case null {};
+      };
+    };
+
+    // Second live authority snapshot: a revoked club, team, linked identity,
+    // deletion or changed service binding cannot carry a prior proof into the
+    // returned inbox. Do not persist snapshots between ChatGPT tool calls.
+    let ?freshProofs = await* readRecentChatScopeProofs(principal, clubs, teams)
+      else return #Err("Chat authorization changed; retry");
+    var authorized : [Types.RecentConversation] = [];
+    for (candidate in entries.vals()) {
+      let fresh = conversations.find(func(item) = item.id == candidate.id);
+      switch (fresh) {
+        case (?current) {
+          if (recentChatScopeAllowed(principal, candidate, freshProofs)
+            and current.participants.any(func(p) = p.equal(principal))
+            and not isGroupDeleted(candidate.id)
+            and current.club_id == candidate.club_id
+            and current.team_id == candidate.team_id
+            and requiresClubMembership(current) == requiresClubMembership(candidate)) {
+            let lastSeq : Nat64 = if (current.next_sequence == 0) 0 else current.next_sequence - 1;
+            authorized := authorized.concat([{
+              conversation_id = current.id;
+              kind = inferConversationKind(current);
+              last_message_sequence = lastSeq;
+              last_message_at_ms = null;
+            }]);
+          };
+        };
+        case null {};
+      };
+    };
+    let sorted = authorized.sort(func(a, b) = Nat64.compare(b.last_message_sequence, a.last_message_sequence));
     let take = if (sorted.size() < Nat16.toNat(limit)) sorted.size() else Nat16.toNat(limit);
     if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced");
     if (removalReceiver.denied(principal)) throw Error.reject("Account removal fenced");

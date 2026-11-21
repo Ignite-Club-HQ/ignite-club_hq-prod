@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
+import { hasInternetIdentitySessionStored } from "@/live/authBackendMode";
 
 /**
  * Global Realtime presence tracker.
@@ -306,7 +307,9 @@ export function useTrackPresence(userId: string | null | undefined) {
       teardown();
       return;
     }
-    if (isFeatureRoutedToIcp("messaging")) {
+    // Internet Identity sessions must never fall through to the Supabase
+    // presence channel/RPC (e.g. on /auth before routing has loaded).
+    if (isFeatureRoutedToIcp("messaging") || hasInternetIdentitySessionStored()) {
       void teardown();
       let cancelled = false;
       let pending = false;

@@ -87,3 +87,34 @@ describe("getInternetIdentitySessionHealth", () => {
     expect(await mod.getInternetIdentitySessionHealth()).toBe("ended");
   });
 });
+
+describe("revoked DEV delegation recovery policy", () => {
+  const revoked = new Error("Identity revoked; surviving-account relink required");
+  it.each([
+    "https://proe7-kqaaa-aaaas-qg6gq-cai.icp.net",
+    "https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io",
+    "https://proe7-kqaaa-aaaas-qg6gq-cai.ic0.app",
+    "https://ignite-club-launchpad.lovable.app",
+  ])("recognizes the pinned DEV origin %s", async (origin) => {
+    const auth = await fresh();
+    expect(auth.shouldClearRevokedDevInternetIdentitySession(origin, revoked)).toBe(true);
+  });
+
+  it.each([
+    "https://igniteclubhq.app",
+    "https://igniteclubhq.com",
+    "https://pjx2u-tiaaa-aaaac-qhj3a-cai.icp0.io",
+    "https://example.com",
+  ])("never runs the DEV recovery on %s", async (origin) => {
+    const auth = await fresh();
+    expect(auth.shouldClearRevokedDevInternetIdentitySession(origin, revoked)).toBe(false);
+  });
+
+  it("does not clear sessions for unrelated canister rejections", async () => {
+    const auth = await fresh();
+    const dev = "https://proe7-kqaaa-aaaas-qg6gq-cai.icp.net";
+    for (const message of ["Account authority changed; retry", "Unlinked identity", "Account suspended", "Connection closed"]) {
+      expect(auth.shouldClearRevokedDevInternetIdentitySession(dev, new Error(message))).toBe(false);
+    }
+  });
+});

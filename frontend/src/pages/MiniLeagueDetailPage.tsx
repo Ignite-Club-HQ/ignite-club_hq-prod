@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { useState, Suspense } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -600,7 +601,7 @@ export default function MiniLeagueDetailPage() {
       }}><MessageSquare className="h-4 w-4 mr-2" />Create league chat</Button>}
       {namedPlayerInvites?.filter(i => i.status === "pending").map(invite => <div key={invite.token} className="flex items-center justify-between gap-2 border-b py-3">
         <span>{invite.label_text[0] ?? "Player invitation"}</span>
-        <Button size="sm" variant="outline" onClick={async () => { try { await navigator.clipboard.writeText(`${window.location.origin}/join/p/${invite.token}`); toast.success("Invite link copied"); } catch { toast.error("Couldn't copy invite"); } }}>Copy link</Button>
+        <Button size="sm" variant="outline" onClick={async () => { try { await navigator.clipboard.writeText(`${PUBLIC_INVITE_ORIGIN}/join/p/${invite.token}`); toast.success("Invite link copied"); } catch { toast.error("Couldn't copy invite"); } }}>Copy link</Button>
       </div>)}
       {/* League Chat — primary action */}
       {leagueChatGroup?.id && (

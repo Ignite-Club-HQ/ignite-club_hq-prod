@@ -10,11 +10,14 @@ import { capturePrivateProfileSession } from './privateProfileSession';
 import { privateProfileSearchRehearsalEnabled } from './privateProfileSearchMode';
 import { isLoopbackRehearsalHost } from './accountReadAdapter.mjs';
 import { privateClubNameDisplaysEnabled } from './privateClubNameDisplayMode';
+import { clubNameDisplaysActive, devClubNameReleaseTarget } from './devCrossGroupTeamNameRoute';
 
 /** Dormant reference contract: publishing a reference requires the separately
  * approved identity/search cutover. The original key authority is immutable. */
 const PREFIX = "pii-display-name:v1:";
 const FIELD = "display_name";
+/** The person's own session has not yet saved their name for this club. */
+export const NAME_NOT_SHARED_YET = 'Club name copy not saved yet.';
 const BATCH_SIZE = 100;
 const READ_TIMEOUT_MS = 6000;
 
@@ -68,7 +71,7 @@ function parseReference(value: string): { authority: string; subject: string } |
  * Preserve the original owner/authority and give key derivation time to
  * finish on a device without a saved key copy; never turn a denied read into
  * an absent profile. */
-export async function readPrivateOwnProfileName(ctx: FeatureBackendContext, reference: string): Promise<string> {
+export async function readPrivateOwnProfileName(ctx: FeatureBackendContext, reference: string, options: { scheduleBackfill?: boolean } = {}): Promise<string> {
   const ref = reference.startsWith(PREFIX) ? parseReference(reference) : null;
   if (!ref || ref.authority !== ctx.target.canisterIds.pii_access_control) throw new Error('Saved private-name authority does not match the configured original authority.');
   const activeSession = capturePrivateProfileSession();
@@ -97,7 +100,7 @@ export async function readPrivateOwnProfileName(ctx: FeatureBackendContext, refe
     if (!name) throw new Error('Private display name could not be unlocked yet.');
     if (ref.subject === caller) {
       (await import('./ownPrivateName')).rememberOwnPrivateName(caller, name);
-      scheduleOwnClubNameBackfill(ctx, caller, name);
+      if (options.scheduleBackfill !== false) scheduleOwnClubNameBackfill(ctx, caller, name);
     }
     return name;
   } finally { retired = true; clearTimeout(timer); }
@@ -156,7 +159,11 @@ export async function refreshPrivateOwnClubNames(
   discoverClubs: () => Promise<readonly string[]>,
   assertSaveActive: () => void = () => {},
 ): Promise<void> {
-  if (!privateClubNameDisplaysEnabled()) return;
+  // The universal release also prepares each current club copy when the
+  // account owner saves their own name. A new club join without an existing
+  // copy remains fail-closed until the owner-authorised refresh completes.
+  if (!privateClubNameDisplaysEnabled() && !devClubNameReleaseTarget(ctx.target) &&
+      !(import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1' && ctx.target.provider === 'icp')) return;
   if (privateProfileSearchRehearsalEnabled() && !isLoopbackRehearsalHost(ctx.target.host)) throw new Error('Private name maintenance requires a loopback rehearsal target.');
   const value = name.trim();
   if (!value || new TextEncoder().encode(value).length > 512) throw new Error('A display name of at most 512 bytes is required.');
@@ -183,34 +190,88 @@ export async function refreshPrivateOwnClubNames(
   if (originals.length !== 1 || !original || original.pii_id !== subject || original.field_id !== FIELD || original.master_key_id !== 'vetkey-ibe-v1') throw new Error('Exact original private name required.');
   const originalBytes = Uint8Array.from(original.ciphertext);
   if (!originalBytes.length || originalBytes.length > 4096) throw new Error('Bounded original private name required.');
+  // Inspect saved copies FIRST. Re-encrypting a club name is randomized:
+  // sending a new ciphertext for an already saved copy must be rejected by
+  // the receiver's create-only rule. Skipping verified, existing copies also
+  // avoids an unnecessary paid person-key derivation on returning sign-ins.
+  // These are authenticated owner-only reads, NOT a bulk roster disclosure.
+  const current = new Map<string, Uint8Array>();
+  const missing: string[] = [];
+  let cursor = 0;
+  const checkCopy = async () => {
+    while (cursor < clubs.length) {
+      const club = clubs[cursor++];
+      active();
+      const result = await unwrapCandid(
+        actor.read_private_club_name_lifecycle(identity.getPrincipal(), club, [originalBytes]),
+        'Check own encrypted club-name copy',
+      );
+      active();
+      if (result.length > 1) throw new Error('Unexpected club-name copy count.');
+      const row = result[0];
+      if (!row) {
+        missing.push(club);
+        continue;
+      }
+      const ciphertext = Uint8Array.from(row.ciphertext);
+      if (row.pii_id !== subject || row.field_id !== FIELD ||
+        row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${club}` ||
+        ciphertext.length === 0 || ciphertext.length > 4096) {
+        throw new Error('Own club-name copy binding changed.');
+      }
+      current.set(club, ciphertext);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, clubs.length) }, () => checkCopy()));
+  active();
+  // Zero new encryption, zero writes and zero fresh paid vetKD derivations
+  // when all clubs already have a correctly bound encrypted name copy.
+  if (missing.length === 0) return;
+  // The original must decrypt to the exact owner-supplied name BEFORE
+  // creating any missing copies. A saved copy is never a reason to infer
+  // plaintext or forge a personal key for someone else.
   const keys = await fetchPiiVetKeys(ctx, [subject], FIELD, { fresh: true, assertActive: active });
   active();
   const key = keys.get(subject);
   if (!key || new TextDecoder('utf-8', { fatal: true }).decode(IbeCiphertext.deserialize(Uint8Array.from(originalBytes)).decrypt(key)) !== value) throw new Error('Original private name changed.');
-  const saved: Array<{ club: string; ciphertext: Uint8Array }> = [];
-  for (const club of clubs) {
+  for (const club of missing) {
     active();
     const ciphertext = await encryptPiiText(ctx, clubNamePiiId(club), FIELD, value);
     active();
-    // One attempt only. The existing receiver is create-only and compares
-    // the original bytes in the same no-await segment as the commit.
+    // One create-only attempt per missing copy, original bytes pinned in
+    // the canister's synchronous commit. Unknown replies are NEVER replayed.
     await unwrapCandid(actor.refresh_private_club_name_lifecycle(identity.getPrincipal(), club, originalBytes, ciphertext), 'Refresh private club name');
     active();
-    saved.push({ club, ciphertext });
+    current.set(club, ciphertext);
   }
-  for (const { club, ciphertext } of saved) {
+  // Verify both pre-existing and newly written copies still match the
+  // exact expected bytes. Do not expose private names or keys in errors.
+  for (const club of clubs) {
     active();
     const result = await unwrapCandid(actor.read_private_club_name_lifecycle(identity.getPrincipal(), club, [originalBytes]), 'Verify refreshed private name');
     active();
     const row = result[0];
-    if (result.length !== 1 || !row || row.pii_id !== subject || row.field_id !== FIELD || row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${club}` || row.ciphertext.length !== ciphertext.length || ciphertext.some((b, i) => row.ciphertext[i] !== b)) throw new Error('Private name maintenance readback mismatch.');
+    const ciphertext = current.get(club);
+    if (result.length !== 1 || !row || !ciphertext || row.pii_id !== subject ||
+      row.field_id !== FIELD || row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${club}` ||
+      row.ciphertext.length !== ciphertext.length ||
+      ciphertext.some((b, i) => row.ciphertext[i] !== b)) {
+      throw new Error('Private name maintenance readback mismatch.');
+    }
   }
 }
 
-async function readNames(ctx: FeatureBackendContext, subjects: string[], field = FIELD, active: () => void = () => {}, audience?: PrivateProfileAudience, retainOwnKey = false): Promise<Map<string, string>> {
+async function readNames(ctx: FeatureBackendContext, subjects: string[], field = FIELD, active: () => void = () => {}, audience?: PrivateProfileAudience, retainOwnKey = false, phase: (value: 'ciphertext' | 'vetkey' | 'decrypt' | 'confirm') => void = () => {}): Promise<Map<string, string>> {
   active();
   const { actor } = await connectLivePiiAccessControl(ctx.target, ctx.identity);
   active();
+  // Speed: the club name key is the same for every member of the club, so
+  // fetch it at the same time as the locked names instead of afterwards.
+  // The server still checks membership on both requests; a refused early
+  // fetch falls back to the normal ordered fetch below.
+  const earlyClubKey = audience?.kind === 'club' && field === FIELD && clubNameDisplaysActive(ctx.target) && subjects.length > 0 && subjects.length <= 25 && new Set(subjects).size === subjects.length
+    ? Promise.resolve().then(() => fetchClubNameVetKey(ctx, subjects, audience, active)).catch(() => undefined)
+    : undefined;
   const rows = await unwrapCandid(
     audience ? actor.get_private_profile_names_batch(subjects, audience) : actor.get_encrypted_pii_batch(subjects, field, "profile_display", "Read authorized personal details"),
     "Read private display names",
@@ -224,10 +285,22 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
   const clubRows = validRows.filter(row => row.master_key_id?.startsWith('vetkey-club-names-'));
   if (clubRows.length && (!audience || audience.kind !== 'club' || field !== FIELD || clubRows.some(row => row.master_key_id !== `${CLUB_NAME_SCHEME_PREFIX}${audience.resource}`))) throw new Error('Invalid club name key scope.');
   const individualRows = validRows.filter(row => !clubRows.includes(row));
-  const keys = individualRows.length ? await fetchPiiVetKeys(ctx, individualRows.map(row => row.pii_id), field, { fresh: true, assertActive: active, ...(audience ? { audience } : {}), ...(retainOwnKey && !audience ? { retainOwnKey: true } : {}) }) : new Map();
-  const clubKey = clubRows.length && audience ? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active) : undefined;
-  if (audience && keys.size + (clubKey ? clubRows.length : 0) !== validRows.length) throw new Error('Private-name keys were not authorized.');
+  const strictSharedClub = clubNameDisplaysActive(ctx.target) && audience?.kind === 'club';
+  // A team has no independently derived member-name key after cutover.
+  if (clubNameDisplaysActive(ctx.target) && audience?.kind === 'team') {
+    throw new Error('Team member names must be read under their owning club key.');
+  }
+  // Never obtain paid person-specific keys when the selected reader promises
+  // a shared club key. A member without an encrypted club copy stays unnamed
+  // (reported as not yet shared) until they open the app and their own
+  // session saves the club copy; this never decrypts originals.
+  if (strictSharedClub && !clubRows.length) return new Map();
+  if ((individualRows.length && !strictSharedClub) || clubRows.length) phase('vetkey');
+  const keys = individualRows.length && !strictSharedClub ? await fetchPiiVetKeys(ctx, individualRows.map(row => row.pii_id), field, { fresh: true, assertActive: active, ...(audience ? { audience } : {}), ...(retainOwnKey && !audience ? { retainOwnKey: true } : {}) }) : new Map();
+  const clubKey = clubRows.length && audience ? ((await earlyClubKey) ?? await fetchClubNameVetKey(ctx, clubRows.map(row => row.pii_id), audience, active)) : undefined;
+  if (audience && keys.size + (clubKey ? clubRows.length : 0) !== (strictSharedClub ? clubRows.length : validRows.length)) throw new Error('Private-name keys were not authorized.');
   active();
+  phase('decrypt');
   const out = new Map<string, string>();
   const decoder = new TextDecoder("utf-8", { fatal: true });
   for (const row of validRows) {
@@ -240,28 +313,39 @@ async function readNames(ctx: FeatureBackendContext, subjects: string[], field =
       // A malformed/wrong-key record is never displayed as ciphertext or a ref.
     }
   }
-  // Even a cached shared key is used only under a fresh exact-subject read.
-  // Repeat after decryption so revoked membership never publishes labels.
-  if (clubRows.length && audience) {
-    const closing = await unwrapCandid(actor.get_private_profile_names_batch(subjects, audience), 'Confirm club name audience');
-    active();
-    if (closing.length !== rows.length || closing.some((row, i) => row.pii_id !== rows[i].pii_id || row.field_id !== field || row.master_key_id !== rows[i].master_key_id || row.ciphertext.length !== rows[i].ciphertext.length || row.ciphertext.some((b, j) => b !== rows[i].ciphertext[j]))) throw new Error('Club name audience or ciphertext changed.');
-  }
+  // Paul 2026-11-17: removal must be prompt, not immediate. The ciphertext
+  // read and key derivation above are each membership-checked by the server,
+  // so we no longer pay for a second full re-read after decryption; a removed
+  // member loses names on their next unlock.
   return out;
 }
 
-async function boundedRead(ctx: FeatureBackendContext, subjects: string[], active: () => void, audience?: PrivateProfileAudience): Promise<Map<string, string>> {
+async function boundedRead(ctx: FeatureBackendContext, subjects: string[], active: () => void, audience?: PrivateProfileAudience, onStep?: (step: 'ciphertext' | 'vetkey' | 'decrypt' | 'confirm') => void): Promise<Map<string, string>> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let retired = false;
+  let phase: 'ciphertext' | 'vetkey' | 'decrypt' | 'confirm' = 'ciphertext';
   const guard = () => {
     if (retired) throw new Error("Private profile read retired.");
     active();
   };
   try {
     return await Promise.race([
-      readNames(ctx, subjects, FIELD, guard, audience),
-      new Promise<Map<string, string>>(resolve => {
-        timer = setTimeout(() => { retired = true; resolve(new Map()); }, READ_TIMEOUT_MS);
+      readNames(ctx, subjects, FIELD, guard, audience, false, next => { if (!retired) { phase = next; onStep?.(next); } }),
+      new Promise<Map<string, string>>((resolve, reject) => {
+        // Cross-group team names require PII -> Identity -> Club double
+        // verification and a fresh vetKey. A timed-out *pinned DEV team*
+        // audience must report TIMEOUT rather than silently appearing as an
+        // unverified empty name set; never disclose ciphertext or IDs.
+        // Keep other routes' existing deadlines and neutral failure behavior.
+        const sharedClubName = clubNameDisplaysActive(ctx.target) && audience?.kind === 'club';
+        const devTeam = audience?.kind === 'team' &&
+          ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
+        const crossGroupDevName = devTeam || sharedClubName;
+        timer = setTimeout(() => {
+          retired = true;
+          if (crossGroupDevName) reject(new Error(`Private team-name ${phase} timed out.`));
+          else resolve(new Map());
+        }, crossGroupDevName ? 120_000 : READ_TIMEOUT_MS);
       }),
     ]);
   } catch (error) {
@@ -273,12 +357,12 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
   }
 }
 
-async function boundedAuthorityCheck<T>(read: () => Promise<T>): Promise<T> {
+async function boundedAuthorityCheck<T>(read: () => Promise<T>, timeoutLabel = 'Private profile authority check timed out.', timeoutMs = READ_TIMEOUT_MS): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       read(),
-      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Private profile authority check timed out.")), READ_TIMEOUT_MS); }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(timeoutLabel)), timeoutMs); }),
     ]);
   } finally { clearTimeout(timer); }
 }
@@ -290,8 +374,8 @@ async function boundedAuthorityCheck<T>(read: () => Promise<T>): Promise<T> {
 export async function hydratePrivateProfileNames<T extends { display_name: string | null; principal?: Principal }>(
   ctx: FeatureBackendContext,
   profiles: readonly T[],
-  options: { signal?: AbortSignal; resolveAuthority?: PrivateProfileAuthorityResolver; audience?: PrivateProfileAudience } = {},
-): Promise<Array<Omit<T, "display_name"> & { display_name: string | null }>> {
+  options: { signal?: AbortSignal; resolveAuthority?: PrivateProfileAuthorityResolver; audience?: PrivateProfileAudience; partialNames?: boolean; onStep?: (step: import('@/lib/nameUnlockProgress').NameUnlockStep) => void } = {},
+): Promise<Array<Omit<T, "display_name"> & { display_name: string | null; name_error?: string }>> {
   // Retain the exact rows whose references were authorized. A caller changing
   // its array during an await must not attach a retained name to another row.
   profiles = profiles.map(profile => ({ ...profile }));
@@ -324,12 +408,22 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     byAuthority.set(ref.authority, subjects);
   }
   const names = new Map<string, Map<string, string>>();
+  // Partial mode (team rosters): one original source failing, or one person
+  // without a club copy, must not blank everybody else. Each unnamed person
+  // carries a diagnostic instead of a silent placeholder.
+  const partial = Boolean(options.audience && options.partialNames);
+  const failures = new Map<string, unknown>();
+  // Cross-group routes (pinned DEV team, or the club-key release) do several
+  // consensus checks across groups; 6s is too short for a cold route.
+  const devTeam = (options.audience?.kind === 'team' &&
+    ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai')
+    || (options.audience?.kind === 'club' && clubNameDisplaysActive(ctx.target));
   const batchSize = options.audience ? 25 : BATCH_SIZE;
   const jobs = [...byAuthority].flatMap(([authority, ids]) => {
     const subjects = [...ids];
     return Array.from({ length: Math.ceil(subjects.length / batchSize) }, (_, index) => ({ authority, subjects: subjects.slice(index * batchSize, (index + 1) * batchSize) }));
   });
-  // A global two-request ceiling, not two requests per group. Original-key
+  // A global four-request ceiling, not four requests per group. Original-key
   // routes are checked again after all encryption/service awaits.
   const leases = new Map<string, Promise<Awaited<ReturnType<PrivateProfileAuthorityResolver>>>>();
   const routeGuards = new Map<string, () => void>();
@@ -340,7 +434,9 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
       if (!pendingLease) {
         const resolve = options.resolveAuthority;
         pendingLease = (async () => {
-          const lease = resolve ? await boundedAuthorityCheck(() => resolve(authority)) : { context: ctx, confirm: async () => {} };
+          options.onStep?.('route');
+          const lease = resolve ? await boundedAuthorityCheck(() => resolve(authority),
+            devTeam ? 'Private team-name route opening timed out.' : undefined, devTeam ? 20_000 : undefined) : { context: ctx, confirm: async () => {} };
           active();
           if (lease.context.identity !== identity || lease.context.target.host !== ctx.target.host || lease.context.target.networkKind !== ctx.target.networkKind || lease.context.target.canisterIds.pii_access_control !== authority) throw new Error("Invalid original private profile route.");
           const routeTarget = JSON.stringify(lease.context.target);
@@ -358,24 +454,34 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
         active();
         routeGuards.get(authority)?.();
       };
-      const part = await boundedRead(route, subjects, routeActive, options.audience);
-      if (options.audience && part.size !== subjects.length) throw new Error('Private-name audience is incomplete or unavailable.');
+      options.onStep?.('ciphertext');
+      const part = await boundedRead(route, subjects, routeActive, options.audience, options.onStep);
+      if (options.audience && !partial && part.size !== subjects.length) throw new Error('Private-name audience is incomplete or unavailable.');
       active();
       const group = names.get(authority) ?? new Map<string, string>();
       for (const [id, name] of part) group.set(id, name);
       names.set(authority, group);
-    } catch (error) { if (options.audience) throw error; /* Display-only reads remain neutral. */ }
+    } catch (error) {
+      if (partial) { failures.set(authority, error); names.delete(authority); return; }
+      if (options.audience) throw error; /* Display-only reads remain neutral. */
+    }
   };
   try {
-    for (let start = 0; start < jobs.length; start += 2) await Promise.all(jobs.slice(start, start + 2).map(readJob));
-    for (const [authority, pendingLease] of leases) {
+    for (let start = 0; start < jobs.length; start += 4) await Promise.all(jobs.slice(start, start + 4).map(readJob));
+    await Promise.all([...leases].map(async ([authority, pendingLease]) => {
       try {
         const lease = await pendingLease;
         active(); routeGuards.get(authority)?.();
-        await boundedAuthorityCheck(lease.confirm);
+        options.onStep?.('closing');
+        await boundedAuthorityCheck(lease.confirm,
+          devTeam ? 'Private team-name route closing timed out.' : undefined, devTeam ? 20_000 : undefined);
         active(); routeGuards.get(authority)?.();
-      } catch (error) { if (options.audience) throw error; names.delete(authority); }
-    }
+      } catch (error) {
+        if (partial) failures.set(authority, error);
+        else if (options.audience) throw error;
+        names.delete(authority);
+      }
+    }));
   } catch (error) {
     // A refused parallel batch retires sibling work before its late reply can
     // start fresh key derivations or contribute to a replacement request.
@@ -384,6 +490,19 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     throw error;
   }
   active();
+  if (partial) {
+    return profiles.map((profile, index) => {
+      const ref = references[index];
+      if (ref === undefined) return profile;
+      const name = ref ? names.get(ref.authority)?.get(ref.subject) : undefined;
+      if (name) return { ...profile, display_name: name };
+      const failure = ref ? failures.get(ref.authority) : undefined;
+      const name_error = ref === null ? 'Private-name reference does not match this member.'
+        : failure !== undefined ? (failure instanceof Error ? failure.message : String(failure))
+        : NAME_NOT_SHARED_YET;
+      return { ...profile, display_name: null, name_error };
+    });
+  }
   if (options.audience && references.some(ref => ref === null || (ref && !names.get(ref.authority)?.has(ref.subject)))) throw new Error('Private-name authority is unverified or unavailable.');
   return profiles.map((profile, index) => {
     const ref = references[index];
@@ -397,16 +516,21 @@ const ownClubNameBackfills = new Set<string>();
 /** Best-effort, once per session per account: copy the caller's own unlocked
  * name to every club they belong to. Never blocks or throws. */
 function scheduleOwnClubNameBackfill(ctx: FeatureBackendContext, caller: string, name: string): void {
-  if (!privateClubNameDisplaysEnabled() || ownClubNameBackfills.has(caller)) return;
-  ownClubNameBackfills.add(caller);
+  if (!privateClubNameDisplaysEnabled() && !devClubNameReleaseTarget(ctx.target) &&
+      !(import.meta.env.IGNITE_LIVE_SHARED_CLUB_NAMES === '1' && ctx.target.provider === 'icp')) return;
+  // In-flight rather than permanent account suppression: a later sign-in may
+  // include a newly joined club. Source-qualified identity prevents Group 1
+  // and Group 2 sessions from suppressing one another.
+  const slot = `${ctx.target.host}|${ctx.target.canisterIds.pii_access_control}|${caller}`;
+  if (ownClubNameBackfills.has(slot)) return;
+  ownClubNameBackfills.add(slot);
   setTimeout(() => {
     void refreshPrivateOwnClubNames(ctx, name, async () => {
       const { getLiveMyRoleGrants } = await import('./features/membership');
       const grants = await getLiveMyRoleGrants(ctx);
       return grants.flatMap(grant => grant.club ?? []);
     }).catch(error => {
-      ownClubNameBackfills.delete(caller);
       console.warn('[profile] club name backfill skipped', error);
-    });
+    }).finally(() => ownClubNameBackfills.delete(slot));
   }, 3000);
 }

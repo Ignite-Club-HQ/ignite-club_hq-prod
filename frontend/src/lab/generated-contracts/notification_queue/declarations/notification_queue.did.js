@@ -548,6 +548,20 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
         [],
       ),
+    'read_trusted_dev_test2_event_delivery' : IDL.Func(
+        [IDL.Text, IDL.Principal],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Opt(IDL.Record({
+              'status' : IDL.Text,
+              'attempts' : IDL.Nat32,
+              'created_at_ms' : IDL.Nat64,
+            })),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
     'record_chat_notify_batch' : IDL.Func(
         [
           IDL.Text,

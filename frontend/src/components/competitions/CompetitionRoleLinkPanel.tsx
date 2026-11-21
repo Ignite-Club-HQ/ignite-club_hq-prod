@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
@@ -16,7 +17,6 @@ async function liveComp() {
   return { ctx: await icpCtx(), comp };
 }
 
-const APP_URL = "https://igniteclubhq.app";
 type OfficialRole = "referee" | "committee";
 const LABEL: Record<OfficialRole, string> = { referee: "referee", committee: "committee member" };
 
@@ -101,7 +101,7 @@ export function CompetitionRoleLinkPanel({
     },
   });
 
-  const url = useMemo(() => (link ? `${APP_URL}/competitions/officials/join?token=${link.token}` : ""), [link]);
+  const url = useMemo(() => (link ? `${PUBLIC_INVITE_ORIGIN}/competitions/officials/join?token=${link.token}` : ""), [link]);
   const title = `Join ${competitionName} as a ${LABEL[role]}`;
 
   const copy = async () => {

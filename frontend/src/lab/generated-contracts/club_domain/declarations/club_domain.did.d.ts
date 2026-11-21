@@ -1549,6 +1549,14 @@ export interface Main {
     { 'Ok' : Array<TeamInvite> } |
       { 'Err' : string }
   >,
+  'read_can_team_child_name_visibility' : ActorMethod<
+    [Principal, Array<string>],
+    Array<string>
+  >,
+  'read_account_list_team_child_ids' : ActorMethod<
+    [string, string],
+    { 'Ok' : Array<string> } | { 'Err' : string }
+  >,
   'read_account_list_team_role_grants' : ActorMethod<
     [string],
     { 'Ok' : Array<AccountRole> } |
@@ -1559,6 +1567,23 @@ export interface Main {
     Array<[string, [] | [string]]>
   >,
   'read_account_membership_erased' : ActorMethod<[Array<Principal>], boolean>,
+  'read_account_my_dev_test2_event_delivery' : ActorMethod<
+    [string],
+    { 'Ok' : [] | [{ 'status' : string, 'attempts' : number, 'created_at_ms' : bigint }] } |
+      { 'Err' : string }
+  >,
+  'read_account_my_clubs_and_roles_indexed' : ActorMethod<
+    [[] | [string], number],
+    {
+        'Ok' : {
+          'clubs' : Array<string>,
+          'next' : [] | [string],
+          'acl_revision' : bigint,
+          'roles' : Array<RoleGrant>,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'read_account_my_role_grants' : ActorMethod<[], Array<RoleGrant>>,
   'read_account_profile_team_history' : ActorMethod<
     [string],
@@ -1660,7 +1685,18 @@ export interface Main {
    * / Bounded consensus configuration evidence; never changes or grants access.
    */
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
+  'read_can_list_guardian_children' : ActorMethod<[Principal], Array<{ 'id': string; 'parent_id': [] | [string] }>>,
+  'read_can_guardian_rsvp_child' : ActorMethod<[Principal, string, string, [] | [string], Array<string>], boolean>,
   'read_has_child_guardian' : ActorMethod<[Principal, string], boolean>,
+  'read_chat_scope_access_batch' : ActorMethod<
+    [Principal, Array<string>, Array<[string, string]>],
+    { 'Ok': { 'clubs': Array<[string, boolean]>, 'teams': Array<[string, string, boolean]> } } |
+      { 'Err': string }
+  >,
+  'read_event_member_roles_if_current' : ActorMethod<
+    [Principal, string],
+    { 'Ok': Array<[string, [] | [string]]> } | { 'Err': string }
+  >,
   'read_has_club_membership' : ActorMethod<[Principal, string], boolean>,
   'read_has_club_staff_role' : ActorMethod<[Principal, string], boolean>,
   'read_has_pii_audience' : ActorMethod<[Principal, string, string], boolean>,
@@ -1739,6 +1775,11 @@ export interface Main {
       { 'Err' : string }
   >,
   'read_profile_family_batch' : ActorMethod<
+    [Principal, string, Array<Principal>, [] | [bigint]],
+    { 'Ok' : Batch } |
+      { 'Err' : string }
+  >,
+  'read_profile_team_membership_batch' : ActorMethod<
     [Principal, string, Array<Principal>, [] | [bigint]],
     { 'Ok' : Batch } |
       { 'Err' : string }

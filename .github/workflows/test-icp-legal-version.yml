@@ -1,0 +1,26 @@
+name: "[TEST] ICP legal version contract"
+on:
+  pull_request:
+    paths:
+      - "frontend/src/hooks/useLegalReacceptance.ts"
+      - "frontend/src/hooks/useLegalReacceptance.test.tsx"
+      - "frontend/src/components/admin/LegalReacceptanceAdminCard.tsx"
+      - ".github/workflows/test-icp-legal-version.yml"
+permissions:
+  contents: read
+jobs:
+  legal-version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install frontend dependencies
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Run focused legal version and acceptance tests
+        working-directory: frontend
+        run: npx vitest run --config vitest.legacy.config.mjs src/hooks/useLegalReacceptance.test.tsx

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AccordionContent,
   AccordionItem,
@@ -22,6 +22,9 @@ import {
 import PendingInvitesList from "@/components/PendingInvitesList";
 import { friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
 import { cn } from "@/lib/utils";
+import { hasPendingAdultNameDisplay, visibleTeamMemberName } from "@/lib/teamRosterDisplay";
+import { type NameUnlockSnapshot } from "@/lib/nameUnlockProgress";
+import { summarizeAdultNameIssues, adultNameIssueLabel } from "@/lib/teamRosterReads";
 
 export type TeamMemberEntry = {
   profile: any;
@@ -81,8 +84,18 @@ interface TeamMembersSectionProps {
   membersError: unknown;
   isChildrenError?: boolean;
   childrenError?: unknown;
+  isAdultNamesError?: boolean;
+  isAdultNamesFetching?: boolean;
+  hasUnresolvedAdultNames?: boolean;
+  refetchAdultNames?: () => unknown;
+  adultNameIssues?: string[];
+  nameUnlockProgress?: NameUnlockSnapshot | null;
+  showIcpRosterFailureCode?: boolean;
   refetchMembers: () => unknown;
   refetchChildren: () => unknown;
+  isChildNamesLoading?: boolean;
+  hasUnresolvedChildNames?: boolean;
+  refetchChildNames?: () => unknown;
   isSoccerClub: boolean;
   onOpenHeaderInvite: () => void;
   onOpenAddPlayer: () => void;
@@ -124,8 +137,18 @@ export function TeamMembersSection({
   membersError,
   isChildrenError,
   childrenError,
+  isAdultNamesError = false,
+  isAdultNamesFetching = false,
+  hasUnresolvedAdultNames = false,
+  refetchAdultNames,
+  adultNameIssues = [],
+  nameUnlockProgress = null,
+  showIcpRosterFailureCode = false,
   refetchMembers,
   refetchChildren,
+  isChildNamesLoading = false,
+  hasUnresolvedChildNames = false,
+  refetchChildNames,
   isSoccerClub,
   onOpenHeaderInvite,
   onOpenAddPlayer,
@@ -138,6 +161,42 @@ export function TeamMembersSection({
   onOpenPositionSheet,
   onRemoveMember,
 }: TeamMembersSectionProps) {
+  const [retryingPlayers, setRetryingPlayers] = useState(false);
+  const [retryFailed, setRetryFailed] = useState(false);
+  const [retryingNames, setRetryingNames] = useState(false);
+  const adultNameRetryPending = retryingNames || isAdultNamesFetching;
+  const unlockRunning = hasPendingAdultNameDisplay(
+    Object.values(members).map(member => member.profile?.display_name), adultNameRetryPending,
+  ) && nameUnlockProgress
+    && nameUnlockProgress.step !== 'done' && nameUnlockProgress.step !== 'failed';
+  const playerRetryPending = retryingPlayers || isChildrenFetching;
+
+  // React Query keeps the previous isError visible during a manual refetch.
+  // Give immediate feedback and distinguish a second failure from an idle UI.
+  // This only repeats the already-authorized roster read; no child writes.
+  const retryPlayerRoster = async () => {
+    if (playerRetryPending) return;
+    setRetryingPlayers(true);
+    setRetryFailed(false);
+    try {
+      const outcome = await Promise.resolve(refetchChildren());
+      if (outcome && typeof outcome === "object" && "isError" in outcome && outcome.isError) {
+        setRetryFailed(true);
+      }
+    } catch {
+      setRetryFailed(true);
+    } finally {
+      setRetryingPlayers(false);
+    }
+  };
+
+  const retryTeamNames = async () => {
+    if (adultNameRetryPending || !refetchAdultNames) return;
+    setRetryingNames(true);
+    try { await Promise.resolve(refetchAdultNames()); }
+    finally { setRetryingNames(false); }
+  };
+
   return (
     <AccordionItem value="members" className="border rounded-lg px-4">
       {/* Refresh button is a SIBLING of the trigger — never nested inside it,
@@ -202,10 +261,58 @@ export function TeamMembersSection({
       </div>
       <AccordionContent>
         <div className="space-y-4 pt-2">
-          {isChildrenError && <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">{friendlyQueryErrorMessage(childrenError, 'the team player list')}</p>
-            <Button variant="outline" size="sm" onClick={() => refetchChildren()}><RefreshCw className="h-4 w-4 mr-1.5" />Retry players</Button>
-          </div>}
+          {unlockRunning && (
+            <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+              Unlocking parent names…
+            </p>
+          )}
+          {showIcpRosterFailureCode && (hasUnresolvedAdultNames || isAdultNamesError) && (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                {isAdultNamesError ? 'Some parent names could not be loaded.' : 'Some parent names are not available yet.'}
+              </p>
+              <Button type="button" size="sm" variant="outline"
+                disabled={adultNameRetryPending || !refetchAdultNames}
+                onClick={() => { void retryTeamNames(); }}>
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${adultNameRetryPending ? 'animate-spin' : ''}`} />
+                {adultNameRetryPending ? 'Refreshing names…' : 'Retry names'}
+              </Button>
+            </div>
+          )}
+          {showIcpRosterFailureCode && !isAdultNamesError && adultNameIssues.length > 0 && (
+            <ul className="text-xs text-muted-foreground space-y-0.5" role="status">
+              {summarizeAdultNameIssues(adultNameIssues).map(({ code, count }) => (
+                <li key={code}>{count} parent name{count === 1 ? '' : 's'}: {adultNameIssueLabel(code)}</li>
+              ))}
+            </ul>
+          )}
+          {isChildrenError && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground">{friendlyQueryErrorMessage(childrenError, 'the team player list')}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={playerRetryPending}
+                  onClick={() => { void retryPlayerRoster(); }}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-1.5 ${playerRetryPending ? "animate-spin" : ""}`} />
+                  {playerRetryPending ? "Retrying players…" : "Retry players"}
+                </Button>
+              </div>
+              {playerRetryPending && (
+                <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+                  Checking the player list again…
+                </p>
+              )}
+              {retryFailed && !playerRetryPending && (
+                <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+                  The retry finished, but the player list is still unavailable. Your child records have not been changed.
+                </p>
+              )}
+            </div>
+          )}
           {isMembersError && Object.keys(members).length === 0 ? (
             <div className="flex flex-col items-center py-6 text-center gap-3">
               <p className="text-sm text-muted-foreground max-w-xs">
@@ -256,6 +363,30 @@ export function TeamMembersSection({
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   </div>
                 )}
+              {/* Adult role grants often load before the private child roster.
+                   Keep that distinct pending state visible instead of showing
+                   just two parents and making it look like children vanished. */}
+              {(isChildrenLoading || (isChildrenFetching && teamChildren.length === 0 && !isChildrenError)) && (
+                <div role="status" aria-live="polite" className="flex items-center gap-2 px-2 py-3 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden="true" />
+                  Loading players…
+                </div>
+              )}
+              {teamChildren.length > 0 && isChildNamesLoading && (
+                <div role="status" aria-live="polite" className="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+                  Unlocking player names…
+                </div>
+              )}
+              {teamChildren.length > 0 && !isChildNamesLoading && hasUnresolvedChildNames && (
+                <div role="status" className="flex flex-wrap items-center justify-between gap-2 px-2 py-2 text-sm text-muted-foreground">
+                  <span>Some player names could not be unlocked.</span>
+                  <Button size="sm" variant="outline" onClick={() => { refetchChildNames?.(); }} disabled={!refetchChildNames}>
+                    <RefreshCw className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                    Retry names
+                  </Button>
+                </div>
+              )}
               {/* Combined Players section — child players first, adult players
                         continue directly below under the same heading. */}
               {(teamChildren.length > 0 ||
@@ -547,13 +678,13 @@ export function TeamMembersSection({
                                         : "bg-pink-500/20 text-pink-500",
                                     )}
                                   >
-                                    {child.name?.charAt(0)?.toUpperCase() ||
-                                      "?"}
+                                    {child.rosterDisplayName && child.rosterDisplayName !== "Name unavailable" && child.rosterDisplayName !== "Unlocking name…"
+                                      ? child.rosterDisplayName.charAt(0).toUpperCase() : "?"}
                                   </AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1 min-w-0">
                                   <p className="font-semibold text-sm truncate">
-                                    {child.name}
+                                    {child.rosterDisplayName ?? child.name}
                                   </p>
                                   {parentDisplay && (
                                     <p className="text-xs text-muted-foreground truncate mt-0.5">
@@ -876,7 +1007,7 @@ export function TeamMembersSection({
                                   onAddRoleMember({
                                     userId,
                                     userName:
-                                      member.profile?.display_name || "User",
+                                      visibleTeamMemberName(member.profile?.display_name, adultNameRetryPending),
                                     existingRoles:
                                       member.roles?.map((r) => r.role) || [],
                                   }),
@@ -892,7 +1023,7 @@ export function TeamMembersSection({
                                     type: "adult",
                                     id: userId,
                                     name:
-                                      member.profile?.display_name || "User",
+                                      visibleTeamMemberName(member.profile?.display_name, adultNameRetryPending),
                                     roles:
                                       member.roles?.map((r) => r.role) || [],
                                   }),
@@ -907,7 +1038,7 @@ export function TeamMembersSection({
                                   onRemoveMember({
                                     userId,
                                     name:
-                                      member.profile?.display_name || "User",
+                                      visibleTeamMemberName(member.profile?.display_name, adultNameRetryPending),
                                   }),
                                 className: "bg-destructive",
                               });
@@ -926,8 +1057,7 @@ export function TeamMembersSection({
                                     onSelectMember({
                                       userId,
                                       displayName:
-                                        member.profile?.display_name ||
-                                        "Unknown User",
+                                        visibleTeamMemberName(member.profile?.display_name, adultNameRetryPending),
                                       avatarUrl: member.profile?.avatar_url,
                                       roles: member.roles || [],
                                     })
@@ -947,8 +1077,7 @@ export function TeamMembersSection({
                                   </Avatar>
                                   <div className="flex-1 min-w-0">
                                     <p className="font-medium text-sm truncate">
-                                      {member.profile?.display_name ||
-                                        "Unknown User"}
+                                      {visibleTeamMemberName(member.profile?.display_name, adultNameRetryPending)}
                                     </p>
                                   </div>
                                   <div className="flex flex-wrap gap-1">

@@ -1,0 +1,39 @@
+name: "[TEST] Parent event and chat access compile"
+
+on:
+  pull_request:
+    paths:
+      - "backend/events_domain/src/main.mo"
+      - "backend/messaging_domain/src/main.mo"
+      - "scripts/parent-member-access-safety.test.mjs"
+      - ".github/workflows/test-parent-member-access.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compile-member-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+      - name: Test parent visibility and group privacy guards
+        run: node --test scripts/parent-member-access-safety.test.mjs
+      - name: Install pinned Motoko compiler
+        run: |
+          bun add -g ic-mops@3.5.1
+          mops toolchain use moc 1.16.1
+      - name: Compile events_domain and messaging_domain with migration checks
+        run: |
+          MOC="$HOME/.cache/mops/moc/1.16.1/moc"
+          for domain in events_domain messaging_domain; do
+            (cd "backend/$domain" && mops install && "$MOC" $(mops sources) --default-persistent-actors --enhanced-migration src/backend/migrations --check src/main.mo)
+          done

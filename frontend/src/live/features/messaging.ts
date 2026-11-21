@@ -123,26 +123,26 @@ export async function listLiveMessagesPage(
 // pins separately, so those calls take the bundled copy once (if fresh)
 // instead of making their own round trips. null = unknown, false = canister
 // predates open_conversation (fall back to separate calls).
-let openConversationSupported: boolean | null = null;
+const unsupportedOpenServices = new Set<string>();
 
 // Quick-read (composite query) first page. Same on-canister checks as the
 // consensus open; any refusal falls back to it. Freshness guards: skip the
 // quick read briefly after this device writes to the chat (a lagging replica
 // could omit the just-sent message), and discard a quick read whose
 // latest_sequence is behind one this device already saw (never regress).
-let openConversationQuerySupported = true;
+const unsupportedQueryServices = new Set<string>();
 export const QUERY_OPEN_WRITE_FENCE_MS = 8_000;
 const recentWrites = new Map<string, number>();
 const seenLatest = new Map<string, bigint>();
-export function noteLiveConversationWrite(conversationId: string, at = Date.now()): void {
-  recentWrites.set(conversationId, at);
+export function noteLiveConversationWrite(conversationId: string, at = Date.now(), ctx?: FeatureBackendContext): void {
+  recentWrites.set(ctx ? chatStateKey(ctx, conversationId) : conversationId, at);
   if (recentWrites.size > 200) recentWrites.delete(recentWrites.keys().next().value as string);
 }
-export function shouldTryQueryOpen(conversationId: string, now = Date.now()): boolean {
-  if (!openConversationQuerySupported) return false;
+export function shouldTryQueryOpen(conversationId: string, now = Date.now(), ctx?: FeatureBackendContext): boolean {
+  if (ctx && unsupportedQueryServices.has(chatStateKey(ctx, ""))) return false;
   // "*" = a write addressed by message/poll id (conversation unknown here).
   for (const key of [conversationId, "*"]) {
-    const wrote = recentWrites.get(key);
+    const wrote = recentWrites.get(ctx ? chatStateKey(ctx, key) : key) ?? recentWrites.get(key);
     if (wrote !== undefined && now - wrote <= QUERY_OPEN_WRITE_FENCE_MS) return false;
   }
   return true;
@@ -150,14 +150,16 @@ export function shouldTryQueryOpen(conversationId: string, now = Date.now()): bo
 function toBig(v: unknown): bigint | null {
   try { return typeof v === "bigint" ? v : typeof v === "number" ? BigInt(v) : null; } catch { return null; }
 }
-export function noteSeenLatest(conversationId: string, latest: unknown): void {
+export function noteSeenLatest(conversationId: string, latest: unknown, ctx?: FeatureBackendContext): void {
+  if (ctx) conversationId = chatStateKey(ctx, conversationId);
   const v = toBig(latest);
   if (v === null) return;
   const prev = seenLatest.get(conversationId);
   if (prev === undefined || v > prev) seenLatest.set(conversationId, v);
   if (seenLatest.size > 500) seenLatest.delete(seenLatest.keys().next().value as string);
 }
-export function isStaleAgainstSeen(conversationId: string, latest: unknown): boolean {
+export function isStaleAgainstSeen(conversationId: string, latest: unknown, ctx?: FeatureBackendContext): boolean {
+  if (ctx) conversationId = chatStateKey(ctx, conversationId);
   const v = toBig(latest);
   const prev = seenLatest.get(conversationId);
   return v === null ? true : prev !== undefined && v < prev;
@@ -166,13 +168,15 @@ export function isStaleAgainstSeen(conversationId: string, latest: unknown): boo
 export function resetLiveOpenFreshness(): void {
   recentWrites.clear();
   seenLatest.clear();
-  openConversationQuerySupported = true;
+  unsupportedQueryServices.clear();
+  unsupportedOpenServices.clear();
+  openBundleCache.clear();
 }
 const OPEN_BUNDLE_TTL_MS = 10_000;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
 const openBundleCache = new Map<string, { at: number; reactions: LiveReaction[] | null; pins: any[] | null; polls: Map<string, unknown> | null }>();
-function takeBundled<K extends "reactions" | "pins">(conversationId: string, key: K) {
-  const entry = openBundleCache.get(conversationId);
+function takeBundled<K extends "reactions" | "pins">(ctx: FeatureBackendContext, conversationId: string, key: K) {
+  const entry = openBundleCache.get(chatStateKey(ctx, conversationId));
   if (!entry || Date.now() - entry.at > OPEN_BUNDLE_TTL_MS) return null;
   const value = entry[key];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
@@ -185,8 +189,9 @@ function takeBundled<K extends "reactions" | "pins">(conversationId: string, key
  * poll cards render without their own canister round trip. null = not bundled
  * (older canister, expired, or already consumed) — the caller fetches then.
  */
-export function takeBundledPollResult(conversationId: string, pollId: string): unknown | null {
-  const entry = openBundleCache.get(conversationId);
+export function takeBundledPollResult(conversationId: string, pollId: string, ctx?: FeatureBackendContext): unknown | null {
+  if (!ctx) return null; // A raw thread ID cannot establish account or destination.
+  const entry = openBundleCache.get(chatStateKey(ctx, conversationId));
   if (!entry || Date.now() - entry.at > OPEN_BUNDLE_TTL_MS || !entry.polls) return null;
   const value = entry.polls.get(pollId) ?? null;
   entry.polls.delete(pollId);
@@ -198,6 +203,9 @@ export function takeBundledPollResult(conversationId: string, pollId: string): u
 const WARM_PAGE_TTL_MS = 20_000;
 const warmLatestPages = new Map<string, { at: number; page: Promise<unknown> }>();
 const latestPageInflight = new Map<string, Promise<Awaited<ReturnType<typeof readLatestMessagesPage>>>>();
+function chatStateKey(ctx: FeatureBackendContext, conversationId: string): string {
+  return warmKey(ctx, conversationId, 0);
+}
 function warmKey(ctx: FeatureBackendContext, conversationId: string, limit: number): string {
   let who = "anon";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- identity shape varies by provider
@@ -252,18 +260,18 @@ async function readLatestMessagesPage(
   if (traced) traceReadStart(conversationId);
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
   if (traced) traceConnected(conversationId);
-  if (before === null && openConversationSupported !== false) {
+  if (before === null && !unsupportedOpenServices.has(chatStateKey(ctx, ""))) {
     try {
       let bundle: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any -- untyped candid actor
       let path: ChatReadPath = "update";
-      if (shouldTryQueryOpen(conversationId)) {
+      if (shouldTryQueryOpen(conversationId, Date.now(), ctx)) {
         try {
           bundle = await unwrapCandid(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
             (actor as any).open_conversation_query(conversationId, limit),
             "Open conversation",
           );
-          if (isStaleAgainstSeen(conversationId, bundle?.page?.latest_sequence)) bundle = null;
+          if (isStaleAgainstSeen(conversationId, bundle?.page?.latest_sequence, ctx)) bundle = null;
           else path = "query";
         } catch (err) {
           // Refusals (protected mode, membership authority unreachable or
@@ -271,7 +279,7 @@ async function readLatestMessagesPage(
           // which re-applies every check and reports the real outcome.
           const message = err instanceof Error ? err.message : String(err);
           if (/has no (?:query |update |composite_query |)method|IC0536|IC0504|is not a function/i.test(message)) {
-            openConversationQuerySupported = false;
+            unsupportedQueryServices.add(chatStateKey(ctx, ""));
           }
           bundle = null;
         }
@@ -287,9 +295,9 @@ async function readLatestMessagesPage(
           "Open conversation",
         );
       }
-      noteSeenLatest(conversationId, bundle?.page?.latest_sequence);
+      noteSeenLatest(conversationId, bundle?.page?.latest_sequence, ctx);
       if (traced) { traceReadDone(conversationId, path); traceEnrichmentDone(conversationId); }
-      openConversationSupported = true;
+      unsupportedOpenServices.delete(chatStateKey(ctx, ""));
       const pins = Array.isArray(bundle.pins) && bundle.pins.length > 0 ? bundle.pins[0] : null;
       // Poll results bundled with the page (absent on canisters deployed
       // before the bundle included them — cards then fetch individually).
@@ -298,7 +306,7 @@ async function readLatestMessagesPage(
       for (const pr of (bundle.polls ?? []) as any[]) {
         if (pr?.poll?.id) bundledPolls.set(pr.poll.id, pr);
       }
-      openBundleCache.set(conversationId, {
+      openBundleCache.set(chatStateKey(ctx, conversationId), {
         at: Date.now(),
         reactions: bundle.reactions as LiveReaction[],
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
@@ -309,7 +317,7 @@ async function readLatestMessagesPage(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (/has no (?:query |update |)method|IC0536|IC0504|is not a function/i.test(message)) {
-        openConversationSupported = false;
+        unsupportedOpenServices.add(chatStateKey(ctx, ""));
       } else {
         throw err;
       }
@@ -324,7 +332,7 @@ async function readLatestMessagesPage(
       ),
       "List latest messages",
     );
-    if (before === null) noteSeenLatest(conversationId, (page as { latest_sequence?: unknown }).latest_sequence);
+    if (before === null) noteSeenLatest(conversationId, (page as { latest_sequence?: unknown }).latest_sequence, ctx);
     if (traced) traceReadDone(conversationId, "update");
     return page;
   } catch (err) {
@@ -376,7 +384,7 @@ export async function sendLiveMessage(
   // (the full address still travels in `url`, which allows 2048 chars).
   const safeBody = body.trim() === "" && attachment ? " " : body;
   const refId = attachment ? await shortCanisterRefId(attachment.refId) : "";
-  noteLiveConversationWrite(conversationId);
+  noteLiveConversationWrite(conversationId, Date.now(), ctx);
   const sent = await unwrapCandid(
     actor.send_message(
       conversationId,
@@ -456,13 +464,13 @@ export async function updateLiveMessage(
   body: string,
 ) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  noteLiveConversationWrite("*");
+  noteLiveConversationWrite("*", Date.now(), ctx);
   return unwrapCandid(actor.update_message(messageId, body), "Update message");
 }
 
 export async function deleteLiveMessage(ctx: FeatureBackendContext, messageId: string) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  noteLiveConversationWrite("*");
+  noteLiveConversationWrite("*", Date.now(), ctx);
   return unwrapCandid(actor.delete_message(messageId), "Delete message");
 }
 
@@ -1044,7 +1052,7 @@ export async function createLivePoll(
 
 export async function voteLivePoll(ctx: FeatureBackendContext, pollId: string, optionIndex: number) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  noteLiveConversationWrite("*");
+  noteLiveConversationWrite("*", Date.now(), ctx);
   return unwrapCandid(actor.vote_poll(pollId, optionIndex), "Vote poll");
 }
 
@@ -1149,7 +1157,7 @@ export async function registerLiveAttachmentMetadata(
 
 export async function toggleLiveReaction(ctx: FeatureBackendContext, messageId: string, emoji: string) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  noteLiveConversationWrite("*");
+  noteLiveConversationWrite("*", Date.now(), ctx);
   return unwrapCandid(actor.toggle_reaction(messageId, emoji), "Toggle reaction");
 }
 
@@ -1169,7 +1177,7 @@ export async function listLiveReactions(
   ctx: FeatureBackendContext,
   conversationId: string,
 ): Promise<LiveReaction[]> {
-  const bundled = takeBundled(conversationId, "reactions");
+  const bundled = takeBundled(ctx, conversationId, "reactions");
   if (bundled) return bundled as LiveReaction[];
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
   return unwrapCandid(actor.list_reactions(conversationId), "List reactions");
@@ -1295,7 +1303,7 @@ export async function setLiveUserMessagingSettings(
 
 export async function deleteLivePoll(ctx: FeatureBackendContext, pollId: string) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  noteLiveConversationWrite("*");
+  noteLiveConversationWrite("*", Date.now(), ctx);
   return unwrapCandid(actor.delete_poll(pollId), "Delete poll");
 }
 
@@ -1378,7 +1386,7 @@ export async function pinLiveMessage(
   messageId: string,
 ): Promise<LivePinnedMessage> {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  noteLiveConversationWrite(conversationId);
+  noteLiveConversationWrite(conversationId, Date.now(), ctx);
   const raw = await unwrapCandid(actor.pin_message(conversationId, messageId), "Pin message");
   return toLivePinnedMessage(raw);
 }
@@ -1389,7 +1397,7 @@ export async function unpinLiveMessage(
   messageId: string,
 ) {
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  noteLiveConversationWrite(conversationId);
+  noteLiveConversationWrite(conversationId, Date.now(), ctx);
   return unwrapCandid(actor.unpin_message(conversationId, messageId), "Unpin message");
 }
 
@@ -1397,7 +1405,7 @@ export async function listLivePinnedMessages(
   ctx: FeatureBackendContext,
   conversationId: string,
 ): Promise<LivePinnedMessage[]> {
-  const bundledPins = takeBundled(conversationId, "pins");
+  const bundledPins = takeBundled(ctx, conversationId, "pins");
   if (bundledPins) return bundledPins.map(toLivePinnedMessage);
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
   const raw = await unwrapCandid(

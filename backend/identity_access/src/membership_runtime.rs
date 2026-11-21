@@ -48,3 +48,137 @@ pub struct Progress { pub source:String, pub phase:String, pub revision:u64, pub
         assert_eq!(c.pending["g0"],10);c.enabled=false;assert!(c.invalidate(identity,a[0],&b,20).is_err());
     }
 }
+/** One specific disposable DEV setup. This check MUST NOT be repurposed into
+ * a general reset endpoint: the DEV account/PII service is a shared canister.
+ */
+pub const DEV_RESET_CONFIRMATION:&str="RESET IGNITE DEV DIRECTORY 7 TO 11";
+/// Unlike an unreleased disposable directory, this explicitly acknowledges
+/// that existing DEV lookup consumers will lose their old directory session.
+pub const DEV_RELEASED_RESET_CONFIRMATION:&str="RESET RELEASED IGNITE DEV DIRECTORY 7 TO 11";
+pub fn require_exact_dev_disposable_reset(
+    current_canister:Principal,
+    caller:Principal,
+    governor:Principal,
+    config:&Config,
+    saved_revision:u64,
+    live_revision:u64,
+    confirmation:&str,
+)->Result<(),String>{
+    let principal=|s|Principal::from_text(s).map_err(|_|"Invalid pinned DEV canister");
+    let dev_identity=principal("mq2sj-fiaaa-aaaal-qxlqa-cai")?;
+    let router=principal("jcdfe-vqaaa-aaaal-qxloq-cai")?;
+    let original_club=principal("mzzzv-taaaa-aaaal-qxlrq-cai")?;
+    let group2_club=principal("yfwyv-nyaaa-aaaal-qxpyq-cai")?;
+    if current_canister!=dev_identity || caller!=governor {
+        return Err("Only the exact DEV Identity canister and governor may reset test directory data".into());
+    }
+    if saved_revision!=7 || live_revision!=11 {
+        return Err("Exact 7-to-11 disposable DEV reset revision required".into());
+    }
+    // A released directory is not the same operation as an unreleased
+    // rehearsal. Require a stronger, separately approved acknowledgement.
+    match config.release.as_deref() {
+        None if confirmation==DEV_RESET_CONFIRMATION => {},
+        Some(release) if confirmation==DEV_RELEASED_RESET_CONFIRMATION
+            && release.len()==40 && release.bytes().all(|c|
+                c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) => {},
+        _ => return Err("Exact released/unreleased DEV directory reset acknowledgement required".into()),
+    }
+    let binding=&config.binding;
+    if binding.registry!=router || binding.registry_revision!=saved_revision ||
+        binding.target_alias!="mainnet" || binding.deployment_id!="mainnet" ||
+        binding.deployment_revision!=1 || binding.host!="https://icp-api.io" ||
+        binding.network_kind!="public_mainnet" ||
+        config.generation!=1 ||
+        config.sources!=vec![("g1".into(),original_club),("g2".into(),group2_club)] ||
+        config.inventory_digest.len()!=32 {
+        return Err("Identity directory does not match exact disposable DEV source inventory".into());
+    }
+    if !config.enabled {
+        return Err("Disabled Identity directory cannot use this disposable DEV reset path".into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod disposable_dev_reset_tests {
+    use super::*;
+    fn p(n:u8)->Principal{Principal::from_slice(&[n,1])}
+    fn fixture()->Config {
+        Config{
+            binding:group_inventory::Binding {
+                registry:Principal::from_text("jcdfe-vqaaa-aaaal-qxloq-cai").unwrap(),
+                registry_revision:7,
+                target_alias:"mainnet".into(),
+                deployment_id:"mainnet".into(),deployment_revision:1,
+                host:"https://icp-api.io".into(),network_kind:"public_mainnet".into(),
+            },
+            generation:1,inventory_digest:vec![1;32],
+            sources:vec![
+                ("g1".into(),Principal::from_text("mzzzv-taaaa-aaaal-qxlrq-cai").unwrap()),
+                ("g2".into(),Principal::from_text("yfwyv-nyaaa-aaaal-qxpyq-cai").unwrap()),
+            ],
+            pending:Default::default(),enabled:true,next_source:0,
+            lifecycle:vec![],release:None,
+        }
+    }
+    fn identity()->Principal{Principal::from_text("mq2sj-fiaaa-aaaal-qxlqa-cai").unwrap()}
+    #[test]fn exact_dev_test_configuration_only(){
+        let who=p(3);
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&fixture(),7,11,DEV_RESET_CONFIRMATION).is_ok());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&fixture(),7,10,DEV_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&fixture(),8,11,DEV_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(identity(),who,p(4),&fixture(),7,11,DEV_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(p(5),who,who,&fixture(),7,11,DEV_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&fixture(),7,11,"I agree").is_err());
+    }
+    #[test]fn exact_released_dev_test_directory_requires_distinct_acknowledgement(){
+        let who=p(3);
+        let mut c=fixture();
+        c.release=Some("a".repeat(40));
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_ok());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,8,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(identity(),who,p(4),&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        assert!(require_exact_dev_disposable_reset(p(5),who,who,&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        c.enabled=false;
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        c.enabled=true;c.release=None;
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        for invalid in ["test".into(),"A".repeat(40),"z".repeat(40),"a".repeat(39)] {
+            c.release=Some(invalid);
+            assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RELEASED_RESET_CONFIRMATION).is_err());
+        }
+    }
+    #[test]fn disposable_reset_preflight_allows_progress_but_refuses_authority_drift(){
+        let mut before=fixture();
+        before.release=Some("a".repeat(40));
+        let mut current=before.clone();
+        // The timer rotates the cursor, and authenticated source invalidation
+        // raises watermarks while the reset awaits consensus router reads.
+        current.next_source=1;
+        current.pending.insert("g1".into(),17);
+        assert_ne!(current,before);
+        assert!(current.same_configuration(&before));
+        current.binding.registry_revision=11;
+        assert!(!current.same_configuration(&before));
+        current=before.clone();current.sources[0].1=p(11);
+        assert!(!current.same_configuration(&before));
+        current=before.clone();current.release=None;
+        assert!(!current.same_configuration(&before));
+        current=before.clone();current.enabled=false;
+        assert!(!current.same_configuration(&before));
+        current=before.clone();current.inventory_digest[0]=2;
+        assert!(!current.same_configuration(&before));
+        current=before.clone();current.generation=2;
+        assert!(!current.same_configuration(&before));
+    }
+    #[test]fn cannot_reset_released_or_foreign_sources(){
+        let who=p(3);let mut c=fixture();c.release=Some("test".into());
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RESET_CONFIRMATION).is_err());
+        c.release=None;c.sources[0].1=p(10);
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RESET_CONFIRMATION).is_err());
+        c=fixture();c.generation=2;
+        assert!(require_exact_dev_disposable_reset(identity(),who,who,&c,7,11,DEV_RESET_CONFIRMATION).is_err());
+    }
+}

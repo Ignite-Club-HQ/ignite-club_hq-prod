@@ -518,6 +518,11 @@ export const idlFactory = ({ IDL }) => {
     'subject' : IDL.Principal,
     'denied_through_version' : IDL.Opt(IDL.Nat64),
   });
+  const MemberAdmission = IDL.Record({
+    'eligibility' : PrincipalEligibility,
+    'account' : IDL.Opt(Account),
+  });
+  const Result_53 = IDL.Variant({ 'Ok' : MemberAdmission, 'Err' : IDL.Text });
   const Result_35 = IDL.Variant({
     'Ok' : IDL.Vec(PrincipalEligibility),
     'Err' : IDL.Text,
@@ -762,6 +767,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'convert_profile_name' : IDL.Func([IDL.Text, IDL.Text], [Result_17], []),
     'cycles_balance' : IDL.Func([], [IDL.Nat], ['query']),
+    'dev_reopen_moved_principal' : IDL.Func(
+        [IDL.Principal, IDL.Bool],
+        [Result_8],
+        [],
+      ),
     'disable_group2_admission' : IDL.Func([], [Result_2], []),
     'disable_membership_directory' : IDL.Func([], [Result_2], []),
     'disable_production_account_readers' : IDL.Func([], [Result_8], []),
@@ -893,6 +903,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_35],
         [],
       ),
+    'read_member_admission' : IDL.Func([IDL.Principal], [Result_53], []),
     'read_principal_eligibility' : IDL.Func([IDL.Principal], [Result_36], []),
     'read_private_name_account_inventory' : IDL.Func(
         [IDL.Text, Request_1, IDL.Opt(AccountInventoryCursor), IDL.Nat16],
@@ -957,6 +968,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'remove_verifier' : IDL.Func([IDL.Principal], [Result_2], []),
+    'reset_disposable_dev_membership_directory' : IDL.Func(
+        [IDL.Nat64, IDL.Nat64, IDL.Text],
+        [Result_2],
+        [],
+      ),
     'review_production_account_inventory' : IDL.Func(
         [Expectation, IDL.Nat64],
         [Result_27],

@@ -1,3 +1,4 @@
+import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { writeOnce } from "@/live/clubScope";
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
@@ -29,7 +30,7 @@ import { JoinTeamInviteCard } from "@/components/join-team/JoinTeamInviteCard";
 import { JoinTeamStatusCard } from "@/components/join-team/JoinTeamStatusCard";
 import type { Database } from "@/integrations/supabase/types";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
-import { resolveAuthBackend } from "@/live/authBackendMode";
+import { resolveAuthBackend, setAuthMethodChoice } from "@/live/authBackendMode";
 import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
 import { getLocalLabClaimableTeam } from "@/lab/fixtureDataLayer";
 import { membershipKeys } from "@/lab/membershipQueryKeys";
@@ -39,6 +40,12 @@ import { getLivePlayerInvitePreview, claimLiveInvite, getLiveJoinLinkByToken, ge
 import { getLivePendingInvite, getLiveTeamInviteLinkByToken, acceptLiveTeamInviteLink, getLiveClubProfile, getLiveTeam } from "@/live/features/club";
 import { acceptIcpInviteAndWelcome } from "@/features/membership/acceptIcpInviteAndWelcome";
 import { needsInviteChildEntry } from "@/features/membership/inviteFlowRules";
+import { assertShareableInvitePrincipal, shareableInviteJoinErrorMessage } from "@/live/acceptShareableInviteWithRetry";
+import { createIcpInviteChild } from "@/features/membership/createIcpInviteChild";
+import { verifyIcpChildNameInOtherGroups } from "@/features/membership/verifyIcpChildNameAcrossGroups";
+import { planIcpInviteChild } from "@/features/membership/createIcpInviteChild";
+import { readInviteChildJournal, writeInviteChildJournal, clearInviteChildJournal } from "@/features/membership/inviteChildJournal";
+import { lastConfirmedDevOwnerNameReadiness, reconcileConfirmedDevOwnerClubName, type DevClubNameReadiness } from "@/live/devOwnerClubNameReadiness";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -136,6 +143,7 @@ function SupabaseJoinTeamPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [joined, setJoined] = useState(false);
+  const [devClubNameReadiness, setDevClubNameReadiness] = useState<DevClubNameReadiness | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [showPhotoConsent, setShowPhotoConsent] = useState(false);
   const [pendingJoinRoles, setPendingJoinRoles] = useState<AppRole[]>([]);
@@ -154,12 +162,22 @@ function SupabaseJoinTeamPage() {
   const [clubSwitchName, setClubSwitchName] = useState<string | null>(null);
   const [showSkipConfirm, setShowSkipConfirm] = useState(false);
   const autoJoinAttempted = useRef(false);
+  // Non-idempotent ICP create_own_child: never replay an uncertain create on this page mount.
+  const icpChildCreateAttempted = useRef(false);
+  // The add-child form may be double-tapped before React disables its button.
+  // Keep this synchronous guard through the whole read-preflight/write flow,
+  // so two in-flight checks cannot each create a child under the same account.
+  const icpChildSubmissionPending = useRef(false);
   
   // Check if we should auto-join (returning from auth after install flow)
   const shouldAutoJoin = safeSessionGet("autoJoinAfterAuth") === "true";
 
   // Check if this is a pending invite token (name-restricted) or a regular team invite
   const isPendingInvite = location.pathname.startsWith("/join/p/");
+  // Only club_domain's shareable TeamInviteLink uses tok- + 32 lower-case
+  // hex characters. Unlike email invite tokens, these must be previewed on
+  // ICP even for a signed-out visitor whose device defaults to Supabase.
+  const isIcpShareableLink = !isPendingInvite && /^tok-[a-f0-9]{32}$/.test(token ?? "");
 
   // Fetch pending invite details using RPC function (for name-restricted invites)
   const { data: pendingInviteData, isLoading: pendingInviteLoading, error: pendingInviteError, isError: pendingInviteIsError } = useQuery({
@@ -353,6 +371,41 @@ function SupabaseJoinTeamPage() {
           try {
             const link = await getLiveTeamInviteLinkByToken(ctx, token!);
             if (link && !link.revoked) {
+              // This token has already resolved to exactly one owning ICP
+              // group. Read only its nominated club/team public labels from
+              // that same club_domain; no cross-group lookups or token logs.
+              // Names are display-only; a temporary label lookup outage must
+              // not invalidate the real invitation or grant membership.
+              let teamName = "";
+              let clubName = "";
+              let teamLogoUrl: string | null = null;
+              let clubLogoUrl: string | null = null;
+              const [teamResult, clubResult] = await Promise.allSettled([
+                getLiveTeam(ctx, link.team_id),
+                getLiveClubProfile(ctx, link.club_id),
+              ]);
+              if (teamResult.status === "fulfilled") {
+                const team = teamResult.value[0];
+                if (team) {
+                  if (team.id !== link.team_id || team.club_id !== link.club_id) {
+                    throw new Error("Invitation target team/club mismatch");
+                  }
+                  teamName = team.name ?? "";
+                  teamLogoUrl = team.logo_url?.[0] ?? null;
+                }
+              } else {
+                console.warn("[JoinTeam] Team invitation label unavailable");
+              }
+              if (clubResult.status === "fulfilled") {
+                const club = clubResult.value[0];
+                if (club) {
+                  if (club.id !== link.club_id) throw new Error("Invitation target club mismatch");
+                  clubName = club.name ?? "";
+                  clubLogoUrl = club.logo_url?.[0] ?? null;
+                }
+              } else {
+                console.warn("[JoinTeam] Club invitation label unavailable");
+              }
               return {
                 id: link.id,
                 team_id: link.team_id,
@@ -366,12 +419,12 @@ function SupabaseJoinTeamPage() {
                 metadata: { icp_invite_link: true } as { child_name?: string; child_year_of_birth?: number; icp_invite_link?: boolean },
                 teams: {
                   id: link.team_id,
-                  name: "",
-                  logo_url: null as string | null,
+                  name: teamName,
+                  logo_url: teamLogoUrl,
                   club_id: link.club_id,
                   clubs: {
-                    name: "",
-                    logo_url: undefined as string | undefined,
+                    name: clubName,
+                    logo_url: clubLogoUrl ?? undefined,
                   },
                 },
               };
@@ -409,7 +462,7 @@ function SupabaseJoinTeamPage() {
             },
           };
         },
-      });
+      }, { forceIcp: isIcpShareableLink });
     },
     enabled: !!token && !isPendingInvite,
     retry: 2,
@@ -470,7 +523,7 @@ function SupabaseJoinTeamPage() {
     enabled: !!inviteMiniLeagueId && resolveAuthBackend() !== "icp",
   });
 
-  const inviteEntityName = inviteMiniLeague?.name || invite?.teams?.name || invite?.teams?.clubs?.name || "organization";
+  const inviteEntityName = inviteMiniLeague?.name || invite?.teams?.name || invite?.teams?.clubs?.name || (invite?.team_id ? "this team" : "organization");
   const inviteDestination = inviteMiniLeagueId
     ? `/mini-leagues/${inviteMiniLeagueId}?from=invite`
     : invite?.team_id
@@ -767,6 +820,12 @@ function SupabaseJoinTeamPage() {
   // New signups (no display_name yet) are allowed - their name will be auto-set during join
   // A matching email always wins over a name difference.
   useEffect(() => {
+    if (isPendingInvite && pendingInviteData?.role === "parent"
+      && !pendingInviteData.invited_email?.trim()
+      && (pendingInviteData.metadata as InviteChildMetadata | null)?.children?.length) {
+      setNameValidationError(null);
+      return;
+    }
     if (isPendingInvite && pendingInviteData?.invited_label && user && userProfile !== undefined && (pendingInviteData.metadata as { kind?: string } | null)?.kind !== "mini_league_named_player_invite") {
       // Skip under Internet Identity: `user.email` is always undefined for
       // principal-based II accounts, so this never matches — that's
@@ -922,7 +981,7 @@ function SupabaseJoinTeamPage() {
       console.log("[JoinTeam] Accepting parent invite via transactional RPC");
       try {
         if (inviteStatus === "pending") {
-          const result = await acceptParentTeamInvite({ inviteId });
+          const result = await acceptParentTeamInvite(claimToken ? { inviteToken: claimToken } : { inviteId });
           console.log("[JoinTeam] Parent invite accepted:", {
             children: result.childIds.length,
             alreadyAccepted: result.alreadyAccepted,
@@ -933,11 +992,9 @@ function SupabaseJoinTeamPage() {
           inviteId,
           guardianId: userId,
         });
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["children"] }),
-          queryClient.invalidateQueries({ queryKey: membershipKeys.userRoles() }),
-          queryClient.invalidateQueries({ queryKey: ["rsvps"] }),
-        ]);
+        void queryClient.invalidateQueries({ queryKey: ["children"] });
+        void queryClient.invalidateQueries({ queryKey: membershipKeys.userRoles() });
+        void queryClient.invalidateQueries({ queryKey: ["rsvps"] });
         console.log("[JoinTeam] Parent invite children provisioned:", childIds.length);
         return childIds;
       } catch (rpcError) {
@@ -969,6 +1026,25 @@ function SupabaseJoinTeamPage() {
   // Execute the actual join mutation
   const executeJoin = async (rolesToAdd: AppRole[]) => {
     if (!invite || !user) throw new Error("Missing data");
+
+    // Standard child-carrying token invitations commit their entire membership
+    // server-side; do not fall through to name checks or browser role inserts.
+    const parentMetadata = pendingInviteData?.metadata as InviteChildMetadata | null;
+    if (isPendingInvite && pendingInviteData?.role === "parent"
+      && parentMetadata?.children?.length && !parentMetadata.mini_league_id) {
+      if (!token) throw new Error("Please reopen your invitation link.");
+      try {
+        const result = await acceptParentTeamInvite({ inviteToken: token });
+        provisionedChildIdsRef.current = result.childIds;
+        // Refresh in the background; waiting for every refetch slowed acceptance.
+        void queryClient.invalidateQueries({ queryKey: ["children"] });
+        void queryClient.invalidateQueries({ queryKey: membershipKeys.userRoles() });
+        await applyInviteClubFilter();
+        return ["parent" as AppRole];
+      } catch (error) {
+        throw new Error(getParentInviteErrorMessage(error));
+      }
+    }
 
     // The most recent named pending invite reconciled by a shareable-link join.
     let reconciledInvite: ReconciledInvite | null = null;
@@ -1167,12 +1243,17 @@ function SupabaseJoinTeamPage() {
             // TeamInviteLink tokens are redeemed by token (grants the link's
             // role idempotently); legacy TeamInvite records are accepted by id.
             if ((invite as { metadata?: { icp_invite_link?: boolean } | null } | null)?.metadata?.icp_invite_link) {
+              // Never let an old Ignite session accept a link for a newly
+              // authenticated Internet Identity (or the reverse).
+              assertShareableInvitePrincipal(ctx.identity.getPrincipal().toText(), user.id);
               await acceptLiveTeamInviteLink(ctx, token!);
+              if (inviteClubId) setDevClubNameReadiness(lastConfirmedDevOwnerNameReadiness(ctx,inviteClubId));
               return;
             }
             // Confirm the invite is still resolvable, then accept it.
             await getLiveTeamInvite(ctx, invite.id);
             await acceptLiveTeamInvite(ctx, invite.id);
+            if (inviteClubId) setDevClubNameReadiness(lastConfirmedDevOwnerNameReadiness(ctx,inviteClubId));
           },
         }, { inviteToken: token! });
         // Provisional: II users are identified by principal, not a Supabase
@@ -1455,7 +1536,9 @@ function SupabaseJoinTeamPage() {
     }
 
     // Send membership confirmation email if user has an email
-    if (user.email) {
+    // ICP/Internet Identity accounts do not use the Supabase email sender,
+    // even if an identity profile happens to expose an email-looking field.
+    if (!isIcpAccount && user.email) {
       try {
         // Fetch club branding for the email
         const clubId = invite.teams?.club_id;
@@ -1475,7 +1558,7 @@ function SupabaseJoinTeamPage() {
           }
         }
 
-        const teamLink = `${window.location.origin}${inviteDestination}`;
+        const teamLink = `${PUBLIC_INVITE_ORIGIN}${inviteDestination}`;
         
         console.log("Sending membership email with:", { clubName, clubLogoUrl, teamName: inviteEntityName });
         
@@ -1567,8 +1650,9 @@ function SupabaseJoinTeamPage() {
         if ((pendingInviteData?.metadata as { icp_pending_invite?: boolean } | null)?.icp_pending_invite) {
           return withFeatureBackend("membership", {
             supabase: async () => [] as AppRole[],
-            icp: async () => {
+            icp: async (ctx) => {
               const receipt = await acceptIcpInviteAndWelcome(token ?? "");
+              if (inviteClubId) setDevClubNameReadiness(lastConfirmedDevOwnerNameReadiness(ctx,inviteClubId));
               provisionedChildIdsRef.current = receipt.child_ids;
               return [(pendingInviteData?.role ?? "player") as AppRole];
             },
@@ -1585,7 +1669,9 @@ function SupabaseJoinTeamPage() {
       // Filter out roles user already has
       const rolesToAdd = selectedRoles.filter(role => !existingRoles?.includes(role));
 
-      if (rolesToAdd.length === 0) {
+      const tokenParentInvite = isPendingInvite && pendingInviteData?.role === "parent"
+        && !!(pendingInviteData.metadata as InviteChildMetadata | null)?.children?.length;
+      if (rolesToAdd.length === 0 && !tokenParentInvite) {
         throw new Error("You already have all selected roles in this team");
       }
 
@@ -1639,7 +1725,9 @@ function SupabaseJoinTeamPage() {
       console.error("[SignupFlow] Auto-join failed", error);
       toast({
         title: "Couldn't complete your join",
-        description: error.message || "Failed to join. Please try again or ask your admin to resend the invite.",
+        description: isIcpShareableLink
+          ? shareableInviteJoinErrorMessage(error)
+          : error.message || "Failed to join. Please try again or ask your admin to resend the invite.",
         variant: "destructive",
       });
     },
@@ -1692,7 +1780,9 @@ function SupabaseJoinTeamPage() {
       const inviteRole = invite.role as AppRole;
       const hasInviteRole = existingRoles?.includes(inviteRole);
       
-      if (hasInviteRole) {
+      const pendingParentChildren = isPendingInvite && pendingInviteData?.status === "pending"
+        && inviteRole === "parent" && !!(pendingInviteData.metadata as InviteChildMetadata | null)?.children?.length;
+      if (hasInviteRole && !pendingParentChildren) {
         // User already has this role - just navigate to the relevant destination
         autoJoinAttempted.current = true;
         safeSessionRemove("autoJoinAfterAuth");
@@ -1874,13 +1964,45 @@ function SupabaseJoinTeamPage() {
 
   // Regular team invites are now allowed (shareable links from AddTeamMemberSheet)
 
-  if (inviteError || !invite) {
+  // An unreadable/failed lookup must not be mislabeled as a revoked link.
+  if (inviteError) {
+    return (
+      <JoinTeamStatusCard
+        tone="warning"
+        title="Couldn't Verify Invitation"
+        description="We couldn't check this invitation right now. No membership has been changed."
+        actions={<Button onClick={() => window.location.reload()}>Retry</Button>}
+      />
+    );
+  }
+
+  if (!invite) {
     return (
       <JoinTeamStatusCard
         tone="error"
         title="Invalid Invite Link"
         description="This invite link is invalid or has been deleted."
         actions={<Button onClick={() => navigate("/")}>Go to Home</Button>}
+      />
+    );
+  }
+
+  // A verified ICP invite must never be redeemed through the email/Supabase
+  // membership writer, even when the visitor is already signed in by email.
+  // Switching auth providers requires this explicit user action.
+  if (isIcpShareableLink && !isIcpAccount) {
+    return (
+      <JoinTeamStatusCard
+        tone="warning"
+        title="Internet Identity Required"
+        description="This team invitation belongs to Ignite's Internet Identity account system. Continue with Internet Identity to choose whether to join. If you're currently signed in with email, this will switch sign-in methods on this device."
+        actions={
+          <Button onClick={() => {
+            safeSessionRemove("autoJoinAfterAuth");
+            setAuthMethodChoice("icp");
+            handleSignInClick();
+          }}>Continue with Internet Identity</Button>
+        }
       />
     );
   }
@@ -2098,10 +2220,17 @@ function SupabaseJoinTeamPage() {
   const handleAddChild = async () => {
     if (!user) return;
     if (!invite?.team_id && !leagueLinkMiniLeagueId) return;
+    if (isIcpAccount && icpChildSubmissionPending.current) return;
+    if (isIcpAccount) icpChildSubmissionPending.current = true;
     setAddingChild(true);
     try {
       let addedLabel = "";
       if (linkExistingChildId) {
+        // Never write to Supabase guardian links from an Internet Identity
+        // invite. A team admin must authorise joining an existing child's family.
+        if (isIcpAccount) {
+          throw new Error("Ask your team admin to link you to an existing child. No guardian record was changed.");
+        }
         // Find existing child name for the summary
         const existing = (existingTeamChildren as any[]).find(c => c.id === linkExistingChildId);
         addedLabel = existing?.name || "Child";
@@ -2121,38 +2250,104 @@ function SupabaseJoinTeamPage() {
         // ICP: mini-league parent join links mint the roster player directly
         // on the mini_league_domain canister (idempotent per parent + child
         // name), replacing the children + child_mini_league_assignments writes.
-        const icpHandled = leagueLinkMiniLeagueId
-          ? await withFeatureBackend("mini_leagues", {
-              supabase: async () => false,
-              icp: async (ctx) => {
-                await joinLiveMiniLeagueByToken(ctx, token!, addedLabel);
-                return true;
-              },
-            }, writeOnce({ inviteToken: token ?? "" }))
-          : invite?.team_id
-            // ICP team link: create the child on club_domain and keep its
-            // name on pii_access_control — same as the auto-create path.
-            ? await withFeatureBackend("membership", {
-                supabase: async () => false,
-                icp: async (ctx) => {
-                  const [{ icpGetTeam }, club, vault] = await Promise.all([
-                    import("@/lib/icpClubTeamLookup"),
-                    import("@/live/features/club"),
-                    import("@/live/features/vault"),
-                  ]);
-                  const team = await icpGetTeam(invite.team_id!);
-                  const clubId = (team as any)?.club_id as string | undefined;
-                  if (!clubId) throw new Error("Team not found");
-                  const me = ctx.identity.getPrincipal();
-                  const child = await club.createLiveChildForParentOnTeam(ctx, clubId, invite.team_id!, me);
-                  const childId = (child as any).id as string;
-                  await vault.registerLiveChildNamePii(ctx, childId, addedLabel, me, clubId);
-                  await vault.grantLiveClubChildNameRead(ctx, childId, clubId);
-                  return true;
+        let icpHandled = false;
+        if (leagueLinkMiniLeagueId) {
+          icpHandled = await withFeatureBackend("mini_leagues", {
+            supabase: async () => false,
+            icp: async (ctx) => {
+              await joinLiveMiniLeagueByToken(ctx, token!, addedLabel);
+              return true;
+            },
+          }, writeOnce({ inviteToken: token ?? "" }));
+        } else if (isIcpAccount && invite?.team_id) {
+          // Route the write by the verified invite's club, then verify the
+          // referenced team belongs to that club before any child creation.
+          const verifiedClubId = invite.teams?.club_id;
+          if (!verifiedClubId) throw new Error("Invitation has no verified club");
+          const parentPrincipal = user.id;
+          const journal = readInviteChildJournal(parentPrincipal);
+          if (icpChildCreateAttempted.current && !journal) {
+            throw new Error("A previous child creation may have succeeded. Check My Children before trying to add another.");
+          }
+          const result = await withFeatureBackend("membership", {
+            supabase: async () => { throw new Error("Internet Identity invitation cannot use the email database"); },
+            icp: async (ctx) => {
+              const [club, vault, safety] = await Promise.all([
+                import("@/live/features/club"),
+                import("@/live/features/vault"),
+                import("@/features/membership/icpChildrenGroupSafety"),
+              ]);
+              const clubId = verifiedClubId;
+              const teamId = invite.team_id!;
+              const parent = ctx.identity.getPrincipal();
+              const sourceClubCanisterId = safety.requireSourceClubCanisterId(ctx.target);
+              // Strict check in the group where the child will live. A failed
+              // list is a read failure (nothing created), never "duplicate".
+              let own: Awaited<ReturnType<typeof club.listMyLiveOwnChildren>>;
+              try { own = await club.listMyLiveOwnChildren(ctx); }
+              catch { throw new Error("We couldn't check your existing children for this club. Nothing was created — please try again."); }
+              const ownNames = own.length
+                ? await vault.resolveLivePiiTextBatch(ctx, own.map(c => c.id), "name", "read", "child_duplicate_check").catch(() => new Map<string, string>())
+                : new Map<string, string>();
+              const plan = planIcpInviteChild({ clubId, teamId, name: addedLabel }, own.map(c => ({
+                id: c.id, teams: c.teams, name: ownNames.get(c.id) ?? null,
+              })), journal);
+              // Other groups: only a confirmed readable same-name child blocks.
+              if (plan.kind === "create") await verifyIcpChildNameInOtherGroups(addedLabel, sourceClubCanisterId);
+              const outcome = await createIcpInviteChild({ clubId, teamId, name: addedLabel, ...(plan.kind === "recover" ? { recover: plan } : {}) }, {
+                readTeam: async () => {
+                  if (!(await club.isMyLiveClubMember(ctx, clubId))) {
+                    throw new Error("You are no longer a member of this club. No child was created.");
+                  }
+                  return (await club.getLiveTeam(ctx, teamId))[0] ?? null;
                 },
-              }, writeOnce({ teamId: invite.team_id ?? '' }))
-            : false;
+                createOwnChild: () => {
+                  if (icpChildCreateAttempted.current) {
+                    throw new Error("Child creation was already attempted. Check My Children before retrying.");
+                  }
+                  icpChildCreateAttempted.current = true;
+                  return club.createMyLiveChild(ctx);
+                },
+                // The invite must report encrypted-name write errors rather
+                // than treating an unlabelled record as a complete success.
+                saveName: (id) => vault.registerLiveChildNamePiiOrThrow(ctx, id, addedLabel, parent, clubId),
+                assignOwnChildToTeam: (id) => club.setMyLiveChildTeam(ctx, id, teamId, true),
+              });
+              if (outcome.status === "linked") clearInviteChildJournal(parentPrincipal);
+              else writeInviteChildJournal(parentPrincipal, {
+                childId: outcome.childId, teamId, clubId, name: addedLabel,
+                nameSaved: outcome.status === "linked_without_name" ? false : outcome.nameSaved || (journal?.childId === outcome.childId && journal.nameSaved),
+              });
+              return outcome;
+            },
+          }, writeOnce({ clubId: verifiedClubId }));
+          if (result.status !== "linked") {
+            // A child exists. Do not repeat creation or claim successful
+            // onboarding when encrypted name or team assignment failed. The
+            // exact child is journaled, so "Add" again resumes it.
+            icpChildCreateAttempted.current = true;
+            const teamLinked = result.status === "linked_without_name";
+            const nameSaved = result.status === "created_unlinked" && result.nameSaved;
+            const problem = teamLinked
+              ? "Name needs attention"
+              : nameSaved ? "Not yet linked to team" : "Name and team need attention";
+            setAddedChildren(prev => [...prev, addedLabel + " (" + problem + ")"]);
+            toast({
+              title: teamLinked ? "Child added — name not saved yet" : "Child created — team link failed",
+              description: teamLinked
+                ? "Your child is on the team, but their name could not be saved. Tap Add again with the same name to finish; no duplicate will be created."
+                : "Your child was created but not linked to the team. Tap Add again with the same name to finish linking; no duplicate will be created.",
+              variant: "destructive",
+            });
+            return;
+          }
+          icpHandled = true;
+          // A confirmed team assignment permits creating the next sibling.
+          icpChildCreateAttempted.current = false;
+          toast({ title: `${addedLabel} added to ${inviteEntityName}!` });
+        }
         if (!icpHandled) {
+        if (isIcpAccount) throw new Error("Internet Identity child creation is unavailable for this invitation. No email-database write was made.");
         // Create new child
         const { data: newChild, error: childErr } = await supabase
           .from("children")
@@ -2221,8 +2416,15 @@ function SupabaseJoinTeamPage() {
       queryClient.invalidateQueries({ queryKey: membershipKeys.teamChildrenForLinking(invite?.team_id) });
     } catch (err) {
       console.error("[JoinTeam] Error adding child:", err);
-      toast({ title: "Failed to add child", variant: "destructive" });
+      toast({
+        title: "Couldn't finish adding your child",
+        description: isIcpAccount
+          ? "Check My Children before trying again. Your child may already have been created; contact your team admin if you need help."
+          : (err as Error)?.message || "Please try again.",
+        variant: "destructive",
+      });
     } finally {
+      if (isIcpAccount) icpChildSubmissionPending.current = false;
       setAddingChild(false);
     }
   };
@@ -2280,7 +2482,8 @@ function SupabaseJoinTeamPage() {
   if (showChildStep) {
     // handleAddChild early-returns without either of these — never show a
     // tappable button that would silently do nothing.
-    const canAddChild = !!invite?.team_id || !!leagueLinkMiniLeagueId;
+    const canAddChild = (!!invite?.team_id || !!leagueLinkMiniLeagueId) &&
+      !(isIcpAccount && icpChildCreateAttempted.current && !(user?.id && readInviteChildJournal(user.id)));
     return (
       <JoinTeamChildStepCard
         currentStep={getCurrentStep()}
@@ -2291,6 +2494,7 @@ function SupabaseJoinTeamPage() {
         linkExistingChildId={linkExistingChildId}
         childName={childName}
         childYearOfBirth={childYearOfBirth}
+        showYearOfBirth={!isIcpAccount}
         canAddChild={canAddChild}
         addingChild={addingChild}
         showSkipConfirm={showSkipConfirm}
@@ -2333,6 +2537,25 @@ function SupabaseJoinTeamPage() {
                 <p className="text-sm text-muted-foreground mt-2">
                   We've switched you to {clubSwitchName}.
                 </p>
+              )}
+              {isIcpAccount && devClubNameReadiness &&
+                !['ready','not-applicable'].includes(devClubNameReadiness) && (
+                <div className="mt-4 rounded-md border p-3 text-left space-y-2" role="status">
+                  <p className="text-sm font-medium">Secure club-name setup is pending</p>
+                  <p className="text-sm text-muted-foreground">
+                    Your membership is active. Other members may not see your name until its club-encrypted copy has been verified.
+                    {devClubNameReadiness === 'pending-release' ? ' Secure club-name sharing is not enabled yet.' : ''}
+                  </p>
+                  {devClubNameReadiness !== 'pending-release' && inviteClubId && (
+                    <Button variant="outline" size="sm" onClick={() => void withFeatureBackend('membership', {
+                      supabase: async () => {},
+                      icp: async ctx => {
+                        const result = await reconcileConfirmedDevOwnerClubName(ctx,inviteClubId,{explicitOwnerRetry:true});
+                        setDevClubNameReadiness(result);
+                      },
+                    }, {clubId:inviteClubId}).catch(() => setDevClubNameReadiness('pending-owner-check'))}>Recheck secure name</Button>
+                  )}
+                </div>
               )}
             </div>
 

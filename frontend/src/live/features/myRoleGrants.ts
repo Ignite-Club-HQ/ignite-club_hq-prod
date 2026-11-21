@@ -5,6 +5,7 @@ import { readOwnerTestRouteCached } from '../ownerTestRouting';
 import { isScopedContext } from '../scopedContext';
 import { memoizedGrants } from '../roleGrantsMemo';
 import { readMembershipDiscovery } from '../membershipDiscoveryCache';
+import { currentMixedMembershipSession } from '../mixedMembershipRuntime';
 
 type Grant = Awaited<ReturnType<Awaited<ReturnType<typeof connectLiveClubDomain>>["actor"]["my_role_grants"]>>[number];
 
@@ -36,14 +37,23 @@ export function mergeRoleGrants(parts: Grant[][]): Grant[] {
 export async function fetchMyRoleGrantsEverywhere(ctx: FeatureBackendContext): Promise<Grant[]> {
   // Inside one leg of a fan-out: this canister only (no nested fan-out).
   if (isScopedContext(ctx)) return rawGrants(ctx);
+  const mixed = currentMixedMembershipSession(ctx);
+  if (mixed) {
+    const [global, ...parts] = await Promise.all([
+      rawGrants(mixed.shared).then(grants => grants.filter(g => !g.club?.[0] && !g.team?.[0])),
+      ...mixed.memberClubIds.map(club => mixed.readClub(club, 'club_domain', async context =>
+        (await rawGrants(context)).filter(g => g.club?.[0] === club))),
+    ]);
+    return mergeRoleGrants([global, ...parts]);
+  }
   if (!await routingActive(ctx) && !await readOwnerTestRouteCached(ctx)) return rawGrants(ctx);
   const { clubDispatch } = await import("../groupDispatch");
   const target = ctx.target;
   const key = JSON.stringify([who(ctx), target?.alias, target?.host, target?.networkKind,
     Object.entries(target?.canisterIds ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
-  return readMembershipDiscovery(key, async () => {
+  return readMembershipDiscovery(key, async (refresh) => {
     // Refresh the verified session only for discovery, never for a page refresh.
-    if (typeof clubDispatch.refreshMembershipSession === 'function') await clubDispatch.refreshMembershipSession();
+    if (refresh && typeof clubDispatch.refreshMembershipSession === 'function') await clubDispatch.refreshMembershipSession();
     // The verified lookup/session already discovered the complete membership
     // inventory. Fetch roles only from those owning groups, not every group
     // plus the shared source and another post-fan-out registry round trip.

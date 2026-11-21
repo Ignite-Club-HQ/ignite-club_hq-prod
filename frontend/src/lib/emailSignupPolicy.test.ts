@@ -23,7 +23,7 @@ describe("invitation-only email signup", () => {
     await expect(validateEmailSignupInvite(clientFor("get_pending_invite_by_token", { club_id, status: "pending", invited_email: "Invited@example.test" }), "token", " invited@example.test ")).resolves.toBeUndefined();
   });
   it("rejects a valid invitation for another club", async () => {
-    await expect(validateEmailSignupInvite(clientFor("get_team_invite_by_token", { club_id: OTHER, max_uses: null, expires_at: null }), "token", "new@example.test")).rejects.toThrow(/invitation/);
+    await expect(validateEmailSignupInvite(clientFor("get_team_invite_by_token", { club_id: OTHER, max_uses: null, expires_at: null }), "token", "new@example.test")).rejects.toThrow(/not email-enabled/);
   });
   it("rejects a mismatched named invitation email", async () => {
     await expect(validateEmailSignupInvite(clientFor("get_pending_invite_by_token", { club_id: BRIDGE, status: "pending", invited_email: "invited@example.test" }), "token", "other@example.test")).rejects.toThrow(/invitation/);
@@ -65,10 +65,26 @@ describe("invitation-only email signup", () => {
     expect(client.rpc).not.toHaveBeenCalled();
   });
   it("recovers the token from URL intent or a blocked-storage handoff", () => {
+    expect(readEmailSignupInviteToken("?next=%2Fjoin%2Fp%2Fshare-token")).toBe("share-token");
     expect(readEmailSignupInviteToken("?invite=abc")).toBe("abc");
     expect(readEmailSignupInviteToken("?next=%2Fjoin-club%2Fxyz")).toBe("xyz");
     sessionStorage.setItem("redirectAfterAuth", "/join/team-token?parent=true");
     expect(readEmailSignupInviteToken("")).toBe("team-token");
     expect(readEmailSignupInviteToken("?next=https://evil.test/join/abc")).toBeNull();
+  });
+  it.each([null, "", "   "])("allows any email for an unclaimed share link with invited_email %s", async invited_email => {
+    await expect(validateEmailSignupInvite(clientFor("get_pending_invite_by_token", {
+      club_id: BRIDGE, status: "pending", invited_email, invited_user_id: null,
+    }), "share", "anyone@example.com")).resolves.toBeUndefined();
+  });
+  it("rejects a pending invitation already linked to another user", async () => {
+    await expect(validateEmailSignupInvite(clientFor("get_pending_invite_by_token", {
+      club_id: BRIDGE, status: "pending", invited_email: null, invited_user_id: "someone-else",
+    }), "used", "anyone@example.com")).rejects.toThrow(/already been used/);
+  });
+  it("rejects an expired pending-invite status", async () => {
+    await expect(validateEmailSignupInvite(clientFor("get_pending_invite_by_token", {
+      club_id: BRIDGE, status: "expired", invited_email: null,
+    }), "expired", "anyone@example.com")).rejects.toThrow(/expired/);
   });
 });

@@ -6,7 +6,9 @@ export const PERF_STAGES = [
   "identity_complete",
   "account_ready",
   "profile_resolved",
+  "home_shell_paint",
   "home_first_paint",
+  "home_data_timeout",
   "first_team_card",
   "carousel_loaded",
 ] as const;
@@ -26,7 +28,9 @@ export function markStage(stage: PerfStage): void {
   stages[stage] = Math.round(now());
   try { performance.mark(`ignite:${stage}`); } catch { /* unsupported */ }
   if (typeof window !== "undefined") (window as unknown as { __igniteStages?: StageMap }).__igniteStages = { ...stages };
-  if (stage === "carousel_loaded" && !reported) {
+  // A stalled home can never reach carousel_loaded: report the partial
+  // stage history at its timeout instead of silently losing it.
+  if ((stage === "carousel_loaded" || stage === "home_data_timeout") && !reported) {
     reported = true;
     console.info("[perf] startup stages (ms)", { ...stages });
     void reportStartupStages({ ...stages });

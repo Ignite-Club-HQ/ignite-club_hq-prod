@@ -1,10 +1,11 @@
 import { writeOnce } from "@/live/clubScope";
 import { Textarea } from "@/components/ui/textarea";
 import { enginePreparationIssues, type DeploymentPreparation } from '@/live/enginePreparation';
+import { createFutureEngineDraft, prepareEngineHandover } from '@/live/engineSwitchPreparation';
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Plus, Trash2, Globe2, Save, Globe, FlaskConical } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, Globe2, Save, Globe, FlaskConical, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -547,6 +548,26 @@ export default function PlacementAdminSettingsPage() {
     ]);
   };
 
+  const addFutureEngine = () => {
+    const draft = createFutureEngineDraft(targetRows.map(row => ({ id: `icp/${row.alias.trim()}/${row.version.trim()}` })));
+    setRoutingTouched(true);
+    setTargetRows(current => [...current, { ...draft, region: '', host: '', canisterIdsText: '' }]);
+  };
+
+  const downloadEnginePreparation = (row: TargetRow) => {
+    try {
+      const target = normalizeApprovedTarget({ ...row, enabled: false, canisterIds: parseCanisterIdsText(row.canisterIdsText) });
+      const url = URL.createObjectURL(new Blob([JSON.stringify(prepareEngineHandover(target), null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${target.alias}-preparation.json`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch {
+      toast({ title: 'Preparation could not be downloaded', description: 'Check the engine name and any details you have entered, then try again.', variant: 'destructive' });
+    }
+  };
+
   const updateClubOverrideRow = (index: number, patch: Partial<ClubOverrideRow>) => {
     setRoutingTouched(true);
     setClubOverrideRows(current => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -1069,6 +1090,10 @@ export default function PlacementAdminSettingsPage() {
                 {row.kind === "icp-cloud-engine" && (
                   <div className="space-y-2">
                     <Badge variant="secondary">Preparation only · not verified</Badge>
+                    <Button variant="outline" size="sm" onClick={() => downloadEnginePreparation(row)}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Download preparation
+                    </Button>
                     <div className="space-y-1">
                       <Label htmlFor={`target-host-${index}`}>Engine address</Label>
                       <Input
@@ -1109,6 +1134,10 @@ export default function PlacementAdminSettingsPage() {
             <Button variant="outline" onClick={addTargetRow}>
               <Plus className="mr-2 h-4 w-4" />
               Add target
+            </Button>
+            <Button variant="outline" onClick={addFutureEngine}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add future engine
             </Button>
           </CardContent>
         </Card>

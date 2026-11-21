@@ -6,9 +6,10 @@ import { createLivePrivateProfileAuthorityResolver } from './privateProfileAutho
 import { listLiveProfilesByIds } from './features/identityAccessClient';
 import { capturePrivateProfileSession } from './privateProfileSession';
 import { privateClubNameDisplaysEnabled } from './privateClubNameDisplayMode';
+import { createDevCrossGroupTeamNameResolver, devG2SharedClubNamesEnabled, clubNameDisplaysActive } from './devCrossGroupTeamNameRoute';
 
 export type ProfileRelationship = {
-  kind: 'club' | 'family' | 'competition' | 'league' | 'direct' | 'broadcast' | 'competition_admin';
+  kind: 'club' | 'team' | 'family' | 'competition' | 'league' | 'direct' | 'broadcast' | 'competition_admin';
   resource: string;
 };
 
@@ -18,6 +19,7 @@ export type ProfileRelationship = {
 export async function readRelationshipProfiles(
   owner: FeatureBackendContext, ids: readonly string[], relationship: ProfileRelationship,
   signal?: AbortSignal,
+  options: { partialNames?: boolean; onStep?: (step: import('@/lib/nameUnlockProgress').NameUnlockStep) => void } = {},
 ) {
   relationship = { ...relationship };
   ids = [...ids];
@@ -41,8 +43,29 @@ export async function readRelationshipProfiles(
       active();
       if (shared.identity !== identity) throw new Error('Profile reader identity changed.');
       const rehearsal = privateProfileSearchRehearsalEnabled();
-      const releasedClub = relationship.kind === 'club' && privateClubNameDisplaysEnabled();
-      if (!rehearsal && !releasedClub) {
+      const enforcedClubNames = clubNameDisplaysActive(owner.target);
+      // Never unlock a team's adults with personal/team-scoped keys after
+      // club-key enforcement. Callers must pass the independently resolved
+      // owning club ID, not infer it from the team or a profile reference.
+      if (enforcedClubNames && relationship.kind === 'team') {
+        throw new Error('Team member names require the owning club audience.');
+      }
+      const devSharedClub = relationship.kind === 'club' && devG2SharedClubNamesEnabled(owner.target, relationship.resource);
+      const releasedClub = relationship.kind === 'club' &&
+        (privateClubNameDisplaysEnabled() || enforcedClubNames || devSharedClub);
+      // DEV only: source resolution can serve either the historical exact-team
+      // path, or an explicitly operator-released shared CLUB key. The browser
+      // does not grant access; original PII, Identity and owning G2 Club must
+      // independently authorise every name against the selected audience.
+      const devTeamResolver = (relationship.kind === 'team' || devSharedClub)
+        ? createDevCrossGroupTeamNameResolver(owner) : undefined;
+      // The original G1 -> registered G2 DEV route is independently pinned and
+      // its Identity/PII/Club audience release is server-gated. Lovable mobile
+      // builds need not inherit the separately provisioned ICP asset-canister
+      // display flag to request this exact team authorization. A missing or
+      // foreign DEV route still fails closed; this grants no private name.
+      const releasedTeam = Boolean(devTeamResolver) && relationship.kind === 'team';
+      if (!rehearsal && !releasedClub && !releasedTeam) {
         const rows = await listLiveProfilesByIds(shared, ids);
         active();
         return rows;
@@ -56,7 +79,11 @@ export async function readRelationshipProfiles(
       const rows = await listLiveProfilesByIds(shared, ids, {
         signal,
         audience: { ...relationship, authority, profile_revision: 0n },
-        ...(rehearsal ? { resolveAuthority: async (original: string) => {
+        ...(options.partialNames ? { partialNames: true } : {}),
+        ...(options.onStep ? { onStep: options.onStep } : {}),
+        ...(devTeamResolver && !rehearsal
+          ? { resolveAuthority: devTeamResolver }
+          : rehearsal ? { resolveAuthority: async (original: string) => {
           active();
           if (!resolver) {
             const evidence = await readPrivateProfileEvidence(shared);
@@ -81,6 +108,7 @@ export async function selectRelationshipProfiles(ids: readonly string[], relatio
   if (relationship.kind === 'family') throw new Error('Family profiles require an explicit owning child context.');
   const scope = relationship.kind === 'league' ? { miniLeagueId: relationship.resource }
     : relationship.kind === 'competition' ? { competitionId: relationship.resource }
+    : relationship.kind === 'team' ? { teamId: relationship.resource }
     : { clubId: relationship.resource };
   const feature = relationship.kind === 'league' ? 'mini_leagues'
     : relationship.kind === 'competition' ? 'competitions' : 'membership';

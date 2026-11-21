@@ -89,6 +89,19 @@ impl<M:Memory+Clone> Coordinator<M>{
     pub fn verified_generation(&self)->Outcome<u64>{Ok(self.inventory()?.generation)}
     fn build(&self,source:&str)->Option<Build>{self.rows.get(&format!("source:{source}")).map(|b|decode(&b))}
     fn save(&mut self,source:&str,b:&Build){self.rows.insert(format!("source:{source}"),encode(b));}
+    /// Disposal is deliberately confined to the membership-directory stable
+    /// partitions. No account, identity-link, role or PII storage is touched.
+    pub fn dev_disposal_within_budget(&self)->bool {
+        self.rows.len()<=10_000 && self.journal.dev_disposal_within_budget()
+            && self.pool.dev_disposal_within_budget()
+    }
+    pub fn dev_discard_test_directory(&mut self) {
+        // No await: all obsolete build data and its journals disappear together.
+        self.pool.dev_discard_small_test_pool();
+        self.journal.dev_discard_test_updates();
+        let keys:Vec<String>=self.rows.iter().map(|e|e.key().clone()).collect();
+        for key in keys { self.rows.remove(&key); }
+    }
     pub fn bind_inventory(&mut self,verified:VerifiedInventory)->Outcome<()>{
         let next=verified.0;
         if let Ok(prior)=self.inventory(){
@@ -324,6 +337,27 @@ impl<M:Memory+Clone> Coordinator<M>{
     type Mem=VirtualMemory<VectorMemory>;
     fn open(m:&MemoryManager<VectorMemory>)->Coordinator<Mem>{Coordinator::open(m.get(MemoryId::new(0)),Pool::open(m.get(MemoryId::new(1)),m.get(MemoryId::new(2)),10000,32).unwrap(),m.get(MemoryId::new(3)))}
     fn viewer(p:Principal)->Viewer{Viewer{account:"member".into(),version:1,aliases:vec![p]}}
+    #[test]fn disposable_test_directory_rebinds_cleanly_without_erasing_other_stable_memory(){
+        use ic_stable_structures::StableBTreeMap;
+        let manager=MemoryManager::init(VectorMemory::default());
+        let mut account_like:StableBTreeMap<u64,Vec<u8>,Mem>=StableBTreeMap::init(manager.get(MemoryId::new(9)));
+        account_like.insert(42,vec![1,2,3,4]);
+        let (snapshot,pin,authorities)=group_inventory::tests::fixture();
+        let mut directory=open(&manager);
+        directory.bind_inventory(verify_inventory(&snapshot,&pin,&authorities,1).unwrap()).unwrap();
+        directory.begin("g0",authorities[0],1).unwrap();
+        assert!(directory.dev_disposal_within_budget());
+        directory.dev_discard_test_directory();
+        assert!(directory.verified_generation().is_err());
+        assert_eq!(account_like.get(&42),Some(vec![1,2,3,4]));
+        directory.bind_inventory(verify_inventory(&snapshot,&pin,&authorities,2).unwrap()).unwrap();
+        directory.begin("g0",authorities[0],1).unwrap();
+        assert_eq!(directory.verified_generation().unwrap(),2);
+        drop(directory);
+        let reopened=open(&manager);
+        assert_eq!(reopened.verified_generation().unwrap(),2);
+        assert_eq!(account_like.get(&42),Some(vec![1,2,3,4]));
+    }
     #[test]fn consensus_status_cannot_regress_below_retained_observation_after_reopen(){
         let manager=MemoryManager::init(VectorMemory::default());let (s,pin,a)=group_inventory::tests::fixture();let mut c=open(&manager);
         c.bind_inventory(verify_inventory(&s,&pin,&a,1).unwrap()).unwrap();let mut observed=c.begin("g0",a[0],1).unwrap();

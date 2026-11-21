@@ -293,7 +293,16 @@ const textEncoder = new TextEncoder();
  * so a PII failure is logged, never thrown — the grant can be retried later.
  * The caller becomes the record's domain owner.
  */
-export async function registerLiveChildNamePii(
+/**
+ * Strict child-name registration for the ICP parent invite flow. A parent may
+ * already have a newly-created child by the time the encrypted PII call runs:
+ * never silently convert a failed registration into "child added".
+ *
+ * The existing club/parent read grants remain best-effort as before; the
+ * canister's domain-owner ACL is still authoritative. The critical failure
+ * here is the encrypted name itself not being stored.
+ */
+export async function registerLiveChildNamePiiOrThrow(
   ctx: FeatureBackendContext,
   childId: string,
   childName: string,
@@ -301,13 +310,30 @@ export async function registerLiveChildNamePii(
   clubId?: string | null,
 ): Promise<void> {
   const owner = ctx.identity.getPrincipal();
+  await registerLivePii(
+    ctx, childId, "name", textEncoder.encode(childName), owner,
+    clubId ? { kind: "clubchildren", scope: clubId, club: clubId } : undefined,
+  );
+  if (clubId) await grantLiveClubPiiRead(ctx, childId, "name", clubId);
   try {
-    // With a club, the name is locked to the club-children key: one key per
-    // club opens every child's name for that club's members.
-    await registerLivePii(ctx, childId, "name", textEncoder.encode(childName), owner,
-      clubId ? { kind: "clubchildren", scope: clubId, club: clubId } : undefined);
-    if (clubId) await grantLiveClubPiiRead(ctx, childId, "name", clubId);
     await grantLivePiiRead(ctx, childId, "name", parent);
+  } catch (error) {
+    console.error("[vault] child name parent read grant failed", {
+      childId, message: (error as Error)?.message,
+    });
+  }
+}
+
+/** Legacy best-effort child PII registration for preexisting app flows. */
+export async function registerLiveChildNamePii(
+  ctx: FeatureBackendContext,
+  childId: string,
+  childName: string,
+  parent: Principal,
+  clubId?: string | null,
+): Promise<void> {
+  try {
+    await registerLiveChildNamePiiOrThrow(ctx, childId, childName, parent, clubId);
   } catch (error) {
     console.error("[vault] child name PII registration failed", {
       childId,

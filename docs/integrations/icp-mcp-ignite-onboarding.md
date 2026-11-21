@@ -6,17 +6,44 @@ Status: implementation guidance / DEV validation, **not** proof of a successful 
 
 | Environment | Application URL | Branch | Notes |
 | --- | --- | --- | --- |
-| DEV | https://ignite-club-launchpad.lovable.app | `main` | Use for all onboarding tests; its derivation origin resolves separately via `open_app`. |
+| DEV | https://proe7-kqaaa-aaaas-qg6gq-cai.icp.net | `main` | **Canonical connector endpoint**, published on the reviewed ICP frontend; check the live manifest and exact II derivation origin. |
 | PROD | https://igniteclubhq.app | `prod` | Different II derivation origin and canister IDs. No production onboarding tests or writes without explicit approval. |
 
-**Always use `open_app` with the exact user-supplied URL**. ICP MCP cannot find Ignite by the bare name. Never invent canister IDs, target aliases, or derivation origins and never swap DEV/PROD principals. Users must authorise their own II access; the app-admin identity used by a developer is not a proxy for a new coach.
+**Connector origin policy:** For Ignite DEV ChatGPT canister operations use the canonical ICP-hosted URL above, not a Lovable or Netlify preview as an implicit fallback. `https://ignite-club-launchpad.lovable.app` is the legacy DEV preview: it advertises only the reviewed base/G2 customer subset and intentionally does **not** opt into Group 2 encrypted-child-name PII discovery. Both DEV origins identify the same pinned Internet Identity derivation origin, but their published service manifests can differ by deliberate capability gating. Do not call an undeclared canister through a different app URL to bypass its refusal, and never automatically substitute PROD.
+
+Use `open_app` on the specific URL agreed with the user, and verify the `/.well-known/ic-architecture` declaration and derivation origin before any canister operation. If the user explicitly requests the Lovable preview, explain the narrower capabilities rather than silently switching origins. Never invent canister IDs, target aliases or derivation origins, or swap DEV/PROD principals. Users must authorise their own II access; an app-admin identity is not a proxy for a new coach.
+
+**Manifest minimisation:** DEV publishes only reviewed customer-facing base services and the exact required authenticated identity, PII and group-routing dependencies. The shared `secret_workload_identity`, `migration_coordinator` and `timer_jobs` are excluded from connector discovery. G2 notification/worker/governance services remain excluded; the G2 child-name PII exception is separately pinned and gated on the ICP-hosted DEV build. Discovery is not permission: canister-side authority still applies. PROD manifest and email/Supabase routing are unchanged.
+
+## First-time ChatGPT onboarding UX and release gates
+
+A first-time customer who chooses to register **inside ChatGPT** needs the private/public Ignite plugin (when available), and the **official DFINITY ICP connection**, but should not be required to understand ICP infrastructure or install an unrelated custom signer. A website registrant does **not** need a ChatGPT plugin. When no Internet Identity exists, ChatGPT provides the official connector installation/connection controls; **the customer** creates the passkey through the official Internet Identity sign-in screen and returns to ChatGPT. The agent cannot automate, control or collect the passkey. Always preserve the initial create-or-join intent across that handoff. The exact public single-install flow remains unverified, and this private pilot does not imply public availability.
+
+The conversation should advance through `NEEDS_ICP_CONNECTION`, `ACCOUNT_PENDING`, `PRIVATE_PROFILE_PENDING`, `LEGAL_PENDING`, `CLUB_PENDING`, `TEAM_PENDING`, then `COMPLETE` **only after signed readback**. Use one question at a time: create or join; if creating, ask the minimum club name, sport, country and first team name/age group; show a confirmation summary before changes. On reconnect, re-read state by the **same principal**, resume at the actual incomplete stage and avoid duplicate account, club, team or invite creation. A missing identity link, encrypted profile or legal acceptance is not a successful signup.
+
+**Crypto/publication limitation:** Source-level offline own-name encryption exists under `frontend/scripts/prepare-icp-chatgpt-profile-name-*.mjs` and can be rehearsed with synthetic identities. It is not a remotely executable tool in the official DFINITY connector, nor an installed secure device-side MCP App for all ChatGPT clients. Complete in-chat secure profile writes require a separately verified trustworthy execution environment, original private-name authority, locally encrypted ciphertext, one caller-signed registration via official ICP, exact readback and user-authorized decrypt verification. If unavailable, **stop** rather than introducing a hosted encryption service, delegating signing or reducing PII protection. Real passkey, new-user private-name and first-team acceptance are still gated in #1500 and #1511.
+
+## Reuse the existing VetKeys PII design (no double encryption)
+
+**Principle:** The original `pii_access_control` canister stores **ciphertext**, not a plaintext name to be encrypted afterward. The Ignite app already uses `@icp-sdk/vetkeys` in `frontend/src/live/piiVetKeys.ts`: local IBE encrypt with the authority's public verification key, then one signed `register_pii(subject, "display_name", ciphertext, owner)`. `identity_access.get_profile` holds a **reference** `pii-display-name:v1:<original PII authority>:<caller principal>`. Separately, the app may prepare club-scoped encrypted name copies so authorised club members can read rosters efficiently. ChatGPT must NOT add another key, per-member wrapper, proxy, encryption tier or PII canister; preserve existing club-scoped rollout and key reuse.
+
+After verifying the exact user and origin through the official DFINITY connector, read their saved profile **and** an authorised exact existing encrypted-name row. Apply `frontend/scripts/plan-icp-chatgpt-existing-profile-name.mjs` *only to those independently verified tool responses*, normalised in memory; it never calls canisters or handles a plaintext name. Never accept customer-provided JSON/claimed evidence as signed responses.
+
+| Actual existing state | Safe ChatGPT action |
+| --- | --- |
+| Signed profile reference matches the original PII authority **and** the authorised `display_name` ciphertext record exists | **REUSE_ENCRYPTED**: skip encryption, key derivation and all profile writes; continue with legal/membership checks |
+| Profile reference missing, but original signed ciphertext record exists (e.g. interrupted signup) | **RESUME_REFERENCE**: do not encrypt or register again; only after an independent authorised client-side decrypt verification and explicit consent, save the same reference once and read it back |
+| Both verified profile reference and ciphertext record absent | **ENCRYPT_NEW**: obtain user approval of a new name, encrypt it once using the SAME original IBE scheme and trusted local VetKeys executor, sign original `register_pii` via DFINITY, then decrypt/verify and publish one reference |
+| Wrong principal/origin/authority, plaintext or foreign reference, denied/error/unknown ciphertext read, missing ciphertext behind a saved reference | **BLOCK**: no fallback, no duplicate create, no plaintext or forced re-encryption |
+
+**Limitations:** Checking an encrypted row's scheme marker and nonempty bytes is a **shape/provenance preflight**, not cryptographic verification of its plaintext or proof of successful first-time onboarding. The official DFINITY ChatGPT connector currently provides signed canister calls but does not execute the required `@icp-sdk/vetkeys` local client crypto for all customers; if a truly new user reaches `ENCRYPT_NEW` without such a trusted runtime, `PRIVATE_PROFILE_BLOCKED` remains correct. The identity's authenticated principal alone is not permission to see club-member names. The public key used for IBE encryption is not a user's secret key; decryption requires an access-controlled, client-held vetKey. Do not route raw names or decrypted keys through ChatGPT tool logs, GitHub Actions, a bridge, or a plaintext storage shortcut.
 
 ## Account setup: existing operations
 
 1. Discover Ignite's manifest and the identity_access/club_domain/shard_router Candid interfaces. Read `club_domain.getApiDoc()`.
 2. Connect the user's Internet Identity using the app's returned derivation origin and appropriate action authorisation.
 3. Query `identity_access.whoami()` first. If the account is missing, obtain the user's agreement before calling `register_account()`. Do not register someone else or call it just to probe permissions.
-4. Query `identity_access.get_profile()`. With the user's chosen display name, use the existing guarded name/profile setup; the frontend already handles private-name authority requirements. A plain `set_profile` may fail where secure-name saving is enforced. **Prefer finishing the name through Ignite's app** until the plugin can complete the identical privacy-preserving flow.
+4. Query `identity_access.get_profile()`. For a missing private display name, use the vetted **offline VetKeys helper** and the same user-authorized ICP connector signed write and independent decrypt/readback sequence. Do **not** save a plaintext profile or publish an unverified `pii-display-name:v1:` reference. The pinned `prepare-icp-chatgpt-profile-name-connector.mjs` must recognize the live canonical DEV `icp.net` app and verified origin; an older `icp0.io` gateway is accepted only with exactly the same verified canisters. The helper is not a universally installed in-chat cryptography widget; if a trusted executable encryption runtime is unavailable, explicitly stop at `PRIVATE_PROFILE_BLOCKED` without claiming ChatGPT-only onboarding completed. Do not silently redirect a ChatGPT-only customer to the website.
 5. Check `identity_access.my_terms_acceptance()`; show the actual current terms and privacy information and obtain explicit consent before `set_terms_acceptance(version)`. A missing or outdated version is not consent. Do not guess the current terms version.
 6. After registration and profile setup, verify the account and profile again. Club-domain account linking may lag or fail independently; do not assume an identity update provisioned every domain.
 
@@ -59,6 +86,22 @@ The CI job `rehearse-onboarding` in `.github/workflows/test-icp-mcp-onboarding.y
 - Disposal of the complete local PocketIC environment, with no live credentials, network deployment or live member changes.
 
 This proves a **local subset of the current canister behavior**, not a first-use ChatGPT plugin experience, group-placement end-to-end behavior, encrypted-name secure release, current policy version or native-app onboarding. It does not authorize production release.
+
+## Post-setup app download handoff (ad → club → team)
+
+After the **authenticated user's club and first team have both been created and read back successfully**, the assistant should immediately acknowledge those exact verified names and show these three fixed, brand-owned options:
+
+- **iPhone / iPad:** https://igniteclubhq.app/get/ios
+- **Android:** https://igniteclubhq.app/get/android
+- **Keep using Ignite in a browser:** https://igniteclubhq.app
+
+Show both store links in ChatGPT so the user can choose a device; the Ignite app's on-device completion screen may emphasise the detected mobile platform. The existing `AppStoreDownloadGuide` component owns the app store destinations; do not invent alternate store links or URL parameters. Tell the customer to use the **same account and sign-in method** they used to register, and remind them they can invite members and schedule their first game next.
+
+**Do not show a setup-success claim or imply a club/team exists** after an ad click, sign-in, or a pending/failed creation. A successful club record alone is not a completed club+team onboarding. If the user merely asks about downloads, links can be given without claiming setup completion. Retain all existing legal-consent, account linking, club placement, private-name and idempotent readback checks before declaring success.
+
+**DEV guard:** If setup used a DEV test identity or test canister, state prominently that the consumer iOS/Android apps and branded browser URL are **PROD**, so the DEV club/team will not appear there. Send customers the store links as optional downloads, not as a way to inspect the DEV test data. Never switch connectors or copy DEV account/club/team records to PROD.
+
+**Advertising guard:** This is a completion UX change only, not permission to create ads, campaigns, tracking pixels, Stripe checkout sessions or live accounts. No campaign budget, purchase or ad activation is needed for the simulated click-to-signup test.
 
 ## Branded app links and paid plans
 

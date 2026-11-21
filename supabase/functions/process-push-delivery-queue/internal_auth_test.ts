@@ -56,7 +56,7 @@ Deno.test("a user JWT is rejected — end users cannot drain or fan out", () => 
     const userJwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyLTEiLCJyb2xlIjoiYXV0aGVudGljYXRlZCJ9.sig";
     const res = requireServiceRoleAuth(req({ Authorization: `Bearer ${userJwt}` }), CORS);
     assert(res !== null);
-    assert(res!.status === 401 || res!.status === 403);
+    assert(res.status === 401 || res.status === 403);
   });
 });
 
@@ -103,7 +103,8 @@ Deno.test("missing server key fails closed with 500, never open", () => {
 Deno.test("rejection bodies never echo the expected key or the presented token", async () => {
   const bodies: string[] = [];
   withKey(SERVICE_KEY, () => {
-    for (const headers of [{}, { Authorization: `Bearer ${ANON_KEY}` }, { Authorization: "Bearer nope" }]) {
+    const requests: Record<string, string>[] = [{}, { Authorization: `Bearer ${ANON_KEY}` }, { Authorization: "Bearer nope" }];
+    for (const headers of requests) {
       const res = requireServiceRoleAuth(req(headers), CORS);
       if (res) bodies.push(res.status.toString());
       if (res) bodies.push("BODY_PLACEHOLDER");
@@ -113,7 +114,8 @@ Deno.test("rejection bodies never echo the expected key or the presented token",
   const res = withKey(SERVICE_KEY, () =>
     requireServiceRoleAuth(req({ Authorization: `Bearer ${ANON_KEY}` }), CORS)
   );
-  const text = await res!.text();
+  assert(res !== null);
+  const text = await res.text();
   assert(!text.includes(SERVICE_KEY), "expected key leaked");
   assert(!text.includes(ANON_KEY), "presented token echoed back");
   assertEquals(text, JSON.stringify({ error: "Forbidden" }));
@@ -122,7 +124,8 @@ Deno.test("rejection bodies never echo the expected key or the presented token",
 
 Deno.test("CORS headers are present on every rejection (browser callers see the error)", () => {
   withKey(SERVICE_KEY, () => {
-    for (const headers of [{}, { Authorization: "Bearer wrong" }]) {
+    const requests: Record<string, string>[] = [{}, { Authorization: "Bearer wrong" }];
+    for (const headers of requests) {
       const res = requireServiceRoleAuth(req(headers), CORS);
       assertEquals(res?.headers.get("Access-Control-Allow-Origin"), "*");
       assertEquals(res?.headers.get("Content-Type"), "application/json");
