@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Direct-message ICP live-update crash — 21 November
+- [x] Replace the unconditional Supabase subscription with authenticated transport selection; ICP socket pokes/visible polling and email subscription cleanup verified. Focused suites: 42 Supabase / 39 ICP passed, 2 / 5 existing mode skips; preview build OK. No PROD changes.
+- [ ] Installed-phone signed-in direct-message acceptance requires Paul's Internet Identity session/device, unavailable here; no live phone confirmation or promotion claimed.
+
 ## Fresh baseline suites — 20 November, 07:09 UTC
 - [x] Paul approved a fresh rerun at 09:22 UTC after the interrupted run: Supabase 8,021 passed / 0 failed / 387 skipped; ICP 7,643 passed / 0 failed / 765 skipped. Both completed at 09:45 UTC; separate durable summaries and full logs in docs/testing/baseline-2026-11-20-0922.
 - [x] Isolated Supabase functions: 81 passed / 0 failed; Rust workspace: 372 passed / 0 failed. Function runner required isolated Deno package resolution and scoped source-read permission; failed setup attempts retained. Existing exclusions/skips and live/device acceptance remain separate. No live DEV/PROD changes or deployments.

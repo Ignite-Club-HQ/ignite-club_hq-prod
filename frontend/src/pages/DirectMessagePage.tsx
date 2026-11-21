@@ -94,6 +94,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount } from "@/lib/chatPerfDiagnostics";
 import { startChatRealtimeChannel } from "@/features/messaging/thread/chatRealtimeChannelLifecycle";
+import { useDirectMessageUpdates } from "@/features/messaging/thread/useDirectMessageUpdates";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
@@ -256,7 +257,7 @@ export default function DirectMessagePage() {
     return () => noteChatUnmount("DirectMessage", k, null);
   }, []);
   const { conversationId } = useParams<{ conversationId: string }>();
-  const useIcpLab = isFeatureRoutedToIcp("messaging");
+  const useIcpLab = isFeatureRoutedToIcp("messaging") || resolveAuthBackend() === "icp";
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile, initialized, refreshUnreadCount, decrementUnreadCount } = useAuth();
@@ -1425,7 +1426,7 @@ export default function DirectMessagePage() {
 
 
   // Real-time subscription for messages, deletions, edits, and reactions
-  useEffect(() => {
+  const subscribeDmUpdates = useCallback(() => {
     if (!conversationId) return;
 
     const channel = supabase
@@ -1597,6 +1598,15 @@ export default function DirectMessagePage() {
       queryClient,
     });
   }, [conversationId, queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
+
+  useDirectMessageUpdates({
+    conversationId,
+    userId: user?.id,
+    enabled: authReady,
+    messagingOnIcp: useIcpLab,
+    queryClient,
+    subscribeSupabase: subscribeDmUpdates,
+  });
 
   const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<DirectMessage>({
     searchQuery,
