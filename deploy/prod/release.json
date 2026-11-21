@@ -1,11 +1,11 @@
 {
   "canisters": {
-    "identity_access": "9e3c458f5122e297351cad130196702173d1b964",
-    "placement_registry": "9e3c458f5122e297351cad130196702173d1b964",
-    "migration_coordinator": "9e3c458f5122e297351cad130196702173d1b964",
-    "secret_workload_identity": "9e3c458f5122e297351cad130196702173d1b964",
-    "pii_access_control": "fd17a007942dead067dd8d8e14ac43d16b1c92f8",
-    "timer_jobs": "fd17a007942dead067dd8d8e14ac43d16b1c92f8",
+    "identity_access": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "placement_registry": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "migration_coordinator": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "secret_workload_identity": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "pii_access_control": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "timer_jobs": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "club_domain": "b7f7951796348c8b891b3f1c66c68656d2d16bb9",
     "events_domain": "fd17a007942dead067dd8d8e14ac43d16b1c92f8",
     "competition_domain": "fd17a007942dead067dd8d8e14ac43d16b1c92f8",
@@ -19,5 +19,5 @@
     "insights_domain": "fd17a007942dead067dd8d8e14ac43d16b1c92f8",
     "shard_router": "fd17a007942dead067dd8d8e14ac43d16b1c92f8"
   },
-  "updatedAt": "2026-11-11T19:31:49.129Z"
+  "updatedAt": "2026-11-21T02:55:47.704Z"
 }
