@@ -16,11 +16,10 @@ import { readSafeAreaInsetBottomPx, readSafeAreaInsetTopPx } from '@/lib/iosLayo
 export function StatusBarManager() {
   const location = useLocation();
 
-  // Defensive: every route change, force-refresh status bar so a stale
-  // overlay=true state (left over from fullscreen viewer / native sheet)
-  // can never persist and push page content under the system status bar.
+  // Navigation is not a native lifecycle reset. Deduplicate unchanged themes;
+  // viewer cleanup and app resume explicitly force recovery when necessary.
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) refreshStatusBar();
+    if (Capacitor.isNativePlatform()) applyStatusBar();
   }, [location.pathname]);
 
   useEffect(() => {
@@ -240,9 +239,14 @@ export function StatusBarManager() {
       document.addEventListener('visibilitychange', handleViewportResume);
     }
 
-    // Watch for theme changes via DOM class mutations
+    // Root classes also change for accessibility/overlays. Those must not
+    // reconfigure native chrome or displace a fullscreen viewer's backdrop.
+    let wasDark = document.documentElement.classList.contains('dark');
     const observer = new MutationObserver(() => {
-      applyStatusBar(); // dedup handled inside queue
+      const isDark = document.documentElement.classList.contains('dark');
+      if (isDark === wasDark) return;
+      wasDark = isDark;
+      applyStatusBar();
     });
 
     observer.observe(document.documentElement, {

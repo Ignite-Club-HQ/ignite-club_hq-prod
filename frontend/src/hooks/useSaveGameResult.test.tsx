@@ -306,7 +306,7 @@ describe.runIf(!supabaseMode)("useSaveGameResult — ICP adapter", () => {
       playerStatsJson: "[]",
       mvpPlayerId: null,
       mvpPlayerName: null,
-    });
+    }, true);
     expect(liveMocks.getUser).not.toHaveBeenCalled();
     expect(liveMocks.from).not.toHaveBeenCalled();
   });
@@ -326,7 +326,7 @@ describe.runIf(!supabaseMode)("useSaveGameResult — ICP adapter", () => {
     });
     expect(toastSpy).toHaveBeenCalledWith(expect.objectContaining({
       title: "Could not save game",
-      description: "canister denied",
+      description: "Your game was not saved. Check your connection and permission to manage this match, then try again.",
       variant: "destructive",
     }));
     expect(liveMocks.from).not.toHaveBeenCalled();

@@ -19,6 +19,7 @@ vi.mock("@/live/featureRouter", () => ({
     icpMode ? providers.icp({}) : providers.supabase(),
 }));
 vi.mock("@/live/features/events", () => ({ syncLiveActiveGame }));
+vi.mock("./useEventLineupSave", () => ({ useEventLineupSave: vi.fn() }));
 
 import { usePitchBoardPersistence } from "./usePitchBoardPersistence";
 

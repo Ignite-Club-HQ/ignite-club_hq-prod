@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-22",
+  "scope": "DEV source only",
+  "approval": "held",
+  "supabase": {
+    "passed": 968,
+    "failed": 0,
+    "skipped": 20,
+    "files": 82
+  },
+  "icp": {
+    "passed": 941,
+    "failed": 0,
+    "skipped": 47,
+    "files": 82
+  },
+  "runtime": {
+    "status": "blocked-before-install",
+    "writeBit": 0,
+    "kernel": "Linux 4.19.0-gvisor"
+  },
+  "deployed": false,
+  "productionChanged": false,
+  "openFindings": [
+    "F11",
+    "F12",
+    "F13",
+    "F14",
+    "F15"
+  ],
+  "sourceHashes": {
+    "backend/events_domain/src/main.mo": "cd63a82dcb70bee673ee893e3729ead76a0eb6dd54b7df85dd55a4eaf53cfea9",
+    "backend/events_domain/events_domain.did": "43ad35041ecfc5d370d948e1bc051bbf8f379189ae8864f36d667bf9f2e2ea67",
+    "frontend/src/lib/serverTimer.ts": "616e94557cc15dc73d07a60386d0bf7d450cf0198c5203b0524164a69912460e",
+    "frontend/src/components/pitch/GameTimer.tsx": "ecb82540afda94ab055792c278682b5939b03417fb65fcc244055352daad4b6e"
+  }
+}

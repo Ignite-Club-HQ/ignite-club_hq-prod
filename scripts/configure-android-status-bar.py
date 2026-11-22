@@ -4,7 +4,28 @@ import shutil
 import xml.etree.ElementTree as ET
 
 
+def preserve_system_bar_backdrop(source: str) -> str:
+    """SystemBars owns icon/inset state, not the app's window background.
+
+    Capacitor 8 resets it to the static light Activity theme on every style
+    call/configuration change. JS repainting afterwards crosses bridge/UI
+    frames, so even correct final ordering still exposes a white frame.
+    Refuse unfamiliar upstream source rather than patching it broadly.
+    """
+    reset = "getActivity().getWindow().getDecorView().setBackgroundColor(getThemeColor(getContext(), android.R.attr.windowBackground));"
+    marker = "// Ignite: window backdrop is owned by StatusBarBackdrop, not SystemBars."
+    if marker in source and reset not in source:
+        return source
+    if source.count(reset) != 1 or marker in source:
+        raise RuntimeError("Unexpected Capacitor SystemBars backdrop implementation; review before building")
+    return source.replace(reset, marker, 1)
+
+
 def configure(frontend: Path):
+    system_bars = frontend / "node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/plugin/SystemBars.java"
+    # Both generated Android builds compile this shared dependency. Do not
+    # alter insets, keyboard callbacks, icon setters or navigation-bar flags.
+    system_bars.write_text(preserve_system_bar_backdrop(system_bars.read_text()))
     styles_path = frontend / "android/app/src/main/res/values/styles.xml"
     tree = ET.parse(styles_path)
     # NoActionBar does NOT inherit AppTheme; launch uses a third theme.

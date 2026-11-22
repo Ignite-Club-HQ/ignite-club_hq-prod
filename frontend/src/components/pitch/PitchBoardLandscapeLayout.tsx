@@ -637,7 +637,8 @@ export default function PitchBoardLandscapeLayout() {
                   ref={gameTimerRef} 
                   compact
                   compactLarge={!(gameInProgress && !hideScores)}
-                  teamId={teamId} 
+                  teamId={teamId}
+                  eventId={linkedEventId} 
                   teamName={teamName} 
                   onTimeUpdate={handleTimerUpdate} 
                   onHalfChange={handleHalfChange} 

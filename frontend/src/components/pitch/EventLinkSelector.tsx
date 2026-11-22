@@ -4,8 +4,9 @@ import { CalendarCheck, Calendar, ChevronDown, X, Link2, MapPin, Clock } from "l
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { supabase } from "@/integrations/supabase/client";
-import { format, parseISO, isAfter, subDays, addHours } from "date-fns";
+import { readPitchFixtures } from "./pitchFixtureRepository";
+import { resolveAuthBackend } from "@/live/authBackendMode";
+import { format, parseISO, isAfter } from "date-fns";
 
 // Games can only be linked from 48 hours before kickoff up until 24 hours
 // after kickoff. Anything further out is not yet linkable so coaches don't
@@ -41,24 +42,9 @@ export function EventLinkSelector({
   // Fetch game events for this team within the link window: from 24h after
   // kickoff back to 48h before kickoff. Games further away are excluded.
   const { data: events, isLoading } = useQuery({
-    queryKey: ["team-game-events", teamId],
+    queryKey: ["team-game-events", teamId, resolveAuthBackend()],
     queryFn: async () => {
-      const oneDayAgo = subDays(new Date(), 1);
-      const linkCutoff = addHours(new Date(), LINK_WINDOW_HOURS_BEFORE);
-
-      const { data, error } = await supabase
-        .from("events")
-        .select("id, title, event_date, type, address, suburb")
-        .eq("team_id", teamId)
-        .eq("type", "game")
-        .eq("is_cancelled", false)
-        .gte("event_date", oneDayAgo.toISOString())
-        .lte("event_date", linkCutoff.toISOString())
-        .order("event_date", { ascending: true })
-        .limit(20);
-
-      if (error) throw error;
-      return data as GameEvent[];
+      return readPitchFixtures(teamId, undefined, LINK_WINDOW_HOURS_BEFORE);
     },
     enabled: !!teamId,
   });

@@ -587,7 +587,8 @@ export default function PitchBoardPortraitLayout() {
                   ref={gameTimerRef} 
                   compact
                   compactLarge={!(gameInProgress && !hideScores && !showScoreInPortrait)}
-                  teamId={teamId} 
+                  teamId={teamId}
+                  eventId={linkedEventId} 
                   teamName={teamName} 
                   onTimeUpdate={handleTimerUpdate} 
                   onHalfChange={handleHalfChange} 

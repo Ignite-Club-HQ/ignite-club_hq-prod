@@ -1303,7 +1303,8 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (eventFenced(event_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
-    switch (requireManage(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(_)) {} };
+    let authorized = switch (await freshPitchManageEvent(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(event)) event };
+    if (team_id != authorized.team_id) return #Err("Lineup team mismatch");
     let value : Types.LineupEntry = { event_id; member; slot; team_id }; lineups := lineups.concat([value]); #Ok(value)
   
     } finally { removalReceiver.leave(caller) };
@@ -1320,7 +1321,8 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (eventFenced(event_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
-    switch (requireManage(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(_)) {} };
+    let authorized = switch (await freshPitchManageEvent(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(event)) event };
+    if (team_id != authorized.team_id) return #Err("Lineup team mismatch");
     if (players.size() > 100) return #Err("Too many lineup players");
     let existing = lineupSnapshots.find(func(item) = item.event_id == event_id and item.team_id == team_id);
     let value : Types.LineupSnapshot = {
@@ -1455,7 +1457,7 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (eventFenced(event_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
-    switch (requireManage(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(_)) {} };
+    let _authorized = switch (await freshPitchManageEvent(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(event)) event };
     let value : Types.RosterEntry = { event_id; account_id; child_id }; roster := roster.filter(func(item) = not (item.event_id == event_id and item.account_id == account_id)); roster := roster.concat([value]); #Ok(value)
   
     } finally { removalReceiver.leave(caller) };
@@ -1475,7 +1477,7 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (eventFenced(event_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
-    switch (requireManage(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(_)) {} };
+    let _authorized = switch (await freshPitchManageEvent(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(event)) event };
     if (not validTimerAction(action)) return #Err("Invalid timer action");
     let resolvedMinutes = switch (minutes_per_half) { case (?m) m; case null (45 : Nat16) };
     if (resolvedMinutes == 0 or resolvedMinutes > 200) return #Err("Invalid minutes per half");
@@ -2919,7 +2921,7 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (teamFenced(team_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
-    if (not canManageTeamBoard(caller, team_id)) return #Err("Pitch settings management forbidden");
+    if (not (await freshPitchTeamAccess(caller, team_id))) return #Err("Pitch settings management forbidden");
     if (not valid(team_id)) return #Err("Invalid team");
     let value : Types.PitchBoardSettings = {
       team_id; rotation_speed; disable_position_swaps; disable_batch_subs; rotate_gk_at_halftime;
@@ -2948,7 +2950,8 @@ persistent actor class Main(governorInit : Principal) = this {
     if (eventFenced(event_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
     if (not valid(event_id) or not valid(team_id)) return #Err("Invalid game summary");
-    if (not canManageTeamBoard(caller, team_id)) return #Err("Game summary management forbidden");
+    let event = switch (await freshPitchManageEvent(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(e)) e };
+    if (event.team_id != ?team_id) return #Err("Game summary team mismatch");
     let value : Types.GameSummary = { event_id; team_id; total_game_time; half_duration; formation_used; total_substitutions; updated_at_ms = nowMs() };
     gameSummaries := gameSummaries.filter(func(item) = item.event_id != event_id).concat([value]);
     #Ok(value)
@@ -2982,10 +2985,10 @@ persistent actor class Main(governorInit : Principal) = this {
     if (eventFenced(event_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
     if (not valid(event_id) or not valid(team_id)) return #Err("Invalid game player stats");
-    if (not canManageTeamBoard(caller, team_id)) return #Err("Game stats management forbidden");
-    let event=switch(events.find(func(e)=e.id==event_id and e.team_id==?team_id and not e.deleted)){case null return #Err("Game-stat team mismatch");case(?e)e};
+    let event = switch (await freshPitchManageEvent(caller, event_id)) { case (#Err(e)) return #Err(e); case (#Ok(e)) e };
+    if (event.team_id != ?team_id) return #Err("Game-stat team mismatch");
     switch(do { let removalReply = await matchHistoryAccess(caller,event,true); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply }){case(#Ok(true)){};case _ return #Err("Competition manager required")};
-    if(eventFenced(event_id) or not canManageTeamBoard(caller,team_id)) return #Err("Game-stat authority changed");
+    if(eventFenced(event_id) or removalReceiver.denied(caller) or not events.any(func(e) = e == event)) return #Err("Game-stat authority changed");
     if (stats.size() > 200) return #Err("Player-stat batch exceeds limit");
     switch(details) {
       case (?rows) {
@@ -3107,7 +3110,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (teamFenced(team_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
     if (not valid(team_id) or not valid(sport)) return #Err("Invalid game result");
-    if (not canManageTeamBoard(caller, team_id)) return #Err("Game result management forbidden");
+    if (not (await freshPitchTeamAccess(caller, team_id))) return #Err("Game result management forbidden");
     switch (event_id) {
       case null {};
       case (?id) {
@@ -3155,6 +3158,41 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(value)
   
     } finally { removalReceiver.leave(caller) };
+  };
+
+  public shared ({ caller }) func save_game_result_if_missing(
+    team_id : Text,
+    event_id : ?Text,
+    sport : Text,
+    home_label : Text,
+    away_label : Text,
+    home_score : Nat32,
+    away_score : Nat32,
+    period_scores_json : Text,
+    player_stats_json : Text,
+    mvp_player_id : ?Text,
+    mvp_player_name : ?Text,
+  ) : async { #Ok : Types.GameResult; #Err : Text } {
+    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+    try {
+      await admitAccount(caller);
+      auth(caller);
+      let id = event_id ?? return #Err("A linked event is required for automatic results");
+      let event = switch (await freshPitchManageEvent(caller, id)) { case (#Err(e)) return #Err(e); case (#Ok(e)) e };
+      if (event.team_id != ?team_id) return #Err("Game result team mismatch");
+      // Presence, including a 0-0 result, is authoritative. No await below.
+      switch (gameResults.find(func(row) = row.event_id == ?id)) { case (?existing) return #Ok(existing); case null {} };
+      if (competitionMatchLinks.any(func(link) = link.event_id == id) or competitionEventOperations.any(func(op) = op.event_ids.any(func(e) = e == id))) return #Err("Automatic competition results require a manual score review");
+      if (not valid(team_id) or not valid(sport) or period_scores_json.size() > 262144 or player_stats_json.size() > 262144) return #Err("Invalid game result");
+      let value : Types.GameResult = {
+        id = "gr-" # team_id # "-" # Nat.toText(gameResults.size());
+        team_id; event_id; sport; home_label; away_label; home_score; away_score;
+        period_scores_json; player_stats_json; mvp_player_id; mvp_player_name;
+        saved_by = caller; updated_at_ms = nowMs();
+      };
+      gameResults := gameResults.concat([value]);
+      #Ok(value)
+    } finally { removalReceiver.leave(caller) }
   };
 
   func historyResult(caller : Principal, event_id : Text) : async { #Ok : ?HistoryPrivacy.Read; #Err : Text } {
@@ -3395,9 +3433,31 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(rows)
   };
 
+  // Pitch mutations preserve explicit creator/governor authority but never
+  // accept a revoked non-creator role mirror. All awaits precede final guards.
+  func freshPitchManageEvent(subject : Principal, eventId : Text) : async { #Ok : Types.Event; #Err : Text } {
+    let event = switch (events.find(func(e) = e.id == eventId and not e.deleted)) {
+      case null return #Err("Event not found"); case (?e) e;
+    };
+    let authority = clubDomainCanister;
+    if (not (await freshEventTeamLive(event))) return #Err("Event team unavailable");
+    if (not isGovernor(subject) and event.creator != subject and not (await freshEventManager(subject, event))) return #Err("Event management forbidden");
+    if (authority != clubDomainCanister or removalReceiver.denied(subject) or isFenced(event.club_id) or not events.any(func(e) = e == event)) return #Err("Event authorization changed");
+    #Ok(event)
+  };
+
   // ---- Workstream D: active game mirror (server-side push notification driver) ----
   // Fresh consensus roles/membership from the owning club; no browser role
   // flags or stale local role mirror can authorize shared-board writes.
+  func freshPitchTeamAccess(subject : Principal, team : Text) : async Bool {
+    let authority = clubDomainCanister ?? return false;
+    let cd : actor { get_team : shared query (Text) -> async { #Ok : ?{ id : Text; club_id : Text; deleted_at_ms : ?Nat64 }; #Err : Text } } = actor(authority.toText());
+    let owned = try { await (with timeout = 10) cd.get_team(team) } catch (_) { return false };
+    let club = switch (owned) { case (#Ok(?row)) { if (row.deleted_at_ms != null) return false; row.club_id }; case _ return false };
+    let allowed = await boardAccess(subject, club, team, true);
+    allowed and clubDomainCanister == ?authority and not teamFenced(team) and not removalReceiver.denied(subject)
+  };
+
   func boardAccess(caller : Principal, club : Text, team : Text, edit : Bool) : async Bool {
     if (Principal.isAnonymous(caller) or isFenced(club)) return false;
     let cid = clubDomainCanister ?? return false;
@@ -3410,9 +3470,9 @@ persistent actor class Main(governorInit : Principal) = this {
       let owned = await (with timeout = 10) cd.get_team(team);
       switch (owned) { case (#Ok(?t)) { if (t.club_id != club or t.deleted_at_ms != null) return false }; case _ return false };
       if (not (await (with timeout = 10) cd.read_has_club_membership(caller, club))) return false;
-      if (not edit) return not isFenced(club) and not removalReceiver.denied(caller);
+      if (not edit) return clubDomainCanister == ?cid and not isFenced(club) and not removalReceiver.denied(caller);
       let fresh = await (with timeout = 10) cd.read_account_list_user_club_roles(caller, club);
-      not isFenced(club) and not removalReceiver.denied(caller) and
+      clubDomainCanister == ?cid and not isFenced(club) and not removalReceiver.denied(caller) and
         fresh.any(func((role, scope)) = (role == "club_admin" and scope == null) or
           ((role == "coach" or role == "team_admin") and (scope == ?team or scope == null)))
     } catch (_) { false }
@@ -3447,6 +3507,19 @@ persistent actor class Main(governorInit : Principal) = this {
       };
       activeGames := activeGames.filter(func(r) = r.team_id != ?team).concat([row]);
       #Ok(row)
+    } finally { removalReceiver.leave(caller) }
+  };
+
+  public shared ({ caller }) func deactivate_shared_board(club : Text, team : Text, expected : Nat64) : async { #Ok; #Err : Text } {
+    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+    try {
+      await admitAccount(caller);
+      if (not (await boardAccess(caller, club, team, true))) return #Err("Forbidden");
+      if (isFenced(club) or removalReceiver.denied(caller)) return #Err("Forbidden");
+      let current = activeGames.find(func(row) = row.team_id == ?team);
+      if (not BoardSync.matches(current, ?expected)) return #Err("State revision conflict");
+      activeGames := activeGames.map(func(row) = if (row.team_id == ?team) { { row with is_active = false; updated_at_ms = BoardSync.nextRevision(?row, nowMs()) } } else row);
+      #Ok
     } finally { removalReceiver.leave(caller) }
   };
 
@@ -3490,6 +3563,8 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
+    if (team_id != null) return #Err("Team boards require the revision-checked shared board API");
+    if (timer_state_json.size() > 262144 or pitch_state_json.size() > 262144 or board_session_id.size() > 128) return #Err("Board state too large");
     let matches = func(item : Types.ActiveGame) : Bool {
       item.is_active and (switch (team_id) { case (?t) item.team_id == ?t; case null item.user_id.equal(caller) and item.team_id == null })
     };
@@ -3553,9 +3628,10 @@ persistent actor class Main(governorInit : Principal) = this {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     auth(caller);
+    if (team_id != null) return #Err("Team boards require the revision-checked shared board API");
     activeGames := activeGames.map(func(item) : Types.ActiveGame {
       let owns = switch (team_id) { case (?t) item.team_id == ?t; case null item.user_id.equal(caller) and item.team_id == null };
-      if (owns and item.is_active) { { item with is_active = false } } else { item }
+      if (owns and item.is_active) { { item with is_active = false; updated_at_ms = BoardSync.nextRevision(?item, nowMs()) } } else { item }
     });
     #Ok
   
@@ -3565,6 +3641,7 @@ persistent actor class Main(governorInit : Principal) = this {
   public query ({ caller }) func get_active_game(team_id : ?Text) : async { #Ok : ?Types.ActiveGame; #Err : Text } {
     denyLegacyAccountQuery();
     auth(caller);
+    if (team_id != null) return #Err("Team boards require the revision-checked shared board API");
     #Ok(activeGames.find(func(item) = item.is_active and (switch (team_id) { case (?t) item.team_id == ?t; case null item.user_id.equal(caller) and item.team_id == null })))
   };
 

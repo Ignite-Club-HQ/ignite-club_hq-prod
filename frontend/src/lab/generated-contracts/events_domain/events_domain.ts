@@ -352,6 +352,13 @@ export interface MainInterface {
         __kind__: "Err";
         Err: string;
     }>;
+    deactivate_shared_board(club: string, team: string, expected: bigint): Promise<{
+        __kind__: "Ok";
+        Ok: null;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     delete_club_data(club_id: string): Promise<{
         __kind__: "Ok";
         Ok: number;
@@ -1579,6 +1586,13 @@ export interface MainInterface {
         __kind__: "Err";
         Err: string;
     }>;
+    save_game_result_if_missing(team_id: string, event_id: string | null, sport: string, home_label: string, away_label: string, home_score: number, away_score: number, period_scores_json: string, player_stats_json: string, mvp_player_id: string | null, mvp_player_name: string | null): Promise<{
+        __kind__: "Ok";
+        Ok: GameResult;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     save_game_summary(event_id: string, team_id: string, total_game_time: number, half_duration: number, formation_used: string | null, total_substitutions: number): Promise<{
         __kind__: "Ok";
         Ok: GameSummary;
@@ -2607,6 +2621,16 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.deactivate_active_game(to_candid_opt_n3(arg0));
+        return from_candid_variant_n1(result);
+    }
+    async deactivate_shared_board(arg0: string, arg1: string, arg2: bigint): Promise<{
+        __kind__: "Ok";
+        Ok: null;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.deactivate_shared_board(arg0, arg1, arg2);
         return from_candid_variant_n1(result);
     }
     async delete_club_data(arg0: string): Promise<{
@@ -4385,6 +4409,16 @@ export class Events_domain implements events_domainInterface {
         Err: string;
     }> {
         const result = await this.actor.save_game_result(arg0, to_candid_opt_n3(arg1), arg2, arg3, arg4, arg5, arg6, arg7, arg8, to_candid_opt_n3(arg9), to_candid_opt_n3(arg10));
+        return from_candid_variant_n222(result);
+    }
+    async save_game_result_if_missing(arg0: string, arg1: string | null, arg2: string, arg3: string, arg4: string, arg5: number, arg6: number, arg7: string, arg8: string, arg9: string | null, arg10: string | null): Promise<{
+        __kind__: "Ok";
+        Ok: GameResult;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.save_game_result_if_missing(arg0, to_candid_opt_n3(arg1), arg2, arg3, arg4, arg5, arg6, arg7, arg8, to_candid_opt_n3(arg9), to_candid_opt_n3(arg10));
         return from_candid_variant_n222(result);
     }
     async save_game_summary(arg0: string, arg1: string, arg2: number, arg3: number, arg4: string | null, arg5: number): Promise<{

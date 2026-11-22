@@ -10,8 +10,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { supabase } from "@/integrations/supabase/client";
-import { format, parseISO, isAfter, subDays } from "date-fns";
+import { readPitchFixtures } from "./pitchFixtureRepository";
+import { resolveAuthBackend } from "@/live/authBackendMode";
+import { format, parseISO, isAfter } from "date-fns";
 
 interface LinkedEventHeaderProps {
   eventId: string;
@@ -55,16 +56,9 @@ export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, 
   const hasLinkedEvent = !!eventId;
 
   const { data: event, isLoading } = useQuery({
-    queryKey: ["linked-event-details", eventId],
+    queryKey: ["linked-event-details", eventId, teamId, resolveAuthBackend()],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("events")
-        .select("id, title, event_date, address, suburb, description, opponent, team_id")
-        .eq("id", eventId)
-        .single();
-
-      if (error) throw error;
-      return data as EventDetails;
+      return (await readPitchFixtures(teamId, eventId))[0] ?? null;
     },
     enabled: !!eventId,
     staleTime: 5 * 60 * 1000,
@@ -76,22 +70,9 @@ export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, 
   // Fetch game events for the selector
   // Only show games from the last 24 hours (for past games) or future games
   const { data: gameEvents, isLoading: eventsLoading } = useQuery({
-    queryKey: ["team-game-events-selector", effectiveTeamId],
+    queryKey: ["team-game-events-selector", effectiveTeamId, resolveAuthBackend()],
     queryFn: async () => {
-      const oneDayAgo = subDays(new Date(), 1);
-      
-      const { data, error } = await supabase
-        .from("events")
-        .select("id, title, event_date, type, address, suburb, opponent")
-        .eq("team_id", effectiveTeamId)
-        .eq("type", "game")
-        .eq("is_cancelled", false)
-        .gte("event_date", oneDayAgo.toISOString())
-        .order("event_date", { ascending: true })
-        .limit(20);
-
-      if (error) throw error;
-      return data as GameEvent[];
+      return readPitchFixtures(effectiveTeamId);
     },
     enabled: !!effectiveTeamId && showEventSelector,
   });
@@ -225,7 +206,7 @@ export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, 
 
   if (compact) {
     return (
-      <div className="flex items-center gap-2 text-xs bg-background/90 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow-md min-w-0 w-full">
+      <div className="flex items-center gap-2 text-xs bg-background rounded-lg px-2 py-1.5 shadow-md min-w-0 w-full">
         {isGameInProgress ? (
           <Badge variant="outline" className="gap-1 text-[10px] bg-primary/10 border-primary/20 shrink-0">
             <div className="w-1.5 h-1.5 bg-destructive rounded-full animate-pulse" />
@@ -250,7 +231,7 @@ export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, 
 
   return (
     <>
-      <div className="bg-background/95 backdrop-blur-sm border-b border-border">
+      <div className="bg-background border-b border-border">
         {/* Collapsed view - always visible */}
         <div 
           className="px-3 sm:px-4 py-2 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors"

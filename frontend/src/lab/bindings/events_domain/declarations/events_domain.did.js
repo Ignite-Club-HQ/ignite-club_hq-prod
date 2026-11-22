@@ -743,6 +743,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
+    'deactivate_shared_board' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Nat64],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'delete_club_data' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Nat32, 'Err' : IDL.Text })],
@@ -1863,6 +1868,23 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'save_game_result' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Nat32,
+          IDL.Nat32,
+          IDL.Text,
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+        ],
+        [IDL.Variant({ 'Ok' : GameResult, 'Err' : IDL.Text })],
+        [],
+      ),
+    'save_game_result_if_missing' : IDL.Func(
         [
           IDL.Text,
           IDL.Opt(IDL.Text),

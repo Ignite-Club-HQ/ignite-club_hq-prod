@@ -56,4 +56,18 @@ describe('ICP shared pitch-board ownership', () => {
     expect(mocks.read).not.toHaveBeenCalled();
     hook.unmount();
   });
+  it('preserves an uncertain draft across recovery and later read failures', async () => {
+    sessionStorage.clear();
+    const hook = renderHook(() => useIcpSharedPitchBoard({ teamId: 't', userId: 'u', enabled: true, readOnly: false, apply: vi.fn() }));
+    await act(async () => {});
+    localStorage.setItem(key, JSON.stringify({ players: ['unconfirmed-edit'] }));
+    mocks.write.mockRejectedValueOnce(new Error('unknown outcome'));
+    await tick();
+    await tick();
+    mocks.read.mockRejectedValueOnce(new Error('temporary read loss'));
+    await tick();
+    expect(JSON.parse(sessionStorage.getItem('ignite_pitch_draft_u_t') ?? '{}')).toEqual({ players: ['unconfirmed-edit'] });
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    hook.unmount();
+  });
 });

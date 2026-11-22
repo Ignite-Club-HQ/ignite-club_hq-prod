@@ -421,7 +421,7 @@ export async function saveLiveEventSponsors(ctx: FeatureBackendContext, eventId:
 
 export async function getLiveEventTimer(ctx: FeatureBackendContext, eventId: string) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.get_event_timer(eventId), "Get event timer");
+  return unwrapCandid(actor.read_account_get_event_timer(eventId), "Get event timer");
 }
 
 export async function setLiveEventTimer(
@@ -700,7 +700,7 @@ export async function getLiveLineupSnapshot(
 ) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
   return unwrapCandid(
-    actor.get_lineup_snapshot(eventId, candidOpt(teamId)),
+    actor.read_account_get_lineup_snapshot(eventId, candidOpt(teamId)),
     "Load lineup",
   );
 }
@@ -1946,6 +1946,7 @@ function resolveNameRefsInDoc(
 export async function saveLiveGameResult(
   ctx: FeatureBackendContext,
   input: LiveGameResultInput,
+  onlyIfMissing = false,
 ) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
   // The MVP name becomes an opaque PII reference before crossing to the
@@ -1978,7 +1979,7 @@ export async function saveLiveGameResult(
     // Non-JSON or unexpected shape: pass through untouched (legacy behavior).
   }
   return unwrapCandid(
-    actor.save_game_result(
+    (onlyIfMissing ? actor.save_game_result_if_missing : actor.save_game_result)(
       input.teamId,
       candidOpt(input.eventId),
       input.sport,
@@ -2145,12 +2146,18 @@ export async function deactivateLiveActiveGame(
   teamId?: string | null,
 ) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.deactivate_active_game(candidOpt(teamId)), "Deactivate active game");
+  if (!teamId) return unwrapCandid(actor.deactivate_active_game([]), "Deactivate active game");
+  const { getLiveTeam } = await import('./club');
+  const [team] = await getLiveTeam(ctx, teamId);
+  if (!team?.club_id) throw new Error('Pitch board has no club scope');
+  const [board] = await unwrapCandid(actor.read_shared_board(team.club_id, teamId), 'Read shared pitch board');
+  if (!board) return;
+  return unwrapCandid(actor.deactivate_shared_board(team.club_id, teamId, board.updated_at_ms), 'Deactivate shared pitch board');
 }
 
 export async function getLiveActiveGame(ctx: FeatureBackendContext, teamId?: string | null) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  const result = await unwrapCandid(actor.get_active_game(candidOpt(teamId)), "Get active game") as unknown as
+  const result = await unwrapCandid(actor.read_account_get_active_game(candidOpt(teamId)), "Get active game") as unknown as
     | []
     | [{ pitch_state_json?: string; [key: string]: unknown }];
   if (result.length === 0) return result;

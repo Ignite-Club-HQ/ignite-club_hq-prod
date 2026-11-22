@@ -1,5 +1,19 @@
 # Roadmap — launch the live (PROD) system
 
+## Dark-mode status bar flashing — 22 November, DEV only
+- [x] Audited all status bar writers and native reset ordering; removed the exact SystemBars static-light backdrop repaint in Android build preparation, deduplicated navigation and ignored unrelated root classes/stale queued theme reads. Keyboard/inset ownership and PROD unchanged.
+- [x] Three regressions failed before repair; 28 checks pass per sign-in mode, five native preparation checks pass, desktop/phone-sized browser presses inspected in both themes, preview build OK. Evidence: docs/release-review/dark-mode-status-bar-audit-2026-11-22.md.
+- [ ] Confirm real status-bar taps/viewer/rotation/resume on an updated Android build; Android SDK and physical phone are unavailable here. Website publication alone cannot update the native dependency.
+
+## Pitch board ICP repairs — 22 November, DEV only
+- [ ] Repair timer routing/exact fixture selection, ICP-only fixture and lineup reads, acknowledged saving/recovery and current server permissions; preserve manual results on automatic finish.
+- [ ] Rerun the two-mode pitch audit and document remaining alert, transfer and live/device acceptance limits without granting production approval.
+
+## Pitch board ICP audit — 22 November, read-only
+- [x] Audited timers, fixture/lineup routing, sharing, saving, server permissions, alerts, native recovery and transfer-state coverage; full ICP approval withheld for documented blockers.
+- [x] Focused existing tests: email 946 passed / 20 skipped; ICP 919 passed / 47 skipped; zero failures across 79 files per mode. Six isolated executions reproduce current timer, lineup fallback and score-preservation defects.
+- [x] Recorded acceptance limits: no injected ICP coach session, physical phone or verified deployed-source parity; native canister prerequisite refuses writeBit=0 before installation. No app fixes, live data changes, deployments or release authorization. Evidence: docs/release-review/pitch-board-icp-audit-2026-11-22/audit.md.
+
 ## Release-safety inventory correction — 22 November, DEV only
 - [x] Reproduced four reported safe-apply failures plus two sibling staging failures: five unlisted DEV migrations, no edited or missing original fingerprints.
 - [x] Added all five as held, preserving migration bytes and existing approvals/guards; complete inventory now 60 originals / 16 candidates / 44 held.
