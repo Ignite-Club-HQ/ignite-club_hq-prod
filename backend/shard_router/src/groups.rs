@@ -208,4 +208,27 @@ pub(crate) mod tests {
         g.max_clubs = MAX_CLUBS + 1; assert!(validate(&g).is_err());
         g.max_clubs = 100; g.heap_budget_bytes += 1; assert!(validate(&g).is_err());
     }
+    // Audit 2026-11-23: owner capacity policy (fill G1 to <80%, then G2;
+    // closed/unhealthy/low-cycle groups never receive clubs).
+    #[test] fn policy_group1_preferred_until_rollover_then_group2() {
+        let now = 2;
+        let g1 = group("g1", 10); let g2 = group("g2", 0);
+        assert_eq!(select(&[g1.clone(), g2.clone()], "mainnet", now).unwrap().id, "g1");
+        let mut g1_79 = group("g1", 79); g1_79.max_clubs = 100;
+        assert_eq!(select(&[g1_79, g2.clone()], "mainnet", now).unwrap().id, "g1");
+        assert!(needs_preparation(&group("g1", 70)) && !needs_preparation(&group("g1", 69)));
+        assert_eq!(select(&[group("g1", 80), g2.clone()], "mainnet", now).unwrap().id, "g2");
+        let mut heavy = group("g1", 1); heavy.heap_bytes = heavy.heap_budget_bytes * 4 / 5 + 1;
+        assert_eq!(select(&[heavy, g2], "mainnet", now).unwrap().id, "g2");
+    }
+    #[test] fn policy_no_eligible_group_fails_closed() {
+        let now = 2;
+        let mut closed = group("g2", 0); closed.accepting = false;
+        assert!(select(&[group("g1", 80), closed], "mainnet", now).is_none());
+        let mut low = group("g1", 1); low.cycles = low.min_cycles - 1;
+        assert!(select(&[low], "mainnet", now).is_none());
+        let mut stale = group("g1", 1); stale.observed_at_ns = 1; 
+        assert!(select(&[stale], "mainnet", 2 + MAX_READING_AGE_NS).is_none());
+        assert!(select(&[group("g1", 1)], "other-target", now).is_none());
+    }
 }

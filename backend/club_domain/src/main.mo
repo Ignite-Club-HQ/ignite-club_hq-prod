@@ -196,9 +196,13 @@ persistent actor class Main(governorInit : Principal) = this {
   transient let newClubRouter = Runtime.envVar<system>("IGNITE_NEW_CLUB_PLACEMENT_ROUTER");
   transient let newClubGroup = Runtime.envVar<system>("IGNITE_NEW_CLUB_PLACEMENT_GROUP");
   transient let newClubTarget = Runtime.envVar<system>("IGNITE_NEW_CLUB_PLACEMENT_TARGET");
+  // Opt-in fail-closed switch: when "true", a missing router binding refuses
+  // new clubs instead of legacy direct creation. Set together with the three
+  // bindings at an approved upgrade; never inferred. Existing clubs unaffected.
+  transient let newClubPlacementRequired = Runtime.envVar<system>("IGNITE_NEW_CLUB_PLACEMENT_REQUIRED") == ?"true";
   func creatorPlacementAllowed(subject : Principal, clubId : Text) : async Bool {
     switch (newClubRouter, newClubGroup, newClubTarget) {
-      case (null, null, null) true;
+      case (null, null, null) not newClubPlacementRequired;
       case (?routerId, ?groupId, ?targetAlias) {
         let router : actor {
           read_new_club_creation_authorized : shared (Principal, Text, Text, Text) -> async { #Ok : Bool; #Err : Text }
@@ -3460,7 +3464,7 @@ persistent actor class Main(governorInit : Principal) = this {
     "- Open the app by its exact URL and use the origin returned by the connector. DEV and PROD have separate canisters and Internet Identity derivation origins; never combine them.\n" #
     "- Read `identity_access.whoami()` first. For a new principal, obtain approval and call `identity_access.register_account()` as that user, not as an app admin. Check `get_profile` and `my_terms_acceptance` separately; missing profile or terms is not completed onboarding. Do not claim consent for the user.\n" #
     "- On devices with privacy-preserving profile names, the Ignite app is the canonical way to finish protected display-name setup; raw `set_profile` alone may be denied. Recheck account/profile after completion.\n" #
-    "- Before creating a new club, check for an existing organisation and get confirmation. `create_club(id,name,slug,description,sport)` requires a new opaque ID; the creator receives `club_admin` on success. If group placement is active, reserve through the shard router and write only to the verified assigned group. Never fall back to an unverified shared canister on placement or transport failure.\n" #
+    "- Before creating a new club, check for an existing organisation and get confirmation. `create_club(id,name,slug,description,sport)` requires a new opaque ID; the creator receives `club_admin` on success. Creation workflow (same authority as the Ignite app; never pick a group yourself): (1) confirm Internet Identity sign-in and `identity_access.whoami()`; (2) generate a fresh UUID and call `shard_router.place_my_new_club(uuid, target_alias)`; if it returns #Err, STOP and report that new clubs are not open, do not call create_club anywhere; (3) find the assigned group's club_domain via `shard_router.read_public_group_targets` and call `create_club` ONLY on that canister; (4) on that same canister call `set_club_home_country(id, ISO2)` and `set_club_general_settings`; (5) optionally `save_team` with club_id = the new id; (6) verify the club and team via the caller-scoped OQL `clubs`/`teams` entities before reporting success, returning club id, team id and group id. Retries: reuse the SAME UUID; placement is idempotent per creator and `create_club` returns \"Club already exists\", after which verify instead of creating again. Default conversations are created when the admin first opens Chats in Ignite.\n" #
     "- The app's club setup also records home country, settings, optional logo and default conversations; a bare `create_club` call does not finish these. Refer the user to Ignite to complete setup if the agent cannot verify each step.\n" #
     "- `save_team(ClubTeam)` takes the full Candid record, and the caller must be permitted to create a team. Confirm the club and team before writing, respect team limits, then verify by `get_team(id)`. `club_id = \"\"` creates a creator-owned personal team, which `list_my_personal_teams()` can read.\n" #
     "- Required ClubTeam fields: id, club_id, name (text); archived, is_active, is_shell, playhq_auto_create_events (bool). Optional text fields (supply null if unused): age_group, description, division, folder_id, gender, logo_url, playhq_competition_id, playhq_team_id, shell_claim_token, shell_contact_email, shell_contact_name, team_type. Optional nat64: deleted_at_ms, shell_claimed_at_ms. Optional principal: shell_claimed_by, shell_invited_by.\n" #
