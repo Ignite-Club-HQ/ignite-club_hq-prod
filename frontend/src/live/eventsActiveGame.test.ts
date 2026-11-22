@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ read: vi.fn() }));
-vi.mock('@/live/domains', () => ({ connectLiveEventsDomain: async () => ({ actor: { get_active_game: mocks.read } }) }));
+vi.mock('@/live/domains', () => ({ connectLiveEventsDomain: async () => ({ actor: { read_account_get_active_game: mocks.read } }) }));
 import { getLiveActiveGame } from './features/events';
 describe('active-game asynchronous read', () => {
   it('waits for the canister response before inspecting the optional record', async () => {

@@ -62,6 +62,12 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const settingsQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const serializeSettings = useCallback((task: () => Promise<void>) => {
+    const next = settingsQueue.current.catch(() => {}).then(task);
+    settingsQueue.current = next;
+    return next;
+  }, []);
 
   /** Ref to saved team defaults (used for reset) */
   const savedTeamDefaultsRef = useRef<{
@@ -90,10 +96,11 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
    */
   const persistSetting = useCallback(
     async (overrides?: Record<string, unknown>) => {
-      if (readOnly) return;
+      if (readOnly) return false;
+      setIsSavingSettings(true);
       try {
         const payload = buildPayload(teamId, settingsRef.current, overrides);
-        await withFeatureBackend("events", {
+        await serializeSettings(() => withFeatureBackend("events", {
           supabase: async () => {
             const { error } = await supabase
               .from("team_subscriptions")
@@ -115,18 +122,21 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
               showLineupPicker: Boolean((overrides as Record<string, unknown> | undefined)?.show_lineup_picker ?? settingsRef.current.showLineupPickerSetting),
             });
           },
-        }, writeOnce({ teamId }));
+        }, writeOnce({ teamId })));
 
         // Invalidate cached subscription queries so the next PitchBoard mount
         // (or parent re-read) sees the new value instead of reverting to a
         // stale cached default (e.g. minutes_per_half snapping back to 10).
         queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
         queryClient.invalidateQueries({ queryKey: ["team-subscription-for-pitch", teamId] });
+        return true;
       } catch (e) {
         console.error("Failed to persist setting:", e);
-      }
+        toast({ title: "Settings not saved", description: "Your change is only on this device. Check your connection, then save settings again.", variant: "destructive" });
+        return false;
+      } finally { setIsSavingSettings(false); }
     },
-    [teamId, readOnly, settingsRef, queryClient]
+    [teamId, readOnly, settingsRef, queryClient, toast, serializeSettings]
   );
 
   /** Persist team size (with optional formation name override). */
@@ -216,7 +226,7 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
         show_match_header: settings.showMatchHeader,
         show_lineup_picker: settings.showLineupPickerSetting,
       };
-      await withFeatureBackend("events", {
+      await serializeSettings(() => withFeatureBackend("events", {
         supabase: async () => {
           const { error } = await supabase
             .from("team_subscriptions")
@@ -238,7 +248,7 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
             showLineupPicker: payload.show_lineup_picker,
           });
         },
-      }, writeOnce({ teamId }));
+      }, writeOnce({ teamId })));
 
       savedTeamDefaultsRef.current = {
         minutesPerHalf: settings.minutesPerHalf,
@@ -271,7 +281,7 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
     } finally {
       setIsSavingSettings(false);
     }
-  }, [teamId, readOnly, settingsRef, queryClient, toast]);
+  }, [teamId, readOnly, settingsRef, queryClient, toast, serializeSettings]);
 
   return {
     isSavingSettings,

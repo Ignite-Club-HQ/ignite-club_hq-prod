@@ -8,8 +8,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { supabase } from "@/integrations/supabase/client";
-import { format, parseISO, isAfter, subDays, addHours } from "date-fns";
+import { readPitchFixtures } from "./pitchFixtureRepository";
+import { resolveAuthBackend } from "@/live/authBackendMode";
+import { format, parseISO, isAfter } from "date-fns";
 
 // Match EventLinkSelector: only games within 48h of kickoff (and up to 24h
 // after) are linkable from the pitch board.
@@ -44,24 +45,9 @@ export function LandscapeEventSelector({
   // 48h before. Anything further out is hidden so coaches can't link a game
   // weeks ahead by mistake.
   const { data: gameEvents, isLoading } = useQuery({
-    queryKey: ["team-game-events-selector", teamId],
+    queryKey: ["team-game-events-selector", teamId, resolveAuthBackend()],
     queryFn: async () => {
-      const oneDayAgo = subDays(new Date(), 1);
-      const linkCutoff = addHours(new Date(), LINK_WINDOW_HOURS_BEFORE);
-
-      const { data, error } = await supabase
-        .from("events")
-        .select("id, title, event_date, type, address, suburb, opponent")
-        .eq("team_id", teamId)
-        .eq("type", "game")
-        .eq("is_cancelled", false)
-        .gte("event_date", oneDayAgo.toISOString())
-        .lte("event_date", linkCutoff.toISOString())
-        .order("event_date", { ascending: true })
-        .limit(20);
-
-      if (error) throw error;
-      return data as GameEvent[];
+      return readPitchFixtures(teamId, undefined, LINK_WINDOW_HOURS_BEFORE);
     },
     enabled: !!teamId && open,
   });

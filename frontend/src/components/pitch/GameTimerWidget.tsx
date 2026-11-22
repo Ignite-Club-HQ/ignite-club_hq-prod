@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { getCurrentGameSeconds, getSecondsSinceUpdateUncapped } from "./timerUtils";
+import { resolveAuthBackend } from "@/live/authBackendMode";
 import { cn } from "@/lib/utils";
 import {
   readServerTimer,
@@ -54,6 +55,7 @@ interface TimerState {
   soundEnabled: boolean;
   lastUpdateTime: number;
   teamId?: string;
+  eventId?: string | null;
   teamName?: string;
   isGameFinished?: boolean;
   gameFinishedAt?: number;
@@ -94,6 +96,7 @@ interface PitchBoardState {
   autoSubActive: boolean;
   autoSubPaused: boolean;
   goals?: Goal[];
+  linkedEventId?: string | null;
 }
 
 interface SubInfo {
@@ -159,7 +162,7 @@ const saveTimerState = (state: TimerState) => {
 const serverToTimerState = (
   t: ServerTimer,
   serverNowIso: string,
-  fallback: { teamId?: string; teamName?: string; gameFinishedAt?: number },
+  fallback: { teamId?: string; eventId?: string | null; teamName?: string; gameFinishedAt?: number },
 ): TimerState => {
   const clockSkewMs = new Date(serverNowIso).getTime() - Date.now();
   const elapsed = deriveElapsedSeconds(t, Date.now() + clockSkewMs);
@@ -173,6 +176,7 @@ const serverToTimerState = (
     // smoothly from the server-derived value until the next hydrate.
     lastUpdateTime: Date.now(),
     teamId: fallback.teamId,
+    eventId: fallback.eventId,
     teamName: fallback.teamName,
     isGameFinished: !!t.is_game_finished,
     gameFinishedAt: t.is_game_finished
@@ -231,6 +235,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   // Last server snapshot this widget accepted, so repeated resumes are compared
   // against it instead of each being treated as a fresh first hydrate.
   const serverTimerRef = useRef<ServerTimer | null>(null);
+  const pendingTimer = useRef(false);
   const [displaySeconds, setDisplaySeconds] = useState(0);
   const [homeGoals, setHomeGoals] = useState(0);
   // Guard: skip polling reads for a short window after a user action
@@ -415,7 +420,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       // Server-first: ask the authoritative timer row for current elapsed.
       // Immune to phone-lock, app-kill, or stale localStorage projections.
       try {
-        const res = await readServerTimer(saved.teamId ?? null);
+        const scopeEvent = readPitchState(saved.teamId)?.linkedEventId ?? null;
+        const res = await readServerTimer(saved.teamId ?? null, scopeEvent);
+        if (readPitchState(saved.teamId)?.linkedEventId !== scopeEvent) return;
+        if (saved.eventId !== scopeEvent && resolveAuthBackend() === "icp") serverTimerRef.current = null;
         if (res.found && isServerAnchoredTimer(res.timer_state)) {
           const incoming = res.timer_state as ServerTimer;
           const serverNowMs = new Date(res.server_now).getTime();
@@ -453,7 +461,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             const mapped = serverToTimerState(
               incoming,
               res.server_now,
-              { teamId: saved.teamId, teamName: saved.teamName, gameFinishedAt: saved.gameFinishedAt },
+              { teamId: saved.teamId, eventId: scopeEvent, teamName: saved.teamName, gameFinishedAt: saved.gameFinishedAt },
             );
             saveTimerState(mapped);
             setTimerState(mapped);
@@ -566,7 +574,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     e.stopPropagation();
     // Read fresh state from localStorage to avoid stale-closure race with polling
     const fresh = loadActiveTimerState();
-    if (!fresh) return;
+    if (!fresh || readOnly || pendingTimer.current) return;
 
     // Mark user action so polling doesn't revert this change
     userActionAtRef.current = Date.now();
@@ -574,6 +582,25 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     const currentElapsed = getCurrentElapsed(fresh);
     const mph = fresh.minutesPerHalf || 20;
     const atHalfTimeLimit = currentElapsed >= mph * 60;
+
+    if (resolveAuthBackend() === 'icp' && !fresh.teamId?.startsWith('event-group-')) {
+      if (!fresh.isRunning && fresh.currentHalf === 2 && atHalfTimeLimit) return;
+      const scopeEvent = readPitchState(fresh.teamId)?.linkedEventId ?? null;
+      if (fresh.eventId !== scopeEvent) { toast({ title: "Open the linked match", description: "Reopen the board before changing this match’s timer." }); return; }
+      pendingTimer.current = true;
+      const action = fresh.isRunning ? 'pause' : fresh.currentHalf === 1 && atHalfTimeLimit ? 'start_half_2'
+        : currentElapsed === 0 ? (fresh.currentHalf === 1 ? 'start_half' : 'start_half_2') : 'resume';
+      void sendTimerEvent({ teamId: fresh.teamId ?? null, eventId: scopeEvent, event: action, minutesPerHalf: mph }).then(response => {
+        if (loadActiveTimerState()?.teamId !== fresh.teamId || readPitchState(fresh.teamId)?.linkedEventId !== scopeEvent) return;
+        if (!isServerAnchoredTimer(response.timer_state)) throw new Error('Invalid clock acknowledgement');
+        const mapped = serverToTimerState(response.timer_state, response.server_now, { teamId: fresh.teamId, eventId: scopeEvent, teamName: fresh.teamName, gameFinishedAt: fresh.gameFinishedAt });
+        saveTimerState(mapped); setTimerState(mapped); setDisplaySeconds(mapped.elapsedSeconds);
+      }).catch(error => {
+        console.warn('[GameTimerWidget] Clock change unconfirmed', error);
+        toast({ title: 'Timer change not confirmed', description: 'Check your connection and match access, then reopen the board.', variant: 'destructive' });
+      }).finally(() => { pendingTimer.current = false; });
+      return;
+    }
 
     // Determine which server event this press maps to.
     let serverEvent: Parameters<typeof sendTimerEvent>[0]["event"] | null = null;

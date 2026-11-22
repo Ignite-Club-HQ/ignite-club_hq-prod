@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Pitch board ICP repairs — 22 November, DEV only
+- [ ] Repair timer routing/exact fixture selection, ICP-only fixture and lineup reads, acknowledged saving/recovery and current server permissions; preserve manual results on automatic finish.
+- [ ] Rerun the two-mode pitch audit and document remaining alert, transfer and live/device acceptance limits without granting production approval.
+
 ## Pitch board ICP audit — 22 November, read-only
 - [x] Audited timers, fixture/lineup routing, sharing, saving, server permissions, alerts, native recovery and transfer-state coverage; full ICP approval withheld for documented blockers.
 - [x] Focused existing tests: email 946 passed / 20 skipped; ICP 919 passed / 47 skipped; zero failures across 79 files per mode. Six isolated executions reproduce current timer, lineup fallback and score-preservation defects.

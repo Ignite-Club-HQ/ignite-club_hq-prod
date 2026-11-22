@@ -514,6 +514,11 @@ export interface Main {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  'deactivate_shared_board' : ActorMethod<
+    [string, string, bigint],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'delete_club_data' : ActorMethod<
     [string],
     { 'Ok' : number } |
@@ -1458,6 +1463,23 @@ export interface Main {
       { 'Err' : string }
   >,
   'save_game_result' : ActorMethod<
+    [
+      string,
+      [] | [string],
+      string,
+      string,
+      string,
+      number,
+      number,
+      string,
+      string,
+      [] | [string],
+      [] | [string],
+    ],
+    { 'Ok' : GameResult } |
+      { 'Err' : string }
+  >,
+  'save_game_result_if_missing' : ActorMethod<
     [
       string,
       [] | [string],

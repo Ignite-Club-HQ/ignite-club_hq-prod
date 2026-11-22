@@ -11,6 +11,7 @@ import {
   type ServerTimer,
 } from "@/lib/serverTimer";
 import { projectRunningTimerState } from "./timerUtils";
+import { resolveAuthBackend } from '@/live/authBackendMode';
 
 const T0 = Date.UTC(2026, 7, 1, 9, 0, 0);
 const iso = (offsetSeconds = 0) => new Date(T0 + offsetSeconds * 1000).toISOString();
@@ -67,9 +68,9 @@ describe("pitch timer resilience matrix", () => {
 
   it("keeps team, personal and synthetic event-group timer domains isolated", () => {
     expect(isServerTimerEligibleTeamId("00000000-0000-4000-8000-000000000001")).toBe(true);
-    expect(isServerTimerEligibleTeamId(null)).toBe(true);
+    expect(isServerTimerEligibleTeamId(null)).toBe(resolveAuthBackend() !== 'icp');
     expect(isServerTimerEligibleTeamId("event-group-00000000-0000-4000-8000-000000000001")).toBe(false);
-    expect(isServerTimerEligibleTeamId("team-a")).toBe(false);
+    expect(isServerTimerEligibleTeamId("team-a")).toBe(resolveAuthBackend() === 'icp');
   });
 
   it("recognises a clobbered v2 marker but never treats it as a readable anchored row", () => {

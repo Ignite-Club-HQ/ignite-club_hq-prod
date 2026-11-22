@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { writeOnce } from "@/live/clubScope";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { getLiveLineupSnapshot, saveLiveLineupSnapshot } from "@/live/features/events";
 import type { Player, TeamSize, PitchBoardState } from "./types";
@@ -95,10 +96,30 @@ export async function fetchEventLineup(
   // routed. Provisional mapping (inverse of saveEventLineup): formation is
   // parsed back to its index, slot back to the pitch position label; verify
   // against the deployed canister post-deploy.
-  const icpRecord = await withFeatureBackend("events", {
-    supabase: () => null as EventLineupRecord | null,
+  return withFeatureBackend("events", {
+    supabase: async () => {
+  try {
+    const { data, error } = await supabase
+      .from("event_lineups")
+      .select("lineup, updated_at")
+      .eq("event_id", eventId)
+      .eq("team_id", teamId)
+      .maybeSingle();
+    if (error || !data) return null;
+    const snapshot = data.lineup as unknown as EventLineupSnapshot | null;
+    if (!snapshot || !Array.isArray(snapshot.players) || snapshot.players.length === 0) {
+      return null;
+    }
+    return {
+      snapshot,
+      updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : 0,
+    };
+  } catch (e) {
+    console.warn("[EventLineup] fetch failed", e);
+    return null;
+  }
+    },
     icp: async (ctx): Promise<EventLineupRecord | null> => {
-      try {
         const raw = await getLiveLineupSnapshot(ctx, eventId, teamId);
         const snap = Array.isArray(raw) ? raw[0] : raw;
         if (!snap || !Array.isArray(snap.players) || snap.players.length === 0) return null;
@@ -123,34 +144,8 @@ export async function fetchEventLineup(
           version: 1,
         };
         return { snapshot, updatedAt: Date.now() };
-      } catch (e) {
-        console.warn("[EventLineup] ICP fetch failed", e);
-        return null;
-      }
     },
-  }, { eventId: eventId });
-  if (icpRecord) return icpRecord;
-
-  try {
-    const { data, error } = await supabase
-      .from("event_lineups")
-      .select("lineup, updated_at")
-      .eq("event_id", eventId)
-      .eq("team_id", teamId)
-      .maybeSingle();
-    if (error || !data) return null;
-    const snapshot = data.lineup as unknown as EventLineupSnapshot | null;
-    if (!snapshot || !Array.isArray(snapshot.players) || snapshot.players.length === 0) {
-      return null;
-    }
-    return {
-      snapshot,
-      updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : 0,
-    };
-  } catch (e) {
-    console.warn("[EventLineup] fetch failed", e);
-    return null;
-  }
+  }, { eventId, teamId });
 }
 
 export async function saveEventLineup(args: {
@@ -168,29 +163,8 @@ export async function saveEventLineup(args: {
   // (event, team). Provisional mapping: formation is stored as its index
   // string, slot as the pitch position label; verify against the deployed
   // canister post-deploy.
-  const savedToIcp = await withFeatureBackend("events", {
-    supabase: () => false,
-    icp: async (ctx) => {
-      await saveLiveLineupSnapshot(ctx, eventId, {
-        teamId,
-        formation: String(snapshot.selectedFormation),
-        teamSize: Number(snapshot.teamSize),
-        ballX: snapshot.ballPosition?.x ?? null,
-        ballY: snapshot.ballPosition?.y ?? null,
-        players: snapshot.players.map((p) => ({
-          member: p.id,
-          slot: p.currentPitchPosition ? String(p.currentPitchPosition) : "bench",
-          number: p.number ?? null,
-          x: p.position?.x ?? null,
-          y: p.position?.y ?? null,
-          bench: !p.currentPitchPosition,
-        })),
-      });
-      return true;
-    },
-  }, { eventId: eventId });
-  if (savedToIcp) return true;
-
+  return withFeatureBackend("events", {
+    supabase: async () => {
   try {
     const { error } = await supabase
       .from("event_lineups")
@@ -213,6 +187,26 @@ export async function saveEventLineup(args: {
     console.warn("[EventLineup] save threw", e);
     return false;
   }
+    },
+    icp: async (ctx) => {
+      await saveLiveLineupSnapshot(ctx, eventId, {
+        teamId,
+        formation: String(snapshot.selectedFormation),
+        teamSize: Number(snapshot.teamSize),
+        ballX: snapshot.ballPosition?.x ?? null,
+        ballY: snapshot.ballPosition?.y ?? null,
+        players: snapshot.players.map((p) => ({
+          member: p.id,
+          slot: p.currentPitchPosition ? String(p.currentPitchPosition) : "bench",
+          number: p.number ?? null,
+          x: p.position?.x ?? null,
+          y: p.position?.y ?? null,
+          bench: !p.currentPitchPosition,
+        })),
+      });
+      return true;
+    },
+  }, writeOnce({ eventId, teamId }));
 }
 
 const readLocalState = (teamId: string): PitchBoardState | null => {

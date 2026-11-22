@@ -4,7 +4,8 @@ import { savePitchState } from "../pitchStateUtils";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
-import { buildEventLineupSnapshot, lineupSignature, saveEventLineup } from "../eventLineupRepository";
+import { buildEventLineupSnapshot } from "../eventLineupRepository";
+import { useEventLineupSave } from "./useEventLineupSave";
 import type { Player, TeamSize, SubstitutionEvent, Goal } from "../types";
 
 interface UsePitchBoardPersistenceArgs {
@@ -146,28 +147,8 @@ export function usePitchBoardPersistence({
   // Durable per-event lineup mirror (`event_lineups`). Unlike the localStorage
   // copy, this follows the coach to any device and survives cache clears.
   // Only the planned lineup is stored — never minutes, goals or the live plan.
-  const lastLineupSigRef = useRef<string>("");
-  useEffect(() => {
-    if (!hasInitialized || readOnly || mockMode || isEventGroup) return;
-    if (!linkedEventId || !teamId) return;
-    if (!players.some((p) => p.position !== null)) return;
-
-    const snapshot = buildEventLineupSnapshot({
-      players,
-      teamSize,
-      selectedFormation,
-      ballPosition,
-    });
-    const signature = `${linkedEventId}|${lineupSignature(snapshot)}`;
-    if (signature === lastLineupSigRef.current) return;
-
-    const t = setTimeout(() => {
-      lastLineupSigRef.current = signature;
-      void saveEventLineup({ eventId: linkedEventId, teamId, userId, snapshot });
-    }, 1200);
-    return () => clearTimeout(t);
-  }, [
-    hasInitialized, readOnly, mockMode, isEventGroup, linkedEventId, teamId,
-    userId, players, teamSize, selectedFormation, ballPosition,
-  ]);
+  useEventLineupSave(hasInitialized && !readOnly && !mockMode && !isEventGroup && linkedEventId && teamId
+    && players.some(player => player.position !== null)
+    ? { eventId: linkedEventId, teamId, userId, snapshot: buildEventLineupSnapshot({ players, teamSize, selectedFormation, ballPosition }) }
+    : null);
 }

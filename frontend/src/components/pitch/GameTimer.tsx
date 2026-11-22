@@ -110,6 +110,7 @@ interface GameTimerProps {
   compactLarge?: boolean; // Larger compact mode when no score is showing
   large?: boolean; // Larger touch targets for landscape setup tab
   teamId?: string;
+  eventId?: string | null;
   teamName?: string;
   onTimeUpdate?: (elapsedSeconds: number, currentHalf: 1 | 2) => void;
   onHalfChange?: (newHalf: 1 | 2, source?: 'live' | 'reconcile') => void;
@@ -138,6 +139,7 @@ interface TimerState {
   
   lastUpdateTime: number; // timestamp to calculate elapsed time while away
   teamId?: string;
+  eventId?: string | null;
   teamName?: string;
   isGameFinished?: boolean; // Track if game has reached full time
   gameFinishedAt?: number; // Timestamp when game finished (for auto-reset)
@@ -242,6 +244,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   compactLarge = false,
   large = false,
   teamId,
+  eventId,
   teamName,
   onTimeUpdate,
   onHalfChange,
@@ -260,6 +263,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   const [isRunning, setIsRunning] = useState(false);
   const [isGameFinished, setIsGameFinished] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [timerPending, setTimerPending] = useState(false);
+  const pendingRef = useRef(false);
+  const timerScopeRef = useRef({ teamId, eventId });
+  timerScopeRef.current = { teamId, eventId };
 
   // Keep the screen awake while the timer is running so iOS/Android don't
   // sleep mid-half and suspend the JS runtime.
@@ -281,6 +288,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   // Use external minutesPerHalf if provided, otherwise use internal
   const minutesPerHalf = externalMinutesPerHalf !== undefined ? externalMinutesPerHalf : internalMinutesPerHalf;
   const setMinutesPerHalf = (mins: number) => {
+    if (resolveAuthBackend() === 'icp' && !teamId?.startsWith('event-group-')) { void commitTimerAction('set_minutes', mins); return; }
     if (onMinutesPerHalfChange) {
       onMinutesPerHalfChange(mins);
     } else {
@@ -289,11 +297,11 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     // Propagate to server so spectators / cron see the new half length and
     // the next mount (anywhere) hydrates with the right value.
     sendTimerEvent({
-      teamId: teamId ?? null,
+      teamId: teamId ?? null, eventId,
       event: 'set_minutes',
       minutesPerHalf: mins,
       payload: { minutes_per_half: mins },
-    }).catch((e) => console.warn('[TimerAudit] set_minutes send failed', e));
+    }).catch(handleTimerFailure);
   };
 
   const halfDurationSeconds = minutesPerHalf * 60;
@@ -345,7 +353,14 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   const liveStateRef = useRef({ isRunning: false, currentHalf: 1 as 1 | 2, elapsedSeconds: 0, isGameFinished: false });
   liveStateRef.current = { isRunning, currentHalf, elapsedSeconds, isGameFinished };
 
+  useEffect(() => {
+    serverTimerRef.current = null;
+    liveStateRef.current = { isRunning: false, currentHalf: 1, elapsedSeconds: 0, isGameFinished: false };
+    setIsRunning(false); setCurrentHalf(1); setElapsedSeconds(0); setIsGameFinished(false); setHasInitialized(false);
+  }, [teamId, eventId]);
+
   const applyServerSnapshot = useCallback((t: ServerTimer, serverNowIso: string) => {
+    if (timerScopeRef.current.teamId !== teamId || timerScopeRef.current.eventId !== eventId) return;
     const decision = shouldAcceptServerSnapshot(serverTimerRef.current, t, liveStateRef.current);
     if (!decision.accept) {
       console.info('[TimerAudit] server-snapshot-rejected', { teamId, reason: decision.reason, prev: serverTimerRef.current, incoming: t, local: liveStateRef.current });
@@ -370,7 +385,34 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
     // Note: tick anchor is reset by the running-tick effect when isRunning flips true.
     console.info('[TimerAudit] server-hydrate', { teamId, reason: decision.reason, t, elapsed });
-  }, [externalMinutesPerHalf, teamId]);
+  }, [externalMinutesPerHalf, teamId, eventId]);
+
+  const handleTimerFailure = useCallback(async (error: unknown) => {
+    if (teamId?.startsWith('event-group-')) return; // separate group CAS owner
+    console.warn('[GameTimer] Timer change unconfirmed', error);
+    toast({ title: 'Timer change not confirmed', description: 'Check your connection and match access. The saved clock will be reloaded.', variant: 'destructive' });
+    try {
+      const saved = await readServerTimer(teamId ?? null, eventId);
+      if (timerScopeRef.current.teamId !== teamId || timerScopeRef.current.eventId !== eventId) return;
+      if (saved.found && isServerAnchoredTimer(saved.timer_state)) applyServerSnapshot(saved.timer_state, saved.server_now);
+      else if (resolveAuthBackend() === 'icp') setIsRunning(false);
+    } catch (_) { if (resolveAuthBackend() === 'icp') setIsRunning(false); }
+  }, [teamId, eventId, applyServerSnapshot]);
+
+  const commitTimerAction = useCallback(async (action: Parameters<typeof sendTimerEvent>[0]['event'], mph: number) => {
+    if (readOnly || pendingRef.current) return;
+    pendingRef.current = true; setTimerPending(true);
+    try {
+      const response = await sendTimerEvent({ teamId: teamId ?? null, eventId, event: action, minutesPerHalf: mph });
+      if (!isServerAnchoredTimer(response.timer_state)) throw new Error('Invalid timer acknowledgement');
+      applyServerSnapshot(response.timer_state, response.server_now);
+      if (timerScopeRef.current.teamId === teamId && timerScopeRef.current.eventId === eventId) {
+        if (action === 'set_minutes') onMinutesPerHalfChange?.(response.timer_state.minutes_per_half);
+        if (action === 'end_half') onHalfChangeRef.current?.(2, 'live');
+      }
+    } catch (error) { await handleTimerFailure(error); }
+    finally { pendingRef.current = false; setTimerPending(false); }
+  }, [teamId, eventId, readOnly, applyServerSnapshot, handleTimerFailure, onMinutesPerHalfChange]);
 
   // Poll the canister-owned anchored clock while the board is visible, rather
   // than waiting until foreground recovery. Spectators only read this path.
@@ -381,7 +423,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     async function refresh() {
       try {
         if (document.visibilityState !== 'hidden' && navigator.onLine) {
-          const res = await readServerTimer(teamId ?? null);
+          const res = await readServerTimer(teamId ?? null, eventId);
           if (!cancelled && res.found && isServerAnchoredTimer(res.timer_state)) applyServerSnapshot(res.timer_state, res.server_now);
         }
       } catch (error) { console.warn('[GameTimer] Clock refresh failed', error); }
@@ -389,7 +431,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     }
     timer = setTimeout(refresh, 5000);
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [teamId, applyServerSnapshot]);
+  }, [teamId, eventId, applyServerSnapshot]);
 
   // Group clocks share revisioned state instead of the team event timer.
   useEffect(() => {
@@ -414,25 +456,25 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       // Local snapshot is loaded FIRST so a stale/zeroed server row can be
       // detected before it overwrites a locally-advanced clock.
       const local = loadTimerState(teamId);
-      const localUsable = !!local && local.teamId === teamId;
+      const localUsable = !!local && local.teamId === teamId && (resolveAuthBackend() !== 'icp' || local.eventId === eventId);
       // Try server first.
       try {
-        const res = await readServerTimer(teamId ?? null);
+        const res = await readServerTimer(teamId ?? null, eventId);
         if (cancelled) return;
         if (res.found && isServerAnchoredTimer(res.timer_state)) {
           const incoming = res.timer_state as ServerTimer;
           const serverNowMs = new Date(res.server_now).getTime();
           const localElapsed = localUsable
-            ? Math.max(0, (local!.elapsedSeconds || 0)) +
-              (local!.isRunning ? getSecondsSinceUpdateUncapped(local!.lastUpdateTime) : 0)
+            ? Math.max(0, (local?.elapsedSeconds || 0)) +
+              (local?.isRunning ? getSecondsSinceUpdateUncapped(local?.lastUpdateTime ?? 0) : 0)
             : 0;
-          const preferLocal = localUsable && !local!.isGameFinished && shouldPreferLocalOnFirstHydrate({
+          const preferLocal = localUsable && !local?.isGameFinished && shouldPreferLocalOnFirstHydrate({
             incoming,
             serverNowMs: Number.isFinite(serverNowMs) ? serverNowMs : Date.now(),
             localElapsedSeconds: localElapsed,
-            localCurrentHalf: local!.currentHalf,
-            localIsRunning: local!.isRunning,
-            localLastUpdateMs: local!.lastUpdateTime,
+            localCurrentHalf: local?.currentHalf ?? 1,
+            localIsRunning: local?.isRunning ?? false,
+            localLastUpdateMs: local?.lastUpdateTime ?? 0,
           });
           if (!preferLocal) {
             applyServerSnapshot(incoming, res.server_now);
@@ -453,7 +495,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       // mid-flight games on the old path keep working).
       const saved = loadTimerState(teamId);
       console.info('[TimerAudit] mount/teamId-load (fallback)', { teamId, externalMinutesPerHalf, savedExists: !!saved, saved });
-      if (saved && saved.teamId === teamId) {
+      if (saved && saved.teamId === teamId && (resolveAuthBackend() !== 'icp' || saved.eventId === eventId)) {
         if (externalMinutesPerHalf === undefined) setInternalMinutesPerHalf(saved.minutesPerHalf);
         setIsGameFinished(saved.isGameFinished || false);
         const halfDuration = (externalMinutesPerHalf ?? saved.minutesPerHalf) * 60;
@@ -488,7 +530,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamId]);
+  }, [teamId, eventId]);
 
   // Save state to localStorage whenever it changes (only after initialization)
   const lastSavedSnapshotRef = useRef<string>('');
@@ -502,6 +544,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       isRunning,
       lastUpdateTime: Date.now(),
       teamId,
+      eventId,
       teamName,
       isGameFinished,
     }, teamId);
@@ -519,11 +562,11 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       });
       lastSavedSnapshotRef.current = snap;
     }
-  }, [minutesPerHalf, currentHalf, elapsedSeconds, isRunning, hasInitialized, teamId, teamName, isGameFinished]);
+  }, [minutesPerHalf, currentHalf, elapsedSeconds, isRunning, hasInitialized, teamId, eventId, teamName, isGameFinished]);
 
   const toggleTimer = useCallback(() => {
     // Cannot resume if game is finished
-    if (isGameFinished) return false;
+    if (readOnly || isGameFinished || pendingRef.current) return false;
 
     // If linked to an event, block manual start only after the post-kickoff window closes.
     if (!isRunning && kickoffMs && elapsedSeconds === 0 && currentHalf === 1) {
@@ -536,6 +579,12 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         });
         return false;
       }
+    }
+
+    if (resolveAuthBackend() === 'icp' && !teamId?.startsWith('event-group-')) {
+      const action = isRunning ? 'pause' : elapsedSeconds === 0 ? (currentHalf === 1 ? 'start_half' : 'start_half_2') : 'resume';
+      void commitTimerAction(action, minutesPerHalf);
+      return isRunning;
     }
 
     let nextIsRunning = false;
@@ -552,7 +601,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         : 'resume')
       : 'pause';
     sendTimerEvent({
-      teamId: teamId ?? null,
+      teamId: teamId ?? null, eventId,
       event: evt,
       minutesPerHalf,
       ...readLocalPitchPatch(teamId ?? null),
@@ -564,13 +613,15 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         return;
       }
       applyServerSnapshot(res.timer_state, res.server_now);
-    }).catch((e) => console.warn('[TimerAudit] sendTimerEvent failed', evt, e));
+    }).catch(handleTimerFailure);
 
 
     return nextIsRunning;
-  }, [isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf, teamId, minutesPerHalf, applyServerSnapshot]);
+  }, [readOnly, isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf, teamId, eventId, minutesPerHalf, applyServerSnapshot, handleTimerFailure, commitTimerAction]);
 
   const resetTimer = useCallback(() => {
+    if (readOnly) return;
+    if (resolveAuthBackend() === 'icp' && !teamId?.startsWith('event-group-')) { void commitTimerAction('reset', minutesPerHalf); return; }
     setIsRunning(false);
     setCurrentHalf(1);
     setElapsedSeconds(0);
@@ -594,9 +645,9 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       } catch {}
     }
     // Server reset so spectators / cron / next mount all snap to zero.
-    sendTimerEvent({ teamId: teamId ?? null, event: 'reset', minutesPerHalf })
-      .catch((e) => console.warn('[TimerAudit] reset send failed', e));
-  }, [teamId, kickoffMs, minutesPerHalf, teamName]);
+    sendTimerEvent({ teamId: teamId ?? null, eventId, event: 'reset', minutesPerHalf })
+      .catch(handleTimerFailure);
+  }, [teamId, eventId, kickoffMs, minutesPerHalf, teamName, handleTimerFailure, readOnly, commitTimerAction]);
 
   // Expose state via ref
   useImperativeHandle(ref, () => ({
@@ -659,14 +710,18 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           const newValue = prev + deltaSec;
           // Check if half is complete
           if (newValue >= halfDurationSeconds) {
+            if (resolveAuthBackend() === 'icp' && !teamId?.startsWith('event-group-')) {
+              void commitTimerAction(currentHalf === 1 ? 'end_half' : 'end_game', minutesPerHalf);
+              return halfDurationSeconds;
+            }
             if (currentHalf === 1) {
               // End of first half - pause and switch to second half
               setIsRunning(false);
               setCurrentHalf(2);
               onHalfChangeRef.current?.(2, 'live');
               playTimerBeep("Half Time! First half complete.");
-              sendTimerEvent({ teamId: teamId ?? null, event: 'end_half', minutesPerHalf })
-                .catch((e) => console.warn('[TimerAudit] end_half send failed', e));
+              sendTimerEvent({ teamId: teamId ?? null, eventId, event: 'end_half', minutesPerHalf })
+                .catch(handleTimerFailure);
               return 0;
             } else {
               // End of match - mark game as finished
@@ -686,8 +741,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
               };
               saveTimerState(finishedState, teamId);
               playTimerBeep("Full Time! Match complete.");
-              sendTimerEvent({ teamId: teamId ?? null, event: 'end_game', minutesPerHalf })
-                .catch((e) => console.warn('[TimerAudit] end_game send failed', e));
+              sendTimerEvent({ teamId: teamId ?? null, eventId, event: 'end_game', minutesPerHalf })
+                .catch(handleTimerFailure);
               return halfDurationSeconds;
             }
           }
@@ -706,7 +761,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, halfDurationSeconds, currentHalf]);
+  }, [isRunning, halfDurationSeconds, currentHalf, teamId, eventId, minutesPerHalf, commitTimerAction]);
 
   // Reconcile timer when app resumes from background (no 30s cap)
   // CRITICAL: register listeners ONCE per teamId. Previously the dep array
@@ -723,6 +778,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     halfDurationSeconds,
     teamId,
     teamName,
+    eventId,
   });
   reconcileRefs.current = {
     isRunning,
@@ -733,6 +789,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     halfDurationSeconds,
     teamId,
     teamName,
+    eventId,
   };
 
   useEffect(() => {
@@ -748,8 +805,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       // Server-first: pull authoritative timer and snap to it. Drift is
       // impossible because the server derives elapsed from event timestamps.
       try {
-        const res = await readServerTimer(readForTeamId);
-        if ((reconcileRefs.current.teamId ?? null) !== readForTeamId) {
+        const res = await readServerTimer(readForTeamId, r.eventId);
+        if ((reconcileRefs.current.teamId ?? null) !== readForTeamId || reconcileRefs.current.eventId !== r.eventId) {
           console.info('[TimerAudit] reconcile: team-id changed mid-read, dropping', { readForTeamId, current: reconcileRefs.current.teamId });
           return;
         }
@@ -919,7 +976,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
             size="icon"
             className={cn(isLarge ? "h-10 w-10" : "h-8 w-8")}
             onClick={toggleTimer}
-            disabled={isGameFinished}
+            disabled={readOnly || isGameFinished || timerPending}
           >
             {isRunning ? <Pause className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} /> : <Play className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} />}
           </Button>
@@ -976,7 +1033,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           size={large ? "default" : "icon"}
           className={large ? "h-12 w-12" : undefined}
           onClick={toggleTimer}
-          disabled={isGameFinished}
+          disabled={readOnly || isGameFinished || timerPending}
         >
           {isRunning ? <Pause className={large ? "h-5 w-5" : "h-4 w-4"} /> : <Play className={large ? "h-5 w-5" : "h-4 w-4"} />}
         </Button>

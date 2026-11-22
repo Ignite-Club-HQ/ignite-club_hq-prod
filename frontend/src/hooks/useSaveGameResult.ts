@@ -52,7 +52,8 @@ export function useSaveGameResult() {
         input.mvpPlayerId ?? "no-mvp",
       ].join(":");
       // De-dupe within a session, unless caller explicitly forces.
-      if (!opts?.force && (savedKeyRef.current === key || inFlightRef.current)) return true;
+      if (inFlightRef.current) return false;
+      if (!opts?.force && savedKeyRef.current === key) return true;
       const isIcp = resolveAuthBackend() === "icp";
       inFlightRef.current = true;
 
@@ -80,11 +81,12 @@ export function useSaveGameResult() {
                   playerStatsJson: JSON.stringify(input.players),
                   mvpPlayerId: input.mvpPlayerId ?? null,
                   mvpPlayerName: mvp?.name ?? null,
-                });
+                }, opts?.onlyIfMissing ?? false);
               },
             }, writeOnce({ teamId: input.teamId }));
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            console.warn("[useSaveGameResult] ICP save failed", error);
+            const message = "Your game was not saved. Check your connection and permission to manage this match, then try again.";
             if (!opts?.silent) {
               toast({ title: "Could not save game", description: message, variant: "destructive" });
             }

@@ -1,5 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { createElement, useEffect, useRef } from 'react';
 import { readSharedPitchBoard, writeSharedPitchBoard, sharedPitchSignature, type SharedBoardSnapshot } from '@/lib/sharedPitchBoard';
+
+import { toast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 
 /** One writer per open board; serial read/CAS loop, no blind retry after failure. */
 export function useIcpSharedPitchBoard({ teamId, userId, enabled, readOnly, apply }: {
@@ -30,11 +33,31 @@ export function useIcpSharedPitchBoard({ teamId, userId, enabled, readOnly, appl
     function local(): Record<string, unknown> | null {
       try { return JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { return null; }
     }
+    const draftKey = `ignite_pitch_draft_${userId}_${teamId}`;
+    function offerDraft(pitch: Record<string, unknown>) {
+      if (readOnly) return;
+      const retained = sessionStorage.getItem(draftKey);
+      if (retained) pitch = JSON.parse(retained);
+      else sessionStorage.setItem(draftKey, JSON.stringify(pitch));
+      toast({ title: 'Unsaved board kept', description: 'The shared board has been reloaded. Your edits are kept on this device.',
+        action: createElement(ToastAction, { altText: 'Restore unsaved board edits', onClick: () => {
+          if (disposed || readOnly) return;
+          localStorage.setItem(key, JSON.stringify(pitch));
+          applyRef.current(pitch);
+          sessionStorage.removeItem(draftKey);
+        } }, 'Restore edits') });
+    }
     function adopt(snapshot: SharedBoardSnapshot | null) {
       if (disposed) return;
       revision = snapshot?.revision ?? null;
       if (snapshot) {
         const pitch = { ...snapshot.pitch, teamId };
+        const displaced = local();
+        if (!readOnly && displaced && sharedPitchSignature(displaced) !== sharedPitchSignature(pitch)) offerDraft(displaced);
+        else if (!hydrated && !readOnly) {
+          const retained = sessionStorage.getItem(draftKey);
+          if (retained) offerDraft(JSON.parse(retained));
+        }
         signature = sharedPitchSignature(pitch);
         localStorage.setItem(key, JSON.stringify(pitch));
         localStorage.setItem('ignite-pitch-board-state', JSON.stringify(pitch));
@@ -65,6 +88,8 @@ export function useIcpSharedPitchBoard({ teamId, userId, enabled, readOnly, appl
         signature = next;
       } catch (error) {
         // Conflict/unknown write: reload instead of replaying the payload.
+        const draft = local();
+        if (draft && !readOnly && sharedPitchSignature(draft) !== signature) offerDraft(draft);
         uncertain = true;
         console.warn('[PitchBoard] Shared state refresh failed', error);
       } finally {
