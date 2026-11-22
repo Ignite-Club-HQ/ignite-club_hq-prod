@@ -52,6 +52,10 @@ class DocumentWiring(unittest.TestCase):
             write('android/app/build.gradle', 'dependencies {\n}\n')
             write('node_modules/@capacitor-community/file-opener/android/src/main/java/com/ryltsov/alex/plugins/file/opener/FileOpenerPlugin.java',
                   'if (openWithDefault) { }')
+            # The status-bar configurator patches Capacitor's installed SystemBars
+            # source. Model that upstream file in this isolated scaffold test.
+            write('node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/plugin/SystemBars.java',
+                  'getActivity().getWindow().getDecorView().setBackgroundColor(getThemeColor(getContext(), android.R.attr.windowBackground));')
             statusbar.configure(front)
             module.configure(front, 'android')
             push.configure(front)
