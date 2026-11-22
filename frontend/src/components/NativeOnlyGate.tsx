@@ -5,10 +5,10 @@ import { setInviteFlowContext } from "@/components/InviteFlowProgress";
 import { Button } from "@/components/ui/button";
 import { Smartphone, Download } from "lucide-react";
 
-const DEEP_LINK_DOMAIN = "https://reference.invalid";
+const DEEP_LINK_DOMAIN = "https://igniteclubhq.app";
 const CUSTOM_SCHEME = "igniteclubhq://";
-const APP_STORE_URL = "https://reference.invalid";
-const PLAY_STORE_URL = "https://reference.invalid";
+const APP_STORE_URL = "https://igniteclubhq.app/get/ios";
+const PLAY_STORE_URL = "https://igniteclubhq.app/get/android";
 
 function isIOS(): boolean {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -43,7 +43,7 @@ export default function NativeOnlyGate({ children }: { children: React.ReactNode
   const tryOpenNativeApp = () => {
     setAttemptedOpen(true);
     if (isAndroid()) {
-      window.location.href = `intent://ignite.invalid${fullPath}#Intent;scheme=https;package=app.lovable.igniteteamhub;S.browser_fallback_url=${encodeURIComponent(PLAY_STORE_URL)};end`;
+      window.location.href = `intent://igniteclubhq.app${fullPath}#Intent;scheme=https;package=app.lovable.igniteteamhub;S.browser_fallback_url=${encodeURIComponent(PLAY_STORE_URL)};end`;
     } else if (isIOS()) {
       window.location.href = `${CUSTOM_SCHEME}${fullPath}`;
       setTimeout(() => {

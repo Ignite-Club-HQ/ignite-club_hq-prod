@@ -53,6 +53,7 @@ import SubscriptionPolicy "subscriptionPolicy";
 import ProfileMembership "profileMembership";
 import PrivateNameCleanup "../../shared/PrivateNameCleanup";
 import TeamInviteScope "teamInviteScope";
+import RoleGrantPolicy "roleGrantPolicy";
 import LinkedMembership "linkedMembership";
 import PiiAudience "piiAudience";
 
@@ -817,7 +818,7 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   func isAdmin(caller : Principal, club : Text) : Bool {
-    isGovernor(caller) or (not isExcluded(caller, club) and acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (grant.role == "club_admin" or grant.role == "app_admin") and roleEffective(grant.club, grant.team) and (grant.club == ?club or grant.club == null)))
+    isGovernor(caller) or isAppAdmin(caller) or (not isExcluded(caller, club) and acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and grant.role == "club_admin" and grant.club == ?club and grant.team == null and roleEffective(grant.club, grant.team)))
   };
   // A full roster is a staff-only inventory, not a membership-wide read.
   // Preserve existing coach/team-admin workflows while excluding parents,
@@ -4328,7 +4329,7 @@ persistent actor class Main(governorInit : Principal) = this {
   public query func is_app_admin(user : Principal) : async Bool {
     denyLegacyAccountQuery();
     if (user.equal(Principal.anonymous())) return false;
-    acl.roles.any(func(grant) = grant.user.equal(user) and grant.role == "app_admin")
+    acl.roles.any(func(grant) = grant.user.equal(user) and RoleGrantPolicy.platform(grant.role, grant.club, grant.team))
   };
 
   // Principals holding club_admin for this club — the membership of that
@@ -4565,12 +4566,13 @@ persistent actor class Main(governorInit : Principal) = this {
     await admitAccount(caller);
     auth(caller);
     if (not isAdmin(caller, club)) return #Err("Club admin required");
-    if (role == "") return #Err("Invalid role");
+    if (user.isAnonymous() or not RoleGrantPolicy.canGrant(isGovernor(caller), role, team)) return #Err("Role or scope not permitted");
     switch (team) { case (?id) if (not inviteTeamValid(club, id)) return #Err("Active team required"); case null {} };
+    let grantedClub = if (role == "app_admin") null else ?club;
     bumpMembershipDiscovery();
-    acl := { acl with roles = acl.roles.concat([{ user; role; club = ?club; team }]) };
+    acl := { acl with roles = acl.roles.concat([{ user; role; club = grantedClub; team }]) };
     let accountId = accountIdFor(user);
-    accountRoles := accountRoles.concat([{ account_id = accountId; club = ?club; role; team }]);
+    accountRoles := accountRoles.concat([{ account_id = accountId; club = grantedClub; role; team }]);
     // Refresh chat participants so the member sees their chats immediately.
     ignore fanOutEnsureConversation(club, null, clubChatParticipants(club));
     switch (team) {
@@ -7927,7 +7929,7 @@ persistent actor class Main(governorInit : Principal) = this {
   // platform-only — governor or app_admin, never a club admin, so a club
   // cannot grant itself Pro.
   func isAppAdmin(caller : Principal) : Bool {
-    acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and grant.role == "app_admin")
+    not caller.isAnonymous() and acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and RoleGrantPolicy.platform(grant.role, grant.club, grant.team))
   };
 
   public query func get_club_subscription(club_id : Text) : async { #Ok : ?Types.ClubSubscription; #Err : Text } {
@@ -9656,7 +9658,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(user);
     if (user.equal(Principal.anonymous())) return false;
-    acl.roles.any(func(grant) = ownsMembershipPrincipal(user, grant.user) and grant.role == "app_admin")
+    acl.roles.any(func(grant) = ownsMembershipPrincipal(user, grant.user) and RoleGrantPolicy.platform(grant.role, grant.club, grant.team))
   
     } finally { removalReceiver.leave(user) };
   

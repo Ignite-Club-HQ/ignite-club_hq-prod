@@ -83,6 +83,9 @@ async function dispatchFeatureBackend<T>(
   providers: FeatureBackendProviders<T>,
   scope?: ClubScope,
 ): Promise<T> {
+  if (scope && 'newClubId' in scope && isSignedInWithEmail()) {
+    throw new Error("New clubs require Internet Identity. Your existing email clubs are unchanged.");
+  }
   if (isSignedInWithEmail()) return providers.supabase();
   const knownIcpSession = isIcpProviderMounted() || hasInternetIdentitySessionStored() || readAuthChoice() === "icp";
   if (knownIcpSession) {
@@ -106,12 +109,14 @@ async function dispatchFeatureBackend<T>(
       const iiIdentity = await getCurrentInternetIdentity().catch(() => null);
       if (iiIdentity) return dispatchIcp(feature, providers, { identity: iiIdentity, target }, scope);
     }
+    if (scope && 'newClubId' in scope) throw new IcpSessionRequiredError();
     return providers.supabase();
   }
   // Signed in with email (Supabase session, no Internet Identity): an ICP
   // club pin can't be served without an identity, so read their Supabase data
   // instead of failing every request.
   if (hasSupabaseSession() && !(await getCurrentInternetIdentity().catch(() => null))) {
+    if (scope && 'newClubId' in scope) throw new IcpSessionRequiredError();
     return providers.supabase();
   }
   // Ride out the brief "no session" gap while the session renews itself.

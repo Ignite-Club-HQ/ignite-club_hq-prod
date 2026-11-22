@@ -1,5 +1,15 @@
 # Roadmap — launch the live (PROD) system
 
+## Authentication and onboarding security — 21 November, DEV only
+- [x] 22 November: fresh sequential full application baselines completed on a7a65570fec6e56a2982732d99d49f87005e8de4: Supabase 8,083 passed / 0 failed / 387 skipped; ICP 7,703 passed / 0 failed / 767 skipped. DEV club-only readiness run 44965991635 passed. Upgrade run 44966733706 dispatched with checked plan b5245fbc69f972582ddf0824889fb3a8c302306348233fc1eecc9ff5ce492305; final deployment/readback result remains unverified. No PROD release authorized.
+- [x] Close privileged-role and child/guardian scope gaps: socket-only SQL rehearsal passed; DEV migration applied and definitions read back; ICP role policy and full club canister compile passed. No existing data cleanup or PROD changes.
+- [x] Require Internet Identity at new-club page/wizard/Pro entry points and newClubId dispatch; authenticated DEV Supabase club inserts refused. Existing legacy team creation and both-club invited signup retained.
+- [x] Repair ICP pending/short invitation routing, atomic legacy club acceptance/web presentation, public destinations, team-only signup previews and stale native email callbacks.
+- [x] Run focused two-mode regressions and inspect desktop/mobile sign-in; source/compiler/database verification is separate from unavailable authenticated/physical-device acceptance.
+- [x] Full application baselines completed sequentially on 22 November: Supabase 8,083 passed; ICP 7,703 passed; zero failures; existing skips retained.
+- [ ] Verify final deployment/readback of the reviewed DEV club authorization code: existing GitHub governor passed readiness and upgrade run 44966733706 started on main for club_migration only (two DEV club targets). Last observed in progress; do not replay or claim completion without final evidence.
+- [ ] PROD catalog/provider review, historical-club continuity decisions and installed-phone acceptance remain held on approved access/devices; no PROD changes or automatic migration.
+
 ## Remaining ICP fallback audit — 21 November
 - [x] Audited central dispatch/session recovery and realtime call-site guards; closed mounted-ICP restoration gaps, legacy media refresh and same-account media-channel cleanup. All 14 feature areas refuse missing-canister fallback. Expanded suites: 1,699 Supabase / 1,691 ICP passed, zero failures, 35 / 43 existing skips; preview build OK. Approved external boundaries and PROD unchanged.
 - [ ] Confirm no blocked application fallbacks recur across the updated signed-in phone flows; Paul's Internet Identity delegation/device are unavailable. Complete all-application reruns were interrupted after about 500 files per mode; no final baseline totals claimed.

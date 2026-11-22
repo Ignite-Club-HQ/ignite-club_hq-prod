@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { defaultClubHomeCountry } from "@/lib/clubHomeCountry";
 import { useState, useEffect } from "react";
@@ -54,6 +55,7 @@ export default function FindOrCreateClubWizard({
   onJoinRequestSent,
   defaultSport,
 }: FindOrCreateClubWizardProps) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -124,6 +126,7 @@ export default function FindOrCreateClubWizard({
 
   const handleCreateClub = async () => {
     if (!clubName.trim() || !user) return;
+    if (user.app_metadata?.provider !== "icp") { navigate("/clubs/new"); return; }
 
     setSaving(true);
 
@@ -139,6 +142,8 @@ export default function FindOrCreateClubWizard({
             clubName.trim(),
             clubName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `club-${Date.now()}`,
             clubDescription.trim() || "",
+            clubSport || null,
+            defaultClubHomeCountry(),
           );
           // Logo upload mirrors MonogramLogoGenerator's ICP save path: blob
           // store upload, then write the resulting URL onto the club profile.
@@ -170,66 +175,7 @@ export default function FindOrCreateClubWizard({
           return profile.id;
         },
         supabase: async () => {
-          // Check for duplicate name
-          const { data: existing } = await supabase
-            .from("clubs")
-            .select("id")
-            .ilike("name", clubName.trim())
-            .maybeSingle();
-
-          if (existing) {
-            throw new Error("Club name already exists. Please choose a different name.");
-          }
-
-          const { data: club, error: clubError } = await supabase
-            .from("clubs")
-            .insert({
-              name: clubName.trim(),
-              description: clubDescription.trim() || null,
-              logo_url: null,
-              sport: clubSport || null,
-              created_by: user.id,
-              home_country: defaultClubHomeCountry(),
-            } as any)
-            .select()
-            .single();
-
-          if (clubError) {
-            throw new Error(
-              clubError.message.includes("idx_unique_club_name")
-                ? "A club with this name already exists."
-                : "Failed to create club. Please try again.",
-            );
-          }
-
-          // Upload logo
-          if (clubLogoFile) {
-            try {
-              const fileExt = clubLogoFile.name.split(".").pop();
-              const fileName = `${club.id}/${Date.now()}.${fileExt}`;
-              const { error: uploadError } = await supabase.storage
-                .from("club-logos")
-                .upload(fileName, clubLogoFile, { upsert: true });
-
-              if (!uploadError) {
-                const { data: urlData } = supabase.storage
-                  .from("club-logos")
-                  .getPublicUrl(fileName);
-                await supabase.from("clubs").update({ logo_url: urlData.publicUrl }).eq("id", club.id);
-              }
-            } catch (error) {
-              console.error("Logo upload error:", error);
-            }
-          }
-
-          // Assign creator as club_admin
-          await supabase.from("user_roles").insert({
-            user_id: user.id,
-            role: "club_admin" as any,
-            club_id: club.id,
-          });
-
-          return club.id as string;
+          throw new Error("New clubs require Internet Identity. Your existing email clubs are unchanged.");
         },
       }, creationScope);
 

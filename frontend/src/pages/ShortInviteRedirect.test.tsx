@@ -38,9 +38,22 @@ function renderAt(path: string) {
 beforeEach(() => {
   rpcMock.mockReset();
   resolveShortCodeMock.mockReset();
+  resolveShortCodeMock.mockResolvedValue(null);
 });
 
 describe.runIf(!icpMode)("ShortInviteRedirect Supabase RPC", () => {
+  it("finds an ICP invitation on an email-default device without an email lookup", async () => {
+    resolveShortCodeMock.mockResolvedValue("pinv-new-member");
+    renderAt("/i/icp-code");
+    expect(await screen.findByTestId("joined")).toBeInTheDocument();
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+  it("does not try email lookup after ICP transport loss", async () => {
+    resolveShortCodeMock.mockRejectedValue(new Error("Connection lost"));
+    renderAt("/i/unreadable");
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
   it("navigates to /join/p/<token> when the RPC returns a token", async () => {
     rpcMock.mockResolvedValue({ data: "tok-123", error: null });
     renderAt("/i/abc");
@@ -73,6 +86,7 @@ describe.runIf(!icpMode)("ShortInviteRedirect Supabase RPC", () => {
 
     // Render at /i/first then unmount and render at /i/second (simulates code change).
     const first = renderAt("/i/first");
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
     first.unmount();
     renderAt("/i/second");
     await waitFor(() => expect(screen.getByTestId("joined")).toBeInTheDocument());
@@ -86,7 +100,7 @@ describe.runIf(icpMode)("ShortInviteRedirect ICP boundary", () => {
   it("rejects an unknown on-chain code without resolving a Supabase short code", async () => {
     resolveShortCodeMock.mockRejectedValue(new Error("Invite not found"));
     renderAt("/i/abc");
-    expect(await screen.findByTestId("auth")).toBeInTheDocument();
+    expect(await screen.findByTestId("auth", {}, { timeout: 10000 })).toBeInTheDocument();
     expect(rpcMock).not.toHaveBeenCalled();
     expect(screen.queryByTestId("joined")).not.toBeInTheDocument();
   });

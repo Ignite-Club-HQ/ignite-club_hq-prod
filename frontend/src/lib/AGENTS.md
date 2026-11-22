@@ -2,6 +2,7 @@
 - Stored document actions share safeOpenFile's authorized pipeline; bundle FileOpener normally, Open never shares, Download uses native export and Share requires explicit selection. Why: hidden package imports fail in WebViews and cache writes are not accessible downloads.
 - Invitation copy/share/QR/email addresses use inviteLinks' public origin, never browser/WebView origins or placeholder hosts; preserve routes and tokens. Why: device-local addresses cannot be opened by invitees.
 - Email signup handoffs parse pending-invite tokens from /join/p; email-less parent acceptance uses the bearer token, never the preview ID or name. Why: a public preview is not ownership and retries must preserve child membership.
+- Legacy club links redeem through one authenticated atomic RPC and verify its exact club/role receipt without replay; stale email callbacks retain the active ICP session. Why: separate browser writes lose usage accounting and callback intent cannot change account authority.
 - Pending sends are QueryClient-scoped; settle temp IDs from server acknowledgements, not photo presence. Why: avoid duplicates after navigation.
 - Profile batches: get_profile for missing linked IDs.
 - Share helpers prevent empty vault bubbles in both renderers. Schedule dates validate Date range, not just finiteness. Why: invalid dates crash calendars.

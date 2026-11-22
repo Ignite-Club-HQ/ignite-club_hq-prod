@@ -17,7 +17,7 @@ vi.mock("@capacitor/filesystem", () => ({
 vi.mock("@capacitor/share", () => ({ Share: { share: nativeExport.share } }));
 vi.mock("@/live/internetIdentityAuth", () => ({ getCurrentInternetIdentity: icp.identity }));
 vi.mock("@/live/accountData", () => ({ eraseMyIcpAccount: icp.erase, exportMyIcpAccountData: icp.export }));
-vi.mock("@/live/authBackendMode", () => ({ resolveAuthBackend: () => process.env.IGNITE_TEST_BACKEND_MODE === "icp" ? "icp" : "supabase" }));
+vi.mock("@/live/authBackendMode", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/live/authBackendMode")>()), resolveAuthBackend: () => process.env.IGNITE_TEST_BACKEND_MODE === "icp" ? "icp" : "supabase" }));
 
 // ---- mocks ----------------------------------------------------------------
 const toastFn = vi.fn();

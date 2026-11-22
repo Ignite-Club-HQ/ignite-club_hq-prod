@@ -251,87 +251,8 @@ function SupabaseSignupProPage() {
   };
 
   const handleCreateClub = async () => {
-    if (!clubName.trim()) {
-      toast({ title: "Missing information", description: "Please enter a club name.", variant: "destructive" });
-      return;
-    }
-
-    setSaving(true);
-
-    // Check for duplicate club name
-    const { data: existingClub } = await supabase
-      .from("clubs")
-      .select("id")
-      .ilike("name", clubName.trim())
-      .maybeSingle();
-
-    if (existingClub) {
-      setSaving(false);
-      toast({ title: "Club name already exists", description: "Please choose a different name for your club.", variant: "destructive" });
-      return;
-    }
-
-    const { data: club, error: clubError } = await supabase
-      .from("clubs")
-      .insert({
-        name: clubName.trim(),
-        description: clubDescription.trim() || null,
-        logo_url: null, // Will be updated after upload
-        sport: clubSport || null,
-        created_by: user!.id,
-        home_country: defaultClubHomeCountry(),
-      } as any)
-      .select()
-      .single();
-
-    if (clubError) {
-      setSaving(false);
-      toast({ 
-        title: "Error", 
-        description: clubError.message.includes("idx_unique_club_name") 
-          ? "A club with this name already exists." 
-          : "Failed to create club. Please try again.", 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    // Upload logo to storage if one was selected
-    if (clubLogoFile) {
-      try {
-        const fileExt = clubLogoFile.name.split('.').pop();
-        const fileName = `${club.id}/${Date.now()}.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('club-logos')
-          .upload(fileName, clubLogoFile, { upsert: true });
-
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage
-            .from('club-logos')
-            .getPublicUrl(fileName);
-
-          await supabase
-            .from("clubs")
-            .update({ logo_url: urlData.publicUrl })
-            .eq("id", club.id);
-        }
-      } catch (error) {
-        console.error('Logo upload error:', error);
-      }
-    }
-
-    // Assign creator as club_admin
-    await supabase.from("user_roles").insert({
-      user_id: user!.id,
-      role: "club_admin",
-      club_id: club.id,
-    });
-
-    setSaving(false);
-    setCreatedClubId(club.id);
-    
-    setStep(4);
+    // New clubs have one creation flow; legacy team checkout stays unchanged.
+    navigate("/clubs/new");
   };
 
   const handleCreateTeam = async () => {
