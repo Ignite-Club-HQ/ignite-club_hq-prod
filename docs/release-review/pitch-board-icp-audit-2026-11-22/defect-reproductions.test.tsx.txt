@@ -1,0 +1,51 @@
+import React from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+const mocks = vi.hoisted(() => ({ from: vi.fn(), lineup: vi.fn(), saveResult: vi.fn(), list: vi.fn(), setTimer: vi.fn() }));
+vi.mock('@/integrations/supabase/client', () => ({ supabase: { from: mocks.from } }));
+vi.mock('@/live/authBackendMode', () => ({ resolveAuthBackend: () => 'icp' }));
+vi.mock('@/live/featureRouter', () => ({ withFeatureBackend: async (_: unknown, providers: any) => providers.icp({ identity: {}, target: {} }) }));
+vi.mock('@/live/features/events', () => ({ getLiveLineupSnapshot: mocks.lineup, saveLiveLineupSnapshot: vi.fn(), saveLiveGameResult: mocks.saveResult, listLiveEvents: mocks.list, setLiveEventTimer: mocks.setTimer }));
+vi.mock('@/components/pitch/pitchStateUtils', () => ({ loadTimerStateForMinutes: vi.fn() }));
+vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock('@/features/competitions/history/historyRepository', () => ({ saveHistoryResult: vi.fn() }));
+import { isServerTimerEligibleTeamId, sendTimerEvent, readServerTimer } from '@/lib/serverTimer';
+import { fetchEventLineup } from '@/components/pitch/eventLineupRepository';
+import { useSaveGameResult } from '@/hooks/useSaveGameResult';
+const team = 'team-club-a-1-1795340400000';
+beforeEach(() => { vi.clearAllMocks(); mocks.from.mockImplementation(() => { throw new Error('Audit: forbidden Supabase call'); }); });
+describe('Read-only audit reproductions of CURRENT defects, not acceptance tests', () => {
+  it('generated ICP team is rejected by UUID-only timer gate before ICP dispatch', async () => {
+    expect(isServerTimerEligibleTeamId(team)).toBe(false);
+    await expect(sendTimerEvent({ teamId: team, event: 'start_half' })).rejects.toThrow('server-timer-not-applicable');
+    expect(mocks.list).not.toHaveBeenCalled();
+    expect(mocks.setTimer).not.toHaveBeenCalled();
+  });
+  it('generated ICP team timer read silently reports missing without reading ICP', async () => {
+    expect((await readServerTimer(team)).found).toBe(false);
+    expect(mocks.list).not.toHaveBeenCalled();
+  });
+  it.each([[], [{ players: [] }]])('absent/empty ICP lineup attempts forbidden Supabase read: %j', async (snapshot) => {
+    mocks.lineup.mockResolvedValue(snapshot);
+    expect(await fetchEventLineup('event-a', team)).toBeNull();
+    expect(mocks.lineup).toHaveBeenCalledOnce();
+    expect(mocks.from).toHaveBeenCalledWith('event_lineups');
+  });
+  it('refused ICP lineup read is flattened to null then attempts forbidden Supabase read', async () => {
+    mocks.lineup.mockRejectedValue(new Error('Forbidden'));
+    expect(await fetchEventLineup('event-a', team)).toBeNull();
+    expect(mocks.from).toHaveBeenCalledWith('event_lineups');
+  });
+  it('ICP onlyIfMissing still calls unconditional result adapter and omits preservation option', async () => {
+    mocks.saveResult.mockResolvedValue(undefined);
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: React.ReactNode }) => React.createElement(QueryClientProvider, { client }, children);
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => { expect(await result.current.save({ teamId: team, eventId: 'event-a', sport: 'soccer', homeLabel: 'Home', awayLabel: 'Away', homeScore: 3, awayScore: 1, perQuarter: [], players: [] }, { onlyIfMissing: true })).toBe(true); });
+    expect(mocks.saveResult).toHaveBeenCalledOnce();
+    expect(mocks.saveResult.mock.calls[0][1]).not.toHaveProperty('onlyIfMissing');
+    expect(mocks.from).not.toHaveBeenCalled();
+    client.clear();
+  });
+});

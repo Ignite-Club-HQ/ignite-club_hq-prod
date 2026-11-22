@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Pitch board ICP audit — 22 November, read-only
+- [x] Audited timers, fixture/lineup routing, sharing, saving, server permissions, alerts, native recovery and transfer-state coverage; full ICP approval withheld for documented blockers.
+- [x] Focused existing tests: email 946 passed / 20 skipped; ICP 919 passed / 47 skipped; zero failures across 79 files per mode. Six isolated executions reproduce current timer, lineup fallback and score-preservation defects.
+- [x] Recorded acceptance limits: no injected ICP coach session, physical phone or verified deployed-source parity; native canister prerequisite refuses writeBit=0 before installation. No app fixes, live data changes, deployments or release authorization. Evidence: docs/release-review/pitch-board-icp-audit-2026-11-22/audit.md.
+
 ## Release-safety inventory correction — 22 November, DEV only
 - [x] Reproduced four reported safe-apply failures plus two sibling staging failures: five unlisted DEV migrations, no edited or missing original fingerprints.
 - [x] Added all five as held, preserving migration bytes and existing approvals/guards; complete inventory now 60 originals / 16 candidates / 44 held.

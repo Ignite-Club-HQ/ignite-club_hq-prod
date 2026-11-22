@@ -1,0 +1,39 @@
+{
+  "auditedSourceCommit": "1e3a46e83006806e06d997bd15c323f9577e13ee",
+  "dateUtc": "2026-11-22",
+  "assessment": "not-ready-for-full-icp-approval",
+  "readOnlyApplicationAudit": true,
+  "liveDataChanges": false,
+  "deployments": false,
+  "existingTests": {
+    "supabase": {
+      "passed": 946,
+      "failed": 0,
+      "skipped": 20,
+      "files": 79
+    },
+    "icp": {
+      "passed": 919,
+      "failed": 0,
+      "skipped": 47,
+      "files": 79
+    }
+  },
+  "isolatedDefectReproductions": {
+    "passed": 6,
+    "failed": 0,
+    "theseAssertCurrentDefects": true
+  },
+  "canisterRuntime": {
+    "executed": false,
+    "blocker": "native-host write-fault preflight",
+    "faults": 1,
+    "writeBit": 0,
+    "recovered": true,
+    "kernel": "Linux 4.19.0-gvisor"
+  },
+  "signedInIcpAcceptance": false,
+  "phoneAcceptance": false,
+  "deployedVersionParity": false,
+  "reportSha256": "06bb4e5a155f1e64f835536ac4a34e800351603461f1835479158390fb14f43d"
+}
