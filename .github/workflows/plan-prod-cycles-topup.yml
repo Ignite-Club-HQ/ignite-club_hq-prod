@@ -7,6 +7,11 @@ on:
         description: "Extra cycles above each group's registered minimum (default 0)"
         required: false
         default: "0"
+      fit_to_balance:
+        description: "If the signing account is short, plan only whole canisters it covers (smallest shortfall first) and defer the rest"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write # saves the reviewed plan receipt to the journal branch in this repository
@@ -43,6 +48,7 @@ jobs:
           PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
           PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
           TOPUP_RESERVE_CYCLES: ${{ inputs.reserve_cycles }}
+          TOPUP_FIT_TO_BALANCE: ${{ inputs.fit_to_balance }}
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |

@@ -12,3 +12,14 @@ describe('club creation failure classification', () => {
     expect(clubCreationFailureKind(new Error('A club with this name already exists.'))).toBe('ordinary');
   });
 });
+import { describe as d2, it as i2, expect as e2 } from 'vitest';
+import { clubCreationErrorMessage as m2 } from './clubCreationError';
+d2('placement refusals (audit 2026-11-23)', () => {
+  for (const raw of ['No healthy group with capacity', 'Original creator placement required']) {
+    i2(`explains "${raw}" without raw text`, () => {
+      const msg = m2(new Error(raw));
+      e2(msg).toContain('Nothing was created');
+      e2(msg).not.toContain(raw);
+    });
+  }
+});

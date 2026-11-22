@@ -138,7 +138,8 @@ async function main() {
     ? receipt.plan.reserveCycles
     : env.TOPUP_RESERVE_CYCLES ?? '0';
   const plan = planCyclesTopup({ page, services, signingAccount: { balance: account.cycles, balanceRead: account.balanceRead },
-    reserveCycles, checkedAt: new Date().toISOString() });
+    reserveCycles, checkedAt: new Date().toISOString(),
+    fitToBalance: action === 'topup-closed' && receipt?.plan ? receipt.plan.fitToBalance === true : env.TOPUP_FIT_TO_BALANCE === 'true' });
   writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-cycles-topup.json'), evidenceText(plan));
 
   if (action === 'plan') {
