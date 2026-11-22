@@ -30,6 +30,10 @@ class AndroidStatusBarTests(unittest.TestCase):
                     dest.write_bytes(member.read())
             (frontend / "native/android").mkdir(parents=True)
             shutil.copyfile(ROOT / "frontend/native/android/StatusBarBackdropPlugin.java", frontend / "native/android/StatusBarBackdropPlugin.java")
+            system_bars_relative = "node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/plugin/SystemBars.java"
+            system_bars = frontend / system_bars_relative
+            system_bars.parent.mkdir(parents=True)
+            shutil.copyfile(ROOT / "frontend" / system_bars_relative, system_bars)
             MODULE.configure(frontend)
             MODULE.configure(frontend)
             styles = ET.parse(frontend / "android/app/src/main/res/values/styles.xml").getroot().findall("style")
@@ -43,6 +47,22 @@ class AndroidStatusBarTests(unittest.TestCase):
             self.assertLess(activity.index("registerPlugin("), activity.index("super.onCreate("))
             plugin = (frontend / "android/app/src/main/java/app/lovable/igniteteamhub/StatusBarBackdropPlugin.java").read_text()
             self.assertTrue(plugin.startswith("package app.lovable.igniteteamhub;"))
+
+    def test_system_bars_preserves_backdrop_without_changing_insets_or_icons(self):
+        source = (ROOT / "frontend/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/plugin/SystemBars.java").read_text()
+        reset = "getActivity().getWindow().getDecorView().setBackgroundColor(getThemeColor(getContext(), android.R.attr.windowBackground));"
+        marker = "// Ignite: window backdrop is owned by StatusBarBackdrop, not SystemBars."
+        # Normalize in case a local Android preparation already ran.
+        original = source.replace(marker, reset)
+        patched = MODULE.preserve_system_bar_backdrop(original)
+        self.assertNotIn(reset, patched)
+        self.assertEqual(patched.replace(marker, reset), original)
+        self.assertEqual(MODULE.preserve_system_bar_backdrop(patched), patched)
+
+    def test_unreviewed_native_reset_changes_block_build_preparation(self):
+        for source in ["changed upstream implementation", ""]:
+            with self.assertRaisesRegex(RuntimeError, "Unexpected Capacitor SystemBars"):
+                MODULE.preserve_system_bar_backdrop(source)
 
     def test_both_android_builds_run_shared_configuration(self):
         workflow = (ROOT / "codemagic.yaml").read_text()

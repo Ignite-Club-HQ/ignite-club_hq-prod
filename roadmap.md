@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Dark-mode status bar flashing — 22 November, DEV only
+- [x] Audited all status bar writers and native reset ordering; removed the exact SystemBars static-light backdrop repaint in Android build preparation, deduplicated navigation and ignored unrelated root classes/stale queued theme reads. Keyboard/inset ownership and PROD unchanged.
+- [x] Three regressions failed before repair; 28 checks pass per sign-in mode, five native preparation checks pass, desktop/phone-sized browser presses inspected in both themes, preview build OK. Evidence: docs/release-review/dark-mode-status-bar-audit-2026-11-22.md.
+- [ ] Confirm real status-bar taps/viewer/rotation/resume on an updated Android build; Android SDK and physical phone are unavailable here. Website publication alone cannot update the native dependency.
+
 ## Pitch board ICP repairs — 22 November, DEV only
 - [ ] Repair timer routing/exact fixture selection, ICP-only fixture and lineup reads, acknowledged saving/recovery and current server permissions; preserve manual results on automatic finish.
 - [ ] Rerun the two-mode pitch audit and document remaining alert, transfer and live/device acceptance limits without granting production approval.

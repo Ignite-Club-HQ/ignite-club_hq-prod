@@ -48,11 +48,11 @@ const getThemeSync = (): 'light' | 'dark' => {
  * Calls are serialized so concurrent invocations never interleave.
  */
 export const applyStatusBar = (theme?: 'light' | 'dark', force = false): void => {
-  const resolved = theme ?? getThemeSync();
-
   // Enqueue – each call waits for the previous one to finish
+  // Default requests read at execution, not enqueue time: theme transitions
+  // can mutate the root several times before this microtask runs.
   pending = pending
-    .then(() => applyInternal(resolved, force))
+    .then(() => applyInternal(theme ?? getThemeSync(), force))
     .catch((err) => console.warn('[StatusBar] queue error', err));
 };
 
@@ -63,8 +63,7 @@ export const applyStatusBar = (theme?: 'light' | 'dark', force = false): void =>
 export const refreshStatusBar = (): void => {
   // Force re-apply even if theme appears unchanged: native side may have
   // reset our settings (app resume, viewer unmount, orientation change).
-  lastAppliedTheme = null;
-  applyStatusBar(getThemeSync(), true);
+  applyStatusBar(undefined, true);
 };
 
 /**
@@ -121,8 +120,8 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
         bar: SystemBarType.StatusBar,
         style: theme === 'dark' ? SystemBarsStyle.Dark : SystemBarsStyle.Light,
       });
-      // SystemBars resets decorView to the static light Android theme.
-      // Repaint last so both the app theme and viewer backdrop survive.
+      // The Android preparation script removes SystemBars' static-theme
+      // repaint. Backdrop remains last for compatibility with older builds.
       await StatusBarBackdrop.setBackgroundColor({
         color: theme === 'dark' ? DARK_BG : LIGHT_BG,
       });
