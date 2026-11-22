@@ -200,6 +200,8 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    /* Keep the browser canvas opaque during pressed-state repaints too. */
+    background-color: hsl(var(--background));
   }
 
   body {
@@ -462,10 +464,25 @@ html.rm *::after {
   .soft-reveal { animation: none; }
 }
 
-/* Instant tap feedback */
+/* Instant tap feedback in light mode. Fading a pressed control (or a
+   clickable ancestor) creates a translucent compositor layer, which can
+   flash against the dark canvas in Android Chrome / WebView. Dark mode uses
+   the controls' existing theme-aware pressed backgrounds instead. */
 @layer base {
-  a[href]:active, button:not(:disabled):active, [role="button"]:active, [role="link"]:active {
+  html:not(.dark) a[href]:active,
+  html:not(.dark) button:not(:disabled):active,
+  html:not(.dark) [role="button"]:active,
+  html:not(.dark) [role="link"]:active {
     opacity: 0.7;
     transition: opacity 60ms;
   }
+}
+
+/* Unlayered so component active:opacity utilities cannot restore the fade.
+   Disabled controls and keyboard focus indicators remain unchanged. */
+html.dark a[href]:active,
+html.dark button:not(:disabled):active,
+html.dark [role="button"]:not([aria-disabled="true"]):active,
+html.dark [role="link"]:not([aria-disabled="true"]):active {
+  opacity: 1;
 }
