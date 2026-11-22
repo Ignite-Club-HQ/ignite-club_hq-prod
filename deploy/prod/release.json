@@ -7,7 +7,7 @@
     "pii_access_control": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "timer_jobs": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "club_domain": "0a4fa218c47b120baefc084eb19b673088603717",
-    "events_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "events_domain": "a4e0efc0e7634de846b2051fd662b8eb45536016",
     "competition_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "mini_league_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "messaging_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
@@ -19,5 +19,5 @@
     "insights_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "shard_router": "cc0a411486754f0a21fb2b154c61fa57b6084271"
   },
-  "updatedAt": "2026-11-22T02:38:08.341Z"
+  "updatedAt": "2026-11-22T10:41:49.184Z"
 }
