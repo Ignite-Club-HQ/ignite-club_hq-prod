@@ -15,14 +15,24 @@ import { loadOperatorIdentity } from '../src/live/operatorTransport';
 import { idlFactory, type _SERVICE } from '../src/lab/bindings/shard_router/declarations/shard_router.did.js';
 import { readPinnedGroupRegistry } from '../src/live/groupRegistryPager';
 import { GROUP_DOMAINS } from '../src/live/groupRouting';
+import { readFileSync } from 'node:fs';
 import { DEPLOYED_MAINNET_CANISTER_IDS as LIVE } from '../src/live/generated/deployedCanisterIds';
 
-const GOVERNOR = 'vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae';
+// IGNITE_ICP_ENV=prod reports PROD groups: router and base inventory come from
+// deploy/prod mappings, the governor from PROD_GOVERNOR_PRINCIPAL, and any DEV
+// canister in a PROD group is refused (never cross environments).
+const PROD = process.env.IGNITE_ICP_ENV === 'prod';
+const DEV_GOVERNOR = 'vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae';
+const PROD_IDS: Record<string, string> = PROD
+  ? JSON.parse(readFileSync(new URL('../../deploy/prod/.icp/data/mappings/ic.ids.json', import.meta.url), 'utf8'))
+  : {};
+const GOVERNOR = PROD ? process.env.PROD_GOVERNOR_PRINCIPAL : DEV_GOVERNOR;
+if (!GOVERNOR) throw new Error('PROD_GOVERNOR_PRINCIPAL required for PROD health reports');
 
 const [pem, report] = process.argv.slice(2);
 if (!pem || !report) throw new Error('Usage: report-group-health <operator.pem> <report.json>');
 const host = process.env.ICP_HOST || 'https://icp-api.io';
-const routerId = LIVE.shard_router;
+const routerId = PROD ? PROD_IDS.shard_router : LIVE.shard_router;
 if (!routerId) throw new Error('shard_router canister ID missing from a fresh checkout; restore deploy/mainnet/.icp data first');
 
 const identity = loadOperatorIdentity(pem);
@@ -76,7 +86,12 @@ for (const group of registry.groups) {
     }
   }
   if (services.length !== canisters.length || canisters.length === 0) continue; // never report partial readings
-  if (services.some(s => liveIds.has(s.canister))) { problems.push(`${group.id}: lists a live legacy canister; refusing to report health for it`); continue; }
+  if (PROD) {
+    // DEV canisters never count as PROD capacity; PROD base must be exactly the mapped PROD set.
+    if (services.some(s => liveIds.has(s.canister))) { problems.push(`${group.id}: lists a DEV canister; refusing to report health for it`); continue; }
+    const prodSet = new Set(Object.values(PROD_IDS));
+    if (group.id === 'base' && services.some(s => !prodSet.has(s.canister))) { problems.push(`base: lists a canister outside the PROD inventory; refusing`); continue; }
+  } else if (services.some(s => liveIds.has(s.canister))) { problems.push(`${group.id}: lists a live legacy canister; refusing to report health for it`); continue; }
   const largestHeap = services.reduce((a, s) => s.heapBytes > a ? s.heapBytes : a, 0n);
   const lowestCycles = services.reduce((a, s) => s.cycles < a ? s.cycles : a, services[0].cycles);
   // New-club placements advance the registry revision at any time; a stale
