@@ -98,6 +98,19 @@ test("DEV preview and ICP-hosted discovery use the same reduced base and G2 cust
   assert.ok(generatedManifest("dev", { enableChildNamePii: true }).manifest.canisters.some(row => row.id === GROUP2_PII));
 });
 
+test("DEV connector discovery publishes the browser canonical principal derivation origin", () => {
+  // Regression for #1641: the same Internet Identity must derive the same
+  // principal on Lovable DEV and the ICP-hosted DEV frontend.
+  const expected = `https://${DEV_FRONTEND}.icp0.io`;
+  const preview = testAssistantDiscoveryFiles();
+  const hosted = generatedManifest("dev", { enableGroup2: true });
+  assert.equal(preview["/.well-known/ii-derivation-origin"].body.trim(), expected);
+  assert.equal(hosted.derivation, expected);
+  assert.ok(hosted.origins.includes("https://ignite-club-launchpad.lovable.app"));
+  assert.notEqual(hosted.derivation, `https://${DEV_FRONTEND}.ic0.app`,
+    "The ICP gateway alias must not become the member derivation origin");
+});
+
 test("generated PROD files preserve production website login continuity", () => {
   const prod = generatedManifest("prod");
   for (const origin of marketing) assert.ok(prod.origins.includes(origin));
