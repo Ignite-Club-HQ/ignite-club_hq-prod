@@ -20,6 +20,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      # The candidate hashes were attested against this immutable DEV snapshot.
+      # HEAD may contain later Identity/G2 changes; never rebuild HEAD and relabel
+      # its binaries as those earlier approved candidates.
+      - name: Checkout exact historical DEV first-content candidate sources
+        uses: actions/checkout@v4
+        with:
+          ref: e7b74c79f7604e4383e957c826f5f34e2d4bf2d4
+          path: first-content-pinned-source
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
@@ -38,7 +47,10 @@ jobs:
           # The historical prefetch helper insists on a main-branch label.
           # This is only a compiler download; no governor secret or install is available.
           GITHUB_REF=refs/heads/main node scripts/prefetch-test-icp-tools.mjs
-          (cd deploy/mainnet && icp build identity_access club_domain)
+          # Compile the frozen candidate source, not the evolving PR HEAD.
+          # The live-upgrade workflow retains its own independent current-source
+          # preflight and must never be repointed to this historical checkout.
+          (cd first-content-pinned-source/deploy/mainnet && icp build identity_access club_domain)
       - name: Fetch previously reproduced exact old DEV binaries (read-only)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -49,16 +61,20 @@ jobs:
           node --input-type=module <<'JS'
           import {readFileSync} from 'node:fs';
           import {join} from 'node:path';
+          import {execFileSync} from 'node:child_process';
           import {wasmHash} from './scripts/group2-upgrade-rules.mjs';
           import {FIRST_CONTENT_DEV as pins} from './scripts/dev-first-content-stage-policy.mjs';
           import {verifyExactPreviousWasms} from './scripts/dev-first-content-recovery-gate.mjs';
           const old=process.env.RUNNER_TEMP+'/first-content-old-wasm';
+          const source=join(process.env.GITHUB_WORKSPACE,'first-content-pinned-source');
+          const checkedOut=execFileSync('git',['-C',source,'rev-parse','HEAD'],{encoding:'utf8'}).trim();
+          if(checkedOut!==pins.sourceBaseline)throw Error('Exact historical DEV candidate source does not match immutable preflight revision');
           verifyExactPreviousWasms({
             identity_access:readFileSync(join(old,'identity_access.wasm')),
             club_domain:readFileSync(join(old,'club_domain.wasm')),
           });
           for(const service of [pins.identity,pins.club]){
-            const bytes=readFileSync('deploy/mainnet/.icp/cache/artifacts/'+service.name);
+            const bytes=readFileSync(join(source,'deploy/mainnet/.icp/cache/artifacts',service.name));
             if(wasmHash(bytes)!==service.next)throw Error('Candidate source does not match preflight: '+service.name);
           }
           console.log('Both old and new module hashes match the exact DEV preflight');
@@ -70,8 +86,8 @@ jobs:
           POCKET_IC_BIN="$PWD/node_modules/@dfinity/pic/pocket-ic" \
           OLD_IDENTITY_ACCESS_WASM="$RUNNER_TEMP/first-content-old-wasm/identity_access.wasm" \
           OLD_CLUB_DOMAIN_WASM="$RUNNER_TEMP/first-content-old-wasm/club_domain.wasm" \
-          IDENTITY_ACCESS_WASM="$R/deploy/mainnet/.icp/cache/artifacts/identity_access" \
-          CLUB_DOMAIN_WASM="$R/deploy/mainnet/.icp/cache/artifacts/club_domain" \
+          IDENTITY_ACCESS_WASM="$R/first-content-pinned-source/deploy/mainnet/.icp/cache/artifacts/identity_access" \
+          CLUB_DOMAIN_WASM="$R/first-content-pinned-source/deploy/mainnet/.icp/cache/artifacts/club_domain" \
           node scripts/test-first-content-staged-persistence-replica.mjs
       - name: Remove temporary old modules and build cache
         if: always()
