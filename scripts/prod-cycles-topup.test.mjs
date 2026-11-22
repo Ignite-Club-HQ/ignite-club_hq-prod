@@ -363,3 +363,26 @@ test('the execute workflow is confirmation-gated, prod-branch and deposit-only',
   assert.match(text, /node scripts\/prod-cycles-topup\.mjs/);
   assert.doesNotMatch(text, /create_canister|install_code|register|accepting/i);
 });
+
+test('fit to balance funds whole canisters, smallest shortfall first, and defers the rest', async () => {
+  const { planDeposits } = await import('./prod-cycles-topup-policy.mjs');
+  const plan = planCyclesTopup({ page, checkedAt: AT, fitToBalance: true,
+    services: allServices({ base: String(T / 2n), g2: String(T / 2n) }),
+    signingAccount: { balance: String(T + T / 2n + 10_000_000_000n), balanceRead: 'readback' } });
+  const funded = plan.items.filter(i => BigInt(i.topUp) > 0n);
+  const deferred = plan.items.filter(i => i.deferredShortfall);
+  assert.equal(funded.length, 3);
+  assert.equal(deferred.length, 3);
+  assert.ok(funded.every(i => i.group === 'base'));
+  assert.equal(plan.totals.totalTopUp, String(3n * (T / 2n)));
+  assert.ok(BigInt(plan.signingAccount.remainingAfter) >= 0n);
+  assert.match(topupSummary(plan), /deferred/);
+  const live = new Map(plan.items.map(i => [`${i.group}/${i.name}`, String(T / 2n)]));
+  assert.equal(planDeposits({ plan, liveBalances: live, accountBalance: plan.signingAccount.balance }).deposits.length, 3);
+});
+
+test('fit to balance is off by default and changes nothing when funds suffice', () => {
+  const input = { page, checkedAt: AT, services: allServices({ base: String(T / 2n), g2: String(T / 2n) }),
+    signingAccount: { balance: String(10n * T), balanceRead: 'readback' } };
+  assert.equal(planCyclesTopup(input).totals.totalTopUp, planCyclesTopup({ ...input, fitToBalance: true }).totals.totalTopUp);
+});

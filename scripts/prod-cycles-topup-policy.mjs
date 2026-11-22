@@ -63,7 +63,7 @@ export function hashTopupPlan(plan) {
  * `signingAccount`: { balance|null, balanceRead } in cycles.
  * `reserveCycles`: extra margin above each group's registered minimum.
  */
-export function planCyclesTopup({ page, services = [], signingAccount = {}, reserveCycles = '0', checkedAt }) {
+export function planCyclesTopup({ page, services = [], signingAccount = {}, reserveCycles = '0', checkedAt, fitToBalance = false }) {
   if (!checkedAt || !Number.isFinite(Date.parse(checkedAt))) throw new Error('Evidence timestamp required');
   const reserve = decimal(reserveCycles);
   if (reserve === undefined) throw new Error('Reserve must be a non-negative cycle count');
@@ -108,6 +108,24 @@ export function planCyclesTopup({ page, services = [], signingAccount = {}, rese
   }
 
   const accountBalance = decimal(signingAccount.balance);
+  // Opt-in: when the signing account cannot cover every shortfall, fund whole
+  // canisters smallest shortfall first (most canisters covered; ties keep
+  // registry order, Group 1 first), skipping any that no longer fit after the
+  // per-deposit fee budget. Deferred canisters keep their shortfall on record
+  // with topUp '0'; nothing is ever partially funded.
+  let deferred = 0;
+  if (fitToBalance && accountBalance !== undefined && BigInt(accountBalance) < totalTopUp + DEPOSIT_FEE_BUDGET * BigInt(needsFuel)) {
+    let left = BigInt(accountBalance);
+    const candidates = items.filter(i => i.topUp && BigInt(i.topUp) > 0n)
+      .sort((a, b) => (BigInt(a.topUp) < BigInt(b.topUp) ? -1 : BigInt(a.topUp) > BigInt(b.topUp) ? 1 : 0));
+    totalTopUp = 0n;
+    needsFuel = 0;
+    for (const item of candidates) {
+      const cost = BigInt(item.topUp) + DEPOSIT_FEE_BUDGET;
+      if (cost <= left) { left -= cost; totalTopUp += BigInt(item.topUp); needsFuel += 1; }
+      else { item.deferredShortfall = item.topUp; item.topUp = '0'; deferred += 1; }
+    }
+  }
   const account = {
     balance: accountBalance ?? null,
     balanceRead: accountBalance !== undefined ? 'readback' : 'unreadable',
@@ -120,11 +138,13 @@ export function planCyclesTopup({ page, services = [], signingAccount = {}, rese
     kind: 'prod-cycles-topup-plan',
     checkedAt,
     reserveCycles: reserve,
+    fitToBalance: Boolean(fitToBalance),
     groups: groups.map(g => g.id).sort(),
     items,
     totals: {
       canisters: items.length,
       needingFuel: needsFuel,
+      deferred,
       totalBalance: totalBalance.toString(),
       totalTopUp: totalTopUp.toString(),
       // Cycles on each canister's own cycles-ledger account: NOT fuel and not
@@ -149,9 +169,11 @@ export function topupSummary(plan) {
     '| Group/service | Canister | Balance | Target | Top-up |', '|---|---|---|---|---|',
   ];
   for (const item of plan.items) {
-    lines.push(`| ${item.group}/${item.name} | ${item.id} | ${item.balance ?? 'unreadable'} | ${item.target} | ${item.topUp ?? 'excluded'} |`);
+    const cell = item.deferredShortfall ? `0 (deferred, short ${item.deferredShortfall})` : item.topUp ?? 'excluded';
+    lines.push(`| ${item.group}/${item.name} | ${item.id} | ${item.balance ?? 'unreadable'} | ${item.target} | ${cell} |`);
   }
   lines.push('', `Total top-up needed: **${plan.totals.totalTopUp} cycles (${t(plan.totals.totalTopUp)})** across ${plan.totals.needingFuel} of ${plan.totals.canisters} canisters.`, '');
+  if (plan.totals.deferred) lines.push(`Fit to balance: ${plan.totals.deferred} canister(s) deferred until the signing account is funded again (smallest shortfall first, so the most canisters are covered).`, '');
   const account = plan.signingAccount;
   if (account.balanceRead === 'readback') {
     lines.push(`Signing account balance: ${account.balance} cycles (${t(account.balance)}).`);
