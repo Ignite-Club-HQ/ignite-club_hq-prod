@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Release-safety inventory correction — 22 November, DEV only
+- [x] Reproduced four reported safe-apply failures plus two sibling staging failures: five unlisted DEV migrations, no edited or missing original fingerprints.
+- [x] Added all five as held, preserving migration bytes and existing approvals/guards; complete inventory now 60 originals / 16 candidates / 44 held.
+- [x] Production source checks rerun locally: 58 release-safety tests and 6 isolated PostgreSQL/preflight checks pass; complete staging passes. No PROD workflow dispatch, deployment, data or configuration changes. Evidence: docs/release-review/dev-release-inventory-correction-2026-11-22.md.
+
 ## Authentication and onboarding security — 21 November, DEV only
 - [x] 22 November: fresh sequential full application baselines completed on a7a65570fec6e56a2982732d99d49f87005e8de4: Supabase 8,083 passed / 0 failed / 387 skipped; ICP 7,703 passed / 0 failed / 767 skipped. DEV club-only readiness run 44965991635 passed. Upgrade run 44966733706 dispatched with checked plan b5245fbc69f972582ddf0824889fb3a8c302306348233fc1eecc9ff5ce492305; final deployment/readback result remains unverified. No PROD release authorized.
 - [x] Close privileged-role and child/guardian scope gaps: socket-only SQL rehearsal passed; DEV migration applied and definitions read back; ICP role policy and full club canister compile passed. No existing data cleanup or PROD changes.

@@ -88,7 +88,7 @@ function realRelease() {
     reviewed: JSON.parse(readFileSync('docs/release-review/safe-apply-reviewed-findings.json', 'utf8')) };
 }
 
-test('repository approval selects exactly the six owner-approved structural batches', () => {
+test('repository approval selects exactly the existing owner-approved structural batches', () => {
   const { input, staged, findings, approval: ok, reviewed } = realRelease();
   const { apply } = planSafeApply(ok, staged, input.files, findings, reviewed);
   assert.deepEqual(apply.map(x => x.file), SIX);
@@ -123,7 +123,7 @@ test('the five batch files are the reviewed candidates split without edits', () 
   assert.equal(invitation, readFileSync('docs/release-review/invitation-welcome-prod-candidate.sql', 'utf8'));
 });
 
-test('the safe-apply runner applies exactly the six approved batches, one transaction each', () => {
+test('the safe-apply runner applies exactly the existing approved batches, one transaction each', () => {
   const temp = mkdtempSync(path.join(tmpdir(), 'safe-apply-runner-'));
   const log = path.join(temp, 'commands');
   try {
@@ -153,7 +153,7 @@ test('the safe-apply runner applies exactly the six approved batches, one transa
     assert.deepEqual(report.apply, SIX);
     assert.deepEqual(report.applied, SIX);
     assert.deepEqual(report.alreadyApplied, []);
-    assert.equal(report.held.length, 39);
+    assert.equal(report.held.length, 44);
     assert.equal(report.dataCopy, false);
     const input = readSafeInputs(process.cwd());
     const written = readFileSync(log, 'utf8').split('\n=== WRITE ===\n').slice(1);
@@ -169,3 +169,23 @@ test('the safe-apply runner applies exactly the six approved batches, one transa
     }
   } finally { rmSync(temp, { recursive: true, force: true }); }
 });
+
+for (const file of [
+  '20261116085314_683fa371-acd8-47b9-b075-dfb0ab364037.sql',
+  '20261116085410_2513732e-4dfa-47f6-95c3-2286246d2fbf.sql',
+  '20261116085524_4b841888-bc21-4ad7-a0a7-46a281a453f5.sql',
+  '20261116085655_e85f1309-b328-4abb-a5d8-08714960627e.sql',
+  '20261121225522_160f9101-5bfe-46cc-9f5d-f8de60ed0cac.sql',
+]) {
+  test(`DEV migration remains fingerprinted and held, even with an attempted approval: ${file}`, () => {
+    const input = readSafeInputs(process.cwd());
+    const stage = planSafeStaging(input.manifest, input.files, { migrations: [] }, []);
+    assert.equal(stage.sourceInventory.length, 60);
+    assert.equal(stage.candidates.length, 16);
+    assert.equal(stage.held.find(entry => entry.file === file)?.sha256, digest(input.files[file]));
+    assert.equal(stage.deploymentAuthorized, false);
+    assert.throws(() => planSafeApply({ schemaVersion: 1, projectRef: SAFE_TARGET,
+      approvedBy: 'test-only attempted approval', migrations: [{ file, sha256: digest(input.files[file]) }] },
+      stage, input.files, []), /held original cannot be approved/);
+  });
+}

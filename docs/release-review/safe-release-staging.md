@@ -10,11 +10,13 @@ Manual runs default to safe-plan. PROD pushes retain the existing complete-plan
 release gates; no automatic unsafe-original exclusion was added. The source-tests
 job validates the complete manifest offline on pull requests and pushes.
 
-The inventory is 45 sources: 11 candidates and 34 held originals. Six candidates
-are owner-approved for execution in `safe-apply-approval.json` — the signup-invite
-check, competition fixture visibility, competition Vault manager access, official
-email invitations, club invitation message defaults, and the one-time welcome
-direct message. The anonymous routing read policy, media-maintenance helpers and
+The inventory is 60 sources: 16 candidates and 44 held originals. Eleven candidates
+are already owner-approved for execution in `safe-apply-approval.json`; that approval
+and its reviewed findings remain unchanged. On 22 November the five unlisted DEV
+migrations were fingerprinted and added as held: invitation helper/claimant changes,
+test invitation inserts, and the DEV-database-pinned onboarding repair. Listing them
+does not approve their execution or establish PROD onboarding readiness.
+The anonymous routing read policy, media-maintenance helpers and
 profile visibility helper replacements stay held for independent permission or
 dependency review, despite passing the SQL parser.
 
