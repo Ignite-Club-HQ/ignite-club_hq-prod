@@ -1,5 +1,5 @@
 import { acrossLists } from "@/live/featureScopes";
-import { mergeLists, mergeListsById } from "@/live/featureRouter";
+import { mergeListsById } from "@/live/featureRouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -302,7 +302,7 @@ export function useNewsPublishableClubs() {
             .filter(c => adminClubIds.includes(c.id) && !isLiveClubDeleted(c))
             .map(c => ({ id: c.id, name: c.name }));
         }
-      }, { everyGroup: true, merge: mergeLists });
+      }, { everyGroup: true, merge: mergeListsById });
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,

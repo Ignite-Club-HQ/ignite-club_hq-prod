@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { withFeatureBackend } from "@/live/featureRouter";
+import { withFeatureBackend , mergeListsById } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
 import { forwardLiveMessage, listLiveGroupsByClub, listLiveGroupsByTeam } from "@/live/features/messaging";
 import { recordLiveChatNotifyBatch } from "@/live/features/notifications";
@@ -107,7 +107,7 @@ export function useForwardDestinations(userId: string | undefined, enabled: bool
             .map((group) => ({ ...group, club_name: clubNames.get(group.club_id!) ?? null }))
             .sort((a, b) => a.name.localeCompare(b.name));
         },
-      }, { everyGroup: true, merge: (parts: ForwardDestinationGroup[][]) => parts.flat() });
+      }, { everyGroup: true, merge: (parts: ForwardDestinationGroup[][]) => mergeListsById(parts) });
     },
   });
 }
