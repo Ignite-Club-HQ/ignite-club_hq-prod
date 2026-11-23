@@ -370,7 +370,29 @@ async function shortCanisterRefId(refId: string): Promise<string> {
   return "sha256:" + [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+import { isNothingSentRefusal, serializeLiveSend } from "../liveSendQueue";
+
 export async function sendLiveMessage(
+  ctx: FeatureBackendContext,
+  conversationId: string,
+  body: string,
+  idempotencyKey: string,
+  attachment?: LiveMessageAttachment | null,
+  replyToId?: string | null,
+) {
+  return serializeLiveSend(conversationId, async () => {
+    try {
+      return await sendLiveMessageOnce(ctx, conversationId, body, idempotencyKey, attachment, replyToId);
+    } catch (err) {
+      if (!isNothingSentRefusal(err)) throw err;
+      // Nothing was written; the same key also dedupes on the canister.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return sendLiveMessageOnce(ctx, conversationId, body, idempotencyKey, attachment, replyToId);
+    }
+  });
+}
+
+async function sendLiveMessageOnce(
   ctx: FeatureBackendContext,
   conversationId: string,
   body: string,

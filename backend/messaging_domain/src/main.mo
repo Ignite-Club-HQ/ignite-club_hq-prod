@@ -576,7 +576,9 @@ persistent actor class Main(governorInit : Principal) = this {
     let configured = clubDomainCanister;
     let ?cd = configured else throw Error.reject("Club chat authority unavailable");
     let authority : actor { read_has_club_membership : shared (Principal, Text) -> async Bool } = actor(cd.toText());
-    let member = await (with timeout = 10) authority.read_has_club_membership(subject, club);
+    let member = try {
+      await (with timeout = 10) authority.read_has_club_membership(subject, club)
+    } catch (_) { throw Error.reject("Club chat authority unavailable; nothing was changed") };
     if (removalReceiver.denied(subject) or configured != clubDomainCanister or isFenced(club)) throw Error.reject("Club chat authorization changed");
     if (not member) throw Error.reject("Club chat access forbidden");
   };
@@ -594,7 +596,7 @@ persistent actor class Main(governorInit : Principal) = this {
     } = actor(cd.toText());
     let proof = try {
       await (with timeout = 10) authority.read_account_read_competition_team_access(team, subject)
-    } catch (_) { throw Error.reject("Team chat authority unavailable") };
+    } catch (_) { throw Error.reject("Team chat authority unavailable; nothing was changed") };
     if (configured != clubDomainCanister or isFenced(club) or removalReceiver.denied(subject) or
         proof.club_id != ?club or not proof.is_member)
       throw Error.reject("Team chat membership revoked or team deleted");
@@ -1516,8 +1518,9 @@ persistent actor class Main(governorInit : Principal) = this {
 
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
-    await admitAccount(caller);
-    await* requireChatAccess(caller, conversation_id);
+    // Admission and chat access are checked once, inside sendAs (shared with
+    // scheduled delivery). Repeating them here doubled the sequential
+    // cross-service checks per message, so rapid sends hit check timeouts.
     if (convFenced(conversation_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
     switch (conversations.find(func(c) = c.id == conversation_id)) { case (?c) { if (isFenced(c.club_id)) return #Err("Club is temporarily locked for a transfer"); }; case null {} };
@@ -1562,14 +1565,13 @@ persistent actor class Main(governorInit : Principal) = this {
         case (?cd) {
           let admin = if (accountAdmissionEnabled) await cd.read_account_is_app_admin(caller) else await cd.is_app_admin(caller);
           if (not admin) return #Err("App admin required");
+          // The admin lookup awaited: re-confirm admission and access after it.
+          await admitAccount(caller);
+          if (not canAccessConversation(caller, conversation_id) or convFenced(conversation_id)) return #Err("Conversation authorization changed");
+          await* requireChatAccess(caller, conversation_id);
         };
       };
     };
-
-
-    await admitAccount(caller);
-    if (not canAccessConversation(caller, conversation_id) or convFenced(conversation_id)) return #Err("Conversation authorization changed");
-    await* requireChatAccess(caller, conversation_id);
     if (not canAccessConversation(caller, conversation_id) or convFenced(conversation_id)) return #Err("Conversation authorization changed");
     // DM blocking: refuse to post when either party has blocked the other.
     for (c in conversations.values()) {

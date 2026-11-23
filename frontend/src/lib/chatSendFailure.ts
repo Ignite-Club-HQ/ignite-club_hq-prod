@@ -9,6 +9,7 @@ export function chatSendFailureReason(error: unknown): string | undefined {
   if (/Direct message blocked/i.test(message)) return "Messaging between these accounts is blocked.";
   if (/Invalid message|Invalid attachment/i.test(message)) return "The message or attachment was not accepted.";
   if (/delegation.*expired|identity.*expired|signature.*expired/i.test(message)) return "Your sign-in has expired. Sign in again.";
+  if (/authority unavailable; nothing was changed/i.test(message)) return "The chat was busy, so your message wasn't sent. Please try again.";
   if (/fetch|network|timeout|timed out|IC0406|IC0503/i.test(message)) return "The message could not be confirmed. Check your connection and chat before sending again.";
   return undefined;
 }
