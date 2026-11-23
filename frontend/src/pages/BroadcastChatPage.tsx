@@ -1,3 +1,4 @@
+import { chatSendFailureReason } from "@/lib/chatSendFailure";
 import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import { resolveChatUploadUrl } from "@/lib/pendingChatUploads";
 import React, { Suspense, useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
@@ -1090,7 +1091,7 @@ export default function BroadcastChatPage() {
       console.error("Failed to send broadcast message", err);
       toast({
         title: "Failed to send message",
-        description: err instanceof Error ? err.message.slice(0, 200) : undefined,
+        description: chatSendFailureReason(err),
         variant: "destructive",
       });
     },

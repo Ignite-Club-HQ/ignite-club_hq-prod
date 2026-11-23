@@ -1,3 +1,4 @@
+import { chatSendFailureReason } from "@/lib/chatSendFailure";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, Suspense } from "react";
 import { confirmPendingSend } from "@/lib/pendingSendKeeper";
@@ -1285,7 +1286,7 @@ export default function GroupChatPage() {
       });
 
       console.error("Failed to send group message", err);
-      toast.error("Failed to send message");
+      toast.error("Failed to send message", { description: chatSendFailureReason(err) });
     },
 
     onSuccess: (result, variables, context) => {
