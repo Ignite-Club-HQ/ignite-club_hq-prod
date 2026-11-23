@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## PROD public group discovery blocker — 23 November
+- [x] Reproduced `ic`/`prod` refusal; `mainnet` discovery succeeds at configuration revision 10. Fresh metadata reads confirm base open/g2 closed and current governor approval; 26 domain entries match PROD snapshot.
+- [x] No code/approval defect: documented corrected connector arguments and governor prerequisites; 58 router and 14 frontend tests pass. Public base health and certified club module match verified evidence. Report: docs/release-review/prod-public-group-discovery-2026-11-23.md.
+- [ ] Full official-connector sign-in/place/create/setup/protected-read acceptance remains blocked by unavailable delegated Internet Identity and the explicit prohibition on PROD placement/record writes; no live action authorised.
+
 ## Dark-mode status bar flashing — 22 November, DEV only
 - [x] Audited all status bar writers and native reset ordering; removed the exact SystemBars static-light backdrop repaint in Android build preparation, deduplicated navigation and ignored unrelated root classes/stale queued theme reads. Keyboard/inset ownership and PROD unchanged.
 - [x] Three regressions failed before repair; 28 checks pass per sign-in mode, five native preparation checks pass, desktop/phone-sized browser presses inspected in both themes, preview build OK. Evidence: docs/release-review/dark-mode-status-bar-audit-2026-11-22.md.
