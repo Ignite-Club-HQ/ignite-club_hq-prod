@@ -41,3 +41,10 @@ test('later group may move only to code the other group already runs, with fuel'
   assert.throws(() => assertReloadReady({ targets, status: poor, builds, governor: 'gov', identity: 'ident', upgradeGroup: 'g2' }), /more fuel/);
   assert.throws(() => assertReloadReady({ targets, status, builds, governor: 'gov', identity: 'ident', upgradeGroup: 'base' }), /cannot be updated/);
 });
+
+test('refuses a restart that would load the test-only or global removal switch', () => {
+  const rehearsal = { ...status, id2: { ...status.id2, environment: [...okEnv, { name: 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL', value: '1' }] } };
+  assert.throws(() => assertReloadReady({ targets, status: rehearsal, builds, governor: 'gov', identity: 'ident' }), /test-only member switch/);
+  const removal = { ...status, id2: { ...status.id2, environment: [...okEnv, { name: 'IGNITE_ACCOUNT_REMOVAL_RELEASE', value: '1' }] } };
+  assert.throws(() => assertReloadReady({ targets, status: removal, builds, governor: 'gov', identity: 'ident' }), /global removal switch/);
+});

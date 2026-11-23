@@ -15,7 +15,7 @@ import { loadOperatorIdentity } from '../src/live/operatorTransport';
 import { idlFactory } from '../src/lab/bindings/shard_router/declarations/shard_router.did.js';
 import type { _SERVICE } from '../src/lab/bindings/shard_router/declarations/shard_router.did';
 import { readPinnedGroupRegistry } from '../src/live/groupRegistryPager';
-import { ADMISSION_DOMAINS, ADMISSION_FLAG, ADMISSION_AUTHORITY } from '../src/live/groupRemovalWiring';
+import { ADMISSION_DOMAINS, ADMISSION_AUTHORITY, admissionSwitchPatch, admissionSwitchApplied, mergeEnvironment } from '../src/live/groupRemovalWiring';
 
 // PROD runs bind PROD's governor and mappings; DEV is unchanged.
 const PROD = process.env.IGNITE_ICP_ENV === 'prod';
@@ -64,10 +64,8 @@ const pid = (id: string) => Principal.fromText(id);
 const envOf = async (id: string) => (await mgmtFor(id).canister_status({ canister_id: pid(id) })).settings.environment_variables;
 /** environment_variables is a replace-all setting: always merge over the
  * current list so existing settings (e.g. worker principals) survive. */
-const setEnv = async (id: string, patch: Record<string, string>) => {
-  const map = new Map((await envOf(id)).map(e => [e.name, e.value]));
-  for (const [k, v] of Object.entries(patch)) map.set(k, v);
-  await mgmtFor(id).update_settings({ canister_id: pid(id), settings: { environment_variables: [[...map].map(([name, value]) => ({ name, value }))] } });
+const setEnv = async (id: string, patch: Record<string, string>, remove: string[] = []) => {
+  await mgmtFor(id).update_settings({ canister_id: pid(id), settings: { environment_variables: [mergeEnvironment(await envOf(id), patch, remove)] } });
 };
 
 const registry = await readPinnedGroupRegistry((rev, cursor, limit) => router.read_group_registry_page('mainnet', rev, cursor, limit));
@@ -95,10 +93,10 @@ for (const group of groups) {
   }
   // ...verify, then switch the release flag on...
   save({ ...report, pending: { phase: 'admission-flag', groupId: group.id } });
-  for (const t of targets) await setEnv(t.id, { [ADMISSION_FLAG]: '1' });
+  // PROD writes the commissioned release switch and clears the local rehearsal switch.
+  for (const t of targets) { const p = admissionSwitchPatch(await envOf(t.id), PROD); await setEnv(t.id, p.set, p.remove); }
   for (const t of targets) {
-    const value = (await envOf(t.id)).find(e => e.name === ADMISSION_FLAG)?.value;
-    if (value !== '1') throw new Error(`${group.id}/${t.label}: admission flag readback failed`);
+    if (!admissionSwitchApplied(await envOf(t.id), PROD)) throw new Error(`${group.id}/${t.label}: admission flag readback failed`);
   }
   // ...then the creator placement binding on the group's club authority.
   const clubDomain = domains.find(d => d.domain === 'club_domain');
