@@ -224,6 +224,12 @@ module {
   // guardian, invitation or personal data. Name is a visible test label.
   public type TestPlayer = { id : Text; club_id : Text; team_id : Text; name : Text; shirt_number : ?Nat16; positions : [Text]; age_group : ?Text; created_by : Principal; created_at_ms : Nat64; updated_at_ms : Nat64 };
 
+  // Club/team switch for the fictional test-players feature. A row with
+  // team_id = null is the club master switch (absent = off); a team row
+  // overrides the club default for that team only (absent = follow club).
+  public type TestPlayersSwitch = { club_id : Text; team_id : ?Text; enabled : Bool };
+  public type TestPlayersAccess = { club_enabled : Bool; team_enabled : Bool; effective : Bool };
+
   // ---- Favourite event titles / saved locations / training defaults / RSVP created_at (events UX extras) ----
   // Per-caller shortlist of event titles for quick reuse when creating events.
   public type FavouriteEventTitle = { account_id : Text; title : Text };
