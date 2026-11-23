@@ -43,7 +43,13 @@ export async function readHomeCardIcpSummary(eventId: string, social: boolean) {
     icp: async ctx => {
       const { getLiveEventRosterDetailed } = await import('@/live/features/events');
       const roster = await getLiveEventRosterDetailed(ctx, eventId);
-      const going = roster.rsvps.filter(r => r.rsvp.state === 'going' && (social || r.rsvp.child_id.length > 0));
+      const { countedAttendanceRows } = await import('./cardAttendanceCounts');
+      const going = countedAttendanceRows(
+        roster.rsvps.filter(r => r.rsvp.state === 'going').map(r => ({
+          ...r, account_id: String(r.rsvp.account_id), child_id: r.rsvp.child_id[0] ?? null, state: r.rsvp.state,
+        })),
+        social,
+      );
       return { totalCount: going.length, avatars: going.slice(0, 5).map(r => ({
         id: `${eventId}:${r.rsvp.account_id}:${r.rsvp.child_id[0] ?? ''}`,
         displayName: r.rsvp.child_id.length ? 'Child' : 'Member', avatarUrl: null,

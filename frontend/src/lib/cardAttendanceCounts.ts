@@ -23,3 +23,10 @@ export function countCardAttendance(rows: CardRsvpRow[], isSocial: boolean): Car
   }
   return counts;
 }
+
+/** Rows that count as attendees under the same rule as countCardAttendance. */
+export function countedAttendanceRows<T extends CardRsvpRow>(rows: T[], isSocial: boolean): T[] {
+  if (isSocial) return rows;
+  const parents = new Set(rows.filter((r) => r.child_id).map((r) => r.account_id));
+  return rows.filter((r) => r.child_id || !parents.has(r.account_id));
+}
