@@ -372,7 +372,9 @@ async function fetchIcpChatGroupsWithMessages() {
     // retries the authorized read instead of caching missing chats as success.
     const rows = await readContentInScope(ctx, "messaging", { clubId: club.id }, (scoped) => listLiveGroupsByClub(scoped, club.id));
     return rows
-      .filter((g) => g.isMember && !g.teamId && g.kind === "group")
+      // Canonical club conversations use the club ID, not group metadata;
+      // they belong in the club row and cannot open through /groups/:id.
+      .filter((g) => g.isMember && !g.teamId && g.kind === "group" && g.conversationId !== club.id)
       .map((g) => ({
         id: g.conversationId,
         name: g.name,

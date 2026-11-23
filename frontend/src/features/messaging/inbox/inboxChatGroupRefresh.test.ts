@@ -35,6 +35,18 @@ beforeEach(() => {
 });
 
 describe("ICP inbox directory refresh", () => {
+  it("excludes the canonical club conversation from group links without hiding real same-name groups", async () => {
+    mocks.list.mockResolvedValue([
+      { ...chat, conversationId: "riverdogs", clubId: "riverdogs", name: "Club chat" },
+      { ...chat, conversationId: "private-chat", clubId: "riverdogs", name: "Club chat" },
+      chat,
+    ]);
+    const result = await fetchChatGroupsWithMessages(client, "paul");
+    expect(result.groups.map(g => g.id)).toEqual(["private-chat", "chat-1"]);
+    expect(mocks.latest.mock.calls.map(call => call[1])).toEqual(["private-chat", "chat-1"]);
+    expect(mocks.remember).toHaveBeenCalledWith("conversation", [["private-chat", "riverdogs"], ["chat-1", "riverdogs"]]);
+  });
+
   it("retains the last successful chats when a refresh fails and replaces them on a successful retry", async () => {
     const queries = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     const options = { queryKey: ["my-chat-groups-with-messages", "paul"], queryFn: () => fetchChatGroupsWithMessages(client, "paul"), staleTime: 0 };

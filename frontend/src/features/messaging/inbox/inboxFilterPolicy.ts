@@ -94,7 +94,9 @@ export function filterInboxChatGroups<TGroup extends InboxGroupFilterRow>(option
     competitionClubMap, groupMembersMap, usersInClub, currentUserId,
     hiddenGroupMap, latestGroupMessages,
   } = options;
-  let groups = [...options.groups];
+  // Also discard canonical club rows restored from an older inbox cache.
+  // Match identity, never the label: a real private group may use this name.
+  let groups = options.groups.filter((group) => !group.club_id || group.id !== group.club_id);
 
   if (effectiveClubId) {
     groups = groups.filter((group) => {
