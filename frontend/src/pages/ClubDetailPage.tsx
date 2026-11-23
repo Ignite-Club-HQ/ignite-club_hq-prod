@@ -1208,6 +1208,7 @@ export default function ClubDetailPage() {
         // carousel (React Query + localStorage snapshot) and every other
         // team-derived list so deleted teams disappear immediately.
         await invalidateTeamLists(queryClient, user?.id);
+        window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "club", action: "deleted", surface: "club_page", complete: true });
         toast({ title: "Club deleted", description: "You can restore it within 30 days from the clubs page." });
         navigate("/clubs");
       } catch (err) {
@@ -1380,6 +1381,7 @@ export default function ClubDetailPage() {
       if (outcome.teamCleanupError) cleanupFailures.push(`teams (${outcome.teamCleanupError})`);
       if (outcome.chatCleanupError) cleanupFailures.push(`chats (${outcome.chatCleanupError})`);
 
+      window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "club", action: "deleted", surface: "club_page", complete: cleanupFailures.length === 0 });
       if (cleanupFailures.length > 0) {
         const notifPart = outcome.notificationError
           ? ` Notifications also failed (${outcome.notificationError}).`
@@ -1434,6 +1436,7 @@ export default function ClubDetailPage() {
         }, writeOnce({ clubId: id! }));
         queryClient.invalidateQueries({ queryKey: ["club", id] });
         await invalidateTeamLists(queryClient, user?.id);
+        window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "club", action: "restored", surface: "club_page", complete: true });
         toast({ title: "Club restored!" });
       } catch (err) {
         toast({ title: "Error", description: `Failed to restore club: ${safeErrMessage(err)}`, variant: "destructive" });
@@ -1495,6 +1498,7 @@ export default function ClubDetailPage() {
       const failures: string[] = [];
       if (teamRestoreError) failures.push(`teams (${teamRestoreError})`);
       if (chatRestoreError) failures.push(`chats (${chatRestoreError})`);
+      window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "club", action: "restored", surface: "club_page", complete: failures.length === 0 });
 
       if (failures.length > 0) {
         toast({
@@ -1526,6 +1530,7 @@ export default function ClubDetailPage() {
       }, writeOnce({ clubId: id! }));
 
       setShowPermanentDeleteDialog(false);
+      window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "club", action: "permanently_deleted", surface: "club_page", complete: true });
       toast({ title: "Club permanently deleted", description: "This can't be undone in the app." });
       navigate("/clubs");
     } catch (err: any) {

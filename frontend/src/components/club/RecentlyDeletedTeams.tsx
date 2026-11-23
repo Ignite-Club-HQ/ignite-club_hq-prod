@@ -63,6 +63,7 @@ export function RecentlyDeletedTeams({ clubId }: { clubId: string }) {
         },
         icp: async (ctx) => { await (await import("@/live/features/club")).restoreLiveTeam(ctx, team.id); },
       }, writeOnce({ clubId, teamId: team.id }));
+      window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "team", action: "restored", surface: "recently_deleted", complete: true });
       toast({ title: "Team restored", description: `${team.name} is back in your club.` });
       refresh();
     } catch (error) {
@@ -87,6 +88,7 @@ export function RecentlyDeletedTeams({ clubId }: { clubId: string }) {
         icp: async (ctx) => { await (await import("@/live/features/club")).deleteLiveTeamPermanent(ctx, team.id, team.name); },
       }, writeOnce({ clubId, teamId: team.id }));
       setPurgeTarget(null);
+      window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "team", action: "permanently_deleted", surface: "recently_deleted", complete: true });
       toast({ title: "Team permanently deleted", description: "This can't be undone in the app." });
       refresh();
     } catch (error) {

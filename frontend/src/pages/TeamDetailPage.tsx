@@ -1405,6 +1405,7 @@ export default function TeamDetailPage() {
         // every team-derived list so the deleted team disappears immediately.
         await invalidateTeamLists(queryClient, user?.id);
         setShowDeleteDialog(false);
+        window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "team", action: "deleted", surface: "team_page", complete: true });
         toast({ title: "Team deleted", description: "You can restore it within 30 days." });
         navigate(`/clubs/${team?.club_id}`);
       } catch (error) {
@@ -1527,6 +1528,7 @@ export default function TeamDetailPage() {
           variant: "destructive",
         });
       } else {
+        window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "team", action: "deleted", surface: "team_page", complete: true });
         toast({ title: "Team deleted", description: "You can restore it within 30 days." });
       }
 
@@ -1559,6 +1561,7 @@ export default function TeamDetailPage() {
     }
 
     unmarkTeamDeleted(id!);
+    window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "team", action: "restored", surface: "team_page", complete: true });
     toast({ title: "Team restored!" });
     queryClient.invalidateQueries({ queryKey: ["team", id] });
     if (user?.id) {
@@ -1586,6 +1589,7 @@ export default function TeamDetailPage() {
       }, writeOnce({ teamId: id! }));
 
       setShowPermanentDeleteDialog(false);
+      window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "team", action: "permanently_deleted", surface: "team_page", complete: true });
       toast({ title: "Team permanently deleted", description: "This can't be undone in the app." });
       navigate(`/clubs/${team?.club_id}`);
     } catch (err: any) {

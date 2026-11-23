@@ -135,6 +135,7 @@ export default function ClubsPage() {
       toast({ title: "Error", description: "Failed to restore club.", variant: "destructive" });
       return;
     }
+    window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "club", action: "restored", surface: "clubs_list", complete: true });
     toast({ title: "Club restored", description: "Teams and chats have been restored too." });
     void invalidateTeamLists(queryClient, user?.id);
     queryClient.invalidateQueries({ queryKey: ["removed-clubs", user?.id] });
@@ -164,6 +165,7 @@ export default function ClubsPage() {
       toast({ title: "Couldn't delete", description: error.message, variant: "destructive" });
       return;
     }
+    window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "club", action: "permanently_deleted", surface: "clubs_list", complete: true });
     toast({ title: "Club permanently deleted", description: useIcpLab ? "This can't be undone in the app." : "Data is retained in the archive for recovery by an app admin." });
     clearClubSetupLocalState(purgeTarget.id);
     void invalidateTeamLists(queryClient, user?.id);
