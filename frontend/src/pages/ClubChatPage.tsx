@@ -1,3 +1,4 @@
+import { chatSendFailureReason } from "@/lib/chatSendFailure";
 import { isClubSubscriptionActive } from "@/lib/proEntitlement";
 import { prefetchMessagePolls } from "@/lib/pollReadRepository";
 import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
@@ -1667,6 +1668,7 @@ export default function ClubChatPage() {
       console.error("Failed to send club message", err);
       toast({
         title: "Failed to send message",
+        description: chatSendFailureReason(err),
         variant: "destructive",
       });
     },
