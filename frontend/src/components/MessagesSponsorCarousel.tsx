@@ -1,4 +1,4 @@
-import { mergeLists } from "@/live/featureRouter";
+import { mergeListsById } from "@/live/featureRouter";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -241,7 +241,7 @@ export function MessagesSponsorCarousel({ activeClubFilter }: MessagesSponsorCar
           );
           return perClub.flat();
         },
-      }, { everyGroup: true, merge: mergeLists }),
+      }, { everyGroup: true, merge: mergeListsById }),
     enabled: !!user?.id,
     staleTime: 300000,
   });

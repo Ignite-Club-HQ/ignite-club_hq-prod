@@ -1,7 +1,7 @@
 import { readMembershipInScope } from "@/live/membershipRouting";
 import { mergeMiniLeagueRows } from "@/live/miniLeagueRouting";
 import { writeOnce } from "@/live/clubScope";
-import { mergeLists } from "@/live/featureRouter";
+import { mergeListsById } from "@/live/featureRouter";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -81,7 +81,7 @@ export default function MiniLeaguesPage() {
           }));
           return rows.filter((row): row is { id: string; name: string } => row !== null);
         },
-      }, { everyGroup: true, merge: mergeLists });
+      }, { everyGroup: true, merge: mergeListsById });
       // First get clubs where user is admin
       const { data: rolesData, error: rolesError } = await supabase
         .from("user_roles")

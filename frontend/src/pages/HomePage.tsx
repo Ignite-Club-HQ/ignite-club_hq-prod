@@ -5,7 +5,7 @@ import { readMiniLeagueInScope } from "@/live/miniLeagueRouting";
 import { readMembershipInScope } from '@/live/membershipRouting';
 import { readContentInScope } from '@/live/contentRouting';
 import { mergeMiniLeagueRows } from "@/live/miniLeagueRouting";
-import { mergeLists } from "@/live/featureRouter";
+import { mergeLists, mergeListsById } from "@/live/featureRouter";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useScheduleBroadcastListener } from "@/hooks/useScheduleBroadcastListener";
@@ -1364,7 +1364,7 @@ export default function HomePage() {
               .map((c, i) => ({ id: c.id, name: c.name, sport: c.sport[0] ?? null, class_mode_enabled: classModeFlags[i] }))
               .sort((a, b) => a.name.localeCompare(b.name)) as Club[];
           },
-        }, { everyGroup: true, merge: (parts: Club[][]) => parts.flat().sort((a, b) => a.name.localeCompare(b.name)) });
+        }, { everyGroup: true, merge: (parts: Club[][]) => mergeListsById(parts).sort((a, b) => a.name.localeCompare(b.name)) });
       }
       const { data, error } = await supabase
         .from("clubs")
@@ -1408,7 +1408,7 @@ export default function HomePage() {
             );
             return (teamsByClub.flat() as unknown as Team[]).sort((a, b) => a.name.localeCompare(b.name));
           },
-        }, { everyGroup: true, merge: (parts: Team[][]) => parts.flat().sort((a, b) => a.name.localeCompare(b.name)) });
+        }, { everyGroup: true, merge: (parts: Team[][]) => mergeListsById(parts).sort((a, b) => a.name.localeCompare(b.name)) });
       }
       const { data, error } = await supabase
         .from("teams")
@@ -1520,7 +1520,7 @@ export default function HomePage() {
                 };
               });
           },
-        }, { memberGroups: true, merge: mergeLists });
+        }, { memberGroups: true, merge: mergeListsById });
       }
       // Only fetch teams where user is coach or team_admin (direct team edit access)
       const { data: userRoles, error: rolesError } = await supabase
