@@ -8,6 +8,7 @@ module {
       case _ null;
     }
   };
+  public func keys() : [Text] { ["coaches", "team_admins", "club_committee"] };
   public func identity(club : Text, key : Text) : Text {
     "default-club-chat:" # club # ":" # key
   };

@@ -21,7 +21,9 @@ vi.mock("./inboxPreviewHydration", () => ({}));
 vi.mock("@/live/defaultClubChats", () => ({ ensureLiveDefaultClubChats: mocks.upkeep }));
 vi.mock("@/live/groupDispatch", () => ({ clubDispatch: { remember: mocks.remember } }));
 
-import { fetchChatGroupsWithMessages } from "./inboxPreviewSources";
+import { fetchChatGroupsWithMessages, fetchTeamsWithMessages } from "./inboxPreviewSources";
+import { settleAll } from "@/live/crossGroupClubs";
+import { readMembershipInScope } from "@/live/membershipRouting";
 const client = { from: vi.fn(), rpc: vi.fn() };
 const chat = { conversationId: "chat-1", name: "U10 friends", isMember: true, teamId: null, kind: "group" };
 
@@ -35,6 +37,18 @@ beforeEach(() => {
 });
 
 describe("ICP inbox directory refresh", () => {
+  it("excludes the canonical club conversation from group links without hiding real same-name groups", async () => {
+    mocks.list.mockResolvedValue([
+      { ...chat, conversationId: "riverdogs", clubId: "riverdogs", name: "Club chat" },
+      { ...chat, conversationId: "private-chat", clubId: "riverdogs", name: "Club chat" },
+      chat,
+    ]);
+    const result = await fetchChatGroupsWithMessages(client, "paul");
+    expect(result.groups.map(g => g.id)).toEqual(["private-chat", "chat-1"]);
+    expect(mocks.latest.mock.calls.map(call => call[1])).toEqual(["private-chat", "chat-1"]);
+    expect(mocks.remember).toHaveBeenCalledWith("conversation", [["private-chat", "riverdogs"], ["chat-1", "riverdogs"]]);
+  });
+
   it("retains the last successful chats when a refresh fails and replaces them on a successful retry", async () => {
     const queries = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     const options = { queryKey: ["my-chat-groups-with-messages", "paul"], queryFn: () => fetchChatGroupsWithMessages(client, "paul"), staleTime: 0 };
@@ -68,5 +82,24 @@ describe("ICP inbox directory refresh", () => {
   it("honours a successful empty directory instead of restoring deleted groups", async () => {
     mocks.list.mockResolvedValue([]);
     expect((await fetchChatGroupsWithMessages(client, "paul")).groups).toEqual([]);
+  });
+});
+describe("ICP inbox team chats", () => {
+  const teams = [
+    { id: "u10", name: "U10", club_id: "riverdogs", deleted_at_ms: [], logo_url: [] },
+    { id: "u12", name: "U12", club_id: "riverdogs", deleted_at_ms: [], logo_url: [] },
+  ];
+  beforeEach(() => {
+    vi.mocked(settleAll).mockImplementation(async (ps: any[]) => ({ values: await Promise.all(ps) }) as any);
+    vi.mocked(readMembershipInScope).mockResolvedValue(teams as any);
+  });
+  it("lists every team chat for a club admin without team grants", async () => {
+    const result = await fetchTeamsWithMessages(client as any, "paul", false);
+    expect(result.teams.map(t => t.id)).toEqual(["u10", "u12"]);
+  });
+  it("lists only assigned teams for an ordinary member", async () => {
+    mocks.roles.mockResolvedValue([{ role: "player", club: ["riverdogs"], team: ["u12"] }]);
+    const result = await fetchTeamsWithMessages(client as any, "paul", false);
+    expect(result.teams.map(t => t.id)).toEqual(["u12"]);
   });
 });

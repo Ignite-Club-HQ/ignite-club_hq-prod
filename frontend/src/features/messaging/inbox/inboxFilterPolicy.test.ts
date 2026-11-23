@@ -51,14 +51,26 @@ describe("inboxFilterPolicy", () => {
 
   it("isolates club and team groups to the selected club", () => {
     const groups = [
-      { id: "club-a", club_id: "club-a" }, { id: "club-b", club_id: "club-b" },
+      { id: "group-a", club_id: "club-a" }, { id: "group-b", club_id: "club-b" },
       { id: "team-a", team_id: "team-a" }, { id: "team-b", team_id: "team-b" },
     ];
     const result = filterInboxChatGroups({
       groups, query: "", effectiveClubId: "club-a", activeClubId: "club-a",
       activeClubTeamIds: ["team-a"], displayedTeams: teams,
     });
-    expect(result.map((row) => row.id)).toEqual(["club-a", "team-a"]);
+    expect(result.map((row) => row.id)).toEqual(["group-a", "team-a"]);
+  });
+
+  it("excludes saved canonical club-chat rows from Groups while retaining the actual club entry", () => {
+    const groups = [
+      { id: "club-a", club_id: "club-a", name: "Club chat" },
+      { id: "private", club_id: "club-a", name: "Club chat" },
+      { id: "coaches", club_id: "club-a", name: "Coaches" },
+    ];
+    const options = { groups, activeClubTeamIds: [], displayedTeams: teams };
+    expect(filterInboxChatGroups({ ...options, query: "" }).map(r => r.id)).toEqual(["private", "coaches"]);
+    expect(filterInboxChatGroups({ ...options, query: "club chat" }).map(r => r.id)).toEqual(["private"]);
+    expect(filterInboxClubs({ clubs: [{ id: "club-a", name: "Ignite Soccer Test Club" }], query: "" }).map(r => r.id)).toEqual(["club-a"]);
   });
 
   it("uses displayed team relations when the selected club is not the active club", () => {

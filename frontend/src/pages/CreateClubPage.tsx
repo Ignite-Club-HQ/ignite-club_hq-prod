@@ -32,6 +32,7 @@ import { slugifyClubName } from "@/lib/eoiUtils";
 import { ISO_COUNTRY_CODES, countryName } from "@/lib/countries";
 import { getCurrentCountry } from "@/live/userCountry";
 import { clubCreationErrorMessage } from "@/lib/clubCreationError";
+import { clubSetupNotice, type ClubSetupStep } from "@/lib/clubSetupNotice";
 
 import { NewClubAuthGate } from "@/components/NewClubAuthGate";
 
@@ -202,6 +203,8 @@ function IcpCreateClubPage() {
     try {
       const newClubId = crypto.randomUUID();
       const creationScope = { newClubId };
+      const unfinished: ClubSetupStep[] = [];
+      let logoFailed = false;
       const clubId = await withFeatureBackend("membership", {
         icp: async (ctx) => {
           const profile = await createLiveClub(
@@ -225,6 +228,7 @@ function IcpCreateClubPage() {
             });
           } catch (err) {
             console.warn("[CreateClub] class mode setting failed", err);
+            unfinished.push("settings");
           }
             })(),
             (async () => {
@@ -244,15 +248,18 @@ function IcpCreateClubPage() {
               }
             } catch (err) {
               console.warn("[CreateClub] logo upload failed", err);
+              logoFailed = true;
             }
           }
             })(),
             (async () => {
           try {
             const { ensureLiveDefaultClubChats } = await import("@/live/defaultClubChats");
-            await ensureLiveDefaultClubChats(ctx, profile.id, { force: true });
+            const chatFailures = await ensureLiveDefaultClubChats(ctx, profile.id, { force: true });
+            if (chatFailures.length) unfinished.push("staff_chats");
           } catch (err) {
             console.warn("[CreateClub] default chats failed", err);
+            unfinished.push("staff_chats");
           }
             })(),
           ]);
@@ -268,6 +275,8 @@ function IcpCreateClubPage() {
       // A selected club theme filters lists to that one club — clear it so
       // the new club is visible under Clubs & Teams straight away.
       if (activeClubFilter && activeClubFilter !== clubId) setActiveClubTheme(null);
+      const notice = clubSetupNotice(unfinished, logoFailed);
+      if (notice) toast(notice);
       navigate(`/clubs/${clubId}/setup`);
     } catch (error: any) {
       setSaving(false);

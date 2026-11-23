@@ -1,0 +1,222 @@
+
+=== Vitest backend mode: supabase ===
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.2 [39m[90m/dev-server/frontend[39m
+
+Sourcemap for "/dev-server/frontend/node_modules/@adobe/css-tools/dist/esm/adobe-css-tools.mjs" points to missing source files
+ [32m✓[39m src/features/messaging/inbox/inboxRepositories.test.ts [2m([22m[2m86 tests[22m[2m)[22m[32m 111[2mms[22m[39m
+ [32m✓[39m src/live/groupDispatch.test.ts [2m([22m[2m39 tests[22m[2m)[22m[33m 2191[2mms[22m[39m
+   [32m✓[39m club-scoped dispatcher [2m(16)[22m
+     [33m[2m✓[22m[39m the shipped dispatcher is switched off[33m 2083[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxDirectMessageSources.test.ts [2m([22m[2m35 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxReadModel.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/live/features/messaging.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxFilterPolicy.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/live/features/messagingQueryOpen.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/pendingInboxPreview.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/features/messaging/thread/useTeamChatTeamData.test.tsx [2m([22m[2m7 tests[22m[2m | [22m[33m2 skipped[39m[2m)[22m[32m 220[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxConversationBuilders.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxRealtimeReconciliation.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+[90mstderr[2m | src/features/messaging/inbox/inboxChatGroupRefresh.test.ts[2m > [22m[2mICP inbox directory refresh[2m > [22m[2mdoes not fail working chat reads when optional default-chat upkeep fails
+[22m[39m[inbox] default club chat upkeep failed { club: [32m'riverdogs'[39m, error: [32m'upkeep unavailable'[39m }
+
+ [32m✓[39m src/features/messaging/inbox/inboxChatGroupRefresh.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxUnifiedComposition.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxPresentationPolicy.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/features/messaging/thread/icpTeamThreadPage.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 85[2mms[22m[39m
+ [32m✓[39m src/features/messaging/thread/icpThreadRead.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/features/messaging/thread/useTeamChatAdminStatus.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 305[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxGroupVisibility.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxRevealPolicy.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+[90mstderr[2m | src/live/defaultClubChats.test.ts[2m > [22m[2mdefault club chat recovery[2m > [22m[2mretries a failed membership top-up instead of marking the club synced
+[22m[39m[defaultClubChats] Coaches sync failed Error: network interrupted
+    at [90m/dev-server/frontend/[39msrc/live/defaultClubChats.test.ts:30:37
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:1628:35
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:2783:26
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3319:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3314:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3299:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3257:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3876:64
+
+[90mstderr[2m | src/live/defaultClubChats.test.ts[2m > [22m[2mdefault club chat recovery[2m > [22m[2muses explicit standard keys and never substitutes an ordinary create on rejection
+[22m[39m[defaultClubChats] Coaches sync failed Error: Canister has no update method
+    at [90m/dev-server/frontend/[39msrc/live/defaultClubChats.test.ts:44:36
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:1628:35
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:2783:26
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3319:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3314:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3299:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3257:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3876:64
+[defaultClubChats] Team Admins sync failed Error: Canister has no update method
+    at [90m/dev-server/frontend/[39msrc/live/defaultClubChats.test.ts:44:36
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:1628:35
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:2783:26
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3319:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3314:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3299:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3257:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3876:64
+[defaultClubChats] Club Committee sync failed Error: Canister has no update method
+    at [90m/dev-server/frontend/[39msrc/live/defaultClubChats.test.ts:44:36
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:1628:35
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:2783:26
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3319:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3314:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3299:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3257:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3876:64
+
+ [32m✓[39m src/live/defaultClubChats.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 77[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/confirmedInboxPreview.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxClubPhotoPreview.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/live/groupDispatchNewClub.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/useInboxThreadPrefetch.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+ [32m✓[39m src/live/messagingCandidates.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/live/groupDispatch.teamOwnership.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxPreviewReferences.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/features/messaging/thread/chatAccessState.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxDisplaySources.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/components/NewClubAuthGate.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 593[2mms[22m[39m
+   [32m✓[39m new club authentication boundary [2m(4)[22m
+     [33m[2m✓[22m[39m requires explicit switching and signs out before selecting ICP[33m 327[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/icpPreviewReferenceNames.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/useInboxPreviewReferenceNames.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 114[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/ownSendBump.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxPrefetch.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/clubCreationError.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxPresentation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/hideEmptyDefaultCopies.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/clubSetupBranding.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/uniqueGroupSummaries.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m39 passed[39m[22m[90m (39)[39m
+[2m      Tests [22m [1m[32m417 passed[39m[22m[2m | [22m[33m2 skipped[39m[90m (419)[39m
+[2m   Start at [22m 09:17:06
+[2m   Duration [22m 60.91s[2m (environment 80%, setup 8%, transform 5%, tests 4%, import 3%, worker 1%)[22m
+
+[2mEnvironment [22m [33mjsdom was created 39 times[39m[2m · 86.56s total, 80% of tracked time[22m
+[2m            [22m [2mcreate it once per worker with [22m[33mpool: 'vmThreads'[39m[2m (keeps per-file isolation) or [22m[33misolate: false[39m[2m (shares it across files)[22m
+[2m            [22m [2mlearn more: https://vitest.dev/guide/improving-performance#test-environments[22m
+
+
+=== Vitest backend mode: icp ===
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.2 [39m[90m/dev-server/frontend[39m
+
+Sourcemap for "/dev-server/frontend/node_modules/@adobe/css-tools/dist/esm/adobe-css-tools.mjs" points to missing source files
+ [32m✓[39m src/components/NewClubAuthGate.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 546[2mms[22m[39m
+   [32m✓[39m new club authentication boundary [2m(4)[22m
+     [33m[2m✓[22m[39m requires explicit switching and signs out before selecting ICP[33m 308[2mms[22m[39m
+ [32m✓[39m src/live/groupDispatch.test.ts [2m([22m[2m39 tests[22m[2m)[22m[33m 2412[2mms[22m[39m
+   [32m✓[39m club-scoped dispatcher [2m(16)[22m
+     [33m[2m✓[22m[39m the shipped dispatcher is switched off[33m 2252[2mms[22m[39m
+ [32m✓[39m src/features/messaging/thread/useTeamChatAdminStatus.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 342[2mms[22m[39m
+ [32m✓[39m src/features/messaging/thread/useTeamChatTeamData.test.tsx [2m([22m[2m7 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[32m 292[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/useInboxPreviewReferenceNames.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 100[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxRepositories.test.ts [2m([22m[2m86 tests[22m[2m)[22m[32m 108[2mms[22m[39m
+ [32m✓[39m src/features/messaging/thread/icpTeamThreadPage.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 85[2mms[22m[39m
+[90mstderr[2m | src/live/defaultClubChats.test.ts[2m > [22m[2mdefault club chat recovery[2m > [22m[2mretries a failed membership top-up instead of marking the club synced
+[22m[39m[defaultClubChats] Coaches sync failed Error: network interrupted
+    at [90m/dev-server/frontend/[39msrc/live/defaultClubChats.test.ts:30:37
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:1628:35
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:2783:26
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3319:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3314:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3299:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3257:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3876:64
+
+[90mstderr[2m | src/live/defaultClubChats.test.ts[2m > [22m[2mdefault club chat recovery[2m > [22m[2muses explicit standard keys and never substitutes an ordinary create on rejection
+[22m[39m[defaultClubChats] Coaches sync failed Error: Canister has no update method
+    at [90m/dev-server/frontend/[39msrc/live/defaultClubChats.test.ts:44:36
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:1628:35
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:2783:26
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3319:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3314:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3299:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3257:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3876:64
+[defaultClubChats] Team Admins sync failed Error: Canister has no update method
+    at [90m/dev-server/frontend/[39msrc/live/defaultClubChats.test.ts:44:36
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:1628:35
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:2783:26
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3319:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3314:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3299:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3257:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3876:64
+[defaultClubChats] Club Committee sync failed Error: Canister has no update method
+    at [90m/dev-server/frontend/[39msrc/live/defaultClubChats.test.ts:44:36
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:1628:35
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:2783:26
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3319:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3314:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3299:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3257:10[90m)[39m
+    at [90mfile:///dev-server/frontend/[39mnode_modules/[4mvitest[24m/dist/chunks/run.C5UmxDPh.js:3876:64
+
+ [32m✓[39m src/live/defaultClubChats.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 79[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/useInboxThreadPrefetch.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+[90mstderr[2m | src/features/messaging/inbox/inboxChatGroupRefresh.test.ts[2m > [22m[2mICP inbox directory refresh[2m > [22m[2mdoes not fail working chat reads when optional default-chat upkeep fails
+[22m[39m[inbox] default club chat upkeep failed { club: [32m'riverdogs'[39m, error: [32m'upkeep unavailable'[39m }
+
+ [32m✓[39m src/features/messaging/inbox/inboxChatGroupRefresh.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/live/features/messagingQueryOpen.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/live/features/messaging.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxClubPhotoPreview.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/pendingInboxPreview.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/live/groupDispatch.teamOwnership.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxDirectMessageSources.test.ts [2m([22m[2m35 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/features/messaging/thread/icpThreadRead.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/icpPreviewReferenceNames.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/live/groupDispatchNewClub.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxRealtimeReconciliation.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxUnifiedComposition.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/live/messagingCandidates.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxReadModel.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxGroupVisibility.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxFilterPolicy.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/confirmedInboxPreview.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxConversationBuilders.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxPresentationPolicy.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/ownSendBump.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/lib/clubCreationError.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxPresentation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxDisplaySources.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxPreviewReferences.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/features/messaging/thread/chatAccessState.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxPrefetch.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/uniqueGroupSummaries.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/hideEmptyDefaultCopies.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/features/messaging/inbox/inboxRevealPolicy.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/clubSetupBranding.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m39 passed[39m[22m[90m (39)[39m
+[2m      Tests [22m [1m[32m418 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (419)[39m
+[2m   Start at [22m 09:18:08
+[2m   Duration [22m 54.01s[2m (environment 79%, setup 7%, transform 6%, tests 5%, import 3%, worker 1%)[22m
+
+[2mEnvironment [22m [33mjsdom was created 39 times[39m[2m · 75.18s total, 79% of tracked time[22m
+[2m            [22m [2mcreate it once per worker with [22m[33mpool: 'vmThreads'[39m[2m (keeps per-file isolation) or [22m[33misolate: false[39m[2m (shares it across files)[22m
+[2m            [22m [2mlearn more: https://vitest.dev/guide/improving-performance#test-environments[22m
+
