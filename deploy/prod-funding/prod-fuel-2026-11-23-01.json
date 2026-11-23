@@ -7,7 +7,7 @@
     "balanceBefore": "326090306213",
     "shortfallCycles": "1673909693787"
   },
-  "phase": "checkout-ready",
+  "phase": "delivered",
   "createdAt": "2026-11-23T01:14:28.400Z",
   "order": {
     "order_id": "co-195-e1e1a986592c33aeb119fc6189374436",
@@ -26,5 +26,17 @@
     },
     "estimated_cycles": "1677477974909",
     "expires_at": "2026-11-24T02:14:31Z"
+  },
+  "result": {
+    "order_id": "co-195-e1e1a986592c33aeb119fc6189374436",
+    "status": "delivered",
+    "cycles_delivered": "1677477963868",
+    "paid": {
+      "currency": "USD",
+      "value": "2.64"
+    },
+    "refunded": null,
+    "detail": null,
+    "balance": "2003568270081"
   }
 }
