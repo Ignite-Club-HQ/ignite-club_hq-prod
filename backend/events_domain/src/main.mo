@@ -4717,8 +4717,33 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(caller) };
   };
 
+  // Scheduled reminders pause while the event's club is soft-deleted in
+  // club_domain and resume after restore: paused reminders are left unsent
+  // (not marked), so the next hourly sweep after restore delivers them if
+  // still in time. Fail closed: unknown/unreachable club status pauses too.
+  type ClubStatusRef = actor { get_club_profile : shared query (Text) -> async { #Ok : ?{ deleted_at_ms : ?Nat64 }; #Err : Text } };
+  func clubReminderActive(club_id : Text) : async Bool {
+    let authority = clubDomainCanister ?? return false;
+    let cd : ClubStatusRef = actor (authority.toText());
+    try {
+      switch (await cd.get_club_profile(club_id)) {
+        case (#Ok(?profile)) profile.deleted_at_ms == null;
+        case _ false;
+      }
+    } catch (_) { false }
+  };
+
   func sweepAutoReminders() : async () {
     let now = nowMs();
+    var activeClubs : [Text] = [];
+    var pausedClubs : [Text] = [];
+    func clubActive(club_id : Text) : async Bool {
+      if (activeClubs.any(func(c) = c == club_id)) return true;
+      if (pausedClubs.any(func(c) = c == club_id)) return false;
+      let ok = await clubReminderActive(club_id);
+      if (ok) activeClubs := activeClubs.concat([club_id]) else pausedClubs := pausedClubs.concat([club_id]);
+      ok
+    };
     for (r in autoReminders.values()) {
       if (not r.sent) {
         switch (events.find(func(e) = e.id == r.event_id)) {
@@ -4727,7 +4752,7 @@ persistent actor class Main(governorInit : Principal) = this {
             let dueAt : Nat64 = if (event.starts_at_ms > Nat64.fromNat(Nat16.toNat(r.hours_before)) * 3_600_000) event.starts_at_ms - Nat64.fromNat(Nat16.toNat(r.hours_before)) * 3_600_000 else 0;
             if (event.deleted or event.cancelled or event.starts_at_ms <= now) {
               markReminderSent(r.event_id);
-            } else if (now >= dueAt) {
+            } else if (now >= dueAt and (await clubActive(event.club_id))) {
               switch (await fanOutReminder(event, null)) {
                 case (#Ok(_)) markReminderSent(r.event_id);
                 case (#Err(_)) {};
@@ -4745,7 +4770,7 @@ persistent actor class Main(governorInit : Principal) = this {
             let dueAt = if (event.starts_at_ms > 86_400_000) event.starts_at_ms - 86_400_000 else (0 : Nat64);
             if (event.deleted or event.cancelled or event.starts_at_ms <= now) {
               dutyTeamReminderSent := dutyTeamReminderSent.concat([assignment.event_id]);
-            } else if (now >= dueAt) {
+            } else if (now >= dueAt and (await clubActive(event.club_id))) {
               switch (await fanOutDutyTeamReminder(event, assignment.team_id)) {
                 case (#Ok(_)) {
                   if (eventDutyTeams.any(func(item) = item.event_id == assignment.event_id and item.team_id == assignment.team_id) and not dutyTeamReminderSent.any(func(id) = id == assignment.event_id)) {
@@ -4764,7 +4789,7 @@ persistent actor class Main(governorInit : Principal) = this {
         let dueAt : Nat64 = if (event.starts_at_ms > 345_600_000) event.starts_at_ms - 345_600_000 else (0 : Nat64);
         if (event.deleted or event.cancelled or event.starts_at_ms <= now) {
           pointsReminderSent := pointsReminderSent.concat([event.id]);
-        } else if (now >= dueAt) {
+        } else if (now >= dueAt and (await clubActive(event.club_id))) {
           let subjects = switch (await eventSubjects(event)) { case (#Err(_)) continue; case (#Ok(rows)) rows };
           let recipients = EventAudience.users(EventAudience.unanswered(event, subjects, rsvps));
           switch (await fanOutScheduledNotice(event, recipients, "Please RSVP for \"" # event.title # "\" to earn your game points", "event-points-" # event.id)) {
@@ -4779,7 +4804,7 @@ persistent actor class Main(governorInit : Principal) = this {
         let dueAt : Nat64 = if (event.starts_at_ms > 86_400_000) event.starts_at_ms - 86_400_000 else (0 : Nat64);
         if (event.deleted or event.cancelled or event.starts_at_ms <= now) {
           individualDutyReminderSent := individualDutyReminderSent.concat([event.id]);
-        } else if (now >= dueAt) {
+        } else if (now >= dueAt and (await clubActive(event.club_id))) {
           let recipients = duties
             .filter(func(d) = d.event_id == event.id and not d.completed and d.account_id != "")
             .map(func(d) = d.account_id);
