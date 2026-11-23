@@ -652,7 +652,7 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
         </div>
       )}
 
-      <ResponsiveDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <ResponsiveDialog keyboardSafe open={dialogOpen} onOpenChange={setDialogOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle>
@@ -662,7 +662,7 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
               Sponsors will be displayed on events and can provide rewards
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 px-1 py-4">
             <div className="space-y-2">
               <Label>Logo</Label>
               <div className="flex items-center gap-4">

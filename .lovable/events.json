@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "events": {
+    "project.admin_lifecycle_action": {
+      "event_schema_version": 1,
+      "description": "A club admin successfully deleted, restored or permanently deleted a club or team. No IDs or names are sent.",
+      "privacy": {
+        "contains_pii": false,
+        "purpose": "product_analytics"
+      },
+      "properties_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "entity",
+          "action",
+          "surface",
+          "complete"
+        ],
+        "properties": {
+          "entity": {
+            "type": "string",
+            "enum": [
+              "club",
+              "team"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "deleted",
+              "restored",
+              "permanently_deleted"
+            ]
+          },
+          "surface": {
+            "type": "string",
+            "enum": [
+              "club_page",
+              "team_page",
+              "clubs_list",
+              "recently_deleted"
+            ]
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

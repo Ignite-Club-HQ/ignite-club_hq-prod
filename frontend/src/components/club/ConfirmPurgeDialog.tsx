@@ -10,9 +10,11 @@ interface Props {
   purging: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  /** True when the backend erases the club outright (no archive). */
+  irreversible?: boolean;
 }
 
-export function ConfirmPurgeDialog({ target, confirmText, onConfirmTextChange, purging, onCancel, onConfirm }: Props) {
+export function ConfirmPurgeDialog({ target, confirmText, onConfirmTextChange, purging, onCancel, onConfirm, irreversible }: Props) {
   const matches = target ? confirmText.trim() === target.name : false;
   return (
     <AlertDialog open={!!target} onOpenChange={(o) => { if (!o) onCancel(); }}>
@@ -20,7 +22,9 @@ export function ConfirmPurgeDialog({ target, confirmText, onConfirmTextChange, p
         <AlertDialogHeader>
           <AlertDialogTitle>Permanently delete "{target?.name}"?</AlertDialogTitle>
           <AlertDialogDescription>
-            The club will be removed from your Recently removed list and can no longer be restored by you. Underlying data is retained in an archive so an app admin can recover it if needed.
+            {irreversible
+              ? "This permanently deletes the club with its teams, members, events, messages, files and photos. It cannot be undone in the app."
+              : "The club will be removed from your Recently removed list and can no longer be restored by you. Underlying data is retained in an archive so an app admin can recover it if needed."}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <Alert variant="destructive">

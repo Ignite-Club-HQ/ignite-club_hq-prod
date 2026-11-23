@@ -259,7 +259,7 @@ try {
   assert.equal(await club.actor.read_vault_erasure_scope('ret-trial', [team.id]), false);
   for (let i = 0; i < 4; i++) ok(await vault.actor.sweep_vault_lifecycle());
   assert.equal(ok(await vault.actor.read_account_get_folder('erased-team-child'))[0].id, 'erased-team-child');
-  ok(await club.actor.delete_team_permanent(team.id));
+  ok(await club.actor.delete_team_permanent(team.id, [team.name]));
   assert.equal(await club.actor.read_vault_erasure_scope('ret-trial', [team.id]), true);
   await pic.upgradeCanister({ canisterId: club.canisterId, wasm: resolve(root, 'backend/club_domain/.mops/.build/club_domain.wasm'), sender: governor, arg: IDL.encode([IDL.Principal], [governor]), upgradeModeOptions: { skip_pre_upgrade: [], wasm_memory_persistence: [{ keep: null }] } });
   assert.equal(await club.actor.read_vault_erasure_scope('ret-trial', [team.id]), true);
@@ -275,7 +275,7 @@ try {
   assert.ok(erasedFolderSnapshot.folders.some(f => f.id === 'retained-club-folder'));
   // Explicit club erasure is authoritative even for paid retained content.
   ok(await club.actor.soft_delete_club('ret-paid', true));
-  ok(await club.actor.delete_club_permanent('ret-paid'));
+  ok(await club.actor.delete_club_permanent('ret-paid', ['ret-paid']));
   assert.equal(await club.actor.read_vault_erasure_scope('ret-paid', []), true);
   for (let i = 0; i < 20; i++) ok(await vault.actor.sweep_vault_lifecycle());
   assert.deepEqual(await store.actor.get_content_hash('clubs/ret-paid/vault/retention.pdf'), []);

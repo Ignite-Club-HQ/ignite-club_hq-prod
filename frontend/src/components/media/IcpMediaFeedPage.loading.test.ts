@@ -103,12 +103,11 @@ describe('media loading stages', () => {
     complete?.([]);
     expect((await pending).incomplete).toBe(false);
   });
-  it('retains already loaded photos when ancillary metadata fails without claiming completeness', async () => {
+  it('shows the club photos without a warning when only filter labels fail', async () => {
     mocks.teams.mockRejectedValue(new Error('Metadata unavailable'));
-    const progress = vi.fn();
-    await expect(loadLiveMediaFeed(ctx, progress)).rejects.toThrow('Metadata unavailable');
-    expect(progress.mock.calls[0][0].posts[0].assets[0].id).toBe('photo-1');
-    expect(progress.mock.calls[0][0].incomplete).toBe(true);
+    const feed = await loadLiveMediaFeed(ctx);
+    expect(feed.posts[0].assets[0].id).toBe('photo-1');
+    expect(feed.sources?.every(s => s.state === 'ready')).toBe(true);
   });
   it('starts a ready club gallery while the other owning-group profile is still pending', async () => {
     mocks.memberIds.mockResolvedValue(['club-1', 'club-2']);

@@ -220,6 +220,9 @@ module {
   // Mirrors Supabase child_team_assignments, scoped with club_id so
   // list_child_team_assignments can authorise on club membership.
   public type ChildTeamAssignment = { child_id : Text; team_id : Text; club_id : Text };
+  // Fictional test player: team-scoped roster entry with no account,
+  // guardian, invitation or personal data. Name is a visible test label.
+  public type TestPlayer = { id : Text; club_id : Text; team_id : Text; name : Text; shirt_number : ?Nat16; positions : [Text]; age_group : ?Text; created_by : Principal; created_at_ms : Nat64; updated_at_ms : Nat64 };
 
   // ---- Favourite event titles / saved locations / training defaults / RSVP created_at (events UX extras) ----
   // Per-caller shortlist of event titles for quick reuse when creating events.

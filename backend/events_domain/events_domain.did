@@ -5,6 +5,19 @@ type Value =
    "null";
    "text": text;
  };
+type TestPlayer = 
+ record {
+   age_group: opt text;
+   club_id: text;
+   created_at_ms: nat64;
+   created_by: principal;
+   id: text;
+   name: text;
+   positions: vec text;
+   shirt_number: opt nat16;
+   team_id: text;
+   updated_at_ms: nat64;
+ };
 type TeamTrainingPause = 
  record {
    club_id: text;
@@ -369,6 +382,12 @@ type Main =
        Err: text;
        Ok: TeamTrainingPause;
      });
+   create_test_player: (club_id: text, team_id: text, name: text,
+    shirt_number: opt nat16, positions: vec text, age_group: opt text) ->
+    (variant {
+       Err: text;
+       Ok: TestPlayer;
+     });
    /// Public: remaining cycles (shown in admin settings).
    cycles_balance: () -> (nat) query;
    deactivate_active_game: (team_id: opt text) -> (variant {
@@ -413,6 +432,10 @@ type Main =
                                                 Err: text;
                                                 Ok;
                                               });
+   delete_test_player: (id: text) -> (variant {
+                                        Err: text;
+                                        Ok;
+                                      });
    detach_occurrence: (event_id: text) -> (variant {
                                              Err: text;
                                              Ok: Event;
@@ -801,6 +824,11 @@ type Main =
        Err: text;
        Ok: vec TeamTrainingPause;
      }) query;
+   list_test_players: (club_id: text, team_id: text) ->
+    (variant {
+       Err: text;
+       Ok: vec TestPlayer;
+     });
    mark_attendance: (event_id: text, records: vec AttendanceInput) ->
     (variant {
        Err: text;
@@ -1572,6 +1600,12 @@ type Main =
                         Err: text;
                         Ok: EventSeries;
                       });
+   update_test_player: (id: text, name: text, shirt_number: opt nat16,
+    positions: vec text, age_group: opt text) ->
+    (variant {
+       Err: text;
+       Ok: TestPlayer;
+     });
    upsert_competition_match_events: (input: MatchEventInput) ->
     (variant {
        Err: text;

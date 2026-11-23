@@ -135,6 +135,7 @@ export default function ClubsPage() {
       toast({ title: "Error", description: "Failed to restore club.", variant: "destructive" });
       return;
     }
+    window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "club", action: "restored", surface: "clubs_list", complete: true });
     toast({ title: "Club restored", description: "Teams and chats have been restored too." });
     void invalidateTeamLists(queryClient, user?.id);
     queryClient.invalidateQueries({ queryKey: ["removed-clubs", user?.id] });
@@ -151,7 +152,7 @@ export default function ClubsPage() {
       try {
         await withFeatureBackend("membership", {
           supabase: async () => undefined,
-          icp: async (ctx) => { await (await import("@/live/features/club")).deleteLiveClubPermanent(ctx, targetId); },
+          icp: async (ctx) => { await (await import("@/live/features/club")).deleteLiveClubPermanent(ctx, targetId, purgeTarget.name); },
         }, writeOnce({ clubId: targetId }));
       } catch (e) {
         error = { message: e instanceof Error ? e.message : "Unknown error" };
@@ -164,7 +165,8 @@ export default function ClubsPage() {
       toast({ title: "Couldn't delete", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Club permanently deleted", description: "Data is retained in the archive for recovery by an app admin." });
+    window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "club", action: "permanently_deleted", surface: "clubs_list", complete: true });
+    toast({ title: "Club permanently deleted", description: useIcpLab ? "This can't be undone in the app." : "Data is retained in the archive for recovery by an app admin." });
     clearClubSetupLocalState(purgeTarget.id);
     void invalidateTeamLists(queryClient, user?.id);
     setPurgeTarget(null);
@@ -459,15 +461,12 @@ export default function ClubsPage() {
               Recently removed
             </h2>
             <p className="text-xs text-muted-foreground mt-1">
-              Restore within 30 days. Restoring also brings back the club's teams and chats.
+              Kept for at least 30 days. Restoring also brings back the club's teams and chats.
             </p>
           </div>
           <div className="space-y-2">
             {scopedRemovedClubs.map((club) => {
-              const daysLeft = Math.max(
-                0,
-                30 - Math.floor((Date.now() - new Date(club.deleted_at).getTime()) / (1000 * 60 * 60 * 24))
-              );
+              const daysLeft = 30 - Math.floor((Date.now() - new Date(club.deleted_at).getTime()) / (1000 * 60 * 60 * 24));
               return (
                 <Card key={club.id} className="border-dashed">
                   <CardContent className="p-3 flex items-center gap-3">
@@ -480,7 +479,7 @@ export default function ClubsPage() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{club.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        Removed {new Date(club.deleted_at).toLocaleDateString()} · {daysLeft} day{daysLeft === 1 ? "" : "s"} left
+                        Removed {new Date(club.deleted_at).toLocaleDateString()} · {daysLeft > 0 ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} of guaranteed recovery left` : "Still restorable"}
                       </p>
                     </div>
                     <Button
@@ -492,7 +491,7 @@ export default function ClubsPage() {
                       <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
                       {restoringId === club.id ? "Restoring..." : "Restore"}
                     </Button>
-                    {club.created_by === user?.id && (
+                    {(useIcpLab || club.created_by === user?.id) && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -512,6 +511,7 @@ export default function ClubsPage() {
       )}
 
       <ConfirmPurgeDialog
+        irreversible={useIcpLab}
         target={purgeTarget}
         confirmText={purgeConfirmText}
         onConfirmTextChange={setPurgeConfirmText}

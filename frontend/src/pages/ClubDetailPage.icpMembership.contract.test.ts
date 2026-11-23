@@ -9,7 +9,7 @@ describe("ClubDetailPage ICP membership wiring", () => {
     expect(source).toContain('isFeatureRoutedToIcp("membership")');
     expect(source).toContain("softDeleteLiveClub(ctx, id!, true)");
     expect(source).toContain("restoreLiveClub(ctx, id!, true)");
-    expect(source).toContain("deleteLiveClubPermanent(ctx, id!)");
+    expect(source).toContain("deleteLiveClubPermanent(ctx, id!, club?.name ?? \"\")");
   });
 
   it("routes the club role-request mutation through requestLiveRole while keeping the Supabase insert", () => {

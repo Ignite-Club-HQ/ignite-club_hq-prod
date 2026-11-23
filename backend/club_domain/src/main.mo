@@ -339,6 +339,8 @@ persistent actor class Main(governorInit : Principal) = this {
   var roleRequestChildren : [(Text, Text)];
   // (team_id, class schedule) mirroring Supabase teams.class_* columns.
   var teamClassSchedules : [(Text, Types.TeamClassSchedule)];
+  // (kind "club"|"team", entity id, club id, action "deleted"|"restored", actor, at_ms); bounded newest-last.
+  var entityDeletionAudit : [(Text, Text, Text, Text, Principal, Nat64)];
   var teamInvites : [Types.TeamInvite];
   var teamInviteLinks : [Types.TeamInviteLink];
   var pendingInvites : [Types.PendingInvite];
@@ -3464,6 +3466,7 @@ persistent actor class Main(governorInit : Principal) = this {
     "- Open the app by its exact URL and use the origin returned by the connector. DEV and PROD have separate canisters and Internet Identity derivation origins; never combine them.\n" #
     "- Read `identity_access.whoami()` first. For a new principal, obtain approval and call `identity_access.register_account()` as that user, not as an app admin. Check `get_profile` and `my_terms_acceptance` separately; missing profile or terms is not completed onboarding. Do not claim consent for the user.\n" #
     "- On devices with privacy-preserving profile names, the Ignite app is the canonical way to finish protected display-name setup; raw `set_profile` alone may be denied. Recheck account/profile after completion.\n" #
+    "- Deleting: `soft_delete_club`/`soft_delete_team` are recoverable and need the user's explicit request for that named club/team; `restore_club`/`restore_team` undo them. NEVER call `delete_club_permanent`/`delete_team_permanent` unless the signed-in user has personally typed the exact club/team name in this conversation after being told it cannot be undone; pass that typed name as `confirm_name`. The service refuses without it, and only works on an already soft-deleted record.\n" #
     "- Before creating a new club, check for an existing organisation and get confirmation. `create_club(id,name,slug,description,sport)` requires a new opaque ID; the creator receives `club_admin` on success. Creation workflow (same authority as the Ignite app; never pick a group yourself): (1) confirm Internet Identity sign-in and `identity_access.whoami()`; (2) generate a fresh UUID and call `shard_router.place_my_new_club(uuid, target_alias)`; if it returns #Err, STOP and report that new clubs are not open, do not call create_club anywhere; (3) find the assigned group's club_domain via `shard_router.read_public_group_targets` and call `create_club` ONLY on that canister; (4) on that same canister call `set_club_home_country(id, ISO2)` and `set_club_general_settings`; (5) optionally `save_team` with club_id = the new id; (6) verify the club and team via the caller-scoped OQL `clubs`/`teams` entities before reporting success, returning club id, team id and group id. Retries: reuse the SAME UUID; placement is idempotent per creator and `create_club` returns \"Club already exists\", after which verify instead of creating again. Default conversations are created when the admin first opens Chats in Ignite.\n" #
     "- The app's club setup also records home country, settings, optional logo and default conversations; a bare `create_club` call does not finish these. Refer the user to Ignite to complete setup if the agent cannot verify each step.\n" #
     "- `save_team(ClubTeam)` takes the full Candid record, and the caller must be permitted to create a team. Confirm the club and team before writing, respect team limits, then verify by `get_team(id)`. `club_id = \"\"` creates a creator-owned personal team, which `list_my_personal_teams()` can read.\n" #
@@ -4821,6 +4824,32 @@ persistent actor class Main(governorInit : Principal) = this {
 
   // ---- Team/club soft-delete, restore, and permanent delete ----
 
+  transient let deletionAuditCap : Nat = 5_000;
+  func recordDeletionAudit(kind : Text, id : Text, club : Text, action : Text, actor_ : Principal) {
+    let next = entityDeletionAudit.concat([(kind, id, club, action, actor_, nowMs())]);
+    entityDeletionAudit := if (next.size() > deletionAuditCap) Array.sliceToArray(next, next.size() - deletionAuditCap : Int, next.size()) else next;
+  };
+
+  // Permanent deletion must echo the entity's name (trimmed, case-insensitive) so
+  // no client, including AI connectors, can purge with only an id.
+  func permanentNameMatches(expected : Text, typed : ?Text) : Bool {
+    switch typed {
+      case null false;
+      case (?t) {
+        let a = Text.toLower(Text.trim(t, #char ' '));
+        a != "" and a == Text.toLower(Text.trim(expected, #char ' '))
+      };
+    }
+  };
+
+  // Who deleted/restored a club or its teams; club admins only.
+  public query ({ caller }) func read_deletion_audit(club_id : Text) : async { #Ok : [{ kind : Text; id : Text; action : Text; actor_ : Principal; at_ms : Nat64 }]; #Err : Text } {
+    denyLegacyAccountQuery();
+    auth(caller);
+    if (not isAdmin(caller, club_id)) return #Err("Club admin required");
+    #Ok(entityDeletionAudit.filter(func e = e.2 == club_id).map(func e = { kind = e.0; id = e.1; action = e.3; actor_ = e.4; at_ms = e.5 }))
+  };
+
   public shared ({ caller }) func soft_delete_team(id : Text) : async { #Ok : Types.ClubTeam; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
@@ -4836,6 +4865,7 @@ persistent actor class Main(governorInit : Principal) = this {
         let updated : Types.ClubTeam = { team with deleted_at_ms = if (team.deleted_at_ms == null) ?nowMs() else team.deleted_at_ms };
         bumpMembershipDiscovery();
         teams := teams.map(func(t) = if (t.id == id) updated else t);
+        if (team.deleted_at_ms == null) recordDeletionAudit("team", id, team.club_id, "deleted", caller);
         // Revoke only this team's grants; keep real account, family records,
         // other team memberships and independent club-wide roles intact.
         acl := { acl with roles = acl.roles.filter(func(g) = g.team != ?id) };
@@ -4861,10 +4891,13 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Team not found") };
       case (?team) {
         if (not isAdmin(caller, team.club_id)) return #Err("Club admin required");
+        if (isTransferFenced(team.club_id)) return #Err("Club is temporarily locked for a transfer");
+        if (team.club_id != "" and not profiles.any(func p = p.id == team.club_id and p.deleted_at_ms == null)) return #Err("Restore the club before restoring its teams");
         if (team.deleted_at_ms != null) { switch (teamCapacityError(team.club_id, 1)) { case (?error) return #Err(error); case null {} } };
         let updated : Types.ClubTeam = { team with deleted_at_ms = null };
         bumpMembershipDiscovery();
         teams := teams.map(func(t) = if (t.id == id) updated else t);
+        if (team.deleted_at_ms != null) recordDeletionAudit("team", id, team.club_id, "restored", caller);
         #Ok(updated)
       };
     }
@@ -4874,7 +4907,7 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
-  public shared ({ caller }) func delete_team_permanent(id : Text) : async { #Ok; #Err : Text } {
+  public shared ({ caller }) func delete_team_permanent(id : Text, confirm_name : ?Text) : async { #Ok; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
 
@@ -4887,6 +4920,7 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?team) {
         if (not isAdmin(caller, team.club_id)) return #Err("Club admin required");
         if (team.deleted_at_ms == null) return #Err("Team must be soft-deleted first");
+        if (not permanentNameMatches(team.name, confirm_name)) return #Err("Type the team name exactly to confirm permanent deletion");
         purgeTeamLocal(id);
         await fanOutTeamPurged(id);
         #Ok
@@ -4903,12 +4937,12 @@ persistent actor class Main(governorInit : Principal) = this {
   // it, so browse/roster surfaces stop listing them consistently with the
   // club. Teams already soft-deleted independently are left untouched
   // (their own deleted_at_ms is preserved rather than overwritten).
-  // Clubs the caller administers that were soft-deleted within 30 days.
+  // Clubs the caller administers that are soft-deleted (not yet permanently deleted).
   public query ({ caller }) func list_my_removed_clubs() : async { #Ok : [Types.ClubProfile]; #Err : Text } {
     denyLegacyAccountQuery();
     auth(caller);
-    let cutoff : Nat64 = nowMs() - 30 * 24 * 60 * 60 * 1000;
-    #Ok(profiles.filter(func(p) = switch (p.deleted_at_ms) { case (?d) d >= cutoff and isAdmin(caller, p.id); case null false }))
+    // Soft-deleted clubs stay listed until permanently deleted; nothing purges automatically.
+    #Ok(profiles.filter(func(p) = p.deleted_at_ms != null and isAdmin(caller, p.id)))
   };
 
   public shared ({ caller }) func soft_delete_club(id : Text, cascade_teams : Bool) : async { #Ok : Types.ClubProfile; #Err : Text } {
@@ -4923,8 +4957,11 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (profiles.find(func(p) = p.id == id)) {
       case null { #Err("Club not found") };
       case (?club) {
+        if (club.deleted_at_ms != null) return #Ok(club);
+        if (isTransferFenced(id)) return #Err("Club is temporarily locked for a transfer");
         let now = nowMs();
         let updated : Types.ClubProfile = { club with deleted_at_ms = ?now };
+        recordDeletionAudit("club", id, id, "deleted", caller);
         bumpMembershipDiscovery();
         profiles := profiles.map(func(p) = if (p.id == id) updated else p);
         if (cascade_teams) {
@@ -4957,6 +4994,9 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Club not found") };
       case (?club) {
         let deletedAt = club.deleted_at_ms;
+        if (deletedAt == null) return #Ok(club);
+        if (isTransferFenced(id)) return #Err("Club is temporarily locked for a transfer");
+        if (club.slug != "" and profiles.any(func p = p.id != id and p.deleted_at_ms == null and p.slug == club.slug)) return #Err("Another active club now uses this club's web address");
         if (cascade_teams) {
           let count = teams.filter(func(t) = t.club_id == id and t.deleted_at_ms != null and t.deleted_at_ms == deletedAt).size();
           switch (teamCapacityError(id, count)) { case (?error) return #Err(error); case null {} }
@@ -4964,6 +5004,7 @@ persistent actor class Main(governorInit : Principal) = this {
         let updated : Types.ClubProfile = { club with deleted_at_ms = null };
         bumpMembershipDiscovery();
         profiles := profiles.map(func(p) = if (p.id == id) updated else p);
+        recordDeletionAudit("club", id, id, "restored", caller);
         if (cascade_teams) {
           switch (deletedAt) {
             case (?ts) {
@@ -4982,7 +5023,7 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
-  public shared ({ caller }) func delete_club_permanent(id : Text) : async { #Ok; #Err : Text } {
+  public shared ({ caller }) func delete_club_permanent(id : Text, confirm_name : ?Text) : async { #Ok; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
 
@@ -4995,6 +5036,7 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Club not found") };
       case (?club) {
         if (club.deleted_at_ms == null) return #Err("Club must be soft-deleted first");
+        if (not permanentNameMatches(club.name, confirm_name)) return #Err("Type the club name exactly to confirm permanent deletion");
         purgeClubLocal(id);
         await fanOutClubPurged(id);
         #Ok
@@ -7870,11 +7912,9 @@ persistent actor class Main(governorInit : Principal) = this {
     switch team { case (?id) vaultErasedTeams.get(id) == ?club and not teams.any(func t = t.id == id); case null false }
   };
 
-  // Daily auto-purge sweep. The timer id is intentionally discarded — the
-  // sweep runs for the lifetime of the canister and never needs cancelling.
-  // Transient: timers are not persisted across upgrades, so the initializer
-  // re-arms the sweep on every upgrade.
-  transient let _purgeTimer = Timer.recurringTimer<system>(#seconds(86_400), func() : async () { if (Runtime.envVar<system>("IGNITE_PRIVATE_NAME_WRITER_REHEARSAL") != ?"1") ignore await purgeExpiredDeletions() });
+  // No automatic permanent deletion: soft-deleted clubs/teams are kept until an
+  // admin permanently deletes them or an approved retention policy is added.
+  // purge_expired_deletions stays a governor-only manual sweep.
 
   // Reminds every club member who has no `mark_member_paid` record for the
   // given period/type — i.e. everyone still "pending" for that fee. Fails

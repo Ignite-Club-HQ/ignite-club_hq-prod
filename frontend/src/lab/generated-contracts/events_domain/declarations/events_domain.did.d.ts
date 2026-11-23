@@ -505,6 +505,11 @@ export interface Main {
     { 'Ok' : TeamTrainingPause } |
       { 'Err' : string }
   >,
+  'create_test_player' : ActorMethod<
+    [string, string, string, [] | [number], Array<string>, [] | [string]],
+    { 'Ok' : TestPlayer } |
+      { 'Err' : string }
+  >,
   /**
    * / Public: remaining cycles (shown in admin settings).
    */
@@ -551,6 +556,11 @@ export interface Main {
       { 'Err' : string }
   >,
   'delete_team_training_pause' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'delete_test_player' : ActorMethod<
     [string],
     { 'Ok' : null } |
       { 'Err' : string }
@@ -939,6 +949,11 @@ export interface Main {
   'list_team_training_pauses' : ActorMethod<
     [string, string],
     { 'Ok' : Array<TeamTrainingPause> } |
+      { 'Err' : string }
+  >,
+  'list_test_players' : ActorMethod<
+    [string, string],
+    { 'Ok' : Array<TestPlayer> } |
       { 'Err' : string }
   >,
   'mark_attendance' : ActorMethod<
@@ -1789,6 +1804,11 @@ export interface Main {
     { 'Ok' : EventSeries } |
       { 'Err' : string }
   >,
+  'update_test_player' : ActorMethod<
+    [string, string, [] | [number], Array<string>, [] | [string]],
+    { 'Ok' : TestPlayer } |
+      { 'Err' : string }
+  >,
   'upsert_competition_match_events' : ActorMethod<
     [MatchEventInput],
     { 'Ok' : Array<string> } |
@@ -1989,6 +2009,18 @@ export interface TeamTrainingPause {
   'ends_at_ms' : bigint,
   'club_id' : string,
   'reason' : string,
+}
+export interface TestPlayer {
+  'id' : string,
+  'name' : string,
+  'team_id' : string,
+  'updated_at_ms' : bigint,
+  'created_by' : Principal,
+  'created_at_ms' : bigint,
+  'shirt_number' : [] | [number],
+  'positions' : Array<string>,
+  'club_id' : string,
+  'age_group' : [] | [string],
 }
 export type Value = { 'int' : bigint } |
   { 'bool' : boolean } |

@@ -690,7 +690,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     queryFn: ({ signal }) => timeCarouselRead('leagues', () => withReadDeadline(withFeatureBackend("competitions", {
       supabase: async () => [] as TeamOrLeague[],
       icp: async ctx => (await loadCarouselModule()).fetchIcpCarouselItems(ctx, null, { includeTrial: false, inventory: "leagues" }),
-    }, { everyGroup: true, requireComplete: true, merge: mergeLists }), "My competitions", 30_000, signal)),
+    }, { everyGroup: true, merge: mergeLists }), "My competitions", 30_000, signal)),
   });
 
   // Tombstoned teams (deleted via team or club delete) must never render,

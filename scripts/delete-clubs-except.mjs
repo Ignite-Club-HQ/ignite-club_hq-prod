@@ -63,7 +63,7 @@ for (const c of res.Ok.filter((c) => c.id !== kept.id)) {
     const s = await club.soft_delete_club(c.id, true);
     if ("Err" in s) { console.log(`   FAILED soft delete ${c.name}: ${s.Err}`); continue; }
   }
-  const d = await club.delete_club_permanent(c.id);
+  const d = await club.delete_club_permanent(c.id, [c.name]);
   console.log("Err" in d ? `   FAILED ${c.name}: ${d.Err}` : `   deleted: ${c.name} (${c.id})`);
 }
 if (!CONFIRM) console.log("==> Dry run. Re-run with confirm = yes to delete.");

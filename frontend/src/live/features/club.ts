@@ -495,9 +495,10 @@ export async function restoreLiveTeam(ctx: FeatureBackendContext, teamId: string
   return afterMembershipAcknowledgement(unwrapCandid(actor.restore_team(teamId), "Restore team"));
 }
 
-export async function deleteLiveTeamPermanent(ctx: FeatureBackendContext, teamId: string) {
+/** confirmName must be the team name the admin typed; the service refuses without it. */
+export async function deleteLiveTeamPermanent(ctx: FeatureBackendContext, teamId: string, confirmName: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return afterMembershipAcknowledgement(unwrapCandid(actor.delete_team_permanent(teamId), "Permanently delete team"));
+  return afterMembershipAcknowledgement(unwrapCandid(actor.delete_team_permanent(teamId, [confirmName]), "Permanently delete team"));
 }
 
 /**
@@ -527,9 +528,10 @@ export async function listLiveMyRemovedClubs(ctx: FeatureBackendContext) {
   return unwrapCandid(actor.list_my_removed_clubs(), "List removed clubs");
 }
 
-export async function deleteLiveClubPermanent(ctx: FeatureBackendContext, clubId: string) {
+/** confirmName must be the club name the admin typed; the service refuses without it. */
+export async function deleteLiveClubPermanent(ctx: FeatureBackendContext, clubId: string, confirmName: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return afterMembershipAcknowledgement(unwrapCandid(actor.delete_club_permanent(clubId), "Permanently delete club"));
+  return afterMembershipAcknowledgement(unwrapCandid(actor.delete_club_permanent(clubId, [confirmName]), "Permanently delete club"));
 }
 
 /**

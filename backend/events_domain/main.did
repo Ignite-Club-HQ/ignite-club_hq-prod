@@ -5,6 +5,19 @@ type Value =
    "null";
    "text": text;
  };
+type TestPlayer = 
+ record {
+   age_group: opt text;
+   club_id: text;
+   created_at_ms: nat64;
+   created_by: principal;
+   id: text;
+   name: text;
+   positions: vec text;
+   shirt_number: opt nat16;
+   team_id: text;
+   updated_at_ms: nat64;
+ };
 type TeamTrainingPause = 
  record {
    club_id: text;
@@ -369,12 +382,23 @@ type Main =
        Err: text;
        Ok: TeamTrainingPause;
      });
+   create_test_player: (club_id: text, team_id: text, name: text,
+    shirt_number: opt nat16, positions: vec text, age_group: opt text) ->
+    (variant {
+       Err: text;
+       Ok: TestPlayer;
+     });
    /// Public: remaining cycles (shown in admin settings).
    cycles_balance: () -> (nat) query;
    deactivate_active_game: (team_id: opt text) -> (variant {
                                                      Err: text;
                                                      Ok;
                                                    });
+   deactivate_shared_board: (club: text, team: text, expected: nat64) ->
+    (variant {
+       Err: text;
+       Ok;
+     });
    delete_club_data: (club_id: text) -> (variant {
                                            Err: text;
                                            Ok: nat32;
@@ -408,6 +432,10 @@ type Main =
                                                 Err: text;
                                                 Ok;
                                               });
+   delete_test_player: (id: text) -> (variant {
+                                        Err: text;
+                                        Ok;
+                                      });
    detach_occurrence: (event_id: text) -> (variant {
                                              Err: text;
                                              Ok: Event;
@@ -796,6 +824,11 @@ type Main =
        Err: text;
        Ok: vec TeamTrainingPause;
      }) query;
+   list_test_players: (club_id: text, team_id: text) ->
+    (variant {
+       Err: text;
+       Ok: vec TestPlayer;
+     });
    mark_attendance: (event_id: text, records: vec AttendanceInput) ->
     (variant {
        Err: text;
@@ -1139,6 +1172,11 @@ type Main =
      });
    read_account_my_children: () -> (vec Child);
    read_account_my_rsvps: () -> (vec Rsvp);
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_read_event_club: (event_id: text) ->
     (variant {
        Err: text;
@@ -1300,6 +1338,14 @@ type Main =
                                  });
    save_game_result: (team_id: text, event_id: opt text, sport: text,
     home_label: text, away_label: text, home_score: nat32, away_score: 
+    nat32, period_scores_json: text, player_stats_json: text, mvp_player_id:
+    opt text, mvp_player_name: opt text) ->
+    (variant {
+       Err: text;
+       Ok: GameResult;
+     });
+   save_game_result_if_missing: (team_id: text, event_id: opt text, sport:
+    text, home_label: text, away_label: text, home_score: nat32, away_score:
     nat32, period_scores_json: text, player_stats_json: text, mvp_player_id:
     opt text, mvp_player_name: opt text) ->
     (variant {
@@ -1554,6 +1600,12 @@ type Main =
                         Err: text;
                         Ok: EventSeries;
                       });
+   update_test_player: (id: text, name: text, shirt_number: opt nat16,
+    positions: vec text, age_group: opt text) ->
+    (variant {
+       Err: text;
+       Ok: TestPlayer;
+     });
    upsert_competition_match_events: (input: MatchEventInput) ->
     (variant {
        Err: text;
@@ -1850,6 +1902,15 @@ type DetailedGamePlayerStat =
  record {
    detail: opt GamePlayerDetail;
    stat: GamePlayerStat;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type CompetitionEventTarget = 
  record {

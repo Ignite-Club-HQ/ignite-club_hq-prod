@@ -55,7 +55,7 @@ export function ConfirmDeleteDialog({
             {permanent ? (
               <>
                 <p className="text-destructive font-medium">
-                  ⚠️ This action is irreversible. All data associated with <strong>{entityName}</strong> will be permanently deleted and cannot be recovered.
+                  ⚠️ This action is irreversible. All data associated with <strong>{entityName}</strong> will be permanently deleted. This cannot be undone in the app.
                 </p>
                 <p>
                   This includes all{" "}
@@ -71,7 +71,7 @@ export function ConfirmDeleteDialog({
                   events, and data. Members will be notified.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Changed your mind? You can restore this {entityType} within 30 days from the settings menu.
+                  Changed your mind? You can restore this {entityType} from Recently deleted. It's kept for at least 30 days.
                 </p>
               </>
             )}

@@ -13,6 +13,7 @@ import { TeamNextStepsCard } from "@/components/team/TeamNextStepsCard";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { Capacitor } from "@capacitor/core";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
+import { testPlayersToPitchMembers, useTeamTestPlayers } from "@/lib/testPlayers";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { createPortal } from "react-dom";
@@ -1061,6 +1062,8 @@ export default function TeamDetailPage() {
     staleTime: 30_000,
   });
 
+  const { data: teamTestPlayers = [] } = useTeamTestPlayers(teamData?.club_id, id);
+
   const pitchBoardMembers = useMemo(() => {
     const STAFF_ROLES = new Set(["team_admin", "coach", "club_admin", "app_admin"]);
     const goingChildIds = goingRsvpsForLinkedEvent
@@ -1089,8 +1092,9 @@ export default function TeamDetailPage() {
         profiles: { display_name: child.children.name, avatar_url: null },
       }));
 
-    return [...adults, ...children];
-  }, [rawMembers, teamChildren, goingRsvpsForLinkedEvent]);
+    // Test players cannot RSVP, so they always join the board roster.
+    return [...adults, ...children, ...testPlayersToPitchMembers(teamTestPlayers)];
+  }, [rawMembers, teamChildren, goingRsvpsForLinkedEvent, teamTestPlayers]);
 
   const isPitchBoardRosterLoading = isMembersLoading || isMembersFetching || isChildrenLoading || isChildrenFetching;
 
@@ -1405,6 +1409,7 @@ export default function TeamDetailPage() {
         // every team-derived list so the deleted team disappears immediately.
         await invalidateTeamLists(queryClient, user?.id);
         setShowDeleteDialog(false);
+        window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "team", action: "deleted", surface: "team_page", complete: true });
         toast({ title: "Team deleted", description: "You can restore it within 30 days." });
         navigate(`/clubs/${team?.club_id}`);
       } catch (error) {
@@ -1527,6 +1532,7 @@ export default function TeamDetailPage() {
           variant: "destructive",
         });
       } else {
+        window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "team", action: "deleted", surface: "team_page", complete: true });
         toast({ title: "Team deleted", description: "You can restore it within 30 days." });
       }
 
@@ -1559,6 +1565,7 @@ export default function TeamDetailPage() {
     }
 
     unmarkTeamDeleted(id!);
+    window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "team", action: "restored", surface: "team_page", complete: true });
     toast({ title: "Team restored!" });
     queryClient.invalidateQueries({ queryKey: ["team", id] });
     if (user?.id) {
@@ -1582,11 +1589,12 @@ export default function TeamDetailPage() {
           if (error) throw error;
           if (data?.error) throw new Error(data.error);
         },
-        icp: (ctx) => deleteLiveTeamPermanent(ctx, id!),
+        icp: (ctx) => deleteLiveTeamPermanent(ctx, id!, team?.name ?? ""),
       }, writeOnce({ teamId: id! }));
 
       setShowPermanentDeleteDialog(false);
-      toast({ title: "Team permanently deleted", description: "All data has been removed." });
+      window.__lovableEvents?.track?.("project.admin_lifecycle_action", { entity: "team", action: "permanently_deleted", surface: "team_page", complete: true });
+      toast({ title: "Team permanently deleted", description: "This can't be undone in the app." });
       navigate(`/clubs/${team?.club_id}`);
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to permanently delete team.", variant: "destructive" });
@@ -1844,7 +1852,7 @@ export default function TeamDetailPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-destructive">This team has been removed</p>
                 <p className="text-xs text-muted-foreground">
-                  Removed {new Date((team as any).deleted_at).toLocaleDateString()} · Will be permanently deleted after 30 days
+                  Removed {new Date((team as any).deleted_at).toLocaleDateString()} · Restore any time while it's listed here
                 </p>
               </div>
               <Button size="sm" variant="outline" onClick={handleRestoreTeam}>

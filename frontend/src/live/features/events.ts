@@ -2506,3 +2506,12 @@ export async function notifyLiveDutyCompletion(ctx: FeatureBackendContext, event
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
   return unwrapCandid(actor.notify_duty_completion(eventId, accountId.replace(/^principal:/, '')), 'Queue duty completion');
 }
+
+// ---- Fictional test players (events_domain) ----
+// Team-scoped roster entries with no account, guardian or personal data.
+// Read-only in the app: creation, edits and removal happen only through the
+// ChatGPT connector, which calls the canister methods directly.
+export async function listLiveTestPlayers(ctx: FeatureBackendContext, clubId: string, teamId: string) {
+  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
+  return unwrapCandid(actor.list_test_players(clubId, teamId), "List test players");
+}

@@ -145,6 +145,9 @@ interface PitchBoardProps {
     user_id: string;
     role: string;
     profiles: { display_name: string | null; avatar_url: string | null } | null;
+    is_test_player?: boolean;
+    jersey_number?: number | null;
+    preferred_positions?: Player["assignedPositions"];
   }>;
   onClose: () => void;
   disableAutoSubs?: boolean;
