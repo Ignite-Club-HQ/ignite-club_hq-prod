@@ -332,12 +332,17 @@ export async function loadLiveMediaFeed(ctx: FeatureBackendContext, onUpdate?: (
         if (!clubTeams.some((t) => grantTeamIds.has(t.id))) return;
       }
       options.clubs.push({ id: club.id, name: club.name, sport: club.sport[0] ?? null });
+      // Filter labels are optional: a refused league/competition read must not
+      // hide photos that the media service already returned for this club.
+      const optional = <T,>(read: Promise<T>) => read.then(v => v, (error) => {
+        console.warn("[media] optional filter metadata unavailable", error instanceof Error ? error.message : error);
+        return [] as unknown as T;
+      });
       const metadata = Promise.all([
-        readContentInScope(ctx, "membership", { clubId: club.id }, scoped => listLiveTeams(scoped, club.id)),
-        readContentInScope(ctx, "mini_leagues", { clubId: club.id }, scoped => listLiveMiniLeaguesByClub(scoped, club.id)),
-        readContentInScope(ctx, "competitions", { clubId: club.id }, scoped => listLiveCompetitions(scoped, club.id)),
+        optional(readContentInScope(ctx, "membership", { clubId: club.id }, scoped => listLiveTeams(scoped, club.id))),
+        optional(readContentInScope(ctx, "mini_leagues", { clubId: club.id }, scoped => listLiveMiniLeaguesByClub(scoped, club.id))),
+        optional(readContentInScope(ctx, "competitions", { clubId: club.id }, scoped => listLiveCompetitions(scoped, club.id))),
       ]);
-      metadata.catch(() => undefined);
       await readPage(club.id, null);
       const [teams, miniLeagues, competitions] = await metadata;
       for (const team of teams as unknown as {
