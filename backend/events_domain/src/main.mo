@@ -158,6 +158,9 @@ persistent actor class Main(governorInit : Principal) = this {
   var gamePlayerDetails : Map.Map<Text, [Types.GamePlayerDetail]>;
   var fixtureMaterializations : Map.Map<Text, { revision : Nat64; input : Types.MatchEventInput; event_ids : [Text] }>;
   var gameResults : [Types.GameResult];
+  // Fictional test players (migration 20261124_000000).
+  var testPlayers : [Types.TestPlayer];
+  var testPlayerSeq : Nat;
   // Stat sidecar (migration 20261116_000000): assists and source-unit
   // position minutes, correlated to a stat row by event/team/subject.
   var gamePlayerStatExtras : [Types.GamePlayerStatExtra];
@@ -2852,6 +2855,78 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(childTeamAssignments.filter(func(item) = item.child_id == child_id))
   };
 
+  // ---- Fictional test players ----
+  // Team-scoped roster entries without accounts, guardians or PII. Writes
+  // need live club_admin or the team's coach/team_admin (boardAccess);
+  // reads need live club membership. Not part of club transfer snapshots.
+  func trimName(name : Text) : Text = Text.trim(name, #char ' ');
+  func validTestPlayer(name : Text, shirt : ?Nat16, positions : [Text], age : ?Text) : Bool {
+    let n = trimName(name);
+    n.size() > 0 and n.size() <= 60 and
+    (switch shirt { case (?s) s <= 999; case null true }) and
+    positions.size() <= 8 and positions.all(func(p : Text) : Bool = p.size() > 0 and p.size() <= 16) and
+    (switch age { case (?a) a.size() > 0 and a.size() <= 16; case null true })
+  };
+
+  public shared ({ caller }) func create_test_player(club_id : Text, team_id : Text, name : Text, shirt_number : ?Nat16, positions : [Text], age_group : ?Text) : async { #Ok : Types.TestPlayer; #Err : Text } {
+    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+    try {
+      await admitAccount(caller);
+      if (not valid(club_id) or not valid(team_id)) return #Err("Invalid team");
+      if (not validTestPlayer(name, shirt_number, positions, age_group)) return #Err("Invalid test player");
+      if (not (await boardAccess(caller, club_id, team_id, true))) return #Err("Forbidden");
+      if (isFenced(club_id) or removalReceiver.denied(caller)) return #Err("Forbidden");
+      let clean = trimName(name);
+      if (testPlayers.any(func(p) = p.team_id == team_id and Text.toLower(p.name) == Text.toLower(clean))) return #Err("Test player already exists");
+      if (testPlayers.filter(func(p) = p.team_id == team_id).size() >= 40) return #Err("Team test player limit reached");
+      if (testPlayers.filter(func(p) = p.club_id == club_id).size() >= 200) return #Err("Club test player limit reached");
+      testPlayerSeq += 1;
+      let now = nowMs();
+      let value : Types.TestPlayer = { id = "tp-" # Nat.toText(testPlayerSeq) # "-" # Nat64.toText(now); club_id; team_id; name = clean; shirt_number; positions; age_group; created_by = caller; created_at_ms = now; updated_at_ms = now };
+      testPlayers := testPlayers.concat([value]);
+      #Ok(value)
+    } finally { removalReceiver.leave(caller) }
+  };
+
+  public shared ({ caller }) func update_test_player(id : Text, name : Text, shirt_number : ?Nat16, positions : [Text], age_group : ?Text) : async { #Ok : Types.TestPlayer; #Err : Text } {
+    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+    try {
+      await admitAccount(caller);
+      if (not validTestPlayer(name, shirt_number, positions, age_group)) return #Err("Invalid test player");
+      let before = testPlayers.find(func(p) = p.id == id) ?? return #Err("Not found");
+      if (not (await boardAccess(caller, before.club_id, before.team_id, true))) return #Err("Forbidden");
+      if (isFenced(before.club_id) or removalReceiver.denied(caller)) return #Err("Forbidden");
+      let current = testPlayers.find(func(p) = p.id == id) ?? return #Err("Not found");
+      let clean = trimName(name);
+      if (testPlayers.any(func(p) = p.id != id and p.team_id == current.team_id and Text.toLower(p.name) == Text.toLower(clean))) return #Err("Test player already exists");
+      let value : Types.TestPlayer = { current with name = clean; shirt_number; positions; age_group; updated_at_ms = nowMs() };
+      testPlayers := testPlayers.map(func(p : Types.TestPlayer) : Types.TestPlayer = if (p.id == id) value else p);
+      #Ok(value)
+    } finally { removalReceiver.leave(caller) }
+  };
+
+  public shared ({ caller }) func delete_test_player(id : Text) : async { #Ok; #Err : Text } {
+    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+    try {
+      await admitAccount(caller);
+      let before = testPlayers.find(func(p) = p.id == id) ?? return #Err("Not found");
+      if (not (await boardAccess(caller, before.club_id, before.team_id, true))) return #Err("Forbidden");
+      if (isFenced(before.club_id) or removalReceiver.denied(caller)) return #Err("Forbidden");
+      testPlayers := testPlayers.filter(func(p) = p.id != id);
+      #Ok
+    } finally { removalReceiver.leave(caller) }
+  };
+
+  public shared ({ caller }) func list_test_players(club_id : Text, team_id : Text) : async { #Ok : [Types.TestPlayer]; #Err : Text } {
+    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+    try {
+      await admitAccount(caller);
+      if (not (await boardAccess(caller, club_id, team_id, false))) return #Err("Forbidden");
+      if (isFenced(club_id) or removalReceiver.denied(caller)) return #Err("Forbidden");
+      #Ok(testPlayers.filter(func(p) = p.club_id == club_id and p.team_id == team_id))
+    } finally { removalReceiver.leave(caller) }
+  };
+
   // ---- (9) Mini-league-player RSVPs ----
   func subjectEquals(a : Types.RsvpSubject, b : Types.RsvpSubject) : Bool {
     switch (a, b) {
@@ -4400,6 +4475,7 @@ persistent actor class Main(governorInit : Principal) = this {
     pitchBoardSettings := pitchBoardSettings.filter(func(s) = not inDoomedTeam(s.team_id));
     teamTrainingPauses := teamTrainingPauses.filter(func(p) = not inClub(p.club_id) and not inDoomedTeam(p.team_id));
     childTeamAssignments := childTeamAssignments.filter(func(a) = not inClub(a.club_id) and not inDoomedTeam(a.team_id));
+    testPlayers := testPlayers.filter(func(p) = not inClub(p.club_id) and not inDoomedTeam(p.team_id));
     Nat.toNat32(doomedIds.size())
   };
 

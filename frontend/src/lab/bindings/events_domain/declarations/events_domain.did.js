@@ -166,6 +166,18 @@ export const idlFactory = ({ IDL }) => {
     'club_id' : IDL.Text,
     'reason' : IDL.Text,
   });
+  const TestPlayer = IDL.Record({
+    'id' : IDL.Text,
+    'name' : IDL.Text,
+    'team_id' : IDL.Text,
+    'updated_at_ms' : IDL.Nat64,
+    'created_by' : IDL.Principal,
+    'created_at_ms' : IDL.Nat64,
+    'shirt_number' : IDL.Opt(IDL.Nat16),
+    'positions' : IDL.Vec(IDL.Text),
+    'club_id' : IDL.Text,
+    'age_group' : IDL.Opt(IDL.Text),
+  });
   const RsvpWithChild = IDL.Record({ 'child' : IDL.Opt(Child), 'rsvp' : Rsvp });
   const EventRoster = IDL.Record({
     'guests' : IDL.Vec(EventGuest),
@@ -737,6 +749,18 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : TeamTrainingPause, 'Err' : IDL.Text })],
         [],
       ),
+    'create_test_player' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Opt(IDL.Nat16),
+          IDL.Vec(IDL.Text),
+          IDL.Opt(IDL.Text),
+        ],
+        [IDL.Variant({ 'Ok' : TestPlayer, 'Err' : IDL.Text })],
+        [],
+      ),
     'cycles_balance' : IDL.Func([], [IDL.Nat], ['query']),
     'deactivate_active_game' : IDL.Func(
         [IDL.Opt(IDL.Text)],
@@ -784,6 +808,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'delete_team_training_pause' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'delete_test_player' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
@@ -1243,6 +1272,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Vec(TeamTrainingPause), 'Err' : IDL.Text })],
         ['query'],
+      ),
+    'list_test_players' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Vec(TestPlayer), 'Err' : IDL.Text })],
+        [],
       ),
     'mark_attendance' : IDL.Func(
         [IDL.Text, IDL.Vec(AttendanceInput)],
@@ -2202,6 +2236,17 @@ export const idlFactory = ({ IDL }) => {
           IDL.Opt(IDL.Vec(IDL.Text)),
         ],
         [IDL.Variant({ 'Ok' : EventSeries, 'Err' : IDL.Text })],
+        [],
+      ),
+    'update_test_player' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Opt(IDL.Nat16),
+          IDL.Vec(IDL.Text),
+          IDL.Opt(IDL.Text),
+        ],
+        [IDL.Variant({ 'Ok' : TestPlayer, 'Err' : IDL.Text })],
         [],
       ),
     'upsert_competition_match_events' : IDL.Func(

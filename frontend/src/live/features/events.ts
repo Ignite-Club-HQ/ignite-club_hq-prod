@@ -2506,3 +2506,38 @@ export async function notifyLiveDutyCompletion(ctx: FeatureBackendContext, event
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
   return unwrapCandid(actor.notify_duty_completion(eventId, accountId.replace(/^principal:/, '')), 'Queue duty completion');
 }
+
+// ---- Fictional test players (events_domain) ----
+// Team-scoped roster entries with no account, guardian or personal data.
+export interface LiveTestPlayerInput {
+  name: string;
+  shirtNumber?: number | null;
+  positions: string[];
+  ageGroup?: string | null;
+}
+
+export async function listLiveTestPlayers(ctx: FeatureBackendContext, clubId: string, teamId: string) {
+  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
+  return unwrapCandid(actor.list_test_players(clubId, teamId), "List test players");
+}
+
+export async function createLiveTestPlayer(ctx: FeatureBackendContext, clubId: string, teamId: string, input: LiveTestPlayerInput) {
+  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
+  return unwrapCandid(
+    actor.create_test_player(clubId, teamId, input.name, input.shirtNumber ?? null, input.positions, input.ageGroup ?? null),
+    "Create test player",
+  );
+}
+
+export async function updateLiveTestPlayer(ctx: FeatureBackendContext, id: string, input: LiveTestPlayerInput) {
+  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
+  return unwrapCandid(
+    actor.update_test_player(id, input.name, input.shirtNumber ?? null, input.positions, input.ageGroup ?? null),
+    "Update test player",
+  );
+}
+
+export async function deleteLiveTestPlayer(ctx: FeatureBackendContext, id: string) {
+  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
+  return unwrapCandid(actor.delete_test_player(id), "Delete test player");
+}

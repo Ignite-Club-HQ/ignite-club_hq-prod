@@ -183,3 +183,13 @@ This work improves the **existing** canister's discoverability/behavior document
 Source: `backend/club_domain/src/main.mo`, `backend/identity_access/src/lib.rs`, `frontend/src/pages/CreateClubPage.tsx`, `frontend/src/pages/CreateTeamPage.tsx`, `frontend/src/pages/JoinTeamPage.tsx`, `frontend/src/live/groupDispatch.ts`.
 
 DFINITY reference: https://docs.internetcomputer.org/guides/frontends/service-discoverability/ .
+
+## Fictional test players (events_domain)
+
+For roster and Pitch Board testing, a signed-in club admin (or the team's coach/team admin) can create made-up players with no Internet Identity, email, invitation or parent:
+
+1. `list_test_players(club_id, team_id)` — read existing rows first; skip names already present (names are unique per team, case-insensitive, so a retried create returns `Test player already exists` rather than duplicating).
+2. `create_test_player(club_id, team_id, name, opt shirt_number, positions, opt age_group)` — name 1–60 characters, shirt 0–999, positions from `GK`, `DEF`, `MID`, `FWD`; limits 40 per team and 200 per club.
+3. `update_test_player(id, …)` / `delete_test_player(id)` — edit or remove permanently.
+
+Names are stored as visible test labels, not encrypted PII: never enter a real person's name. Test players appear in the team's Pitch Board list (always, since they cannot RSVP) and are not moved by club transfers. Call only after the events service carrying these methods is deployed to the target environment.

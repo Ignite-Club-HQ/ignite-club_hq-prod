@@ -6,6 +6,10 @@ interface TeamMember {
   user_id: string;
   role: string;
   profiles: { display_name: string | null } | null;
+  /** Fictional test player: no account, cannot RSVP, so never filtered by "going". */
+  is_test_player?: boolean;
+  jersey_number?: number | null;
+  preferred_positions?: Player["assignedPositions"];
 }
 
 interface TeamPlayerPosition {
@@ -43,7 +47,7 @@ export function usePitchBoardRosterReconciliation({
           return false;
         }
         seen.add(member.user_id);
-        return !shouldFilterByGoing || goingAttendeeIds!.has(member.user_id);
+        return !shouldFilterByGoing || !!member.is_test_player || goingAttendeeIds!.has(member.user_id);
       })
       .map((member, index): Player => {
         const storedPosition = teamPlayerPositions?.find(
@@ -60,9 +64,9 @@ export function usePitchBoardRosterReconciliation({
           id: member.user_id,
           childId: storedPosition?.child_id === member.user_id ? member.user_id : undefined,
           name: member.profiles?.display_name || `Player ${index + 1}`,
-          number: storedPosition?.jersey_number || index + 1,
+          number: storedPosition?.jersey_number || member.jersey_number || index + 1,
           position: null,
-          assignedPositions: storedPosition?.preferred_positions || [],
+          assignedPositions: storedPosition?.preferred_positions || member.preferred_positions || [],
           currentPitchPosition: undefined,
           minutesPlayed: 0,
           teamSide,

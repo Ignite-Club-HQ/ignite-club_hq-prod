@@ -13,6 +13,8 @@ import { TeamNextStepsCard } from "@/components/team/TeamNextStepsCard";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { Capacitor } from "@capacitor/core";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
+import { TeamTestPlayersCard, useTeamTestPlayers } from "@/components/team/TeamTestPlayersCard";
+import { testPlayersToPitchMembers } from "@/lib/testPlayers";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { createPortal } from "react-dom";
@@ -1061,6 +1063,8 @@ export default function TeamDetailPage() {
     staleTime: 30_000,
   });
 
+  const { data: teamTestPlayers = [] } = useTeamTestPlayers(teamData?.club_id, id);
+
   const pitchBoardMembers = useMemo(() => {
     const STAFF_ROLES = new Set(["team_admin", "coach", "club_admin", "app_admin"]);
     const goingChildIds = goingRsvpsForLinkedEvent
@@ -1089,8 +1093,9 @@ export default function TeamDetailPage() {
         profiles: { display_name: child.children.name, avatar_url: null },
       }));
 
-    return [...adults, ...children];
-  }, [rawMembers, teamChildren, goingRsvpsForLinkedEvent]);
+    // Test players cannot RSVP, so they always join the board roster.
+    return [...adults, ...children, ...testPlayersToPitchMembers(teamTestPlayers)];
+  }, [rawMembers, teamChildren, goingRsvpsForLinkedEvent, teamTestPlayers]);
 
   const isPitchBoardRosterLoading = isMembersLoading || isMembersFetching || isChildrenLoading || isChildrenFetching;
 
@@ -2121,6 +2126,10 @@ export default function TeamDetailPage() {
           showPitch={showPitch}
           onPitchBoardClick={launchPitchBoard}
         />
+      )}
+
+      {canManageTeam && isFeatureRoutedToIcp("events") && team.club_id && (
+        <TeamTestPlayersCard clubId={team.club_id} teamId={id!} />
       )}
 
       {/* Latest Photos — emotional/social engagement */}
