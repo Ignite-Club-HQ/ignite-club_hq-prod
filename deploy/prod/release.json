@@ -6,8 +6,8 @@
     "secret_workload_identity": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "pii_access_control": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "timer_jobs": "cc0a411486754f0a21fb2b154c61fa57b6084271",
-    "club_domain": "a2b18f54b17b4e2575cea4bea8f8fc1744bd9467",
-    "events_domain": "a4e0efc0e7634de846b2051fd662b8eb45536016",
+    "club_domain": "785bba23555d4ca7ced4f666392f30e3306fc806",
+    "events_domain": "785bba23555d4ca7ced4f666392f30e3306fc806",
     "competition_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "mini_league_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "messaging_domain": "a2b18f54b17b4e2575cea4bea8f8fc1744bd9467",
@@ -19,5 +19,5 @@
     "insights_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "shard_router": "628d1cc322c5feac1066c941642f617c9bed5c54"
   },
-  "updatedAt": "2026-11-23T10:00:04.498Z"
+  "updatedAt": "2026-11-23T21:41:40.687Z"
 }
