@@ -32,6 +32,6 @@ export async function readDiscoveredRemovedClubs(ctx: FeatureBackendContext) {
       import('./groupDispatch'), import('./features/club'),
     ]);
     return clubDispatch.readAcross('membership', 'club_domain', listLiveMyRemovedClubs,
-      parts => [...new Map(parts.flat().map(row => [row.id, row])).values()], true);
+      parts => [...new Map(parts.flat().map(row => [row.id, row])).values()]);
   });
 }
