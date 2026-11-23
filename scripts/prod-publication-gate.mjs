@@ -70,7 +70,7 @@ export async function verifyProdPublication(env, { databaseOnly = false, fetcher
       });
       if (response.ok) return response.json();
       const resetAt = rateLimitResetMs(response);
-      if (resetAt === null) throw new Error('Production promotion evidence unavailable; publication blocked');
+      if (resetAt === null) throw new Error(`Production promotion evidence unavailable (GitHub replied ${response.status} for ${endpoint.split('?')[0]}); publication blocked`);
       const waitFor = Math.max(resetAt - Date.now(), 1000) + 2000;
       if (Date.now() + waitFor > deadline) throw new Error('Production promotion evidence unavailable: GitHub read limit reached; retry the deploy after it resets or set PROD_RELEASE_READ_TOKEN');
       console.log(`GitHub read limit reached; waiting ${Math.ceil(waitFor / 1000)}s for it to reset...`);
