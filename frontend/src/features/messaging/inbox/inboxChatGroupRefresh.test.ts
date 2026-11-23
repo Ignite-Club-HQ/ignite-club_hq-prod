@@ -21,7 +21,9 @@ vi.mock("./inboxPreviewHydration", () => ({}));
 vi.mock("@/live/defaultClubChats", () => ({ ensureLiveDefaultClubChats: mocks.upkeep }));
 vi.mock("@/live/groupDispatch", () => ({ clubDispatch: { remember: mocks.remember } }));
 
-import { fetchChatGroupsWithMessages } from "./inboxPreviewSources";
+import { fetchChatGroupsWithMessages, fetchTeamsWithMessages } from "./inboxPreviewSources";
+import { settleAll } from "@/live/crossGroupClubs";
+import { readMembershipInScope } from "@/live/membershipRouting";
 const client = { from: vi.fn(), rpc: vi.fn() };
 const chat = { conversationId: "chat-1", name: "U10 friends", isMember: true, teamId: null, kind: "group" };
 
@@ -80,5 +82,24 @@ describe("ICP inbox directory refresh", () => {
   it("honours a successful empty directory instead of restoring deleted groups", async () => {
     mocks.list.mockResolvedValue([]);
     expect((await fetchChatGroupsWithMessages(client, "paul")).groups).toEqual([]);
+  });
+});
+describe("ICP inbox team chats", () => {
+  const teams = [
+    { id: "u10", name: "U10", club_id: "riverdogs", deleted_at_ms: [], logo_url: [] },
+    { id: "u12", name: "U12", club_id: "riverdogs", deleted_at_ms: [], logo_url: [] },
+  ];
+  beforeEach(() => {
+    vi.mocked(settleAll).mockImplementation(async (ps: any[]) => ({ values: await Promise.all(ps) }) as any);
+    vi.mocked(readMembershipInScope).mockResolvedValue(teams as any);
+  });
+  it("lists every team chat for a club admin without team grants", async () => {
+    const result = await fetchTeamsWithMessages(client as any, "paul", false);
+    expect(result.teams.map(t => t.id)).toEqual(["u10", "u12"]);
+  });
+  it("lists only assigned teams for an ordinary member", async () => {
+    mocks.roles.mockResolvedValue([{ role: "player", club: ["riverdogs"], team: ["u12"] }]);
+    const result = await fetchTeamsWithMessages(client as any, "paul", false);
+    expect(result.teams.map(t => t.id)).toEqual(["u12"]);
   });
 });

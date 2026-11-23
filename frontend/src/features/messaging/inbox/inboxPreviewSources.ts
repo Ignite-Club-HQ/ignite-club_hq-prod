@@ -235,7 +235,15 @@ export async function fetchTeamsWithMessages(
     const clubIds = [...new Set(
       (roleGrants as any[]).map((grant) => grant.club?.[0] ?? grant.club_id?.[0] ?? grant.club_id).filter(Boolean),
     )] as string[];
-    if (teamIds.length === 0 || clubIds.length === 0) return { teams: [] as InboxTeam[], latestMessages: {} };
+    // Club admins take part in every team chat in their club (club_domain
+    // teamChatParticipants), so list those teams even without a team grant.
+    const adminClubIds = new Set(
+      (roleGrants as any[])
+        .filter((grant) => grant.role === "club_admin")
+        .map((grant) => grant.club?.[0] ?? grant.club_id?.[0] ?? grant.club_id)
+        .filter(Boolean) as string[],
+    );
+    if ((teamIds.length === 0 && adminClubIds.size === 0) || clubIds.length === 0) return { teams: [] as InboxTeam[], latestMessages: {} };
     const [allClubs, teamLists] = await Promise.all([
       readClubsInOwnGroups(ctx, clubIds).then((r) => r.values),
       settleAll(clubIds.map((clubId) => readMembershipInScope(ctx, { clubId }, (scoped) => listLiveMembershipTeams(scoped, clubId)))).then((r) => r.values),
@@ -244,7 +252,7 @@ export async function fetchTeamsWithMessages(
     const teams: InboxTeam[] = [];
     for (const teamList of teamLists) {
       for (const team of teamList as any[]) {
-        if (!teamIds.includes(team.id)) continue;
+        if (!teamIds.includes(team.id) && !adminClubIds.has(team.club_id)) continue;
         if (team.deleted_at_ms?.[0] !== undefined) continue;
         const club = clubById.get(team.club_id);
         if (!club || club.deleted_at_ms?.[0] !== undefined) continue;
