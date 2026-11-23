@@ -1,0 +1,48 @@
+
+=== Vitest backend mode: supabase ===
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.2 [39m[90m/dev-server/frontend[39m
+
+Sourcemap for "/dev-server/frontend/node_modules/@adobe/css-tools/dist/esm/adobe-css-tools.mjs" points to missing source files
+ [32m✓[39m src/test/nativeInboxRealtimeAuthBuffer.guard.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/test/chatMetadataGate.guard.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/hooks/useMessagesPageAccessData.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 1877[2mms[22m[39m
+   [32m✓[39m Messages access reads [2m(2)[22m
+     [33m[2m✓[22m[39m runs ICP subscription aggregation once, not once for every registered group[33m 1724[2mms[22m[39m
+ [32m✓[39m src/test/coldStartAuthAndInboxOrder.guard.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/test/androidInboxResume.guard.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m      Tests [22m [1m[32m30 passed[39m[22m[90m (30)[39m
+[2m   Start at [22m 09:19:51
+[2m   Duration [22m 8.26s[2m (environment 69%, tests 13%, transform 10%, setup 6%, import 2%)[22m
+
+[2mEnvironment [22m [33mjsdom was created 5 times[39m[2m · 10.36s total, 69% of tracked time[22m
+[2m            [22m [2mcreate it once per worker with [22m[33mpool: 'vmThreads'[39m[2m (keeps per-file isolation) or [22m[33misolate: false[39m[2m (shares it across files)[22m
+[2m            [22m [2mlearn more: https://vitest.dev/guide/improving-performance#test-environments[22m
+
+
+=== Vitest backend mode: icp ===
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.2 [39m[90m/dev-server/frontend[39m
+
+Sourcemap for "/dev-server/frontend/node_modules/@adobe/css-tools/dist/esm/adobe-css-tools.mjs" points to missing source files
+ [32m✓[39m src/test/nativeInboxRealtimeAuthBuffer.guard.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/test/chatMetadataGate.guard.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/hooks/useMessagesPageAccessData.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 1965[2mms[22m[39m
+   [32m✓[39m Messages access reads [2m(2)[22m
+     [33m[2m✓[22m[39m runs ICP subscription aggregation once, not once for every registered group[33m 1817[2mms[22m[39m
+ [32m✓[39m src/test/coldStartAuthAndInboxOrder.guard.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/test/androidInboxResume.guard.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m      Tests [22m [1m[32m30 passed[39m[22m[90m (30)[39m
+[2m   Start at [22m 09:20:00
+[2m   Duration [22m 8.32s[2m (environment 68%, tests 13%, transform 9%, setup 7%, import 2%)[22m
+
+[2mEnvironment [22m [33mjsdom was created 5 times[39m[2m · 10.29s total, 68% of tracked time[22m
+[2m            [22m [2mcreate it once per worker with [22m[33mpool: 'vmThreads'[39m[2m (keeps per-file isolation) or [22m[33misolate: false[39m[2m (shares it across files)[22m
+[2m            [22m [2mlearn more: https://vitest.dev/guide/improving-performance#test-environments[22m
+
