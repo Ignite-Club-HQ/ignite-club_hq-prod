@@ -6,6 +6,7 @@ import {
   ensureLiveStandardClubChat,
   listLiveGroupsByClub,
 } from "./features/messaging";
+import { onRoleGrantsChanged } from "./roleGrantsMemo";
 
 /**
  * ICP counterpart of the Supabase `create_default_club_chats` trigger: every
@@ -22,6 +23,12 @@ export const DEFAULT_CLUB_CHATS: Array<{ key: string; name: string; roles: strin
 
 const syncedThisSession = new Set<string>();
 const syncing = new Map<string, Promise<string[]>>();
+// A confirmed role change (new coach, committee member, admin) must resync
+// staff chat membership in the same session, not wait for the next launch.
+onRoleGrantsChanged(() => syncedThisSession.clear());
+/** Test/diagnostic helper: true when this club's staff chats synced this session. */
+export function hasSyncedDefaultClubChats(key: string): boolean { return syncedThisSession.has(key); }
+export function markDefaultClubChatsSyncedForTest(key: string): void { syncedThisSession.add(key); }
 
 export async function ensureLiveDefaultClubChats(
   ctx: FeatureBackendContext,

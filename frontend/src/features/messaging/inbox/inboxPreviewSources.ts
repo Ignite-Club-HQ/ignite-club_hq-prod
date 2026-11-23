@@ -20,6 +20,16 @@ import { resolveInboxAuthorNames, toInboxPreviewMessage } from "./inboxPreviewHy
 import { uniqueGroupSummaries } from "./uniqueGroupSummaries";
 import { hideEmptyDefaultCopies } from "./hideEmptyDefaultCopies";
 
+/**
+ * A partly failed club/team read is not a smaller authoritative inventory.
+ * Reject so React Query keeps the last complete inbox and retries, instead of
+ * silently dropping chats whose club failed to load.
+ */
+export function completeValues<T>(settled: { values: T[]; failed: number }): T[] {
+  if (settled.failed > 0) throw new Error(`Inbox refresh incomplete: ${settled.failed} read(s) failed`);
+  return settled.values;
+}
+
 async function getIcpFeatureBackendContext(): Promise<FeatureBackendContext> {
   const identity = await getCurrentInternetIdentity();
   if (!identity) throw new Error("Internet Identity session required");
@@ -245,8 +255,8 @@ export async function fetchTeamsWithMessages(
     );
     if ((teamIds.length === 0 && adminClubIds.size === 0) || clubIds.length === 0) return { teams: [] as InboxTeam[], latestMessages: {} };
     const [allClubs, teamLists] = await Promise.all([
-      readClubsInOwnGroups(ctx, clubIds).then((r) => r.values),
-      settleAll(clubIds.map((clubId) => readMembershipInScope(ctx, { clubId }, (scoped) => listLiveMembershipTeams(scoped, clubId)))).then((r) => r.values),
+      readClubsInOwnGroups(ctx, clubIds).then(completeValues),
+      settleAll(clubIds.map((clubId) => readMembershipInScope(ctx, { clubId }, (scoped) => listLiveMembershipTeams(scoped, clubId)))).then(completeValues),
     ]);
     const clubById = new Map((allClubs as any[]).map((club) => [club.id, club]));
     const teams: InboxTeam[] = [];
@@ -360,7 +370,7 @@ async function fetchIcpChatGroupsWithMessages() {
   const clubOf = (g: any) => g.club?.[0] ?? g.club_id?.[0] ?? g.club_id ?? null;
   const clubIds = [...new Set(roleGrants.map(clubOf).filter(Boolean))] as string[];
   if (clubIds.length === 0) return { groups: [] as any[], latestMessages: {} as Record<string, InboxPreview> };
-  const liveClubs = (await readClubsInOwnGroups(ctx, clubIds)).values as any[];
+  const liveClubs = completeValues(await readClubsInOwnGroups(ctx, clubIds)) as any[];
   const adminClubIds = new Set(roleGrants.filter((g) => g.role === "club_admin").map(clubOf));
   const { ensureLiveDefaultClubChats } = await import("@/live/defaultClubChats");
   const { listLiveGroupsByClub } = await import("@/live/features/messaging");

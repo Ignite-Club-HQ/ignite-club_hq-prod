@@ -7740,13 +7740,17 @@ persistent actor class Main(governorInit : Principal) = this {
 
   // Best-effort: a missing/unconfigured messaging canister never blocks
   // club or membership writes.
-  func fanOutEnsureConversation(clubId : Text, teamId : ?Text, participants : [Principal]) : async () {
-    if (participants.size() == 0) return;
+  // Returns true only when messaging acknowledged the conversation (#Ok).
+  // Failures and lost replies are not counted and are never auto-replayed.
+  func fanOutEnsureConversation(clubId : Text, teamId : ?Text, participants : [Principal]) : async Bool {
+    if (participants.size() == 0) return false;
     switch (messagingDomainCanister) {
-      case null {};
+      case null { false };
       case (?c) {
         let target : actor { ensure_conversation : shared (Text, ?Text, [Principal]) -> async { #Ok : { id : Text }; #Err : Text } } = actor (Principal.toText(c));
-        try { ignore await target.ensure_conversation(clubId, teamId, participants) } catch (_) {};
+        try {
+          switch (await target.ensure_conversation(clubId, teamId, participants)) { case (#Ok(_)) true; case (#Err(_)) false }
+        } catch (_) { false };
       };
     };
   };
@@ -7755,12 +7759,10 @@ persistent actor class Main(governorInit : Principal) = this {
   // current membership. Idempotent; returns conversations ensured.
   func fanOutEnsureClubConversations(clubId : Text) : async Nat32 {
     var ensured : Nat32 = 0;
-    await fanOutEnsureConversation(clubId, null, clubChatParticipants(clubId));
-    ensured += 1;
+    if (await fanOutEnsureConversation(clubId, null, clubChatParticipants(clubId))) ensured += 1;
     for (team in teams.values()) {
       if (team.club_id == clubId and team.deleted_at_ms == null) {
-        await fanOutEnsureConversation(clubId, ?team.id, teamChatParticipants(clubId, team.id));
-        ensured += 1;
+        if (await fanOutEnsureConversation(clubId, ?team.id, teamChatParticipants(clubId, team.id))) ensured += 1;
       };
     };
     ensured

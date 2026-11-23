@@ -714,6 +714,9 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (findConversationIndex(conversationId)) {
       case (?i) {
         let conv = conversations[i];
+        // A reused canonical ID must keep its stored scope; never merge
+        // participants into a conversation belonging to another club/team.
+        if (conv.club_id != club_id or conv.team_id != team_id) return #Err("Conversation scope mismatch");
         var merged = conv.participants;
         for (p in participants.values()) {
           if (not merged.any(func(existing) = existing.equal(p))) {
@@ -2607,6 +2610,9 @@ persistent actor class Main(governorInit : Principal) = this {
       await admitAccount(caller);
       await* requireChatClubMember(caller, club_id);
       auth(caller);
+      // Standard staff chats are created/repaired only by a live club admin;
+      // ordinary members may not claim an uncreated identity as owner.
+      switch (await requireClubAdminLive(caller, club_id)) { case (?e) return #Err(e); case null {} };
       if (isFenced(club_id)) return #Err("Club is temporarily locked for a transfer");
       let ?standardName = DefaultChatPolicy.name(standard_key) else return #Err("Unknown standard chat");
       if (not valid(club_id)) return #Err("Invalid club id");
@@ -2623,7 +2629,6 @@ persistent actor class Main(governorInit : Principal) = this {
             case (?meta) {
               if (meta.club_id != ?club_id or meta.team_id != null) return #Err("Standard chat scope changed");
               if (meta.deleted) return #Err("Standard chat deleted; administrator restore required");
-              if (not canManageGroupMetadata(caller, meta) and not isGroupAdmin(caller, id)) return #Err("Group management forbidden");
               return #Ok(meta);
             };
             case null { return #Err("Standard chat missing; administrator review required") };
@@ -2637,7 +2642,6 @@ persistent actor class Main(governorInit : Principal) = this {
         case (?id) {
           let ?meta = getGroupMetadataFor(id) else return #Err("Existing chat not found");
           if (meta.club_id != ?club_id or meta.team_id != null or meta.kind != "group" or meta.name != standardName or meta.deleted) return #Err("Existing chat is not an active standard candidate");
-          if (not canManageGroupMetadata(caller, meta) and not isGroupAdmin(caller, id)) return #Err("Group management forbidden");
           defaultClubChats.add(identity, id);
           return #Ok(meta);
         };
@@ -2759,8 +2763,43 @@ persistent actor class Main(governorInit : Principal) = this {
       case (_, null) { #Err("Conversation not found") };
       case (?meta, ?ci) {
         if (meta.deleted) return #Err("Group deleted");
-        if (not canManageGroupMetadata(caller, meta) and not isGroupAdmin(caller, conversation_id)) return #Err("Group management forbidden");
-        if (meta.members.size() + members.size() > GROUP_MEMBER_LIMIT) return #Err("Too many members: limit " # Nat.toText(GROUP_MEMBER_LIMIT));
+        if (not canManageGroupMetadata(caller, meta) and not isGroupAdmin(caller, conversation_id)) {
+          // Narrow repair path: a live club admin may top up a bound standard
+          // staff chat they are not in. Personal/private groups are unaffected.
+          let ?clubId = meta.club_id else return #Err("Group management forbidden");
+          if (meta.team_id != null or not isBoundStandardChat(clubId, conversation_id)) return #Err("Group management forbidden");
+          switch (await requireClubAdminLive(caller, clubId)) { case (?_) return #Err("Group management forbidden"); case null {} };
+          return await addGroupMembersCore(conversation_id, members, ?clubId);
+        };
+        await addGroupMembersCore(conversation_id, members, null)
+      };
+    }
+  
+    } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  func isBoundStandardChat(club_id : Text, conversation_id : Text) : Bool {
+    for (key in DefaultChatPolicy.keys().values()) {
+      if (defaultClubChats.get(DefaultChatPolicy.identity(club_id, key)) == ?conversation_id) return true;
+    };
+    false
+  };
+
+  // Re-reads state (callers may have awaited) and enforces the member cap on
+  // the DISTINCT resulting audience, so resubmitting existing members is safe.
+  func addGroupMembersCore(conversation_id : Text, members : [Principal], standardClub : ?Text) : async { #Ok : Types.GroupMetadata; #Err : Text } {
+    if (convFenced(conversation_id)) return #Err("Club is temporarily locked for a transfer");
+    switch (getGroupMetadataFor(conversation_id), findConversationIndex(conversation_id)) {
+      case (null, _) { #Err("Group metadata not found") };
+      case (_, null) { #Err("Conversation not found") };
+      case (?meta, ?ci) {
+        if (meta.deleted) return #Err("Group deleted");
+        switch (standardClub) {
+          case (?c) { if (meta.club_id != ?c or meta.team_id != null or not isBoundStandardChat(c, conversation_id)) return #Err("Group management forbidden") };
+          case null {};
+        };
         var newMembers = meta.members;
         var newRoles = groupRoles;
         for (m in members.values()) {
@@ -2769,6 +2808,7 @@ persistent actor class Main(governorInit : Principal) = this {
             newRoles := newRoles.concat([{ conversation_id; user = m; role = "member" }]);
           };
         };
+        if (newMembers.size() > GROUP_MEMBER_LIMIT) return #Err("Too many members: limit " # Nat.toText(GROUP_MEMBER_LIMIT));
         let conv = conversations[ci];
         var newParticipants = conv.participants;
         for (m in members.values()) {
@@ -2783,10 +2823,6 @@ persistent actor class Main(governorInit : Principal) = this {
         #Ok(updated)
       };
     }
-  
-    } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Shared removal core for remove_group_member/leave_group: drops `member`
