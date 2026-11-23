@@ -43,6 +43,8 @@ export function assertReloadReady({ targets, status, builds, governor, identity,
     const env = Object.fromEntries(s.environment.map(e => [e.name, e.value]));
     if (env.IGNITE_ACCOUNT_SERVICE_IDENTITY !== identity || env.IGNITE_ACCOUNT_ADMISSION_RELEASE !== '1')
       problems.push(`${t.name} ${t.group}: reviewed settings missing`);
+    if (env.IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL === '1') problems.push(`${t.name} ${t.group}: test-only member switch present`);
+    if (env.IGNITE_ACCOUNT_REMOVAL_RELEASE === '1') problems.push(`${t.name} ${t.group}: global removal switch present`);
   }
   if (problems.length) throw new Error(`Reload refused: ${problems.join('; ')}`);
   return targets.filter(t => !matchingBuild(status[t.id].moduleHash, builds[t.name].hashes)).map(t => t.id);
