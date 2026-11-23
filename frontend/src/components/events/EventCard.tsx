@@ -1,3 +1,4 @@
+import { countCardAttendance } from "@/lib/cardAttendanceCounts";
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDeleteEvent } from "@/hooks/useDeleteEvent";
@@ -434,36 +435,26 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
           supabase: async () => ({ going: 0, maybe: 0, not_going: 0 }), // unreachable — guarded above
           icp: async (ctx) => {
             const roster = await getLiveEventRosterDetailed(ctx, event.id);
-            const counts = { going: 0, maybe: 0, not_going: 0 };
-            roster.rsvps.forEach(({ rsvp }) => {
-              if (!isSocialEvent && rsvp.child_id.length === 0) return;
-              if (rsvp.state === "going") counts.going++;
-              else if (rsvp.state === "maybe") counts.maybe++;
-              else if (rsvp.state === "not_going") counts.not_going++;
-            });
-            return counts;
+            return countCardAttendance(
+              roster.rsvps.map(({ rsvp }) => ({
+                account_id: String(rsvp.account_id),
+                child_id: rsvp.child_id[0] ?? null,
+                state: rsvp.state,
+              })),
+              isSocialEvent,
+            );
           },
         }, { eventId: event.id });
       }
-      let query = supabase
+      const { data, error } = await supabase
         .from("rsvps")
-        .select("status")
+        .select("status, user_id, child_id")
         .eq("event_id", event.id);
-      
-      if (!isSocialEvent) {
-        // For games/training, only count child (player) RSVPs
-        query = query.not("child_id", "is", null);
-      }
-      
-      const { data, error } = await query;
       if (error) throw error;
-      const counts = { going: 0, maybe: 0, not_going: 0 };
-      (data || []).forEach((r) => {
-        if (r.status === "going") counts.going++;
-        else if (r.status === "maybe") counts.maybe++;
-        else if (r.status === "not_going") counts.not_going++;
-      });
-      return counts;
+      return countCardAttendance(
+        (data || []).map((r: any) => ({ account_id: r.user_id, child_id: r.child_id, state: r.status })),
+        isSocialEvent,
+      );
     },
     enabled: !event.is_cancelled,
   });

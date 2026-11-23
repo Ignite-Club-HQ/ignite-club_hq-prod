@@ -1,3 +1,4 @@
+import { countedAttendanceRows } from "../lib/cardAttendanceCounts";
 import React, { useState } from "react";
 import { readHomeCardRsvp, readHomeCardDuties, readHomeCardIcpSummary } from "@/lib/homeEventCardReads";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -387,32 +388,22 @@ function useRsvpSummary(eventId: string, eventType?: string) {
     queryKey: ["rsvp-summary", eventId, eventType],
     queryFn: async () => {
       if (resolveAuthBackend() === "icp") return readHomeCardIcpSummary(eventId, isSocial);
-      // First get the total count
-      let countQuery = supabase
-        .from("rsvps")
-        .select("id", { count: "exact", head: true })
-        .eq("event_id", eventId)
-        .eq("status", "going");
-      
-      if (!isSocial) {
-        countQuery = countQuery.not("child_id", "is", null);
-      }
-      
-      // Count and avatar rows are independent; fetch both together.
-      let avatarQuery = supabase
+      const { data: allGoing, error } = await supabase
         .from("rsvps")
         .select("id, status, user_id, child_id, mini_league_player_id, children:child_id(name), mini_league_players:mini_league_player_id(name)")
         .eq("event_id", eventId)
         .eq("status", "going");
-      
-      if (!isSocial) {
-        avatarQuery = avatarQuery.not("child_id", "is", null);
-      }
-      
-      const [{ count }, { data: rsvps, error }] = await Promise.all([
-        countQuery,
-        avatarQuery.limit(5),
-      ]);
+      const counted = countedAttendanceRows(
+        ((allGoing || []) as any[]).map((r) => ({
+          ...r,
+          account_id: r.user_id,
+          child_id: r.child_id ?? (r.mini_league_player_id ? `ml:${r.mini_league_player_id}` : null),
+          state: r.status,
+        })),
+        isSocial,
+      );
+      const count = counted.length;
+      const rsvps = counted.slice(0, 5).map((r: any) => ({ ...r, child_id: r.children ? r.child_id : null }));
       if (error) throw error;
       if (!rsvps || rsvps.length === 0) return { avatars: [], totalCount: 0 };
 
