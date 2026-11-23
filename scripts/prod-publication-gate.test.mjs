@@ -89,7 +89,7 @@ test('finished failure blocks without waiting', async () => {
 
 test('CLI wait defaults to 10 minutes, overridable by PROD_PUBLICATION_GATE_WAIT_MS', async () => {
   const { cliWaitMs } = await import('./prod-publication-gate.mjs');
-  assert.equal(cliWaitMs({}), 600000);
+  assert.equal(cliWaitMs({}), 1800000);
   assert.equal(cliWaitMs({ PROD_PUBLICATION_GATE_WAIT_MS: '720000' }), 720000);
   assert.equal(cliWaitMs({ PROD_PUBLICATION_GATE_WAIT_MS: 'abc' }), 0);
   assert.equal(cliWaitMs({ PROD_PUBLICATION_GATE_WAIT_MS: '-5' }), 0);
@@ -117,7 +117,7 @@ test('GitHub read limit beyond the wait budget still blocks', async () => {
   await assert.rejects(verifyProdPublication(env, { fetcher: async () => ({ ok: false, status: 403, headers }), waitMs: 60000, sleep: async () => {} }), /read limit/);
 });
 test('a plain 403 refusal is not treated as a read limit', async () => {
-  await assert.rejects(verifyProdPublication(env, { fetcher: async () => ({ ok: false, status: 403, headers: new Map() }), waitMs: 600000, sleep: async () => {} }), /evidence unavailable; publication blocked/);
+  await assert.rejects(verifyProdPublication(env, { fetcher: async () => ({ ok: false, status: 403, headers: new Map() }), waitMs: 600000, sleep: async () => {} }), /evidence unavailable \(GitHub replied 403 for commits\/[a-f0-9]+\); publication blocked/);
 });
 test('polling a running promotion reads only the run list', async () => {
   let polls = 0, jobReadsWhilePending = 0;
