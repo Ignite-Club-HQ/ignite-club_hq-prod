@@ -38,3 +38,15 @@ describe('independent account inventories', () => {
     expect(accountDiscoveryKey(ctx, 'leagues')).not.toBe(accountDiscoveryKey(context('account', 'https://other.example'), 'leagues'));
   });
 });
+describe('league discovery across groups', () => {
+  it('keeps leagues from answering groups when one group refuses', async () => {
+    vi.resetModules();
+    const readAcross = vi.fn(async (_f: string, _d: string, _fn: unknown, merge: (p: { id: string }[][]) => unknown, requireComplete?: boolean) =>
+      requireComplete ? Promise.reject(new Error('Account admission denied or unavailable')) : merge([[{ id: 'l1' }], [{ id: 'l1' }, { id: 'l2' }]]));
+    vi.doMock('./groupDispatch', () => ({ clubDispatch: { readAcross } }));
+    vi.doMock('./features/miniLeagues', () => ({ listMyLiveMiniLeagues: vi.fn() }));
+    const { readDiscoveredMiniLeagues } = await import('./accountDiscovery');
+    expect((await readDiscoveredMiniLeagues(context('partial'))).map((l: { id: string }) => l.id)).toEqual(['l1', 'l2']);
+    expect(readAcross.mock.calls[0][4]).not.toBe(true);
+  });
+});
