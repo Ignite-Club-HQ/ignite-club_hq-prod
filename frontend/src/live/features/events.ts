@@ -2509,35 +2509,9 @@ export async function notifyLiveDutyCompletion(ctx: FeatureBackendContext, event
 
 // ---- Fictional test players (events_domain) ----
 // Team-scoped roster entries with no account, guardian or personal data.
-export interface LiveTestPlayerInput {
-  name: string;
-  shirtNumber?: number | null;
-  positions: string[];
-  ageGroup?: string | null;
-}
-
+// Read-only in the app: creation, edits and removal happen only through the
+// ChatGPT connector, which calls the canister methods directly.
 export async function listLiveTestPlayers(ctx: FeatureBackendContext, clubId: string, teamId: string) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
   return unwrapCandid(actor.list_test_players(clubId, teamId), "List test players");
-}
-
-export async function createLiveTestPlayer(ctx: FeatureBackendContext, clubId: string, teamId: string, input: LiveTestPlayerInput) {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
-    actor.create_test_player(clubId, teamId, input.name, input.shirtNumber ?? null, input.positions, input.ageGroup ?? null),
-    "Create test player",
-  );
-}
-
-export async function updateLiveTestPlayer(ctx: FeatureBackendContext, id: string, input: LiveTestPlayerInput) {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
-    actor.update_test_player(id, input.name, input.shirtNumber ?? null, input.positions, input.ageGroup ?? null),
-    "Update test player",
-  );
-}
-
-export async function deleteLiveTestPlayer(ctx: FeatureBackendContext, id: string) {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.delete_test_player(id), "Delete test player");
 }

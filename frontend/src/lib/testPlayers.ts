@@ -1,6 +1,33 @@
+import { useQuery } from "@tanstack/react-query";
 import type { PitchPosition } from "@/components/pitch/PositionBadge";
+import { withFeatureBackend } from "@/live/featureRouter";
+import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 
 export const TEST_PLAYER_POSITIONS: PitchPosition[] = ["GK", "DEF", "MID", "FWD"] as PitchPosition[];
+
+export const testPlayersQueryKey = (teamId: string) => ["team-test-players", teamId] as const;
+
+/**
+ * Test players for a team on the secure sign-in service; empty elsewhere.
+ * Read-only in the app: creation, edits and removal happen only through the
+ * ChatGPT connector, which calls the canister methods directly.
+ */
+export function useTeamTestPlayers(clubId: string | null | undefined, teamId: string | null | undefined, enabled = true) {
+  const icp = isFeatureRoutedToIcp("events");
+  return useQuery({
+    queryKey: testPlayersQueryKey(teamId ?? ""),
+    enabled: icp && enabled && !!clubId && !!teamId,
+    staleTime: 30_000,
+    queryFn: () => withFeatureBackend("events", {
+      supabase: async () => [] as TestPlayerRow[],
+      icp: async (ctx) => {
+        const { listLiveTestPlayers } = await import("@/live/features/events");
+        const rows = await listLiveTestPlayers(ctx, clubId!, teamId!);
+        return (rows as unknown[]).map(normaliseTestPlayer);
+      },
+    }, { teamId: teamId! }),
+  });
+}
 
 export interface TestPlayerRow {
   id: string;

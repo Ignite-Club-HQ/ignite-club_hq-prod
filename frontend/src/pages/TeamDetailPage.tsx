@@ -13,8 +13,7 @@ import { TeamNextStepsCard } from "@/components/team/TeamNextStepsCard";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { Capacitor } from "@capacitor/core";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
-import { TeamTestPlayersCard, useTeamTestPlayers } from "@/components/team/TeamTestPlayersCard";
-import { testPlayersToPitchMembers } from "@/lib/testPlayers";
+import { testPlayersToPitchMembers, useTeamTestPlayers } from "@/lib/testPlayers";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { createPortal } from "react-dom";
@@ -2126,10 +2125,6 @@ export default function TeamDetailPage() {
           showPitch={showPitch}
           onPitchBoardClick={launchPitchBoard}
         />
-      )}
-
-      {canManageTeam && isFeatureRoutedToIcp("events") && team.club_id && (
-        <TeamTestPlayersCard clubId={team.club_id} teamId={id!} />
       )}
 
       {/* Latest Photos — emotional/social engagement */}

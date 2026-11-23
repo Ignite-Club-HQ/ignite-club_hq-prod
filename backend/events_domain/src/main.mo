@@ -161,9 +161,6 @@ persistent actor class Main(governorInit : Principal) = this {
   // Fictional test players (migration 20261124_000000).
   var testPlayers : [Types.TestPlayer];
   var testPlayerSeq : Nat;
-  // Club/team test-players switches (migration 20261127_000000). No row means
-  // the club is off, so the feature is hidden until a club admin enables it.
-  var testPlayersSwitches : [Types.TestPlayersSwitch];
   // Stat sidecar (migration 20261116_000000): assists and source-unit
   // position minutes, correlated to a stat row by event/team/subject.
   var gamePlayerStatExtras : [Types.GamePlayerStatExtra];
@@ -2871,44 +2868,6 @@ persistent actor class Main(governorInit : Principal) = this {
     (switch age { case (?a) a.size() > 0 and a.size() <= 16; case null true })
   };
 
-  // Club/team test-players switches: an absent club row means off (feature
-  // hidden everywhere), an absent team row means follow the club switch.
-  func testPlayersSwitchAt(club : Text, team : ?Text) : ?Types.TestPlayersSwitch =
-    testPlayersSwitches.find(func(s) = s.club_id == club and s.team_id == team);
-  func testPlayersClubOn(club : Text) : Bool =
-    switch (testPlayersSwitchAt(club, null)) { case (?s) s.enabled; case null false };
-  func testPlayersTeamOn(club : Text, team : Text) : Bool =
-    switch (testPlayersSwitchAt(club, ?team)) { case (?s) s.enabled; case null true };
-  func testPlayersOpen(club : Text, team : Text) : Bool =
-    testPlayersClubOn(club) and testPlayersTeamOn(club, team);
-
-  // Fresh club_admin check for the club-level switch; never the local mirror.
-  func clubAdminAccess(caller : Principal, club : Text) : async Bool {
-    if (Principal.isAnonymous(caller) or isFenced(club)) return false;
-    if (isGovernor(caller)) return true;
-    let cid = clubDomainCanister ?? return false;
-    let cd : actor {
-      read_has_club_membership : shared (Principal, Text) -> async Bool;
-      read_account_list_user_club_roles : shared (Principal, Text) -> async [(Text, ?Text)];
-    } = actor (cid.toText());
-    try {
-      if (not (await (with timeout = 10) cd.read_has_club_membership(caller, club))) return false;
-      let fresh = await (with timeout = 10) cd.read_account_list_user_club_roles(caller, club);
-      clubDomainCanister == ?cid and not isFenced(club) and not removalReceiver.denied(caller) and
-        fresh.any(func((role, scope)) = role == "club_admin" and scope == null)
-    } catch (_) { false }
-  };
-
-  func clubMemberAccess(caller : Principal, club : Text) : async Bool {
-    if (Principal.isAnonymous(caller) or isFenced(club)) return false;
-    let cid = clubDomainCanister ?? return false;
-    let cd : actor { read_has_club_membership : shared (Principal, Text) -> async Bool } = actor (cid.toText());
-    try {
-      await (with timeout = 10) cd.read_has_club_membership(caller, club)
-        and clubDomainCanister == ?cid and not removalReceiver.denied(caller)
-    } catch (_) { false }
-  };
-
   public shared ({ caller }) func create_test_player(club_id : Text, team_id : Text, name : Text, shirt_number : ?Nat16, positions : [Text], age_group : ?Text) : async { #Ok : Types.TestPlayer; #Err : Text } {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
@@ -2917,7 +2876,6 @@ persistent actor class Main(governorInit : Principal) = this {
       if (not validTestPlayer(name, shirt_number, positions, age_group)) return #Err("Invalid test player");
       if (not (await boardAccess(caller, club_id, team_id, true))) return #Err("Forbidden");
       if (isFenced(club_id) or removalReceiver.denied(caller)) return #Err("Forbidden");
-      if (not testPlayersOpen(club_id, team_id)) return #Err("Test players are switched off for this team");
       let clean = trimName(name);
       if (testPlayers.any(func(p) = p.team_id == team_id and Text.toLower(p.name) == Text.toLower(clean))) return #Err("Test player already exists");
       if (testPlayers.filter(func(p) = p.team_id == team_id).size() >= 40) return #Err("Team test player limit reached");
@@ -2938,7 +2896,6 @@ persistent actor class Main(governorInit : Principal) = this {
       let before = testPlayers.find(func(p) = p.id == id) ?? return #Err("Not found");
       if (not (await boardAccess(caller, before.club_id, before.team_id, true))) return #Err("Forbidden");
       if (isFenced(before.club_id) or removalReceiver.denied(caller)) return #Err("Forbidden");
-      if (not testPlayersOpen(before.club_id, before.team_id)) return #Err("Test players are switched off for this team");
       let current = testPlayers.find(func(p) = p.id == id) ?? return #Err("Not found");
       let clean = trimName(name);
       if (testPlayers.any(func(p) = p.id != id and p.team_id == current.team_id and Text.toLower(p.name) == Text.toLower(clean))) return #Err("Test player already exists");
@@ -2966,53 +2923,7 @@ persistent actor class Main(governorInit : Principal) = this {
       await admitAccount(caller);
       if (not (await boardAccess(caller, club_id, team_id, false))) return #Err("Forbidden");
       if (isFenced(club_id) or removalReceiver.denied(caller)) return #Err("Forbidden");
-      // Switched off = invisible: the roster and the team page both read this
-      // list, so an off club/team shows no test players anywhere.
-      if (not testPlayersOpen(club_id, team_id)) return #Ok([]);
       #Ok(testPlayers.filter(func(p) = p.club_id == club_id and p.team_id == team_id))
-    } finally { removalReceiver.leave(caller) }
-  };
-
-  // Club/team switch for the test-players feature. Club scope needs a fresh
-  // club_admin; team scope needs that team's coach/team_admin or a club_admin.
-  public shared ({ caller }) func set_test_players_enabled(club_id : Text, team_id : ?Text, enabled : Bool) : async { #Ok : Types.TestPlayersSwitch; #Err : Text } {
-    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
-    try {
-      await admitAccount(caller);
-      if (not valid(club_id)) return #Err("Invalid club");
-      switch (team_id) {
-        case (?team) {
-          if (not valid(team)) return #Err("Invalid team");
-          if (not (await boardAccess(caller, club_id, team, true))) return #Err("Forbidden");
-        };
-        case null {
-          if (not (await clubAdminAccess(caller, club_id))) return #Err("Club admin required");
-        };
-      };
-      if (isFenced(club_id) or removalReceiver.denied(caller)) return #Err("Forbidden");
-      let value : Types.TestPlayersSwitch = { club_id; team_id; enabled };
-      testPlayersSwitches := testPlayersSwitches.filter(func(s) = not (s.club_id == club_id and s.team_id == team_id)).concat([value]);
-      #Ok(value)
-    } finally { removalReceiver.leave(caller) }
-  };
-
-  public shared ({ caller }) func get_test_players_enabled(club_id : Text, team_id : ?Text) : async { #Ok : Types.TestPlayersAccess; #Err : Text } {
-    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
-    try {
-      await admitAccount(caller);
-      if (not valid(club_id)) return #Err("Invalid club");
-      switch (team_id) {
-        case (?team) {
-          if (not valid(team)) return #Err("Invalid team");
-          if (not (await boardAccess(caller, club_id, team, false))) return #Err("Forbidden");
-          #Ok({ club_enabled = testPlayersClubOn(club_id); team_enabled = testPlayersTeamOn(club_id, team); effective = testPlayersOpen(club_id, team) })
-        };
-        case null {
-          if (not (await clubMemberAccess(caller, club_id))) return #Err("Forbidden");
-          let club_on = testPlayersClubOn(club_id);
-          #Ok({ club_enabled = club_on; team_enabled = club_on; effective = club_on })
-        };
-      }
     } finally { removalReceiver.leave(caller) }
   };
 
@@ -4565,7 +4476,6 @@ persistent actor class Main(governorInit : Principal) = this {
     teamTrainingPauses := teamTrainingPauses.filter(func(p) = not inClub(p.club_id) and not inDoomedTeam(p.team_id));
     childTeamAssignments := childTeamAssignments.filter(func(a) = not inClub(a.club_id) and not inDoomedTeam(a.team_id));
     testPlayers := testPlayers.filter(func(p) = not inClub(p.club_id) and not inDoomedTeam(p.team_id));
-    testPlayersSwitches := testPlayersSwitches.filter(func(s) = not inClub(s.club_id) and (switch (s.team_id) { case (?t) { not inDoomedTeam(t) }; case null { true } }));
     Nat.toNat32(doomedIds.size())
   };
 
