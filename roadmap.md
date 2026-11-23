@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## New-club automatic setup audit — 23 November
+- [x] Traced club placement/setup, automatic team chats, inbox visibility/opening and permissions across app and assistant entry points; remaining provisioning, staff authorization/sync, partial-read and capacity/scope risks documented.
+- [x] 895 checks passed across both sign-in modes (447 email / 448 ICP), with 3 mode-specific skips; audit report and logs in docs/release-review/new-club-automatic-setup-audit-2026-11-23. No application/production changes or deployment.
+- [ ] End-to-end fresh DEV club/team creation and message readback, assistant acceptance and installed-phone checks require a delegated Internet Identity session and devices unavailable here; live release parity not verified by this audit.
+
 ## PROD public group discovery blocker — 23 November
 - [x] Reproduced `ic`/`prod` refusal; `mainnet` discovery succeeds at configuration revision 10. Fresh metadata reads confirm base open/g2 closed and current governor approval; 26 domain entries match PROD snapshot.
 - [x] No code/approval defect: documented corrected connector arguments and governor prerequisites; 58 router and 14 frontend tests pass. Public base health and certified club module match verified evidence. Report: docs/release-review/prod-public-group-discovery-2026-11-23.md.
