@@ -1582,11 +1582,11 @@ export default function TeamDetailPage() {
           if (error) throw error;
           if (data?.error) throw new Error(data.error);
         },
-        icp: (ctx) => deleteLiveTeamPermanent(ctx, id!),
+        icp: (ctx) => deleteLiveTeamPermanent(ctx, id!, team?.name ?? ""),
       }, writeOnce({ teamId: id! }));
 
       setShowPermanentDeleteDialog(false);
-      toast({ title: "Team permanently deleted", description: "All data has been removed." });
+      toast({ title: "Team permanently deleted", description: "This can't be undone in the app." });
       navigate(`/clubs/${team?.club_id}`);
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to permanently delete team.", variant: "destructive" });
@@ -1844,7 +1844,7 @@ export default function TeamDetailPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-destructive">This team has been removed</p>
                 <p className="text-xs text-muted-foreground">
-                  Removed {new Date((team as any).deleted_at).toLocaleDateString()} · Will be permanently deleted after 30 days
+                  Removed {new Date((team as any).deleted_at).toLocaleDateString()} · Restore any time while it's listed here
                 </p>
               </div>
               <Button size="sm" variant="outline" onClick={handleRestoreTeam}>

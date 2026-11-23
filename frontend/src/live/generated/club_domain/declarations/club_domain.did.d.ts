@@ -581,7 +581,7 @@ export interface Main {
    */
   'cycles_balance' : ActorMethod<[], bigint>,
   'delete_club_permanent' : ActorMethod<
-    [string],
+    [string, [] | [string]],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -621,7 +621,7 @@ export interface Main {
       { 'Err' : string }
   >,
   'delete_team_permanent' : ActorMethod<
-    [string],
+    [string, [] | [string]],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -1539,6 +1539,11 @@ export interface Main {
     { 'Ok' : Array<TeamCaptain> } |
       { 'Err' : string }
   >,
+  'read_account_list_team_child_ids' : ActorMethod<
+    [string, string],
+    { 'Ok' : Array<string> } |
+      { 'Err' : string }
+  >,
   'read_account_list_team_creation_requests' : ActorMethod<
     [string],
     { 'Ok' : Array<TeamCreationRequest> } |
@@ -1548,14 +1553,6 @@ export interface Main {
     [string, [] | [string]],
     { 'Ok' : Array<TeamInvite> } |
       { 'Err' : string }
-  >,
-  'read_can_team_child_name_visibility' : ActorMethod<
-    [Principal, Array<string>],
-    Array<string>
-  >,
-  'read_account_list_team_child_ids' : ActorMethod<
-    [string, string],
-    { 'Ok' : Array<string> } | { 'Err' : string }
   >,
   'read_account_list_team_role_grants' : ActorMethod<
     [string],
@@ -1573,9 +1570,18 @@ export interface Main {
         'Ok' : {
           'clubs' : Array<string>,
           'next' : [] | [string],
-          'acl_revision' : bigint,
           'roles' : Array<RoleGrant>,
+          'acl_revision' : bigint,
         }
+      } |
+      { 'Err' : string }
+  >,
+  'read_account_my_dev_test2_event_delivery' : ActorMethod<
+    [string],
+    {
+        'Ok' : [] | [
+          { 'status' : string, 'attempts' : number, 'created_at_ms' : bigint }
+        ]
       } |
       { 'Err' : string }
   >,
@@ -1608,6 +1614,28 @@ export interface Main {
     { 'Ok' : Account } |
       { 'Err' : string }
   >,
+  'read_can_guardian_rsvp_child' : ActorMethod<
+    [Principal, string, string, [] | [string], Array<string>],
+    boolean
+  >,
+  'read_can_list_guardian_children' : ActorMethod<
+    [Principal],
+    Array<{ 'id' : string, 'parent_id' : [] | [string] }>
+  >,
+  'read_can_team_child_name_visibility' : ActorMethod<
+    [Principal, Array<string>],
+    Array<string>
+  >,
+  'read_chat_scope_access_batch' : ActorMethod<
+    [Principal, Array<string>, Array<[string, string]>],
+    {
+        'Ok' : {
+          'teams' : Array<[string, string, boolean]>,
+          'clubs' : Array<[string, boolean]>,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'read_club_media_references' : ActorMethod<
     [string, bigint, [] | [bigint]],
     { 'Ok' : Page__2 } |
@@ -1621,6 +1649,21 @@ export interface Main {
   'read_competition_team_access' : ActorMethod<
     [string, Principal],
     { 'can_manage' : boolean, 'is_member' : boolean, 'club_id' : [] | [string] }
+  >,
+  'read_deletion_audit' : ActorMethod<
+    [string],
+    {
+        'Ok' : Array<
+          {
+            'id' : string,
+            'action' : string,
+            'actor' : Principal,
+            'at_ms' : bigint,
+            'kind' : string,
+          }
+        >
+      } |
+      { 'Err' : string }
   >,
   'read_directory_membership_source_page' : ActorMethod<
     [Binding, [] | [Cursor__1]],
@@ -1636,6 +1679,11 @@ export interface Main {
           'revision' : bigint,
         }
       } |
+      { 'Err' : string }
+  >,
+  'read_event_member_roles_if_current' : ActorMethod<
+    [Principal, string],
+    { 'Ok' : Array<[string, [] | [string]]> } |
       { 'Err' : string }
   >,
   'read_event_notification_membership' : ActorMethod<
@@ -1681,15 +1729,6 @@ export interface Main {
    */
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
   'read_has_child_guardian' : ActorMethod<[Principal, string], boolean>,
-  'read_chat_scope_access_batch' : ActorMethod<
-    [Principal, Array<string>, Array<[string, string]>],
-    { 'Ok': { 'clubs': Array<[string, boolean]>, 'teams': Array<[string, string, boolean]> } } |
-      { 'Err': string }
-  >,
-  'read_event_member_roles_if_current' : ActorMethod<
-    [Principal, string],
-    { 'Ok': Array<[string, [] | [string]]> } | { 'Err': string }
-  >,
   'read_has_club_membership' : ActorMethod<[Principal, string], boolean>,
   'read_has_club_staff_role' : ActorMethod<[Principal, string], boolean>,
   'read_has_pii_audience' : ActorMethod<[Principal, string, string], boolean>,
@@ -1772,11 +1811,6 @@ export interface Main {
     { 'Ok' : Batch } |
       { 'Err' : string }
   >,
-  'read_profile_team_membership_batch' : ActorMethod<
-    [Principal, string, Array<Principal>, [] | [bigint]],
-    { 'Ok' : Batch } |
-      { 'Err' : string }
-  >,
   'read_profile_membership_batch' : ActorMethod<
     [Principal, string, Array<Principal>, [] | [bigint]],
     { 'Ok' : Batch } |
@@ -1785,6 +1819,11 @@ export interface Main {
   'read_profile_remote_revision' : ActorMethod<
     [Array<Principal>, [] | [bigint]],
     { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
+  'read_profile_team_membership_batch' : ActorMethod<
+    [Principal, string, Array<Principal>, [] | [bigint]],
+    { 'Ok' : Batch } |
       { 'Err' : string }
   >,
   'read_removal_media_registry' : ActorMethod<

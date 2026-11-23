@@ -9,7 +9,7 @@ describe("TeamDetailPage ICP membership wiring", () => {
     expect(source).toContain('isFeatureRoutedToIcp("membership")');
     expect(source).toContain("softDeleteLiveTeam(ctx, id!)");
     expect(source).toContain("restoreLiveTeam(ctx, id!)");
-    expect(source).toContain("deleteLiveTeamPermanent(ctx, id!)");
+    expect(source).toContain("deleteLiveTeamPermanent(ctx, id!, team?.name ?? \"\")");
   });
 
   it("routes member removal through removeLiveMember with a principal, keeping the Supabase RPC branch intact", () => {

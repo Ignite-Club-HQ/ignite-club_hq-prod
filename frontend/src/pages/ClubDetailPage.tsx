@@ -10,6 +10,7 @@ import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
+import { RecentlyDeletedTeams } from "@/components/club/RecentlyDeletedTeams";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -1521,11 +1522,11 @@ export default function ClubDetailPage() {
           if (error) throw error;
           if (data?.error) throw new Error(data.error);
         },
-        icp: (ctx) => deleteLiveClubPermanent(ctx, id!),
+        icp: (ctx) => deleteLiveClubPermanent(ctx, id!, club?.name ?? ""),
       }, writeOnce({ clubId: id! }));
 
       setShowPermanentDeleteDialog(false);
-      toast({ title: "Club permanently deleted", description: "All data has been removed." });
+      toast({ title: "Club permanently deleted", description: "This can't be undone in the app." });
       navigate("/clubs");
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to permanently delete club.", variant: "destructive" });
@@ -1732,6 +1733,8 @@ export default function ClubDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {isAdmin && id && <RecentlyDeletedTeams clubId={id} />}
 
       <ConfirmDeleteDialog
         open={showDeleteDialog}

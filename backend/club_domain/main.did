@@ -112,6 +112,21 @@ type TeamCreationRequest =
    status: text;
    team_id: opt text;
  };
+type TeamClassScheduleRow = 
+ record {
+   capacity: opt nat;
+   day: text;
+   duration_minutes: opt nat;
+   team_id: text;
+   time: opt text;
+ };
+type TeamClassSchedule = 
+ record {
+   capacity: opt nat;
+   day: text;
+   duration_minutes: opt nat;
+   time: opt text;
+ };
 type TeamCaptain = 
  record {
    team_id: text;
@@ -740,10 +755,11 @@ type Main =
    credit_deleted_retained_media: (token: text, entry: Object) -> (Result__1);
    /// Public: remaining cycles (shown in admin settings).
    cycles_balance: () -> (nat) query;
-   delete_club_permanent: (id: text) -> (variant {
-                                           Err: text;
-                                           Ok;
-                                         });
+   delete_club_permanent: (id: text, confirm_name: opt text) ->
+    (variant {
+       Err: text;
+       Ok;
+     });
    delete_club_term: (id: text) -> (variant {
                                       Err: text;
                                       Ok;
@@ -772,10 +788,11 @@ type Main =
                                                Err: text;
                                                Ok;
                                              });
-   delete_team_permanent: (id: text) -> (variant {
-                                           Err: text;
-                                           Ok;
-                                         });
+   delete_team_permanent: (id: text, confirm_name: opt text) ->
+    (variant {
+       Err: text;
+       Ok;
+     });
    disable_membership_directory_source: () -> (variant {
                                                  Err: text;
                                                  Ok;
@@ -1287,6 +1304,11 @@ type Main =
        Err: text;
        Ok: vec TeamCaptain;
      }) query;
+   list_team_class_schedules: (club_id: text) ->
+    (variant {
+       Err: text;
+       Ok: vec TeamClassScheduleRow;
+     }) query;
    list_team_creation_requests: (club_id: text) ->
     (variant {
        Err: text;
@@ -1692,6 +1714,11 @@ type Main =
        Err: text;
        Ok: vec TeamCaptain;
      });
+   read_account_list_team_child_ids: (club_id: text, team_id: text) ->
+    (variant {
+       Err: text;
+       Ok: vec text;
+     });
    read_account_list_team_creation_requests: (club_id: text) ->
     (variant {
        Err: text;
@@ -1713,9 +1740,35 @@ type Main =
            opt text;
          });
    read_account_membership_erased: (principals: vec principal) -> (bool);
+   read_account_my_clubs_and_roles_indexed: (after: opt text, limit:
+    nat16) ->
+    (variant {
+       Err: text;
+       Ok:
+        record {
+          acl_revision: nat64;
+          clubs: vec text;
+          next: opt text;
+          roles: vec RoleGrant;
+        };
+     });
+   read_account_my_dev_test2_event_delivery: (event_id: text) ->
+    (variant {
+       Err: text;
+       Ok: opt record {
+                 attempts: nat32;
+                 created_at_ms: nat64;
+                 status: text;
+               };
+     });
    read_account_my_role_grants: () -> (vec RoleGrant);
    read_account_profile_team_history: (profile_id: text) ->
     (vec ProfileTeamHistoryEntry);
+   read_account_protection_configuration: () ->
+    (variant {
+       Err: text;
+       Ok: Configuration;
+     });
    read_account_read_competition_team_access: (team_id: text, user:
     principal) ->
     (record {
@@ -1737,6 +1790,35 @@ type Main =
                                  Err: text;
                                  Ok: Account;
                                });
+   read_can_guardian_rsvp_child: (user: principal, child_id: text, club_id:
+    text, team_id: opt text, target_team_ids: vec text) -> (bool);
+   read_can_list_guardian_children: (user: principal) ->
+    (vec record {
+           id: text;
+           parent_id: opt text;
+         });
+   read_can_team_child_name_visibility: (viewer: principal, child_ids:
+    vec text) -> (vec text);
+   read_chat_scope_access_batch: (user: principal, club_ids: vec text,
+    team_scopes: vec record {
+                       text;
+                       text;
+                     }) ->
+    (variant {
+       Err: text;
+       Ok:
+        record {
+          clubs: vec record {
+                       text;
+                       bool;
+                     };
+          teams: vec record {
+                       text;
+                       text;
+                       bool;
+                     };
+        };
+     });
    read_club_media_references: (club: text, offset: nat, expected:
     opt nat) -> (variant {
                    Err: text;
@@ -1756,6 +1838,19 @@ type Main =
        club_id: opt text;
        is_member: bool;
      }) query;
+   read_deletion_audit: (club_id: text) ->
+    (variant {
+       Err: text;
+       Ok:
+        vec
+         record {
+           action: text;
+           actor: principal;
+           at_ms: nat64;
+           id: text;
+           kind: text;
+         };
+     }) query;
    read_directory_membership_source_page: (binding: Binding, cursor:
     opt Cursor__1) -> (variant {
                          Err: text;
@@ -1769,6 +1864,14 @@ type Main =
              pending: bool;
              revision: nat;
            };
+     });
+   read_event_member_roles_if_current: (user: principal, club_id: text) ->
+    (variant {
+       Err: text;
+       Ok: vec record {
+                 text;
+                 opt text;
+               };
      });
    read_event_notification_membership: (club: text) ->
     (variant {
@@ -1909,6 +2012,12 @@ type Main =
                    Err: text;
                    Ok: nat;
                  });
+   read_profile_team_membership_batch: (requester: principal, team_id: 
+    text, subjects: vec principal, expected: opt nat) ->
+    (variant {
+       Err: text;
+       Ok: Batch;
+     });
    read_removal_media_registry: () ->
     (variant {
        Err: text;
@@ -2407,6 +2516,11 @@ type Main =
                              Err: text;
                              Ok;
                            });
+   set_team_class_schedule: (team_id: text, schedule:
+    opt TeamClassSchedule) -> (variant {
+                                 Err: text;
+                                 Ok;
+                               });
    set_team_folder: (team_id: text, folder_id: opt text) ->
     (variant {
        Err: text;
@@ -2660,6 +2774,15 @@ type Cursor =
    offset: nat;
    phase: nat;
    revision: nat;
+ };
+type Configuration = 
+ record {
+   admission_required: bool;
+   authority: opt principal;
+   protocol: nat32;
+   receiver: principal;
+   rehearsal: bool;
+   removal_enabled: bool;
  };
 type Config = 
  record {
