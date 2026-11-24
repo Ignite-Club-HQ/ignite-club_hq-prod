@@ -198,13 +198,13 @@ function SupabaseAdminPage() {
             <CardDescription>Global app management tools</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {!isIcp && (<>
             <AdminMenuItem
               icon={Ticket}
               label="Manage Promo Codes"
               description="Create and manage promotional codes"
               onClick={() => navigate("/admin/promo-codes")}
             />
+            {!isIcp && (<>
             <AdminMenuItem
               icon={CreditCard}
               label="Stripe Settings"
