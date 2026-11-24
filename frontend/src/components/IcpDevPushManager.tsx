@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOptionalAuth } from '@/hooks/useAuth';
-import { toast } from 'sonner';
 
 /** Mounted only for TEST Internet Identity. Does not start email push hooks. */
 export function IcpDevPushManager() {
@@ -29,18 +28,11 @@ export function IcpDevPushManager() {
       if (disposed) await handle.remove();
       else removeResume = () => handle.remove();
     }).catch(() => undefined);
-    const receive = (event: Event) => {
-      const data = (event as CustomEvent<{ data?: Record<string, unknown> }>).detail?.data;
-      if (data?.kind === 'pitch_board_substitution') toast('Sub due', { description: 'A planned substitution is due' });
-      else toast('New Ignite notification');
-    };
-    window.addEventListener('ignite:icp-push-received', receive);
     return () => {
       disposed = true;
       disposeTaps?.();
       void release?.().catch(() => undefined);
       void removeResume?.();
-      window.removeEventListener('ignite:icp-push-received', receive);
     };
   }, [userId, navigate]);
   return null;
