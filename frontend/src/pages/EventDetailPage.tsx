@@ -924,7 +924,7 @@ export default function EventDetailPage() {
   // Adults (coaches/admins) are always included so they can run the board.
   const { data: teamMembers, isLoading: isTeamMembersForPitchLoading } = useQuery({
     queryKey: [...eventKeys.pitchTeamMembers(event?.team_id, event?.id), isIcpAuthBackend, rsvps?.length ?? 0],
-    queryFn: async () => withFeatureBackend("membership", {
+    queryFn: async () => withReadDeadline(withFeatureBackend("membership", {
       supabase: async () => {
         const [rolesResult, childrenResult, goingRsvpsResult] = await Promise.all([
           supabase
@@ -1019,7 +1019,10 @@ export default function EventDetailPage() {
 
         return adultMembers;
       },
-    }, { clubId: event?.club_id as string }),
+    }, { clubId: event?.club_id as string }), "Loading players", 20_000),
+    // A stalled first read retries instead of leaving the board unopened.
+    retry: 2,
+    retryDelay: 300,
     enabled: !!event?.team_id && !!event?.id && !!(canAccessPitchBoard || canViewPitchBoardReadOnly),
   });
 

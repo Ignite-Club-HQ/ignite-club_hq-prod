@@ -32,8 +32,33 @@ export function EventPitchBoardPortal({
   isSubsManager,
   setOpen,
 }: EventPitchBoardPortalProps) {
-  if (!open || !isSoccerClub || !accessGranted || !teamMembers || !event?.team_id) {
+  if (!open || !isSoccerClub || !accessGranted || !event?.team_id) {
     return null;
+  }
+
+  if (!teamMembers) {
+    // Tapped before the player list arrived: show progress (with a way out)
+    // rather than silently doing nothing.
+    return createPortal(
+      <div
+        className="fixed inset-0 flex items-center justify-center"
+        style={{ backgroundColor: "#2d5a27", zIndex: 999999 }}
+        role="status"
+      >
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-6 w-6 animate-spin text-white" />
+          <p className="text-sm text-white/80">Loading players...</p>
+          <button
+            type="button"
+            className="text-sm text-white underline"
+            onClick={() => { setOpen(false); clearPitchBoardOpenFlag(); }}
+          >
+            Close
+          </button>
+        </div>
+      </div>,
+      document.body,
+    );
   }
 
   const close = () => {
