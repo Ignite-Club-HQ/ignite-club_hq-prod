@@ -7,7 +7,10 @@ import { getCurrentInternetIdentityConfirmed } from "@/live/internetIdentityAuth
 // features/membership is imported lazily at the call site so the ICP SDK
 // stays out of the entry chunk (this component mounts at app start).
 import { getActiveIcpTarget } from "@/live/targetRegistry";
-import { isIcpAuthAvailable, readAuthChoice } from "@/live/authBackendMode";
+import { isIcpAuthAvailable, isIcpProviderMounted, readAuthChoice } from "@/live/authBackendMode";
+
+// A switch to secure sign-in is underway: the email session is being retired.
+const switchingToIcp = () => isIcpProviderMounted() || readAuthChoice() === "icp";
 import {
   cacheClubBackendHint,
   deriveClubBackendsFromHomeCountries,
@@ -163,6 +166,9 @@ export function ClubBackendEnforcement({ children }: { children?: ReactNode }) {
             console.warn("[club-backend] Could not load ICP role grants.", error);
           }
         } else {
+          // Switching to secure sign-in: the email session is being retired,
+          // so its club check must not read email-only data any more.
+          if (switchingToIcp()) { settle(); return; }
           const membership = await fetchSupabaseMembership(user.id);
           clubIds = membership.clubIds;
           isAppAdmin = membership.isAppAdmin;
@@ -229,6 +235,7 @@ export function ClubBackendEnforcement({ children }: { children?: ReactNode }) {
           return;
         }
         let homeCountries: Record<string, string | null> = {};
+        if (switchingToIcp()) { settle(); return; }
         try {
           homeCountries = await fetchSupabaseHomeCountries(clubIds);
         } catch (error) {
