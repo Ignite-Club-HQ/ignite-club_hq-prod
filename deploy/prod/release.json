@@ -10,7 +10,7 @@
     "events_domain": "785bba23555d4ca7ced4f666392f30e3306fc806",
     "competition_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "mini_league_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
-    "messaging_domain": "a2b18f54b17b4e2575cea4bea8f8fc1744bd9467",
+    "messaging_domain": "ebfae23c446cf8312b9584ff0f53adf16e26919b",
     "notification_queue": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "media_metadata": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "media_blob_store": "cc0a411486754f0a21fb2b154c61fa57b6084271",
@@ -19,5 +19,5 @@
     "insights_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "shard_router": "628d1cc322c5feac1066c941642f617c9bed5c54"
   },
-  "updatedAt": "2026-11-23T21:41:40.687Z"
+  "updatedAt": "2026-11-23T23:54:12.769Z"
 }
