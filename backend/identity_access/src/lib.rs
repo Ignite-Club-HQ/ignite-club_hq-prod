@@ -2476,7 +2476,7 @@ async fn verify_dev_g1_public_key(service: Principal, observed_sha256: &str) -> 
 #[ic_cdk::update]
 async fn read_private_profile_name_authorization(viewer_principal: Principal, subjects: Vec<Principal>, scope: private_name_audience::Scope) -> Outcome<Vec<ProfileSearchResult>> {
     if option_env!("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != Some("1") &&
-        !((scope.kind == "club" || scope.kind == "team") && private_club_name_displays_released()) {
+        !((scope.kind == "club" || scope.kind == "team" || scope.kind == "app_admin") && private_club_name_displays_released()) {
         return Err("Private name audiences are not released".into());
     }
     private_name_audience::validate(viewer_principal, &subjects, &scope)?;
@@ -2550,9 +2550,16 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         }
         Some(digest)
     };
+    // App admins (Paul 2026-11-24) may read every member's name; the
+    // authority is this identity service and app_admin is checked locally.
+    if scope.kind == "app_admin" {
+        if scope.authority != ic_cdk::api::canister_self() { return Err("Private-name audience authority is not registered".into()); }
+        admin_accounts::authorize(&state(), viewer_principal)?;
+    } else {
     let domain = match scope.kind.as_str() { "competition" => "competition_domain", "league" => "mini_league_domain", "direct" | "broadcast" | "competition_admin" => "messaging_domain", _ => "club_domain" };
     if !inventory.groups.iter().any(|g| g.domains.iter().any(|d| d.domain == domain && d.canister == scope.authority)) {
         return Err("Private-name audience authority is not registered".into());
+    }
     }
     let mut rows = Vec::new();
     for subject in &subjects {
@@ -2562,7 +2569,9 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         if profile.display_name != expected { return Err("Original private-name binding changed".into()); }
         rows.push(ProfileSearchResult { account_id: profile.account_id, principal: *subject, display_name: profile.display_name, avatar_ref: profile.avatar_ref });
     }
-    if scope.kind == "guardian_search" {
+    if scope.kind == "app_admin" {
+        admin_accounts::authorize(&state(), viewer_principal)?;
+    } else if scope.kind == "guardian_search" {
         if scope.profile_revision != revision { return Err("Guardian directory changed".into()); }
         verify_guardian_search(viewer_principal, scope.authority, &scope.resource, &viewer, &config).await?;
         active()?;
@@ -2603,6 +2612,7 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
     }
     // No await after these final subject/reference and caller rechecks.
     active()?;
+    if scope.kind == "app_admin" { admin_accounts::authorize(&state(), viewer_principal)?; }
     for row in &rows {
         let account = membership_lookup_viewer(row.principal)?;
         if account.account != row.account_id || get_profile_entry(&account.account).map(|p| p.display_name) != Some(row.display_name.clone()) { return Err("Private-name subject changed".into()); }
