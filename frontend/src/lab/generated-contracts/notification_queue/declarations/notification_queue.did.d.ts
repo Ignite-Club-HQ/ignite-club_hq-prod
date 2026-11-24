@@ -268,7 +268,11 @@ export interface Main {
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
   'read_trusted_dev_test2_event_delivery' : ActorMethod<
     [string, Principal],
-    { 'Ok' : [] | [{ 'status' : string, 'attempts' : number, 'created_at_ms' : bigint }] } |
+    {
+        'Ok' : [] | [
+          { 'status' : string, 'attempts' : number, 'created_at_ms' : bigint }
+        ]
+      } |
       { 'Err' : string }
   >,
   'record_chat_notify_batch' : ActorMethod<
@@ -352,6 +356,17 @@ export interface Main {
       [] | [bigint],
     ],
     ScheduledResult
+  >,
+  'schedule_pitch_sub_alerts' : ActorMethod<
+    [
+      string,
+      string,
+      Array<string>,
+      string,
+      Array<{ 'key' : string, 'due_ms' : bigint }>,
+    ],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
   >,
   'seal_account_removal' : ActorMethod<
     [Request],

@@ -736,6 +736,10 @@ persistent actor class Main(governorInit : Principal) = this {
     preferences := preferences.filter(func n = not BroadcastErasure.matches(subjects, n.user));
     device_tokens := device_tokens.filter(func n = not BroadcastErasure.matches(subjects, n.user));
     deviceVersions := deviceVersions.filter(func n = not BroadcastErasure.matches(subjects, n.user));
+    for ((k, e) in pitchSubAlerts.entries().toArray().values()) {
+      if (BroadcastErasure.matches(subjects, e.owner)) ignore pitchSubAlerts.delete(k)
+      else pitchSubAlerts.add(k, { e with users = e.users.filter(func u = not BroadcastErasure.matches(subjects, u)) });
+    };
     digests := digests.map(func n = { n with mentions = n.mentions.filter(func u = not BroadcastErasure.matches(subjects, u)) });
     #Ok(removed.size())
   };
@@ -1374,6 +1378,85 @@ persistent actor class Main(governorInit : Principal) = this {
       } finally { removalReceiver.leave(author) };
     };
     deliveringScheduled := false;
+  };
+
+  // ---- Planned pitch-board sub alerts (server timer) ----
+  // The board runner registers upcoming sub due times for the current half so
+  // the alert still arrives while the phone is locked or the app is closed.
+  // Every save replaces the board's whole list; an empty list cancels. The
+  // alert carries no child names. Ids match the open-board fan-out
+  // (key # "-" # user) so whichever fires first wins and the other is a no-op.
+  type PitchSubAlertBoard = { owner : Text; club : Text; users : [Text]; related : Text; alerts : [{ key : Text; due_ms : Nat64 }] };
+  let pitchSubAlerts : Map.Map<Text, PitchSubAlertBoard>;
+
+  public shared ({ caller }) func schedule_pitch_sub_alerts(
+    board : Text, club : Text, inputUsers : [Text], related : Text, alerts : [{ key : Text; due_ms : Nat64 }],
+  ) : async { #Ok : Nat; #Err : Text } {
+    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+    try {
+      authenticated(caller);
+      if (Principal.isAnonymous(caller)) return #Err("Sign in required");
+      if (not valid(board) or board.size() > 200 or not valid(club) or related.size() > 200) return #Err("Invalid board");
+      if (alerts.size() > 30 or inputUsers.size() > 50) return #Err("Too many alerts or recipients");
+      let owner = caller.toText();
+      let mapKey = owner # "|" # board;
+      if (alerts.size() == 0) { ignore pitchSubAlerts.delete(mapKey); return #Ok(0) };
+      do { let r = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); r };
+      if (isFenced(club)) return #Err("Club is temporarily locked for a transfer");
+      let now = Nat64.fromIntWrap(Time.now() / 1_000_000);
+      let horizon = now + 3 * 60 * 60 * 1000;
+      for (a in alerts.values()) {
+        if (not valid(a.key) or a.key.size() > 200 or a.due_ms > horizon) return #Err("Invalid alert");
+      };
+      var users : [Text] = [];
+      for (raw in inputUsers.values()) {
+        let text = switch (Text.stripStart(raw, #text "principal:")) { case (?bare) bare; case null raw };
+        let parsed = try { await async { ?Principal.fromText(text) } } catch (_) { null };
+        let ?principal = parsed else return #Err("Invalid recipient");
+        if (Principal.isAnonymous(principal)) return #Err("Invalid recipient");
+        let user = principal.toText();
+        if (not users.any(func(u) = u == user)) users := users.concat([user]);
+      };
+      if (pitchSubAlerts.get(mapKey) == null) {
+        var mine = 0;
+        for ((k, _) in pitchSubAlerts.entries()) { if (Text.startsWith(k, #text (owner # "|"))) mine += 1 };
+        if (mine >= 5 or pitchSubAlerts.size() >= 2000) return #Err("Too many active boards");
+      };
+      pitchSubAlerts.add(mapKey, { owner; club; users; related; alerts });
+      #Ok(alerts.size())
+    } finally { removalReceiver.leave(caller) };
+  };
+
+  func deliverDuePitchSubAlerts<system>() {
+    if (pitchSubAlerts.size() == 0) return;
+    let now = Nat64.fromIntWrap(Time.now() / 1_000_000);
+    var woke = false;
+    for ((mapKey, entry) in pitchSubAlerts.entries().toArray().values()) {
+      let due = entry.alerts.filter(func a = a.due_ms <= now);
+      if (due.size() > 0) {
+        if (not isFenced(entry.club)) {
+          for (a in due.values()) {
+            for (user in entry.users.values()) {
+              let id = a.key # "-" # user;
+              if (recipientAllowed(user, "pitch_board_substitution") and get(id) == null) {
+                items := items.concat([{
+                  id; user; club = entry.club; kind = "pitch_board_substitution";
+                  body = "A planned substitution is due"; idempotency_key = a.key;
+                  status = #Pending; attempts = 0; next_attempt_ms = 0; read = false;
+                  related_id = if (entry.related == "") null else ?entry.related;
+                  created_at_ms = now;
+                } : Types.Notification]);
+                woke := true;
+              };
+            };
+          };
+        };
+        let rest = entry.alerts.filter(func a = a.due_ms > now);
+        if (rest.size() == 0) ignore pitchSubAlerts.delete(mapKey)
+        else pitchSubAlerts.add(mapKey, { entry with alerts = rest });
+      };
+    };
+    if (woke) wakeNativeSender<system>();
   };
 
   transient let _scheduledTimer = Timer.recurringTimer<system>(#seconds(300), func() : async () {
@@ -2438,4 +2521,8 @@ persistent actor class Main(governorInit : Principal) = this {
       }
     }
   });
+  transient let _pitchSubTimer = Timer.recurringTimer<system>(#seconds(10), func() : async () {
+    deliverDuePitchSubAlerts<system>();
+  });
+
 };

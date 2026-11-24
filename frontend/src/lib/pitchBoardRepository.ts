@@ -80,3 +80,43 @@ export async function notifyIcpSubstitutionDue(teamId: string, eventId: string |
     },
   }, writeOnce(teamId.startsWith('event-group-') ? { eventGroupId: teamId.slice('event-group-'.length) } : { teamId }));
 }
+/**
+ * Registers the board's upcoming sub due times on the secure alert service so
+ * staff still get the alert with the phone locked or the app closed. Each call
+ * replaces the board's list; an empty list cancels. No child names are sent.
+ */
+export async function scheduleIcpSubAlerts(
+  teamId: string, eventId: string | null, userId: string,
+  alerts: { key: string; dueMs: number }[],
+) {
+  return withFeatureBackend('membership', {
+    supabase: async () => { throw new Error('ICP substitution reminder required'); },
+    icp: async ctx => {
+      const caller = ctx.identity?.getPrincipal().toText();
+      if (!caller || caller !== userId.replace(/^principal:/, '')) throw new Error('Pitch-board account changed');
+      const { connectLiveNotificationQueue } = await import('@/live/domains');
+      const { actor } = await connectLiveNotificationQueue(ctx.target, ctx.identity);
+      let clubId = '';
+      let userIds: string[] = [];
+      if (alerts.length > 0) {
+        const { livePitchRecipients } = await import('@/components/pitch/hooks/livePitchNotifications');
+        const recipients = await livePitchRecipients(ctx, teamId, eventId, caller, true, true);
+        clubId = recipients.clubId;
+        userIds = [...new Set(recipients.userIds.map(id => id.replace(/^principal:/, '')))];
+      } else {
+        clubId = 'none';
+      }
+      const result = await actor.schedule_pitch_sub_alerts(
+        teamId, clubId, userIds, teamId,
+        alerts.map(a => ({ key: a.key, due_ms: BigInt(Math.max(0, Math.round(a.dueMs))) })),
+      );
+      if ('Err' in result) throw new Error(result.Err);
+      return Number(result.Ok);
+    },
+  }, writeOnce(teamId.startsWith('event-group-') ? { eventGroupId: teamId.slice('event-group-'.length) } : { teamId }));
+}
+
+/** Stable alert key shared by the open board and the server timer so one sub alerts once. */
+export function pitchSubAlertKey(runId: string, sub: { half: number; time: number; playerOut: { id: string }; playerIn: { id: string } }) {
+  return `pitch-sub-${runId}-${sub.half}-${Math.round(sub.time)}-${sub.playerOut.id}-${sub.playerIn.id}`.slice(0, 200);
+}
