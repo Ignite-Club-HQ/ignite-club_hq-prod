@@ -99,7 +99,7 @@ export function ManualMatchDialog({
   };
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-lg" fullScreen>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">

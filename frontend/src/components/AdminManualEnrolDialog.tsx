@@ -157,7 +157,7 @@ export function AdminManualEnrolDialog({
         <UserPlus className="h-3.5 w-3.5" />
         Manual Enrol
       </Button>
-      <ResponsiveDialog open={open} onOpenChange={setOpen}>
+      <ResponsiveDialog keyboardSafe open={open} onOpenChange={setOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle>Manual Enrolment</ResponsiveDialogTitle>

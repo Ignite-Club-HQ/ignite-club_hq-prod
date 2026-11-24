@@ -1,3 +1,4 @@
+import { materializePickedFile } from "@/lib/pickedFiles";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -168,7 +169,7 @@ function IcpCreateClubPage() {
     if (!file) return;
 
     // Store the file for upload after club creation
-    setLogoFile(file);
+    void materializePickedFile(file).then(setLogoFile, () => setLogoFile(null));
     
     // Create a preview URL
     const reader = new FileReader();

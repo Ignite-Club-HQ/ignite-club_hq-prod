@@ -6,6 +6,7 @@ import AccountProtectionEndpoints "../../shared/AccountProtectionEndpoints";
 import OpeningConfiguration "../../shared/OpeningConfiguration";
 import RemovalReceiver "../../shared/RemovalReceiver";
 import Map "mo:core/Map";
+import List "mo:core/List";
 import MediaEvidence "../../shared/MediaEvidence";
 import PrimMem "mo:⛔";
 import Cycles "mo:core/Cycles";
@@ -1927,14 +1928,12 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await* requireChatAccess(caller, conversation_id);
     if (not canReadTeamMessages(caller, conversation_id)) return #Err("Conversation access forbidden");
-    var result : [Types.Reaction] = [];
-    for (m in messages.values()) {
-      if (m.conversation_id == conversation_id) {
-        for (r in reactions.values()) {
-          if (r.message_id == m.id) { result := result.concat([r]) };
-        };
-      };
-    };
+    // One pass each over messages and reactions (was messages x reactions with array rebuilds).
+    let inChat = Map.empty<Text, ()>();
+    for (m in messages.values()) { if (m.conversation_id == conversation_id) inChat.add(Text.compare, m.id, ()) };
+    let collected = List.empty<Types.Reaction>();
+    for (r in reactions.values()) { if (inChat.containsKey(Text.compare, r.message_id)) collected.add(r) };
+    let result = collected.toArray();
     #Ok(result)
   
     } finally { removalReceiver.leave(caller) };
@@ -5453,14 +5452,12 @@ persistent actor class Main(governorInit : Principal) = this {
     await admitAccount(caller);
     await* requireChatAccess(caller, conversation_id);
     if (not canReadTeamMessages(caller, conversation_id)) return #Err("Conversation access forbidden");
-    var result : [Types.Reaction] = [];
-    for (m in messages.values()) {
-      if (m.conversation_id == conversation_id) {
-        for (r in reactions.values()) {
-          if (r.message_id == m.id) { result := result.concat([r]) };
-        };
-      };
-    };
+    // One pass each over messages and reactions (was messages x reactions with array rebuilds).
+    let inChat = Map.empty<Text, ()>();
+    for (m in messages.values()) { if (m.conversation_id == conversation_id) inChat.add(Text.compare, m.id, ()) };
+    let collected = List.empty<Types.Reaction>();
+    for (r in reactions.values()) { if (inChat.containsKey(Text.compare, r.message_id)) collected.add(r) };
+    let result = collected.toArray();
     #Ok(result)
   
     } finally { removalReceiver.leave(caller) };

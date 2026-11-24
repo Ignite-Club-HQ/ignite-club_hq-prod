@@ -256,7 +256,7 @@ export function AddLinkDialog({
   };
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={handleOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-md">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">

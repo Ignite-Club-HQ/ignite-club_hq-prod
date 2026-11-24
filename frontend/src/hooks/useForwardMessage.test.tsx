@@ -13,6 +13,7 @@ const {
   roleGrants,
   clubGroups,
   teamGroups,
+  clubTeams,
   clubProfile,
   forwardLiveMessage,
   notifyLive,
@@ -28,6 +29,7 @@ const {
   roleGrants: vi.fn(),
   clubGroups: vi.fn(),
   teamGroups: vi.fn(),
+  clubTeams: vi.fn(),
   clubProfile: vi.fn(),
   forwardLiveMessage: vi.fn(),
   notifyLive: vi.fn(),
@@ -44,7 +46,10 @@ vi.mock("@/live/features/messaging", () => ({
   listLiveGroupsByTeam: (...args: unknown[]) => teamGroups(...args),
   forwardLiveMessage: (...args: unknown[]) => forwardLiveMessage(...args),
 }));
-vi.mock("@/live/features/club", () => ({ getLiveClubProfile: (...args: unknown[]) => clubProfile(...args) }));
+vi.mock("@/live/features/club", () => ({
+  getLiveClubProfile: (...args: unknown[]) => clubProfile(...args),
+  listLiveTeams: (...args: unknown[]) => clubTeams(...args),
+}));
 vi.mock("@/live/features/notifications", () => ({ recordLiveChatNotifyBatch: (...args: unknown[]) => notifyLive(...args) }));
 vi.mock("@/lib/profileCache", () => ({ selectCachedProfileById: selectProfile }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
@@ -267,6 +272,7 @@ describe.runIf(mode === "icp")("useForwardMessage ICP provider", () => {
       { conversationId: "not-member", name: "Other", clubId: "club-1", teamId: "team-1", isMember: false },
     ]);
     clubProfile.mockResolvedValue([{ name: "Riverside" }]);
+    clubTeams.mockResolvedValue([]);
     forwardLiveMessage.mockResolvedValue({ id: "forwarded-message" });
     notifyLive.mockResolvedValue(undefined);
   });
@@ -281,6 +287,32 @@ describe.runIf(mode === "icp")("useForwardMessage ICP provider", () => {
     expect(clubGroups).toHaveBeenCalledWith(context, "club-1");
     expect(teamGroups).toHaveBeenCalledWith(context, "team-1");
     expect(from).not.toHaveBeenCalled();
+  });
+
+  it("lets a club admin forward to every team chat in their club without team grants", async () => {
+    roleGrants.mockResolvedValueOnce([{ club: ["club-1"], team: [], role: "club_admin" }]);
+    clubTeams.mockResolvedValueOnce([
+      { id: "team-9", club_id: "club-1", name: "U10", deleted_at_ms: [] },
+      { id: "team-gone", club_id: "club-1", name: "Old", deleted_at_ms: [1n] },
+    ]);
+    teamGroups.mockImplementation(async (_ctx: unknown, teamId: string) =>
+      teamId === "team-9"
+        ? [{ conversationId: "team-9-chat", name: "U10 chat", clubId: "club-1", teamId: "team-9", isMember: false }]
+        : []);
+    renderHook(() => useForwardDestinations("principal-sender", true));
+
+    await expect(queryOptions.current.queryFn()).resolves.toEqual([
+      { id: "club-group", name: "Club", club_id: "club-1", team_id: null, club_name: "Riverside" },
+      { id: "team-9-chat", name: "U10 chat", club_id: "club-1", team_id: "team-9", club_name: "Riverside" },
+    ]);
+    expect(teamGroups).toHaveBeenCalledWith(context, "team-9");
+    expect(teamGroups).not.toHaveBeenCalledWith(context, "team-gone");
+  });
+
+  it("does not list other clubs' teams to an ordinary team member", async () => {
+    renderHook(() => useForwardDestinations("principal-sender", true));
+    await queryOptions.current.queryFn();
+    expect(clubTeams).not.toHaveBeenCalled();
   });
 
   it("forwards the source message to selected canister conversations and notifies its author", async () => {

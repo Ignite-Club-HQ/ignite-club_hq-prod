@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
-  grants: vi.fn(), team: vi.fn(), club: vi.fn(), subscription: vi.fn(), mine: vi.fn(), leagues: vi.fn(), league: vi.fn(),
+  grants: vi.fn(), team: vi.fn(), club: vi.fn(), subscription: vi.fn(), mine: vi.fn(), leagues: vi.fn(), league: vi.fn(), clubTeams: vi.fn(),
 }));
 vi.mock("@/live/features/membership", () => ({ getLiveMyRoleGrants: mocks.grants }));
-vi.mock("@/live/features/club", () => ({ getLiveTeam: mocks.team, getLiveClubProfile: mocks.club, getLiveTeamSubscription: mocks.subscription }));
+vi.mock("@/live/features/club", () => ({ getLiveTeam: mocks.team, getLiveClubProfile: mocks.club, getLiveTeamSubscription: mocks.subscription, listLiveTeams: mocks.clubTeams }));
 vi.mock("@/live/features/miniLeagues", () => ({ listMyLiveMiniLeagues: mocks.mine, listLiveMiniLeaguesByClub: mocks.leagues, getLiveMiniLeague: mocks.league }));
 import { fetchIcpCarouselItems } from "./icpCarouselItems";
 
@@ -15,6 +15,28 @@ describe("ICP carousel parallel reads", () => {
     mocks.club.mockResolvedValue([{ name: "Club A", logo_url: [], sport: ["football"] }]);
     mocks.subscription.mockResolvedValue(null);
     mocks.mine.mockResolvedValue([]);
+    mocks.clubTeams.mockResolvedValue([]);
+  });
+  it("shows a club admin every team in their club, even without team role grants", async () => {
+    mocks.grants.mockResolvedValue([{ team: [], club: ["club-a"], role: "club_admin" }]);
+    mocks.clubTeams.mockResolvedValue([
+      { id: "team-x", club_id: "club-a", name: "X", deleted_at_ms: [], logo_url: [] },
+      { id: "team-y", club_id: "club-a", name: "Y", deleted_at_ms: [], logo_url: [] },
+    ]);
+    const items = await fetchIcpCarouselItems({} as never, null, { includeTrial: false, inventory: "teams" });
+    expect(items.map(item => item.id)).toEqual(["team-x", "team-y"]);
+    expect(items.every(item => item.canManage)).toBe(true);
+    expect(mocks.team).not.toHaveBeenCalled();
+  });
+  it("does not show other clubs' teams to an ordinary team member", async () => {
+    const items = await fetchIcpCarouselItems({} as never, null, { includeTrial: false, inventory: "teams" });
+    expect(items.map(item => item.id)).toEqual(["team-a"]);
+    expect(mocks.clubTeams).not.toHaveBeenCalled();
+  });
+  it("does not certify an empty carousel when the admin club team list fails", async () => {
+    mocks.grants.mockResolvedValue([{ team: [], club: ["club-a"], role: "club_admin" }]);
+    mocks.clubTeams.mockRejectedValue(new Error("teams unavailable"));
+    await expect(fetchIcpCarouselItems({} as never, null, { includeTrial: false, inventory: "teams" })).rejects.toThrow("teams unavailable");
   });
   it("starts league discovery while the team read is still pending", async () => {
     let release: (() => void) | undefined;

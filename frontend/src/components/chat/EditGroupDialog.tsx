@@ -308,7 +308,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
           <Pencil className="h-4 w-4" />
         </Button>
       )}
-      <ResponsiveDialog open={open} onOpenChange={setOpen}>
+      <ResponsiveDialog keyboardSafe open={open} onOpenChange={setOpen}>
         <ResponsiveDialogContent className="max-w-md">
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle>Edit Chat Group</ResponsiveDialogTitle>

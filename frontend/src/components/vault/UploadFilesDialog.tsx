@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { materializePickedFile, materializePickedFiles } from "@/lib/pickedFiles";
 import { Upload, Image, FileText, Loader2, X, File as FileIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,10 +106,12 @@ export function UploadFilesDialog({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
-    const file = input.files?.[0];
-    if (file) {
-      handleFileSelect(file);
-      queueNativeLayoutRecovery();
+    const picked = input.files?.[0];
+    if (picked) {
+      void materializePickedFile(picked).then(
+        (file) => { handleFileSelect(file); queueNativeLayoutRecovery(); },
+        (err) => toast.error((err as Error).message),
+      );
     }
 
     // Allow selecting the same file again in the same dialog session.
@@ -266,7 +269,7 @@ export function UploadFilesDialog({
   };
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={handleOpenChange} forceDesktopDialog={isNativeIOS}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={handleOpenChange} forceDesktopDialog={isNativeIOS}>
       <ResponsiveDialogContent className="sm:max-w-md">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle>Upload to {targetName}</ResponsiveDialogTitle>

@@ -1,4 +1,5 @@
 import { writeOnce } from "@/live/clubScope";
+import { materializePickedFile, materializePickedFiles } from "@/lib/pickedFiles";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from '@tanstack/react-query';
 import { beginGalleryUpload, acknowledgeGalleryUpload, finishGalleryUpload } from './pendingGalleryUploads';
@@ -146,9 +147,16 @@ export function IcpUploadPhotoSheet({
   const clubMiniLeagues = miniLeagues.filter((m) => m.club_id === clubId);
   const clubCompetitions = competitions.filter((c) => c.club_id === clubId);
 
-  const handleFiles = (list: FileList | null) => {
+  const handleFiles = async (list: FileList | null) => {
     if (!list) return;
-    const next = Array.from(list).filter(
+    let picked: File[];
+    try {
+      picked = await materializePickedFiles(list);
+    } catch (err) {
+      toast.error((err as Error).message);
+      return;
+    }
+    const next = picked.filter(
       (f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
     );
     if (next.length === 0) {

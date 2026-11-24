@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { materializePickedFile, materializePickedFiles } from "@/lib/pickedFiles";
 import { useMutation, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { uploadVaultItem } from "./vaultUploadService";
@@ -130,8 +131,10 @@ export function useVaultUploadWorkflow({
   });
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const picked = e.target.files?.[0];
+    if (!picked) return;
+    let file: File;
+    try { file = await materializePickedFile(picked); } catch (err) { toast.error((err as Error).message); return; }
 
     // Background upload: the item shows immediately, errors surface as a toast.
     if (uploadType === "photo") {

@@ -1366,7 +1366,7 @@ function SupabaseManageUsersPage() {
                       <UserPlus className="h-4 w-4 mr-2" />
                       Assign Role
                     </Button>
-                    <ResponsiveDialog open={bulkAssignDialogOpen} onOpenChange={(open) => {
+                    <ResponsiveDialog keyboardSafe open={bulkAssignDialogOpen} onOpenChange={(open) => {
                       setBulkAssignDialogOpen(open);
                       if (!open) {
                         setBulkAssignStep("select");
@@ -1556,7 +1556,7 @@ function SupabaseManageUsersPage() {
                       <UserMinus className="h-4 w-4 mr-2" />
                       Remove Role
                     </Button>
-                    <ResponsiveDialog open={bulkRemoveDialogOpen} onOpenChange={(open) => {
+                    <ResponsiveDialog keyboardSafe open={bulkRemoveDialogOpen} onOpenChange={(open) => {
                       setBulkRemoveDialogOpen(open);
                       if (!open) {
                         setBulkRemoveStep("select");
@@ -2225,7 +2225,7 @@ function SupabaseManageUsersPage() {
       </AlertDialog>
 
       {/* Award Points Dialog */}
-      <ResponsiveDialog open={!!awardPointsTarget} onOpenChange={(open) => {
+      <ResponsiveDialog keyboardSafe open={!!awardPointsTarget} onOpenChange={(open) => {
         if (!open) {
           setAwardPointsTarget(null);
           setAwardPoints(10);

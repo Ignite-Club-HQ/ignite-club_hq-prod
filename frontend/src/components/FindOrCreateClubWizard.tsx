@@ -1,3 +1,4 @@
+import { materializePickedFile } from "@/lib/pickedFiles";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { defaultClubHomeCountry } from "@/lib/clubHomeCountry";
@@ -118,7 +119,7 @@ export default function FindOrCreateClubWizard({
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setClubLogoFile(file);
+    void materializePickedFile(file).then(setClubLogoFile, () => setClubLogoFile(null));
     const reader = new FileReader();
     reader.onloadend = () => setClubLogoUrl(reader.result as string);
     reader.readAsDataURL(file);

@@ -473,7 +473,7 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
       )}
 
       {/* Create/Edit Dialog */}
-      <ResponsiveDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <ResponsiveDialog keyboardSafe open={dialogOpen} onOpenChange={setDialogOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle className="flex items-center gap-2">

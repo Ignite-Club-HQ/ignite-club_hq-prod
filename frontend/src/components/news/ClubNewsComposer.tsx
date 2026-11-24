@@ -1,4 +1,5 @@
 import { writeOnce } from "@/live/clubScope";
+import { materializePickedFile, materializePickedFiles } from "@/lib/pickedFiles";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileText, ImagePlus, Loader2, Paperclip, X } from "lucide-react";
@@ -353,20 +354,20 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
     onError: (e: unknown) => {
       toast({
         title: "Couldn't publish",
-        description: e instanceof Error ? e.message : "Please try again.",
+        description: e instanceof Error && /NotReadable|could not be read/i.test(`${e.name} ${e.message}`) ? "A photo or file could no longer be read from your phone. Remove it, pick it again and publish." : e instanceof Error ? e.message : "Please try again.",
         variant: "destructive",
       });
     },
   });
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-lg">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle>New club news</ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
-        <div className="space-y-4 overflow-y-auto px-1 pb-2">
+        <div className="space-y-4 overflow-y-auto px-4 pb-2 pt-1 sm:px-1">
           {clubs.length > 1 && (
             <MobileCardSelect
               label="Club"
@@ -442,7 +443,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
+              onChange={(e) => { const f = e.target.files?.[0]; if (!f) { pickImage(null); return; } void materializePickedFile(f).then(pickImage, (err) => toast({ title: "Couldn't add file", description: (err as Error).message, variant: "destructive" })); }}
             />
           </div>
 
@@ -511,7 +512,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               multiple
               className="hidden"
               onChange={(e) => {
-                addExtraImages(Array.from(e.target.files ?? []));
+                void materializePickedFiles(e.target.files ?? []).then(addExtraImages, (err) => toast({ title: "Couldn't add file", description: (err as Error).message, variant: "destructive" }));
                 e.currentTarget.value = "";
               }}
             />
@@ -590,7 +591,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               multiple
               className="hidden"
               onChange={(e) => {
-                addDocFiles(Array.from(e.target.files ?? []));
+                void materializePickedFiles(e.target.files ?? []).then(addDocFiles, (err) => toast({ title: "Couldn't add file", description: (err as Error).message, variant: "destructive" }));
                 e.currentTarget.value = "";
               }}
             />

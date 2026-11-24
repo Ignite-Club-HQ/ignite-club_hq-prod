@@ -132,7 +132,7 @@ export function AddFinalsRoundMenuItem({
       <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setOpen(true); }}>
         <Trophy className="h-4 w-4 mr-2" /> Add finals round
       </DropdownMenuItem>
-      <ResponsiveDialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <ResponsiveDialog keyboardSafe open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
         <ResponsiveDialogContent className="max-w-md">
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle>Add finals round</ResponsiveDialogTitle>

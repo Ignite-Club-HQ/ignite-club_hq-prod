@@ -1,3 +1,4 @@
+import { materializePickedFile } from "@/lib/pickedFiles";
 import { TEAM_PRICING } from "@/lib/subscriptionPlans";
 import { useState, useEffect, Suspense } from "react";
 import { defaultClubHomeCountry } from "@/lib/clubHomeCountry";
@@ -235,7 +236,7 @@ function SupabaseSignupProPage() {
   const handleClubLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setClubLogoFile(file);
+    void materializePickedFile(file).then(setClubLogoFile, () => setClubLogoFile(null));
     const reader = new FileReader();
     reader.onloadend = () => setClubLogoUrl(reader.result as string);
     reader.readAsDataURL(file);
@@ -244,7 +245,7 @@ function SupabaseSignupProPage() {
   const handleTeamLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setTeamLogoFile(file);
+    void materializePickedFile(file).then(setTeamLogoFile, () => setTeamLogoFile(null));
     const reader = new FileReader();
     reader.onloadend = () => setTeamLogoUrl(reader.result as string);
     reader.readAsDataURL(file);

@@ -856,7 +856,7 @@ export function ManagePlayersDialog({
 
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(o) => {
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={(o) => {
       if (!o) {
         setSelectionMode(false);
         setSelectedPlayerIds(new Set());

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { materializePickedFile, materializePickedFiles } from "@/lib/pickedFiles";
 import { useNavigate } from "react-router-dom";
 import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen, Crown, Newspaper } from "lucide-react";
 import { useClubFreeUsage, notifyClubFreeUsageChanged, type ClubFreeUsage } from "@/hooks/useClubFreeUsage";
@@ -392,8 +393,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   // Upload a non-image document file to chat-attachments and create a vault_files row,
   // then append a [vault:<id>] token to the message via onAppendToken.
   const handleDocumentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const picked = e.target.files?.[0];
+    if (!picked) return;
+    let file: File;
+    try { file = await materializePickedFile(picked); } catch (err) { toast.error((err as Error).message); if (docInputRef.current) docInputRef.current.value = ""; return; }
     if (file.size > MAX_UPLOAD_SIZE_BYTES) {
       toast.error("File must be less than 10MB");
       if (docInputRef.current) docInputRef.current.value = "";
@@ -656,8 +659,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const picked = e.target.files?.[0];
+    if (!picked) return;
+    let file: File;
+    try { file = await materializePickedFile(picked); } catch (err) { toast.error((err as Error).message); return; }
 
     const isVideo = isVideoFile(file);
 

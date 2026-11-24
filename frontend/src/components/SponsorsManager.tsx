@@ -1,3 +1,4 @@
+import { materializePickedFile } from "@/lib/pickedFiles";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -449,8 +450,13 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
         setLogoFile(result.file);
         setLogoPreview(URL.createObjectURL(result.file));
       } catch {
-        setLogoFile(file);
-        setLogoPreview(URL.createObjectURL(file));
+        try {
+          const copy = await materializePickedFile(file);
+          setLogoFile(copy);
+          setLogoPreview(URL.createObjectURL(copy));
+        } catch {
+          setLogoFile(null);
+        }
       }
     }
   };

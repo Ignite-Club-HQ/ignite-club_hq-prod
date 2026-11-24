@@ -393,7 +393,7 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league, canDelete
   };
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={handleOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-lg" fullScreen>
         <ResponsiveDialogHeader className="pb-0">
           <ResponsiveDialogTitle>League Settings</ResponsiveDialogTitle>

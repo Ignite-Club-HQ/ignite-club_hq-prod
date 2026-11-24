@@ -1,6 +1,6 @@
 import type { FeatureBackendContext } from "@/live/featureRouter";
 import { getLiveMyRoleGrants } from "@/live/features/membership";
-import { getLiveTeam, getLiveClubProfile, getLiveTeamSubscription } from "@/live/features/club";
+import { getLiveTeam, getLiveClubProfile, getLiveTeamSubscription, listLiveTeams } from "@/live/features/club";
 import { listMyLiveMiniLeagues, listLiveMiniLeaguesByClub, getLiveMiniLeague } from "@/live/features/miniLeagues";
 
 export interface TeamOrLeague {
@@ -60,6 +60,24 @@ async function loadIcpCarouselItems(
   const leagueAdminClubIds = [...new Set(
     grants.flatMap((g) => g.role === "league_admin" ? g.club : []),
   )];
+  // Club admins see every team in their club, same as the Messages list.
+  // Teams created through the ChatGPT connector (save_team) grant nobody a
+  // team role, so without this the club's own admin got an empty carousel.
+  const adminClubIds = [...new Set(
+    grants.flatMap((g) => (!g.team.length && g.club[0] && ["club_admin", "app_admin"].includes(g.role)) ? [g.club[0]] : []),
+  )];
+  // Team rows already fetched via the admin club listing, keyed by team id,
+  // so those teams skip the per-team read below.
+  const adminClubTeams = new Map<string, { id: string; club_id: string; name: string; logo_url?: [] | [string]; archived?: boolean; deleted_at_ms?: [] | [unknown] }>();
+  if (options.inventory !== "leagues" && adminClubIds.length > 0) {
+    const rows = await Promise.all(adminClubIds.map((clubId) => listLiveTeams(ctx, clubId)));
+    for (const team of rows.flat()) {
+      if (team.archived || team.deleted_at_ms?.length) continue;
+      if (activeClubFilter && team.club_id !== activeClubFilter) continue;
+      adminClubTeams.set(team.id, team);
+    }
+  }
+  const allTeamIds = [...new Set([...teamIds, ...adminClubTeams.keys()])];
 
   type ClubMeta = { name: string; logo_url: string | null; sport: string | null };
   const clubMeta = new Map<string, Promise<ClubMeta>>();
@@ -76,7 +94,7 @@ async function loadIcpCarouselItems(
   const result: TeamOrLeague[] = [];
 
   const teams = Promise.all(
-    (options.inventory === "leagues" ? [] : teamIds).map(async (teamId) => {
+    (options.inventory === "leagues" ? [] : allTeamIds).map(async (teamId) => {
       try {
         // The trial flag only depends on the team id, so read it alongside the
         // team row (both coalesce into one get_teams / get_team_subscriptions
@@ -87,7 +105,7 @@ async function loadIcpCarouselItems(
         // Team grants usually carry their club id: warm that club's profile in
         // the same round trip. It is only used if the team row confirms it.
         for (const g of grants) if (g.team[0] === teamId && g.club[0]) void getClubMeta(g.club[0]);
-        const raw = (await getLiveTeam(ctx, teamId)) as any;
+        const raw = adminClubTeams.get(teamId) ?? ((await getLiveTeam(ctx, teamId)) as any);
         const team = Array.isArray(raw) ? raw[0] : raw;
         if (!team || team.archived || team.deleted_at_ms?.length) return;
         if (activeClubFilter && team.club_id !== activeClubFilter) return;
