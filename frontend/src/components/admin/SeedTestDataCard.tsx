@@ -18,6 +18,7 @@ export function SeedTestDataCard() {
   const [clubMsgs, setClubMsgs] = useState(100);
   const [photos, setPhotos] = useState(12);
   const [running, setRunning] = useState(false);
+  const [demoProgress, setDemoProgress] = useState<{done:number,total:number}|null>(null);
   const [progress, setProgress] = useState<{ label: string; done: number; total: number } | null>(null);
   const [clubs, setClubs] = useState<Array<{ id: string; name: string }>>([]);
   const [fillClubId, setFillClubId] = useState<string>("");
@@ -34,6 +35,22 @@ export function SeedTestDataCard() {
   }, []);
 
   if (!isIcpSession()) return null;
+
+  const fillVirtuosoDemo = async () => {
+    if (!window.confirm("Add sample messages ONLY to Ignite Soccer Demo Club's nine chats until each contains at least 150 messages?")) return;
+    setRunning(true);
+    setDemoProgress({done:0,total:1350});
+    try {
+      const { fillDemoVirtuosoChats } = await import("@/live/fillDemoVirtuosoChats");
+      await fillDemoVirtuosoChats((done,total)=>setDemoProgress({done,total}));
+      qc.invalidateQueries();
+      toast.success("Demo club chats now have at least 150 messages each");
+    } catch(e) {
+      toast.error(e instanceof Error ? e.message : "Demo chat seeding stopped", {duration:15000});
+    } finally {
+      setRunning(false);
+    }
+  };
 
   const fillExisting = async () => {
     if (!fillClubId) return;
@@ -91,6 +108,18 @@ export function SeedTestDataCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="space-y-2 rounded-md border border-border p-3">
+          <Label>Virtuoso scrolling test — Ignite Soccer Demo Club only</Label>
+          <p className="text-sm text-muted-foreground">
+            Add fictional chat messages to the nine existing demo conversations until each has at least 150 messages.
+            Uses your current signed-in ICP identity. Does not create clubs, teams or events.
+          </p>
+          <Button type="button" disabled={running} onClick={fillVirtuosoDemo}>
+            {running && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Fill demo chats to 150 messages
+          </Button>
+          {demoProgress && <p className="text-sm text-muted-foreground">Sent {demoProgress.done} of up to {demoProgress.total} messages</p>}
+        </div>
         <div className="space-y-2 rounded-md border border-border p-3">
           <Label>Fill with demo content</Label>
           <p className="text-sm text-muted-foreground">
