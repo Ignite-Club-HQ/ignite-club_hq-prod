@@ -4,6 +4,9 @@ import { readSharedPitchBoard, writeSharedPitchBoard, sharedPitchSignature, type
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 
+/** Last revision/state this device saw per board, so reopening keeps unsent local edits. */
+const lastSynced = new Map<string, { revision: string; signature: string }>();
+
 /** One writer per open board; serial read/CAS loop, no blind retry after failure. */
 export function useIcpSharedPitchBoard({ teamId, userId, enabled, readOnly, apply }: {
   teamId: string; userId?: string; enabled: boolean; readOnly: boolean;
@@ -59,6 +62,7 @@ export function useIcpSharedPitchBoard({ teamId, userId, enabled, readOnly, appl
           if (retained) offerDraft(JSON.parse(retained));
         }
         signature = sharedPitchSignature(pitch);
+        lastSynced.set(teamId, { revision: String(revision), signature });
         localStorage.setItem(key, JSON.stringify(pitch));
         localStorage.setItem('ignite-pitch-board-state', JSON.stringify(pitch));
         applyRef.current(pitch);
@@ -71,7 +75,16 @@ export function useIcpSharedPitchBoard({ teamId, userId, enabled, readOnly, appl
         if (document.visibilityState === 'hidden' || !navigator.onLine) return;
         const remote = await readSharedPitchBoard(teamId);
         if (disposed) return;
-        if (!hydrated || uncertain || (remote?.revision ?? null) !== revision) {
+        const seen = lastSynced.get(teamId);
+        const pending = local();
+        if (!hydrated && !uncertain && remote && pending && !readOnly && seen
+          && seen.revision === String(remote.revision) && sharedPitchSignature(pending) !== seen.signature) {
+          // Board unchanged remotely since this device last synced, but local
+          // edits (e.g. auto-subs set up just before closing) were never sent.
+          revision = remote.revision;
+          signature = seen.signature;
+          hydrated = true;
+        } else if (!hydrated || uncertain || (remote?.revision ?? null) !== revision) {
           adopt(remote);
           uncertain = false;
           return;
@@ -86,6 +99,7 @@ export function useIcpSharedPitchBoard({ teamId, userId, enabled, readOnly, appl
         if (disposed) return;
         revision = ack.revision;
         signature = next;
+        lastSynced.set(teamId, { revision: String(revision), signature });
       } catch (error) {
         // Conflict/unknown write: reload instead of replaying the payload.
         const draft = local();
@@ -97,6 +111,16 @@ export function useIcpSharedPitchBoard({ teamId, userId, enabled, readOnly, appl
       }
     }
     void tick();
-    return () => { disposed = true; if (timer) clearTimeout(timer); };
+    return () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+      // Flush edits made since the last poll so closing the board keeps them.
+      const pitch = local();
+      if (!hydrated || uncertain || readOnly || !pitch || sharedPitchSignature(pitch) === signature) return;
+      const next = sharedPitchSignature(pitch);
+      void writeSharedPitchBoard(teamId, revision, pitch, session)
+        .then(ack => lastSynced.set(teamId, { revision: String(ack.revision), signature: next }))
+        .catch(error => console.warn('[PitchBoard] Final shared board save failed', error));
+    };
   }, [enabled, userId, teamId, readOnly]);
 }
