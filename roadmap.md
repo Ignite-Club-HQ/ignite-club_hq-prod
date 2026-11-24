@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Home ICP timer start reliability — 24 November
+- [x] Reproduced Home start/read races; repaired Home and shared board clock reads, immediate acknowledged-start persistence, all three alternate toolbar fixture arguments and rejected group-clock event delivery. Exact routing, permissions and settled matches unchanged.
+- [x] 16 focused files per mode: 163 email / 152 ICP passes, existing mode skips only; preview build OK. Phone-sized signed-out preview checked with no page errors/overflow. Inventory: docs/home-icp-timer-start-audit-2026-11-24.md.
+- [ ] Real-member Home start → server readback and installed-phone acceptance: session minting refuses this user-managed backend; physical device unavailable. No PROD deployment.
+
 ## Home pitch-board widget opening — 24 November
 - [x] Preserve the widget/restored board's exact event, overlap attendance, roster and board-code loading, and retry only failed reads with separate deadlines.
 - [x] Sweep team/event/shared/group/notification/desktop/resume entry paths; fix unnecessary waits, late reopening and failed-event recovery without changing settled games or permissions. Source inventory: docs/pitch-board-opening-audit-2026-11-24.md.

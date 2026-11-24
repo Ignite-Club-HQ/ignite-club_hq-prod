@@ -13,6 +13,20 @@ const pitchKey = `ignite-pitch-board-state-team-${team}`;
 const row = (revision: bigint, elapsed = 30) => ({ state_revision: revision, timer_state_json: [JSON.stringify({ elapsedSeconds: elapsed, currentHalf: 1, lastUpdateTime: Date.now() })], pitch_state_json: ['{"players":[]}'] });
 beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); state.read.mockResolvedValue(row(2n)); state.write.mockResolvedValue(row(3n)); });
 describe('canister group clock synchronization', () => {
+  it('does not broadcast a rejected stale paused clock to a mounted board', async () => {
+    const view = renderHook(() => useEventGroupSync(team, 'g', { readOnly: true }));
+    await waitFor(() => expect(localStorage.getItem(timerKey)).not.toBeNull());
+    localStorage.setItem(timerKey, JSON.stringify({ elapsedSeconds: 40, minutesPerHalf: 20, currentHalf: 1, isRunning: true, lastUpdateTime: Date.now() }));
+    state.read.mockResolvedValue({ ...row(4n, 30), timer_state_json: [JSON.stringify({ elapsedSeconds: 30, minutesPerHalf: 20, currentHalf: 1, isRunning: false, lastUpdateTime: Date.now() - 1000 })] });
+    const delivered: unknown[] = [];
+    const onChange = (event: Event) => { delivered.push((event as CustomEvent).detail?.timer); };
+    window.addEventListener('game-state-changed', onChange);
+    try {
+      await act(async () => { await view.result.current.loadFromDatabase(true); });
+      expect(JSON.parse(localStorage.getItem(timerKey) ?? '{}').isRunning).toBe(true);
+      expect(delivered).toEqual([null]);
+    } finally { window.removeEventListener('game-state-changed', onChange); view.unmount(); }
+  });
   it('spectators read authoritative state and never open Supabase or write clocks', async () => {
     const view = renderHook(() => useEventGroupSync(team, 'g', { readOnly: true }));
     await waitFor(() => expect(localStorage.getItem(timerKey)).not.toBeNull());

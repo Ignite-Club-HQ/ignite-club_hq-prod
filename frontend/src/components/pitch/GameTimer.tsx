@@ -265,6 +265,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   const [hasInitialized, setHasInitialized] = useState(false);
   const [timerPending, setTimerPending] = useState(false);
   const pendingRef = useRef(false);
+  const timerActionRevision = useRef(0);
   // ICP clocks live on the linked match. A board with no match runs a
   // device-only clock instead of refusing to start.
   const icpServerClock = resolveAuthBackend() === 'icp' && !teamId?.startsWith('event-group-') && !!eventId;
@@ -407,11 +408,14 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   const commitTimerAction = useCallback(async (action: Parameters<typeof sendTimerEvent>[0]['event'], mph: number) => {
     if (readOnly || pendingRef.current) return;
     pendingRef.current = true; setTimerPending(true);
+    timerActionRevision.current += 1;
     try {
       const response = await sendTimerEvent({ teamId: teamId ?? null, eventId, event: action, minutesPerHalf: mph });
       if (!isServerAnchoredTimer(response.timer_state)) throw new Error('Invalid timer acknowledgement');
       applyServerSnapshot(response.timer_state, response.server_now);
       if (timerScopeRef.current.teamId === teamId && timerScopeRef.current.eventId === eventId) {
+        // A slow mount read must not keep acknowledged starts out of storage.
+        setHasInitialized(true);
         if (action === 'set_minutes') onMinutesPerHalfChange?.(response.timer_state.minutes_per_half);
         if (action === 'end_half') onHalfChangeRef.current?.(2, 'live');
       }
@@ -428,8 +432,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     async function refresh() {
       try {
         if (document.visibilityState !== 'hidden' && navigator.onLine) {
+          if (pendingRef.current) return;
+          const actionRevision = timerActionRevision.current;
           const res = await readServerTimer(teamId ?? null, eventId);
-          if (!cancelled && res.found && isServerAnchoredTimer(res.timer_state)) applyServerSnapshot(res.timer_state, res.server_now);
+          if (!cancelled && !pendingRef.current && timerActionRevision.current === actionRevision && res.found && isServerAnchoredTimer(res.timer_state)) applyServerSnapshot(res.timer_state, res.server_now);
         }
       } catch (error) { console.warn('[GameTimer] Clock refresh failed', error); }
       finally { if (!cancelled) timer = setTimeout(refresh, 5000); }
@@ -501,9 +507,11 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       const local = loadTimerState(teamId);
       const localUsable = !!local && local.teamId === teamId && (resolveAuthBackend() !== 'icp' || local.eventId === eventId);
       // Try server first.
+      const actionRevision = timerActionRevision.current;
       try {
         const res = await readServerTimer(teamId ?? null, eventId);
         if (cancelled) return;
+        if (pendingRef.current || timerActionRevision.current !== actionRevision) { setHasInitialized(true); return; }
         if (res.found && isServerAnchoredTimer(res.timer_state)) {
           const incoming = res.timer_state as ServerTimer;
           const serverNowMs = new Date(res.server_now).getTime();
@@ -806,7 +814,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   useEffect(() => {
     const reconcileAfterResume = async () => {
       const r = reconcileRefs.current;
-      if (r.isGameFinished) return;
+      if (r.isGameFinished || pendingRef.current) return;
+      const actionRevision = timerActionRevision.current;
 
       // Capture the team-id we're reading for. If it changes mid-flight
       // (user navigated to another team), discard the response so we don't
@@ -817,6 +826,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       // impossible because the server derives elapsed from event timestamps.
       try {
         const res = await readServerTimer(readForTeamId, r.eventId);
+        if (pendingRef.current || timerActionRevision.current !== actionRevision) return;
         if ((reconcileRefs.current.teamId ?? null) !== readForTeamId || reconcileRefs.current.eventId !== r.eventId) {
           console.info('[TimerAudit] reconcile: team-id changed mid-read, dropping', { readForTeamId, current: reconcileRefs.current.teamId });
           return;
@@ -842,6 +852,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       } catch (e) {
         console.warn('[TimerAudit] reconcile: server read failed, falling back', e);
       }
+      if (pendingRef.current || timerActionRevision.current !== actionRevision ||
+        (reconcileRefs.current.teamId ?? null) !== readForTeamId || reconcileRefs.current.eventId !== r.eventId) return;
 
       // Fallback: legacy localStorage drift projection (for games still on
       // the old path or fully offline). Same logic as before.
