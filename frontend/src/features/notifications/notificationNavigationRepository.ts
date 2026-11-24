@@ -1,3 +1,9 @@
+import { strictIcpActive } from "@/live/strictIcpTransport";
+
+function assertEmailChatTransport(): void {
+  if (strictIcpActive()) throw new Error("Your sign-in changed. Refresh your messages.");
+}
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -32,6 +38,7 @@ export async function resolveScopedMessageNotificationTarget(
   relatedId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<ScopedMessageNotificationTarget | null> {
+  assertEmailChatTransport();
   if (kind === "club") {
     const { data } = await client.from("club_messages").select("club_id").eq("id", relatedId).maybeSingle();
     return data?.club_id
@@ -69,6 +76,7 @@ export async function resolveDirectNotificationTarget(
   createdAt?: string | null,
   client: IgniteSupabaseClient = supabase,
 ): Promise<DirectNotificationTarget | null> {
+  assertEmailChatTransport();
   const { data: directMessage } = await client
     .from("direct_messages")
     .select("id, conversation_id")
@@ -123,6 +131,7 @@ export async function resolveLegacyReactionTarget(
   notification: LegacyReactionNotification,
   client: IgniteSupabaseClient = supabase,
 ): Promise<ChatTarget | null> {
+  assertEmailChatTransport();
   if (!notification.related_id) return null;
   const at = new Date(notification.created_at).getTime();
   if (!Number.isFinite(at)) return null;
@@ -193,6 +202,7 @@ export async function resolveLegacyReactionContainerPath(
   relatedId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<string | null> {
+  assertEmailChatTransport();
   const { data: team } = await client.from("teams").select("id").eq("id", relatedId).maybeSingle();
   if (team) return `/messages/${relatedId}`;
   const { data: club } = await client.from("clubs").select("id").eq("id", relatedId).maybeSingle();

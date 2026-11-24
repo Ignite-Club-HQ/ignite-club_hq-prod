@@ -555,7 +555,7 @@ export function MentionInput({
                 avatar_url: p.avatar_ref?.[0] ?? null,
               }));
           },
-        }, { clubId: clubId });
+        }, dmOtherUserId ? { shared: "person" } : groupId ? { conversationId: groupId } : teamId ? { teamId } : { clubId: clubId ?? "" });
       }
 
       let userIds: string[] = [];

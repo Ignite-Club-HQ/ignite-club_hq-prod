@@ -27,6 +27,7 @@ vi.mock("@/live/features/messaging", () => ({
     return mocks.groupMeta;
   },
 }));
+vi.mock("@/live/contentRouting", () => ({ readContentInScope: async (ctx: unknown, _feature: unknown, _scope: unknown, read: (ctx: unknown) => unknown) => read(ctx) }));
 
 vi.mock("@/live/features/miniLeagues", () => ({
   getLiveMiniLeague: async () => {

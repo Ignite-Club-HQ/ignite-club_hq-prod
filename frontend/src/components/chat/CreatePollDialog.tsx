@@ -95,11 +95,17 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
   // Resolve the owning club so we can show the Free-tier usage meter & enforce caps.
   const { data: resolvedClubId } = useQuery({
     queryKey: ["poll-club-resolve", chatType, chatId, clubIdProp],
-    enabled: open && !clubIdProp && !!chatId && resolveAuthBackend() !== "icp",
+    enabled: open && !clubIdProp && !!chatId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
       if (clubIdProp) return clubIdProp;
       if (chatType === "club") return chatId;
+      if (isFeatureRoutedToIcp("messaging")) {
+        const { lookupRouteClubId } = await import("@/lib/clubScopeLookup");
+        return chatType === "team" || chatType === "group"
+          ? lookupRouteClubId(chatType === "team" ? "teams" : "chat_groups", chatId)
+          : null;
+      }
       if (chatType === "team") {
         const { data } = await supabase.from("teams").select("club_id").eq("id", chatId).maybeSingle();
         return (data?.club_id as string) ?? null;

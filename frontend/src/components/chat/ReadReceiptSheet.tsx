@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { resolveAuthBackend } from "@/live/authBackendMode";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 import { usePrivateChatProfiles } from "@/hooks/usePrivateChatProfiles";
 import { privateProfileSearchRehearsalEnabled } from "@/live/privateProfileSearchMode";
 import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
@@ -75,7 +76,7 @@ export const ReadReceiptSheet = memo(function ReadReceiptSheet({
   // fallback path the Supabase branch uses when `allMembers` is empty).
   useEffect(() => {
     if (!open || !messageId) return;
-    if (resolveAuthBackend() !== "icp") return;
+    if (!strictIcpActive()) return;
 
     let cancelled = false;
     const fetchIcp = async () => {
@@ -167,9 +168,10 @@ export const ReadReceiptSheet = memo(function ReadReceiptSheet({
 
   useEffect(() => {
     if (!open || !messageId) return;
-    if (resolveAuthBackend() === "icp") return;
+    if (strictIcpActive()) return;
 
     const fetchData = async () => {
+      if (strictIcpActive()) return;
       setLoading(true);
       try {
         const field = MESSAGE_ID_FIELDS[messageType];
@@ -243,6 +245,7 @@ export const ReadReceiptSheet = memo(function ReadReceiptSheet({
         }
 
         const [readsRes, memberIdsRaw] = await Promise.all([readsPromise, membersPromise]);
+        if (strictIcpActive()) return;
 
         const readerUserIds = new Set<string>();
         for (const row of (readsRes as any).data || []) {

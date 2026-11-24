@@ -6,7 +6,7 @@ import {
   getProfileFromCache,
   selectCachedProfilesByIds,
 } from "@/lib/profileCache";
-import { resolveAuthBackend } from "@/live/authBackendMode";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 import type { FeatureBackendContext } from "@/live/featureRouter";
 import { getCurrentInternetIdentity } from "@/live/internetIdentityAuth";
 import { getActiveIcpTarget } from "@/live/targetRegistry";
@@ -145,7 +145,7 @@ export async function fetchMemberClubsWithMessages(
   userId: string,
   useIcpLab: boolean,
 ) {
-  if (resolveAuthBackend() === "icp") {
+  if (strictIcpActive()) {
     const ctx = await getIcpFeatureBackendContext();
     const roleGrants = await getLiveMyRoleGrants(ctx);
     // club_domain RoleGrant is { club, team, role, user } — candid opt fields
@@ -234,7 +234,7 @@ export async function fetchTeamsWithMessages(
   userId: string,
   useIcpLab: boolean,
 ) {
-  if (resolveAuthBackend() === "icp") {
+  if (strictIcpActive()) {
     const ctx = await getIcpFeatureBackendContext();
     const roleGrants = await getLiveMyRoleGrants(ctx);
     // club_domain RoleGrant is { club, team, role, user } — candid opt fields
@@ -432,7 +432,7 @@ async function fetchIcpChatGroupsWithMessages() {
 }
 
 export async function fetchChatGroupsWithMessages(client: InboxDataClient, userId: string) {
-  if (resolveAuthBackend() === "icp") return fetchIcpChatGroupsWithMessages();
+  if (strictIcpActive()) return fetchIcpChatGroupsWithMessages();
   let accessibleIds: string[] | null = null;
   try {
     if (typeof window === "undefined" || window.localStorage.getItem("msg_accessible_ids_rpc") !== "0") {
@@ -517,6 +517,7 @@ export async function fetchDirectMessageConversations({
   cachedData: ReturnType<typeof getCachedMessagesPageData>;
   getPreviousConversations: () => any[] | undefined;
 }) {
+  if (strictIcpActive()) throw new Error("Your sign-in changed. Refresh your messages.");
   const { data: conversations, error } = await client
     .from("direct_conversations")
     .select("*")
@@ -530,6 +531,7 @@ export async function fetchDirectMessageConversations({
   );
   const conversationIds = conversations.map((conversation: any) => conversation.id);
   const fetchLatestMessages = async (): Promise<Map<string, any>> => {
+    if (strictIcpActive()) throw new Error("Your sign-in changed. Refresh your messages.");
     try {
       const { data, error: rpcError } = await client.rpc("get_inbox_latest_dm_messages", {
         _conversation_ids: conversationIds,
@@ -545,6 +547,7 @@ export async function fetchDirectMessageConversations({
         },
       ]));
     } catch {
+      if (strictIcpActive()) throw new Error("Your sign-in changed. Refresh your messages.");
       const messageRows = await Promise.all(
         conversations.map(async (conversation: any) => {
           const { data: message } = await client
@@ -576,6 +579,7 @@ export async function fetchDirectMessageConversations({
     })(),
     fetchLatestMessages(),
   ]);
+  if (strictIcpActive()) throw new Error("Your sign-in changed. Refresh your messages.");
 
   const previousOtherUsers = new Map<string, any>();
   getPreviousConversations()?.forEach((conversation: any) => {

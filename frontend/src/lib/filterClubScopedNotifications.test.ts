@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+vi.mock("@/live/strictIcpTransport", () => ({ strictIcpActive: () => false }));
 
 // ---- supabase mock -----------------------------------------------------
 // Each `from(table)` returns a fluent builder. Callers do:

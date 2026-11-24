@@ -9,6 +9,7 @@ vi.mock("@/lab/fixtureDataLayer", () => ({}));
 vi.mock("@/lib/messagesPageCache", () => ({ cacheMessagesPageData: vi.fn(), getCachedMessagesPageData: vi.fn() }));
 vi.mock("@/lib/profileCache", () => ({}));
 vi.mock("@/live/authBackendMode", () => ({ resolveAuthBackend: () => "icp" }));
+vi.mock("@/live/strictIcpTransport", () => ({ strictIcpActive: () => true }));
 vi.mock("@/live/internetIdentityAuth", () => ({ getCurrentInternetIdentity: async () => mocks.identity }));
 vi.mock("@/live/targetRegistry", () => ({ getActiveIcpTarget: () => ({ host: "https://icp-api.io", canisterIds: {} }) }));
 vi.mock("@/live/features/identityAccessClient", () => ({ listLiveProfilesByIds: vi.fn() }));
