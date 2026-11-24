@@ -31,6 +31,7 @@ interface UseHomePitchBoardArgs {
   }>;
   findNearbyEvent: (teamId: string) => Promise<string | null>;
   loadGoingRsvps: (eventId: string) => Promise<HomePitchBoardRsvp[]>;
+  onLoadFailed?: () => void;
 }
 
 const STAFF_ROLES = new Set([
@@ -40,6 +41,29 @@ const STAFF_ROLES = new Set([
   "app_admin",
 ]);
 
+/** Bound a live read so a stalled canister call becomes a retryable error, not an endless spinner. */
+const LOAD_DEADLINE_MS = 10_000;
+const MAX_ATTEMPTS = 3;
+
+function withLoadDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(
+      () => reject(new Error("The pitch board took too long to load.")),
+      ms,
+    );
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
 export function useHomePitchBoard({
   isAppAdmin,
   notifyProRequired,
@@ -47,6 +71,7 @@ export function useHomePitchBoard({
   loadRoster,
   findNearbyEvent,
   loadGoingRsvps,
+  onLoadFailed,
 }: UseHomePitchBoardArgs) {
   const [pitchBoardTeam, setPitchBoardTeam] =
     useState<HomePitchBoardTeam | null>(null);
@@ -58,6 +83,7 @@ export function useHomePitchBoard({
     loadRoster,
     findNearbyEvent,
     loadGoingRsvps,
+    onLoadFailed,
   });
   dependenciesRef.current = {
     isAppAdmin,
@@ -66,67 +92,84 @@ export function useHomePitchBoard({
     loadRoster,
     findNearbyEvent,
     loadGoingRsvps,
+    onLoadFailed,
   };
 
   const openPitchBoard = useCallback(
     async (teamId: string, teamName: string, readOnly = false) => {
       setPitchBoardLoading(true);
       try {
-        const dependencies = dependenciesRef.current;
-        const hasAccess = await dependencies.hasProFootballAccess(teamId);
-        if (!hasAccess && !dependencies.isAppAdmin) {
-          dependencies.notifyProRequired();
-          return;
-        }
+        const loadOnce = async () => {
+          const dependencies = dependenciesRef.current;
+          const hasAccess = await dependencies.hasProFootballAccess(teamId);
+          if (!hasAccess && !dependencies.isAppAdmin) {
+            dependencies.notifyProRequired();
+            return;
+          }
 
-        const [roster, linkedEventId] = await Promise.all([
-          dependencies.loadRoster(teamId),
-          dependencies.findNearbyEvent(teamId),
-        ]);
-        let goingChildIds: Set<string> | null = null;
-        let goingAdultIds: Set<string> | null = null;
-        if (linkedEventId) {
-          const rsvps = await dependencies.loadGoingRsvps(linkedEventId);
-          goingChildIds = new Set(
-            rsvps
-              .map((rsvp) => rsvp.child_id)
-              .filter((id): id is string => !!id),
+          const [roster, linkedEventId] = await Promise.all([
+            dependencies.loadRoster(teamId),
+            dependencies.findNearbyEvent(teamId),
+          ]);
+          let goingChildIds: Set<string> | null = null;
+          let goingAdultIds: Set<string> | null = null;
+          if (linkedEventId) {
+            const rsvps = await dependencies.loadGoingRsvps(linkedEventId);
+            goingChildIds = new Set(
+              rsvps
+                .map((rsvp) => rsvp.child_id)
+                .filter((id): id is string => !!id),
+            );
+            goingAdultIds = new Set(
+              rsvps
+                .map((rsvp) => rsvp.user_id)
+                .filter((id): id is string => !!id),
+            );
+          }
+
+          const members = roster.members.filter(
+            (member) =>
+              !goingAdultIds ||
+              STAFF_ROLES.has(member.role) ||
+              goingAdultIds.has(member.user_id),
           );
-          goingAdultIds = new Set(
-            rsvps
-              .map((rsvp) => rsvp.user_id)
-              .filter((id): id is string => !!id),
-          );
+          const children = roster.children
+            .filter(
+              (child) =>
+                !goingChildIds || goingChildIds.has(child.child_id),
+            )
+            .map((child): HomePitchBoardMember => ({
+              id: `child-${child.child_id}`,
+              user_id: child.child_id,
+              role: "player",
+              profiles: {
+                display_name: child.child_name,
+                avatar_url: null,
+              },
+            }));
+
+          setPitchBoardTeam({
+            id: teamId,
+            name: teamName,
+            members: [...members, ...children],
+            readOnly,
+            linkedEventId,
+          });
+        };
+
+        // A stalled live read used to hold the loading overlay forever;
+        // leaving and returning fixed it. Bound each attempt and retry so
+        // the same recovery happens without leaving the screen.
+        let lastError: unknown = null;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          try {
+            await withLoadDeadline(loadOnce(), LOAD_DEADLINE_MS);
+            return;
+          } catch (error) {
+            lastError = error;
+          }
         }
-
-        const members = roster.members.filter(
-          (member) =>
-            !goingAdultIds ||
-            STAFF_ROLES.has(member.role) ||
-            goingAdultIds.has(member.user_id),
-        );
-        const children = roster.children
-          .filter(
-            (child) =>
-              !goingChildIds || goingChildIds.has(child.child_id),
-          )
-          .map((child): HomePitchBoardMember => ({
-            id: `child-${child.child_id}`,
-            user_id: child.child_id,
-            role: "player",
-            profiles: {
-              display_name: child.child_name,
-              avatar_url: null,
-            },
-          }));
-
-        setPitchBoardTeam({
-          id: teamId,
-          name: teamName,
-          members: [...members, ...children],
-          readOnly,
-          linkedEventId,
-        });
+        if (lastError) dependenciesRef.current.onLoadFailed?.();
       } finally {
         setPitchBoardLoading(false);
       }

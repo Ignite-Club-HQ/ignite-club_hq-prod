@@ -1889,6 +1889,12 @@ export default function HomePage() {
     },
     findNearbyEvent: findNearbyGameEvent,
     loadGoingRsvps: readGoingGameRsvps,
+    onLoadFailed: () =>
+      toast({
+        title: "Pitch Board didn't load",
+        description: "Loading your team took too long. Please try again.",
+        variant: "destructive",
+      }),
   });
 
 
