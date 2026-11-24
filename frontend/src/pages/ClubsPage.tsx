@@ -2,6 +2,7 @@ import { readDiscoveredRemovedClubs } from "@/live/accountDiscovery";
 import { invalidateTeamLists } from "@/lib/invalidateTeamLists";
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { withReadDeadline } from "@/live/readDeadline";
 import { Users, Plus, Crown, ChevronRight, Search, X, Info, RotateCcw, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "react-router-dom";
@@ -188,11 +189,7 @@ export default function ClubsPage() {
         // A first read can occasionally stall (e.g. a cold connection) while
         // a fresh one answers at once — so give up after a bounded wait and
         // let React Query retry instead of spinning indefinitely.
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const stall = new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error("clubs read stalled")), CLUBS_READ_DEADLINE_MS);
-        });
-        return Promise.race([stall, withFeatureBackend("membership", {
+        return withReadDeadline(withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },
           icp: async (ctx) => {
             const toClub = (p: LiveClubRow) => ({
@@ -211,7 +208,7 @@ export default function ClubsPage() {
               (loaded) => queryClient.setQueryData(["clubs"], loaded.map(toClub)));
             return values.map(toClub);
           },
-        }, { shared: "person" })]).finally(() => clearTimeout(timer));
+        }, { shared: "person" }), "Loading clubs", CLUBS_READ_DEADLINE_MS);
       }
 
 
