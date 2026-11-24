@@ -865,6 +865,11 @@ type Main =
      }) query;
    my_children: () -> (vec Child) query;
    my_rsvps: () -> (vec Rsvp) query;
+   notify_duty_assigned: (event_id: text, account_id: text) ->
+    (variant {
+       Err: text;
+       Ok: nat16;
+     });
    notify_duty_completion: (event_id: text, account_id: text) ->
     (variant {
        Err: text;

@@ -264,7 +264,7 @@ export async function updateLiveEvent(
   input: Omit<LiveEventInput, "clubId" | "teamId">,
 ) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
+  const saved = await unwrapCandid(
     actor.update_event(
       eventId,
       input.title,
@@ -283,6 +283,11 @@ export async function updateLiveEvent(
     ),
     "Update event",
   );
+  // Email mode alerts members on edits via a trigger; secure mode asks the
+  // event server (manager-checked, once per revision). Never blocks the save.
+  void unwrapCandid(actor.notify_event_audience(eventId, "event_updated"), "Queue event updated")
+    .catch((error) => console.warn("[event-updated alert] not sent", error));
+  return saved;
 }
 
 /**
@@ -479,7 +484,11 @@ export async function setLiveEventDuty(
   duty: string,
 ) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.set_duty(eventId, accountId, duty), "Set duty");
+  const saved = await unwrapCandid(actor.set_duty(eventId, accountId, duty), "Set duty");
+  // Best-effort alert to the assignee (server skips self-assignment and repeats).
+  void unwrapCandid(actor.notify_duty_assigned(eventId, accountId), "Queue duty assigned")
+    .catch((error) => console.warn("[duty-assigned alert] not sent", error));
+  return saved;
 }
 
 /**
@@ -1065,7 +1074,12 @@ export async function getLiveCoachNote(ctx: FeatureBackendContext, eventId: stri
 
 export async function setLiveCoachNote(ctx: FeatureBackendContext, eventId: string, note: string) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.set_coach_note(eventId, note), "Set coach note");
+  const saved = await unwrapCandid(actor.set_coach_note(eventId, note), "Set coach note");
+  if (note.trim()) {
+    void unwrapCandid(actor.notify_event_audience(eventId, "event_note"), "Queue event note")
+      .catch((error) => console.warn("[event-note alert] not sent", error));
+  }
+  return saved;
 }
 
 /**
@@ -2493,7 +2507,7 @@ export async function readLiveEventCancellationAudience(ctx: FeatureBackendConte
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
   return Number(await unwrapCandid(actor.read_event_cancellation_audience(eventId), 'Verify cancellation audience'));
 }
-export async function notifyLiveEventAudience(ctx: FeatureBackendContext, eventId: string, kind: 'event_invite' | 'event_cancelled') {
+export async function notifyLiveEventAudience(ctx: FeatureBackendContext, eventId: string, kind: 'event_invite' | 'event_cancelled' | 'event_updated' | 'event_note') {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
   return unwrapCandid(actor.notify_event_audience(eventId, kind), 'Queue event notice');
 }
