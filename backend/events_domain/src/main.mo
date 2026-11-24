@@ -1580,36 +1580,58 @@ persistent actor class Main(governorInit : Principal) = this {
 
   public composite query ({ caller }) func list_events(club_id : ?Text, team_id : ?Text) : async [Types.Event] {
     denyLegacyAccountQuery();
-    var visible : [Types.Event] = [];
+    let visible = List.empty<Types.Event>();
+    let leagueAnswers = Map.empty<Text, Bool>();
     for (event in events.values()) {
       if (not event.deleted and (club_id == null or club_id == ?event.club_id) and (team_id == null or team_id == event.team_id)) {
-        if (if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
-      case (?leagueId, ?authority) {
-        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
-        try { await ml.can_read_league_matches(caller, leagueId, event.club_id) } catch (_) { false }
-      };
-      case _ false;
-    }) visible := visible.concat([event]);
+        let shown = if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
+          case (?leagueId, ?authority) {
+            // One league answer per (league, club) per request.
+            let key = leagueId # "\u{1F}" # event.club_id;
+            switch (leagueAnswers.get(Text.compare, key)) {
+              case (?answer) answer;
+              case null {
+                let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
+                let answer = try { await ml.can_read_league_matches(caller, leagueId, event.club_id) } catch (_) { false };
+                leagueAnswers.add(Text.compare, key, answer);
+                answer
+              };
+            }
+          };
+          case _ false;
+        };
+        if (shown) visible.add(event);
       };
     };
-    visible
+    visible.toArray()
   };
   public composite query ({ caller }) func list_events_multi(club_ids : [Text], team_ids : [Text]) : async { #Ok : [Types.Event]; #Err : Text } {
     denyLegacyAccountQuery();
     if (club_ids.size() + team_ids.size() > 300) return #Err("Too many ids");
-    var visible : [Types.Event] = [];
+    let visible = List.empty<Types.Event>();
+    let leagueAnswers = Map.empty<Text, Bool>();
     for (event in events.values()) {
       if (not event.deleted and (club_ids.any(func(c) = c == event.club_id) or (switch (event.team_id) { case (?t) team_ids.any(func(id) = id == t); case null false }))) {
-        if (if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
-      case (?leagueId, ?authority) {
-        let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
-        try { await ml.can_read_league_matches(caller, leagueId, event.club_id) } catch (_) { false }
-      };
-      case _ false;
-    }) visible := visible.concat([event]);
+        let shown = if (Principal.isAnonymous(caller) or event.deleted) false else if (canView(caller, event)) true else switch (event.mini_league_id, miniLeagueDomainCanister) {
+          case (?leagueId, ?authority) {
+            // One league answer per (league, club) per request.
+            let key = leagueId # "\u{1F}" # event.club_id;
+            switch (leagueAnswers.get(Text.compare, key)) {
+              case (?answer) answer;
+              case null {
+                let ml : actor { can_read_league_matches : shared query (Principal, Text, Text) -> async Bool } = actor (authority.toText());
+                let answer = try { await ml.can_read_league_matches(caller, leagueId, event.club_id) } catch (_) { false };
+                leagueAnswers.add(Text.compare, key, answer);
+                answer
+              };
+            }
+          };
+          case _ false;
+        };
+        if (shown) visible.add(event);
       };
     };
-    #Ok(visible)
+    #Ok(visible.toArray())
   };
 
   public query ({ caller }) func list_events_for_duty_teams(team_ids : [Text]) : async { #Ok : [Types.Event]; #Err : Text } {
