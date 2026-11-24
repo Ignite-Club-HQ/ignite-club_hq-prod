@@ -1,10 +1,10 @@
 {
   "canisters": {
-    "identity_access": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "identity_access": "c741260ad1d95ea1536e97d5991781cf0cef765c",
     "placement_registry": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "migration_coordinator": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "secret_workload_identity": "cc0a411486754f0a21fb2b154c61fa57b6084271",
-    "pii_access_control": "cc0a411486754f0a21fb2b154c61fa57b6084271",
+    "pii_access_control": "c741260ad1d95ea1536e97d5991781cf0cef765c",
     "timer_jobs": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "club_domain": "50afe377f848e82cc51275e491067e047c4a2e08",
     "events_domain": "1754fdfc7ed6ef09619aa68b9e928fee6574ed77",
@@ -19,5 +19,5 @@
     "insights_domain": "cc0a411486754f0a21fb2b154c61fa57b6084271",
     "shard_router": "628d1cc322c5feac1066c941642f617c9bed5c54"
   },
-  "updatedAt": "2026-11-24T04:25:34.551Z"
+  "updatedAt": "2026-11-24T05:24:51.830Z"
 }
