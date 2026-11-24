@@ -205,6 +205,11 @@
 - [x] Five upload/access regressions failed before repair; 42 focused checks pass in default mode and 39 in ICP mode (backend-specific skips). Preview build OK. Existing competition Vault upload permissions still apply.
 - [ ] Authenticated on-chain upload/message/readback and physical-phone acceptance require a delegated II session/device unavailable in the sandbox. No PROD deployment performed.
 
+## Owner-approved all-member alert release — 24 November
+- [x] Recorded Paul's explicit approval; checked live prod source 29da3e1917dd0f45f11118c95791583344e49475 and commissioned sender health; four switch tests passed.
+- [ ] Execute the approved governor switch for both LIVE queues: held because prod source still hardcodes generic alert wording and lacks the prepared named-alert/isolation release; latest sender runs are from 10 November. Deployment/promotion must precede activation; no live switch or Supabase/email changes made.
+- [ ] Send a message on TEST and confirm readback: no verified Internet Identity TEST session is available; auth-session refuses this user-managed backend, so no chat sent or phone delivery claimed.
+
 ## All-user native ICP push rollout — 11 November
 - [x] Paul requested progressing beyond his successful open/closed-app self-test; preserve email/Supabase push and native-only scope.
 - [x] Identified current PROD recipient allowlist, base-queue-only transport, ten-send invocation cap, missing old-alert cutoff and lifetime 10,000-attempt stop.
