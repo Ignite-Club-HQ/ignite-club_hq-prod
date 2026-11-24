@@ -1,3 +1,4 @@
+import { markSecurePushRegistered } from "@/lib/pushTokenHandover";
 import { connectLiveNotificationQueue } from "../domains";
 import type { FeatureBackendContext } from "../featureRouter";
 import { unwrapCandid, unwrapCandidOpt } from "./candid";
@@ -783,6 +784,7 @@ export async function registerLiveDeviceToken(
   ctx: FeatureBackendContext,
   input: LiveDeviceTokenInput,
 ) {
+  markSecurePushRegistered();
   const { actor } = await connectLiveNotificationQueue(ctx.target, ctx.identity);
   await unwrapCandid(
     actor.register_device_token(
