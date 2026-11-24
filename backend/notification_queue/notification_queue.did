@@ -203,6 +203,7 @@ type Notification =
  };
 type NativeReservation = 
  record {
+   body: text;
    key: text;
    kind: text;
    notification_id: text;

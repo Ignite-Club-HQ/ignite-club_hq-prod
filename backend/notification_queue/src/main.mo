@@ -1885,7 +1885,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
   type NativeReservation = {
     receipt : Text; user : Text; token : Text; platform : Text;
-    notification_id : Text; kind : Text; related_id : ?Text; scope : Text; key : Text;
+    notification_id : Text; kind : Text; related_id : ?Text; scope : Text; key : Text; body : Text;
   };
 
   public shared ({ caller }) func reserve_native_push() : async { #Ok : ?NativeReservation; #Err : Text } {
@@ -1946,7 +1946,7 @@ persistent actor class Main(governorInit : Principal) = this {
       nativePushSequence += 1;
       let receipt = nativePushSequence.toText();
       nativePushAttempts := nativePushAttempts.concat([{ receipt; notification_id = captured.id; user = device.user; token = device.token; platform = device.platform; device_stamp = device.updated_at_ms; worker = caller; status = "sending" }]);
-      return #Ok(?{ receipt; user = device.user; token = device.token; platform = device.platform; notification_id = captured.id; kind = captured.kind; related_id = captured.related_id; scope = captured.club; key = captured.idempotency_key });
+      return #Ok(?{ receipt; user = device.user; token = device.token; platform = device.platform; notification_id = captured.id; kind = captured.kind; related_id = captured.related_id; scope = captured.club; key = captured.idempotency_key; body = captured.body });
     };
     #Ok(null)
   };

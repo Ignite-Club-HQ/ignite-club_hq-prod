@@ -431,6 +431,7 @@ export interface Main {
   >,
 }
 export interface NativeReservation {
+  'body' : string,
   'key' : string,
   'token' : string,
   'receipt' : string,

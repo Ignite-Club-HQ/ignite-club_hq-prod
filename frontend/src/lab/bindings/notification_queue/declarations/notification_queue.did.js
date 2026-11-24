@@ -220,6 +220,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const DigestResult = IDL.Variant({ 'Ok' : DigestItem, 'Err' : IDL.Text });
   const NativeReservation = IDL.Record({
+    'body' : IDL.Text,
     'key' : IDL.Text,
     'token' : IDL.Text,
     'receipt' : IDL.Text,

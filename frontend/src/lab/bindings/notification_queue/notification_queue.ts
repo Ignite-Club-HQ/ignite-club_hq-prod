@@ -567,6 +567,7 @@ export interface Preferences {
     membership_enabled: boolean;
 }
 export interface NativeReservation {
+    body: string;
     key: string;
     token: string;
     receipt: string;
@@ -1750,8 +1751,8 @@ function from_candid_record_n75(value: {
     };
 }
 function from_candid_record_n89(value: {
-    key: string;
-    token: string;
+    body: string;
+    key: string;    token: string;
     receipt: string;
     kind: string;
     user: string;
@@ -1760,8 +1761,8 @@ function from_candid_record_n89(value: {
     notification_id: string;
     related_id: [] | [string];
 }): {
-    key: string;
-    token: string;
+    body: string;
+    key: string;    token: string;
     receipt: string;
     kind: string;
     user: string;
@@ -1771,6 +1772,7 @@ function from_candid_record_n89(value: {
     related_id?: string;
 } {
     return {
+        body: value.body,
         key: value.key,
         token: value.token,
         receipt: value.receipt,
