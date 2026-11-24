@@ -457,7 +457,45 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
   useEffect(() => {
     let cancelled = false;
+    const applyLocal = (saved: ReturnType<typeof loadTimerState>) => {
+        console.info('[TimerAudit] mount/teamId-load (fallback)', { teamId, externalMinutesPerHalf, savedExists: !!saved, saved });
+        if (saved && saved.teamId === teamId && (resolveAuthBackend() !== 'icp' || saved.eventId === eventId)) {
+          if (externalMinutesPerHalf === undefined) setInternalMinutesPerHalf(saved.minutesPerHalf);
+          setIsGameFinished(saved.isGameFinished || false);
+          const halfDuration = (externalMinutesPerHalf ?? saved.minutesPerHalf) * 60;
+          if (saved.isGameFinished) {
+            setCurrentHalf(saved.currentHalf);
+            setElapsedSeconds(saved.elapsedSeconds);
+            setIsRunning(false);
+          } else if (saved.isRunning && saved.lastUpdateTime) {
+            const secondsPassed = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
+            let half: 1 | 2 = saved.currentHalf;
+            let elapsed = (saved.elapsedSeconds || 0) + secondsPassed;
+            let running = true;
+            let finished = false;
+            if (half === 1 && elapsed >= halfDuration) {
+              half = 2; elapsed = elapsed - halfDuration; running = false;
+              onHalfChangeRef.current?.(2, 'reconcile');
+            }
+            if (half === 2 && elapsed >= halfDuration) {
+              elapsed = halfDuration; running = false; finished = true;
+            }
+            setCurrentHalf(half);
+            setElapsedSeconds(elapsed);
+            setIsRunning(running);
+            if (finished) setIsGameFinished(true);
+          } else {
+            setCurrentHalf(saved.currentHalf);
+            setElapsedSeconds(saved.elapsedSeconds);
+            setIsRunning(saved.isRunning);
+          }
+        }
+    };
     (async () => {
+      // Show this device's saved clock straight away; the server read (slow in
+      // secure sign-in) then corrects it, so the clock never sits at a stale
+      // value while waiting.
+      applyLocal(loadTimerState(teamId));
       // Local snapshot is loaded FIRST so a stale/zeroed server row can be
       // detected before it overwrites a locally-advanced clock.
       const local = loadTimerState(teamId);
@@ -498,39 +536,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
       // Fallback: legacy localStorage hydration (unchanged from before so
       // mid-flight games on the old path keep working).
-      const saved = loadTimerState(teamId);
-      console.info('[TimerAudit] mount/teamId-load (fallback)', { teamId, externalMinutesPerHalf, savedExists: !!saved, saved });
-      if (saved && saved.teamId === teamId && (resolveAuthBackend() !== 'icp' || saved.eventId === eventId)) {
-        if (externalMinutesPerHalf === undefined) setInternalMinutesPerHalf(saved.minutesPerHalf);
-        setIsGameFinished(saved.isGameFinished || false);
-        const halfDuration = (externalMinutesPerHalf ?? saved.minutesPerHalf) * 60;
-        if (saved.isGameFinished) {
-          setCurrentHalf(saved.currentHalf);
-          setElapsedSeconds(saved.elapsedSeconds);
-          setIsRunning(false);
-        } else if (saved.isRunning && saved.lastUpdateTime) {
-          const secondsPassed = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
-          let half: 1 | 2 = saved.currentHalf;
-          let elapsed = (saved.elapsedSeconds || 0) + secondsPassed;
-          let running = true;
-          let finished = false;
-          if (half === 1 && elapsed >= halfDuration) {
-            half = 2; elapsed = elapsed - halfDuration; running = false;
-            onHalfChangeRef.current?.(2, 'reconcile');
-          }
-          if (half === 2 && elapsed >= halfDuration) {
-            elapsed = halfDuration; running = false; finished = true;
-          }
-          setCurrentHalf(half);
-          setElapsedSeconds(elapsed);
-          setIsRunning(running);
-          if (finished) setIsGameFinished(true);
-        } else {
-          setCurrentHalf(saved.currentHalf);
-          setElapsedSeconds(saved.elapsedSeconds);
-          setIsRunning(saved.isRunning);
-        }
-      }
+      // The saved clock was already shown above; nothing newer arrived.
       setHasInitialized(true);
     })();
     return () => { cancelled = true; };
