@@ -49,19 +49,23 @@ export function useNavMessagesBadgeCount(): number {
   // separately so it doesn't piggy-back on every unread refetch.
   const groupIds = counts ? Object.keys(counts.groups) : [];
   const { data: groupClubMap = {} as Record<string, { club_id: string | null; team_id: string | null }> } = useQuery({
-    queryKey: ["chat-groups-club-map", groupIds.sort().join(","), messagingOnIcp],
+    queryKey: ["chat-groups-club-map", groupIds.sort().join(","), messagingOnIcp, user?.id],
     queryFn: async () => {
       if (groupIds.length === 0) return {};
-      if (messagingOnIcp) {
-        const [{ icpCtx }, messaging] = await Promise.all([
+      // Queued/retried queries may outlive the render that selected a backend.
+      // Recheck at execution, before touching the email-mode client.
+      if (isFeatureRoutedToIcp("messaging")) {
+        const [{ icpCtx }, messaging, { readContentInScope }] = await Promise.all([
           import("@/lib/icpClubTeamLookup"),
           import("@/live/features/messaging"),
+          import("@/live/contentRouting"),
         ]);
         const ctx = await icpCtx();
         const map: Record<string, { club_id: string | null; team_id: string | null }> = {};
         await Promise.all(groupIds.map(async (id) => {
           try {
-            const meta = await messaging.getLiveGroupMetadata(ctx, id);
+            const meta = await readContentInScope(ctx, "messaging", { conversationId: id },
+              (scoped) => messaging.getLiveGroupMetadata(scoped, id));
             map[id] = { club_id: meta.clubId, team_id: meta.teamId };
           } catch {
             // Best-effort: a group whose metadata can't be read is omitted
@@ -114,13 +118,14 @@ export function useNavMessagesBadgeCount(): number {
     enabled: !!user?.id && !!activeClubFilter && !messagingOnIcp,
     staleTime: 60 * 1000,
     queryFn: async () => {
+      if (isFeatureRoutedToIcp("messaging") || !user?.id || !activeClubFilter) return 0;
       const { count, error } = await supabase
         .from("notifications")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", user!.id)
+        .eq("user_id", user.id)
         .eq("type", "broadcast")
         .eq("is_read", false)
-        .eq("club_id", activeClubFilter!);
+        .eq("club_id", activeClubFilter);
       if (error) throw error;
       return count ?? 0;
     },
@@ -142,18 +147,22 @@ export function useNavMessagesBadgeCount(): number {
     enabled: !!user?.id && !!activeClubFilter && unreadDmConversationIds.length > 0,
     staleTime: 60 * 1000,
     queryFn: async () => {
-      if (messagingOnIcp) {
-        const [{ icpCtx }, messaging, membership] = await Promise.all([
+      if (!user?.id || !activeClubFilter) return [] as string[];
+      if (isFeatureRoutedToIcp("messaging")) {
+        const [{ icpCtx }, messaging, membership, { readContentInScope }, { readMembershipInScope }] = await Promise.all([
           import("@/lib/icpClubTeamLookup"),
           import("@/live/features/messaging"),
           import("@/live/features/membership"),
+          import("@/live/contentRouting"),
+          import("@/live/membershipRouting"),
         ]);
         const ctx = await icpCtx();
         const myPrincipal = ctx.identity.getPrincipal().toText();
         const peerByConv = new Map<string, string>();
         await Promise.all(unreadDmConversationIds.map(async (id) => {
           try {
-            const meta = await messaging.getLiveGroupMetadata(ctx, id);
+            const meta = await readContentInScope(ctx, "messaging", { conversationId: id },
+              (scoped) => messaging.getLiveGroupMetadata(scoped, id));
             const other = meta.members.map((p) => p.toText()).find((p) => p !== myPrincipal);
             if (other) peerByConv.set(id, other);
           } catch {
@@ -164,7 +173,8 @@ export function useNavMessagesBadgeCount(): number {
         try {
           // club_domain `list_role_grants` is club-admin gated, so this
           // throws for a regular member viewing their own club filter.
-          const grants = (await membership.listLiveRoleGrants(ctx, activeClubFilter!)) as Array<{ account_id: string }>;
+          const grants = (await readMembershipInScope(ctx, "membership", { clubId: activeClubFilter },
+            (scoped) => membership.listLiveRoleGrants(scoped, activeClubFilter))) as Array<{ account_id: string }>;
           const inClub = new Set(grants.map((g) => g.account_id));
           return Array.from(peerByConv.entries())
             .filter(([, principal]) => inClub.has(principal))
@@ -183,7 +193,7 @@ export function useNavMessagesBadgeCount(): number {
         .in("id", unreadDmConversationIds);
       const peerByConv = new Map<string, string>();
       (convs || []).forEach((c: any) => {
-        const other = c.participant_1 === user!.id ? c.participant_2 : c.participant_1;
+        const other = c.participant_1 === user.id ? c.participant_2 : c.participant_1;
         if (other) peerByConv.set(c.id, other);
       });
       const peerIds = Array.from(new Set(peerByConv.values()));
@@ -191,7 +201,7 @@ export function useNavMessagesBadgeCount(): number {
       const { data: roles } = await supabase
         .from("user_roles")
         .select("user_id")
-        .eq("club_id", activeClubFilter!)
+        .eq("club_id", activeClubFilter)
         .in("user_id", peerIds);
       const inClub = new Set((roles || []).map((r: any) => r.user_id));
       return Array.from(peerByConv.entries())
@@ -203,7 +213,7 @@ export function useNavMessagesBadgeCount(): number {
   const clubDmUnreadCount = (() => {
     if (!counts || !clubScopedDmIds) return 0;
     const suppressedDms = new Set(
-      suppressedScopes.filter(s => s.kind === "dm" && s.targetId).map(s => s.targetId!)
+      suppressedScopes.filter(s => s.kind === "dm").flatMap(s => s.targetId ? [s.targetId] : [])
     );
     return clubScopedDmIds.reduce(
       (a, id) => a + (suppressedDms.has(id) ? 0 : (counts.dms[id] || 0)),
@@ -221,9 +231,9 @@ export function useNavMessagesBadgeCount(): number {
       if (meta.club_id === activeClubFilter) clubGroupIds.add(gid);
       else if (meta.team_id && activeClubTeamIds.includes(meta.team_id)) clubGroupIds.add(gid);
     }
-    const suppressedTeams = new Set(suppressedScopes.filter(s => s.kind === "team" && s.targetId).map(s => s.targetId!));
-    const suppressedClubs = new Set(suppressedScopes.filter(s => s.kind === "club" && s.targetId).map(s => s.targetId!));
-    const suppressedGroups = new Set(suppressedScopes.filter(s => s.kind === "group" && s.targetId).map(s => s.targetId!));
+    const suppressedTeams = new Set(suppressedScopes.filter(s => s.kind === "team").flatMap(s => s.targetId ? [s.targetId] : []));
+    const suppressedClubs = new Set(suppressedScopes.filter(s => s.kind === "club").flatMap(s => s.targetId ? [s.targetId] : []));
+    const suppressedGroups = new Set(suppressedScopes.filter(s => s.kind === "group").flatMap(s => s.targetId ? [s.targetId] : []));
     const suppressBroadcast = suppressedScopes.some(s => s.kind === "broadcast");
 
     const sumRecord = (rec: Record<string, number>, keys: string[], skip: Set<string>) =>

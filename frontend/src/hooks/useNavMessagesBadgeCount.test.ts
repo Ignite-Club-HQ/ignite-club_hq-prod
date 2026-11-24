@@ -21,6 +21,7 @@ vi.mock("@/lib/icpClubTeamLookup", () => ({ icpCtx: async () => ({ identity: { g
 vi.mock("@/live/features/messaging", () => ({ getLiveGroupMetadata: mocks.metadata }));
 vi.mock("@/live/features/membership", () => ({ listLiveRoleGrants: mocks.grants }));
 vi.mock("@/live/contentRouting", () => ({ readContentInScope: mocks.scopedRead }));
+vi.mock("@/live/membershipRouting", () => ({ readMembershipInScope: mocks.scopedRead }));
 
 import { useNavMessagesBadgeCount } from "./useNavMessagesBadgeCount";
 
