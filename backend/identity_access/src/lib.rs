@@ -2481,6 +2481,8 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
     }
     private_name_audience::validate(viewer_principal, &subjects, &scope)?;
     let service = ic_cdk::api::msg_caller();
+    let admin_source_candidate = private_name_audience::admin_source_candidate(&scope, ic_cdk::api::canister_self());
+    if admin_source_candidate { admin_accounts::authorize(&state(), viewer_principal)?; }
     // The historically persisted service-reader list can omit the registered
     // G2 PII. Accept ONLY the pinned DEV PII/Identity/club triple, in an
     // explicitly released club-audience read. The full router proof is below.
@@ -2499,7 +2501,7 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         && !allowed_services.contains(&service) {
         allowed_services.push(service);
     }
-    if !allowed_services.contains(&service) && !dev_g2_candidate {
+    if !allowed_services.contains(&service) && !dev_g2_candidate && !admin_source_candidate {
         return Err("Configured private-name service required".into());
     }
     let viewer = membership_lookup_viewer(viewer_principal)?;
@@ -2517,8 +2519,12 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
     active()?;
     let registry_clubs = inventory.groups.iter().flat_map(|g| g.domains.iter().filter(|d| d.domain == "club_domain").map(|d| d.canister)).collect::<Vec<_>>();
     group_inventory::validate(&inventory, &config.binding, &registry_clubs, &[])?;
-    let modern_pii_registered = inventory.groups.iter().any(|g|
-        g.domains.iter().any(|d| d.domain == "pii_access_control" && d.canister == service));
+    let modern_pii_registered = private_name_audience::registered_pii_source(&inventory, service);
+    // Registration is a source proof, never an admin grant. Unknown callers
+    // must still pass the separately pinned legacy-origin path below.
+    if admin_source_candidate && !modern_pii_registered && !allowed_services.contains(&service) {
+        return Err("Registered original private-name service required".into());
+    }
     // The registry must independently bind the approved DEV source and the
     // requested owning club authority to the SAME active group. Neither the
     // browser-selected scope nor a PII profile reference can assert this.

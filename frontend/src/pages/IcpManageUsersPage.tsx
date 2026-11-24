@@ -42,7 +42,7 @@ export default function IcpManageUsersPage() {
     queryKey: ["icp-admin-user-names", user?.id, lockedKey], enabled: isAppAdmin && lockedKey !== "", staleTime: 5 * 60_000,
     queryFn: () => withFeatureBackend("admin", { supabase: unavailable, icp: async ctx => {
       const { unlockAdminUserNames } = await import("@/live/adminUserNames");
-      return unlockAdminUserNames(ctx, users0.map(u => ({ account_id: u.account_id, principal: u.principals[0], display_name: u.profile[0]?.display_name ?? null })));
+      return unlockAdminUserNames(ctx, users0.map(u => ({ account_id: u.account_id, principals: u.principals, display_name: u.profile[0]?.display_name ?? null })));
     } }, { shared: "app" }),
   });
   const nameOf = (u: { account_id: string; profile: Array<{ display_name?: string | null }> }) =>
