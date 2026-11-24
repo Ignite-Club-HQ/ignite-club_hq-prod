@@ -27,3 +27,9 @@ describe('ICP mention and reply alerts', () => {
     expect(pushText('message_reply', 'Thanks').title).toBe('New reply to you');
   });
 });
+
+describe('ICP event alerts', () => {
+  it('uses the event name as the title', () => {
+    expect(pushText('event_updated', 'Game vs Bulldogs\u001fEvent details have changed')).toEqual({ title: 'Game vs Bulldogs', body: 'Event details have changed' });
+  });
+});

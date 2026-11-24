@@ -161,6 +161,11 @@ export async function updateEventTransaction(
         endsAtMs: endsAtMs > startsAtMs ? endsAtMs : startsAtMs + 3_600_000,
       });
       input.onMainCommitted?.();
+      // Email mode alerts members on edits via a database trigger; secure
+      // mode asks the event server (manager-checked, once per revision).
+      void import("@/live/features/events")
+        .then(({ notifyLiveEventAudience }) => notifyLiveEventAudience(ctx, input.eventId, "event_updated"))
+        .catch((error) => console.warn("[event-updated alert] not sent", error));
       if ("duty_team_id" in updates) {
         const { setLiveEventDutyTeam } = await import("@/live/features/events");
         await setLiveEventDutyTeam(ctx, input.eventId, (updates.duty_team_id as string | null | undefined) ?? null);

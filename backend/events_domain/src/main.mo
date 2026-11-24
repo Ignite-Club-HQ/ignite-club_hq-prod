@@ -4649,7 +4649,11 @@ persistent actor class Main(governorInit : Principal) = this {
     let service : actor { relay_event_notice : shared ([Text], Text, Text, Text, Text, Text) -> async { #Ok : Nat16; #Err : Text } } = actor(authority.toText());
     let timestamp = nowMs();
     eventNoticeAttempts := eventNoticeAttempts.concat([{ event_id = event.id; kind; users; key; created_at_ms = timestamp; status = "pending"; queued = (0 : Nat16) }]);
-    let body = if (kind == "event_reminder") "Please RSVP for the event" else if (kind == "event_invite") "You have been invited to an event" else if (kind == "event_cancelled") "An event has been cancelled" else if (kind == "duty_completed") "An event duty has been completed" else if (kind == "duty_reminder") "You have an event duty coming up" else if (kind == "photo_prompt_reminder") "Add your photos from the game to the team gallery" else "Please RSVP for the game to earn points";
+    let text = if (kind == "event_updated") "Event details have changed" else if (kind == "event_reminder") "Please RSVP for the event" else if (kind == "event_invite") "You have been invited to an event" else if (kind == "event_cancelled") "An event has been cancelled" else if (kind == "duty_completed") "An event duty has been completed" else if (kind == "duty_reminder") "You have an event duty coming up" else if (kind == "photo_prompt_reminder") "Add your photos from the game to the team gallery" else "Please RSVP for the game to earn points";
+    // Event name leads as the alert title (U+001F), like email mode.
+    var eventName = ""; var n = 0;
+    label c for (ch in event.title.chars()) { if (n >= 80) break c; if (ch != '\u{1F}') { eventName #= Char.toText(ch); n += 1 } };
+    let body = if (eventName == "") text else eventName # "\u{1F}" # text;
     let result = try { await (with timeout = 10) service.relay_event_notice(users, event.club_id, kind, body, key, event.id) } catch (_) {
       eventNoticeAttempts := eventNoticeAttempts.map(func(a) = if (a.key == key) ({ a with status = "unknown" }) else a);
       return #Err("Notification outcome is unknown; it will not be sent again automatically")
@@ -4709,7 +4713,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
       await admitAccount(caller);
       let event = events.find(func(e) = e.id == event_id) ?? return #Err("Event not found");
-      if (kind != "event_invite" and kind != "event_cancelled") return #Err("Invalid event notice");
+      if (kind != "event_invite" and kind != "event_cancelled" and kind != "event_updated") return #Err("Invalid event notice");
       if (kind == "event_cancelled" and not event.cancelled) return #Err("Event is not cancelled");
       if (not (await freshEventManager(caller, event))) return #Err("Event management forbidden");
       let subjects = switch (await eventSubjects(event)) { case (#Err(e)) return #Err(e); case (#Ok(rows)) rows };
