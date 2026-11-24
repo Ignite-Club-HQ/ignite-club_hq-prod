@@ -54,26 +54,26 @@ export async function readPitchNotificationPreference(userId: string, icp: boole
   return data?.pitch_board_enabled ?? true;
 }
 
-/** Self reminder only: broader staff alerts remain owned by the sub monitor. */
+/** Sub-due alert from the open board to the runner and match staff (no child names). */
 export async function notifyIcpSubstitutionDue(teamId: string, eventId: string | null, userId: string, key: string) {
   return withFeatureBackend('membership', {
     supabase: async () => { throw new Error('ICP substitution reminder required'); },
     icp: async ctx => {
       const caller = ctx.identity?.getPrincipal().toText();
       if (!caller || caller !== userId.replace(/^principal:/, '')) throw new Error('Pitch-board account changed');
-      let clubId: string;
       if (teamId.startsWith('event-group-')) {
         const { notifyLiveGroupPitch } = await import('@/live/features/events');
         return notifyLiveGroupPitch(ctx, teamId.slice('event-group-'.length), 'substitution', '', key);
-      } else {
-        const { getLiveTeam } = await import('@/live/features/club');
-        const [team] = await getLiveTeam(ctx, teamId);
-        if (!team?.club_id) throw new Error('Pitch board has no club scope');
-        clubId = team.club_id;
       }
+      // Same audience as email mode: the runner, the team's coaches/admins and
+      // the linked match's Subs Manager, honouring the team's alert switches.
+      const { livePitchRecipients } = await import('@/components/pitch/hooks/livePitchNotifications');
+      const recipients = await livePitchRecipients(ctx, teamId, eventId, caller, true, true);
+      const userIds = [...new Set(recipients.userIds.map(id => id.replace(/^principal:/, '')))];
       const { fanOutLiveNotifications } = await import('@/live/features/notifications');
       return fanOutLiveNotifications(ctx, {
-        userIds: [caller], clubId, kind: 'pitch_board_substitution',
+        userIds, clubId: recipients.clubId, kind: 'pitch_board_substitution',
+        // Child names are PII; the alert carries only the summary.
         body: 'A planned substitution is due', relatedId: teamId,
         idempotencyKeyPrefix: key,
       });

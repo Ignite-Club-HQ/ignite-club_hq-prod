@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 
 const mocks = vi.hoisted(() => ({
-  from: vi.fn(), positions: vi.fn(), preferences: vi.fn(), team: vi.fn(), fanOut: vi.fn(), route: vi.fn(),
+  from: vi.fn(), positions: vi.fn(), preferences: vi.fn(), team: vi.fn(), fanOut: vi.fn(), route: vi.fn(), recipients: vi.fn(),
 }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { from: mocks.from } }));
 vi.mock('@/live/featureRouter', () => ({ withFeatureBackend: mocks.route }));
 vi.mock('@/live/features/club', () => ({ getLiveTeamPlayerPositionsV2: mocks.positions, getLiveTeam: mocks.team }));
+vi.mock('@/components/pitch/hooks/livePitchNotifications', () => ({ livePitchRecipients: mocks.recipients }));
 vi.mock('@/live/features/notifications', () => ({ getLiveNotificationPreferences: mocks.preferences, fanOutLiveNotifications: mocks.fanOut }));
 import { pitchPlayerPositionsQuery, readPitchNotificationPreference, notifyIcpSubstitutionDue } from './pitchBoardRepository';
 
@@ -17,6 +18,7 @@ beforeEach(() => {
   mocks.team.mockResolvedValue([{ club_id: 'club-g2' }]);
   mocks.preferences.mockResolvedValue({ pitchBoardEnabled: false });
   mocks.fanOut.mockResolvedValue(1);
+  mocks.recipients.mockResolvedValue({ userIds: ['caller'], clubId: 'club-g2', event: null });
 });
 
 describe('pitch-board on-chain gaps', () => {
@@ -62,10 +64,12 @@ describe('pitch-board on-chain gaps', () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
-  it('queues only a self reminder in the owning club with no player names and a preference-aware kind', async () => {
+  it('alerts the runner plus match staff once each, in the owning club, with no player names', async () => {
+    mocks.recipients.mockResolvedValue({ userIds: ['caller', 'principal:coach', 'coach'], clubId: 'club-g2', event: null });
     await notifyIcpSubstitutionDue('team-g2', 'event', 'caller', 'operation-1');
+    expect(mocks.recipients).toHaveBeenCalledWith(expect.any(Object), 'team-g2', 'event', 'caller', true, true);
     expect(mocks.fanOut).toHaveBeenCalledWith(expect.any(Object), {
-      userIds: ['caller'], clubId: 'club-g2', kind: 'pitch_board_substitution',
+      userIds: ['caller', 'coach'], clubId: 'club-g2', kind: 'pitch_board_substitution',
       body: 'A planned substitution is due', relatedId: 'team-g2', idempotencyKeyPrefix: 'operation-1',
     });
     expect(mocks.route.mock.calls[0][2]).toMatchObject({ teamId: 'team-g2', attempts: 1 });
