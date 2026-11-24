@@ -4,7 +4,7 @@ import { withFeatureBackend , mergeListsById } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
 import { forwardLiveMessage, listLiveGroupsByClub, listLiveGroupsByTeam } from "@/live/features/messaging";
 import { recordLiveChatNotifyBatch } from "@/live/features/notifications";
-import { getLiveClubProfile } from "@/live/features/club";
+import { getLiveClubProfile, listLiveTeams } from "@/live/features/club";
 import { getLiveMyRoleGrants } from "@/live/features/membership";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { toast } from "sonner";
@@ -76,14 +76,28 @@ export function useForwardDestinations(userId: string | undefined, enabled: bool
           const grants = await getLiveMyRoleGrants(ctx);
           const clubIds = [...new Set(grants.map((grant) => optionText(grant.club)).filter((id): id is string => !!id))];
           const teamIds = [...new Set(grants.map((grant) => optionText(grant.team)).filter((id): id is string => !!id))];
-          if (clubIds.length === 0 && teamIds.length === 0) return [];
+          // Club admins take part in every team chat in their club (same as
+          // the Messages list), so include those teams even without a team
+          // role grant.
+          const adminClubIds = new Set(
+            grants
+              .filter((grant) => !optionText(grant.team) && ["club_admin", "app_admin"].includes(grant.role))
+              .map((grant) => optionText(grant.club))
+              .filter((id): id is string => !!id),
+          );
+          const adminTeamIds = adminClubIds.size === 0 ? [] : (await Promise.all(
+            [...adminClubIds].map((id) => listLiveTeams(ctx, id).catch(() => [])),
+          )).flat().filter((team) => !team.deleted_at_ms?.length).map((team) => team.id);
+          const allTeamIds = [...new Set([...teamIds, ...adminTeamIds])];
+          if (clubIds.length === 0 && allTeamIds.length === 0) return [];
           const [clubGroups, teamGroups] = await Promise.all([
             Promise.all(clubIds.map((id) => listLiveGroupsByClub(ctx, id).catch(() => []))),
-            Promise.all(teamIds.map((id) => listLiveGroupsByTeam(ctx, id).catch(() => []))),
+            Promise.all(allTeamIds.map((id) => listLiveGroupsByTeam(ctx, id).catch(() => []))),
           ]);
           const groupsById = new Map<string, { id: string; name: string; club_id: string | null; team_id: string | null }>();
           for (const group of [...clubGroups.flat(), ...teamGroups.flat()]) {
-            if (!group.isMember || !group.clubId) continue;
+            if (!group.clubId) continue;
+            if (!group.isMember && !adminClubIds.has(group.clubId)) continue;
             groupsById.set(group.conversationId, {
               id: group.conversationId,
               name: group.name,
