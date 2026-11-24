@@ -380,12 +380,26 @@ function SupabaseEventGroupPitchPage() {
       });
       if (error) throw error;
     },
+    // Show the duty and close the sheet at once; roll back if the save fails.
+    onMutate: async (name: string) => {
+      const key = ["event-group-duties", groupId];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData(key);
+      queryClient.setQueryData(key, (current: unknown) => Array.isArray(current)
+        ? [...current, { id: `pending-${Date.now()}`, group_id: groupId, name, assigned_to: null, pending: true }]
+        : current);
+      setIsDutySheetOpen(false);
+      return { previous };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-group-duties", groupId] });
-      setIsDutySheetOpen(false);
       toast.success("Duty added");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, _name, context) => {
+      if (context) queryClient.setQueryData(["event-group-duties", groupId], context.previous);
+      queryClient.invalidateQueries({ queryKey: ["event-group-duties", groupId] });
+      toast.error(error.message);
+    },
   });
 
   // Assign duty mutation

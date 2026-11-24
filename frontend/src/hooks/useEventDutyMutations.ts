@@ -101,7 +101,28 @@ export function useEventDutyMutations(params: UseEventDutyMutationsArgs) {
         .insert({ event_id: id!, name: args.dutyName, start_time, end_time } as any);
       if (error) throw error;
     },
-    onSuccess: () => {
+    // ICP saves take a few seconds to confirm: show the duty and close the
+    // sheet straight away, then roll back if the save fails.
+    onMutate: async (args) => {
+      if (useIcpLab || !isFeatureRoutedToIcp("events")) return undefined;
+      const key = eventKeys.duties(id);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData(key);
+      queryClient.setQueryData(key, (current: unknown) => [
+        ...(Array.isArray(current) ? current : []),
+        { id: `pending-${Date.now()}`, event_id: id, name: args.dutyName, assigned_to: null, status: "open", start_time: null, end_time: null, profiles: null, pending: true },
+      ]);
+      setNewDutyName("");
+      setSelectedPresetDuty("");
+      setAddDutyOpen(false);
+      return { previous, optimistic: true };
+    },
+    onSuccess: (_data, _args, context) => {
+      if (context?.optimistic) {
+        queryClient.invalidateQueries({ queryKey: eventKeys.duties(id) });
+        toast({ title: "Duty added" });
+        return;
+      }
       if (useIcpLab) {
         setNewDutyName("");
         setSelectedPresetDuty("");
@@ -116,7 +137,11 @@ export function useEventDutyMutations(params: UseEventDutyMutationsArgs) {
       setAddDutyOpen(false);
       toast({ title: "Duty added" });
     },
-    onError: (error) => {
+    onError: (error, _args, context) => {
+      if (context?.optimistic) {
+        queryClient.setQueryData(eventKeys.duties(id), context.previous);
+        queryClient.invalidateQueries({ queryKey: eventKeys.duties(id) });
+      }
       toast({ 
         title: "Failed to add duty", 
         description: error.message,

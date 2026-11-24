@@ -1,3 +1,5 @@
+import { resolveAuthBackend } from "@/live/authBackendMode";
+import { markSecureSignInStarted } from "@/lib/authExperience";
 import { materializePickedFile } from "@/lib/pickedFiles";
 import { TEAM_PRICING } from "@/lib/subscriptionPlans";
 import { useState, useEffect, Suspense } from "react";
@@ -218,6 +220,7 @@ function SupabaseSignupProPage() {
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
+    if (resolveAuthBackend() === "icp") markSecureSignInStarted();
     const { error } = await signInWithGoogle();
     setGoogleLoading(false);
     

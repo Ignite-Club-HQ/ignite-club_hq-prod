@@ -83,110 +83,41 @@ export function usePitchBoardPitchGeometry({
     );
   }, [miniLeagueTeams, selectedTeamForSettings]);
 
-  const getPitchPlayerAtPoint = useCallback((clientX: number, clientY: number, excludedPlayerId?: string) => {
-    const elements = typeof document.elementsFromPoint === "function"
-      ? document.elementsFromPoint(clientX, clientY)
-      : [document.elementFromPoint(clientX, clientY)].filter(Boolean) as Element[];
-    for (const element of elements) {
-      const token = (element as HTMLElement).closest?.(
-        '[data-player-variant="pitch"][data-player-id]',
-      ) as HTMLElement | null;
-      const playerId = token?.getAttribute("data-player-id");
-      if (playerId && playerId !== excludedPlayerId) return playerId;
-    }
-
-    let nearest: { id: string; distance: number } | null = null;
-    document
-      .querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]')
-      .forEach((token) => {
-        const playerId = token.getAttribute("data-player-id");
-        const player = playerId
-          ? playersRef.current.find((candidate) => candidate.id === playerId)
-          : undefined;
-        if (!player || !canTargetPlayer(player, excludedPlayerId)) return;
-        const rect = token.getBoundingClientRect();
-        const hitSlop = 24;
-        if (
-          clientX < rect.left - hitSlop ||
-          clientX > rect.right + hitSlop ||
-          clientY < rect.top - hitSlop ||
-          clientY > rect.bottom + hitSlop
-        ) {
-          return;
-        }
-        const distance = Math.hypot(
-          clientX - (rect.left + rect.width / 2),
-          clientY - (rect.top + rect.height / 2),
-        );
-        if (!nearest || distance < nearest.distance) nearest = { id: player.id, distance };
-      });
-    if (nearest) return nearest.id;
-
-    const pitchRect = containerRef.current?.getBoundingClientRect();
-    if (pitchRect) {
-      const hitRadius = Math.max(
-        38,
-        Math.min(58, Math.min(pitchRect.width, pitchRect.height) * 0.1),
-      );
-      playersRef.current.forEach((player) => {
-        if (!canTargetPlayer(player, excludedPlayerId)) return;
-        const distance = Math.hypot(
-          clientX - (pitchRect.left + (player.position!.x / 100) * pitchRect.width),
-          clientY - (pitchRect.top + (player.position!.y / 100) * pitchRect.height),
-        );
-        if (distance <= hitRadius && (!nearest || distance < nearest.distance)) {
-          nearest = { id: player.id, distance };
-        }
-      });
-    }
-    return nearest?.id ?? null;
-  }, [canTargetPlayer, containerRef, playersRef]);
-
+  /**
+   * Drop-to-swap target. Only a player the dragged token is really dropped ON
+   * counts: the release point must sit inside the target token, or the two
+   * tokens must overlap by at least 40% of the smaller one. No proximity slop,
+   * so placing a player in open space next to a team-mate never moves them.
+   */
   const getPitchPlayerOverlappingDragged = useCallback((draggedPlayerId: string, clientX: number, clientY: number) => {
-    const draggedToken = Array.from(
+    const tokens = Array.from(
       document.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]'),
-    ).find((token) => token.getAttribute("data-player-id") === draggedPlayerId);
-    const draggedRect = draggedToken?.getBoundingClientRect();
-    if (!draggedRect) return getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
-
-    const centerDistance = Math.hypot(
-      clientX - (draggedRect.left + draggedRect.width / 2),
-      clientY - (draggedRect.top + draggedRect.height / 2),
     );
-    if (centerDistance > Math.max(draggedRect.width, draggedRect.height)) {
-      return getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
-    }
-
+    const draggedRect = tokens
+      .find((token) => token.getAttribute("data-player-id") === draggedPlayerId)
+      ?.getBoundingClientRect();
     let best: { id: string; score: number } | null = null;
-    document
-      .querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]')
-      .forEach((token) => {
-        const playerId = token.getAttribute("data-player-id");
-        const player = playerId
-          ? playersRef.current.find((candidate) => candidate.id === playerId)
-          : undefined;
-        if (!player || !canTargetPlayer(player, draggedPlayerId)) return;
-        const rect = token.getBoundingClientRect();
-        const slop = 14;
-        const overlapX = Math.max(
-          0,
-          Math.min(draggedRect.right, rect.right + slop) - Math.max(draggedRect.left, rect.left - slop),
-        );
-        const overlapY = Math.max(
-          0,
-          Math.min(draggedRect.bottom, rect.bottom + slop) - Math.max(draggedRect.top, rect.top - slop),
-        );
-        const overlapArea = overlapX * overlapY;
-        if (overlapArea <= 0) return;
-        const distance = Math.hypot(
-          clientX - (rect.left + rect.width / 2),
-          clientY - (rect.top + rect.height / 2),
-        );
-        const score = overlapArea - distance;
-        if (!best || score > best.score) best = { id: player.id, score };
-      });
-    return best?.id ?? getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
-  }, [canTargetPlayer, getPitchPlayerAtPoint, playersRef]);
+    for (const token of tokens) {
+      const playerId = token.getAttribute("data-player-id");
+      const player = playerId
+        ? playersRef.current.find((candidate) => candidate.id === playerId)
+        : undefined;
+      if (!player || !canTargetPlayer(player, draggedPlayerId)) continue;
+      const rect = token.getBoundingClientRect();
+      const pointInside = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+      let overlapRatio = 0;
+      if (draggedRect && draggedRect.width > 0 && rect.width > 0) {
+        const overlapX = Math.max(0, Math.min(draggedRect.right, rect.right) - Math.max(draggedRect.left, rect.left));
+        const overlapY = Math.max(0, Math.min(draggedRect.bottom, rect.bottom) - Math.max(draggedRect.top, rect.top));
+        const smaller = Math.min(draggedRect.width * draggedRect.height, rect.width * rect.height);
+        overlapRatio = smaller > 0 ? (overlapX * overlapY) / smaller : 0;
+      }
+      if (!pointInside && overlapRatio < 0.4) continue;
+      const score = (pointInside ? 1 : 0) + overlapRatio;
+      if (!best || score > best.score) best = { id: player.id, score };
+    }
+    return best?.id ?? null;
+  }, [canTargetPlayer, playersRef]);
 
   const getDraggedPlayerPositionType = useCallback((player: Player, position: PitchPositionCoordinates) => {
     const y = miniLeagueTeams && player.teamSide === "b" ? 100 - position.y : position.y;

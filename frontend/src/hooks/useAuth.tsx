@@ -1694,7 +1694,11 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       resuming = true;
       try {
         const mod = internetIdentityModuleRef.current ?? (await import("@/live/internetIdentityAuth"));
-        const resumed = await mod.resumeInternetIdentitySession();
+        // Never leave "Signing you in…" up forever if the check stalls.
+        const resumed = await Promise.race([
+          mod.resumeInternetIdentitySession(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000)),
+        ]);
         if (resumed && !cancelled) {
           console.info("[Auth] Resumed a completed Internet Identity sign-in.");
           await adoptVerifiedIcpSession(resumed);

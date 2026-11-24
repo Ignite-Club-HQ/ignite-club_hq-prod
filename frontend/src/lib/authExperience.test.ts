@@ -51,3 +51,16 @@ describe("adaptive authentication presentation", () => {
     expect(readSuccessfulAuthMethod()).toBe("supabase");
   });
 });
+describe("secure sign-in in progress", () => {
+  it("keeps the secure method after a page reload mid sign-in, until another method is picked", async () => {
+    const mod = await import("./authExperience");
+    localStorage.setItem("ignite.authLastSuccess", "supabase");
+    mod.markSecureSignInStarted();
+    mod.selectPendingAuthMethod(null); // simulates in-memory state lost on reload
+    expect(mod.readPendingAuthMethod()).toBe(null); // picking a method clears the marker
+    mod.markSecureSignInStarted();
+    expect(mod.readPendingAuthMethod()).toBe("icp");
+    mod.rememberSuccessfulAuthMethod("icp");
+    expect(sessionStorage.getItem("ignite.secureSignInStarted")).toBe(null);
+  });
+});

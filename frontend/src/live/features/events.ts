@@ -2172,17 +2172,12 @@ export async function getLiveActiveGame(ctx: FeatureBackendContext, teamId?: str
   } catch {
     return result;
   }
-  const players = (doc as { players?: unknown[] } | null)?.players;
-  if (!Array.isArray(players)) return result;
-  const refs = players
-    .map((p) => (p as Record<string, unknown> | null)?.name)
-    .filter((n): n is string => typeof n === "string" && n.startsWith(PITCH_NAME_REF_PREFIX));
+  // Resolve every nested name reference (players, subs, goals), matching the
+  // shared-board reader so saved codes never reach the screen.
+  const refs = sharedPitchNameRefs(doc);
   if (refs.length === 0) return result;
   const names = await resolveNameRefs(ctx, refs, "Get active game");
-  const resolved = {
-    ...(doc as Record<string, unknown>),
-    players: resolveNameRefsInDoc(players, PITCH_NAME_REF_PREFIX, names),
-  };
+  const resolved = resolveSharedPitchNames(doc, names);
   return [{ ...row, pitch_state_json: JSON.stringify(resolved) }] as [{ pitch_state_json?: string; [key: string]: unknown }];
 }
 

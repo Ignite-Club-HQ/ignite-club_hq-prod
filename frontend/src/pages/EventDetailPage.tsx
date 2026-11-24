@@ -1,3 +1,4 @@
+import { retryStartupRead } from "@/lib/startupReadRetry";
 import type { Json } from "@/integrations/supabase/types";
 import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -1691,7 +1692,7 @@ export default function EventDetailPage() {
       return data;
     },
     staleTime: 60_000,
-    retry: isIcpAuthBackend ? false : undefined,
+    retry: isIcpAuthBackend ? retryStartupRead : undefined,
     refetchOnWindowFocus: false,
   });
   const { data: potmRow } = useQuery({

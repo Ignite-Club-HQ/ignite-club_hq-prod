@@ -242,7 +242,10 @@ export default function EventsPage() {
   const [listPastDaysBack, setPastDaysBack] = useState<number>(30);
   // Calendar view lets members browse earlier months, so it always loads a
   // full year of past events instead of the list's 30-day default.
-  const pastDaysBack = viewMode === "calendar" ? 365 : listPastDaysBack;
+  // Show the recent window first, then widen to a year once it has loaded,
+  // so opening Calendar never waits on a full year of every club's events.
+  const [calendarWide, setCalendarWide] = useState(false);
+  const pastDaysBack = viewMode === "calendar" && calendarWide ? 365 : listPastDaysBack;
   
   // Track if filters are active
   const hasActiveFilters = clubFilter !== null || teamFilter !== null;
@@ -929,6 +932,12 @@ export default function EventsPage() {
   });
 
   const eventsData = isIcpAuthBackend ? memberScheduleQuery.data?.events : legacyEventsQuery.data;
+  const narrowLoaded = isIcpAuthBackend
+    ? !!memberScheduleQuery.data && !memberScheduleQuery.isPlaceholderData && !memberScheduleQuery.isFetching
+    : !!legacyEventsQuery.data && !legacyEventsQuery.isPlaceholderData && !legacyEventsQuery.isFetching;
+  useEffect(() => {
+    if (viewMode === "calendar" && !calendarWide && narrowLoaded) setCalendarWide(true);
+  }, [viewMode, calendarWide, narrowLoaded]);
   const isLoading = isIcpAuthBackend ? memberScheduleQuery.isLoading : legacyEventsQuery.isLoading;
   const isFetching = isIcpAuthBackend ? memberScheduleQuery.isFetching : legacyEventsQuery.isFetching;
   const eventsIsError = isIcpAuthBackend ? memberScheduleQuery.isError || (memberScheduleQuery.data?.failed.length ?? 0) > 0 : legacyEventsQuery.isError;

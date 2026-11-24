@@ -583,9 +583,11 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     const mph = fresh.minutesPerHalf || 20;
     const atHalfTimeLimit = currentElapsed >= mph * 60;
 
-    if (resolveAuthBackend() === 'icp' && !fresh.teamId?.startsWith('event-group-')) {
+    const linkedScope = readPitchState(fresh.teamId)?.linkedEventId ?? null;
+    // ICP clocks live on the linked match; with no match the clock is device-only (same as the board).
+    if (resolveAuthBackend() === 'icp' && !fresh.teamId?.startsWith('event-group-') && (linkedScope || fresh.eventId)) {
       if (!fresh.isRunning && fresh.currentHalf === 2 && atHalfTimeLimit) return;
-      const scopeEvent = readPitchState(fresh.teamId)?.linkedEventId ?? null;
+      const scopeEvent = linkedScope;
       if (fresh.eventId !== scopeEvent) { toast({ title: "Open the linked match", description: "Reopen the board before changing this match’s timer." }); return; }
       pendingTimer.current = true;
       const action = fresh.isRunning ? 'pause' : fresh.currentHalf === 1 && atHalfTimeLimit ? 'start_half_2'

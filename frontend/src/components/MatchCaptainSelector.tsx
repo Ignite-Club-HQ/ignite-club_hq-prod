@@ -28,6 +28,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { withReadDeadline } from "@/live/readDeadline";
+import { retryStartupRead } from "@/lib/startupReadRetry";
+export { retryStartupRead };
 import {
   listLiveMatchCaptains,
   setLiveMatchCaptain,
@@ -109,9 +111,9 @@ export default function MatchCaptainSelector({
       },
     }, clubId ? { clubId } : { eventId }), "Captain details", 30_000, signal),
     staleTime: 60_000,
-    retry: isIcp ? false : 1,
+    retry: retryStartupRead,
     refetchOnWindowFocus: false,
-    retryDelay: 500,
+    retryDelay: 1000,
   });
 
   // Player-role eligibility is routed: Supabase reads user_roles, ICP reads
@@ -164,9 +166,9 @@ export default function MatchCaptainSelector({
     }, clubId ? { clubId } : { teamId }), "Season captain details", 30_000, signal);
     },
     staleTime: 5 * 60_000,
-    retry: isIcp ? false : 1,
+    retry: retryStartupRead,
     refetchOnWindowFocus: false,
-    retryDelay: 500,
+    retryDelay: 1000,
   });
 
   const profileIds = [...new Set([...goingAdultIds, captain?.user_id, seasonCaptain?.user_id]
@@ -176,7 +178,8 @@ export default function MatchCaptainSelector({
     queryFn: ({ signal }) => withReadDeadline(readProfileSummaries(profileIds, clubId), "Captain names", 12_000, signal),
     enabled: !!user && isIcp && profileIds.length > 0,
     staleTime: 60_000,
-    retry: false,
+    retry: retryStartupRead,
+    retryDelay: 1000,
   });
   const adultName = (id: string | null | undefined) =>
     id ? adultProfiles?.get(id.replace(/^principal:/, ""))?.display_name : null;

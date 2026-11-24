@@ -265,6 +265,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   const [hasInitialized, setHasInitialized] = useState(false);
   const [timerPending, setTimerPending] = useState(false);
   const pendingRef = useRef(false);
+  // ICP clocks live on the linked match. A board with no match runs a
+  // device-only clock instead of refusing to start.
+  const icpServerClock = resolveAuthBackend() === 'icp' && !teamId?.startsWith('event-group-') && !!eventId;
+  const icpLocalOnly = resolveAuthBackend() === 'icp' && !teamId?.startsWith('event-group-') && !eventId;
   const timerScopeRef = useRef({ teamId, eventId });
   timerScopeRef.current = { teamId, eventId };
 
@@ -288,7 +292,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   // Use external minutesPerHalf if provided, otherwise use internal
   const minutesPerHalf = externalMinutesPerHalf !== undefined ? externalMinutesPerHalf : internalMinutesPerHalf;
   const setMinutesPerHalf = (mins: number) => {
-    if (resolveAuthBackend() === 'icp' && !teamId?.startsWith('event-group-')) { void commitTimerAction('set_minutes', mins); return; }
+    if (icpServerClock) { void commitTimerAction('set_minutes', mins); return; }
     if (onMinutesPerHalfChange) {
       onMinutesPerHalfChange(mins);
     } else {
@@ -389,6 +393,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
   const handleTimerFailure = useCallback(async (error: unknown) => {
     if (teamId?.startsWith('event-group-')) return; // separate group CAS owner
+    if (icpLocalOnly) return; // no linked match: device-only clock, nothing to confirm
     console.warn('[GameTimer] Timer change unconfirmed', error);
     toast({ title: 'Timer change not confirmed', description: 'Check your connection and match access. The saved clock will be reloaded.', variant: 'destructive' });
     try {
@@ -397,7 +402,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       if (saved.found && isServerAnchoredTimer(saved.timer_state)) applyServerSnapshot(saved.timer_state, saved.server_now);
       else if (resolveAuthBackend() === 'icp') setIsRunning(false);
     } catch (_) { if (resolveAuthBackend() === 'icp') setIsRunning(false); }
-  }, [teamId, eventId, applyServerSnapshot]);
+  }, [teamId, eventId, applyServerSnapshot, icpLocalOnly]);
 
   const commitTimerAction = useCallback(async (action: Parameters<typeof sendTimerEvent>[0]['event'], mph: number) => {
     if (readOnly || pendingRef.current) return;
@@ -581,7 +586,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       }
     }
 
-    if (resolveAuthBackend() === 'icp' && !teamId?.startsWith('event-group-')) {
+    if (icpServerClock) {
       const action = isRunning ? 'pause' : elapsedSeconds === 0 ? (currentHalf === 1 ? 'start_half' : 'start_half_2') : 'resume';
       void commitTimerAction(action, minutesPerHalf);
       return isRunning;
@@ -617,11 +622,11 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
 
     return nextIsRunning;
-  }, [readOnly, isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf, teamId, eventId, minutesPerHalf, applyServerSnapshot, handleTimerFailure, commitTimerAction]);
+  }, [readOnly, isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf, teamId, eventId, minutesPerHalf, applyServerSnapshot, handleTimerFailure, commitTimerAction, icpServerClock]);
 
   const resetTimer = useCallback(() => {
     if (readOnly) return;
-    if (resolveAuthBackend() === 'icp' && !teamId?.startsWith('event-group-')) { void commitTimerAction('reset', minutesPerHalf); return; }
+    if (icpServerClock) { void commitTimerAction('reset', minutesPerHalf); return; }
     setIsRunning(false);
     setCurrentHalf(1);
     setElapsedSeconds(0);
@@ -647,7 +652,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     // Server reset so spectators / cron / next mount all snap to zero.
     sendTimerEvent({ teamId: teamId ?? null, eventId, event: 'reset', minutesPerHalf })
       .catch(handleTimerFailure);
-  }, [teamId, eventId, kickoffMs, minutesPerHalf, teamName, handleTimerFailure, readOnly, commitTimerAction]);
+  }, [teamId, eventId, kickoffMs, minutesPerHalf, teamName, handleTimerFailure, readOnly, commitTimerAction, icpServerClock]);
 
   // Expose state via ref
   useImperativeHandle(ref, () => ({
@@ -710,7 +715,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           const newValue = prev + deltaSec;
           // Check if half is complete
           if (newValue >= halfDurationSeconds) {
-            if (resolveAuthBackend() === 'icp' && !teamId?.startsWith('event-group-')) {
+            if (icpServerClock) {
               void commitTimerAction(currentHalf === 1 ? 'end_half' : 'end_game', minutesPerHalf);
               return halfDurationSeconds;
             }
@@ -761,7 +766,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, halfDurationSeconds, currentHalf, teamId, eventId, minutesPerHalf, commitTimerAction]);
+  }, [isRunning, halfDurationSeconds, currentHalf, teamId, eventId, minutesPerHalf, commitTimerAction, icpServerClock]);
 
   // Reconcile timer when app resumes from background (no 30s cap)
   // CRITICAL: register listeners ONCE per teamId. Previously the dep array

@@ -70,4 +70,20 @@ describe('ICP shared pitch-board ownership', () => {
     expect(mocks.write).toHaveBeenCalledTimes(1);
     hook.unmount();
   });
+  it('keeps auto-subs set up just before closing when the board is reopened', async () => {
+    const k = 'ignite-pitch-board-state-team-x';
+    const first = renderHook(() => useIcpSharedPitchBoard({ teamId: 'x', userId: 'u', enabled: true, readOnly: false, apply: vi.fn() }));
+    await act(async () => {});
+    mocks.write.mockRejectedValueOnce(new Error('closed too soon'));
+    localStorage.setItem(k, JSON.stringify({ players: ['remote'], autoSubPlan: [1] }));
+    first.unmount();
+    await act(async () => {});
+    mocks.write.mockClear();
+    const apply = vi.fn();
+    const second = renderHook(() => useIcpSharedPitchBoard({ teamId: 'x', userId: 'u', enabled: true, readOnly: false, apply }));
+    await act(async () => {});
+    expect(apply).not.toHaveBeenCalled();
+    expect(mocks.write).toHaveBeenCalledWith('x', 9n, { players: ['remote'], autoSubPlan: [1] }, expect.any(String));
+    second.unmount();
+  });
 });

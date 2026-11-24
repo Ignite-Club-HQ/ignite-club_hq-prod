@@ -1,3 +1,5 @@
+import { repairPitchPlaceholderNames } from '@/lib/sharedPitchPrivacy';
+import { mockPlayerName } from './usePitchBoardMockPlayers';
 import { useCallback, useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from "react";
 import { clearPitchState } from "../pitchStateUtils";
 import type { MiniLeagueTeams, PitchBoardState, Player, TeamSize } from "../types";
@@ -78,14 +80,20 @@ export function usePitchBoardRosterReconciliation({
     !!savedState?.linkedEventId &&
     !!initialLinkedEventId &&
     savedState.linkedEventId !== initialLinkedEventId;
-  const savedPlayers = savedStateIsForDifferentEvent
+  const savedPlayersRaw = savedStateIsForDifferentEvent
     ? (savedState?.players || []).filter((player) => !player.isFillIn)
     : (savedState?.players || []);
+  // Saved boards may hold a placeholder ("Player" or an unread name code);
+  // show the team list / sample name for that player instead.
+  const knownNames = new Map(realPlayers.map((player) => [player.id, player.name]));
+  const lookupName = (id: string) => mockPlayerName(id) ?? knownNames.get(id);
+  const savedPlayers = repairPitchPlaceholderNames(savedPlayersRaw, lookupName);
   const savedAutoSubPlan = savedStateIsForDifferentEvent
     ? (savedState?.autoSubPlan || []).filter((step: any) =>
         savedPlayers.some((player) => player.id === step.playerId),
       )
     : (savedState?.autoSubPlan || []);
+  const savedAutoSubPlanNamed = repairPitchPlaceholderNames(savedAutoSubPlan, lookupName);
   const isStrictMatchEventRoster =
     !!(initialLinkedEventId || savedState?.linkedEventId) && !miniLeagueTeams;
   const strictMatchRosterPlayerIds = useMemo(
@@ -147,7 +155,7 @@ export function usePitchBoardRosterReconciliation({
     realPlayers,
     savedStateIsForDifferentEvent,
     savedPlayers,
-    savedAutoSubPlan,
+    savedAutoSubPlan: savedAutoSubPlanNamed,
     isStrictMatchEventRoster,
     savedRosterMissingCurrentPlayers,
     savedRosterHasPlayersOutsideCurrentRoster,

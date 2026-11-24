@@ -102,3 +102,14 @@ describe('ICP event captain loading', () => {
     expect(m.match).toHaveBeenCalledTimes(1);
   });
 });
+import { retryStartupRead } from './MatchCaptainSelector';
+import { IcpSessionRequiredError } from '@/live/icpSessionErrors';
+describe('captain startup retry', () => {
+  it('retries cold-start failures twice, never timeouts or refusals', () => {
+    expect(retryStartupRead(0, new IcpSessionRequiredError())).toBe(true);
+    expect(retryStartupRead(1, new Error('Failed to fetch'))).toBe(true);
+    expect(retryStartupRead(2, new Error('Failed to fetch'))).toBe(false);
+    expect(retryStartupRead(0, new Error('Captain details timed out; please try again.'))).toBe(false);
+    expect(retryStartupRead(0, new Error('refused'))).toBe(false);
+  });
+});
