@@ -592,8 +592,8 @@ export default function AuthPage() {
 
   if (entryIntent && !entryContext) return <AppSplash message="Checking your invitation…" />;
   if (entryIntent && entryContext?.error) return <main className="flex flex-col bg-background overflow-hidden" style={authShellStyle}>
-    <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8 flex flex-col items-center">
-      <div className="my-auto w-full max-w-sm space-y-6 text-center">
+    <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 flex flex-col items-center">
+      <div className="my-auto w-full max-w-sm space-y-4 text-center">
         <AuthBrand />
         <p role="alert" className="text-sm text-destructive">{entryContext.error}</p>
         <Button className="h-12 w-full rounded-lg" onClick={() => { setEntryContext(null); setEntryRetry(n => n + 1); }}>Retry invitation</Button>
@@ -834,8 +834,8 @@ export default function AuthPage() {
     setConfirmPassword("");
   };
 
-  const signInViewportClassName = 'py-6 sm:py-10';
-  const signInStackClassName = isFormKeyboardOpen ? 'space-y-4 py-2' : 'space-y-6 py-4 my-auto';
+  const signInViewportClassName = 'py-5 sm:py-8';
+  const signInStackClassName = isFormKeyboardOpen ? 'space-y-3 py-2' : 'space-y-4 py-2 my-auto';
   const signInCardContentClassName = 'space-y-4 p-0';
   const signInFormClassName = 'space-y-4';
   const signInFieldClassName = 'space-y-2';
