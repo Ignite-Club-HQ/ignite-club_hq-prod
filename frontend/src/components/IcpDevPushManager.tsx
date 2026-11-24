@@ -29,7 +29,11 @@ export function IcpDevPushManager() {
       if (disposed) await handle.remove();
       else removeResume = () => handle.remove();
     }).catch(() => undefined);
-    const receive = () => { toast('New Ignite notification'); };
+    const receive = (event: Event) => {
+      const data = (event as CustomEvent<{ data?: Record<string, unknown> }>).detail?.data;
+      if (data?.kind === 'pitch_board_substitution') toast('Sub due', { description: 'A planned substitution is due' });
+      else toast('New Ignite notification');
+    };
     window.addEventListener('ignite:icp-push-received', receive);
     return () => {
       disposed = true;
