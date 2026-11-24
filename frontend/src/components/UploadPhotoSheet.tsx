@@ -1,4 +1,5 @@
 import { writeOnce } from "@/live/clubScope";
+import { materializePickedFile, materializePickedFiles } from "@/lib/pickedFiles";
 import { readMembershipInScope } from "@/live/membershipRouting";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -730,11 +731,7 @@ export function UploadPhotoSheet({
     // selection (NotReadableError at upload). Copy bytes into memory now.
     let picked: File[];
     try {
-      picked = await Promise.all(
-        Array.from(files).map(async (f) =>
-          new File([await f.arrayBuffer()], f.name, { type: f.type, lastModified: f.lastModified }),
-        ),
-      );
+      picked = await materializePickedFiles(files);
     } catch (err) {
       console.error("[UploadPhotoSheet] could not read picked file", err);
       toast.error("That photo couldn't be opened. Please pick it again.");

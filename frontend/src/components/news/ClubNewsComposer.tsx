@@ -1,4 +1,5 @@
 import { writeOnce } from "@/live/clubScope";
+import { materializePickedFile, materializePickedFiles } from "@/lib/pickedFiles";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileText, ImagePlus, Loader2, Paperclip, X } from "lucide-react";
@@ -442,7 +443,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
+              onChange={(e) => { const f = e.target.files?.[0]; if (!f) { pickImage(null); return; } void materializePickedFile(f).then(pickImage, (err) => toast.error((err as Error).message)); }}
             />
           </div>
 
@@ -511,7 +512,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               multiple
               className="hidden"
               onChange={(e) => {
-                addExtraImages(Array.from(e.target.files ?? []));
+                void materializePickedFiles(e.target.files ?? []).then(addExtraImages, (err) => toast.error((err as Error).message));
                 e.currentTarget.value = "";
               }}
             />
@@ -590,7 +591,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               multiple
               className="hidden"
               onChange={(e) => {
-                addDocFiles(Array.from(e.target.files ?? []));
+                void materializePickedFiles(e.target.files ?? []).then(addDocFiles, (err) => toast.error((err as Error).message));
                 e.currentTarget.value = "";
               }}
             />
