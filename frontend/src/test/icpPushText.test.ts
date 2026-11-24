@@ -12,3 +12,9 @@ describe('ICP phone alert wording', () => {
     expect(pushText('event_invite', undefined).body).toBe('You have a new update.');
   });
 });
+
+describe('ICP chat alert names', () => {
+  it('puts sender and chat name in the title like email mode', () => {
+    expect(pushText('message_chat', 'Sam Lee · U12 Riverdogs\u001fSee you at 9')).toEqual({ title: 'Sam Lee · U12 Riverdogs', body: 'See you at 9' });
+  });
+});

@@ -251,6 +251,20 @@ persistent actor class Main(governorInit : Principal) = this {
       case null null
     }
   };
+  func chatSenderName(sender : Text) : async Text {
+    let configured = identityAccessCanister ?? return "";
+    try {
+      let p = Principal.fromText(sender);
+      let accountId = (await callerAccountId(p)) ?? return "";
+      let ia : actor { get_profiles_by_ids : shared query [Text] -> async [{ display_name : Text }] } = actor (Principal.toText(configured));
+      let profiles = await ia.get_profiles_by_ids([accountId]);
+      if (profiles.size() == 0) "" else {
+        var out = ""; var n = 0;
+        label c for (ch in profiles[0].display_name.chars()) { if (n >= 60) break c; if (ch != '\u{1F}') { out #= Text.fromChar(ch); n += 1 } };
+        out
+      }
+    } catch (_) { "" }
+  };
   func ownsInbox(caller : Principal, user : Text) : async Bool {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
@@ -1667,6 +1681,13 @@ persistent actor class Main(governorInit : Principal) = this {
     if (chatMessageProcessed(message_id)) { return #Ok(0) };
     let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
     if (accountAdmissionEnabled and recipients.size() > 200) return #Err("Recipient admission batch exceeds 200");
+    // Push title like email mode: "Sender · Chat" (sender only for DMs).
+    // Name lookup is best-effort; failure leaves the generic title.
+    let parts = Iter.toArray(Text.split(preview, #char '\u{1F}'));
+    let (chatName, text) = if (fromMessagingDomain and parts.size() >= 2) (parts[0], parts[1]) else ("", preview);
+    let senderName = await chatSenderName(sender);
+    let title = if (senderName == "") chatName else if (chatName == "") senderName else senderName # " · " # chatName;
+    let storedBody = if (title == "") text else title # "\u{1F}" # text;
     let allowedRecipients = do { let removalReply = await eligibleUsers(recipients); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (chatMessageProcessed(message_id)) return #Ok(0);
     var created : Nat16 = 0;
@@ -1682,7 +1703,7 @@ persistent actor class Main(governorInit : Principal) = this {
               user = recipient;
               club = conversation_id;
               kind = "message_chat";
-              body = preview;
+              body = storedBody;
               idempotency_key = message_id;
               status = #Pending;
               attempts = 0;

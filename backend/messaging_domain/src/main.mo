@@ -1458,7 +1458,9 @@ persistent actor class Main(governorInit : Principal) = this {
               record_chat_notify_batch : shared (Text, Text, Text, Text, [Text], [Text]) -> async { #Ok : Nat16; #Err : Text };
             } = actor (Principal.toText(nq));
             try {
-              ignore await queue.record_chat_notify_batch(msg.id, conversation.id, Principal.toText(msg.sender), chatNotifyPreview(msg.body, msg.attachment), recipients, muted);
+              // Chat name travels ahead of U+001F; the queue adds the sender's name.
+              let chatName = switch (getGroupMetadataFor(conversation.id)) { case (?meta) meta.name; case null "" };
+              ignore await queue.record_chat_notify_batch(msg.id, conversation.id, Principal.toText(msg.sender), chatName # "\u{1F}" # chatNotifyPreview(msg.body, msg.attachment), recipients, muted);
             } catch (_) {};
           };
         };

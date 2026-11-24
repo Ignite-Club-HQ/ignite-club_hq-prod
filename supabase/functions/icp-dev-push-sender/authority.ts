@@ -20,8 +20,10 @@ const TITLES: Record<string, string> = {
 
 /** Same wording as the in-app notification: per-kind title plus the stored ICP body. */
 export function pushText(kind: string, body: string | undefined) {
-  const clean = (body ?? '').replace(/\s+/g, ' ').trim().slice(0, 240);
-  const title = TITLES[kind] ?? (kind.startsWith('join_request') ? 'Join request' : 'Ignite Club HQ');
+  // ICP stores "Title<U+001F>text" when it knows the sender/chat name.
+  const [named, rest] = (body ?? '').includes('\u001f') ? (body ?? '').split('\u001f', 2) : ['', body ?? ''];
+  const clean = rest.replace(/\s+/g, ' ').trim().slice(0, 240);
+  const title = named.trim().slice(0, 80) || TITLES[kind] || (kind.startsWith('join_request') ? 'Join request' : 'Ignite Club HQ');
   return { title, body: clean || 'You have a new update.' };
 }
 
