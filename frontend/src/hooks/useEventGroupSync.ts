@@ -49,6 +49,8 @@ export function useEventGroupSync(
   const lastSyncedStateRef = useRef<string | null>(null);
   const icpRevisionRef = useRef<bigint | null>(null);
   const icpBusyRef = useRef(false);
+  const icpRerunRef = useRef(false);
+  const syncRef = useRef<(() => Promise<void>) | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const lastSignalVersionRef = useRef<number>(0);
 
@@ -194,7 +196,7 @@ export function useEventGroupSync(
     if (!actualGroupId) return;
     if (readOnly) return; // spectators never write
     if (isSupabaseEventGroupSyncDisabled()) {
-      if (icpBusyRef.current) return;
+      if (icpBusyRef.current) { icpRerunRef.current = true; return; }
       icpBusyRef.current = true;
       try {
         if (icpRevisionRef.current === null) { await loadFromDatabase(false); return; }
@@ -211,7 +213,11 @@ export function useEventGroupSync(
       } catch (error) {
         console.error("[EventGroupSync] Canister sync failed", error);
         await loadFromDatabase(true);
-      } finally { icpBusyRef.current = false; }
+      } finally {
+        icpBusyRef.current = false;
+        // A change saved while a write was running must still be sent.
+        if (icpRerunRef.current) { icpRerunRef.current = false; void syncRef.current?.(); }
+      }
       return;
     }
 
@@ -358,6 +364,7 @@ export function useEventGroupSync(
   const forceSync = useCallback(() => {
     syncToDatabase();
   }, [syncToDatabase]);
+  syncRef.current = syncToDatabase;
 
   // Auto-start sync when component mounts with an event group
   useEffect(() => {
