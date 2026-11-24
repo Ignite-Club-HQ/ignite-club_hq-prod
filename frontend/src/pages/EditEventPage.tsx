@@ -753,8 +753,10 @@ function SupabaseEditEventPage() {
           icp: async (ctx) => {
             const grants = await getLiveMyRoleGrants(ctx);
             const ids = new Set(grants.filter((g) => g.club[0] === selectedClubId && ["team_admin", "coach"].includes(g.role)).map((g) => g.team[0]));
+            // Club/app admins manage every team in their club (matches Create Event).
+            const clubWide = grants.some((g) => g.club[0] === selectedClubId && ["club_admin", "app_admin"].includes(g.role));
             const teams = await listLiveTeams(ctx, selectedClubId);
-            return teams.filter((t) => ids.has(t.id) && !t.deleted_at_ms.length).map((t) => ({ id: t.id, name: t.name, club_id: t.club_id, default_match_arrival_minutes: null }));
+            return teams.filter((t) => (clubWide || ids.has(t.id)) && !t.deleted_at_ms.length).map((t) => ({ id: t.id, name: t.name, club_id: t.club_id, default_match_arrival_minutes: null }));
           },
         }, { clubId: selectedClubId! });
       }
