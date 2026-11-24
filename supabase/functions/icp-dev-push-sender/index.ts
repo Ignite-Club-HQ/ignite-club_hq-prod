@@ -25,7 +25,7 @@ const reply = (status: number, body: unknown) => new Response(JSON.stringify(bod
 
 const factory = ({ IDL }: { IDL: typeof CandidIDL }) => {
   const row = IDL.Record({ receipt: IDL.Text, user: IDL.Text, token: IDL.Text, platform: IDL.Text,
-    notification_id: IDL.Text, kind: IDL.Text, related_id: IDL.Opt(IDL.Text), scope: IDL.Text, key: IDL.Text, body: IDL.Opt(IDL.Text) });
+    notification_id: IDL.Text, kind: IDL.Text, related_id: IDL.Opt(IDL.Text), scope: IDL.Text, key: IDL.Text, body: IDL.Text });
   return IDL.Service({
     native_push_configuration: IDL.Func([], [IDL.Record({ worker: IDL.Opt(IDL.Principal), queue: IDL.Principal, enabled: IDL.Bool })], ['query']),
     reserve_native_push: IDL.Func([], [IDL.Variant({ Ok: IDL.Opt(row), Err: IDL.Text })], []),
@@ -107,7 +107,7 @@ async function runDelivery(raw: RawQueue) {
         async reserve_native_push() {
           const r = await raw.reserve_native_push();
           if ('Err' in r) return r;
-          return { Ok: r.Ok.map(x => ({ ...x, related_id: x.related_id as string[], body: (x as { body?: string[] }).body ?? [] })) as never };
+          return { Ok: r.Ok.map(x => ({ ...x, related_id: x.related_id as string[], body: (x as { body?: string }).body ? [(x as { body: string }).body] : [] })) as never };
         },
         settle_native_push: (r, o) => raw.settle_native_push(r, o),
       };
