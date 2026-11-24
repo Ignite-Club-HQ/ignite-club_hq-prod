@@ -726,7 +726,22 @@ export function UploadPhotoSheet({
       });
     }
 
-    await addPhotosToSelection(Array.from(files));
+    // Android WebView revokes read access to picked files shortly after
+    // selection (NotReadableError at upload). Copy bytes into memory now.
+    let picked: File[];
+    try {
+      picked = await Promise.all(
+        Array.from(files).map(async (f) =>
+          new File([await f.arrayBuffer()], f.name, { type: f.type, lastModified: f.lastModified }),
+        ),
+      );
+    } catch (err) {
+      console.error("[UploadPhotoSheet] could not read picked file", err);
+      toast.error("That photo couldn't be opened. Please pick it again.");
+      e.target.value = '';
+      return;
+    }
+    await addPhotosToSelection(picked);
 
     if (shouldStabilizeIOSLayout) {
       restoreNativeLayout();
