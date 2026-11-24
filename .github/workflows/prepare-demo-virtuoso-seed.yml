@@ -1,0 +1,31 @@
+name: Prepare Ignite Soccer Demo Virtuoso chat seed
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_messages:
+        description: "Sample messages per allowlisted thread (1–300)"
+        required: true
+        default: "150"
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate strictly club-scoped seed manifest (NO PROD WRITES)
+        env:
+          TARGET_MESSAGES: ${{ inputs.target_messages }}
+        run: node scripts/generate-demo-virtuoso-seed.mjs "$RUNNER_TEMP/ignite-demo-virtuoso-seed.json"
+      - name: Upload manifest for authenticated, reviewed execution
+        uses: actions/upload-artifact@v4
+        with:
+          name: ignite-soccer-demo-virtuoso-seed
+          path: ${{ runner.temp }}/ignite-demo-virtuoso-seed.json
+          retention-days: 7
