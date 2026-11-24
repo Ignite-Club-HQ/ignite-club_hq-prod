@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isAuthChoiceOverrideOrigin, resolveAuthBackend, useIcpAuthScreen } from "./authBackendMode";
+import { isAuthChoiceOverrideOrigin, markAuthEntryReady, resolveAuthBackend, setAuthMethodChoice, useIcpAuthScreen } from "./authBackendMode";
+import { rememberSuccessfulAuthMethod } from "@/lib/authExperience";
 import { applyBackendRoutingConfig, cacheClubBackendHint } from "./backendRouting";
 import { applyIcpAdminOverrides } from "./icpAdminOverrides";
 import { setProfileCountry } from "./userCountry";
@@ -8,6 +9,7 @@ import { clearUserClubIds, setUserClubIds } from "./userClubs";
 const VALID_CANISTER_ID = "ryjl3-tyaaa-aaaaa-aaaba-cai";
 
 function resetState(): void {
+  setAuthMethodChoice(null);
   applyBackendRoutingConfig(null);
   applyIcpAdminOverrides(null);
   setProfileCountry(null);
@@ -149,6 +151,8 @@ describe("resolveAuthBackend with the ?auth= device override", () => {
 
   function forgetChoice(): void {
     localStorage.removeItem("ignite.authChoice");
+    localStorage.removeItem("ignite.authLastSuccess");
+    sessionStorage.clear();
   }
 
   beforeEach(() => {
@@ -176,11 +180,17 @@ describe("resolveAuthBackend with the ?auth= device override", () => {
     expect(useIcpAuthScreen()).toBe(false);
   });
 
-  it("the choice keeps applying after the URL param is gone", () => {
+  it("a URL choice does not become a successful device preference", () => {
     applyBackendRoutingConfig(icpDefaultConfig);
     setUrlSearch("?auth=email");
     expect(resolveAuthBackend()).toBe("supabase");
     setUrlSearch("");
+    expect(resolveAuthBackend()).toBe("icp");
+    expect(localStorage.getItem("ignite.authLastSuccess")).toBeNull();
+  });
+  it("a successful email login keeps applying after the URL is gone", () => {
+    applyBackendRoutingConfig(icpDefaultConfig);
+    rememberSuccessfulAuthMethod("supabase");
     expect(resolveAuthBackend()).toBe("supabase");
   });
 
@@ -218,5 +228,17 @@ describe("isAuthChoiceOverrideOrigin — the ?auth= override is blockchain-copy-
     expect(isAuthChoiceOverrideOrigin("id-preview--9e0ff3f7.lovable.app")).toBe(false);
     expect(isAuthChoiceOverrideOrigin("app.igniteexample.com")).toBe(false);
     expect(isAuthChoiceOverrideOrigin("icp0.io.evil.example")).toBe(false);
+  });
+});
+
+describe("anonymous placement boot before adaptive defaults", () => {
+  it("starts secure defaults only after public settings have loaded", () => {
+    resetState(); localStorage.clear(); sessionStorage.clear();
+    window.history.replaceState(null, "", "/auth");
+    applyIcpAdminOverrides({ canisterIds: { identity_access: VALID_CANISTER_ID } });
+    expect(resolveAuthBackend()).toBe("supabase");
+    markAuthEntryReady();
+    expect(resolveAuthBackend()).toBe("icp");
+    window.history.replaceState(null, "", "/");
   });
 });

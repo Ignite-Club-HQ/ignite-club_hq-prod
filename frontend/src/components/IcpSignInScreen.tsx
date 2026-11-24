@@ -1,8 +1,9 @@
-import { AlertTriangle, ExternalLink, Flame, Loader2 } from "lucide-react";
+import { ExternalLink, Fingerprint, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isLikelyInAppBrowser } from "@/lib/internetIdentitySignInHelp";
 import { readRedirectParam, safeSessionGet } from "@/lib/authRedirectStorage";
 import { AuthLegalLinks } from "@/components/AuthLegalLinks";
+import { AuthBrand } from "@/components/AuthBrand";
 
 interface IcpSignInScreenProps {
   shellStyle: React.CSSProperties;
@@ -15,6 +16,7 @@ interface IcpSignInScreenProps {
   /** Switch to the email/Google sign-in screen (?auth=email). */
   onUseEmail: () => void;
   methodTabs?: React.ReactNode;
+  showEmailOption?: boolean;
 }
 
 // Android can request an external browser. iOS embedded browsers do not
@@ -30,55 +32,31 @@ export function externalChromeHref(): string | null {
   return `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url.href)};end`;
 }
 
-export function IcpSignInScreen({ shellStyle, onContinue, busy, preparing, native, online, error, onUseEmail, methodTabs }: IcpSignInScreenProps) {
+export function IcpSignInScreen({ shellStyle, onContinue, busy, preparing, native, online, error, onUseEmail, methodTabs, showEmailOption = false }: IcpSignInScreenProps) {
   const embedded = !native && isLikelyInAppBrowser();
   const browserHref = embedded ? externalChromeHref() : null;
 
   return (
     <main className="flex flex-col bg-background overflow-hidden" style={shellStyle}>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-12">
-        <div className="my-auto w-full max-w-sm text-center">
-          <div className="mx-auto mb-8 w-fit rounded-2xl bg-primary glow-emerald p-4" aria-hidden="true">
-            <Flame className="h-10 w-10 text-primary-foreground" />
-          </div>
-          <h1 className="text-3xl font-bold text-gradient-emerald leading-tight">Welcome to Ignite</h1>
-          <p className="mt-4 text-base leading-relaxed text-muted-foreground">Sign in or create your account to continue.</p>
-          {methodTabs && <div className="mt-6">{methodTabs}</div>}
-          {methodTabs && (
-            <aside
-              role="note"
-              className="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/10 p-3 text-left text-sm leading-relaxed text-foreground"
-            >
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-              <span>
-                <span className="font-medium">Already have an account?</span>{" "}
-                Please use <span className="font-medium">Sign in with email</span> above. This secure
-                sign-in is still being set up, so it may start a brand-new account instead of opening
-                the one you already have.
-              </span>
-            </aside>
-          )}
-
-          <div className="mt-10">
-            <Button type="button" size="lg" className="w-full min-h-12" onClick={onContinue} disabled={busy || preparing} aria-busy={busy}>
-              {(busy || preparing) && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
-              {busy ? "Signing you in…" : "Continue securely"}
+      <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-6 py-8 sm:py-12">
+        <div className="my-auto w-full max-w-sm py-4 text-center">
+          <AuthBrand />
+          <div className="mt-8">
+            <Button type="button" size="lg" className="h-12 w-full rounded-lg" onClick={onContinue} disabled={busy || preparing || !online} aria-busy={busy || preparing}>
+              {(busy || preparing) ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Fingerprint className="h-5 w-5" aria-hidden="true" />}
+              {busy ? "Signing you in…" : preparing ? "Getting sign-in ready…" : "Continue securely"}
             </Button>
             <p className="mt-3 text-xs text-muted-foreground">Powered by Internet Identity</p>
+            <p className="mt-5 text-sm leading-relaxed text-muted-foreground">{showEmailOption ? "Passwordless sign-in and account creation." : "Simple, passwordless access to your Ignite account."}</p>
           </div>
-
-          <p className="mt-8 text-sm leading-relaxed text-muted-foreground">New to Ignite? Just continue — we'll create your account automatically.</p>
-          {!methodTabs && <button
-            type="button"
-            className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline"
-            onClick={onUseEmail}
-          >
-            Sign in with email instead
-          </button>}
-          <div className="mt-8"><AuthLegalLinks /></div>
-
           {error && <p className="mt-5 text-sm leading-relaxed text-destructive" role="alert">{error}</p>}
           {!online && <p className="mt-5 text-sm text-destructive" role="alert">You're offline. Reconnect to sign in.</p>}
+          {showEmailOption && <div className="mt-7 border-t border-border pt-6">
+            <p className="mb-3 text-sm text-muted-foreground">Already using an email account?</p>
+            <Button type="button" variant="outline" className="h-12 w-full rounded-lg" onClick={onUseEmail} disabled={busy}>Sign in with email</Button>
+          </div>}
+          {methodTabs && <div className="mt-3">{methodTabs}</div>}
+          <footer className="mt-7 border-t border-border pt-5"><AuthLegalLinks /></footer>
           {embedded && (
             <aside className="mt-8 border-t border-border pt-5 text-left text-sm" aria-label="Browser sign-in guidance">
               <h2 className="font-medium text-foreground">Open Ignite in your browser</h2>

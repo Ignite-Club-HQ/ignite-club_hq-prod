@@ -1,5 +1,7 @@
 import { Fingerprint, Mail } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface AuthMethodChoiceProps {
   value: "supabase" | "icp";
@@ -7,20 +9,25 @@ interface AuthMethodChoiceProps {
   disabled?: boolean;
 }
 
-/** Method tabs live above the open form; there is no separate picker screen. */
+/** A deliberate account switch, never an account merge or migration. */
 export function AuthMethodChoice({ value, onChange, disabled }: AuthMethodChoiceProps) {
+  const [open, setOpen] = useState(false);
+  const choose = (next: "supabase" | "icp") => {
+    if (disabled) return;
+    setOpen(false);
+    onChange(next);
+  };
   return (
-    <Tabs value={value} onValueChange={next => {
-      if (next === "supabase" || next === "icp") onChange(next);
-    }}>
-      <TabsList className="grid h-12 w-full grid-cols-2" aria-label="Sign-in method">
-        <TabsTrigger value="supabase" disabled={disabled} className="h-full min-w-0 gap-2 px-2 whitespace-normal leading-tight">
-          <Mail className="h-4 w-4 shrink-0" aria-hidden="true" />Sign in with email
-        </TabsTrigger>
-        <TabsTrigger value="icp" disabled={disabled} className="h-full min-w-0 gap-2 px-2 whitespace-normal leading-tight">
-          <Fingerprint className="h-4 w-4 shrink-0" aria-hidden="true" />Sign in securely
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button type="button" variant="link" className="min-h-11 text-xs text-muted-foreground" disabled={disabled} onClick={() => setOpen(true)}>Use a different sign-in method</Button>
+      <DialogContent className="max-w-sm rounded-lg">
+        <DialogHeader>
+          <DialogTitle>Choose your sign-in method</DialogTitle>
+          <DialogDescription>Use the method you used to create your account. Email and Internet Identity open separate accounts; switching does not move your memberships.</DialogDescription>
+        </DialogHeader>
+        <Button className="h-12 rounded-lg" disabled={disabled} onClick={() => choose("icp")}><Fingerprint aria-hidden="true" />{value === "icp" ? "Stay with secure sign-in" : "Continue securely"}</Button>
+        <Button variant="outline" className="h-12 rounded-lg" disabled={disabled} onClick={() => choose("supabase")}><Mail aria-hidden="true" />Sign in with email</Button>
+      </DialogContent>
+    </Dialog>
   );
 }

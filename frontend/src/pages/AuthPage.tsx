@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { Navigate, Link, useSearchParams } from "react-router-dom";
 import { AppSplash } from "@/components/AppSplash";
-import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint, CheckCircle2, Circle, XCircle, WifiOff } from "lucide-react";
+import { Mail, Lock, Loader2, Eye, EyeOff, Fingerprint, CheckCircle2, Circle, XCircle, WifiOff } from "lucide-react";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -22,18 +22,18 @@ import {
   isAuthChoiceOverrideOrigin,
   isIcpAuthAvailable,
   setAuthMethodChoice,
-  shouldOfferAuthMethodChoice,
-  useIcpAuthScreen,
 } from "@/live/authBackendMode";
 import { GOOGLE_SIGN_IN_ENABLED } from "@/lib/authProviderFlags";
 import { describeIcpSignInError } from "@/lib/internetIdentitySignInHelp";
 import { IcpSignInScreen } from "@/components/IcpSignInScreen";
+import { AuthBrand } from "@/components/AuthBrand";
+import { readPendingAuthMethod, readRestoredAuthHint, readSuccessfulAuthMethod, resolveAuthScreenVariant } from "@/lib/authExperience";
+import { authEntryKey, hasAuthEntryIntent, prepareAuthEntryContext, readAuthEntryContext } from "@/live/authEntryContext";
 import { AuthMethodChoice } from "@/components/AuthMethodChoice";
 import { AuthLegalLinks } from "@/components/AuthLegalLinks";
 import { EMAIL_SIGNUP_INVITE_REQUIRED, emailSignupRequiresInvite, readEmailSignupInviteToken } from "@/lib/emailSignupPolicy";
 
 import { z } from "zod";
-import type { Database } from "@/integrations/supabase/types";
 import {
   safeSessionGet,
   safeSessionRemove,
@@ -85,22 +85,6 @@ const signupPasswordSchema = z.string()
 // and pre-fill the invited email. This lives in sessionStorage, not localStorage,
 // so it is scoped to the current invite hand-off.
 const INVITE_AUTH_CONTEXT_KEY = "inviteAuthContext";
-
-type AppRole = Database["public"]["Enums"]["app_role"];
-
-const roleLabels: Record<AppRole, string> = {
-  basic_user: "Basic User",
-  club_admin: "Club Admin",
-  team_admin: "Team Admin",
-  coach: "Coach",
-  player: "Player",
-  parent: "Parent",
-  app_admin: "App Admin",
-  league_admin: "League Admin",
-  committee_member: "Committee Member",
-  association_admin: "Association Admin",
-  competition_admin: "Competition Admin",
-};
 
 function readInviteAuthContext(): {
   clubName: string | null;
@@ -167,9 +151,30 @@ export default function AuthPage() {
   // the app, where a single ICP-pinned club otherwise decides for every new
   // visitor).
   // (persisted device-wide in authBackendMode.readAuthChoice).
-  const forceEmailAuth = authParam === "email" || authParam === "supabase";
-  const icpScreen = useIcpAuthScreen();
-  const useIcpLab = !forceEmailAuth && (forceIcpAuth || icpScreen);
+  const forceEmailAuth = isAuthChoiceOverrideOrigin() && (authParam === "email" || authParam === "supabase");
+  const [entryContext, setEntryContext] = useState(readAuthEntryContext);
+  const [entryRetry, setEntryRetry] = useState(0);
+  const [selectedMethod, setSelectedMethod] = useState<"supabase" | "icp" | null>(null);
+  const entryIntent = hasAuthEntryIntent();
+  const entrySearch = window.location.search;
+  useEffect(() => {
+    let cancelled = false;
+    const key = authEntryKey();
+    if (!hasAuthEntryIntent()) { setEntryContext(null); return; }
+    setEntryContext(readAuthEntryContext());
+    void prepareAuthEntryContext().then(result => {
+      if (!cancelled && authEntryKey() === key) setEntryContext(result);
+    });
+    return () => { cancelled = true; };
+  }, [entrySearch, entryRetry]);
+  const variant = resolveAuthScreenVariant({
+    verifiedMethod: entryContext?.method,
+    selectedMethod: selectedMethod ?? readPendingAuthMethod() ?? (forceEmailAuth ? "supabase" : forceIcpAuth ? "icp" : null),
+    successfulMethod: readSuccessfulAuthMethod(),
+    restoredMethod: readRestoredAuthHint(),
+    secureAvailable: isIcpAuthAvailable(),
+  });
+  const useIcpLab = variant !== "email";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -200,7 +205,7 @@ export default function AuthPage() {
 
   const isNativePlatform = Capacitor.isNativePlatform();
   const { isOnline } = useOnlineStatus();
-  
+
   // The URL is the source of truth for the invite hand-off (mode / next /
   // invite). sessionStorage is NOT consulted for auth-mode intent any more —
   // it raced with the mount-time cleanup and dumped invite users on Sign In.
@@ -227,7 +232,6 @@ export default function AuthPage() {
   // Check if we're actively in an invite flow - only valid if there's a pending redirect
   // URL param is a fallback for webviews where sessionStorage writes are blocked.
   const redirectParam = readRedirectParam(window.location.search);
-  const redirectAfterAuth = safeSessionGet("redirectAfterAuth") ?? redirectParam;
 
   useEffect(() => {
     console.log("[SignupFlow] Arrived at /auth", {
@@ -251,7 +255,7 @@ export default function AuthPage() {
     }
   }, []);
 
-  
+
   // Invite flow context is trusted as-is. It is NOT invalidated just because
   // `redirectAfterAuth` is missing — in restricted webviews that storage write
   // fails, and discarding the context there was what dropped invite users onto
@@ -262,7 +266,7 @@ export default function AuthPage() {
   // Show invite flow progress whenever an invite flow is active.
   const isInInviteFlow = inviteFlowContext?.active === true;
 
-  
+
   // HIBP compromised password check (k-anonymity — only first 5 chars of SHA1 sent)
   useEffect(() => {
     if (authMode !== 'signup' || !password || password.length < 8) {
@@ -276,7 +280,6 @@ export default function AuthPage() {
         const hashBuffer = await crypto.subtle.digest('SHA-1', buffer);
         const hash = Array.from(new Uint8Array(hashBuffer))
           .map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-        const prefix = hash.slice(0, 5);
         const suffix = hash.slice(5);
         const res = await fetch(`https://reference.invalid`);
         const text = await res.text();
@@ -295,7 +298,7 @@ export default function AuthPage() {
   // explicit cancel of the flow or after the profile is completed.
 
 
-  
+
   const { toast } = useToast();
   const {
     user,
@@ -390,15 +393,14 @@ export default function AuthPage() {
     redirectParam,
   ]);
 
-  const { 
-    isAvailable, 
+  const {
     isRegistered,
     nativeBiometricInfo,
-    loading: passkeyLoading, 
+    loading: passkeyLoading,
     authenticateWithPasskey,
-    storeCredentialsForNativeBiometric 
+    storeCredentialsForNativeBiometric
   } = usePasskey();
-  
+
   // Check if biometrics are available (for showing the passkey button)
   useEffect(() => {
     let cancelled = false;
@@ -566,7 +568,7 @@ export default function AuthPage() {
       ? '0px'
       : 'var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))',
   };
-  
+
   // Determine button text based on platform
   const getBiometricButtonText = () => {
     if (nativeBiometricInfo) {
@@ -585,8 +587,20 @@ export default function AuthPage() {
     }
     return 'Sign in with Face ID / Touch ID';
   };
-  
 
+
+
+  if (entryIntent && !entryContext) return <AppSplash message="Checking your invitation…" />;
+  if (entryIntent && entryContext?.error) return <main className="flex flex-col bg-background overflow-hidden" style={authShellStyle}>
+    <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8 flex flex-col items-center">
+      <div className="my-auto w-full max-w-sm space-y-6 text-center">
+        <AuthBrand />
+        <p role="alert" className="text-sm text-destructive">{entryContext.error}</p>
+        <Button className="h-12 w-full rounded-lg" onClick={() => { setEntryContext(null); setEntryRetry(n => n + 1); }}>Retry invitation</Button>
+        <AuthLegalLinks />
+      </div>
+    </div>
+  </main>;
 
   if (authLoading) {
     return (
@@ -643,7 +657,7 @@ export default function AuthPage() {
         setEmailError(emailValidation.error.errors[0].message);
         return;
       }
-      
+
       // Then validate password with stronger requirements
       const passwordValidation = signupPasswordSchema.safeParse(password);
       if (!passwordValidation.success) {
@@ -651,12 +665,12 @@ export default function AuthPage() {
         setPasswordError(strengthMessage || passwordValidation.error.errors[0].message);
         return;
       }
-      
+
       if (password !== confirmPassword) {
         setConfirmPasswordError("Please ensure both passwords are identical.");
         return;
       }
-      
+
       if (!acceptedTerms) {
         setTermsError("You must accept the Terms of Service and Privacy Policy to create an account.");
         return;
@@ -709,7 +723,8 @@ export default function AuthPage() {
       } else if (message.toLowerCase().includes("weak") || message.toLowerCase().includes("easy to guess") || message.toLowerCase().includes("pwned")) {
         setPasswordError("This password is too common or has appeared in data breaches. Please choose a more unique password.");
       } else {
-        setAuthError(message);
+        console.warn("[Auth] Sign-in refused", message);
+        setAuthError("We couldn't sign you in. Please try again, or contact support if this continues.");
       }
     } else if (needsEmailConfirmation) {
       // Signup succeeded but Supabase requires email verification, so no
@@ -729,7 +744,7 @@ export default function AuthPage() {
           const { checkNativeBiometricAvailability } = await import('@/lib/nativeBiometrics');
           const freshBiometricInfo = await checkNativeBiometricAvailability();
           console.log('[AuthPage] Fresh biometric check:', freshBiometricInfo);
-          
+
           if (freshBiometricInfo.isAvailable && !freshBiometricInfo.hasCredentials) {
             // Store credentials for future biometric login (silently)
             await storeCredentialsForNativeBiometric(email, password);
@@ -756,7 +771,7 @@ export default function AuthPage() {
     setGoogleLoading(true);
     const { error } = await signInWithGoogle();
     setGoogleLoading(false);
-    
+
     if (error) {
       let message = error.message;
       if (message.includes("Network") || message.includes("fetch")) {
@@ -778,7 +793,7 @@ export default function AuthPage() {
     // Always use discoverable credentials - let the browser show ALL available passkeys
     console.log('[AuthPage] handleBiometricSignIn - using discoverable credentials');
     const result = await authenticateWithPasskey(); // No email = discoverable mode
-    
+
     if (!result.success) {
       toast({
         title: "Biometric sign in failed",
@@ -819,42 +834,30 @@ export default function AuthPage() {
     setConfirmPassword("");
   };
 
-  const shouldLowerDefaultSignIn = isSignInMode && isNativePlatform && !isSignInKeyboardOpen;
-  const signInViewportClassName = isSignInMode
-    ? isSignInKeyboardOpen
-      ? `justify-start pb-4`
-      : 'justify-center py-8'
-    : 'overflow-y-auto';
-  const signInStackClassName = isSignInMode
-    ? isSignInKeyboardOpen
-      ? 'space-y-4 py-2'
-      : `${shouldLowerDefaultSignIn ? 'translate-y-4' : ''} space-y-8 py-6`
-    : isSignupKeyboardOpen
-      ? 'space-y-4 py-2'
-      : 'space-y-8 py-8 my-auto';
-  const signInCardContentClassName = isSignInKeyboardOpen ? 'space-y-3' : 'space-y-4';
-  const signInFormClassName = isSignInKeyboardOpen ? 'space-y-3' : 'space-y-4';
-  const signInFieldClassName = isSignInKeyboardOpen ? 'space-y-1.5' : 'space-y-2';
-  const signupCardContentClassName = isSignupKeyboardOpen ? 'space-y-3' : 'space-y-4';
-  const signupFormClassName = isSignupKeyboardOpen ? 'space-y-3' : 'space-y-4';
-  const signupFieldClassName = isSignupKeyboardOpen ? 'space-y-1.5' : 'space-y-2';
-  const authCardClassName = isAndroid && isFormKeyboardOpen
-    ? 'border-border/50 bg-card/95'
-    : 'border-border/50 bg-card/50 backdrop-blur-sm';
-
-  const canSwitchMethod = shouldOfferAuthMethodChoice();
-  const showMethodTabs = canSwitchMethod && !isInInviteFlow;
+  const signInViewportClassName = 'py-6 sm:py-10';
+  const signInStackClassName = isFormKeyboardOpen ? 'space-y-4 py-2' : 'space-y-6 py-4 my-auto';
+  const signInCardContentClassName = 'space-y-4 p-0';
+  const signInFormClassName = 'space-y-4';
+  const signInFieldClassName = 'space-y-2';
+  const signupCardContentClassName = 'space-y-4 p-0';
+  const signupFormClassName = 'space-y-4';
+  const signupFieldClassName = 'space-y-2';
+  const canSwitchMethod = isIcpAuthAvailable() && !entryContext?.method;
   const emailSignupBlocked = emailSignupRequiresInvite() && !readEmailSignupInviteToken(window.location.search);
-  const methodTabs = showMethodTabs ? <AuthMethodChoice
+  const changeMethod = (next: "supabase" | "icp") => {
+    setAuthError(null);
+    setPassword("");
+    setConfirmPassword("");
+    setSelectedMethod(next);
+    const params = new URLSearchParams(searchParams);
+    params.delete("auth");
+    setSearchParams(params, { replace: true });
+    setAuthMethodChoice(next);
+  };
+  const methodTabs = canSwitchMethod ? <AuthMethodChoice
     value={useIcpLab ? "icp" : "supabase"}
     disabled={loading || googleLoading || !!resumingSignIn}
-    onChange={next => {
-      setAuthError(null);
-      const params = new URLSearchParams(searchParams);
-      params.delete("auth");
-      setSearchParams(params, { replace: true });
-      setAuthMethodChoice(next);
-    }}
+    onChange={changeMethod}
   /> : undefined;
 
   if (useIcpLab) {
@@ -868,14 +871,8 @@ export default function AuthPage() {
         online={isOnline}
         error={authError ?? signInProblem ?? null}
         methodTabs={methodTabs}
-        onUseEmail={() => {
-          // With both paths offered, forget the pick and show the picker
-          // again; otherwise use the URL override.
-          if (canSwitchMethod) { setAuthMethodChoice("supabase"); return; }
-          const params = new URLSearchParams(searchParams);
-          params.set("auth", "email");
-          setSearchParams(params, { replace: true });
-        }}
+        showEmailOption={variant === "default"}
+        onUseEmail={() => changeMethod("supabase")}
       />
     );
   }
@@ -889,30 +886,20 @@ export default function AuthPage() {
 
       {/* Show progress indicator if in invite flow */}
       {isInInviteFlow && (
-        <InviteFlowProgress 
-          currentStep="auth" 
+        <InviteFlowProgress
+          currentStep="auth"
           isIOS={inviteFlowContext?.isIOS}
           isExistingUser={false}
           className="fixed top-0 left-0 right-0"
         />
       )}
-      
+
       <div
         ref={signInScrollRef}
         className={`flex-1 flex flex-col items-center overflow-y-auto px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''}`}
       >
       <div className={`w-full max-w-md ${signInStackClassName}`}>
-        {/* Logo — compacts when keyboard is open on native sign-in */}
-        <div className={`flex flex-col items-center transition-all duration-200 ${isFormKeyboardOpen ? 'gap-1 mt-2' : 'gap-3 mt-4'}`}>
-          <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isFormKeyboardOpen ? 'p-2' : 'p-4'}`}>
-            <Flame className={`text-primary-foreground transition-all duration-200 ${isFormKeyboardOpen ? 'h-5 w-5' : 'h-10 w-10'}`} />
-          </div>
-          {!isFormKeyboardOpen && (
-            <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
-          )}
-        </div>
-
-        {methodTabs}
+        <AuthBrand compact={isFormKeyboardOpen} />
 
         {!isOnline && (
           <div
@@ -930,11 +917,11 @@ export default function AuthPage() {
           </div>
         )}
 
-        <Card className={authCardClassName}>
+        <section aria-label="Email authentication" className="space-y-4">
           {authMode === "signin" ? (
             <>
               <CardHeader className={`${isSignInKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'} gap-1`}>
-                <h2 className={`font-semibold text-center ${isSignInKeyboardOpen ? 'text-lg' : 'text-xl'}`}>Sign In</h2>
+                <h2 className={`font-semibold text-center ${isSignInKeyboardOpen ? 'text-lg' : 'text-xl'}`}>Sign in with email</h2>
                 {inviteAuthContext && (
                   <CardDescription className="text-center text-primary font-medium">
                     {buildInviteBannerText(inviteAuthContext)}
@@ -942,11 +929,6 @@ export default function AuthPage() {
                 )}
               </CardHeader>
               <CardContent className={signInCardContentClassName}>
-                {!isSignInKeyboardOpen && (
-                  <CardDescription className="text-center">
-                    Welcome back! Sign in to your account.
-                  </CardDescription>
-                )}
                 <form
                   className={signInFormClassName}
                   onSubmit={(e) => {
@@ -955,7 +937,7 @@ export default function AuthPage() {
                   }}
                 >
                   {authError && (
-                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                    <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                       {authError}
                     </div>
                   )}
@@ -966,8 +948,11 @@ export default function AuthPage() {
                       <Input
                         id="signin-email"
                         type="email"
+                        autoComplete="email"
+                        inputMode="email"
+                        autoCapitalize="none"
                         placeholder="you@example.com"
-                        className="pl-10"
+                        className="h-12 rounded-lg pl-10"
                         value={email}
                         disabled={!!inviteAuthContext?.invitedEmail}
                         onChange={(e) => {
@@ -982,21 +967,22 @@ export default function AuthPage() {
                   <div className={signInFieldClassName}>
                     <div className="flex items-center justify-between">
                       <Label htmlFor="signin-password">Password</Label>
-                      <button
+                      <Button variant="ghost"
                         type="button"
-                        className="text-xs text-primary hover:underline"
+                        className="h-11 px-0 text-xs text-muted-foreground hover:underline"
                         onClick={() => setForgotPasswordOpen(true)}
                       >
                         Forgot password?
-                      </button>
+                      </Button>
                     </div>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="signin-password"
+                        autoComplete="current-password"
                         type={showPassword ? "text" : "password"}
                         placeholder="••••••••"
-                        className="pl-10 pr-10"
+                        className="h-12 rounded-lg pl-10 pr-10"
                         value={password}
                         onChange={(e) => {
                           setPassword(e.target.value);
@@ -1004,39 +990,39 @@ export default function AuthPage() {
                           setAuthError(null);
                         }}
                       />
-                      <button
+                      <Button variant="ghost"
                         type="button"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 p-0 text-muted-foreground hover:text-foreground"
                         onClick={() => setShowPassword(!showPassword)}
-                        tabIndex={-1}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                      </Button>
                     </div>
                     {passwordError && <p className="text-xs text-destructive mt-1">{passwordError}</p>}
                   </div>
-                  
-                  <Button 
+
+                  <Button
                     type="submit"
-                    className="w-full" 
+                    className="h-12 w-full rounded-lg"
                     disabled={loading || googleLoading}
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : inviteAuthContext ? "Sign in & join" : "Sign In"}
                   </Button>
-                  
+
                   {inviteAuthContext && (
                     <div className="text-center text-sm text-muted-foreground">
                       Need an account?{" "}
-                      <button
+                      <Button variant="ghost"
                         type="button"
                         className="text-primary hover:underline font-medium"
                         onClick={switchToSignUp}
                       >
                         Create one
-                      </button>
+                      </Button>
                     </div>
                   )}
-                  
+
                   {!isSignInKeyboardOpen && (
                     <>
                       {showSignInDivider && (
@@ -1049,15 +1035,15 @@ export default function AuthPage() {
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Google sign-in is switched off: the provider isn't
                           enabled on this Supabase instance (see
                           lib/authProviderFlags.ts). */}
                       {showGoogleButton && (
-                        <Button 
+                        <Button
                           type="button"
-                          variant="outline" 
-                          className="w-full gap-2" 
+                          variant="outline"
+                          className="h-12 w-full gap-2 rounded-lg"
                           onClick={handleGoogleSignIn}
                           disabled={loading || googleLoading || passkeyLoading}
                         >
@@ -1088,12 +1074,12 @@ export default function AuthPage() {
                           )}
                         </Button>
                       )}
-                      
+
                       {showBiometricButton ? (
-                        <Button 
+                        <Button
                           type="button"
-                          variant="outline" 
-                          className="w-full gap-2" 
+                          variant="outline"
+                          className="h-12 w-full gap-2 rounded-lg"
                           onClick={handleBiometricSignIn}
                           disabled={loading || googleLoading || passkeyLoading}
                         >
@@ -1119,50 +1105,25 @@ export default function AuthPage() {
                   {!emailSignupBlocked && !inviteAuthContext && !isSignInKeyboardOpen && (
                     <div className="text-center text-sm text-muted-foreground pt-2">
                       Don't have an account?{" "}
-                      <button
+                      <Button variant="ghost"
                         type="button"
                         className="text-primary hover:underline font-medium"
                         onClick={switchToSignUp}
                       >
                         Sign up here
-                      </button>
+                      </Button>
                     </div>
                   )}
-                  {/* Recovery hatch: when this visitor's club is pinned to ICP
-                      but the cached hint was lost, the screen defaults to
-                      email — offer a way back to the Internet Identity
-                      screen. Only shown when canisters are configured. */}
-                  {icpOverrideAllowed && !showMethodTabs && (
-                    <button
-                      type="button"
-                      className="w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline pt-1"
-                      onClick={() => {
-                        // With both paths offered, forget the pick and show the
-                        // picker again; otherwise use the URL override.
-                        if (canSwitchMethod) { setAuthMethodChoice("icp"); return; }
-                        const params = new URLSearchParams(searchParams);
-                        params.set("auth", "icp");
-                        setSearchParams(params, { replace: true });
-                      }}
-                    >
-                      Sign in with Internet Identity instead
-                    </button>
-                  )}
+
                 </form>
               </CardContent>
             </>
           ) : emailSignupBlocked ? (
             <>
-              <CardHeader><h2 className="text-xl font-semibold text-center">Join with Internet Identity</h2></CardHeader>
-              <CardContent className="space-y-4">
+              <CardHeader><h2 className="text-xl font-semibold text-center">Invitation needed</h2></CardHeader>
+              <CardContent className="space-y-4 p-0">
                 <p className="text-sm text-muted-foreground" role="alert">{EMAIL_SIGNUP_INVITE_REQUIRED}</p>
-                <Button className="w-full gap-2" onClick={() => {
-                  const params = new URLSearchParams(searchParams);
-                  params.delete("auth");
-                  setSearchParams(params, { replace: true });
-                  setAuthMethodChoice("icp");
-                }} disabled={!isIcpAuthAvailable()}><Fingerprint className="h-4 w-4" />Continue with Internet Identity</Button>
-                <Button variant="outline" className="w-full" onClick={switchToSignIn}>Sign in with email</Button>
+                <Button variant="outline" className="h-12 w-full rounded-lg" onClick={switchToSignIn}>Sign in with email</Button>
               </CardContent>
             </>
           ) : (
@@ -1176,11 +1137,6 @@ export default function AuthPage() {
                 )}
               </CardHeader>
               <CardContent className={signupCardContentClassName}>
-                {!isSignupKeyboardOpen && (
-                  <CardDescription className="text-center">
-                    Create an account to get started.
-                  </CardDescription>
-                )}
                 <form
                   className={signupFormClassName}
                   onSubmit={(e) => {
@@ -1189,7 +1145,7 @@ export default function AuthPage() {
                   }}
                 >
                   {authError && (
-                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                    <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                       {authError}
                     </div>
                   )}
@@ -1200,8 +1156,11 @@ export default function AuthPage() {
                       <Input
                         id="signup-email"
                         type="email"
+                        autoComplete="email"
+                        inputMode="email"
+                        autoCapitalize="none"
                         placeholder="you@example.com"
-                        className="pl-10"
+                        className="h-12 rounded-lg pl-10"
                         value={email}
                         disabled={!!inviteAuthContext?.invitedEmail}
                         onChange={(e) => {
@@ -1219,9 +1178,10 @@ export default function AuthPage() {
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="signup-password"
+                        autoComplete="new-password"
                         type={showPassword ? "text" : "password"}
                         placeholder="••••••••"
-                        className="pl-10 pr-10"
+                        className="h-12 rounded-lg pl-10 pr-10"
                         value={password}
                         onChange={(e) => {
                           setPassword(e.target.value);
@@ -1229,14 +1189,14 @@ export default function AuthPage() {
                           setAuthError(null);
                         }}
                       />
-                      <button
+                      <Button variant="ghost"
                         type="button"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 p-0 text-muted-foreground hover:text-foreground"
                         onClick={() => setShowPassword(!showPassword)}
-                        tabIndex={-1}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                      </Button>
                     </div>
                     {passwordError && <p className="text-xs text-destructive mt-1">{passwordError}</p>}
                     {password && (() => {
@@ -1294,9 +1254,10 @@ export default function AuthPage() {
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="signup-confirm-password"
+                        autoComplete="new-password"
                         type={showConfirmPassword ? "text" : "password"}
                         placeholder="••••••••"
-                        className="pl-10 pr-10"
+                        className="h-12 rounded-lg pl-10 pr-10"
                         value={confirmPassword}
                         onChange={(e) => {
                           setConfirmPassword(e.target.value);
@@ -1307,23 +1268,28 @@ export default function AuthPage() {
                           const el = e.currentTarget;
                           // Keyboard opening reflows the viewport; nudge the field
                           // into view so the user can see what they're typing.
-                          const bring = () => el.scrollIntoView({ block: "center", behavior: "smooth" });
+                          const bring = () => {
+                            if (isAndroid) {
+                              const scroller = signInScrollRef.current;
+                              if (scroller) scroller.scrollTop += el.getBoundingClientRect().bottom - scroller.getBoundingClientRect().bottom + 24;
+                            } else el.scrollIntoView({ block: "center", behavior: "smooth" });
+                          };
                           requestAnimationFrame(bring);
                           setTimeout(bring, 350);
                         }}
                       />
-                      <button
+                      <Button variant="ghost"
                         type="button"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 p-0 text-muted-foreground hover:text-foreground"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        tabIndex={-1}
+                        aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"}
                       >
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                      </Button>
                     </div>
                     {confirmPasswordError && <p className="text-xs text-destructive mt-1">{confirmPasswordError}</p>}
                   </div>
-                  
+
                   <div className="flex items-start gap-2 pt-1">
                     <Checkbox
                       id="accept-terms"
@@ -1344,9 +1310,9 @@ export default function AuthPage() {
                   </div>
                   {termsError && <p className="text-xs text-destructive -mt-1">{termsError}</p>}
 
-                  <Button 
+                  <Button
                     type="submit"
-                    className="w-full" 
+                    className="h-12 w-full rounded-lg"
                     disabled={loading || googleLoading}
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : inviteAuthContext ? "Create account & join" : "Create Account"}
@@ -1355,16 +1321,16 @@ export default function AuthPage() {
                   {inviteAuthContext && (
                     <div className="text-center text-sm text-muted-foreground">
                       Already have an account?{" "}
-                      <button
+                      <Button variant="ghost"
                         type="button"
                         className="text-primary hover:underline font-medium"
                         onClick={switchToSignIn}
                       >
                         Sign in
-                      </button>
+                      </Button>
                     </div>
                   )}
-                  
+
                   {/* Google sign-up is switched off: the provider isn't enabled
                       on this Supabase instance (see lib/authProviderFlags.ts). */}
                   {showGoogleButton && (
@@ -1377,11 +1343,11 @@ export default function AuthPage() {
                           <span className="bg-card px-2 text-muted-foreground">Or</span>
                         </div>
                       </div>
-                      
-                      <Button 
+
+                      <Button
                         type="button"
-                        variant="outline" 
-                        className="w-full gap-2" 
+                        variant="outline"
+                        className="h-12 w-full gap-2 rounded-lg"
                         onClick={handleGoogleSignIn}
                         disabled={loading || googleLoading}
                       >
@@ -1418,25 +1384,25 @@ export default function AuthPage() {
                   {!inviteAuthContext && !isSignupKeyboardOpen && (
                     <div className="text-center text-sm text-muted-foreground pt-2">
                       Already have an account?{" "}
-                      <button
+                      <Button variant="ghost"
                         type="button"
                         className="text-primary hover:underline font-medium"
                         onClick={switchToSignIn}
                       >
                         Sign in here
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </form>
               </CardContent>
             </>
           )}
-        </Card>
+        </section>
 
         {/* Forgot Password Dialog */}
         <Suspense fallback={null}>
-        <ForgotPasswordDialog 
-          open={forgotPasswordOpen} 
+        <ForgotPasswordDialog
+          open={forgotPasswordOpen}
           onOpenChange={setForgotPasswordOpen}
           defaultEmail={email}
         />
@@ -1444,7 +1410,7 @@ export default function AuthPage() {
 
         {/* Footer Links — hidden when keyboard is open on native sign-in */}
         {!isFormKeyboardOpen && (
-          <AuthLegalLinks />
+          <footer className="border-t border-border pt-4 text-center">{methodTabs}<AuthLegalLinks /></footer>
         )}
       </div>
       </div>

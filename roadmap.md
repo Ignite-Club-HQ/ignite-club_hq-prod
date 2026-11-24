@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## Adaptive authentication redesign — 24 November, DEV only
+- [x] Audit existing provider, invitation, recovery and identity routing; preserve server authorization and accounts.
+- [x] Implement premium adaptive sign-in, success-only device preference and discreet account switching.
+- [x] 29 regression files pass in both modes: 227 email-mode passes and 200 ICP-mode passes; 31 intentional mode-specific skips combined. Desktop and phone-sized light/dark browser flows show no horizontal overflow, runtime errors or blocked fallback operations.
+- [ ] Real-member successful sign-in, mixed-account membership readback and installed Android/iOS acceptance require member authentication and physical devices unavailable here; production remains held for Paul’s review.
+
 ## Cross-group app-admin names — 24 November, DEV only
 - [x] Extend verified original-name routing and server source admission across canister groups; preserve names-only admin checks and release fences. Shared DEV admin target reaches both original G1 and registered G2; approved modern registries enumerate all groups. Original alias bindings retained.
 - [x] 254 identity-service tests and 127 frontend checks per sign-in mode pass; edited-file lint and preview build OK. No production deployment. Evidence: docs/release-review/cross-group-admin-names-2026-11-24.md.

@@ -6,6 +6,10 @@ export const ICP_FALLBACK_BLOCKED_EVENT = "ignite:icp-fallback-blocked";
 /** No SDK imports: this guard also runs before the app's first render. */
 export function strictIcpActive(): boolean {
   if (isSignedInWithEmail()) return false;
+  // An explicitly selected, mounted email screen may authenticate another
+  // account without deleting the saved II delegation. This is a provider
+  // switch, not a fallback: mounted/restoring ICP remains blocked.
+  if (!isIcpProviderMounted() && readAuthChoice() === "supabase") return false;
   return isIcpProviderMounted() || hasInternetIdentitySessionStored() || readAuthChoice() === "icp" || resolveAuthBackend() === "icp";
 }
 
