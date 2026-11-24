@@ -395,7 +395,7 @@ export default function InviteOtherParentSheet({
   const canSend = parentName.trim() && (deliveryMethod === "share" || (parentEmail.trim() && parentEmail.includes("@")));
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={handleClose}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={handleClose}>
       <ResponsiveDialogContent className="max-w-md">
         {sent ? (
           <>

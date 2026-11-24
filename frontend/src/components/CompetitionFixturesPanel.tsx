@@ -1328,7 +1328,7 @@ function SetMaxRoundsButton({
       <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setOpen(true)}>
         Set max
       </Button>
-      <ResponsiveDialog open={open} onOpenChange={setOpen}>
+      <ResponsiveDialog keyboardSafe open={open} onOpenChange={setOpen}>
         <ResponsiveDialogContent className="max-w-sm">
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle>Set max number of rounds</ResponsiveDialogTitle>

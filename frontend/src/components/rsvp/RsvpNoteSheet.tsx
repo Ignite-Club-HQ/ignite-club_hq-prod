@@ -58,7 +58,7 @@ export function RsvpNoteSheet({
   const remaining = RSVP_NOTE_MAX - value.length;
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-md">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">

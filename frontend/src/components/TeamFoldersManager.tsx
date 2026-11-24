@@ -414,7 +414,7 @@ export default function TeamFoldersManager({ clubId, isAdmin, classMode = false 
       )}
 
       {/* Edit Dialog */}
-      <ResponsiveDialog open={!!editingFolder} onOpenChange={(open) => !open && handleCloseEdit()}>
+      <ResponsiveDialog keyboardSafe open={!!editingFolder} onOpenChange={(open) => !open && handleCloseEdit()}>
         <ResponsiveDialogContent className="sm:max-w-md">
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle>Edit Folder</ResponsiveDialogTitle>

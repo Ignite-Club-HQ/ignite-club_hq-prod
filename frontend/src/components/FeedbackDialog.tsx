@@ -90,7 +90,7 @@ export function FeedbackDialog({ open, onOpenChange, gapDiagnostic }: FeedbackDi
   };
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle>Send Feedback</ResponsiveDialogTitle>

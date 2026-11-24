@@ -131,7 +131,7 @@ export function ReportContentDialog({
   };
 
   return (
-    <ResponsiveDialog open={isOpen} onOpenChange={handleClose}>
+    <ResponsiveDialog keyboardSafe open={isOpen} onOpenChange={handleClose}>
       <ResponsiveDialogContent className="sm:max-w-md">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2 text-base">

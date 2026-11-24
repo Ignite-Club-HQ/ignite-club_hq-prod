@@ -581,7 +581,7 @@ export default function IcpChildrenPage() {
           Retry child names
         </Button>
       )}
-      <ResponsiveDialog open={addOpen} onOpenChange={setAddOpen}>
+      <ResponsiveDialog keyboardSafe open={addOpen} onOpenChange={setAddOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader><ResponsiveDialogTitle>Add child</ResponsiveDialogTitle></ResponsiveDialogHeader>
           <div className="space-y-2 py-2">
@@ -616,7 +616,7 @@ export default function IcpChildrenPage() {
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
-      <ResponsiveDialog open={!!teamFor} onOpenChange={(o) => !o && setTeamFor(null)}>
+      <ResponsiveDialog keyboardSafe open={!!teamFor} onOpenChange={(o) => !o && setTeamFor(null)}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader><ResponsiveDialogTitle>Add {teamFor?.name} to a team</ResponsiveDialogTitle></ResponsiveDialogHeader>
           <div className="space-y-2 py-2 max-h-[60vh] overflow-y-auto">
@@ -651,7 +651,7 @@ export default function IcpChildrenPage() {
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
-      <ResponsiveDialog open={!!tedPreview} onOpenChange={open => { if (!open) setTedPreview(null); }}>
+      <ResponsiveDialog keyboardSafe open={!!tedPreview} onOpenChange={open => { if (!open) setTedPreview(null); }}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle>Read-only transfer review: Ted to U10</ResponsiveDialogTitle>
@@ -756,7 +756,7 @@ function GuardiansDialog({ child, teamIds, onClose, onChanged }: { child: IcpChi
   });
 
   return (
-    <ResponsiveDialog open onOpenChange={(o) => !o && onClose()}>
+    <ResponsiveDialog keyboardSafe open onOpenChange={(o) => !o && onClose()}>
       <ResponsiveDialogContent>
         <ResponsiveDialogHeader><ResponsiveDialogTitle>Guardians for {child.name}</ResponsiveDialogTitle></ResponsiveDialogHeader>
         {isLoading || !data ? (

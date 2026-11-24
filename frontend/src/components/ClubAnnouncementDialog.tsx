@@ -221,7 +221,7 @@ export function ClubAnnouncementDialog({
 
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="max-w-md">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">

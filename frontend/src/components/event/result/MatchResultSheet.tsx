@@ -543,7 +543,7 @@ export function MatchResultSheet({
   const hasSavedRow = !!result;
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent
         className="w-[calc(100vw-1rem)] max-w-md p-0 gap-0 max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col sm:top-1/2 sm:-translate-y-1/2"
       >

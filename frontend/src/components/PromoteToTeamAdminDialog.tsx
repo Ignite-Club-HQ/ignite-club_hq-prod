@@ -120,7 +120,7 @@ export default function PromoteToTeamAdminDialog({
   const selectedMember = selectedUserId ? members[selectedUserId] : null;
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(o) => { 
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={(o) => { 
       setOpen(o); 
       if (!o) {
         setSelectedUserId(null);

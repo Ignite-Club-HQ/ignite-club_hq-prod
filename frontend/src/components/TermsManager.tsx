@@ -414,7 +414,7 @@ export function TermsManager({ clubId }: TermsManagerProps) {
       )}
 
       {/* Create/Edit Dialog */}
-      <ResponsiveDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <ResponsiveDialog keyboardSafe open={dialogOpen} onOpenChange={setDialogOpen}>
         <ResponsiveDialogContent className="sm:max-w-md">
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle>{editingTerm ? "Edit Term" : "Create Term"}</ResponsiveDialogTitle>

@@ -789,7 +789,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   const filterActive = selectedTeamId !== "all" || roleFilter !== "all";
 
   return (
-    <ResponsiveDialog open={isOpen} onOpenChange={(open) => {
+    <ResponsiveDialog keyboardSafe open={isOpen} onOpenChange={(open) => {
       setOpen(open);
       if (!open) {
         setSelectedUsers([]);

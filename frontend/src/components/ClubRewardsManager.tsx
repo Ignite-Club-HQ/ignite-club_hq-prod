@@ -1105,7 +1105,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
       </div>
 
       {/* Add/Edit Dialog */}
-      <ResponsiveDialog open={dialogOpen} onOpenChange={(open) => {
+      <ResponsiveDialog keyboardSafe open={dialogOpen} onOpenChange={(open) => {
         setDialogOpen(open);
         if (!open) resetForm();
       }}>

@@ -97,7 +97,7 @@ export function EditMatchDetailsDialog({
   };
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle>Edit match details</ResponsiveDialogTitle>

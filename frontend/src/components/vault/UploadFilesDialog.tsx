@@ -269,7 +269,7 @@ export function UploadFilesDialog({
   };
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={handleOpenChange} forceDesktopDialog={isNativeIOS}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={handleOpenChange} forceDesktopDialog={isNativeIOS}>
       <ResponsiveDialogContent className="sm:max-w-md">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle>Upload to {targetName}</ResponsiveDialogTitle>

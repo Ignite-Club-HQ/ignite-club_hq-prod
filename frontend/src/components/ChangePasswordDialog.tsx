@@ -102,7 +102,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
 
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(o) => !o && handleClose()}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={(o) => !o && handleClose()}>
       <ResponsiveDialogContent className="sm:max-w-md">
         <ResponsiveDialogHeader className="text-left space-y-1.5 sm:space-y-1.5">
           <ResponsiveDialogTitle className="text-lg">Change Password</ResponsiveDialogTitle>

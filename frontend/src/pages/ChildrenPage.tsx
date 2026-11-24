@@ -417,7 +417,7 @@ function SupabaseChildrenPage() {
         <Button size="icon" variant="default" onClick={() => setAddDialogOpen(true)}>
           <Plus className="h-4 w-4" />
         </Button>
-        <ResponsiveDialog
+        <ResponsiveDialog keyboardSafe
           open={addDialogOpen}
           onOpenChange={(open) => {
             setAddDialogOpen(open);
@@ -472,7 +472,7 @@ function SupabaseChildrenPage() {
           </ResponsiveDialogContent>
         </ResponsiveDialog>
 
-        <ResponsiveDialog
+        <ResponsiveDialog keyboardSafe
           open={!!ambiguousMatches?.length}
           onOpenChange={(open) => {
             if (!open) setAmbiguousMatches(null);
@@ -664,7 +664,7 @@ function SupabaseChildrenPage() {
       )}
 
       {/* Assign to Teams Dialog */}
-      <ResponsiveDialog 
+      <ResponsiveDialog keyboardSafe 
         open={assignDialogOpen} 
         onOpenChange={(open) => {
           setAssignDialogOpen(open);

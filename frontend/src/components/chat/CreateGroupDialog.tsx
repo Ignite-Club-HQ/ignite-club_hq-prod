@@ -625,7 +625,7 @@ export default function CreateGroupDialog({
   const isTeamMode = groupType === "team";
 
   const dialogContent = (
-    <ResponsiveDialog open={isOpen} onOpenChange={setOpen}>
+    <ResponsiveDialog keyboardSafe open={isOpen} onOpenChange={setOpen}>
       <ResponsiveDialogContent className="sm:max-w-lg" fullScreen>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
