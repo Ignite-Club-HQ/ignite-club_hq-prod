@@ -16,17 +16,38 @@ export function rememberSuccessfulAuthMethod(method: BackendProvider): void {
   memoryPreference = method;
   try { localStorage.setItem(SUCCESS_KEY, method); } catch { /* private browsing */ }
   try { sessionStorage.removeItem("ignite.authChoicePending"); } catch { /* private browsing */ }
+  clearSecureSignInStarted();
 }
 export function forgetSuccessfulAuthMethod(): void {
   memoryPreference = null;
   try { localStorage.removeItem(SUCCESS_KEY); } catch { /* private browsing */ }
 }
 export type AuthScreenVariant = "email" | "secure" | "default";
+const SECURE_STARTED_KEY = "ignite.secureSignInStarted";
+const SECURE_STARTED_TTL_MS = 10 * 60 * 1000;
+/**
+ * A secure sign-in tap opens Internet Identity; the phone may reload this page
+ * before the reply arrives. Remember the tap for this tab only (sessionStorage,
+ * short-lived) so the reload keeps the secure screen and provider instead of
+ * falling back to a previously used email method.
+ */
+export function markSecureSignInStarted(): void {
+  pendingMethod = "icp";
+  try { sessionStorage.setItem(SECURE_STARTED_KEY, String(Date.now())); } catch { /* private browsing */ }
+}
+export function clearSecureSignInStarted(): void {
+  try { sessionStorage.removeItem(SECURE_STARTED_KEY); } catch { /* private browsing */ }
+}
 export function readPendingAuthMethod(): BackendProvider | null {
-  return pendingMethod;
+  if (pendingMethod) return pendingMethod;
+  try {
+    const at = Number(sessionStorage.getItem(SECURE_STARTED_KEY));
+    if (at && Date.now() - at >= 0 && Date.now() - at < SECURE_STARTED_TTL_MS) return "icp";
+  } catch { /* private browsing */ }
+  return null;
 }
 /** Current screen only: an unsuccessful tap must not survive an app restart. */
-export function selectPendingAuthMethod(method: BackendProvider | null): void { pendingMethod = method; }
+export function selectPendingAuthMethod(method: BackendProvider | null): void { pendingMethod = method; clearSecureSignInStarted(); }
 export function readRestoredAuthHint(): BackendProvider | null {
   try {
     const secure = Boolean(localStorage.getItem("ignite_icp_internet_identity_session"));

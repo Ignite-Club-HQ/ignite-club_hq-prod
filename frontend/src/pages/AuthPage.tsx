@@ -27,7 +27,7 @@ import { GOOGLE_SIGN_IN_ENABLED } from "@/lib/authProviderFlags";
 import { describeIcpSignInError } from "@/lib/internetIdentitySignInHelp";
 import { IcpSignInScreen } from "@/components/IcpSignInScreen";
 import { AuthBrand } from "@/components/AuthBrand";
-import { readPendingAuthMethod, readRestoredAuthHint, readSuccessfulAuthMethod, resolveAuthScreenVariant } from "@/lib/authExperience";
+import { markSecureSignInStarted, readPendingAuthMethod, readRestoredAuthHint, readSuccessfulAuthMethod, resolveAuthScreenVariant } from "@/lib/authExperience";
 import { authEntryKey, hasAuthEntryIntent, prepareAuthEntryContext, readAuthEntryContext } from "@/live/authEntryContext";
 import { AuthMethodChoice } from "@/components/AuthMethodChoice";
 import { AuthLegalLinks } from "@/components/AuthLegalLinks";
@@ -807,6 +807,7 @@ export default function AuthPage() {
     authInFlightRef.current = true;
     setAuthError(null);
     setGoogleLoading(true);
+    markSecureSignInStarted();
     try {
       // No await before the existing provider call: keep the browser's
       // permission to open the Internet Identity window from this tap.
