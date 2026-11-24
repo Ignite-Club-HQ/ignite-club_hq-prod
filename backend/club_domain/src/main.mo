@@ -7980,7 +7980,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
   public query func get_club_subscription(club_id : Text) : async { #Ok : ?Types.ClubSubscription; #Err : Text } {
     for (s in clubSubscriptions.values()) {
-      if (s.club_id == club_id) return #Ok(?s);
+      if (s.club_id == club_id) return #Ok(?effectiveClubSub(s));
     };
     #Ok(null)
   };
@@ -8392,7 +8392,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
   public query func get_club_subscriptions(club_ids : [Text]) : async { #Ok : [Types.ClubSubscription]; #Err : Text } {
     if (club_ids.size() > 200) return #Err("Too many ids");
-    #Ok(clubSubscriptions.filter(func(s) = club_ids.any(func(i) = i == s.club_id)))
+    #Ok(clubSubscriptions.filter(func(s) = club_ids.any(func(i) = i == s.club_id)).map<Types.ClubSubscription, Types.ClubSubscription>(effectiveClubSub))
   };
 
   public query func get_team_subscriptions(team_ids : [Text]) : async { #Ok : [Types.TeamSubscription]; #Err : Text } {
@@ -8503,6 +8503,16 @@ persistent actor class Main(governorInit : Principal) = this {
 
   func effectiveTeamSub(s : Types.TeamSubscription) : Types.TeamSubscription {
     switch (activePromoExpiry(s.team_id)) {
+      case (?exp) { if (exp < nowMs()) { { s with is_pro = false; is_pro_football = false } } else s };
+      case null s;
+    }
+  };
+
+  // Club subscriptions carry their own expiry (paid or promo-granted); reads
+  // mask the Pro flags once it passes, matching the frontend's entitlement
+  // rules. Admin overrides are never masked.
+  func effectiveClubSub(s : Types.ClubSubscription) : Types.ClubSubscription {
+    switch (s.expires_at_ms) {
       case (?exp) { if (exp < nowMs()) { { s with is_pro = false; is_pro_football = false } } else s };
       case null s;
     }
@@ -8634,6 +8644,66 @@ persistent actor class Main(governorInit : Principal) = this {
   
     } finally { removalReceiver.leave(caller) };
   
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  /// Redeems a club promo code for `tier` ("pro" | "pro_football") and `plan`
+  /// ("small" | "growing" | "starter" | "standard"). The plan is chosen by the
+  /// redeeming club admin on the upgrade screen; the code itself only fixes
+  /// the access level. Returns the grant's expiry (code expiry if set, else
+  /// 1 month / 1 year).
+  public shared ({ caller }) func redeem_club_promo_code(code : Text, club_id : Text, tier : Text, plan : Text, team_limit : Nat32, is_annual : Bool) : async { #Ok : Nat64; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
+    try {
+    await admitAccount(caller);
+    auth(caller);
+    if (not profiles.any(func(c) = c.id == club_id and c.deleted_at_ms == null)) return #Err("Club not found");
+    if (not (isAdmin(caller, club_id) or isGovernor(caller))) return #Err("Club admin required");
+    let wanted = Text.toUpper(Text.trim(code, #char ' '));
+    let promo = switch (promoCodes.find(func(p) = p.code == wanted and p.is_active)) {
+      case null return #Err("Invalid or inactive promo code");
+      case (?p) p;
+    };
+    let now = nowMs();
+    switch (promo.expires_at_ms) { case (?e) { if (e < now) return #Err("This promo code has expired") }; case null {} };
+    if (promo.scope_type != "club") return #Err("This promo code is for team subscriptions only. Please use a club promo code.");
+    switch (promo.club_id) { case (?c) { if (c != club_id) return #Err("This promo code is restricted to a different club.") }; case null {} };
+    if (tier == "pro_football" and promo.access_level == "pro") return #Err("This promo code is for Pro plan only. Please select the Pro plan or use a Pro Football code.");
+    if (tier == "pro" and promo.access_level == "pro_football") return #Err("This promo code is for Pro Football plan only. Please select the Pro Football plan or use a Pro code.");
+    if (not (tier == "pro" or tier == "pro_football")) return #Err("Invalid tier");
+    if (promo.access_level == "storage") return #Err("This is a storage promo code");
+    if (not (plan == "small" or plan == "growing" or plan == "starter" or plan == "standard")) return #Err("Invalid plan");
+    if (team_limit < 1 or team_limit > 100_000) return #Err("Invalid team limit");
+    let day : Nat64 = 86_400_000;
+    let expiry : Nat64 = switch (promo.expires_at_ms) { case (?e) e; case null now + (if is_annual 365 * day else 30 * day) };
+    let base : Types.ClubSubscription = switch (clubSubscriptions.find(func(s) = s.club_id == club_id)) {
+      case (?s) s;
+      case null ({
+        club_id; is_pro = false; is_pro_football = false;
+        admin_pro_override = false; admin_pro_football_override = false;
+        expires_at_ms = null; plan = ""; team_limit = null;
+        trial_ends_at_ms = null; is_trial = false;
+        cancelled_at_ms = null; activated_at_ms = null;
+      });
+    };
+    let merged : Types.ClubSubscription = { base with
+      is_pro = true;
+      is_pro_football = tier == "pro_football" or base.is_pro_football;
+      plan; team_limit = ?team_limit;
+      expires_at_ms = ?expiry; activated_at_ms = ?now; cancelled_at_ms = null;
+    };
+    clubSubscriptions := clubSubscriptions.filter(func(s) = s.club_id != club_id).concat([merged]);
+    promoRedemptions := promoRedemptions.filter(func(r) = r.target_id != club_id).concat([{
+      promo_id = promo.id; target_id = club_id; redeemed_by = caller; redeemed_at_ms = now; expires_at_ms = expiry;
+    }]);
+    promoCodes := promoCodes.map<Types.PromoCode, Types.PromoCode>(func(p) = if (p.id == promo.id) { { p with uses_count = p.uses_count + 1 } } else p);
+    #Ok(expiry)
+
+    } finally { removalReceiver.leave(caller) };
+
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 

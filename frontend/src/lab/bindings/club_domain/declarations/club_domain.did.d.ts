@@ -1863,6 +1863,18 @@ export interface Main {
       { 'Err' : string }
   >,
   /**
+   * / Redeems a club promo code for `tier` ("pro" | "pro_football") and `plan`
+   * / ("small" | "growing" | "starter" | "standard"). The plan is chosen by the
+   * / redeeming club admin on the upgrade screen; the code itself only fixes
+   * / the access level. Returns the grant's expiry (code expiry if set, else
+   * / 1 month / 1 year).
+   */
+  'redeem_club_promo_code' : ActorMethod<
+    [string, string, string, string, number, boolean],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
+  /**
    * / Redeems a storage promo code for a club. Returns the new add-on total (GB).
    */
   'redeem_club_storage_promo_code' : ActorMethod<

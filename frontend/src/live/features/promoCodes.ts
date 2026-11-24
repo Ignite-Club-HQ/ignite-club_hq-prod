@@ -91,6 +91,20 @@ export async function redeemLiveTeamPromoCode(
   return msToIso(expiry);
 }
 
+/** Returns the ISO expiry of the granted club Pro access. The plan is the
+ * redeemer's choice on the upgrade screen; the code only fixes the tier. */
+export async function redeemLiveClubPromoCode(
+  ctx: FeatureBackendContext,
+  input: { code: string; clubId: string; tier: "pro" | "pro_football"; plan: string; teamLimit: number; isAnnual: boolean },
+): Promise<string> {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  const expiry = await unwrapCandid(
+    actor.redeem_club_promo_code(input.code, input.clubId, input.tier, input.plan, input.teamLimit, input.isAnnual),
+    "Redeem promo code",
+  );
+  return msToIso(expiry);
+}
+
 /** Storage add-on GB granted on-chain for a club (storage promo redemptions). */
 export async function getLiveClubStoragePurchasedGb(ctx: FeatureBackendContext, clubId: string): Promise<number> {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);

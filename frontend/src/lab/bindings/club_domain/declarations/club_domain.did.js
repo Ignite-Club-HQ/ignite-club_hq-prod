@@ -2676,6 +2676,11 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
+    'redeem_club_promo_code' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Nat32, IDL.Bool],
+        [IDL.Variant({ 'Ok' : IDL.Nat64, 'Err' : IDL.Text })],
+        [],
+      ),
     'redeem_club_storage_promo_code' : IDL.Func(
         [IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Nat32, 'Err' : IDL.Text })],

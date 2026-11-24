@@ -168,9 +168,10 @@ module {
   // and pitch-board settings. Pro flags are platform-written only (a team
   // cannot grant itself Pro); pitch fields are team-admin writable through
   // save_team_pitch_settings, which never touches the Pro flags.
-  // promo_codes parity. Platform-admin managed; redeemed by a team/club
-  // admin through redeem_team_promo_code, which writes the Pro flags the
-  // admin could not set directly.
+  // promo_codes parity. Platform-admin managed; redeemed by a team admin
+  // through redeem_team_promo_code or a club admin through
+  // redeem_club_promo_code, which write the Pro flags the admin could not
+  // set directly. Club redemptions carry the redeemer's chosen plan.
   public type PromoCode = {
     id : Text;
     code : Text;
