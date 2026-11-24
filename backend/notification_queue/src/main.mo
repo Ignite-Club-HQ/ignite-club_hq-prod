@@ -251,6 +251,14 @@ persistent actor class Main(governorInit : Principal) = this {
       case null null
     }
   };
+  // Mentions win over replies; ids outside the chat's recipients never reach here.
+  func chatKind(recipient : Text, replyAuthor : Text, mentioned : [Text]) : Text {
+    if (mentioned.any(func(m : Text) : Bool = m == recipient or ("principal:" # recipient) == m)) "message_mention"
+    else if (replyAuthor != "" and replyAuthor == recipient) "message_reply"
+    else "message_chat"
+  };
+  func isChatKind(kind : Text) : Bool { kind == "message_chat" or kind == "message_mention" or kind == "message_reply" };
+
   func chatSenderName(sender : Text) : async Text {
     let configured = identityAccessCanister ?? return "";
     try {
@@ -947,7 +955,7 @@ persistent actor class Main(governorInit : Principal) = this {
     let cd = clubDomainCanister;
     let md = messagingDomainCanister;
     let allowed = try {
-      if (captured.kind == "message_chat") {
+      if (isChatKind(captured.kind)) {
         let ?authority = md else return #Err("Messaging authority unavailable");
         let messaging : actor { read_account_can_read_digest : shared (Principal, Text) -> async Bool } = actor(authority.toText());
         do { let removalReply = await (with timeout = 10) messaging.read_account_can_read_digest(user, captured.club); if (removalReceiver.denied(user)) throw Error.reject("Account removal fenced after callback"); removalReply }
@@ -1685,6 +1693,8 @@ persistent actor class Main(governorInit : Principal) = this {
     // Name lookup is best-effort; failure leaves the generic title.
     let parts = Iter.toArray(Text.split(preview, #char '\u{1F}'));
     let (chatName, text) = if (fromMessagingDomain and parts.size() >= 2) (parts[0], parts[1]) else ("", preview);
+    let replyAuthor = if (fromMessagingDomain and parts.size() >= 3) parts[2] else "";
+    let mentioned : [Text] = if (fromMessagingDomain and parts.size() >= 4 and parts[3] != "") Iter.toArray(Text.split(parts[3], #char ',')) else [];
     let senderName = await chatSenderName(sender);
     let title = if (senderName == "") chatName else if (chatName == "") senderName else senderName # " · " # chatName;
     let storedBody = if (title == "") text else title # "\u{1F}" # text;
@@ -1693,7 +1703,7 @@ persistent actor class Main(governorInit : Principal) = this {
     var created : Nat16 = 0;
     for (recipient in recipients.values()) {
       let muted = effective_mute_list.any(func(m) = m == recipient);
-      if ((not accountAdmissionEnabled or allowedRecipients.any(func(u) = u == recipient)) and valid(recipient) and recipient != sender and not muted and recipientAllowed(recipient, "message_chat")) {
+      if ((not accountAdmissionEnabled or allowedRecipients.any(func(u) = u == recipient)) and valid(recipient) and recipient != sender and not muted and recipientAllowed(recipient, chatKind(recipient, replyAuthor, mentioned))) {
         let id = "chat-" # message_id # "-" # recipient;
         switch (get(id)) {
           case (?_) {};
@@ -1702,7 +1712,7 @@ persistent actor class Main(governorInit : Principal) = this {
               id;
               user = recipient;
               club = conversation_id;
-              kind = "message_chat";
+              kind = chatKind(recipient, replyAuthor, mentioned);
               body = storedBody;
               idempotency_key = message_id;
               status = #Pending;
@@ -1982,7 +1992,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
       await admitAccount(subject);
       var permitted = false;
-      if (captured.kind == "message_chat") {
+      if (isChatKind(captured.kind)) {
         let authority = messagingDomainCanister ?? return #Err("Messaging authority unavailable");
         let messaging : actor { read_native_push_access : shared (Principal, Text) -> async Bool } = actor(authority.toText());
         permitted := await (with timeout = 10) messaging.read_native_push_access(subject, captured.club);

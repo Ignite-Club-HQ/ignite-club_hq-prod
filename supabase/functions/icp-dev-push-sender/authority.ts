@@ -8,7 +8,7 @@ export interface NativeQueueActor {
 }
 
 const TITLES: Record<string, string> = {
-  message_chat: 'New message', event_invite: 'New event', event_reminder: 'Event reminder',
+  message_chat: 'New message', message_mention: 'You were mentioned', message_reply: 'New reply to you', event_invite: 'New event', event_reminder: 'Event reminder',
   event_cancelled: 'Event cancelled', duty_reminder: 'Duty reminder', duty_completed: 'Duty completed',
   photo_prompt_reminder: 'Add your photos', event_points_reminder: 'Event points', photo_uploaded: 'New photos',
   photo_comment: 'New comment', photo_reaction: 'New reaction', comment_reply: 'New reply', club_news: 'Club news',
@@ -21,7 +21,7 @@ const TITLES: Record<string, string> = {
 /** Same wording as the in-app notification: per-kind title plus the stored ICP body. */
 export function pushText(kind: string, body: string | undefined) {
   // ICP stores "Title<U+001F>text" when it knows the sender/chat name.
-  const [named, rest] = (body ?? '').includes('\u001f') ? (body ?? '').split('\u001f', 2) : ['', body ?? ''];
+  const [named, rest] = (body ?? '').includes('\u001f') ? (body ?? '').split('\u001f') : ['', body ?? ''];
   const clean = rest.replace(/\s+/g, ' ').trim().slice(0, 240);
   const title = named.trim().slice(0, 80) || TITLES[kind] || (kind.startsWith('join_request') ? 'Join request' : 'Ignite Club HQ');
   return { title, body: clean || 'You have a new update.' };
@@ -40,7 +40,7 @@ export function createNativeQueueAuthority(actor: NativeQueueActor): IcpNativeDe
       // Keep the same account-bound navigation convention as existing ICP push.
       let url = '/notifications';
       const related = row.related_id[0];
-      if (row.kind === 'message_chat' && (related || row.scope)) {
+      if (['message_chat', 'message_mention', 'message_reply'].includes(row.kind) && (related || row.scope)) {
         url = `/messages?${new URLSearchParams({ conversation: related || row.scope, message: row.key })}`;
       } else if (row.kind.startsWith('event') && related) url = `/events/${encodeURIComponent(related)}`;
       else if (row.kind === 'club_news' && related) url = `/news/${encodeURIComponent(related)}`;

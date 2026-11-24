@@ -21,6 +21,7 @@ import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Time "mo:core/Time";
 import Text "mo:core/Text";
+import Iter "mo:core/Iter";
 import Blob "mo:core/Blob";
 import Char "mo:core/Char";
 import Error "mo:core/Error";
@@ -1427,6 +1428,28 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
 
+  // "@[Name](id)" -> "@Name", collecting at most 20 mentioned ids.
+  func chatMentions(body : Text) : (Text, [Text]) {
+    let cs = Iter.toArray(body.chars());
+    var out = ""; var ids : [Text] = []; var i = 0;
+    while (i < cs.size()) {
+      if (cs[i] == '@' and i + 1 < cs.size() and cs[i + 1] == '[') {
+        var j = i + 2; var name = "";
+        while (j < cs.size() and cs[j] != ']') { name #= Char.toText(cs[j]); j += 1 };
+        if (j + 1 < cs.size() and cs[j + 1] == '(') {
+          var k = j + 2; var id = "";
+          while (k < cs.size() and cs[k] != ')') { id #= Char.toText(cs[k]); k += 1 };
+          if (k < cs.size()) {
+            out #= "@" # name;
+            if (ids.size() < 20 and id != "" and not ids.any(func(x : Text) : Bool = x == id)) ids := ids.concat([id]);
+            i := k + 1;
+          } else { out #= Char.toText(cs[i]); i += 1 };
+        } else { out #= Char.toText(cs[i]); i += 1 };
+      } else { out #= Char.toText(cs[i]); i += 1 };
+    };
+    (out, ids)
+  };
+
   func fanOutChatNotify(msg : Types.Message) : async () {
     if (not removalReceiver.enter(msg.sender)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
@@ -1460,7 +1483,14 @@ persistent actor class Main(governorInit : Principal) = this {
             try {
               // Chat name travels ahead of U+001F; the queue adds the sender's name.
               let chatName = switch (getGroupMetadataFor(conversation.id)) { case (?meta) meta.name; case null "" };
-              ignore await queue.record_chat_notify_batch(msg.id, conversation.id, Principal.toText(msg.sender), chatName # "\u{1F}" # chatNotifyPreview(msg.body, msg.attachment), recipients, muted);
+              // Reply author and mentioned people ride after the text (U+001F fields);
+              // the queue only honours ids already in the recipient list.
+              let replyAuthor = switch (msg.reply_to_id) {
+                case (?rid) { switch (messages.find(func(m : Types.Message) : Bool = m.id == rid and m.conversation_id == msg.conversation_id)) { case (?m) Principal.toText(m.sender); case null "" } };
+                case null "";
+              };
+              let (cleanBody, mentioned) = chatMentions(msg.body);
+              ignore await queue.record_chat_notify_batch(msg.id, conversation.id, Principal.toText(msg.sender), chatName # "\u{1F}" # chatNotifyPreview(cleanBody, msg.attachment) # "\u{1F}" # replyAuthor # "\u{1F}" # Text.join(mentioned.vals(), ","), recipients, muted);
             } catch (_) {};
           };
         };

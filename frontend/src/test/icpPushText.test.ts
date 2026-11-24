@@ -18,3 +18,12 @@ describe('ICP chat alert names', () => {
     expect(pushText('message_chat', 'Sam Lee · U12 Riverdogs\u001fSee you at 9')).toEqual({ title: 'Sam Lee · U12 Riverdogs', body: 'See you at 9' });
   });
 });
+
+describe('ICP mention and reply alerts', () => {
+  it('keeps only title and text from the stored body', () => {
+    expect(pushText('message_mention', 'Sam Lee · U12\u001f@Paul see you at 9')).toEqual({ title: 'Sam Lee · U12', body: '@Paul see you at 9' });
+  });
+  it('labels a reply without a stored name', () => {
+    expect(pushText('message_reply', 'Thanks').title).toBe('New reply to you');
+  });
+});
