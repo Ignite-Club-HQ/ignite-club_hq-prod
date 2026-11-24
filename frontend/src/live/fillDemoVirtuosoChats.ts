@@ -40,7 +40,7 @@ export async function fillDemoVirtuosoChats(
   if (target !== 150) throw Error("Only the approved 150-message target is supported");
   const ctx = await icpCtx();
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  const groups = unwrapCandid(await actor.read_account_list_groups_by_club(CLUB), "Read demo club groups");
+  const groups = await unwrapCandid(await actor.read_account_list_groups_by_club(CLUB), "Read demo club groups");
   const clubGroups = new Set(groups.filter(g => g.club_id === CLUB && g.is_member).map(g => g.conversation_id));
   // Team conversations are not returned by list_groups_by_club; their exact IDs
   // are fixed and checked separately against their live team groups.
@@ -52,7 +52,7 @@ export async function fillDemoVirtuosoChats(
   ];
   for (const id of THREADS.slice(0, 5)) if (!clubGroups.has(id)) throw Error("Missing demo club chat; refusing to seed");
   for (const id of teamIds) {
-    const teamGroups = unwrapCandid(await actor.read_account_list_groups_by_team(id), "Read demo team groups");
+    const teamGroups = await unwrapCandid(await actor.read_account_list_groups_by_team(id), "Read demo team groups");
     if (!teamGroups.some(g => g.conversation_id === id && g.club_id === CLUB && g.is_member)) {
       throw Error("Missing demo team chat; refusing to seed");
     }
@@ -64,7 +64,7 @@ export async function fillDemoVirtuosoChats(
   // Existing message counts are checked before each thread to avoid unnecessary sends.
   for (let thread = 0; thread < THREADS.length; thread++) {
     const id = THREADS[thread];
-    const page = unwrapCandid(await actor.read_account_list_messages_page(id, null, 1), "Read message count");
+    const page = await unwrapCandid(await actor.read_account_list_messages_page(id, [], 1), "Read message count");
     const count = Number(page.latest_sequence) - 1;
     const needed = Math.max(0, target - count);
     for (let i = 0; i < needed; i++) {
@@ -74,7 +74,7 @@ export async function fillDemoVirtuosoChats(
       onProgress(done, total);
     }
     // Check readback after each thread; do not claim success on unverified writes.
-    const after = unwrapCandid(await actor.read_account_list_messages_page(id, null, 1), "Verify chat count");
+    const after = await unwrapCandid(await actor.read_account_list_messages_page(id, [], 1), "Verify chat count");
     if (Number(after.latest_sequence) - 1 < target) throw Error(`Chat ${thread + 1} has fewer than ${target} messages after seeding`);
   }
 }
