@@ -9,8 +9,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { shouldAppendOpponent } from "@/lib/eventTitle";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { listLiveEvents } from "@/live/features/events";
+import { getListedLiveEvent, listLiveEvents } from "@/live/features/events";
 import { memo, useCallback } from "react";
+
+function toCardEvent(e: Record<string, unknown>) {
+  const startsAt = new Date(Number(e.starts_at_ms));
+  const endsAt = new Date(Number(e.ends_at_ms));
+  return {
+    id: e.id as string,
+    title: e.title as string,
+    event_date: startsAt.toISOString(),
+    start_time: startsAt.toISOString(),
+    end_time: endsAt.toISOString(),
+    location_name: null,
+    location: ((e.location as string[] | undefined)?.[0] as string) ?? null,
+    type: e.event_type as string,
+    opponent: ((e.opponent as string[] | undefined)?.[0] as string) ?? null,
+    is_home_game: false,
+    mini_league_id: ((e.mini_league_id as string[] | undefined)?.[0] as string) ?? null,
+    is_cancelled: !!e.cancelled,
+  };
+}
 
 interface EventLinkCardProps {
   eventId: string;
@@ -36,30 +55,22 @@ export const EventLinkCard = memo(function EventLinkCard({ eventId }: EventLinkC
         // Internet Identity users: resolve the event from events_domain.
         // Caller-scoped list + find mirrors eventDetailRepository's pattern.
         icp: async (ctx) => {
-          const events = (await listLiveEvents(ctx)) as unknown as Array<Record<string, unknown>>;
+          // Read only the event's own club when it is already known.
+          const known = getListedLiveEvent(eventId);
+          const events = (await (known?.club_id ? listLiveEvents(ctx, known.club_id) : listLiveEvents(ctx))) as unknown as Array<Record<string, unknown>>;
           const e = events.find((ev) => ev.id === eventId && !ev.deleted);
-          if (!e) return null;
-          const startsAt = new Date(Number(e.starts_at_ms));
-          const endsAt = new Date(Number(e.ends_at_ms));
-          return {
-            id: e.id as string,
-            title: e.title as string,
-            event_date: startsAt.toISOString(),
-            start_time: startsAt.toISOString(),
-            end_time: endsAt.toISOString(),
-            location_name: null,
-            location: ((e.location as string[] | undefined)?.[0] as string) ?? null,
-            type: e.event_type as string,
-            opponent: ((e.opponent as string[] | undefined)?.[0] as string) ?? null,
-            is_home_game: false,
-            mini_league_id: ((e.mini_league_id as string[] | undefined)?.[0] as string) ?? null,
-            is_cancelled: !!e.cancelled,
-          };
+          return e ? toCardEvent(e) : null;
         },
-      }, { eventId });
+      }, getListedLiveEvent(eventId)?.club_id ? { clubId: getListedLiveEvent(eventId)!.club_id } : { eventId });
     },
     enabled: !!eventId && !!user && sessionRestoration === 'authenticated',
     staleTime: 5 * 60 * 1000,
+    // Show an event already loaded this session at once; the read refreshes it.
+    placeholderData: () => {
+      if (!icpRouted) return undefined;
+      const listed = getListedLiveEvent(eventId) as unknown as Record<string, unknown> | null;
+      return listed && !listed.deleted ? toCardEvent(listed) : undefined;
+    },
   });
 
   const handleClick = useCallback((e: React.MouseEvent) => {
