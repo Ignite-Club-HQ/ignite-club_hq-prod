@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 
 interface NotifRow {
   id: string;
@@ -74,6 +75,13 @@ export async function filterClubScopedNotifications<T extends NotifRow>(
   activeClubFilter: string,
 ): Promise<T[]> {
   if (!rows.length) return rows;
+  // ICP queue rows carry their own club scope. Never resolve missing scope
+  // against unrelated email-mode message IDs; unresolved club rows stay out.
+  if (strictIcpActive()) {
+    return rows.filter((row) => row.club_id
+      ? row.club_id === activeClubFilter
+      : GLOBAL_PASSTHROUGH.has(row.type));
+  }
 
   // Decision map: notification.id -> "keep" | "drop" | undefined (unresolved → keep)
   const decision = new Map<string, "keep" | "drop">();

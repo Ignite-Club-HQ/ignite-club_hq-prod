@@ -174,7 +174,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   const { data: hasProAccess, isLoading: checkingPro } = useQuery({
     queryKey: ["has-pro-for-dm", user?.id, isIcpMessaging],
     queryFn: async () => {
-      if (isIcpMessaging) return true;
+      if (isFeatureRoutedToIcp("messaging")) return true;
       // Get clubs user is a member of
       const { data: roles } = await supabase
         .from("user_roles")
@@ -204,7 +204,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   const { data: canSendDMs, isLoading: checkingCanSend } = useQuery({
     queryKey: ["can-send-dms", user?.id, isIcpMessaging],
     queryFn: async () => {
-      if (isIcpMessaging) return { canSend: true, reason: null };
+      if (isFeatureRoutedToIcp("messaging")) return { canSend: true, reason: null };
       // First check if user is app_admin - they can always DM
       const { data: isAppAdmin } = await supabase
         .from("user_roles")
@@ -299,7 +299,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
     // A stalled club read must end with a retry option, never spin forever.
     retry: isIcpMessaging ? 1 : 3,
     queryFn: async ({ signal }) => {
-      if (isIcpMessaging) {
+      if (isFeatureRoutedToIcp("messaging")) {
         return withReadDeadline(withFeatureBackend("messaging", {
           supabase: async () => ({ users: [] as DMableUser[], clubs: [] as ClubInfo[], teams: [] as TeamInfo[] }),
           icp: async (ctx) => {
@@ -535,7 +535,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   // Start single DM mutation
   const startDMMutation = useMutation({
     mutationFn: async (otherUserId: string) => {
-      if (isIcpMessaging) {
+      if (isFeatureRoutedToIcp("messaging")) {
         return withFeatureBackend("messaging", {
           supabase: async () => {
             throw new Error("unreachable");
@@ -568,6 +568,33 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
     mutationFn: async ({ users, customName, category }: { users: DMableUser[]; customName: string; category?: string | null }) => {
       // Use custom name if provided, otherwise auto-name from member first names
       const groupName = customName.trim() || users.map(u => u.display_name?.split(" ")[0] || "User").join(", ");
+      if (isFeatureRoutedToIcp("messaging")) {
+        const clubId = selectedClubId !== "all" ? selectedClubId : activeClubFilter;
+        if (!clubId) throw new Error("Choose a club before creating this group.");
+        return withFeatureBackend("messaging", {
+          supabase: async () => { throw new Error("Your sign-in changed. Reopen the group form and try again."); },
+          icp: async (ctx) => {
+            const { createLiveGroupWithRoles } = await import("@/live/features/messaging");
+            const self = ctx.identity.getPrincipal();
+            const members = new Map(users.map((u) => [u.id, Principal.fromText(u.id)]));
+            members.set(self.toText(), self);
+            const group = await createLiveGroupWithRoles(ctx, clubId, null, groupName, "group",
+              [...members.values()].map((principal) => [principal, principal.toText() === self.toText() ? "owner" : "member"]));
+            // Keep the invitation-only membership policy even when categorised.
+            if (category?.trim()) {
+              const { setLiveGroupJoinPolicy } = await import("@/live/features/messaging");
+              try {
+                await setLiveGroupJoinPolicy(ctx, group.conversation_id, "invite_only", category.trim());
+              } catch {
+                // Creation is already acknowledged: never offer a retry that
+                // would duplicate the group when only its category failed.
+                toast.warning("Group created, but its category couldn't be saved. Set it in chat details.");
+              }
+            }
+            return group.conversation_id;
+          },
+        }, { clubId, writeKey: crypto.randomUUID(), attempts: 1 });
+      }
       
       const allowedRoles: ("basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin")[] = 
         ["basic_user", "parent", "player", "coach", "team_admin", "club_admin"];

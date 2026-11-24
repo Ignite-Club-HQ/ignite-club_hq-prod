@@ -41,8 +41,11 @@ export async function lookupRouteClubId(
         case "teams":
           return (await icpGetTeam(id))?.club_id ?? null;
         case "chat_groups": {
-          const { getLiveGroupMetadata } = await import("@/live/features/messaging");
-          const meta = await getLiveGroupMetadata(await icpCtx(), id);
+          const [{ getLiveGroupMetadata }, { readContentInScope }] = await Promise.all([
+            import("@/live/features/messaging"), import("@/live/contentRouting"),
+          ]);
+          const meta = await readContentInScope(await icpCtx(), "messaging", { conversationId: id },
+            (ctx) => getLiveGroupMetadata(ctx, id));
           if (meta.clubId) return meta.clubId;
           if (meta.teamId) return (await icpGetTeam(meta.teamId))?.club_id ?? null;
           return null;

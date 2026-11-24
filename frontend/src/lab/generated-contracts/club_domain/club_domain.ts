@@ -2280,6 +2280,20 @@ export interface MainInterface {
         Err: string;
     }>;
     /**
+     * / Redeems a club promo code for `tier` ("pro" | "pro_football") and `plan`
+     * / ("small" | "growing" | "starter" | "standard"). The plan is chosen by the
+     * / redeeming club admin on the upgrade screen; the code itself only fixes
+     * / the access level. Returns the grant's expiry (code expiry if set, else
+     * / 1 month / 1 year).
+     */
+    redeem_club_promo_code(code: string, club_id: string, tier: string, plan: string, team_limit: number, is_annual: boolean): Promise<{
+        __kind__: "Ok";
+        Ok: bigint;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
+    /**
      * / Redeems a storage promo code for a club. Returns the new add-on total (GB).
      */
     redeem_club_storage_promo_code(code: string, club_id: string): Promise<{
@@ -6706,6 +6720,16 @@ export class Club_domain implements club_domainInterface {
     }> {
         const result = await this.actor.redeem_account_claim(arg0);
         return from_candid_variant_n340(result);
+    }
+    async redeem_club_promo_code(arg0: string, arg1: string, arg2: string, arg3: string, arg4: number, arg5: boolean): Promise<{
+        __kind__: "Ok";
+        Ok: bigint;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.redeem_club_promo_code(arg0, arg1, arg2, arg3, arg4, arg5);
+        return from_candid_variant_n130(result);
     }
     async redeem_club_storage_promo_code(arg0: string, arg1: string): Promise<{
         __kind__: "Ok";

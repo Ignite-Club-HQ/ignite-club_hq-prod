@@ -3,10 +3,10 @@
  * show team or club names must not read Supabase in ICP mode — the rows live
  * on club_domain. All ICP modules are loaded lazily (entry-chunk rule).
  */
-import { resolveAuthBackend } from "@/live/authBackendMode";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 
 export function isIcpSession(): boolean {
-  return resolveAuthBackend() === "icp";
+  return strictIcpActive();
 }
 
 async function icpCtxWithClub() {

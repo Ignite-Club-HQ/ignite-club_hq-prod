@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
+// These fixtures exercise the email-only repository in either suite mode;
+// mounted-ICP rejection is covered by inboxTransportIsolation.test.ts.
+vi.mock("@/live/strictIcpTransport", () => ({ strictIcpActive: () => false }));
 import type { Database } from "@/integrations/supabase/types";
 import {
   fetchInboxAdminTeamIds,

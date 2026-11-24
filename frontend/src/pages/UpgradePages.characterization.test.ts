@@ -60,6 +60,29 @@ describe("Club and team upgrade page characterization", () => {
     expect(teamUpgradeSource).toContain("purchaseProduct(productId, teamId!");
   });
 
+  it("redeems club promo codes on-chain in Internet Identity mode with the redeemer's chosen plan", () => {
+    // The club upgrade screen no longer blocks ICP promo redemption.
+    expect(clubUpgradeSource).not.toContain("Promo codes are not yet available for Internet Identity accounts.");
+    expect(clubUpgradeSource).toContain("redeemLiveClubPromoCode(ctx, { code, clubId: clubId!, tier, plan, teamLimit, isAnnual })");
+
+    // The live feature passes the redeemer's chosen plan and team limit through.
+    const promoFeatureSource = readFileSync(join(pagesDirectory, "../live/features/promoCodes.ts"), "utf8");
+    expect(promoFeatureSource).toContain(
+      "actor.redeem_club_promo_code(input.code, input.clubId, input.tier, input.plan, input.teamLimit, input.isAnnual)",
+    );
+
+    // The canister contract exposes the method.
+    const didSource = readFileSync(join(pagesDirectory, "../../../backend/club_domain/club_domain.did"), "utf8");
+    expect(didSource).toContain("redeem_club_promo_code");
+
+    // The canister gates redemption to club admins and only accepts the four
+    // approved plan names, so a code cannot grant an invented plan.
+    const canisterSource = readFileSync(join(pagesDirectory, "../../../backend/club_domain/src/main.mo"), "utf8");
+    expect(canisterSource).toContain("public shared ({ caller }) func redeem_club_promo_code");
+    expect(canisterSource).toContain('if (not (isAdmin(caller, club_id) or isGovernor(caller))) return #Err("Club admin required")');
+    expect(canisterSource).toContain('plan == "small" or plan == "growing" or plan == "starter" or plan == "standard"');
+  });
+
   it("keeps equivalent presentation states present in both variants", () => {
     for (const source of [clubUpgradeSource, teamUpgradeSource]) {
       expect(source).toMatch(/renderTrialBanner|UpgradeTrialBanner/);

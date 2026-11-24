@@ -1,4 +1,5 @@
 import { isClubSubscriptionActive } from "@/lib/proEntitlement";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 import { acrossLists } from "@/live/featureScopes";
 import { NotificationMessageText } from "@/components/notifications/NotificationMessageText";
 import { writeOnce } from "@/live/clubScope";
@@ -589,8 +590,9 @@ export function AppHeader() {
   // Check if user has any vault-eligible club role (club_admin, league_admin, committee_member)
   const { data: hasVaultRole } = useQuery({
     queryKey: ["has-vault-role", user?.id],
-    enabled: !!user?.id && resolveAuthBackend() !== "icp",
+    enabled: !!user?.id && !strictIcpActive(),
     queryFn: async () => {
+      if (strictIcpActive()) throw new Error("Your sign-in changed. Reopen the menu.");
       const { data } = await supabase
         .from("user_roles")
         .select("id")

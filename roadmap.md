@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Internet Identity chat fallback sweep — 24 November, DEV only
+- [x] Read the enumerated chat-group application entry points, shared navigation/background readers and bounded server/database branches; repair queued/session-restoration reads without changing settled records or permissions. Inventory: docs/release-review/icp-chat-fallback-sweep-2026-11-24.md.
+- [x] Focused regressions: 19 files / 291 passes per sign-in mode, ten counterpart forwarding skips per mode, no failures; preview build OK. Checked paths and acceptance limits recorded.
+- [ ] Signed-in browser and installed-phone acceptance require an Internet Identity delegation/device unavailable in this sandbox; no PROD release authorized.
+
 ## New-club automatic setup audit — 23 November
 - [x] Traced club placement/setup, automatic team chats, inbox visibility/opening and permissions across app and assistant entry points; remaining provisioning, staff authorization/sync, partial-read and capacity/scope risks documented.
 - [x] 895 checks passed across both sign-in modes (447 email / 448 ICP), with 3 mode-specific skips; audit report and logs in docs/release-review/new-club-automatic-setup-audit-2026-11-23. No application/production changes or deployment.

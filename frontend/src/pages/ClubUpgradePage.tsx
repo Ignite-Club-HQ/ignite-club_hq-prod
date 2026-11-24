@@ -51,6 +51,7 @@ import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { getLiveMyRoleGrants } from "@/live/features/membership";
 import { getLiveClubProfile, listLiveSponsors, listLiveTeams } from "@/live/features/club";
+import { redeemLiveClubPromoCode } from "@/live/features/promoCodes";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { getLocalLabClubDetail, getLocalLabTeamList } from "@/lab/fixtureDataLayer";
 import { useInAppPurchase } from "@/hooks/useInAppPurchase";
@@ -391,8 +392,25 @@ export default function ClubUpgradePage() {
       plan: PlanTier;
       isAnnual: boolean;
     }) => {
-      // NEEDS-CANISTER: promo codes not yet on canister
-      if (useIcpLab || isIcpRouted) throw new Error("Promo codes are not yet available for Internet Identity accounts.");
+      // Calculate team limit based on plan
+      const pricing = tier === "pro" ? CLUB_PRICING.pro : CLUB_PRICING.proFootball;
+      const teamLimit = pricing[plan].teamLimit;
+
+      // Validate team count doesn't exceed limit
+      if (teamLimit !== null && teamCount > teamLimit) {
+        throw new Error(`Your club has ${teamCount} teams but the ${plan} plan only supports ${teamLimit}. Please choose a higher plan.`);
+      }
+
+      // Internet Identity: redemption is validated and written on-chain.
+      if (useIcpLab || isIcpRouted) {
+        return withFeatureBackend("membership", {
+          supabase: async () => { throw new Error("Promo codes are unavailable right now. Please try again."); },
+          icp: async (ctx) => {
+            await redeemLiveClubPromoCode(ctx, { code, clubId: clubId!, tier, plan, teamLimit, isAnnual });
+            return { tier, plan };
+          },
+        });
+      }
       // Validate promo code
       const { data: promoData, error: promoError } = await supabase
         .from("promo_codes")
@@ -426,15 +444,6 @@ export default function ClubUpgradePage() {
       }
       if (tier === 'pro' && promoData.access_level === 'pro_football') {
         throw new Error("This promo code is for Pro Football plan only. Please select the Pro Football plan or use a Pro code.");
-      }
-
-      // Calculate team limit based on plan
-      const pricing = tier === "pro" ? CLUB_PRICING.pro : CLUB_PRICING.proFootball;
-      const teamLimit = pricing[plan].teamLimit;
-
-      // Validate team count doesn't exceed limit
-      if (teamLimit !== null && teamCount > teamLimit) {
-        throw new Error(`Your club has ${teamCount} teams but the ${plan} plan only supports ${teamLimit}. Please choose a higher plan.`);
       }
 
       // Use promo code expiry date if set, otherwise default to 1 month/year

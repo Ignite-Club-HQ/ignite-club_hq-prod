@@ -4,14 +4,14 @@ import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { cacheRoles } from "@/lib/rolesCache";
 import { cacheClubs, cacheTeams, getCachedClubs, getCachedTeams } from "@/lib/clubTeamCache";
-import { resolveAuthBackend } from "@/live/authBackendMode";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 
 const MESSAGES_PER_PAGE = 15;
 
 export async function prefetchUserData(queryClient: QueryClient, userId: string) {
   // ICP-mode users have no Supabase session or rows — prefetching would only
   // warm the cache with empty/stale results ahead of the routed live queries.
-  if (resolveAuthBackend() === "icp") return;
+  if (strictIcpActive()) return;
   // Run prefetch in background - never block UI
   doPrefetch(queryClient, userId).catch(console.error);
 }
@@ -20,6 +20,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
   try {
     // Try the consolidated Edge Function first (single round-trip)
     const edgeResult = await tryEdgePrefetch(queryClient, userId);
+    if (strictIcpActive()) return;
     if (edgeResult) {
       // Edge function succeeded — now fire background message prefetch
       fireMessagePrefetch(
@@ -52,6 +53,7 @@ async function tryEdgePrefetch(
   dmConversations: any[];
 } | null> {
   try {
+    if (strictIcpActive()) return null;
     // Only call edge function if we have a valid user session (not just anon key)
     let { data: sessionData } = await supabase.auth.getSession();
     let session = sessionData?.session;
@@ -65,6 +67,7 @@ async function tryEdgePrefetch(
     }
 
     const accessToken = session?.access_token;
+    if (strictIcpActive()) return null;
     if (!accessToken) {
       // No session yet — silently skip. Falling back to direct queries would
       // also fail RLS, so just return null and let the caller decide.
@@ -82,6 +85,7 @@ async function tryEdgePrefetch(
       // getSession() and invoke(). Skip silently to avoid log noise.
       return null;
     }
+    if (strictIcpActive()) return null;
 
     const {
       roles,
@@ -142,6 +146,7 @@ function fireMessagePrefetch(
   chatGroups: any[],
   dmConversations: any[]
 ) {
+  if (strictIcpActive()) return;
   const MAX_PREFETCH_TEAMS = 5;
   const MAX_PREFETCH_CLUBS = 3;
   const MAX_PREFETCH_GROUPS = 5;
@@ -251,6 +256,7 @@ function fireMessagePrefetch(
 /** Original direct-query fallback (unchanged logic) */
 async function doPrefetchDirect(queryClient: QueryClient, userId: string) {
   try {
+    if (strictIcpActive()) return;
     const [rolesResult, broadcastResult] = await Promise.all([
       supabase
         .from("user_roles")
@@ -264,6 +270,7 @@ async function doPrefetchDirect(queryClient: QueryClient, userId: string) {
     ]);
 
     const roles = rolesResult.data || [];
+    if (strictIcpActive()) return;
     cacheRoles(roles);
     queryClient.setQueryData(["userRoles", userId], roles);
 
@@ -271,6 +278,7 @@ async function doPrefetchDirect(queryClient: QueryClient, userId: string) {
     const teamIds = [...new Set(roles.map(r => r.team_id).filter(Boolean))] as string[];
 
     await prefetchClubTeamMetadata(clubIds, teamIds);
+    if (strictIcpActive()) return;
 
     const isAppAdmin = roles.some(r => r.role === "app_admin");
     prefetchMediaAccess(queryClient, userId, roles, isAppAdmin, clubIds, teamIds);
@@ -314,6 +322,7 @@ async function doPrefetchDirect(queryClient: QueryClient, userId: string) {
       });
     }
 
+    if (strictIcpActive()) return;
     const { data: personalGroups } = await supabase
       .from("group_members")
       .select("group_id, chat_groups:group_id(id, name, club_id, team_id, allowed_roles)")
@@ -342,6 +351,7 @@ async function doPrefetchDirect(queryClient: QueryClient, userId: string) {
     }
 
     // Fire message prefetch
+    if (strictIcpActive()) return;
     const dmResult = await supabase
       .from("direct_conversations")
       .select("id")
@@ -363,6 +373,7 @@ async function prefetchMediaAccess(
   teamIds: string[]
 ) {
   try {
+    if (strictIcpActive()) return;
     const profilePromise = selectCachedProfileById(userId);
 
 
@@ -386,6 +397,7 @@ async function prefetchMediaAccess(
         ? supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("club_id", clubIds)
         : Promise.resolve({ data: null }),
     ]);
+    if (strictIcpActive()) return;
 
     let hasProClub = false;
 
@@ -410,6 +422,7 @@ async function prefetchMediaAccess(
       }
     }
 
+    if (strictIcpActive()) return;
     if (!hasProClub && teamIds.length > 0) {
       const { data: teamSubsResult } = await supabase
         .from("team_subscriptions")
@@ -433,6 +446,7 @@ async function prefetchMediaAccess(
 
 async function prefetchClubTeamMetadata(clubIds: string[], teamIds: string[]) {
   try {
+    if (strictIcpActive()) return;
     const { missing: missingClubIds } = getCachedClubs(clubIds);
     const { missing: missingTeamIds } = getCachedTeams(teamIds);
 

@@ -8,6 +8,7 @@ import { getLiveClubProfile, listLiveTeams } from "@/live/features/club";
 import { getLiveMyRoleGrants } from "@/live/features/membership";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { toast } from "sonner";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 
 /** A chat group the current user can forward INTO. */
 export interface ForwardDestinationGroup {
@@ -162,16 +163,22 @@ export function useForwardMessageMutation(currentUserId: string | undefined) {
       if (destinationGroupIds.length === 0) return { forwarded: 0 };
 
       // One call per destination so each reaches its own club's canisters.
-      let forwardedViaIcp = false;
+      let forwardedViaIcp: boolean | undefined;
       for (const dest of destinationGroupIds) {
-      forwardedViaIcp = await withFeatureBackend("messaging", {
-        supabase: () => false,
+      await withFeatureBackend("messaging", {
+        supabase: () => {
+          if (forwardedViaIcp === true) throw new Error("Your sign-in changed. Check the forwarded chats before trying again.");
+          forwardedViaIcp = false;
+          return false;
+        },
         icp: async (ctx) => {
+          if (forwardedViaIcp === false) throw new Error("Your sign-in changed. Check the forwarded chats before trying again.");
+          forwardedViaIcp = true;
           if (!source.messageId) {
             throw new Error("Missing original message id — can't forward this message.");
           }
           for (const toConversationId of [dest]) {
-            const forwarded = await forwardLiveMessage(ctx, source.messageId!, toConversationId);
+            const forwarded = await forwardLiveMessage(ctx, source.messageId, toConversationId);
             // Best-effort notify of the original author only: that's the one
             // recipient this flow genuinely knows client-side (there's no
             // group roster or mute-list query here, unlike the Supabase
@@ -200,6 +207,7 @@ export function useForwardMessageMutation(currentUserId: string | undefined) {
       if (forwardedViaIcp) {
         return { forwarded: destinationGroupIds.length };
       }
+      if (strictIcpActive()) throw new Error("Your sign-in changed. Reopen the forward picker.");
 
       const now = new Date().toISOString();
       const rows = destinationGroupIds.map((groupId) => ({

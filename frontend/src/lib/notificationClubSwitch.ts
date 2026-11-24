@@ -22,7 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getJumpTarget, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { resolveRouteClubScope } from "@/lib/routeClubScope";
 import { lookupRouteClubId } from "@/lib/clubScopeLookup";
-import { resolveAuthBackend } from "@/live/authBackendMode";
+import { strictIcpActive } from "@/live/strictIcpTransport";
 
 
 const SS_KEY = "ignite_pending_notification_club_switch";
@@ -333,23 +333,17 @@ export async function resolveNotificationClubId(
     if (kind === "team") {
       const teamId = targetId || data?.team_id || data?.teamId;
       if (!teamId) return null;
-      const { data: team } = await supabase
-        .from("teams").select("club_id").eq("id", teamId).maybeSingle();
-      return (team as any)?.club_id ?? null;
+      return resolveClubIdForChatTarget("team", teamId);
     }
 
     if (kind === "group") {
       const groupId = targetId || data?.group_id || data?.groupId;
       if (!groupId) return null;
-      const { data: group } = await supabase
-        .from("chat_groups").select("club_id").eq("id", groupId).maybeSingle();
-      return (group as any)?.club_id ?? null;
+      return resolveClubIdForChatTarget("group", groupId);
     }
 
     if (kind === "club_admin" && targetId) {
-      const { data: convo } = await supabase
-        .from("club_admin_conversations").select("club_id").eq("id", targetId).maybeSingle();
-      return (convo as any)?.club_id ?? null;
+      return resolveClubIdForChatTarget("club_admin", targetId);
     }
 
     // dm / broadcast are not club-scoped — but a DM url never reaches here with
@@ -363,9 +357,7 @@ export async function resolveNotificationClubId(
     // Last resort: a team id on the payload.
     const payloadTeamId = data?.team_id || data?.teamId;
     if (payloadTeamId && typeof payloadTeamId === "string") {
-      const { data: team } = await supabase
-        .from("teams").select("club_id").eq("id", payloadTeamId).maybeSingle();
-      return (team as any)?.club_id ?? null;
+      return resolveClubIdForChatTarget("team", payloadTeamId);
     }
 
     return null;
@@ -428,20 +420,14 @@ export async function resolveClubIdForChatTarget(
   try {
     if (!targetId) return null;
     if (kind === "club") return targetId;
-    if (resolveAuthBackend() === "icp") {
+    if (strictIcpActive()) {
       if (kind === "team") {
         const { icpGetTeam } = await import("@/lib/icpClubTeamLookup");
         const team = await icpGetTeam(targetId).catch(() => null);
         return team?.club_id ?? null;
       }
       if (kind === "group") {
-        const [{ icpCtx }, { getLiveGroupMetadata }] = await Promise.all([
-          import("@/lib/icpClubTeamLookup"),
-          import("@/live/features/messaging"),
-        ]);
-        const ctx = await icpCtx();
-        const meta = await getLiveGroupMetadata(ctx, targetId).catch(() => null);
-        return meta?.clubId ?? null;
+        return lookupRouteClubId("chat_groups", targetId);
       }
       // club_admin thread ids are `club-admin-<clubUuid>-<member>`; the club id
       // is a fixed-shape UUID, so it can be read back unambiguously.

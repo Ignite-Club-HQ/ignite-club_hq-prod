@@ -1,3 +1,9 @@
+import { strictIcpActive } from "@/live/strictIcpTransport";
+
+function assertEmailChatTransport(): void {
+  if (strictIcpActive()) throw new Error("Your sign-in changed. Refresh your messages.");
+}
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -18,6 +24,7 @@ export async function fetchInboxSystemMessage(
   userId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<InboxSystemMessage | null> {
+  assertEmailChatTransport();
   const { data, error } = await client
     .from("system_messages")
     .select("*")
@@ -85,6 +92,7 @@ export async function fetchInboxGroupPrefetchPage(
   pageSize: number,
   client: IgniteSupabaseClient = supabase,
 ): Promise<InboxGroupPrefetchPage> {
+  assertEmailChatTransport();
   const { data } = await client
     .from("group_messages")
     .select("id, text, created_at, author_id, image_url, reply_to_id, group_id")
@@ -104,6 +112,7 @@ export async function fetchInboxClubPrefetchPage(
   pageSize: number,
   client: IgniteSupabaseClient = supabase,
 ): Promise<InboxClubPrefetchPage> {
+  assertEmailChatTransport();
   const { data } = await client
     .from("club_messages")
     .select("id, text, created_at, author_id, image_url, reply_to_id, club_id")
@@ -123,6 +132,7 @@ export async function fetchInboxTeamPrefetchPage(
   pageSize: number,
   client: IgniteSupabaseClient = supabase,
 ): Promise<InboxTeamPrefetchPage> {
+  assertEmailChatTransport();
   const { data } = await client
     .from("team_messages")
     .select("id, text, created_at, author_id, image_url, reply_to_id, team_id")
@@ -145,6 +155,7 @@ export async function fetchInboxBroadcastPrefetchPage(
   pageSize: number,
   client: IgniteSupabaseClient = supabase,
 ): Promise<InboxBroadcastPrefetchPage> {
+  assertEmailChatTransport();
   const { data } = await client
     .from("broadcast_messages")
     .select("id, text, created_at, author_id, image_url, reply_to_id")
@@ -163,6 +174,7 @@ export async function fetchInboxLatestBroadcast(
     selectProfile?: typeof selectCachedProfileById;
   } = {},
 ): Promise<InboxBroadcastPreview | null> {
+  assertEmailChatTransport();
   const client = options.client ?? supabase;
   const selectProfile = options.selectProfile ?? selectCachedProfileById;
   const { data } = await client
@@ -204,6 +216,7 @@ export async function fetchInboxLatestDirectMessages(
   conversationIds: readonly string[],
   client: IgniteSupabaseClient = supabase,
 ): Promise<Map<string, InboxLatestDirectMessage | null>> {
+  assertEmailChatTransport();
   if (conversationIds.length === 0) return new Map();
 
   try {
@@ -256,6 +269,7 @@ export async function fetchInboxDirectConversationMembership(
   userId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<InboxDirectConversationMembership> {
+  assertEmailChatTransport();
   const { data, error } = await client
     .from("direct_conversations")
     .select("*")
@@ -311,6 +325,7 @@ export async function fetchInboxMemberClubsWithMessages(
     selectProfiles?: typeof selectCachedProfilesByIds;
   } = {},
 ): Promise<InboxMemberClubsWithMessages> {
+  assertEmailChatTransport();
   const client = options.client ?? supabase;
   const selectProfiles = options.selectProfiles ?? selectCachedProfilesByIds;
   const { data: roles, error: rolesError } = await client
@@ -441,6 +456,7 @@ export async function fetchInboxMemberTeamsWithMessages(
     selectProfiles?: typeof selectCachedProfilesByIds;
   } = {},
 ): Promise<InboxMemberTeamsWithMessages> {
+  assertEmailChatTransport();
   const client = options.client ?? supabase;
   const selectProfiles = options.selectProfiles ?? selectCachedProfilesByIds;
   const { data: roles, error: rolesError } = await client
@@ -583,6 +599,7 @@ export async function fetchInboxChatGroupsWithMessages(
     accessibleIdsRpcEnabled?: boolean;
   } = {},
 ): Promise<InboxChatGroupsWithMessages> {
+  assertEmailChatTransport();
   const client = options.client ?? supabase;
   const selectProfiles = options.selectProfiles ?? selectCachedProfilesByIds;
   let accessibleIds: string[] | null = null;
@@ -698,6 +715,7 @@ export async function fetchInboxHasAnyProAccess(
     now?: Date;
   } = {},
 ): Promise<boolean> {
+  assertEmailChatTransport();
   const client = options.client ?? supabase;
   const now = options.now ?? new Date();
   const { data: roles, error: rolesError } = await client
@@ -767,6 +785,7 @@ export async function fetchInboxAdminClubs(
   userId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<InboxAdminClub[]> {
+  assertEmailChatTransport();
   const { data: roles, error: rolesError } = await client
     .from("user_roles")
     .select("club_id")
@@ -796,6 +815,7 @@ export async function fetchInboxEventTitleMap(
   eventIds: readonly string[],
   client: IgniteSupabaseClient = supabase,
 ): Promise<Record<string, string>> {
+  assertEmailChatTransport();
   if (eventIds.length === 0) return {};
 
   const { data, error } = await client
@@ -815,6 +835,7 @@ export async function fetchInboxVaultFolderNameMap(
   folderIds: readonly string[],
   client: IgniteSupabaseClient = supabase,
 ): Promise<Record<string, string>> {
+  assertEmailChatTransport();
   if (folderIds.length === 0) return {};
 
   const { data, error } = await client
@@ -834,6 +855,7 @@ export async function fetchInboxVaultFileNameMap(
   fileIds: readonly string[],
   client: IgniteSupabaseClient = supabase,
 ): Promise<Record<string, string>> {
+  assertEmailChatTransport();
   if (fileIds.length === 0) return {};
 
   const { data, error } = await client
@@ -861,6 +883,7 @@ export async function fetchInboxClubScopeFilter(options: {
   dmOtherUserIds: readonly string[];
   client?: IgniteSupabaseClient;
 }): Promise<InboxClubScopeFilterData> {
+  assertEmailChatTransport();
   const client = options.client ?? supabase;
   const groupMembersMap = new Map<string, string[]>();
 
@@ -906,6 +929,7 @@ export async function fetchInboxAdminTeamIds(
   userId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<string[]> {
+  assertEmailChatTransport();
   const { data, error } = await client
     .from("user_roles")
     .select("team_id, club_id, role")
@@ -922,6 +946,7 @@ export async function fetchInboxCommitteeMemberStatus(
   userId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<boolean> {
+  assertEmailChatTransport();
   const { data, error } = await client
     .from("user_roles")
     .select("id")
@@ -937,6 +962,7 @@ export async function fetchInboxUserRoles(
   userId: string,
   client: IgniteSupabaseClient = supabase,
 ) {
+  assertEmailChatTransport();
   const { data, error } = await client
     .from("user_roles")
     .select("role, club_id, team_id")
@@ -950,6 +976,7 @@ export async function fetchInboxUserLeagueIds(
   userId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<Set<string>> {
+  assertEmailChatTransport();
   const { data: primaryChildren, error: primaryChildrenError } = await client
     .from("children")
     .select("id")
@@ -984,6 +1011,7 @@ export async function fetchInboxAppAdminStatus(
   userId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<boolean> {
+  assertEmailChatTransport();
   const { data, error } = await client
     .from("user_roles")
     .select("id")
@@ -1002,6 +1030,7 @@ export async function fetchInboxClubProStatus(
     now?: number;
   } = {},
 ): Promise<Record<string, boolean>> {
+  assertEmailChatTransport();
   if (clubIds.length === 0) return {};
 
   const client = options.client ?? supabase;
@@ -1037,6 +1066,7 @@ export async function fetchInboxCompetitionClubMap(
   competitionIds: readonly string[],
   client: IgniteSupabaseClient = supabase,
 ): Promise<Record<string, Set<string>>> {
+  assertEmailChatTransport();
   if (competitionIds.length === 0) return {};
 
   const { data, error } = await client
@@ -1065,6 +1095,7 @@ export async function fetchInboxMutedChats(
     now?: number;
   } = {},
 ): Promise<ActiveMutedChats> {
+  assertEmailChatTransport();
   const client = options.client ?? supabase;
   const { data, error } = await client
     .from("chat_mute_preferences")
@@ -1079,6 +1110,7 @@ export async function fetchInboxHiddenDirectMessages(
   userId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<Map<string, string>> {
+  assertEmailChatTransport();
   const { data, error } = await client
     .from("hidden_dm_conversations")
     .select("conversation_id, hidden_at")
@@ -1096,6 +1128,7 @@ export async function fetchInboxHiddenGroups(
   userId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<Map<string, string>> {
+  assertEmailChatTransport();
   const { data, error } = await client
     .from("hidden_chat_groups")
     .select("group_id, hidden_at")

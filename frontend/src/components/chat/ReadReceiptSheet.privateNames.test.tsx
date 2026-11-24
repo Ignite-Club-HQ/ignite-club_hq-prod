@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ profile: undefined as { display_name: string; avatar_url: null } | undefined, ids: [] as string[], kind: '', message: undefined as string | undefined }));
 vi.mock('@/live/authBackendMode', () => ({ resolveAuthBackend: () => 'icp' }));
+vi.mock('@/live/strictIcpTransport', () => ({ strictIcpActive: () => true }));
 vi.mock('@/live/privateProfileSearchMode', () => ({ privateProfileSearchRehearsalEnabled: () => true }));
 vi.mock('@/hooks/usePrivateChatProfiles', () => ({ usePrivateChatProfiles: (_chat: string, _viewer: string, ids: string[], _enabled: boolean, kind: string, message?: string) => { state.ids = ids; state.kind = kind; state.message = message; return () => state.profile; } }));
 vi.mock('@/live/featureRouter', () => ({ withFeatureBackend: () => new Promise(() => {}) }));

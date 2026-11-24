@@ -154,6 +154,7 @@ export function ChatParticipantsList({
   const { data: groupMeta } = useQuery({
     queryKey: ["chat-group-meta", chatId],
     queryFn: async () => {
+      if (isFeatureRoutedToIcp("messaging")) return null;
       const { data } = await supabase
         .from("chat_groups")
         .select("created_by, membership_mode")
@@ -179,7 +180,7 @@ export function ChatParticipantsList({
 
   const removeMemberMutation = useMutation({
     mutationFn: async (userId: string) => {
-      if (useIcpLab) {
+      if (isFeatureRoutedToIcp("messaging")) {
         const { Principal } = await import("@icp-sdk/core/principal");
         await withFeatureBackend("messaging", {
           supabase: async () => {
@@ -209,7 +210,7 @@ export function ChatParticipantsList({
   const leaveGroupMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
-      if (useIcpLab) {
+      if (isFeatureRoutedToIcp("messaging")) {
         await withFeatureBackend("messaging", {
           supabase: async () => {
             throw new Error("unreachable");
@@ -246,6 +247,10 @@ export function ChatParticipantsList({
       if (clubId) return clubId;
       if (chatType === "club") return chatId;
       if (!effectiveTeamId) return null;
+      if (isFeatureRoutedToIcp("messaging")) {
+        const { icpGetTeam } = await import("@/lib/icpClubTeamLookup");
+        return (await icpGetTeam(effectiveTeamId))?.club_id ?? null;
+      }
       const { data } = await supabase
         .from("teams")
         .select("club_id")
@@ -260,7 +265,7 @@ export function ChatParticipantsList({
   const { data: isCurrentUserAdmin } = useQuery({
     queryKey: ["chat-members-admin-check", effectiveTeamId, resolvedClubId, user?.id],
     queryFn: async () => {
-      if (!user || !effectiveTeamId) return false;
+      if (isFeatureRoutedToIcp("messaging") || !user || !effectiveTeamId) return false;
       const [teamRoleResult, clubRoleResult, appAdminResult] = await Promise.all([
         supabase
           .from("user_roles")
@@ -294,7 +299,8 @@ export function ChatParticipantsList({
   const { data: rawMembers, isLoading: membersLoading } = useQuery({
     queryKey: ["chat-members", chatType, chatId, teamId, clubId, miniLeagueId, clubAdminMemberUserId, effectiveGroupMembershipMode],
     queryFn: async () => {
-      if (useIcpLab && user?.id) {
+      if (isFeatureRoutedToIcp("messaging")) {
+        if (!user?.id) throw new Error("Sign in again to load the chat participants.");
         // Live ICP: chat membership lives on the messaging canister (the
         // team/club id doubles as the conversation id) and the team roster's
         // roles live in club_domain role grants — Supabase user_roles has no
@@ -592,6 +598,7 @@ export function ChatParticipantsList({
   const { data: clubBotUserId } = useQuery({
     queryKey: ["club-bot-user", chatType, chatId, resolvedClubIdForBot],
     queryFn: async () => {
+      if (isFeatureRoutedToIcp("messaging")) return null;
       let cId = resolvedClubIdForBot;
       if (!cId && chatType === "team") {
         const { data: team } = await supabase
@@ -622,7 +629,7 @@ export function ChatParticipantsList({
   const { data: notifPrefs } = useQuery({
     queryKey: ["chat-members-notif-prefs", chatType, chatId, memberIds],
     queryFn: async () => {
-      if (memberIds.length === 0) return {};
+      if (isFeatureRoutedToIcp("messaging") || memberIds.length === 0) return {};
       const { data } = await supabase.rpc("get_members_messages_enabled", { member_ids: memberIds });
       const map: Record<string, boolean> = {};
       const returnedIds = new Set<string>();
@@ -642,7 +649,7 @@ export function ChatParticipantsList({
   const { data: pushReachable } = useQuery({
     queryKey: ["chat-members-push-reachable", chatType, chatId, memberIds],
     queryFn: async () => {
-      if (memberIds.length === 0) return {};
+      if (isFeatureRoutedToIcp("messaging") || memberIds.length === 0) return {};
       const { data } = await supabase.rpc("get_members_push_reachable", { member_ids: memberIds });
       const map: Record<string, boolean> = {};
       for (const row of data || []) map[row.user_id] = row.has_push;
@@ -655,7 +662,7 @@ export function ChatParticipantsList({
   const { data: mutePrefs } = useQuery({
     queryKey: ["chat-members-mute-prefs", chatType, chatId, memberIds],
     queryFn: async () => {
-      if (memberIds.length === 0) return {};
+      if (isFeatureRoutedToIcp("messaging") || memberIds.length === 0) return {};
       const { data } = await supabase
         .from("chat_mute_preferences")
         .select("user_id, muted_until")
@@ -682,7 +689,7 @@ export function ChatParticipantsList({
   const { data: memberRoleEntries } = useQuery({
     queryKey: ["chat-members-role-entries", chatType, chatId, teamScopeClubId, memberIds],
     queryFn: async () => {
-      if (memberIds.length === 0) return {} as Record<string, ParticipantRoleEntry[]>;
+      if (isFeatureRoutedToIcp("messaging") || memberIds.length === 0) return {} as Record<string, ParticipantRoleEntry[]>;
       let q = supabase
         .from("user_roles")
         .select("user_id, role, club_id, team_id, teams(name, club_id)")
@@ -724,7 +731,7 @@ export function ChatParticipantsList({
   const { data: heartbeatOnlineIds } = useQuery({
     queryKey: ["chat-members-online-heartbeat", chatType, chatId, memberIds],
     queryFn: async (): Promise<string[]> => {
-      if (memberIds.length === 0) return [];
+      if (isFeatureRoutedToIcp("messaging") || memberIds.length === 0) return [];
       const { data, error } = await supabase.rpc(
         "get_online_users_from_set" as any,
         { _user_ids: memberIds },
@@ -757,7 +764,7 @@ export function ChatParticipantsList({
   const handleMemberTap = async (member: Member) => {
     if (!isCurrentUserAdmin || !effectiveTeamId) return;
     let roles: { id: string; role: string }[] | null = null;
-    if (useIcpLab) {
+    if (isFeatureRoutedToIcp("messaging")) {
       const { listIcpTeamMemberRoles } = await import("@/lib/icpTeamMemberRoles");
       roles = await listIcpTeamMemberRoles(effectiveTeamId, member.id).catch(() => []);
     } else {
@@ -779,7 +786,7 @@ export function ChatParticipantsList({
   };
 
   const handleRemoveRole = async (roleItem: { id: string; role: string }) => {
-    if (useIcpLab) {
+    if (isFeatureRoutedToIcp("messaging")) {
       if (!selectedMember || !effectiveTeamId) return;
       const club = resolvedClubId ?? (chatType === "club" ? chatId : clubId);
       if (!club) {
@@ -820,7 +827,7 @@ export function ChatParticipantsList({
 
   const handleRemoveMember = async () => {
     if (!selectedMember || !effectiveTeamId) return;
-    if (useIcpLab) {
+    if (isFeatureRoutedToIcp("messaging")) {
       const club = resolvedClubId ?? (chatType === "club" ? chatId : clubId);
       if (!club) {
         toast.error("Failed to remove member");

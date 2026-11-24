@@ -84,6 +84,7 @@ export function DesktopMessagesRail() {
     staleTime: 30_000,
     refetchOnReconnect: "always",
     queryFn: async (): Promise<RailItem[]> => {
+      if (isFeatureRoutedToIcp("messaging")) throw new Error("Your sign-in changed. Refresh your messages.");
       const { data: convos, error } = await supabase
         .from("direct_conversations")
         .select("*")
@@ -143,6 +144,7 @@ export function DesktopMessagesRail() {
     staleTime: 30_000,
     refetchOnReconnect: "always",
     queryFn: async (): Promise<RailItem[]> => {
+      if (isFeatureRoutedToIcp("messaging")) throw new Error("Your sign-in changed. Refresh your messages.");
       const { data: ids, error: idsErr } = await (supabase as any).rpc(
         "get_my_accessible_chat_group_ids",
         { _user_id: user!.id }
@@ -222,6 +224,7 @@ export function DesktopMessagesRail() {
     staleTime: 30_000,
     refetchOnReconnect: "always",
     queryFn: async (): Promise<RailItem[]> => {
+      if (isFeatureRoutedToIcp("messaging")) throw new Error("Your sign-in changed. Refresh your messages.");
       const { data: roles, error: rolesErr } = await supabase
         .from("user_roles")
         .select("team_id")
@@ -281,6 +284,7 @@ export function DesktopMessagesRail() {
     staleTime: 30_000,
     refetchOnReconnect: "always",
     queryFn: async (): Promise<RailItem[]> => {
+      if (isFeatureRoutedToIcp("messaging")) throw new Error("Your sign-in changed. Refresh your messages.");
       const { data: roles, error: rolesErr } = await supabase
         .from("user_roles")
         .select("club_id")
@@ -349,9 +353,10 @@ export function DesktopMessagesRail() {
   const { data: usersInActiveClub } = useQuery({
     queryKey: ["desktop-rail-club-scope", activeClubFilter, scopeCandidateIds],
     enabled:
-      !!user && initialized && !isNative && !!activeClubFilter && scopeCandidateIds.length > 0,
+      !!user && initialized && !isNative && !messagingOnIcp && !!activeClubFilter && scopeCandidateIds.length > 0,
     staleTime: 60_000,
     queryFn: async (): Promise<Set<string>> => {
+      if (isFeatureRoutedToIcp("messaging")) throw new Error("Your sign-in changed. Refresh your messages.");
       const { data } = await supabase
         .from("user_roles")
         .select("user_id")

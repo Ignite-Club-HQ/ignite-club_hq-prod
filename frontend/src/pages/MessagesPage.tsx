@@ -446,7 +446,7 @@ export default function MessagesPage() {
     queryKey: ["latest-broadcast"],
     refetchOnReconnect: "always",
     queryFn: async () => {
-      if (useIcpLab) {
+      if (isFeatureRoutedToIcp("messaging")) {
         return null;
       }
 
@@ -714,6 +714,7 @@ export default function MessagesPage() {
   // Mutation: hide a DM conversation
   const hideDMMutation = useMutation({
     mutationFn: async (conversationId: string) => {
+      if (isFeatureRoutedToIcp("messaging")) throw new Error("Hiding chats is not available with Internet Identity yet.");
       const { error } = await supabase
         .from("hidden_dm_conversations")
         .upsert(
@@ -732,6 +733,7 @@ export default function MessagesPage() {
   // Mutation: hide a custom group chat
   const hideGroupMutation = useMutation({
     mutationFn: async (groupId: string) => {
+      if (isFeatureRoutedToIcp("messaging")) throw new Error("Hiding chats is not available with Internet Identity yet.");
       const { error } = await supabase
         .from("hidden_chat_groups" as any)
         .upsert(
@@ -2041,8 +2043,8 @@ queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined)
         eventTitleMap={eventTitleMap}
         vaultFolderNameMap={vaultFolderNameMap}
         vaultFileNameMap={vaultFileNameMap}
-        onHideDM={onHideDM}
-        onHideGroup={onHideGroup}
+        onHideDM={useIcpLab ? undefined : onHideDM}
+        onHideGroup={useIcpLab ? undefined : onHideGroup}
       />
       </div>
     );
