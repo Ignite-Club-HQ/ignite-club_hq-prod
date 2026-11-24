@@ -62,6 +62,9 @@ interface Sponsor {
   club_id: string;
 }
 
+/** Longest wait for one clubs read before retrying with a fresh one. */
+const CLUBS_READ_DEADLINE_MS = 8000;
+
 export default function ClubsPage() {
   const { user } = useAuth();
   const { activeClubFilter, setActiveClubTheme } = useClubTheme();
@@ -182,7 +185,14 @@ export default function ClubsPage() {
         // One shared grants read (all groups at once, memoized for every
         // query on the page), then each club straight from its own group —
         // no per-query fan-out and no Group 1 club looked up in Group 2.
-        return withFeatureBackend("membership", {
+        // A first read can occasionally stall (e.g. a cold connection) while
+        // a fresh one answers at once — so give up after a bounded wait and
+        // let React Query retry instead of spinning indefinitely.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const stall = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("clubs read stalled")), CLUBS_READ_DEADLINE_MS);
+        });
+        return Promise.race([stall, withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },
           icp: async (ctx) => {
             const toClub = (p: LiveClubRow) => ({
@@ -201,7 +211,7 @@ export default function ClubsPage() {
               (loaded) => queryClient.setQueryData(["clubs"], loaded.map(toClub)));
             return values.map(toClub);
           },
-        }, { shared: "person" });
+        }, { shared: "person" })]).finally(() => clearTimeout(timer));
       }
 
 
@@ -215,6 +225,8 @@ export default function ClubsPage() {
       if (error) throw error;
       return data as Club[];
     },
+    retry: 2,
+    retryDelay: 300,
     enabled: !!user,
   });
 
