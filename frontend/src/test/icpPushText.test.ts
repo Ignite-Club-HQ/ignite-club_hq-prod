@@ -33,3 +33,10 @@ describe('ICP event alerts', () => {
     expect(pushText('event_updated', 'Game vs Bulldogs\u001fEvent details have changed')).toEqual({ title: 'Game vs Bulldogs', body: 'Event details have changed' });
   });
 });
+
+describe('ICP role and reward alerts', () => {
+  it('titles role and reward alerts', () => {
+    expect(pushText('role_assigned', 'You have been given the coach role').title).toBe('New role');
+    expect(pushText('reward_redeemed', 'You redeemed Free drink').title).toBe('Reward redeemed');
+  });
+});

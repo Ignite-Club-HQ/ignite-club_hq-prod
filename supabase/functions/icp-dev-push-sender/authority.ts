@@ -8,7 +8,7 @@ export interface NativeQueueActor {
 }
 
 const TITLES: Record<string, string> = {
-  message_chat: 'New message', message_mention: 'You were mentioned', message_reply: 'New reply to you', event_invite: 'New event', event_updated: 'Event updated', event_note: 'Event note', duty_assigned: 'Duty assigned', event_reminder: 'Event reminder',
+  message_chat: 'New message', message_mention: 'You were mentioned', message_reply: 'New reply to you', event_invite: 'New event', event_updated: 'Event updated', event_note: 'Event note', duty_assigned: 'Duty assigned', role_assigned: 'New role', reward_redeemed: 'Reward redeemed', event_reminder: 'Event reminder',
   event_cancelled: 'Event cancelled', duty_reminder: 'Duty reminder', duty_completed: 'Duty completed',
   photo_prompt_reminder: 'Add your photos', event_points_reminder: 'Event points', photo_uploaded: 'New photos',
   photo_comment: 'New comment', photo_reaction: 'New reaction', comment_reply: 'New reply', club_news: 'Club news',

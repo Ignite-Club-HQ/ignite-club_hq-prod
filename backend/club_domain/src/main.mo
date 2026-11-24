@@ -4586,6 +4586,11 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?t) { ignore fanOutEnsureConversation(club, ?t, teamChatParticipants(club, t)) };
       case null {};
     };
+    // Tell the person about their new role (best-effort, never blocks the grant).
+    if (user != caller and role != "app_admin") {
+      ignore notifyClubJoin([user.toText()], club, "role_assigned", "You have been given the " # Text.replace(role, #char '_', " ") # " role",
+        "role-assigned-" # club # "-" # user.toText() # "-" # role # "-" # (switch (team) { case (?t) t; case null "club" }) # "-" # nowMs().toText(), club);
+    };
     #Ok
   
     } finally { removalReceiver.leave(caller) };
