@@ -2,6 +2,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useHomePitchBoard } from "./useHomePitchBoard";
 
+vi.mock("@/components/pitch/PitchBoard", () => ({ default: () => null }));
+
 function setup(overrides: Partial<Parameters<typeof useHomePitchBoard>[0]> = {}) {
   const args: Parameters<typeof useHomePitchBoard>[0] = {
     isAppAdmin: false,
@@ -152,5 +154,93 @@ describe("useHomePitchBoard", () => {
       expect(result.current.pitchBoardTeam?.id).toBe("team-3"),
     );
     expect(result.current.pitchBoardTeam?.readOnly).toBe(true);
+  });
+
+  it("opens the widget's exact match without rediscovering nearby games", async () => {
+    const { args, result } = setup();
+    await act(() => result.current.openPitchBoard("team-1", "Ignite", false, "widget-event"));
+    expect(args.findNearbyEvent).not.toHaveBeenCalled();
+    expect(args.loadGoingRsvps).toHaveBeenCalledWith("widget-event");
+    expect(result.current.pitchBoardTeam?.linkedEventId).toBe("widget-event");
+  });
+
+  it("restores the saved team's exact match without a new nearby-game lookup", async () => {
+    localStorage.setItem("ignite-pitch-board-open", "true");
+    localStorage.setItem("ignite-pitch-board-open-path", "/home");
+    localStorage.setItem("ignite-pitch-board-last-context", JSON.stringify({ teamId: "team-1", teamName: "Ignite" }));
+    localStorage.setItem("pitch-board-timer-state-team-team-1", JSON.stringify({ teamId: "team-1", eventId: "saved-match" }));
+    const { args, result } = setup();
+    await waitFor(() => expect(result.current.pitchBoardTeam?.linkedEventId).toBe("saved-match"));
+    expect(args.findNearbyEvent).not.toHaveBeenCalled();
+    expect(args.loadGoingRsvps).toHaveBeenCalledWith("saved-match");
+  });
+
+  it("starts attendance while the team roster is still loading", async () => {
+    let finishRoster: (value: { members: []; children: [] }) => void = () => {};
+    const loadRoster = vi.fn(() => new Promise<{ members: []; children: [] }>((resolve) => { finishRoster = resolve; }));
+    const { args, result } = setup({ loadRoster });
+    let opening: Promise<void> = Promise.resolve();
+    act(() => { opening = result.current.openPitchBoard("team-1", "Ignite"); });
+    await waitFor(() => expect(args.loadGoingRsvps).toHaveBeenCalledWith("event-1"));
+    expect(result.current.pitchBoardTeam).toBeNull();
+    await act(async () => { finishRoster({ members: [], children: [] }); await opening; });
+    expect(result.current.pitchBoardTeam?.id).toBe("team-1");
+  });
+
+  it("does not time out healthy reads just because their combined time exceeds ten seconds", async () => {
+    vi.useFakeTimers();
+    try {
+      const delayed = <T,>(value: T) => new Promise<T>((resolve) => setTimeout(() => resolve(value), 8_000));
+      const onLoadFailed = vi.fn();
+      const { args, result } = setup({
+        hasProFootballAccess: vi.fn(() => delayed(true)),
+        loadRoster: vi.fn(() => delayed({ members: [], children: [] })),
+        findNearbyEvent: vi.fn(() => delayed("event-1")),
+        loadGoingRsvps: vi.fn(() => delayed([])),
+        onLoadFailed,
+      });
+      let opening: Promise<void> = Promise.resolve();
+      act(() => { opening = result.current.openPitchBoard("team-1", "Ignite"); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(24_000); await opening; });
+      expect(result.current.pitchBoardTeam?.id).toBe("team-1");
+      expect(onLoadFailed).not.toHaveBeenCalled();
+      expect(args.hasProFootballAccess).toHaveBeenCalledOnce();
+      expect(args.loadRoster).toHaveBeenCalledOnce();
+      expect(args.loadGoingRsvps).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("shares repeated widget taps and never reopens after close", async () => {
+    let finishRoster: (value: { members: []; children: [] }) => void = () => {};
+    const loadRoster = vi.fn(() => new Promise<{ members: []; children: [] }>((resolve) => { finishRoster = resolve; }));
+    const { result } = setup({ loadRoster });
+    let first: Promise<void> = Promise.resolve();
+    let second: Promise<void> = Promise.resolve();
+    act(() => {
+      first = result.current.openPitchBoard("team-1", "Ignite");
+      second = result.current.openPitchBoard("team-1", "Ignite");
+    });
+    expect(first).toBe(second);
+    await waitFor(() => expect(loadRoster).toHaveBeenCalledOnce());
+    act(() => result.current.closePitchBoard());
+    await act(async () => { finishRoster({ members: [], children: [] }); await first; });
+    expect(result.current.pitchBoardTeam).toBeNull();
+    expect(result.current.pitchBoardLoading).toBe(false);
+  });
+
+  it("ignores a timed-out roster reply after reporting failure", async () => {
+    vi.useFakeTimers();
+    try {
+      let finishRoster: (value: { members: []; children: [] }) => void = () => {};
+      const roster = new Promise<{ members: []; children: [] }>((resolve) => { finishRoster = resolve; });
+      const onLoadFailed = vi.fn();
+      const { result } = setup({ loadRoster: vi.fn(() => roster), onLoadFailed });
+      let opening: Promise<void> = Promise.resolve();
+      act(() => { opening = result.current.openPitchBoard("team-1", "Ignite"); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); await opening; });
+      expect(onLoadFailed).toHaveBeenCalledOnce();
+      await act(async () => { finishRoster({ members: [], children: [] }); });
+      expect(result.current.pitchBoardTeam).toBeNull();
+    } finally { vi.useRealTimers(); }
   });
 });

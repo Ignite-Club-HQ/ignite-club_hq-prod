@@ -28,7 +28,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, SkipForward, Eye, Check, Ban } from "lucide-react";
+import { Play, Pause, Timer, Loader2, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, SkipForward, Eye, Check, Ban } from "lucide-react";
 import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
@@ -226,7 +226,7 @@ const getTotalSeconds = (elapsed: number, half: 1 | 2, minutesPerHalf: number): 
 };
 
 interface GameTimerWidgetProps {
-  onOpenPitchBoard?: (teamId: string, teamName: string) => void;
+  onOpenPitchBoard?: (teamId: string, teamName: string, eventId?: string | null) => void;
   readOnly?: boolean;
 }
 
@@ -235,7 +235,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   // Last server snapshot this widget accepted, so repeated resumes are compared
   // against it instead of each being treated as a fresh first hydrate.
   const serverTimerRef = useRef<ServerTimer | null>(null);
+  const serverScopeRef = useRef<string | null>(null);
+  const timerActionRevision = useRef(0);
   const pendingTimer = useRef(false);
+  const [timerPending, setTimerPending] = useState(false);
   const [displaySeconds, setDisplaySeconds] = useState(0);
   const [homeGoals, setHomeGoals] = useState(0);
   // Guard: skip polling reads for a short window after a user action
@@ -414,16 +417,26 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   // Reconcile timer after app resumes from background (uncapped drift)
   useEffect(() => {
     const reconcileAfterResume = async () => {
+      if (pendingTimer.current) return;
+      const actionRevision = timerActionRevision.current;
       const saved = loadActiveTimerState();
       if (!saved) return;
+      const scopeEvent = readPitchState(saved.teamId)?.linkedEventId ?? null;
+      const scopeKey = JSON.stringify([saved.teamId, scopeEvent]);
+      if (serverScopeRef.current !== scopeKey) {
+        serverScopeRef.current = scopeKey;
+        serverTimerRef.current = null;
+      }
+      const stillCurrent = () => !cancelled && !pendingTimer.current &&
+        timerActionRevision.current === actionRevision &&
+        loadActiveTimerState()?.teamId === saved.teamId &&
+        readPitchState(saved.teamId)?.linkedEventId === scopeEvent;
 
       // Server-first: ask the authoritative timer row for current elapsed.
       // Immune to phone-lock, app-kill, or stale localStorage projections.
       try {
-        const scopeEvent = readPitchState(saved.teamId)?.linkedEventId ?? null;
         const res = await readServerTimer(saved.teamId ?? null, scopeEvent);
-        if (readPitchState(saved.teamId)?.linkedEventId !== scopeEvent) return;
-        if (saved.eventId !== scopeEvent && resolveAuthBackend() === "icp") serverTimerRef.current = null;
+        if (!stillCurrent()) return;
         if (res.found && isServerAnchoredTimer(res.timer_state)) {
           const incoming = res.timer_state as ServerTimer;
           const serverNowMs = new Date(res.server_now).getTime();
@@ -474,6 +487,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       } catch (e) {
         console.warn('[GameTimerWidget] server hydrate failed, falling back to local drift', e);
       }
+      if (!stillCurrent()) return;
 
       // Legacy fallback (offline / pre-v2 row): project uncapped drift locally.
       if (!saved.isRunning || saved.isGameFinished) return;
@@ -553,6 +567,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
     return () => {
       cancelled = true;
+      timerActionRevision.current += 1;
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('pageshow', reconcileAfterResume);
       window.removeEventListener('focus', reconcileAfterResume);
@@ -590,17 +605,21 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       const scopeEvent = linkedScope;
       if (fresh.eventId !== scopeEvent) { toast({ title: "Open the linked match", description: "Reopen the board before changing this match’s timer." }); return; }
       pendingTimer.current = true;
+      setTimerPending(true);
+      timerActionRevision.current += 1;
       const action = fresh.isRunning ? 'pause' : fresh.currentHalf === 1 && atHalfTimeLimit ? 'start_half_2'
         : currentElapsed === 0 ? (fresh.currentHalf === 1 ? 'start_half' : 'start_half_2') : 'resume';
       void sendTimerEvent({ teamId: fresh.teamId ?? null, eventId: scopeEvent, event: action, minutesPerHalf: mph }).then(response => {
         if (loadActiveTimerState()?.teamId !== fresh.teamId || readPitchState(fresh.teamId)?.linkedEventId !== scopeEvent) return;
         if (!isServerAnchoredTimer(response.timer_state)) throw new Error('Invalid clock acknowledgement');
+        serverScopeRef.current = JSON.stringify([fresh.teamId, scopeEvent]);
+        serverTimerRef.current = response.timer_state;
         const mapped = serverToTimerState(response.timer_state, response.server_now, { teamId: fresh.teamId, eventId: scopeEvent, teamName: fresh.teamName, gameFinishedAt: fresh.gameFinishedAt });
         saveTimerState(mapped); setTimerState(mapped); setDisplaySeconds(mapped.elapsedSeconds);
       }).catch(error => {
         console.warn('[GameTimerWidget] Clock change unconfirmed', error);
         toast({ title: 'Timer change not confirmed', description: 'Check your connection and match access, then reopen the board.', variant: 'destructive' });
-      }).finally(() => { pendingTimer.current = false; });
+      }).finally(() => { pendingTimer.current = false; setTimerPending(false); });
       return;
     }
 
@@ -659,7 +678,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const handleOpenPitchBoard = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (timerState?.teamId && timerState?.teamName && onOpenPitchBoard) {
-      onOpenPitchBoard(timerState.teamId, timerState.teamName);
+      onOpenPitchBoard(timerState.teamId, timerState.teamName, timerState.eventId);
     }
   };
 
@@ -1002,8 +1021,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                 const isEffectivelyPaused = !timerState.isRunning || 
                   (timerState.isRunning && displaySeconds >= timerState.minutesPerHalf * 60);
                 return (
-                  <Button variant="outline" size="icon" className="h-10 w-10" onClick={toggleTimer}>
-                    {!isEffectivelyPaused ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                  <Button variant="outline" size="icon" className="h-10 w-10" onClick={toggleTimer} disabled={timerPending} aria-label={timerPending ? "Saving timer change" : !isEffectivelyPaused ? "Pause timer" : "Start timer"} aria-busy={timerPending}>
+                    {timerPending ? <Loader2 className="h-5 w-5 animate-spin motion-reduce:animate-none" /> : !isEffectivelyPaused ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
                   </Button>
                 );
               })()}

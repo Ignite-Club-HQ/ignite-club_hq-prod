@@ -1331,6 +1331,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'my_children' : IDL.Func([], [IDL.Vec(Child)], ['query']),
     'my_rsvps' : IDL.Func([], [IDL.Vec(Rsvp)], ['query']),
+    'notify_duty_assigned' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Nat16, 'Err' : IDL.Text })],
+        [],
+      ),
     'notify_duty_completion' : IDL.Func(
         [IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Nat16, 'Err' : IDL.Text })],

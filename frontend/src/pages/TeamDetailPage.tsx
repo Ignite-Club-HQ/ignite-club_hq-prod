@@ -175,6 +175,11 @@ export default function TeamDetailPage() {
   const [selectedChildForLink, setSelectedChildForLink] = useState<string>("");
   const [newChildName, setNewChildName] = useState<string>("");
   const [showPitchBoard, setShowPitchBoard] = useState(false);
+  const pitchLaunchRef = useRef({ generation: 0, pending: false });
+  useEffect(() => () => {
+    ++pitchLaunchRef.current.generation;
+    pitchLaunchRef.current.pending = false;
+  }, [id]);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
   const [pitchBoardMembersOverride, setPitchBoardMembersOverride] = useState<Array<{ id: string; user_id: string; role: string; profiles: { display_name: string | null; avatar_url: string | null } | null }>>([]);
   const [isSavingPitchSettings, setIsSavingPitchSettings] = useState(false);
@@ -1097,7 +1102,8 @@ export default function TeamDetailPage() {
     return [...adults, ...children, ...testPlayersToPitchMembers(teamTestPlayers)];
   }, [rawMembers, teamChildren, goingRsvpsForLinkedEvent, teamTestPlayers]);
 
-  const isPitchBoardRosterLoading = isMembersLoading || isMembersFetching || isChildrenLoading || isChildrenFetching;
+  // Background roster refreshes must not replace an already-mounted board.
+  const isPitchBoardRosterLoading = isMembersLoading || isChildrenLoading;
 
   const { data: userRoleRows = [], isLoading: isUserRoleLoading } = useQuery({
     queryKey: ["user-team-roles", id, user?.id],
@@ -1608,23 +1614,33 @@ export default function TeamDetailPage() {
     && isSoccerClub && (hasProFootball || isAppAdmin);
 
   const launchPitchBoard = async () => {
+    if (!id || pitchLaunchRef.current.pending) return;
+    const generation = ++pitchLaunchRef.current.generation;
+    pitchLaunchRef.current.pending = true;
+    const isCurrent = () => pitchLaunchRef.current.generation === generation;
+    try {
     // Open the board straight away (it shows "Loading players..." while the
     // roster refreshes). The match lookup is optional: a slow or failed
     // lookup must never leave the tap doing nothing.
     setShowPitchBoard(true);
     const optional = <T,>(read: Promise<T>, fallback: T) =>
       withReadDeadline(read, "Pitch board match lookup", 10_000).catch(() => fallback);
-    const [membersResult, childrenResult, nearbyEventId] = await Promise.all([
+    const attendance = async () => {
+      const nearbyEventId = await optional(findNearbyGameEvent(id), null);
+      const goingRows = nearbyEventId ? await optional(readGoingGameRsvps(nearbyEventId), null) : null;
+      return { nearbyEventId, goingRows };
+    };
+    const [membersResult, childrenResult, { nearbyEventId, goingRows }] = await Promise.all([
       refetchMembers(),
       refetchChildren(),
-      optional(findNearbyGameEvent(id!), null),
+      attendance(),
     ]);
+    if (!isCurrent()) return;
     const freshMembers = membersResult.data || [];
     const freshChildren = childrenResult.data || [];
     let goingChildIds: Set<string> | null = null;
     let goingAdultIds: Set<string> | null = null;
     if (nearbyEventId) {
-      const goingRows = await optional(readGoingGameRsvps(nearbyEventId), null);
       if (!goingRows) { setLinkedEventId(nearbyEventId); return; }
       goingChildIds = new Set((goingRows || []).map(r => r.child_id).filter((v): v is string => !!v));
       goingAdultIds = new Set((goingRows || []).map(r => r.user_id).filter((v): v is string => !!v));
@@ -1645,7 +1661,9 @@ export default function TeamDetailPage() {
     ];
     setPitchBoardMembersOverride(nextPitchBoardMembers);
     setLinkedEventId(nearbyEventId);
-    setShowPitchBoard(true);
+    } finally {
+      if (isCurrent()) pitchLaunchRef.current.pending = false;
+    }
   };
 
   if (isLoading || (teamQueryPaused && !team)) {
@@ -2231,6 +2249,8 @@ export default function TeamDetailPage() {
               teamName={team.name}
               members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
               onClose={() => {
+                ++pitchLaunchRef.current.generation;
+                pitchLaunchRef.current.pending = false;
                 clearPitchBoardOpenFlag();
                 setShowPitchBoard(false);
                 setLinkedEventId(null);

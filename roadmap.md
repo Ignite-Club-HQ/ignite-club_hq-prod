@@ -1,5 +1,16 @@
 # Roadmap — launch the live (PROD) system
 
+## Home ICP timer start reliability — 24 November
+- [x] Reproduced Home start/read races; repaired Home and shared board clock reads, immediate acknowledged-start persistence, all three alternate toolbar fixture arguments and rejected group-clock event delivery. Exact routing, permissions and settled matches unchanged.
+- [x] 16 focused files per mode: 163 email / 152 ICP passes, existing mode skips only; preview build OK. Phone-sized signed-out preview checked with no page errors/overflow. Inventory: docs/home-icp-timer-start-audit-2026-11-24.md.
+- [ ] Real-member Home start → server readback and installed-phone acceptance: session minting refuses this user-managed backend; physical device unavailable. No PROD deployment.
+
+## Home pitch-board widget opening — 24 November
+- [x] Preserve the widget/restored board's exact event, overlap attendance, roster and board-code loading, and retry only failed reads with separate deadlines.
+- [x] Sweep team/event/shared/group/notification/desktop/resume entry paths; fix unnecessary waits, late reopening and failed-event recovery without changing settled games or permissions. Source inventory: docs/pitch-board-opening-audit-2026-11-24.md.
+- [x] Final focused checks: 14 files, 89 tests passed and one existing mode-specific skip; preview build OK and diff checks clean.
+- [ ] Verify real signed-in widget opening and installed-phone timing; blocked on a usable member session and physical device unavailable here. No PROD deployment.
+
 ## Authentication visual refinements — 24 November, DEV only
 - [x] Make Ignite branding more prominent, use the website tagline in every variant, remove the welcome heading and tighten spacing; retain official Internet Identity attribution and context-only browser guidance.
 - [x] Hide redundant method switching when both options are visible; preserve providers, routing and safeguards.
@@ -204,6 +215,11 @@
 - [x] Restored Upload File in competition group chats without requiring a club ID. Documents use the competition host/access lookup, competition grants and metadata; no chat membership or backend permission changes. Paul approved the phone document chooser exception; photo picker unchanged.
 - [x] Five upload/access regressions failed before repair; 42 focused checks pass in default mode and 39 in ICP mode (backend-specific skips). Preview build OK. Existing competition Vault upload permissions still apply.
 - [ ] Authenticated on-chain upload/message/readback and physical-phone acceptance require a delegated II session/device unavailable in the sandbox. No PROD deployment performed.
+
+## Owner-approved all-member alert release — 24 November
+- [x] Recorded Paul's explicit approval; checked live prod source 29da3e1917dd0f45f11118c95791583344e49475 and commissioned sender health; four switch tests passed.
+- [ ] Execute the approved governor switch for both LIVE queues: held because prod source still hardcodes generic alert wording and lacks the prepared named-alert/isolation release; latest sender runs are from 10 November. Deployment/promotion must precede activation; no live switch or Supabase/email changes made.
+- [ ] Send a message on TEST and confirm readback: no verified Internet Identity TEST session is available; auth-session refuses this user-managed backend, so no chat sent or phone delivery claimed.
 
 ## All-user native ICP push rollout — 11 November
 - [x] Paul requested progressing beyond his successful open/closed-app self-test; preserve email/Supabase push and native-only scope.

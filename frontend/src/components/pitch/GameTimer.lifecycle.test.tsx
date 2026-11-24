@@ -68,6 +68,23 @@ async function settle() {
 }
 
 describe("GameTimer lock, background and hydration lifecycle", () => {
+  it.runIf(icpMode)('persists a confirmed linked-match start before slow startup reads finish', async () => {
+    let finishRead: (value: TimerReadResponse) => void = () => {};
+    const slowRead = new Promise<TimerReadResponse>(resolve => { finishRead = resolve; });
+    server.read.mockReturnValue(slowRead);
+    server.send.mockResolvedValue({ ok: true, row_id: 'fixture-exact', timer_state: snapshot(0, { is_running: true, half_paused_at: null }), elapsed_seconds: 0, server_now: new Date(NOW).toISOString() });
+    const ref = createRef<GameTimerRef>();
+    render(<GameTimer ref={ref} teamId="team-a" eventId="fixture-exact" minutesPerHalf={40} compact />);
+    await settle();
+    await act(async () => { ref.current?.toggleTimer(); });
+    await settle();
+    expect(ref.current?.isRunning()).toBe(true);
+    expect(JSON.parse(localStorage.getItem('pitch-board-timer-state-team-team-a') ?? '{}').isRunning).toBe(true);
+    expect(server.send).toHaveBeenCalledExactlyOnceWith({ teamId: 'team-a', eventId: 'fixture-exact', event: 'start_half', minutesPerHalf: 40 });
+    finishRead(response(snapshot(0, { last_event_at: new Date(NOW - 1000).toISOString() })));
+    await settle();
+    expect(ref.current?.isRunning()).toBe(true);
+  });
   it.runIf(icpMode)('reads a newer peer clock while open without sending a timer command', async () => {
     server.read.mockResolvedValue(response(snapshot(60)));
     const ref = createRef<GameTimerRef>();

@@ -21,6 +21,7 @@ import {
   unregisterLiveDeviceToken,
 } from '@/live/features/notifications';
 import { strictIcpActive } from '@/live/strictIcpTransport';
+import { handOverPushToken } from './pushTokenHandover';
 // Same rule as the ICP safety guard: once Internet Identity is chosen or
 // stored, phone alert registration must never take the email path.
 const pushUsesIcp = () => resolveAuthBackend() === 'icp' || strictIcpActive();
@@ -219,6 +220,9 @@ async function saveFCMToken(userId: string, token: string): Promise<boolean> {
       return true;
     }
 
+    // A phone that was on the secure servers gets a fresh alert address so a
+    // leftover secure registration can no longer reach it.
+    token = await handOverPushToken(token, FirebaseMessaging);
     const versionInfo = await getAppVersion();
     
     // IMPORTANT: Use security definer RPC to remove this token from other users.

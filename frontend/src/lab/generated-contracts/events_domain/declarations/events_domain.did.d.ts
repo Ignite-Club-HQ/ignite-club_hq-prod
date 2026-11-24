@@ -992,6 +992,11 @@ export interface Main {
   >,
   'my_children' : ActorMethod<[], Array<Child>>,
   'my_rsvps' : ActorMethod<[], Array<Rsvp>>,
+  'notify_duty_assigned' : ActorMethod<
+    [string, string],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
   'notify_duty_completion' : ActorMethod<
     [string, string],
     { 'Ok' : number } |

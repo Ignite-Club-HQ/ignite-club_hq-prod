@@ -120,7 +120,7 @@ export interface PitchBoardLayoutContextValue {
   handleShowLineupPickerSettingChange: (...args: any[]) => any;
   handleSkipAutoSub: () => void;
   handleSkipNextSub: () => void;
-  handleStartAutoSubPlan: (plan: SubstitutionEvent[]) => void;
+  handleStartAutoSubPlan: (plan: SubstitutionEvent[], fromKickOff?: boolean) => void;
 
   handleSubPreviewSelect: (...args: any[]) => any;
   handleSwapAndSubstitute: (...args: any[]) => any;

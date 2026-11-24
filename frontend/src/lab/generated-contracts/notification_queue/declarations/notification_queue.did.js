@@ -220,6 +220,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const DigestResult = IDL.Variant({ 'Ok' : DigestItem, 'Err' : IDL.Text });
   const NativeReservation = IDL.Record({
+    'body' : IDL.Text,
     'key' : IDL.Text,
     'token' : IDL.Text,
     'receipt' : IDL.Text,
@@ -552,11 +553,13 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text, IDL.Principal],
         [
           IDL.Variant({
-            'Ok' : IDL.Opt(IDL.Record({
-              'status' : IDL.Text,
-              'attempts' : IDL.Nat32,
-              'created_at_ms' : IDL.Nat64,
-            })),
+            'Ok' : IDL.Opt(
+              IDL.Record({
+                'status' : IDL.Text,
+                'attempts' : IDL.Nat32,
+                'created_at_ms' : IDL.Nat64,
+              })
+            ),
             'Err' : IDL.Text,
           }),
         ],
@@ -653,6 +656,17 @@ export const idlFactory = ({ IDL }) => {
           IDL.Opt(IDL.Nat64),
         ],
         [ScheduledResult],
+        [],
+      ),
+    'schedule_pitch_sub_alerts' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Vec(IDL.Text),
+          IDL.Text,
+          IDL.Vec(IDL.Record({ 'key' : IDL.Text, 'due_ms' : IDL.Nat64 })),
+        ],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
     'seal_account_removal' : IDL.Func(

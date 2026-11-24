@@ -411,10 +411,20 @@ export default function RewardRedemptionCard() {
           // points, and records the history entry atomically — no separate
           // balance pre-check or recordPointsHistory() call needed/allowed.
           const subject = forChildId ? subjectForChild(forChildId) : subjectForUser(user!.id);
-          await redeemLiveReward(ctx, reward.club_id, subject, reward.id);
-          // No canister equivalent of the redemption-confirmation email
-          // (sponsor name / club branding are display-only joins with no
-          // canister field) — skipped on this branch.
+          const redemption = await redeemLiveReward(ctx, reward.club_id, subject, reward.id);
+          // Confirmation alert to the person redeeming (no child names).
+          // Best-effort: the redemption already succeeded.
+          void import("@/live/features/notifications")
+            .then(({ enqueueLiveNotification }) => {
+              const me = ctx.identity.getPrincipal().toText();
+              const key = `reward-redeemed-${redemption.id}`;
+              return enqueueLiveNotification(ctx, {
+                id: key, userId: me, clubId: reward.club_id, kind: "reward_redeemed",
+                body: `You redeemed ${reward.name}`.slice(0, 240), idempotencyKey: key,
+              });
+            })
+            .catch((error) => console.warn("[reward-redeemed alert] not sent", error));
+          // The redemption-confirmation email has no canister equivalent.
         },
       }, writeOnce({ clubId: reward.club_id }));
     },

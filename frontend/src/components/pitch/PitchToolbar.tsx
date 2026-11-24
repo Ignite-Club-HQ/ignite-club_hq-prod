@@ -485,6 +485,7 @@ function PitchToolbar({
                 <GameTimer 
                   ref={gameTimerRef} 
                   teamId={teamId} 
+                  eventId={linkedEventId}
                   teamName={teamName} 
                   onTimeUpdate={onTimerUpdate} 
                   onHalfChange={onHalfChange} 
@@ -758,7 +759,7 @@ function PitchToolbar({
             >
               {timerRunning ? <Pause size={collapsedIconSizeNum} /> : <Play size={collapsedIconSizeNum} />}
               <span className="pointer-events-none">
-                <GameTimer ref={gameTimerRef} teamId={teamId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hidePlayPause hideExtras minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
+                <GameTimer ref={gameTimerRef} teamId={teamId} eventId={linkedEventId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hidePlayPause hideExtras minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
               </span>
             </Button>
             <SyncStatusIndicator />
@@ -905,7 +906,7 @@ function PitchToolbar({
           >
             {timerRunning ? <Pause size={iconSizeNum} /> : <Play size={iconSizeNum} />}
             <span className="pointer-events-none">
-              <GameTimer ref={gameTimerRef} teamId={teamId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hidePlayPause hideExtras minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
+              <GameTimer ref={gameTimerRef} teamId={teamId} eventId={linkedEventId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hidePlayPause hideExtras minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
             </span>
           </Button>
           {!readOnly && (

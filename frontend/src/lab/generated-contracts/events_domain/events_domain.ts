@@ -971,6 +971,13 @@ export interface MainInterface {
     }>;
     my_children(): Promise<Array<Child>>;
     my_rsvps(): Promise<Array<Rsvp>>;
+    notify_duty_assigned(event_id: string, account_id: string): Promise<{
+        __kind__: "Ok";
+        Ok: number;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     notify_duty_completion(event_id: string, account_id: string): Promise<{
         __kind__: "Ok";
         Ok: number;
@@ -3551,6 +3558,16 @@ export class Events_domain implements events_domainInterface {
     async my_rsvps(): Promise<Array<Rsvp>> {
         const result = await this.actor.my_rsvps();
         return from_candid_vec_n101(result);
+    }
+    async notify_duty_assigned(arg0: string, arg1: string): Promise<{
+        __kind__: "Ok";
+        Ok: number;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.notify_duty_assigned(arg0, arg1);
+        return from_candid_variant_n29(result);
     }
     async notify_duty_completion(arg0: string, arg1: string): Promise<{
         __kind__: "Ok";

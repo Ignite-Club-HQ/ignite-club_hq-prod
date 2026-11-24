@@ -4586,6 +4586,11 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?t) { ignore fanOutEnsureConversation(club, ?t, teamChatParticipants(club, t)) };
       case null {};
     };
+    // Tell the person about their new role (best-effort, never blocks the grant).
+    if (user != caller and role != "app_admin") {
+      ignore notifyClubJoin([user.toText()], club, "role_assigned", "You have been given the " # Text.replace(role, #char '_', " ") # " role",
+        "role-assigned-" # club # "-" # user.toText() # "-" # role # "-" # (switch (team) { case (?t) t; case null "club" }) # "-" # nowMs().toText(), club);
+    };
     #Ok
   
     } finally { removalReceiver.leave(caller) };
@@ -7619,7 +7624,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (eventsDomainCanister != ?caller) return #Err("Events authority required");
     if (isTransferFenced(club)) return #Err("Club is temporarily locked for a transfer");
     if (users.size() == 0 or users.size() > 500 or body.size() > 512 or key.size() > 512 or not Text.startsWith(event_id, #text "evt-")) return #Err("Invalid event notice");
-    if (kind != "event_reminder" and kind != "event_invite" and kind != "event_cancelled" and kind != "duty_completed" and kind != "duty_reminder" and kind != "event_points_reminder" and kind != "photo_prompt_reminder") return #Err("Invalid event notice kind");
+    if (kind != "event_reminder" and kind != "event_updated" and kind != "event_note" and kind != "duty_assigned" and kind != "event_invite" and kind != "event_cancelled" and kind != "duty_completed" and kind != "duty_reminder" and kind != "event_points_reminder" and kind != "photo_prompt_reminder") return #Err("Invalid event notice kind");
     // Check every recipient before any queue call, including through admission awaits.
     var principals : [Principal] = [];
     for (user in users.values()) {

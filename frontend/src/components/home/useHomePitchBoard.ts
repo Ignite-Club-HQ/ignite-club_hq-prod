@@ -76,6 +76,8 @@ export function useHomePitchBoard({
   const [pitchBoardTeam, setPitchBoardTeam] =
     useState<HomePitchBoardTeam | null>(null);
   const [pitchBoardLoading, setPitchBoardLoading] = useState(false);
+  const requestIdRef = useRef(0);
+  const pendingRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
   const dependenciesRef = useRef({
     isAppAdmin,
     notifyProRequired,
@@ -96,36 +98,66 @@ export function useHomePitchBoard({
   };
 
   const openPitchBoard = useCallback(
-    async (teamId: string, teamName: string, readOnly = false) => {
+    (teamId: string, teamName: string, readOnly = false, eventId?: string | null): Promise<void> => {
+      const key = JSON.stringify([teamId, teamName, readOnly, eventId]);
+      if (pendingRef.current?.key === key) return pendingRef.current.promise;
+      const requestId = ++requestIdRef.current;
+      const isCurrent = () => requestIdRef.current === requestId;
       setPitchBoardLoading(true);
+      const promise = (async () => {
       try {
-        const loadOnce = async () => {
           const dependencies = dependenciesRef.current;
-          const hasAccess = await dependencies.hasProFootballAccess(teamId);
+          // Each read has its own deadline: several healthy sequential reads
+          // must not exhaust one shared ten-second budget. Retry only the
+          // failed read, never restart successful roster/attendance requests.
+          const read = async <T,>(load: () => Promise<T>): Promise<T> => {
+            for (let attempt = 0; ; attempt++) {
+              if (!isCurrent()) throw new Error("Pitch board opening cancelled");
+              try {
+                return await withLoadDeadline(load(), LOAD_DEADLINE_MS);
+              } catch (error) {
+                if (!isCurrent() || attempt >= MAX_ATTEMPTS - 1) throw error;
+              }
+            }
+          };
+          const hasAccess = dependencies.isAppAdmin || await read(() => dependencies.hasProFootballAccess(teamId));
+          if (!isCurrent()) return;
           if (!hasAccess && !dependencies.isAppAdmin) {
             dependencies.notifyProRequired();
             return;
           }
 
-          const [roster, linkedEventId] = await Promise.all([
-            dependencies.loadRoster(teamId),
-            dependencies.findNearbyEvent(teamId),
+          // Download the board alongside its data, not after all roster reads.
+          // The rendered lazy component still owns visible import recovery.
+          void import("@/components/pitch/PitchBoard").catch(() => {});
+
+          // The widget already knows its exact match. Other entry points still
+          // discover a nearby match. Attendance starts as soon as that resolves,
+          // rather than waiting for the slower decrypted team roster first.
+          const attendance = async () => {
+            const linkedEventId = eventId !== undefined
+              ? eventId
+              : await read(() => dependencies.findNearbyEvent(teamId));
+            const rsvps = linkedEventId
+              ? await read(() => dependencies.loadGoingRsvps(linkedEventId))
+              : null;
+            return { linkedEventId, rsvps };
+          };
+          const [roster, { linkedEventId, rsvps }] = await Promise.all([
+            read(() => dependencies.loadRoster(teamId)),
+            attendance(),
           ]);
-          let goingChildIds: Set<string> | null = null;
-          let goingAdultIds: Set<string> | null = null;
-          if (linkedEventId) {
-            const rsvps = await dependencies.loadGoingRsvps(linkedEventId);
-            goingChildIds = new Set(
+          if (!isCurrent()) return;
+          const goingChildIds = rsvps ? new Set(
               rsvps
                 .map((rsvp) => rsvp.child_id)
                 .filter((id): id is string => !!id),
-            );
-            goingAdultIds = new Set(
+            ) : null;
+          const goingAdultIds = rsvps ? new Set(
               rsvps
                 .map((rsvp) => rsvp.user_id)
                 .filter((id): id is string => !!id),
-            );
-          }
+            ) : null;
 
           const members = roster.members.filter(
             (member) =>
@@ -155,27 +187,25 @@ export function useHomePitchBoard({
             readOnly,
             linkedEventId,
           });
-        };
-
-        // A stalled live read used to hold the loading overlay forever;
-        // leaving and returning fixed it. Bound each attempt and retry so
-        // the same recovery happens without leaving the screen.
-        let lastError: unknown = null;
-        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-          try {
-            await withLoadDeadline(loadOnce(), LOAD_DEADLINE_MS);
-            return;
-          } catch (error) {
-            lastError = error;
-          }
-        }
-        if (lastError) dependenciesRef.current.onLoadFailed?.();
+      } catch {
+        if (isCurrent()) dependenciesRef.current.onLoadFailed?.();
       } finally {
-        setPitchBoardLoading(false);
+        if (isCurrent()) {
+          pendingRef.current = null;
+          setPitchBoardLoading(false);
+        }
       }
+      })();
+      pendingRef.current = { key, promise };
+      return promise;
     },
     [],
   );
+
+  useEffect(() => () => {
+    ++requestIdRef.current;
+    pendingRef.current = null;
+  }, []);
 
   useEffect(() => {
     const handleOpenPitchBoard = () => {
@@ -184,7 +214,8 @@ export function useHomePitchBoard({
         if (!timerStateRaw) return;
         const timerState = JSON.parse(timerStateRaw);
         if (timerState?.teamId && timerState?.teamName) {
-          void openPitchBoard(timerState.teamId, timerState.teamName, false);
+          void openPitchBoard(timerState.teamId, timerState.teamName, false,
+            typeof timerState.eventId === "string" || timerState.eventId === null ? timerState.eventId : undefined);
         }
       } catch {
         // Invalid or unavailable persisted state is ignored.
@@ -216,10 +247,20 @@ export function useHomePitchBoard({
         if (!contextRaw) return;
         const context = JSON.parse(contextRaw);
         if (context?.teamId && context?.teamName) {
+          const timerRaw = localStorage.getItem(`pitch-board-timer-state-team-${context.teamId}`)
+            ?? localStorage.getItem("pitch-board-timer-state");
+          let eventId: string | null | undefined;
+          try {
+            const timer = timerRaw ? JSON.parse(timerRaw) : null;
+            if (timer?.teamId === context.teamId && (typeof timer.eventId === "string" || timer.eventId === null)) {
+              eventId = timer.eventId;
+            }
+          } catch { /* A bad saved timer does not prevent authorized discovery. */ }
           void openPitchBoard(
             context.teamId,
             context.teamName,
             !!context.readOnly,
+            eventId,
           );
         }
       } catch {
@@ -265,6 +306,11 @@ export function useHomePitchBoard({
     pitchBoardTeam,
     pitchBoardLoading,
     openPitchBoard,
-    closePitchBoard: () => setPitchBoardTeam(null),
+    closePitchBoard: () => {
+      ++requestIdRef.current;
+      pendingRef.current = null;
+      setPitchBoardLoading(false);
+      setPitchBoardTeam(null);
+    },
   };
 }

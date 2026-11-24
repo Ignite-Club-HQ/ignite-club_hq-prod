@@ -55,7 +55,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
-import { pitchPlayerPositionsQuery, notifyIcpSubstitutionDue } from '@/lib/pitchBoardRepository';
+import { pitchPlayerPositionsQuery, notifyIcpSubstitutionDue, scheduleIcpSubAlerts, pitchSubAlertKey } from '@/lib/pitchBoardRepository';
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
@@ -897,6 +897,48 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     runSubAnimationRef: runSubAnimationRef_autoSubs,
   });
 
+  // One run id per started plan: the open board and the server timer share alert
+  // keys, so a sub due while the board is open still alerts only once.
+  const subAlertRunId = useRef<string>(crypto.randomUUID());
+  const subAlertWasActive = useRef(autoSubActive);
+  if (autoSubActive && !subAlertWasActive.current) subAlertRunId.current = crypto.randomUUID();
+  subAlertWasActive.current = autoSubActive;
+
+  // Secure sign-in: register this half's upcoming sub times on the secure servers
+  // so alerts still arrive with the phone locked or the app closed. Re-sent only
+  // when the projected times change (pause, resume, half change, plan edit).
+  const autoSubPlanRef = useRef(autoSubPlan);
+  autoSubPlanRef.current = autoSubPlan;
+  const lastSubAlertSignature = useRef('[]');
+  useEffect(() => {
+    if (!icp || authLoading || !user?.id || readOnly || !pitchBoardNotificationsEnabled) return;
+    const userId = user.id;
+    const sync = () => {
+      const timer = gameTimerRef.current;
+      const running = !!timer?.isRunning?.();
+      const elapsed = timer?.getElapsedSeconds?.() ?? 0;
+      const half = timer?.getCurrentHalf?.() ?? 1;
+      const now = Date.now();
+      const alerts = autoSubActive && !autoSubPaused && running
+        ? (autoSubPlanRef.current ?? [])
+            .filter(sub => sub.half === half && !sub.executed && !sub.skipped && sub.time > elapsed)
+            .slice(0, 30)
+            .map(sub => ({ key: pitchSubAlertKey(subAlertRunId.current, sub), dueMs: now + (sub.time - elapsed) * 1000 }))
+        : [];
+      // Round to 10s so normal clock ticks do not resend the same schedule.
+      const signature = JSON.stringify(alerts.map(a => [a.key, Math.round(a.dueMs / 10_000)]));
+      if (signature === lastSubAlertSignature.current) return;
+      lastSubAlertSignature.current = signature;
+      void scheduleIcpSubAlerts(teamId, linkedEventId, userId, alerts).catch(() => {
+        lastSubAlertSignature.current = '';
+        console.warn('Pitch-board locked-phone sub alerts could not be scheduled');
+      });
+    };
+    sync();
+    const interval = window.setInterval(sync, 5000);
+    return () => window.clearInterval(interval);
+  }, [icp, authLoading, user?.id, readOnly, pitchBoardNotificationsEnabled, autoSubActive, autoSubPaused, autoSubPlan, teamId, linkedEventId]);
+
   // A pending slot may render repeatedly; uncertain notification writes never replay.
   const notifiedSubSlots = useRef(new Map<string, string>());
   useEffect(() => {
@@ -904,7 +946,7 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     const slot = JSON.stringify([user.id, teamId, linkedEventId, pendingAutoSub.half, pendingAutoSub.time,
       pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id]);
     if (notifiedSubSlots.current.has(slot)) return;
-    const key = `pitch-sub-${crypto.randomUUID()}`;
+    const key = pitchSubAlertKey(subAlertRunId.current, pendingAutoSub);
     notifiedSubSlots.current.set(slot, key);
     void notifyIcpSubstitutionDue(teamId, linkedEventId, user.id, key).catch(() => {
       console.warn('Pitch-board reminder could not be queued');

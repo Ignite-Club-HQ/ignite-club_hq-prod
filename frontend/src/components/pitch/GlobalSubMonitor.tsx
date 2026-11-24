@@ -1047,7 +1047,8 @@ export default function GlobalSubMonitor() {
         // fires right away instead of waiting for the next background cycle.
         void (async () => {
           await syncToDatabase();
-          await triggerImmediatePitchCheck('client-pending-sub-sync', subKey, { teamId: timerState.teamId || pitchState.teamId || null, message: notificationBody });
+          // Secure-mode alerts never carry child names.
+          await triggerImmediatePitchCheck('client-pending-sub-sync', subKey, { teamId: timerState.teamId || pitchState.teamId || null, message: 'A planned substitution is due' });
         })();
 
         setCurrentPlayers(activePitchState.players);

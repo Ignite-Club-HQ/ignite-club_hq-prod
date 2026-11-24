@@ -125,12 +125,14 @@ export function useEventGroupSync(
           localStorage.setItem(getPitchStateKeyForTeam(teamId), value);
           localStorage.setItem(PITCH_STATE_KEY, value);
         }
-        if (shouldApplyRemoteTimerState({ remote: timer, local: local.timerState, force }).apply) {
+        const acceptTimer = shouldApplyRemoteTimerState({ remote: timer, local: local.timerState, force }).apply;
+        if (acceptTimer) {
           const value = JSON.stringify({ ...timer, teamId });
           localStorage.setItem(getTeamTimerStorageKey(teamId), value);
           localStorage.setItem("pitch-board-timer-state", value);
         }
-        if (changed || force) window.dispatchEvent(new CustomEvent("game-state-changed", { detail: { source: 'icp-remote', teamId, pitch, timer } }));
+        // Mounted clocks must not bypass the same rejection used for storage.
+        if (changed || force) window.dispatchEvent(new CustomEvent("game-state-changed", { detail: { source: 'icp-remote', teamId, pitch, timer: acceptTimer ? timer : null } }));
       } catch (error) {
         if (error instanceof Error && /forbidden|not visible|not found/i.test(error.message)) clearCanisterState();
         console.error("[EventGroupSync] Canister read failed", error);

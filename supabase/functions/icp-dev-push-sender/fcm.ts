@@ -62,13 +62,14 @@ function createEnvelopeTransport(post: (body: string) => Promise<Response>) {
       !payload.data.url.startsWith('/') || payload.data.url.startsWith('//') ||
       Object.keys(payload.data).some(key => !['ignite_backend', 'recipient', 'notification_id', 'kind', 'url'].includes(key)) ||
       Object.values(payload.data).some(value => typeof value !== 'string' || value.length > 2048) ||
-      payload.notification.title !== 'Ignite Club HQ' || payload.notification.body !== 'You have a new update.') {
+      typeof payload.notification.title !== 'string' || !payload.notification.title || payload.notification.title.length > 80 ||
+      typeof payload.notification.body !== 'string' || !payload.notification.body || payload.notification.body.length > 240) {
       throw new Error('TEST notification envelope refused');
     }
     // Do not forward caller-supplied native options or private text.
     const message = {
       token: device.token,
-      notification: { title: 'Ignite Club HQ', body: 'You have a new update.' },
+      notification: { title: payload.notification.title, body: payload.notification.body },
       data: payload.data,
       android: { priority: 'HIGH', notification: { channel_id: 'default', tag: payload.data.notification_id } },
       apns: { headers: { 'apns-priority': '10', 'apns-push-type': 'alert' }, payload: { aps: { sound: 'default' } } },

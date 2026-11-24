@@ -1,3 +1,4 @@
+import { markSecurePushRegistered } from "@/lib/pushTokenHandover";
 import { connectLiveNotificationQueue } from "../domains";
 import type { FeatureBackendContext } from "../featureRouter";
 import { unwrapCandid, unwrapCandidOpt } from "./candid";
@@ -75,7 +76,13 @@ export async function fanOutLiveNotifications(
 
 export async function getLiveNotification(ctx: FeatureBackendContext, notificationId: string) {
   const { actor } = await connectLiveNotificationQueue(ctx.target, ctx.identity);
-  return unwrapCandidOpt(await actor.get_notification(notificationId), "Get notification");
+  const row = unwrapCandidOpt(await actor.get_notification(notificationId), "Get notification");
+  return row ? readableNotification(row) : row;
+}
+
+/** Named alerts are stored as "Title<U+001F>text"; show them as "Title: text". */
+export function readableNotification<T extends { body: string }>(row: T): T {
+  return row.body.includes("\u001f") ? { ...row, body: row.body.replace("\u001f", ": ") } : row;
 }
 
 /**
@@ -92,10 +99,11 @@ export async function listLiveInbox(
   limit = 500,
 ) {
   const { actor } = await connectLiveNotificationQueue(ctx.target, ctx.identity);
-  return unwrapCandid(
+  const rows = await unwrapCandid(
     actor.list_inbox(userId, clubId ? [clubId] : [], limit),
     "List inbox",
   );
+  return rows.map(readableNotification);
 }
 
 export async function getLiveScheduleRefreshes(ctx: FeatureBackendContext, clubIds: string[]) {
@@ -776,6 +784,7 @@ export async function registerLiveDeviceToken(
   ctx: FeatureBackendContext,
   input: LiveDeviceTokenInput,
 ) {
+  markSecurePushRegistered();
   const { actor } = await connectLiveNotificationQueue(ctx.target, ctx.identity);
   await unwrapCandid(
     actor.register_device_token(

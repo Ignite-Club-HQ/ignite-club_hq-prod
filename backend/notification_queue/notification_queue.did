@@ -203,6 +203,7 @@ type Notification =
  };
 type NativeReservation = 
  record {
+   body: text;
    key: text;
    kind: text;
    notification_id: text;
@@ -459,6 +460,14 @@ type Main =
                                               Err: text;
                                               Ok;
                                             });
+   schedule_pitch_sub_alerts: (board: text, club: text, inputUsers: vec text,
+    related: text, alerts: vec record {
+                                 due_ms: nat64;
+                                 key: text;
+                               }) -> (variant {
+                                        Err: text;
+                                        Ok: nat;
+                                      });
    schedule_message: (id: text, author: text, chat_type: ChatType, team_id:
     opt text, club_id: opt text, group_id: opt text, conversation_id:
     opt text, body: text, image_url: opt text, reply_to_id: opt text,
