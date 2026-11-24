@@ -268,9 +268,11 @@ export function useAutoSubs({
 
 
 
-  const handleStartAutoSubPlan = useCallback((plan: SubstitutionEvent[]) => {
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
+  const handleStartAutoSubPlan = useCallback((plan: SubstitutionEvent[], fromKickOff = false) => {
+    // Plans started from pre-game setup always count from kick-off; the timer
+    // may still report the previous game's clock while it resets.
+    const currentElapsed = fromKickOff ? 0 : (gameTimerRef.current?.getElapsedSeconds() || 0);
+    const currentHalf = fromKickOff ? 1 : (gameTimerRef.current?.getCurrentHalf() || 1);
     planActivationTimeRef.current = { seconds: currentElapsed, half: currentHalf };
     setAutoSubPlan(plan);
     setAutoSubActive(true);

@@ -1622,7 +1622,7 @@ export default function PitchBoardLandscapeLayout() {
           players={players.filter(p => !p.isInjured)}
           teamSize={parseInt(teamSize)}
           minutesPerHalf={minutesPerHalf}
-          onStartPlan={handleStartAutoSubPlan}
+          onStartPlan={(plan) => handleStartAutoSubPlan(plan, autoSubFromPreGame)}
           existingPlan={autoSubActive ? autoSubPlan : undefined}
           editMode={autoSubPlanEditMode}
           rotationSpeed={rotationSpeed}
