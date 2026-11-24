@@ -97,6 +97,7 @@ import { usePitchBoardManualSub } from "./hooks/usePitchBoardManualSub";
 import { usePitchBoardBenchToSub } from "./hooks/usePitchBoardBenchToSub";
 import { usePitchBoardPropSync } from "./hooks/usePitchBoardPropSync";
 import { useIcpSharedPitchBoard } from './hooks/useIcpSharedPitchBoard';
+import { isPitchNameRef } from '@/lib/sharedPitchPrivacy';
 import { usePitchBoardFormationNotifications } from './hooks/usePitchBoardFormationNotifications';
 import { usePitchBoardPersistence } from "./hooks/usePitchBoardPersistence";
 import { usePitchBoardPlayerBootstrap } from "./hooks/usePitchBoardPlayerBootstrap";
@@ -1123,7 +1124,15 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     teamId, userId: user?.id, enabled: icp && !authLoading && hasInitialized, readOnly,
     apply: snapshot => {
       const state = snapshot as unknown as import('./types').PitchBoardState;
-      if (Array.isArray(state.players)) setPlayers(state.players);
+      if (Array.isArray(state.players)) setPlayers(previous => {
+        // Keep the roster's real name when the saved board only has a placeholder.
+        const known = new Map(previous.map(p => [p.id, p.name]));
+        return state.players.map(p => {
+          const real = known.get(p.id);
+          const placeholder = !p.name || p.name === 'Player' || isPitchNameRef(p.name);
+          return placeholder && real && real !== 'Player' && !isPitchNameRef(real) ? { ...p, name: real } : p;
+        });
+      });
       if (state.teamSize) setTeamSize(state.teamSize);
       if (typeof state.selectedFormation === 'number') setSelectedFormation(state.selectedFormation);
       if (state.ballPosition) setBallPosition(state.ballPosition);
