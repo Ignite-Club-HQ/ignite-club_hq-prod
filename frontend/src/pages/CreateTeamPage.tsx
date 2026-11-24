@@ -1,3 +1,4 @@
+import { materializePickedFile } from "@/lib/pickedFiles";
 import { PUBLIC_INVITE_ORIGIN } from "@/lib/inviteLinks";
 import { effectiveTeamLimit } from "@/lib/subscriptionPlans";
 import { useState } from "react";
@@ -249,7 +250,7 @@ export default function CreateTeamPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setLogoFile(file);
+    void materializePickedFile(file).then(setLogoFile, () => setLogoFile(null));
     const reader = new FileReader();
     reader.onloadend = () => {
       setLogoPreview(reader.result as string);
