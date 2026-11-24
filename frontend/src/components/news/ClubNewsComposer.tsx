@@ -361,13 +361,13 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
   });
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveDialog keyboardSafe open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-lg">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle>New club news</ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
-        <div className="space-y-4 overflow-y-auto px-1 pb-2">
+        <div className="space-y-4 overflow-y-auto px-4 pb-2 pt-1 sm:px-1">
           {clubs.length > 1 && (
             <MobileCardSelect
               label="Club"
