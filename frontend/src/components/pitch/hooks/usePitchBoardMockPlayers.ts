@@ -38,6 +38,14 @@ const MOCK_NAMES = [
   "Jamie Garcia", "Peyton Robinson", "Skyler Clark", "Dakota Lewis", "Reese Walker",
 ];
 
+/** Sample players' names follow from their id (mock-1 = first name, ...). */
+export function mockPlayerName(id: string): string | undefined {
+  const match = /^mock-(\d+)$/.exec(id);
+  if (!match) return undefined;
+  const index = Number(match[1]) - 1;
+  return MOCK_NAMES[index] || `Player ${index + 1}`;
+}
+
 export function usePitchBoardMockPlayers({
   teamPlayerPositions,
   teamSize,

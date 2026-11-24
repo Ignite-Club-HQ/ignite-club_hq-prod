@@ -98,6 +98,7 @@ import { usePitchBoardBenchToSub } from "./hooks/usePitchBoardBenchToSub";
 import { usePitchBoardPropSync } from "./hooks/usePitchBoardPropSync";
 import { useIcpSharedPitchBoard } from './hooks/useIcpSharedPitchBoard';
 import { isPitchNameRef } from '@/lib/sharedPitchPrivacy';
+import { mockPlayerName } from './hooks/usePitchBoardMockPlayers';
 import { usePitchBoardFormationNotifications } from './hooks/usePitchBoardFormationNotifications';
 import { usePitchBoardPersistence } from "./hooks/usePitchBoardPersistence";
 import { usePitchBoardPlayerBootstrap } from "./hooks/usePitchBoardPlayerBootstrap";
@@ -1128,7 +1129,7 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
         // Keep the roster's real name when the saved board only has a placeholder.
         const known = new Map(previous.map(p => [p.id, p.name]));
         return state.players.map(p => {
-          const real = known.get(p.id);
+          const real = mockPlayerName(p.id) ?? known.get(p.id);
           const placeholder = !p.name || p.name === 'Player' || isPitchNameRef(p.name);
           return placeholder && real && real !== 'Player' && !isPitchNameRef(real) ? { ...p, name: real } : p;
         });
