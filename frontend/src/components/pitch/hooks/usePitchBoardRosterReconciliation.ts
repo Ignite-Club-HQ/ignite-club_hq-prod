@@ -1,3 +1,5 @@
+import { isPitchNameRef } from '@/lib/sharedPitchPrivacy';
+import { mockPlayerName } from './usePitchBoardMockPlayers';
 import { useCallback, useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from "react";
 import { clearPitchState } from "../pitchStateUtils";
 import type { MiniLeagueTeams, PitchBoardState, Player, TeamSize } from "../types";
@@ -78,9 +80,17 @@ export function usePitchBoardRosterReconciliation({
     !!savedState?.linkedEventId &&
     !!initialLinkedEventId &&
     savedState.linkedEventId !== initialLinkedEventId;
-  const savedPlayers = savedStateIsForDifferentEvent
+  const savedPlayersRaw = savedStateIsForDifferentEvent
     ? (savedState?.players || []).filter((player) => !player.isFillIn)
     : (savedState?.players || []);
+  // Saved boards may hold a placeholder ("Player" or an unread name code);
+  // show the team list / sample name for that player instead.
+  const knownNames = new Map(realPlayers.map((player) => [player.id, player.name]));
+  const savedPlayers = savedPlayersRaw.map((player) => {
+    if (player.name && player.name !== 'Player' && !isPitchNameRef(player.name)) return player;
+    const real = mockPlayerName(player.id) ?? knownNames.get(player.id);
+    return real && real !== 'Player' && !isPitchNameRef(real) ? { ...player, name: real } : player;
+  });
   const savedAutoSubPlan = savedStateIsForDifferentEvent
     ? (savedState?.autoSubPlan || []).filter((step: any) =>
         savedPlayers.some((player) => player.id === step.playerId),
