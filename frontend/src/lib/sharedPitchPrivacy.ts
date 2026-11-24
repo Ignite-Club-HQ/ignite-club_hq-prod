@@ -48,3 +48,25 @@ export function resolveSharedPitchNames(value: unknown, names: Map<string, strin
 function resolvedName(value: string | undefined) {
   return value && value.trim() && !isPitchNameRef(value) ? value : 'Player';
 }
+
+/**
+ * Replace placeholder names ("Player", empty, or an unread code) on every
+ * nested {id, name} record (players, substitutions, swaps) using `lookup`.
+ */
+export function repairPitchPlaceholderNames<T>(value: T, lookup: (id: string) => string | undefined): T {
+  function walk(item: unknown): unknown {
+    if (Array.isArray(item)) return item.map(walk);
+    if (!item || typeof item !== 'object') return item;
+    const record = item as Record<string, unknown>;
+    const next: Record<string, unknown> = {};
+    for (const [field, child] of Object.entries(record)) next[field] = walk(child);
+    const name = record.name;
+    if (typeof record.id === 'string' && (name === undefined || typeof name === 'string')
+      && (!name || name === 'Player' || isPitchNameRef(name)) && 'name' in record) {
+      const real = lookup(record.id);
+      if (real && real !== 'Player' && !isPitchNameRef(real)) next.name = real;
+    }
+    return next;
+  }
+  return walk(value) as T;
+}

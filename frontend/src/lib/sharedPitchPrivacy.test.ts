@@ -28,3 +28,12 @@ d2('pitchname: references', () => {
     e2(resolve2(pitch, new Map([['pitchname:team:p1', 'pitchname:team:p1']]))).toEqual({ players: [{ id: 'p1', name: 'Player' }] });
   });
 });
+
+import { repairPitchPlaceholderNames as repair3 } from './sharedPitchPrivacy';
+d2('placeholder name repair', () => {
+  i2('fills nested substitution names, keeps real names', () => {
+    const plan = [{ playerOut: { id: 'mock-1', name: 'Player' }, playerIn: { id: 'c1', name: 'pitchname:t:c1' }, keep: { id: 'c2', name: 'Ann' } }];
+    const out = repair3(plan, id => ({ 'mock-1': 'Alex Smith', c1: 'Sam', c2: 'Other' } as Record<string, string>)[id]);
+    e2(out).toEqual([{ playerOut: { id: 'mock-1', name: 'Alex Smith' }, playerIn: { id: 'c1', name: 'Sam' }, keep: { id: 'c2', name: 'Ann' } }]);
+  });
+});

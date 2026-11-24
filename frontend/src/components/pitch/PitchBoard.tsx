@@ -97,7 +97,7 @@ import { usePitchBoardManualSub } from "./hooks/usePitchBoardManualSub";
 import { usePitchBoardBenchToSub } from "./hooks/usePitchBoardBenchToSub";
 import { usePitchBoardPropSync } from "./hooks/usePitchBoardPropSync";
 import { useIcpSharedPitchBoard } from './hooks/useIcpSharedPitchBoard';
-import { isPitchNameRef } from '@/lib/sharedPitchPrivacy';
+import { repairPitchPlaceholderNames } from '@/lib/sharedPitchPrivacy';
 import { mockPlayerName } from './hooks/usePitchBoardMockPlayers';
 import { usePitchBoardFormationNotifications } from './hooks/usePitchBoardFormationNotifications';
 import { usePitchBoardPersistence } from "./hooks/usePitchBoardPersistence";
@@ -1126,18 +1126,15 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     apply: snapshot => {
       const state = snapshot as unknown as import('./types').PitchBoardState;
       if (Array.isArray(state.players)) setPlayers(previous => {
-        // Keep the roster's real name when the saved board only has a placeholder.
+        // Keep the roster's / sample real name when the saved board only has a placeholder.
         const known = new Map(previous.map(p => [p.id, p.name]));
-        return state.players.map(p => {
-          const real = mockPlayerName(p.id) ?? known.get(p.id);
-          const placeholder = !p.name || p.name === 'Player' || isPitchNameRef(p.name);
-          return placeholder && real && real !== 'Player' && !isPitchNameRef(real) ? { ...p, name: real } : p;
-        });
+        return repairPitchPlaceholderNames(state.players, id => mockPlayerName(id) ?? known.get(id));
+      });
       });
       if (state.teamSize) setTeamSize(state.teamSize);
       if (typeof state.selectedFormation === 'number') setSelectedFormation(state.selectedFormation);
       if (state.ballPosition) setBallPosition(state.ballPosition);
-      if (Array.isArray(state.autoSubPlan)) setAutoSubPlan(state.autoSubPlan);
+      if (Array.isArray(state.autoSubPlan)) setAutoSubPlan(repairPitchPlaceholderNames(state.autoSubPlan, id => mockPlayerName(id) ?? playersRef.current.find(p => p.id === id)?.name));
       if (typeof state.autoSubActive === 'boolean') setAutoSubActive(state.autoSubActive);
       if (typeof state.autoSubPaused === 'boolean') setAutoSubPaused(state.autoSubPaused);
       if (Array.isArray(state.goals)) setGoals(state.goals);
