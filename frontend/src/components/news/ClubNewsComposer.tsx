@@ -354,7 +354,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
     onError: (e: unknown) => {
       toast({
         title: "Couldn't publish",
-        description: e instanceof Error ? e.message : "Please try again.",
+        description: e instanceof Error && /NotReadable|could not be read/i.test(`${e.name} ${e.message}`) ? "A photo or file could no longer be read from your phone. Remove it, pick it again and publish." : e instanceof Error ? e.message : "Please try again.",
         variant: "destructive",
       });
     },
@@ -443,7 +443,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (!f) { pickImage(null); return; } void materializePickedFile(f).then(pickImage, (err) => toast.error((err as Error).message)); }}
+              onChange={(e) => { const f = e.target.files?.[0]; if (!f) { pickImage(null); return; } void materializePickedFile(f).then(pickImage, (err) => toast({ title: "Couldn't add file", description: (err as Error).message, variant: "destructive" })); }}
             />
           </div>
 
@@ -512,7 +512,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               multiple
               className="hidden"
               onChange={(e) => {
-                void materializePickedFiles(e.target.files ?? []).then(addExtraImages, (err) => toast.error((err as Error).message));
+                void materializePickedFiles(e.target.files ?? []).then(addExtraImages, (err) => toast({ title: "Couldn't add file", description: (err as Error).message, variant: "destructive" }));
                 e.currentTarget.value = "";
               }}
             />
@@ -591,7 +591,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               multiple
               className="hidden"
               onChange={(e) => {
-                void materializePickedFiles(e.target.files ?? []).then(addDocFiles, (err) => toast.error((err as Error).message));
+                void materializePickedFiles(e.target.files ?? []).then(addDocFiles, (err) => toast({ title: "Couldn't add file", description: (err as Error).message, variant: "destructive" }));
                 e.currentTarget.value = "";
               }}
             />
