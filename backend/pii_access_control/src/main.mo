@@ -749,7 +749,7 @@ persistent actor class Main(governorInit : Principal) = this {
     // Teams inherit their club key, never a team-specific or personal key.
     (not sharedClubNameEnforcement or scope.kind != "team")
     and (not devG1SharedClubScope(scope) or devG2SharedClubNames)
-    and (privateNamesRehearsal or (privateClubNameDisplays and (scope.kind == "club" or scope.kind == "team")))
+    and (privateNamesRehearsal or (privateClubNameDisplays and (scope.kind == "club" or scope.kind == "team" or (scope.kind == "app_admin" and scope.resource == "all" and ?scope.authority == privateNameVerifier()))))
     and privateNameVerifier() != null and captured == private_name_release_epoch and not privateNameReleaseFence.blocked()
   };
   // Sink acknowledgements certify only this receiver. The coordinator must

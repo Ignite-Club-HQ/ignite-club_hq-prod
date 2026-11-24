@@ -340,7 +340,7 @@ async function boundedRead(ctx: FeatureBackendContext, subjects: string[], activ
         const sharedClubName = clubNameDisplaysActive(ctx.target) && audience?.kind === 'club';
         const devTeam = audience?.kind === 'team' &&
           ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai';
-        const crossGroupDevName = devTeam || sharedClubName;
+        const crossGroupDevName = devTeam || sharedClubName || audience?.kind === 'app_admin';
         timer = setTimeout(() => {
           retired = true;
           if (crossGroupDevName) reject(new Error(`Private team-name ${phase} timed out.`));
@@ -417,7 +417,8 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
   // consensus checks across groups; 6s is too short for a cold route.
   const devTeam = (options.audience?.kind === 'team' &&
     ctx.target.canisterIds.identity_access === 'mq2sj-fiaaa-aaaal-qxlqa-cai')
-    || (options.audience?.kind === 'club' && clubNameDisplaysActive(ctx.target));
+    || (options.audience?.kind === 'club' && clubNameDisplaysActive(ctx.target))
+    || options.audience?.kind === 'app_admin';
   const batchSize = options.audience ? 25 : BATCH_SIZE;
   const jobs = [...byAuthority].flatMap(([authority, ids]) => {
     const subjects = [...ids];

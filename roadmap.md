@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Cross-group app-admin names — 24 November, DEV only
+- [x] Extend verified original-name routing and server source admission across canister groups; preserve names-only admin checks and release fences. Shared DEV admin target reaches both original G1 and registered G2; approved modern registries enumerate all groups. Original alias bindings retained.
+- [x] 254 identity-service tests and 127 frontend checks per sign-in mode pass; edited-file lint and preview build OK. No production deployment. Evidence: docs/release-review/cross-group-admin-names-2026-11-24.md.
+- [ ] Signed-in real-name readback requires an Internet Identity delegation unavailable in this sandbox.
+
 ## Internet Identity chat fallback sweep — 24 November, DEV only
 - [x] Read the enumerated chat-group application entry points, shared navigation/background readers and bounded server/database branches; repair queued/session-restoration reads without changing settled records or permissions. Inventory: docs/release-review/icp-chat-fallback-sweep-2026-11-24.md.
 - [x] Focused regressions: 19 files / 291 passes per sign-in mode, ten counterpart forwarding skips per mode, no failures; preview build OK. Checked paths and acceptance limits recorded.

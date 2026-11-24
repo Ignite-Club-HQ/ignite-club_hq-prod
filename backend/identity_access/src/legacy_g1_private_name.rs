@@ -49,8 +49,9 @@ pub fn require_exact_origin(
     let group2_pii=pinned("zt5a6-yiaaa-aaaal-qxp5q-cai")?;
     let router_id=pinned("jcdfe-vqaaa-aaaal-qxloq-cai")?;
     if !approved_release || self_id!=identity || pii_caller!=original_pii ||
-        !(scope.kind=="team" || (scope.kind=="club" && approved_shared_club_names && !scope.resource.is_empty() && scope.resource.len()<=128)) ||
-        scope.authority!=group2_club ||
+        !(scope.kind=="team" || (scope.kind=="club" && approved_shared_club_names && !scope.resource.is_empty() && scope.resource.len()<=128)
+            || private_name_audience::admin_source_candidate(scope, identity)) ||
+        (scope.authority!=group2_club && !private_name_audience::admin_source_candidate(scope, identity)) ||
         !service_allowlist.contains(&pii_caller) {
         return Err("Exact DEV original PII, release, service and team audience required".into());
     }
@@ -200,6 +201,15 @@ mod tests{
         assert!(exact_original_dev_pii_caller(id,original));
         assert!(!exact_original_dev_pii_caller(id,p("zt5a6-yiaaa-aaaal-qxp5q-cai")));
         assert!(!exact_original_dev_pii_caller(original,original));
+    }
+    #[test]fn original_group1_admin_names_require_shared_identity_and_existing_key_evidence(){
+        let caller=p("iui5p-aaaaa-aaaal-qxllq-cai");
+        let mut s=scope(); s.kind="app_admin".into(); s.resource="all".into(); s.authority=p("mq2sj-fiaaa-aaaal-qxlqa-cai");
+        assert!(verify(&config(),&router(),caller,&s,&[caller],true,Some(VERIFIED_DEV_PUBLIC_KEY_SHA256)).is_ok());
+        assert!(verify(&config(),&router(),caller,&s,&[caller],false,Some(VERIFIED_DEV_PUBLIC_KEY_SHA256)).is_err());
+        assert!(verify(&config(),&router(),caller,&s,&[caller],true,None).is_err());
+        s.authority=p("yfwyv-nyaaa-aaaal-qxpyq-cai");
+        assert!(verify(&config(),&router(),caller,&s,&[caller],true,Some(VERIFIED_DEV_PUBLIC_KEY_SHA256)).is_err());
     }
     #[test]fn mismatched_malformed_or_short_key_refused_even_if_every_other_guard_passes(){
         let key=vec![3u8;96];
