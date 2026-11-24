@@ -769,6 +769,7 @@ export default function AuthPage() {
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
+    if (useIcpLab) markSecureSignInStarted();
     const { error } = await signInWithGoogle();
     setGoogleLoading(false);
 
