@@ -5,7 +5,7 @@ export function AppSplash({ message = "Loading..." }: { message?: string }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background">
       <img src="/splash-logo.png" alt="Ignite logo" width={96} height={96} className="h-24 w-24 rounded-3xl bg-primary shadow-md" />
-      <div className="text-center text-2xl font-bold tracking-tight text-foreground">Ignite Club HQ</div>
+      <div className="text-center text-2xl font-bold tracking-tight text-foreground">Ignite</div>
       <div className="flex items-center gap-2" role="status">
         <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden="true" />
         <p className="text-sm text-muted-foreground">{message}</p>

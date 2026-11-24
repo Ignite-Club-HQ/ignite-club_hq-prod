@@ -22,6 +22,7 @@ const guardPatterns = [
   /\bisFeatureRoutedToIcp\s*\(/,
   /\bresolveAuthBackend\s*\(/,
   /\bisIcpMediaUploadUnavailable\s*\(/,
+  /\bstrictIcpActive\s*\(/,
 ];
 
 const allowPattern = /\/\/\s*icp-guard:\s*allow\s+\S+/;
