@@ -135,6 +135,7 @@ interface HomeGameTimerRuntimeProps {
     teamId: string,
     teamName: string,
     readOnly: boolean,
+    eventId?: string | null,
   ) => void;
 }
 
@@ -187,7 +188,8 @@ export function HomeGameTimerRuntime({
 
   let timerTeamId: string | null = null;
   try {
-    timerTeamId = JSON.parse(timerStateRaw).teamId;
+    const timer = JSON.parse(timerStateRaw);
+    timerTeamId = timer.teamId;
   } catch {
     return null;
   }
@@ -205,8 +207,8 @@ export function HomeGameTimerRuntime({
   return (
     <Suspense fallback={null}>
       <GameTimerWidget
-        onOpenPitchBoard={(teamId, teamName) =>
-          onOpenPitchBoard(teamId, teamName, !access.canEdit)
+        onOpenPitchBoard={(teamId, teamName, eventId) =>
+          onOpenPitchBoard(teamId, teamName, !access.canEdit, eventId)
         }
         readOnly={!access.canEdit}
       />

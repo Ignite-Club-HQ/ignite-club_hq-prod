@@ -12,6 +12,7 @@ import { boardQueryOptions } from "@/lib/boardReadRepository";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { listLiveTeamRoleGrants } from "@/live/features/membership";
 import { getCachedTeam } from "@/lib/clubTeamCache";
+import { withReadDeadline } from "@/live/readDeadline";
 
 // Football-only build: netball / basketball boards archived (see archive/sports/).
 const PitchBoard = lazyWithRetry(() => import("@/components/pitch/PitchBoard"));
@@ -26,6 +27,7 @@ interface LoadedGame {
   teamId: string;
   teamName: string;
   sport: string | null;
+  linkedEventId?: string | null;
   members: Array<{
     id: string;
     user_id: string;
@@ -63,23 +65,25 @@ export function BoardViewerDialog({
 
     (async () => {
       if (isIcp) {
-        const row = await queryClient.ensureQueryData(boardQueryOptions(gameId, user?.id, true));
+        const row = await withReadDeadline(queryClient.ensureQueryData(boardQueryOptions(gameId, user?.id, true)), "Opening shared pitch board");
+        if (cancelled) return;
         if (!row) throw new Error('This board is no longer available.');
-        const grants = await withFeatureBackend('membership', {
+        const grants = await withReadDeadline(withFeatureBackend('membership', {
           supabase: async () => { throw new Error('unreachable'); },
           icp: ctx => listLiveTeamRoleGrants(ctx, gameId),
-        }, { teamId: gameId });
+        }, { teamId: gameId }), "Loading shared board players");
         if (cancelled) return;
         setGame({ teamId: gameId, teamName: getCachedTeam(gameId)?.name ?? 'Team', sport: 'soccer',
+          linkedEventId: typeof row.pitch_state?.linkedEventId === 'string' ? row.pitch_state.linkedEventId : null,
           members: grants.map(r => ({ id: `${gameId}:${r.account_id}:${r.role}`, user_id: r.account_id, role: r.role, profiles: null })) });
         setLoading(false);
         return;
       }
-      const { data: row, error: rowErr } = await supabase
+      const { data: row, error: rowErr } = await withReadDeadline(Promise.resolve(supabase
         .from("active_games")
-        .select("team_id, teams(id, name, clubs!club_id(sport))")
+        .select("team_id, pitch_state, teams(id, name, clubs!club_id(sport))")
         .eq("id", gameId)
-        .maybeSingle();
+        .maybeSingle()), "Opening shared pitch board");
 
       if (cancelled) return;
       if (rowErr || !row || !row.team_id) {
@@ -93,15 +97,15 @@ export function BoardViewerDialog({
       const sport: string | null = team?.clubs?.sport ?? null;
 
       // Pull the team roster so the board can render player tokens by id.
-      const { data: roleRows } = await supabase
+      const { data: roleRows } = await withReadDeadline(Promise.resolve(supabase
         .from("user_roles")
         .select("id, user_id, role")
-        .eq("team_id", teamId);
+        .eq("team_id", teamId)), "Loading shared board players");
 
       const userIds = (roleRows ?? []).map((r: any) => r.user_id).filter(Boolean);
       let profilesMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
       if (userIds.length > 0) {
-        const { data: profiles } = await selectCachedProfilesByIds(userIds);
+        const { data: profiles } = await withReadDeadline(selectCachedProfilesByIds(userIds), "Loading shared board names");
         for (const p of profiles ?? []) {
           profilesMap.set(p.id, {
             display_name: p.display_name,
@@ -122,6 +126,8 @@ export function BoardViewerDialog({
         teamId,
         teamName: team?.name ?? "Team",
         sport,
+        linkedEventId: typeof (row.pitch_state as { linkedEventId?: unknown } | null)?.linkedEventId === "string"
+          ? (row.pitch_state as { linkedEventId: string }).linkedEventId : null,
         members,
       });
       setLoading(false);
@@ -157,6 +163,7 @@ export function BoardViewerDialog({
               teamId={game.teamId}
               teamName={game.teamName}
               members={game.members}
+              initialLinkedEventId={game.linkedEventId}
               onClose={() => onOpenChange(false)}
               readOnly
             />

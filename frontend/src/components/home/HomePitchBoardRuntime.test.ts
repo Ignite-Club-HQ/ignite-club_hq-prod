@@ -1,9 +1,28 @@
-import { describe, expect, it } from "vitest";
-import { resolveHomeGameTimerAccess } from "./HomePitchBoardRuntime";
+import { createElement } from "react";
+import { render, fireEvent } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { HomeGameTimerRuntime, resolveHomeGameTimerAccess } from "./HomePitchBoardRuntime";
+
+vi.mock("@/components/pitch/GameTimerWidget", () => ({
+  default: ({ onOpenPitchBoard }: { onOpenPitchBoard: (team: string, name: string, event: string) => void }) =>
+    createElement("button", { onClick: () => onOpenPitchBoard("team-1", "Ignite", "actual-widget-event") }, "Open test board"),
+}));
 
 const teams = [{ id: "team-1", name: "Ignite", club_id: "club-1" }];
 
 describe("resolveHomeGameTimerAccess", () => {
+  afterEach(() => localStorage.clear());
+
+  it("forwards the widget's displayed match rather than a stale active-timer match", async () => {
+    localStorage.setItem("pitch-board-timer-state", JSON.stringify({ teamId: "team-1", eventId: "old-event" }));
+    const onOpenPitchBoard = vi.fn();
+    const screen = render(createElement(HomeGameTimerRuntime, {
+      userRoles: [{ role: "coach", team_id: "team-1" }],
+      isAppAdmin: false, editableTeams: teams, readOnlyTeams: [], onOpenPitchBoard,
+    }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open test board" }));
+    expect(onOpenPitchBoard).toHaveBeenCalledWith("team-1", "Ignite", false, "actual-widget-event");
+  });
   it("allows team members to view but only managers to edit", () => {
     expect(
       resolveHomeGameTimerAccess({

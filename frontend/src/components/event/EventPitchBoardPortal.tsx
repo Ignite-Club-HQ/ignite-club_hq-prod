@@ -4,6 +4,7 @@ import { Flame, Loader2 } from "lucide-react";
 import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
 import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
+import { Button } from "@/components/ui/button";
 
 const PitchBoard = lazyWithRetry(() => import("@/components/pitch/PitchBoard"));
 
@@ -18,6 +19,8 @@ type EventPitchBoardPortalProps = {
   canViewReadOnly: boolean;
   isSubsManager: boolean;
   setOpen: (open: boolean) => void;
+  loadFailed?: boolean;
+  onRetry?: () => void;
 };
 
 export function EventPitchBoardPortal({
@@ -31,12 +34,25 @@ export function EventPitchBoardPortal({
   canViewReadOnly,
   isSubsManager,
   setOpen,
+  loadFailed = false,
+  onRetry,
 }: EventPitchBoardPortalProps) {
   if (!open || !isSoccerClub || !accessGranted || !event?.team_id) {
     return null;
   }
 
   if (!teamMembers) {
+    if (loadFailed) {
+      return createPortal(
+        <div className="fixed inset-0 z-[999999] flex flex-col items-center justify-center gap-4 bg-background text-foreground" role="alert">
+          <p>Your players could not be loaded. Please try again.</p>
+          <div className="flex gap-2">
+            <Button onClick={onRetry}>Try again</Button>
+            <Button variant="outline" onClick={() => { setOpen(false); clearPitchBoardOpenFlag(); }}>Close</Button>
+          </div>
+        </div>, document.body,
+      );
+    }
     // Tapped before the player list arrived: show progress (with a way out)
     // rather than silently doing nothing.
     return createPortal(

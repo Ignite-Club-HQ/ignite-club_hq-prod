@@ -1,5 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
+## Home pitch-board widget opening — 24 November
+- [x] Preserve the widget/restored board's exact event, overlap attendance, roster and board-code loading, and retry only failed reads with separate deadlines.
+- [x] Sweep team/event/shared/group/notification/desktop/resume entry paths; fix unnecessary waits, late reopening and failed-event recovery without changing settled games or permissions. Source inventory: docs/pitch-board-opening-audit-2026-11-24.md.
+- [x] Final focused checks: 14 files, 89 tests passed and one existing mode-specific skip; preview build OK and diff checks clean.
+- [ ] Verify real signed-in widget opening and installed-phone timing; blocked on a usable member session and physical device unavailable here. No PROD deployment.
+
 ## Authentication visual refinements — 24 November, DEV only
 - [x] Make Ignite branding more prominent, use the website tagline in every variant, remove the welcome heading and tighten spacing; retain official Internet Identity attribution and context-only browser guidance.
 - [x] Hide redundant method switching when both options are visible; preserve providers, routing and safeguards.

@@ -226,7 +226,7 @@ const getTotalSeconds = (elapsed: number, half: 1 | 2, minutesPerHalf: number): 
 };
 
 interface GameTimerWidgetProps {
-  onOpenPitchBoard?: (teamId: string, teamName: string) => void;
+  onOpenPitchBoard?: (teamId: string, teamName: string, eventId?: string | null) => void;
   readOnly?: boolean;
 }
 
@@ -659,7 +659,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const handleOpenPitchBoard = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (timerState?.teamId && timerState?.teamName && onOpenPitchBoard) {
-      onOpenPitchBoard(timerState.teamId, timerState.teamName);
+      onOpenPitchBoard(timerState.teamId, timerState.teamName, timerState.eventId);
     }
   };
 

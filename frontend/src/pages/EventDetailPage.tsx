@@ -923,11 +923,11 @@ export default function EventDetailPage() {
   // STRICT: Only includes players whose RSVP status is "going" for this event.
   // Players with status "maybe", "not_going", or no response are excluded.
   // Adults (coaches/admins) are always included so they can run the board.
-  const { data: teamMembers, isLoading: isTeamMembersForPitchLoading } = useQuery({
+  const { data: teamMembers, isLoading: isTeamMembersForPitchLoading, isError: isPitchRosterError, refetch: refetchPitchRoster } = useQuery({
     queryKey: [...eventKeys.pitchTeamMembers(event?.team_id, event?.id), isIcpAuthBackend, rsvps?.length ?? 0],
-    queryFn: async () => withReadDeadline(withFeatureBackend("membership", {
+    queryFn: async () => withFeatureBackend("membership", {
       supabase: async () => {
-        const [rolesResult, childrenResult, goingRsvpsResult] = await Promise.all([
+        const [rolesResult, childrenResult, goingRsvpsResult] = await withReadDeadline(Promise.all([
           supabase
             .from("user_roles")
             .select("user_id, role, profiles:user_id (id, display_name, avatar_url)")
@@ -940,7 +940,7 @@ export default function EventDetailPage() {
             .select("user_id, child_id, status")
             .eq("event_id", event!.id)
             .eq("status", "going"),
-        ]);
+        ]), "Loading players", 20_000);
 
         if (rolesResult.error) throw rolesResult.error;
         if (goingRsvpsResult.error) throw goingRsvpsResult.error;
@@ -988,7 +988,7 @@ export default function EventDetailPage() {
         // canister equivalent of get_team_children_for_pitch_board, so
         // ICP-mode users see an empty child picker instead of a failing
         // uuid-keyed rpc (same provisional gap as before this rewiring).
-        const grants = (await listLiveRoleGrants(ctx, event!.club_id!)) as Array<{
+        const grants = (await withReadDeadline(listLiveRoleGrants(ctx, event!.club_id!), "Loading team roles", 20_000)) as Array<{
           account_id: string;
           role: string;
           team: [] | [string];
@@ -1004,7 +1004,7 @@ export default function EventDetailPage() {
         const STAFF_ROLES = new Set(["team_admin", "coach", "club_admin", "app_admin"]);
         const adultGrants = scoped.filter((g) => STAFF_ROLES.has(g.role) || goingAdultIds.has(g.account_id));
         const profileIds = Array.from(new Set(adultGrants.map((g) => g.account_id)));
-        const profiles = profileIds.length > 0 && event?.club_id ? await readRelationshipProfiles(ctx, profileIds, { kind: 'club', resource: event.club_id }) : [];
+        const profiles = profileIds.length > 0 && event?.club_id ? await withReadDeadline(readRelationshipProfiles(ctx, profileIds, { kind: 'club', resource: event.club_id }), "Loading player names", 20_000) : [];
         const profileMap = new Map(profiles.map((p: any) => [p.account_id, p]));
 
         const adultMembers = adultGrants.map((g) => {
@@ -1020,7 +1020,7 @@ export default function EventDetailPage() {
 
         return adultMembers;
       },
-    }, { clubId: event?.club_id as string }), "Loading players", 20_000),
+    }, { clubId: event?.club_id as string }),
     // A stalled first read retries instead of leaving the board unopened.
     retry: 2,
     retryDelay: 300,
@@ -1033,7 +1033,7 @@ export default function EventDetailPage() {
   // user can't actually use.
   useEffect(() => {
     if (!wantOpenPitchBoard) return;
-    if (!event || !teamMembers) return;
+    if (!event) return;
     if (!(canAccessPitchBoard || canViewPitchBoardReadOnly)) return;
     setShowPitchBoard(true);
     const next = new URLSearchParams(searchParams);
@@ -2139,6 +2139,8 @@ export default function EventDetailPage() {
         event={event}
         eventId={id}
         teamMembers={teamMembers}
+        loadFailed={isPitchRosterError}
+        onRetry={() => { void refetchPitchRoster(); }}
         teamSubscription={teamSubscription}
         isSoccerClub={isSoccerClub}
         accessGranted={pitchBoardAccessGranted}
