@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback, useMemo, type Context } from "react";
 import { markMountedAuthProvider } from "@/live/authBackendMode";
+import { rememberSuccessfulAuthMethod } from "@/lib/authExperience";
 import { User, Session } from "@supabase/supabase-js";
 import { useQueryClient, onlineManager } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -637,6 +638,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             navigateApp('/reset-password');
           }
         } else if (event === 'SIGNED_IN') {
+          if (incomingUserId) rememberSuccessfulAuthMethod("supabase");
           // After an explicit sign-out the mount-time cached id still matches, but
           // nothing is loaded: treat that re-login as fresh or the profile load
           // is skipped and "Finishing sign in..." never ends.
@@ -1631,6 +1633,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     }
     if (signingOutRef.current) throw new Error("Sign-out in progress; sign in again.");
     localStorage.setItem("ignite_icp_internet_identity_session", JSON.stringify(verified));
+    rememberSuccessfulAuthMethod("icp");
     setSession(verified);
   }, [queryClient]);
 

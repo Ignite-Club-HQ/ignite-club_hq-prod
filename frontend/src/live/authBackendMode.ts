@@ -7,6 +7,7 @@ import {
 } from "./backendRouting";
 import { getActiveIcpTarget } from "./targetRegistry";
 import { getCurrentCountry } from "./userCountry";
+import { readPendingAuthMethod, readSuccessfulAuthMethod, selectPendingAuthMethod } from "@/lib/authExperience";
 
 /**
  * Decides which sign-in screen `/auth` shows — Supabase (email/password +
@@ -40,6 +41,11 @@ export function isIcpAuthAvailable(): boolean {
  * `resolveBackendForCountry`: ICP is never returned before canisters exist.
  */
 const AUTH_CHOICE_KEY = "ignite.authChoice";
+const PENDING_CHOICE_KEY = "ignite.authChoicePending";
+let pendingChoice: BackendProvider | null = null;
+let authEntryReady = false;
+/** Anonymous placement settings must finish before default secure presentation. */
+export function markAuthEntryReady(): void { authEntryReady = true; }
 
 /**
  * The `?auth=` testing override is only honoured on the blockchain copy's own
@@ -95,7 +101,8 @@ export function subscribeAuthChoice(cb: () => void): () => void {
 
 export function readAuthChoice(): BackendProvider | null {
   try {
-    const before = localStorage.getItem(AUTH_CHOICE_KEY);
+    pendingChoice = readPendingAuthMethod();
+    if (pendingChoice) return pendingChoice;
     // The URL override stays restricted to the blockchain copy / localhost
     // (see isAuthChoiceOverrideOrigin). A choice made by tapping a card on the
     // sign-in screen is stored directly and honoured everywhere: it is the app
@@ -103,17 +110,21 @@ export function readAuthChoice(): BackendProvider | null {
     // the post-auth club check is what actually enforces them.
     if (isAuthChoiceOverrideOrigin()) {
       const param = new URLSearchParams(window.location.search).get("auth");
-      if (param === "email" || param === "supabase") localStorage.setItem(AUTH_CHOICE_KEY, "supabase");
-      else if (param === "icp") localStorage.setItem(AUTH_CHOICE_KEY, "icp");
+      if (param === "email" || param === "supabase") return "supabase";
+      else if (param === "icp") return "icp";
       // `?auth=auto` forgets the device choice so routing decides again — the
       // only other wipe is the club-backend enforcement switch.
-      else if (param === "auto" || param === "default") localStorage.removeItem(AUTH_CHOICE_KEY);
+      else if (param === "auto" || param === "default") return null;
     }
-    const v = localStorage.getItem(AUTH_CHOICE_KEY);
-    if (v !== before) notifyAuthChoiceChanged();
-    return v === "supabase" || v === "icp" ? v : null;
+    // Preserve old active-session routing, but never promote an old tap into
+    // a successfully used device preference.
+    const old = localStorage.getItem(AUTH_CHOICE_KEY);
+    if (hasSupabaseSessionStored() || hasInternetIdentitySessionStored()) {
+      if (old === "supabase" || old === "icp") return old;
+    }
+    return pendingChoice ?? readSuccessfulAuthMethod();
   } catch {
-    return null;
+    return pendingChoice ?? readSuccessfulAuthMethod();
   }
 }
 
@@ -123,26 +134,18 @@ export function readAuthChoice(): BackendProvider | null {
  * routing decide again (this is what "use a different method" does).
  */
 export function setAuthMethodChoice(provider: BackendProvider | null): void {
+  pendingChoice = provider;
+  selectPendingAuthMethod(provider);
   try {
-    if (provider === null) localStorage.removeItem(AUTH_CHOICE_KEY);
-    else localStorage.setItem(AUTH_CHOICE_KEY, provider);
+    sessionStorage.removeItem(PENDING_CHOICE_KEY);
+    localStorage.removeItem(AUTH_CHOICE_KEY);
     // Only the sign-in screen calls this, so nobody is signed in. A leftover
     // email session on the device would otherwise outrank the tap
     // (isSignedInWithEmail) and the secure tab would appear to do nothing.
-    if (provider === "icp") clearStoredSupabaseSession();
   } catch {
     /* storage unavailable — the screen still renders, routing decides */
   }
   notifyAuthChoiceChanged();
-}
-
-function clearStoredSupabaseSession(): void {
-  const stale: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k && k.startsWith("sb-") && k.endsWith("-auth-token")) stale.push(k);
-  }
-  for (const k of stale) localStorage.removeItem(k);
 }
 
 function hasSupabaseSessionStored(): boolean {
@@ -198,15 +201,19 @@ export function isSignedInWithEmail(): boolean {
 }
 
 export function resolveAuthBackend(): BackendProvider {
-  if (isSignedInWithEmail()) return "supabase";
   const choice = readAuthChoice();
-  if (choice === "supabase") return "supabase";
+  // An explicit signed-out choice must also change the mounted provider;
+  // retain the other system's recoverable session instead of deleting it.
+  if (pendingChoice) return pendingChoice;
+  if (choice) return choice;
+  if (isSignedInWithEmail()) return "supabase";
   // Placement defaults choose a sign-in method for visitors, not a new
   // backend for an already-restored II account. Native resume usually has
   // no ?auth=icp URL, so forgetting this session mounted the email provider
   // while strict transport correctly refused its membership reads.
   if (hasInternetIdentitySessionStored()) return "icp";
-  if (choice === "icp") return "icp";
+  // Unknown devices start with secure access without assuming a new account.
+  if (shouldOfferAuthMethodChoice() || (authEntryReady && window.location.pathname === "/auth" && isIcpAuthAvailable())) return "icp";
   const config = getBackendRoutingConfig();
   const { country } = getCurrentCountry();
   // The sign-in screen follows the visitor's country only (club pins retired).

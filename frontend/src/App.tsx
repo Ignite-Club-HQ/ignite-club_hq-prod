@@ -422,6 +422,10 @@ function loadPlacementOnce(): Promise<void> {
       routing.loadBackendRoutingConfig(),
       country.detectCountryByIp(),
     ]);
+    if (window.location.pathname === "/auth") {
+      await (await import("./live/authEntryContext")).prepareAuthEntryContext();
+    }
+    (await import("./live/authBackendMode")).markAuthEntryReady();
   })();
   return placementLoad;
 }

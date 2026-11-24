@@ -49,6 +49,8 @@ import { GOOGLE_SIGN_IN_ENABLED } from "@/lib/authProviderFlags";
 
 beforeEach(() => {
   sessionStorage.clear();
+  localStorage.clear();
+  localStorage.setItem("ignite.authLastSuccess", "supabase");
   useAuthMock.mockReset();
   useAuthMock.mockReturnValue({
     user: null,

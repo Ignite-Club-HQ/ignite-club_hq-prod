@@ -1,7 +1,7 @@
 import { getBackendRoutingConfig, isEmailAuthAllowlistActive } from "@/live/backendRouting";
 import { readAuthIntent, safeSessionGet } from "./authRedirectStorage";
 
-export const EMAIL_SIGNUP_INVITE_REQUIRED = "Email accounts are available by invitation for Bridgewater Soccer Club and Basket Range Cricket Club. For other clubs, continue with Internet Identity.";
+export const EMAIL_SIGNUP_INVITE_REQUIRED = "New email accounts need a valid invitation from your club. Already have an email account? Sign in below.";
 
 export function readEmailSignupInviteToken(search: string): string | null {
   const intent = readAuthIntent(search);

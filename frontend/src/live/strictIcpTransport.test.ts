@@ -1,18 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mode = vi.hoisted(() => ({ icp: true, email: false, stored: true, mounted: false }));
+const mode = vi.hoisted(() => ({ icp: true, email: false, stored: true, mounted: false, choice: null as "supabase" | "icp" | null }));
 vi.mock("./authBackendMode", () => ({
   hasInternetIdentitySessionStored: () => mode.stored,
   isIcpProviderMounted: () => mode.mounted,
   isSignedInWithEmail: () => mode.email,
-  readAuthChoice: () => null,
+  readAuthChoice: () => mode.choice,
   resolveAuthBackend: () => mode.icp ? "icp" : "supabase",
 }));
 vi.mock("./targetRegistry", () => ({ getActiveSupabaseTarget: () => ({ url: "https://custom.example.org" }) }));
 import { assertStrictIcpRequest, ICP_FALLBACK_BLOCKED_EVENT, installStrictIcpTransport } from "./strictIcpTransport";
 const host = "https://project.supabase.co";
 const post = (body: unknown) => ({ method: "POST", body: JSON.stringify(body) });
-beforeEach(() => { mode.icp = true; mode.email = false; mode.stored = true; mode.mounted = false; });
+beforeEach(() => { mode.icp = true; mode.email = false; mode.stored = true; mode.mounted = false; mode.choice = null; });
 describe("strict ICP fallback boundary", () => {
+  it("allows deliberate email authentication without deleting a previous II account", async () => {
+    mode.choice = "supabase";
+    await expect(assertStrictIcpRequest(`${host}/auth/v1/token`, post({}))).resolves.toBeUndefined();
+  });
+  it("never treats a pending email choice as a fallback while ICP is still mounted", async () => {
+    mode.choice = "supabase"; mode.mounted = true;
+    await expect(assertStrictIcpRequest(`${host}/auth/v1/token`, post({}))).rejects.toThrow("blocked");
+  });
   it("blocks Supabase during mounted ICP session restoration even without a saved delegation or configured target", async () => {
     mode.icp = false; mode.stored = false; mode.mounted = true;
     await expect(assertStrictIcpRequest(`${host}/rest/v1/clubs`)).rejects.toThrow("data clubs");

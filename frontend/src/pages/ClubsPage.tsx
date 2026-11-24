@@ -2,6 +2,7 @@ import { readDiscoveredRemovedClubs } from "@/live/accountDiscovery";
 import { invalidateTeamLists } from "@/lib/invalidateTeamLists";
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { withReadDeadline } from "@/live/readDeadline";
 import { Users, Plus, Crown, ChevronRight, Search, X, Info, RotateCcw, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "react-router-dom";
@@ -61,6 +62,9 @@ interface Sponsor {
   website_url: string | null;
   club_id: string;
 }
+
+/** Longest wait for one clubs read before retrying with a fresh one. */
+const CLUBS_READ_DEADLINE_MS = 8000;
 
 export default function ClubsPage() {
   const { user } = useAuth();
@@ -182,7 +186,10 @@ export default function ClubsPage() {
         // One shared grants read (all groups at once, memoized for every
         // query on the page), then each club straight from its own group —
         // no per-query fan-out and no Group 1 club looked up in Group 2.
-        return withFeatureBackend("membership", {
+        // A first read can occasionally stall (e.g. a cold connection) while
+        // a fresh one answers at once — so give up after a bounded wait and
+        // let React Query retry instead of spinning indefinitely.
+        return withReadDeadline(withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },
           icp: async (ctx) => {
             const toClub = (p: LiveClubRow) => ({
@@ -201,7 +208,7 @@ export default function ClubsPage() {
               (loaded) => queryClient.setQueryData(["clubs"], loaded.map(toClub)));
             return values.map(toClub);
           },
-        }, { shared: "person" });
+        }, { shared: "person" }), "Loading clubs", CLUBS_READ_DEADLINE_MS);
       }
 
 
@@ -215,6 +222,8 @@ export default function ClubsPage() {
       if (error) throw error;
       return data as Club[];
     },
+    retry: 2,
+    retryDelay: 300,
     enabled: !!user,
   });
 

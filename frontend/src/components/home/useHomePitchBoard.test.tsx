@@ -88,6 +88,54 @@ describe("useHomePitchBoard", () => {
     expect(result.current.pitchBoardTeam?.name).toBe("Timer Team");
   });
 
+  it("retries a failed load and opens on a later attempt", async () => {
+    const loadRoster = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("stalled"))
+      .mockResolvedValue({ members: [], children: [] });
+    const { result } = setup({
+      loadRoster,
+      findNearbyEvent: vi.fn().mockResolvedValue(null),
+    });
+
+    await act(() => result.current.openPitchBoard("team-1", "Ignite"));
+
+    expect(loadRoster).toHaveBeenCalledTimes(2);
+    expect(result.current.pitchBoardTeam?.id).toBe("team-1");
+    expect(result.current.pitchBoardLoading).toBe(false);
+  });
+
+  it("gives up after stalled loads and reports failure", async () => {
+    vi.useFakeTimers();
+    try {
+      const onLoadFailed = vi.fn();
+      const loadRoster = vi.fn().mockReturnValue(new Promise(() => {}));
+      const { result } = setup({
+        loadRoster,
+        findNearbyEvent: vi.fn().mockResolvedValue(null),
+        onLoadFailed,
+      });
+
+      let openPromise: Promise<void> = Promise.resolve();
+      act(() => {
+        openPromise = result.current.openPitchBoard("team-1", "Ignite");
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      await act(async () => {
+        await openPromise;
+      });
+
+      expect(loadRoster).toHaveBeenCalledTimes(3);
+      expect(onLoadFailed).toHaveBeenCalledOnce();
+      expect(result.current.pitchBoardTeam).toBeNull();
+      expect(result.current.pitchBoardLoading).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("restores only Home-owned persisted pitch boards", async () => {
     localStorage.setItem("ignite-pitch-board-open", "true");
     localStorage.setItem("ignite-pitch-board-open-path", "/home?resume=1");
