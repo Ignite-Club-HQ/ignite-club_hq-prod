@@ -1,3 +1,4 @@
+import { withReadDeadline } from "@/live/readDeadline";
 import { readIcpPitchRoster } from '@/lib/pitchEntryRoster';
 import { readGoingGameRsvps, readGameSubsDuty } from '@/lib/gameEventReads';
 import { useState, useEffect, useRef, Suspense, useMemo, useSyncExternalStore, type ReactNode } from "react";
@@ -1607,17 +1608,24 @@ export default function TeamDetailPage() {
     && isSoccerClub && (hasProFootball || isAppAdmin);
 
   const launchPitchBoard = async () => {
+    // Open the board straight away (it shows "Loading players..." while the
+    // roster refreshes). The match lookup is optional: a slow or failed
+    // lookup must never leave the tap doing nothing.
+    setShowPitchBoard(true);
+    const optional = <T,>(read: Promise<T>, fallback: T) =>
+      withReadDeadline(read, "Pitch board match lookup", 10_000).catch(() => fallback);
     const [membersResult, childrenResult, nearbyEventId] = await Promise.all([
       refetchMembers(),
       refetchChildren(),
-      findNearbyGameEvent(id!),
+      optional(findNearbyGameEvent(id!), null),
     ]);
     const freshMembers = membersResult.data || [];
     const freshChildren = childrenResult.data || [];
     let goingChildIds: Set<string> | null = null;
     let goingAdultIds: Set<string> | null = null;
     if (nearbyEventId) {
-      const goingRows = await readGoingGameRsvps(nearbyEventId);
+      const goingRows = await optional(readGoingGameRsvps(nearbyEventId), null);
+      if (!goingRows) { setLinkedEventId(nearbyEventId); return; }
       goingChildIds = new Set((goingRows || []).map(r => r.child_id).filter((v): v is string => !!v));
       goingAdultIds = new Set((goingRows || []).map(r => r.user_id).filter((v): v is string => !!v));
     }
