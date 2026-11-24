@@ -1130,7 +1130,6 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
         const known = new Map(previous.map(p => [p.id, p.name]));
         return repairPitchPlaceholderNames(state.players, id => mockPlayerName(id) ?? known.get(id));
       });
-      });
       if (state.teamSize) setTeamSize(state.teamSize);
       if (typeof state.selectedFormation === 'number') setSelectedFormation(state.selectedFormation);
       if (state.ballPosition) setBallPosition(state.ballPosition);
