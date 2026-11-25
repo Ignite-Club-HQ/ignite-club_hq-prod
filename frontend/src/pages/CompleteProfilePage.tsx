@@ -454,6 +454,7 @@ function SupabaseCompleteProfilePage() {
     const isIcpLive = resolveAuthBackend() === "icp";
 
     setSaving(true);
+    let devStage = "identity-session";
 
     try {
       let savedIcpProfile: IcpIdentityProfile | undefined;
@@ -472,6 +473,7 @@ function SupabaseCompleteProfilePage() {
         // The canister refuses avatar references over 512 characters, so a
         // picked photo (base64) is left out rather than failing the save.
         const avatarRef = avatarUrl && avatarUrl.length <= 512 ? avatarUrl : null;
+        devStage = "profile-save";
         savedIcpProfile = await saveIcpIdentityProfile(identity, user.id, {
           displayName: displayName.trim(),
           avatarRef,
@@ -566,6 +568,7 @@ function SupabaseCompleteProfilePage() {
       }
       }
 
+      devStage = "onboarding-completion";
       // Set light theme as default for new users (only if no theme is already active)
       const existingTheme = localStorage.getItem('app-theme');
       if (!existingTheme) {
@@ -1251,6 +1254,7 @@ function SupabaseCompleteProfilePage() {
       }
       
       // Force refresh profile in auth context so theme is picked up
+      devStage = "profile-refresh";
       await refreshProfile(savedIcpProfile);
       
       // Navigate to home - all invites were already processed above
@@ -1274,7 +1278,11 @@ function SupabaseCompleteProfilePage() {
                 ? err.message
                 : isIcpLive && err instanceof Error && err.message === "Encrypted name saving is not ready on these servers. Please try again after setup is complete."
                   ? err.message
-                  : "Something went wrong. Please try again.";
+                  : isIcpLive && import.meta.env.IGNITE_LIVE_OPENCLOUD_ENV === "opencloud-dev"
+                    ? err instanceof Error && /^DEV profile save failed \[(session|authority|encrypted-name|publication|local-profile)\]\.$/.test(err.message)
+                      ? err.message
+                      : `DEV profile setup failed [${devStage}].`
+                    : "Something went wrong. Please try again.";
       toast({
         title: "Error",
         description: friendlyMessage,
