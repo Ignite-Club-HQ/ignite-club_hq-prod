@@ -1272,7 +1272,9 @@ function SupabaseCompleteProfilePage() {
               ? err.message
               : err instanceof Error && err.message.startsWith("This invitation")
                 ? err.message
-                : "Something went wrong. Please try again.";
+                : isIcpLive && err instanceof Error && err.message === "Encrypted name saving is not ready on these servers. Please try again after setup is complete."
+                  ? err.message
+                  : "Something went wrong. Please try again.";
       toast({
         title: "Error",
         description: friendlyMessage,
@@ -1451,7 +1453,7 @@ function SupabaseCompleteProfilePage() {
             )}
 
             {/* Install App Button - shown when browser supports PWA install or on iOS */}
-            {!isInstalled && (canPrompt || isIOS) && (
+            {!isIcpAccount && !isInstalled && (canPrompt || isIOS) && (
               <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
                 <div className="flex items-center gap-3">
                   <Download className="h-5 w-5 text-primary" />
@@ -1530,7 +1532,7 @@ function SupabaseCompleteProfilePage() {
                     return;
                   }
                   // If user wants to install, save profile first then trigger install
-                  if (installAndContinue && canPrompt) {
+                  if (installAndContinue && canPrompt && !isIcpAccount) {
                     setSaving(true);
                     try {
                       // Save profile first
