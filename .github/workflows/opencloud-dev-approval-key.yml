@@ -1,0 +1,51 @@
+name: "[TEST] Prepare OpenCloud DEV approval key (no activation)"
+# Manual only. Mints one Ed25519 approver key on the runner, keeps it encrypted,
+# and prints only the public key. Installs, deploys and activates nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type CREATE OPENCLOUD DEV APPROVAL KEY"
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: opencloud-dev-approval-key
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: opencloud-dev-approval
+    timeout-minutes: 15
+    env:
+      IGNITE_ICP_ENV: dev
+      KEY_ROLE: opencloud-dev
+      KEY_ENVIRONMENT: opencloud-dev-approval
+      CONFIRMATION: ${{ inputs.confirmation }}
+      PASSPHRASE: ${{ secrets.OPENCLOUD_DEV_APPROVAL_PASSPHRASE }}
+      OWNER_REVIEWER_ID: ${{ vars.OWNER_REVIEWER_ID }}
+      EXISTING_PUBLIC_KEY: ${{ vars.OPENCLOUD_DEV_APPROVAL_PUBLIC_KEY }}
+      # Every known signer the new key must differ from.
+      PROD_GOVERNOR_PRINCIPAL: tuhlj-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe
+      DEV_DEPLOYER_PRINCIPAL: jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe
+      OTHER_APPROVER_PRINCIPAL: 4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae
+      OTHER_APPROVER_PUBLIC_KEY: ${{ vars.PROD_APPROVAL_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Test key protections
+        run: node --test scripts/opencloud/dev-approval-key.test.mjs scripts/prod-account-key.test.mjs
+      - name: Install pinned identity library
+        run: npm install --prefix "$RUNNER_TEMP/approval-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Mint or read encrypted DEV approval key
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          export KEY_NODE_PATH="$RUNNER_TEMP/approval-deps/node_modules"
+          node scripts/opencloud/dev-approval-key.mjs

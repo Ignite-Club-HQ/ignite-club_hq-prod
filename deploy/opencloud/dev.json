@@ -12,8 +12,8 @@
   "consoleProxyId": "ynolw-eyaaa-aaaaj-qspkq-cai",
   "controllers": {
     "owner": "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
-    "governor": "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe",
-    "frontendPublisher": null
+    "governor": "tuhlj-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe",
+    "frontendPublisher": "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
   },
   "supabase": {
     "url": "https://ecsdwrarzfexssxtrymj.supabase.co",
@@ -30,8 +30,8 @@
   "groups": [
     {
       "id": "g1",
-      "maxClubs": null,
-      "heapBudgetBytes": null,
+      "maxClubs": 100,
+      "heapBudgetBytes": "3221225472",
       "canisterIds": {
         "club_domain": "him2v-zqaaa-aaac5-aadta-cai",
         "club_points_domain": "hpn4b-uiaaa-aaac5-aadtq-cai",
@@ -50,8 +50,8 @@
     },
     {
       "id": "g2",
-      "maxClubs": null,
-      "heapBudgetBytes": null,
+      "maxClubs": 100,
+      "heapBudgetBytes": "3221225472",
       "canisterIds": {
         "club_domain": "ed2mw-7iaaa-aaac5-aadzq-cai",
         "club_points_domain": "ew553-6aaaa-aaac5-aad2a-cai",

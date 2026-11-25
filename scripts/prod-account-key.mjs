@@ -4,8 +4,8 @@ import { pathToFileURL } from 'node:url';
 import { githubJournal } from './prod-base-group.mjs';
 import { accountPublicKey, assertAccountKeyContext, assertIndependentKey, assertIndependentProtection, sealAccountSeed, openAccountSeed } from './prod-account-key-policy.mjs';
 
-export async function mintOrReadAccountKey(env, journal, identityType) {
-  assertAccountKeyContext(env);
+export async function mintOrReadAccountKey(env, journal, identityType, assertContext = assertAccountKeyContext) {
+  assertContext(env);
   const describe = seed => {
     const principal = identityType.fromSecretKey(new Uint8Array(Buffer.from(seed, 'hex'))).getPrincipal().toText();
     const publicKey = accountPublicKey(seed);
