@@ -595,11 +595,12 @@ persistent actor class Main(governorInit : Principal) = this {
     let configured = clubDomainCanister;
     let ?cd = configured else throw Error.reject("Club chat authority unavailable");
     let authority : actor { read_has_club_membership : shared (Principal, Text) -> async Bool } = actor(cd.toText());
-    let pending = Array.map<Text, async Bool>(clubs, func(c) = (with timeout = 10) authority.read_has_club_membership(subject, c));
+    let pending = List.empty<async Bool>();
+    for (c in clubs.values()) { List.add(pending, (with timeout = 10) authority.read_has_club_membership(subject, c)) };
     var forbidden = false;
     var unavailable = false;
-    for (i in pending.keys()) {
-      let member = try { await pending[i] } catch (_) { unavailable := true; true };
+    for (call in List.values(pending)) {
+      let member = try { await call } catch (_) { unavailable := true; true };
       if (not member) forbidden := true;
     };
     if (unavailable) throw Error.reject("Club chat authority unavailable; nothing was changed");
