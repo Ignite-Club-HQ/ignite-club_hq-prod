@@ -25,15 +25,23 @@ const target={target:router};
 const call=(method,args)=>{const out=invoke(target,method,args);if(/\bErr\b/.test(out)||!out.trim())throw Error(method+' refused: '+out);console.log(method+': '+out);return out;};
 const revision=()=>{const out=call('version','()');const m=out.match(/^\s*\(\s*([\d_]+)\s*:\s*nat64\s*,?\s*\)\s*$/);if(!m)throw Error('Unrecognized revision');return BigInt(m[1].replaceAll('_',''));};
 const initial=call('list_groups','()');
-if(!/variant\s*\{\s*Ok\s*=\s*vec\s*\{\s*\}\s*\}/.test(initial))throw Error('Registry not empty; inspect before resuming');
 const first=revision();
-const deploymentRevision=first+1n;
+const empty=/variant\s*\{\s*Ok\s*=\s*vec\s*\{\s*\}\s*\}/.test(initial);
+let resume=false;
+let deploymentRevision=first+1n;
+if(!empty){
+ if(first!==2n)throw Error('Unexpected partial registry revision');
+ const snapshot=call('read_group_registry_page','("opencloud-dev", opt (2 : nat64), null, 64 : nat32)');
+ const g=config.groups[0];
+ if(!/id\s*=\s*"base"/.test(snapshot)||/id\s*=\s*"g2"/.test(snapshot)||!/accepting\s*=\s*false/.test(snapshot)||!/deployment_revision\s*=\s*1\s*:\s*nat64/.test(snapshot)||!Object.values(g.canisterIds).every(id=>snapshot.includes(id))||!snapshot.includes(config.subnetId)||!snapshot.includes(config.apiHost))throw Error('Unexpected existing group or placement');
+ resume=true;deploymentRevision=1n;
+}
 const plan=config.groups.map(g=>({group:registerGroupCall(config,g),placement:registerGroupPlacementCall(config,g)}));
 if(plan.some(p=>!p.group.ready))throw Error('Missing capacity configuration');
 console.log('Reviewed initial logical deployment revision: '+deploymentRevision);
 if(mode==='check')process.exit(0);
 let rev=first;
-for(const p of plan){
+for(const p of (resume?plan.slice(1):plan)){
  for(const c of [p.group,p.placement]){
   if(revision()!==rev)throw Error('Concurrent registry change');
   const args=c.candidArgs.replace('<expected_revision>',String(rev)).replace('<acknowledged_registry_revision>',String(rev)).replace('<reviewed_deployment_revision>',String(deploymentRevision));
@@ -42,6 +50,6 @@ for(const p of plan){
   if(!match||BigInt(match[1].replaceAll('_',''))!==rev+1n)throw Error('Unexpected write revision; inspect before retry');
   rev+=1n;
  }
- call('read_group_registry_page','("opencloud-dev", opt '+rev+' : nat64, null, 64 : nat32)');
+ call('read_group_registry_page','("opencloud-dev", opt ('+rev+' : nat64), null, 64 : nat32)');
 }
 console.log('Both closed groups and placements registered at revision '+rev);
