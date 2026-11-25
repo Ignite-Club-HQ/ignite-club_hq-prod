@@ -166,6 +166,17 @@ export async function deleteLiveAsset(ctx: FeatureBackendContext, assetId: strin
   return unwrapCandid(actor.delete_asset(assetId), "Delete asset");
 }
 
+/** The account check runs before anything is written, so a refused check is safe to retry once. */
+const ADMISSION_REFUSAL = /Account admission denied or unavailable/i;
+export async function retryMediaAdmission<T>(call: () => Promise<T>, delayMs = 900): Promise<T> {
+  try { return await call(); } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!ADMISSION_REFUSAL.test(message)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    return call();
+  }
+}
+
 export async function addLiveReaction(
   ctx: FeatureBackendContext,
   assetId: string,
@@ -173,20 +184,20 @@ export async function addLiveReaction(
   createdAtMs: number | Date,
 ) {
   const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  return unwrapCandid(
+  return retryMediaAdmission(() => unwrapCandid(
     actor.add_reaction(assetId, kind, toNat64(createdAtMs)),
     "Add reaction",
-  );
+  ));
 }
 
 export async function removeLiveReaction(ctx: FeatureBackendContext, reactionId: string) {
   const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  return unwrapCandid(actor.remove_reaction(reactionId), "Remove reaction");
+  return retryMediaAdmission(() => unwrapCandid(actor.remove_reaction(reactionId), "Remove reaction"));
 }
 
 export async function listLiveReactions(ctx: FeatureBackendContext, assetId: string) {
   const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  return actor.list_reactions(assetId);
+  return retryMediaAdmission(() => actor.list_reactions(assetId));
 }
 
 export async function addLiveComment(
@@ -197,15 +208,15 @@ export async function addLiveComment(
   replyToId?: string | null,
 ) {
   const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  return unwrapCandid(
+  return retryMediaAdmission(() => unwrapCandid(
     actor.add_comment_reply(assetId, body, candidOpt(replyToId)),
     "Add comment",
-  );
+  ));
 }
 
 export async function listLiveComments(ctx: FeatureBackendContext, assetId: string) {
   const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  return actor.list_comments(assetId);
+  return retryMediaAdmission(() => actor.list_comments(assetId));
 }
 
 export async function deleteLiveComment(ctx: FeatureBackendContext, commentId: string) {

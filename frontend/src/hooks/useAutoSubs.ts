@@ -129,6 +129,9 @@ export function useAutoSubs({
   const setAutoSubActive = useCallback((active: boolean) => {
     dispatch({ type: "SET_ACTIVE", active });
   }, []);
+  const restoreAutoSubs = useCallback((plan: SubstitutionEvent[], active: boolean, paused: boolean) => {
+    dispatch({ type: "RESTORE", plan, active, paused });
+  }, []);
   const setAutoSubPaused = useCallback(
     (next: boolean | ((prev: boolean) => boolean)) => {
       const resolved = typeof next === "function" ? next(pausedRef.current) : next;
@@ -274,15 +277,37 @@ export function useAutoSubs({
     const currentElapsed = fromKickOff ? 0 : (gameTimerRef.current?.getElapsedSeconds() || 0);
     const currentHalf = fromKickOff ? 1 : (gameTimerRef.current?.getCurrentHalf() || 1);
     planActivationTimeRef.current = { seconds: currentElapsed, half: currentHalf };
-    setAutoSubPlan(plan);
-    setAutoSubActive(true);
+    // START is a lifecycle boundary, not an edit to the previous game's
+    // append-only execution history. Keep that guard on ordinary SET_PLAN.
+    const nextPlan = fromKickOff
+      ? plan.map(sub => ({ ...sub, executed: false, skipped: false }))
+      : plan;
+    if (fromKickOff) {
+      planRef.current = nextPlan;
+      dispatch({ type: "START", plan: nextPlan });
+    } else {
+      setAutoSubPlan(nextPlan);
+      setAutoSubActive(true);
+      setAutoSubPaused(false);
+    }
+    pausedRef.current = false;
+    skipCooldownRef.current = 0;
+    setPendingAutoSub(null);
+    setPendingBatchSubs([]);
+    setSubConfirmDialogOpen(false);
+    setSubDuePlayerIds(new Set());
+    if (subDueTimerRef.current) {
+      clearTimeout(subDueTimerRef.current);
+      subDueTimerRef.current = null;
+    }
     toast({ title: "Auto-sub plan started", description: `${plan.length} substitutions scheduled` });
   }, [toast, gameTimerRef]);
 
-  const handleCancelAutoSubPlan = useCallback(() => {
-    setAutoSubPlan([]);
-    setAutoSubActive(false);
-    setAutoSubPaused(false);
+  const resetAutoSubs = useCallback(() => {
+    planRef.current = [];
+    pausedRef.current = false;
+    skipCooldownRef.current = 0;
+    dispatch({ type: "CANCEL" });
     setPendingAutoSub(null);
     setPendingBatchSubs([]);
     setSubConfirmDialogOpen(false);
@@ -293,8 +318,12 @@ export function useAutoSubs({
       subDueTimerRef.current = null;
     }
     planActivationTimeRef.current = null;
+  }, []);
+
+  const handleCancelAutoSubPlan = useCallback(() => {
+    resetAutoSubs();
     toast({ title: "Auto-sub plan cancelled" });
-  }, [toast]);
+  }, [toast, resetAutoSubs]);
 
   const handleTogglePauseAutoSub = useCallback(() => {
     setAutoSubPaused(prev => {
@@ -763,6 +792,8 @@ export function useAutoSubs({
     subDueTimerRef,
 
     // Plan lifecycle
+    resetAutoSubs,
+    restoreAutoSubs,
     handleStartAutoSubPlan,
     handleCancelAutoSubPlan,
     handleTogglePauseAutoSub,

@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## New-game ICP auto-sub progress — 25 November
+- [x] Reproduced old 7/15 progress surviving fresh kickoff and cancellation; repaired lifecycle reset, setup planner reuse and authorized shared snapshot adoption. Same-game edit history stays guarded; saved stats unchanged.
+- [x] Focused new-game/reset/shared-board/timer regressions pass; preview build OK. No PROD deployment.
+- [ ] Installed-phone new-game → reopen/shared readback: blocked on an Internet Identity session and physical device; sandbox session minting refuses this user-managed backend.
+
 ## Home ICP timer start reliability — 24 November
 - [x] Reproduced Home start/read races; repaired Home and shared board clock reads, immediate acknowledged-start persistence, all three alternate toolbar fixture arguments and rejected group-clock event delivery. Exact routing, permissions and settled matches unchanged.
 - [x] 16 focused files per mode: 163 email / 152 ICP passes, existing mode skips only; preview build OK. Phone-sized signed-out preview checked with no page errors/overflow. Inventory: docs/home-icp-timer-start-audit-2026-11-24.md.

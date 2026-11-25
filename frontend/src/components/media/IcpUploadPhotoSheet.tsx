@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { beginGalleryUpload, acknowledgeGalleryUpload, finishGalleryUpload } from './pendingGalleryUploads';
 import { Check, ImagePlus, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
+import { mediaActionFailure } from "@/lib/mediaActionFailure";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -333,7 +334,7 @@ export function IcpUploadPhotoSheet({
       // Keep the local copies on screen until the refreshed feed has them.
       await Promise.resolve(onUploaded()).catch(() => undefined);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
+      toast.error(mediaActionFailure(err, "Your photo wasn't uploaded. Please try again."));
     } finally {
       await finishGalleryUpload(queryClient, principal, batchId).catch(() => undefined);
       onPendingChange?.([]);

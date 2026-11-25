@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { isCancelledError, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Filter, Images, Loader2, MessageCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { mediaActionFailure } from "@/lib/mediaActionFailure";
 import { getCurrentInternetIdentity } from "@/live/internetIdentityAuth";
 import { withFeatureBackend } from "@/live/featureRouter";
 import type { FeatureBackendContext } from "@/live/featureRouter";
@@ -658,7 +659,7 @@ export function IcpMediaFeedPage() {
         queryClient.setQueryData<LivePostDetails>(context.detailsKey, old => old && ({ ...old, reactions: updateMemberReaction(old.reactions, principal,
           context.previousDetails?.reactions.filter(r => r.user_id === principal) ?? context.previousMine) }));
       }
-      toast.error(err instanceof Error ? err.message : "Reaction failed");
+      toast.error(mediaActionFailure(err, "Your reaction wasn't saved. Please try again."));
     },
     onSettled: () => { if (queryClient.isMutating({ mutationKey: ['icp-gallery-reaction'] }) <= 1) return invalidate(); },
     mutationKey: ['icp-gallery-reaction'],
@@ -721,7 +722,7 @@ export function IcpMediaFeedPage() {
       }));
       setCommentInput(current => current || text);
       setCommentError("Your comment wasn't posted. Please try sending it again.");
-      toast.error(err instanceof Error ? err.message : "Comment failed");
+      toast.error(mediaActionFailure(err, "Your comment wasn't posted. Please try again."));
     },
     onSettled: invalidate,
   });
@@ -739,7 +740,7 @@ export function IcpMediaFeedPage() {
         },
       }, writeOnce({ photoId: post.representativeAssetId })),
     onSuccess: () => toast.success("Deleted"),
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Delete failed"),
+    onError: (err) => toast.error(mediaActionFailure(err, "That couldn't be deleted. Please try again.")),
     onSettled: invalidate,
   });
 

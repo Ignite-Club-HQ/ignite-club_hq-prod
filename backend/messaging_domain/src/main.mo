@@ -585,6 +585,30 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not member) throw Error.reject("Club chat access forbidden");
   };
 
+  // Several clubs: ask the club authority about every club at once, then
+  // apply the same checks as requireChatClubMember. Sequential asks made the
+  // first inbox load wait one round trip per club.
+  func requireChatClubMembers(subject : Principal, clubs : [Text]) : async* () {
+    if (clubs.size() <= 1) { for (c in clubs.values()) { await* requireChatClubMember(subject, c) }; return };
+    if (isGovernor(subject)) return;
+    auth(subject);
+    let configured = clubDomainCanister;
+    let ?cd = configured else throw Error.reject("Club chat authority unavailable");
+    let authority : actor { read_has_club_membership : shared (Principal, Text) -> async Bool } = actor(cd.toText());
+    let pending = List.empty<async Bool>();
+    for (c in clubs.values()) { List.add(pending, (with timeout = 10) authority.read_has_club_membership(subject, c)) };
+    var forbidden = false;
+    var unavailable = false;
+    for (call in List.values(pending)) {
+      let member = try { await call } catch (_) { unavailable := true; true };
+      if (not member) forbidden := true;
+    };
+    if (unavailable) throw Error.reject("Club chat authority unavailable; nothing was changed");
+    if (removalReceiver.denied(subject) or configured != clubDomainCanister) throw Error.reject("Club chat authorization changed");
+    for (c in clubs.values()) { if (isFenced(c)) throw Error.reject("Club chat authorization changed") };
+    if (forbidden) throw Error.reject("Club chat access forbidden");
+  };
+
   // Club membership alone cannot authorize an old team conversation: a user
   // may legitimately belong to another team in the same club. Ask the current
   // club authority for this exact team's effective membership and owner.
@@ -3488,7 +3512,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     if (club_ids.size() > 200) return #Err("Too many ids");
-    for (club in club_ids.values()) { await* requireChatClubMember(caller, club) };
+    await* requireChatClubMembers(caller, club_ids);
     let allowed = club_ids.filter(func(c) = valid(c) and canBrowseClubGroups(caller, c));
     let matches = groupMetadata.filter(func(m) =
       m.team_id == null and not m.deleted and (switch (m.club_id) { case (?c) allowed.any(func(a) = a == c); case null false })
@@ -6046,7 +6070,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(caller);
     if (club_ids.size() > 200) return #Err("Too many ids");
-    for (club in club_ids.values()) { await* requireChatClubMember(caller, club) };
+    await* requireChatClubMembers(caller, club_ids);
     let allowed = club_ids.filter(func(c) = valid(c) and canBrowseClubGroups(caller, c));
     let matches = groupMetadata.filter(func(m) =
       m.team_id == null and not m.deleted and (switch (m.club_id) { case (?c) allowed.any(func(a) = a == c); case null false })
