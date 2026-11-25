@@ -1,12 +1,12 @@
 # Ignite OpenCloud DEV preparation
 
-**Status: all eighteen backend implementations built and hashed; not installed or accepted. Frontend installation/functional acceptance are held. PROD is inactive.**
+**Status: fresh-install DEV commissioning is implemented; use the complete fresh-v3 package and `commissioning.md`. Nothing is installed or live-accepted here. PROD is inactive.**
 
 The provisioned applications are `ignite_dev_v2` and `ignite_prod_v2`, on engine `ignite-prod`. Each has **32 distinct canisters**: six shared services and two groups of thirteen services. No new canisters, controller changes, CI, DNS changes, mainnet changes or data migration are authorized by these files.
 
 ## Deliverables
 
-- `dev.json`: populated DEV inventory, separate operator/chain-key proxy, unresolved owner/governor/publisher and resource inputs.
+- `dev.json`: populated DEV inventory, separate operator/chain-key proxy, existing owner/governor/publisher and DEV memory/group limits; fresh-install admission-only mode.
 - `prod.json`: equivalent **inactive** PROD template with its own 32 IDs.
 - `infrastructure.export.json`: original owner-supplied export; creation/app responses are not independently verified inventory evidence.
 - `proxy-interface.did`: snapshot of the chain-key proxy's publicly readable Candid interface.
@@ -14,7 +14,7 @@ The provisioned applications are `ignite_dev_v2` and `ignite_prod_v2`, on engine
 - `chatgpt-steps.md`: install/settings/wiring sequence and transport limitations.
 - `acceptance.md`: real DEV acceptance checklist, including encrypted names/photos and denial tests.
 - `scripts/opencloud/`: mapping/manifest/staging/artifact checks and anonymous read-only proxy verification. These commands never install code, create canisters, sign in or invoke CI.
-- The handover ZIP includes eighteen compiled backend `.wasm.gz` files, their Candid contracts, the 32-target DEV manifest and source/artifact fingerprints. Frontend Wasm/assets are not included; the listed transport/name/bootstrap/resource blockers remain real holds, not completed release steps.
+- The fresh-v3 handover includes eighteen backend implementations, frontend asset-canister Wasm, complete frontend assets, Candid contracts, the 32-target manifest and checksums. No witness artifact/install action is included. External transport, lifecycle semantics and real encrypted/user acceptance remain live requirements.
 
 Generated manifests and templates are review output, not committed deployment authority. Generated workspaces stay under `deploy/opencloud/work/`. Backend source and published application code remain in the existing repository; this is not a replacement app.
 
@@ -40,7 +40,7 @@ node scripts/opencloud/deployment.mjs prepare deploy/opencloud/dev.json deploy/o
 
 The last command stages the original backend recipes and sources with the fresh-engine PII route enabled **only in the copy**. Unresolved constructors/settings remain held, but source compilation itself does not need a signing identity.
 
-In that staged `build/` directory, a trusted build operator runs the pinned `icp` **1.7.0** and `ic-wasm` **1.0.0** `icp build` command. It requires the normal existing Rust/Motoko tools and recipe downloads; it needs no login. This build succeeded locally for all eighteen backend implementations. **Do not run `icp deploy`, `icp sync`, install, create, or a mainnet release script.** Collect its final extensionless recipe outputs with:
+In that staged `build/` directory, a trusted build operator uses `manifest.accountProtectionBuild.compileTimeEnv` for the fresh identity and infrastructure modules and the pinned `icp` **1.7.0** / `ic-wasm` **0.9.11** `icp build` command. The stager pins Motoko receiver admission-only modes and the exact identity in the source copy, leaving ordinary source unchanged. No login is needed. **Do not run `icp deploy`, `icp sync`, install, create, or a mainnet release script.** Collect final extensionless recipe outputs with:
 
 ```sh
 node scripts/opencloud/deployment.mjs collect deploy/opencloud/work/dev-candidate
@@ -48,7 +48,7 @@ node scripts/opencloud/deployment.mjs collect deploy/opencloud/work/dev-candidat
 
 This produces gzip Wasm files, per-file SHA-256, uncompressed module hashes and Candid hashes for the eighteen unique backend service implementations reused across the 31 backend receivers. It is not permission to install them.
 
-After owner/signing/resource/public-key inputs are verified and completed, the standalone frontend artifact command is:
+No new signing key or witness is required for initial DEV. After verifying the existing governor/publisher and public frontend configuration, the standalone frontend artifact command is:
 
 ```sh
 node scripts/opencloud/deployment.mjs check deploy/opencloud/dev.json deploy/opencloud/prod.json

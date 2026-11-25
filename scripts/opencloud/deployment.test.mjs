@@ -68,11 +68,28 @@ test('every group wires to its own services plus the one shared identity', () =>
   assert.match(m.groups[0].registerGroupCall.candidArgs, /min_cycles = 0 : nat64; cycles = 0 : nat64/);
   assert.match(m.groups[0].registerGroupCall.candidArgs, /accepting = false/);
 });
-test('identity commissioning stays held until owner signer and independent witness pins exist', () => {
-  const c = ready();
+test('legacy recovery commissioning stays held until independent witness pins exist', () => {
+  const c = ready(); delete c.commissioningMode; c.accountProtection = {};
   assert.equal(manifest(c).accountProtectionBuild.ready, false);
   c.accountProtection = { approverPublicKey: 'k', witness: c.shared.frontend, witnessModuleHash: 'h', witnessController: 'c' };
   assert.throws(() => manifest(c), /independent/);
+});
+test('fresh DEV uses 32 targets without witness/key, with erasure and recovery unavailable',()=>{
+  const c=ready();c.accountProtection={};const m=manifest(c);
+  assert.equal(m.canisters.length,32);assert.equal(m.accountProtectionBuild.ready,true);
+  assert.equal(m.accountProtectionBuild.witnessRequired,false);assert.equal(m.accountProtectionBuild.approverKeyRequired,false);
+  assert.equal(m.accountProtectionBuild.globalErasureEnabled,false);assert.equal(m.accountProtectionBuild.recoveryEnabled,false);
+  assert.equal(Object.keys(m.accountProtectionBuild.compileTimeEnv).some(k=>/WITNESS|APPROVER/.test(k)),false);
+  assert.equal(m.sharedCommissioning.some(c=>c.method==='commission_fresh_opencloud_dev'),true);
+  assert.equal(m.sharedCommissioning.some(c=>c.method==='provision_production_account_inventory'),false);
+  const pii=m.canisters.find(r=>r.name==='g1_pii_access_control').settings.environmentVariables;
+  assert.equal(pii.PROXY_CANISTER_ID,c.consoleProxyId);assert.equal(pii.IGNITE_ACCOUNT_ADMISSION_RELEASE,'1');
+  assert.equal(m.canisters.find(r=>r.name==='identity_access').settings.environmentVariables.IGNITE_SECURE_ADULT_NAME_PII,c.groups[0].canisterIds.pii_access_control);
+});
+test('first-install mode never enables PROD or extra canisters',()=>{
+  const c=source('prod');c.commissioningMode='fresh-install-admission-only';assert.throws(()=>manifest(c,undefined,undefined,true),/DEV-only/);
+  const d=ready();d.groups.push({...d.groups[1],id:'g3',canisterIds:Object.fromEntries(Object.keys(d.groups[1].canisterIds).map((s,i)=>[s,p(120+i)]))});
+  assert.throws(()=>manifest(d),/exact 32/);
 });
 test('unverified infrastructure produces only a held manifest, never install arguments guessed as null principals', () => {
   const c = source('dev'); c.controllers.governor = null; const m = manifest(c, source('prod'), undefined, true);
@@ -82,7 +99,7 @@ test('unverified infrastructure produces only a held manifest, never install arg
 test('future group reuses thirteen services without exceeding console app limit', () => {
   const c = ready(); const g3 = structuredClone(c.groups[1]); g3.id = 'g3';
   let i = 120; Object.keys(g3.canisterIds).forEach(s => { g3.canisterIds[s] = p(i++); });
-  c.groups.push(g3); assert.equal(validateMappings(c).length, 45);
+  c.groups.push(g3); delete c.commissioningMode; assert.equal(validateMappings(c).length, 45);
   const g4 = structuredClone(g3); g4.id = 'g4'; c.groups.push(g4);
   assert.throws(() => validateMappings(c), /50-canister/);
 });
@@ -95,6 +112,8 @@ test('isolated staging changes only the encryption route sentinel, never origina
     assert.equal(m.canisters.length, 32);
     assert.equal(readFileSync(path.join(ROOT, 'backend/pii_access_control/src/main.mo'), 'utf8'), before);
     assert.match(readFileSync(path.join(out, 'build/backend/pii_access_control/src/main.mo'), 'utf8'), /freshEngineBuild = true/);
+    assert.match(readFileSync(path.join(out, 'build/backend/pii_access_control/src/main.mo'), 'utf8'), /accountProtectionMode : AccountProtection.Mode = #ProductionAdmission/);
+    assert.match(readFileSync(path.join(out, 'build/backend/secret_workload_identity/src/main.mo'), 'utf8'), /removal_enabled = false/);
     assert.equal(existsSync(path.join(out, 'build/.icp/data')), false);
     const env = frontendEnv(c);
     assert.equal(env.IGNITE_LIVE_OPENCLOUD_ENV, 'opencloud-dev');

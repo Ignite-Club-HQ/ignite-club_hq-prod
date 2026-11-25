@@ -129,6 +129,13 @@ export function initArgs(service, governor) {
 
 export function serviceSettings(config, row) {
   const variables = { IGNITE_CLOUD_ENGINE: '1', GOVERNOR_PRINCIPAL: config.controllers.governor };
+  if (freshDev(config) && row.service !== 'frontend' && row.service !== 'identity_access') Object.assign(variables, {
+    IGNITE_ACCOUNT_ADMISSION_RELEASE: '1', IGNITE_ACCOUNT_SERVICE_IDENTITY: config.shared.identity_access,
+  });
+  if (freshDev(config) && row.service === 'identity_access') Object.assign(variables, {
+    IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE: '1', IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE: '1',
+    IGNITE_SECURE_ADULT_NAME_PII: config.groups[0].canisterIds.pii_access_control,
+  });
   if (row.service === 'pii_access_control') Object.assign(variables, { VETKD_KEY_NAME: 'key_1', PROXY_CANISTER_ID: config.consoleProxyId });
   // Lifecycle/recovery/admission/name-release flags are intentionally NOT synthesized.
   // Set them only using existing reviewed commissioning protocols, after live evidence.
@@ -187,7 +194,26 @@ export function registerGroupCall(config, g) {
 }
 
 /** Compile-time pins identity_access needs for the existing signed/witnessed commissioning. Never invented. */
+export function registerGroupPlacementCall(config,g) {
+  const domains=Object.entries(g.canisterIds).filter(([s])=>s!=='media_blob_store').concat([['secret_workload_identity',config.shared.secret_workload_identity]])
+    .map(([domain,id])=>`record { domain = "${domain}"; canister = principal "${id}"; subnet = principal "${config.subnetId}" }`).join('; ');
+  return {target:config.shared.shard_router,method:'register_group_placement',signer:'internal-governor',
+    candidArgs:`(record { group_id = "${routerGroupId(g.id)}"; deployment_id = "${config.environment}"; deployment_revision = <reviewed_deployment_revision> : nat64; host = "${config.apiHost}"; network_kind = "cloud_engine"; primary_subnet = principal "${config.subnetId}"; approved_subnets = vec { principal "${config.subnetId}" }; additional_subnets_enabled = false; domains = vec { ${domains} } }, <acknowledged_registry_revision> : nat64)`,
+    verify:'read_group_registry_page',uncertainOutcome:'stop-readback-no-blind-replay'};
+}
+export const freshDev = config => config.environment === 'opencloud-dev' && config.commissioningMode === 'fresh-install-admission-only';
 export function accountProtectionBuild(config) {
+  if (config.commissioningMode === 'fresh-install-admission-only' && config.environment !== 'opencloud-dev') throw Error('Fresh commissioning is DEV-only');
+  if (freshDev(config)) {
+    if (inventory(config).length !== 32) throw Error('Fresh DEV requires the existing exact 32 canisters');
+    const named = inventory(config).filter(r => r.service !== 'frontend').map(r => `${r.name}=${r.id}`);
+    const ready = !!config.controllers.governor && !!config.apiHost;
+    return { service: 'identity_access', mode: 'fresh-install-admission-only', ready,
+      compileTimeEnv: { IGNITE_OPENCLOUD_DEV_FIRST_INSTALL: ready ? [config.shared.identity_access, config.controllers.governor, config.apiHost, ...named].join('\n') : null,
+        IGNITE_OPENCLOUD_DEV_ADMISSION_ONLY: '1' },
+      witnessRequired: false, approverKeyRequired: false, globalErasureEnabled: false, recoveryEnabled: false,
+      owner: 'Existing DEV governor commissions install-only inventory; empty witness and encrypted signer remain untouched' };
+  }
   const a = config.accountProtection || {};
   const env = { IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY: a.approverPublicKey || null,
     IGNITE_PRODUCTION_ACCOUNT_WITNESS: a.witness || null,
@@ -201,6 +227,19 @@ const rowsInclude = (config, id) => inventory(config).some(row => row.id === id)
 
 export function commissioning(config) {
   const id = config.shared.identity_access, router = config.shared.shard_router;
+  if (freshDev(config)) return [
+    { step: 1, action: 'Apply manifest settings before install; never set rehearsal/removal release flags' },
+    { step: 2, action: 'Install all 32 existing empty targets, then execute postInstallCalls; no user-data imports' },
+    { step: 3, target: router, action: 'Register base/g2 closed with registerGroupCall and exact current revision' },
+    { step: 4, target: router, method: 'set_deletion_authority', candidArgs: `(principal "${id}")` },
+    ...[router,...config.groups.map(g=>g.canisterIds.timer_jobs)].map(target=>({step:4,target,method:'set_account_removal_authority',candidArgs:`(principal "${id}")`,effect:'immutable identity binding only; compiled removal remains unavailable'})),
+    { step: 4, target: config.shared.secret_workload_identity, method: 'set_account_removal_authority', candidArgs: `(principal "${id}")`, effect: 'readback binding only; fresh staged removal gate is disabled; no workload registered' },
+    { step: 5, target: id, method: 'review_production_account_inventory', arguments: 'Exact Expectation and current read_production_account_history_revision; read-only, no signature' },
+    { step: 6, target: id, method: 'commission_fresh_opencloud_dev', arguments: 'Same independently checked Expectation; verified live review, full install history and one-use commit', requires: 'accountProtectionBuild.ready; all 31 backend lifecycle histories complete, install only, unchanged' },
+    { step: 7, target: id, method: 'authorize_production_member_access', arguments: 'Exact receipt.expectation.inventory.groups.binding', effect: '24 admission-only readers; no global erasure/recovery' },
+    { step: 8, target: id, method: 'configure_membership_directory', arguments: `receipt Binding, vec { principal "${config.groups[0].canisterIds.club_domain}"; principal "${config.groups[1].canisterIds.club_domain}" }, 1 : nat64` },
+    { step: 9, target: id, method: 'read_fresh_opencloud_dev_commissioning', arguments: '()', effect: 'Live readback of every backend lifecycle; then separately approve base opening via existing router mechanism. g2 remains closed.' },
+  ];
   return [
     { step: 1, target: config.shared.migration_coordinator, action: 'constructor-only-no-migration' },
     { step: 2, target: config.shared.placement_registry, action: 'constructor-only; set_policy/set_target after reviewed semantics' },
@@ -256,14 +295,15 @@ export function manifest(config, peer, forbidden, allowUnresolved = false) {
       piiAuthority: g.canisterIds.pii_access_control, maxClubs: g.maxClubs, heapBudgetBytes: g.heapBudgetBytes,
       domains: Object.entries(g.canisterIds).filter(([service]) => service !== 'media_blob_store').concat([['secret_workload_identity', config.shared.secret_workload_identity]]),
       minCycles: '0', accepting: false, resourcePolicy: 'engine: IGNITE_CLOUD_ENGINE=1 on shard_router; min_cycles must be 0, heap/capacity/fresh health still gate admission',
-      registerGroupCall: registerGroupCall(config, g), primarySubnet: config.subnetId, additionalSubnetsEnabled: false })),
+      registerGroupCall: registerGroupCall(config, g), registerGroupPlacementCall:registerGroupPlacementCall(config,g), primarySubnet: config.subnetId, additionalSubnetsEnabled: false })),
     accountProtectionBuild: accountProtectionBuild(config),
     sharedCommissioning: commissioning(config),
     placementPolicy: 'g1-first; g2-closed-until-capacity-and-verified-opening; existing-assignments-immutable',
     prerequisites: ['owner-verified-exact-empty-inventory-and-controllers', 'console-proxy-allowed-subnet-and-funding',
       'engine-host-api-and-certification', 'artifacts-built-and-hashed', 'shared-identity-lifecycle-and-routing-commissioning',
       'direct-governor-call-transport', 'frontend-asset-upload-transport', 'fresh-signed-in-functional-acceptance',
-      'owner-account-approver-key-and-recovery-witness (rebuild identity_access with accountProtectionBuild env)'],
+      ...(freshDev(config) ? ['exact-install-only-history; no imports; no settings/code changes after commissioning', 'fresh-DEV-receipt-and-live-lifecycle-readback; global-erasure-and-recovery-unavailable'] :
+        ['owner-account-approver-key-and-recovery-witness (rebuild identity_access with accountProtectionBuild env)'])],
   };
   return { ...base, preparationSha256: sha(json(base)) };
 }
@@ -286,14 +326,32 @@ export function prepare(config, peer, output) {
   const text = read(source);
   if (text.split(marker).length !== 2) throw Error('Fresh engine source sentinel drift');
   writeFileSync(source, text.replace(marker, 'let freshEngineBuild = true; // IGNITE_FRESH_ENGINE_BUILD'));
+  if (freshDev(config)) {
+    // Immutable admission-only modes in these DEV artifacts: clearing runtime
+    // settings or restoring old environment values cannot turn protection off.
+    principal(config.shared.identity_access);
+    for (const service of GROUP_BUILD_SERVICES.filter(s=>!RUST.has(s))) {
+      const file=path.join(workspace,`backend/${service}/src/main.mo`);
+      const before=read(file);
+      const mode=/transient let accountProtectionMode = AccountProtection\.mode\(accountRehearsalEnabled,\s*Runtime\.envVar<system>\("IGNITE_ACCOUNT_ADMISSION_RELEASE"\) == \?"1",\s*Runtime\.envVar<system>\("IGNITE_ACCOUNT_REMOVAL_RELEASE"\) == \?"1"\);/g;
+      const authority='Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")';
+      if ([...before.matchAll(mode)].length!==1 || before.split(authority).length!==2) throw Error(`Fresh DEV security source drift: ${service}`);
+      writeFileSync(file,before.replace(mode,'transient let accountProtectionMode : AccountProtection.Mode = #ProductionAdmission; // immutable fresh DEV build')
+        .replace(authority,`?"${config.shared.identity_access}"`));
+    }
+    const file=path.join(workspace,'backend/secret_workload_identity/src/main.mo');const before=read(file);
+    const gate='RemovalReceiver.Gate(removal_authority != null, removal_authority, removal_intents, removal_subjects, removal_active)';
+    const mode='admission_required = false; removal_enabled = true; rehearsal = false';
+    if(before.split(gate).length!==2 || before.split(mode).length!==2)throw Error('Fresh workload receiver source drift');
+    writeFileSync(file,before.replace(gate,'RemovalReceiver.Gate(false, removal_authority, removal_intents, removal_subjects, removal_active)').replace(mode,'admission_required = false; removal_enabled = false; rehearsal = false'));
+  }
   // Preserve source recipes, rewriting only governor init/settings inside the isolated copy.
   for (const service of [...SHARED_SERVICES, ...GROUP_BUILD_SERVICES]) {
     const file = path.join(workspace, `backend/${service}/canister.yaml`);
     const recipe = YAML.parse(read(file));
     const args = initArgs(service, config.controllers.governor);
     if (args) recipe.init_args = args; else delete recipe.init_args;
-    recipe.settings = { environment_variables: { IGNITE_CLOUD_ENGINE: '1', ...(config.controllers.governor ? { GOVERNOR_PRINCIPAL: config.controllers.governor } : {}),
-      ...(service === 'pii_access_control' ? { VETKD_KEY_NAME: 'key_1', PROXY_CANISTER_ID: config.consoleProxyId } : {}) } };
+    recipe.settings = { environment_variables: serviceSettings(config,inventory(config).find(r=>r.service===service)).environmentVariables };
     writeFileSync(file, YAML.stringify(recipe));
   }
   writeFileSync(path.join(workspace, 'icp.yaml'), YAML.stringify({ canisters: [...SHARED_SERVICES, ...GROUP_BUILD_SERVICES].map(s => `backend/${s}`) }));

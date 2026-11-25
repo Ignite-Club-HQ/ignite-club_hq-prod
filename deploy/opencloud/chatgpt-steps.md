@@ -1,5 +1,7 @@
 # Exact supported deployment sequence for ChatGPT
 
+**Fresh-v3 supersedes the legacy held bootstrap sections below. Follow `commissioning.md` and the fresh-v3 manifest for exact installation flags and steps.** No witness install/signature is required; the existing empty witness stays untouched. All receiver admission modes and identity pins are immutable in the supplied fresh modules. Global erasure/recovery are unavailable, and initial commissioning cannot rearm restore/upgrade state. Complete group placements are emitted as `groups[].registerGroupPlacementCall` with explicitly reviewed/live revisions, never guessed zeros.
+
 **Scope: the existing 32 provisioned DEV IDs in `dev.json` only. No new canisters, PROD installation, reinstall, CI, controller replacement, live routing/DNS changes, Supabase operations or data migration.**
 
 The generated `dev.manifest.json` contains every DEV target ID, constructor, candidate settings, group-domain link call and ordered install inventory. It remains `executable:false`. Use it as a review, not a runner.
@@ -40,7 +42,7 @@ VETKD_KEY_NAME=key_1
 PROXY_CANISTER_ID=ynolw-eyaaa-aaaaj-qspkq-cai
 ```
 
-`GOVERNOR_PRINCIPAL` is particularly required by `media_blob_store`. Set the reviewed DEV Wasm-memory limit separately when supported. Never synthesize admission/removal/rehearsal/private-name-release/push flags. Do not copy mainnet environment values or scheduler secrets.
+`GOVERNOR_PRINCIPAL` is particularly required by `media_blob_store`. Set the reviewed DEV Wasm-memory limit separately when supported. Use the exact fresh-v3 admission/encrypted-name settings before install; never synthesize removal/rehearsal/push flags. Do not copy mainnet environment values or scheduler secrets.
 
 The management settings API's environment list **replaces the whole list**: read the before-image, preserve existing values, append only the reviewed engine settings and read back. Omit the `controllers` field entirely; this task permits no controller changes. Do not attach cycles to engine calls.
 
@@ -78,13 +80,13 @@ Read `read_group_opening_configuration()` using each service's exact Candid retu
 
 **Push is not part of this deployment:** no `grant_worker`, queue sender registration or recurring delivery activation is performed until an independent DEV worker/setup is approved. Existing Supabase/mainnet workers stay untouched.
 
-## 7. Shared identity, registry and group registration — HELD
+## 7. Shared identity, registry and group registration — fresh-v3
 
 Existing real methods are `identity_access.provision_production_account_inventory`, `pin_owner_test_deletion_registry`, and `configure_membership_directory`; they take the current generated Candid evidence/binding types, not bare principals invented here. `shard_router.set_deletion_authority` exists, but does not by itself commission all receivers. `placement_registry` uses `set_policy`/`set_target`; there is no fabricated `set_router` call. `secret_workload_identity.register_workload` needs a separately approved workload principal and scopes; migration_coordinator remains unused.
 
-The existing signed inventory/witness/lifecycle and fresh initial-G1 bootstrap must be resolved before these steps can be executed. No empty proof, fixture receipt, local flag or sampled controller status substitutes for them.
+The separate `commission_fresh_opencloud_dev` path resolves initial bootstrap without a recovery signature/witness; use `commissioning.md`. No empty proof, fixture receipt, local flag or sampled controller status substitutes for its full install-history, complete inventory and admission-only checks.
 
-The router's real calls are `register_group(group, live_revision)` then `register_group_placement(placement, acknowledged_revision)`, both CAS-bound, with `accepting=false`. Each has twelve group domains plus shared `secret_workload_identity` and its own separate `photo_store`. **Current router code rejects zero-cycle engine records; registration is presently blocked.** No fake `min_cycles`/balance is proposed. Neither G1 nor G2 is opened by this package.
+The router's real calls are `register_group(group, live_revision)` then `register_group_placement(placement, acknowledged_revision)`, both CAS-bound, with `accepting=false`. Each has twelve group domains plus shared `secret_workload_identity` and its own separate `photo_store`. The explicit engine resource policy permits real zero cycles and requires `min_cycles=0`, retaining heap/capacity/fresh-health gates. Neither G1 nor G2 is opened by this package.
 
 ## 8. Frontend upload, encryption and functional acceptance — HELD
 

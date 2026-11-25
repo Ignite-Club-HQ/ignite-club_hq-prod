@@ -1,6 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
 ## Provisioned OpenCloud DEV implementation — 25 November
+- [ ] Implement approved DEV-only one-use first-install commissioning, lifecycle/restore refusal and admission-only release; rebuild the complete offline package and frontend. Use the existing 32 targets; no live operations or witness/key dependency.
 - [x] Assessed a distinct first-installation, admission-only commissioning path from source; recovery witness/key are current protocol dependencies, not intrinsic requirements for a genuinely fresh DEV installation. Assessment only; no implementation or live changes.
 - [x] Received and validated Paul's generated DEV approver public key; recorded it in the isolated DEV configuration only. No private key accessed.
 - [ ] Rebuild witness and pinned identity artifacts: public key now supplied; effective independent witness controllers and live commissioning remain ChatGPT's verification tasks. No deployment authorized.

@@ -76,6 +76,15 @@ pub fn scope(expected: &Expectation) -> Result<(Vec<Principal>, Vec<Principal>),
 
 pub fn verify(expected:&Expectation, observed:&RemovalInventory, before:&[Lifecycle], after:&[Lifecycle],
     configurations:&[ReceiverConfiguration]) -> Result<Draft,String> {
+    verify_mode(expected,observed,before,after,configurations,false)
+}
+pub fn verify_fresh_dev(expected:&Expectation, observed:&RemovalInventory, before:&[Lifecycle], after:&[Lifecycle],
+    configurations:&[ReceiverConfiguration]) -> Result<Draft,String> {
+    if expected.inventory.groups.binding.deployment_id!="opencloud-dev" {return Err("Fresh DEV only".into());}
+    verify_mode(expected,observed,before,after,configurations,true)
+}
+fn verify_mode(expected:&Expectation, observed:&RemovalInventory, before:&[Lifecycle], after:&[Lifecycle],
+    configurations:&[ReceiverConfiguration],fresh:bool) -> Result<Draft,String> {
     let (readers,targets)=scope(expected)?;
     let clubs=expected.inventory.media.iter().map(|m|m.club_authority).collect();
     crate::expected_removal_inventory::validate_exact(&crate::expected_removal_inventory::ExpectedInventory {
@@ -93,7 +102,7 @@ pub fn verify(expected:&Expectation, observed:&RemovalInventory, before:&[Lifecy
     let mut configs=BTreeMap::new();
     for row in configurations {
         if configs.insert(row.receiver,row.clone()).is_some() || row.authority!=Some(expected.identity) || row.protocol!=1 ||
-            row.rehearsal || !row.removal_enabled || (readers.contains(&row.receiver) && !row.admission_required) {
+            row.rehearsal || (if fresh {row.removal_enabled} else {!row.removal_enabled}) || (readers.contains(&row.receiver) && !row.admission_required) {
             return Err("Production receiver protection incomplete".into());
         }
     }
@@ -147,5 +156,19 @@ pub fn verify(expected:&Expectation, observed:&RemovalInventory, before:&[Lifecy
         let(e,l,c)=fixture();let mut bad=e.clone();bad.inventory.groups.binding.deployment_id="mainnet".into();assert!(scope(&bad).is_err());
         let mut bad=e.clone();bad.modules.push(bad.modules[0].clone());assert!(scope(&bad).is_err());
         let mut c=c; c[0].removal_enabled=false;assert!(verify(&e,&e.inventory,&l,&l,&c).is_err());
+    }
+    #[test] fn fresh_dev_requires_admission_only_and_never_weakens_prod(){
+        crate::TEST_CLOUD_ENGINE.with(|v|v.set(true));
+        let (mut e,l,mut c)=fixture();
+        let b=&mut e.inventory.groups.binding;b.target_alias="opencloud-dev".into();b.deployment_id="opencloud-dev".into();b.network_kind="cloud_engine".into();b.host="https://engine.example".into();
+        for g in &mut e.inventory.groups.snapshot.groups {g.target_alias=b.target_alias.clone();}
+        for p in &mut e.inventory.groups.snapshot.placements {p.deployment_id=b.deployment_id.clone();p.host=b.host.clone();p.network_kind=b.network_kind.clone();}
+        for config in &mut c {config.removal_enabled=false;}
+        assert!(verify_fresh_dev(&e,&e.inventory,&l,&l,&c).is_ok());
+        assert!(verify(&e,&e.inventory,&l,&l,&c).is_err());
+        c[0].removal_enabled=true;assert!(verify_fresh_dev(&e,&e.inventory,&l,&l,&c).is_err());
+        c[0].removal_enabled=false;c[0].admission_required=false;assert!(verify_fresh_dev(&e,&e.inventory,&l,&l,&c).is_err());
+        e.inventory.groups.binding.deployment_id="opencloud-prod".into();assert!(verify_fresh_dev(&e,&e.inventory,&l,&l,&c).is_err());
+        crate::TEST_CLOUD_ENGINE.with(|v|v.set(false));
     }
 }

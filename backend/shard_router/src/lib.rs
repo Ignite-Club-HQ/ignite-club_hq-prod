@@ -1307,6 +1307,9 @@ async fn place_my_new_club(club_id: String, target_alias: String) -> Outcome<Gro
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 
     let user = caller();
+    if option_env!("IGNITE_OPENCLOUD_DEV_ADMISSION_ONLY")==Some("1") {
+        if user==Principal::anonymous() || !owner_creation_eligible(user).await? {return Err("Fresh DEV account admission unavailable".into());}
+    }
     let _removal_hold = if user == Principal::anonymous() { None } else { Some(account_removal_receiver::enter(user)?) };
     if let Some(receipt) = owner_opening(&target_alias).filter(|r| r.approval.owner == user) {
         registry_writable()?;

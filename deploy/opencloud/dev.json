@@ -1,6 +1,7 @@
 {
   "schema": 1,
   "environment": "opencloud-dev",
+  "commissioningMode": "fresh-install-admission-only",
   "applicationKey": "ignite_dev_v2",
   "branch": "main",
   "networkKind": "cloud_engine",
@@ -70,7 +71,7 @@
     }
   ],
   "engineSettings": {
-    "devWasmMemoryLimit": null,
+    "devWasmMemoryLimit": "4294967296",
     "prodComputeAllocation": null
   },
   "push": {

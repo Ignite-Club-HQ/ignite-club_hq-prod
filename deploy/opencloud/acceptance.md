@@ -9,6 +9,15 @@
 - Engine-aware zero-cycle resource policy, fresh G1 identity/bootstrap, protection/lifecycle evidence and engine-specific private-name commissioning are resolved without weakening existing access.
 - Both groups' reciprocal configuration is read back; admissions/routing remain held until the correct existing acceptance protocol authorizes the desired DEV test.
 
+## Fresh-install safeguards
+
+- The 32-target package contains no witness install or recovery signing action; leave `c6dso-4iaaa-aaac5-aaeqa-cai` empty and untouched.
+- Before commissioning, non-governor commissioning and ordinary registration/profile writes are denied. The initialized governor account alone is expected.
+- Wrong host/environment, role-swapped IDs, incomplete inventory, mismatched modules, removal-enabled/rehearsal receivers, pending work, prior user data and non-install history must be refused.
+- Save the successful `commission_fresh_opencloud_dev` receipt; identical retry returns it without replacing pins, conflicting retry refuses. Read it back through `read_fresh_opencloud_dev_commissioning`, which checks all 31 live backend lifecycles.
+- Global account erasure/recovery stay denied, including after ordinary member admission is disabled. No reset, snapshot load, reinstall or upgrade is authorized for testing the actual installation.
+- On separately authorized disposable local instances only, test pre-commission snapshot restore, post-commission single/joint restore and same-module upgrade: management lifecycle changes must deny access/recommissioning. Do not perform destructive lifecycle probes on these 32 DEV targets.
+
 ## Functional flow
 
 1. Sign in through the DEV frontend's `.icp.net` address with Internet Identity; return to the same DEV identity/profile. Test desktop and a real phone. Confirm no request reaches existing mainnet application canisters and no stored-mainnet/email routing is silently adopted.
@@ -26,7 +35,7 @@
 - Compare G1/G2 derivations for the same logical identity; they must differ. Verify an unrelated caller cannot access either's keys.
 - When PROD is later explicitly commissioned, repeat under PROD's own PII callers and verify cross-environment decryption failure. **Do not call PROD key derivation or install PROD just to complete this checklist now.** Offline four-caller checks cover only the published algorithm, not live PROD acceptance.
 - Test insufficient/unavailable proxy, authorization refusal and invalid reply bytes: preserve ciphertext and fail closed; no raw URL/plain storage fallback or automatic uncertain paid replay.
-- A separately approved state-preserving DEV upgrade must preserve the original proxy/key route and exact photo/name readback. This checklist does not authorize the upgrade itself.
+- Initial fresh-mode identity upgrades refuse; changed receiver lifecycles deny scoped access. Any later state-preserving DEV upgrade requires a separately reviewed lifecycle path plus original proxy/key and photo/name readback. Initial commissioning cannot authorize it.
 
 ## Isolation and release outcome
 
