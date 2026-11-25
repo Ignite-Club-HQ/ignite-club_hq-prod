@@ -129,6 +129,14 @@ do not try another package to grant GitHub permission. Support/owner access must
 retain the OpenCloud owner and add the DEV governor on backend parts, plus the
 publishing key on the frontend (the DEV governor also remains on the frontend).
 
+OpenCloud also offers controllers at **engine level**, which covers every
+canister in both DEV apps (and future additions) in one grant. While the engine
+hosts DEV only, prefer one engine-level grant of the DEV governor principal,
+plus the publishing principal on the frontend canister alone. Engine-level
+grants also cover the engine proxy canister, so they are DEV-only: if PROD ever
+shares this engine, the engine-level DEV keys must be removed and re-added
+per-canister before any PROD canister lands there.
+
 **Adding a management controller does not change a service's internal governor.**
 The successful v2 app was initialized under the owner identity. After support
 adds GitHub's keys, separately read each service's internal governor and full
