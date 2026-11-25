@@ -90,7 +90,7 @@
     "witness": "c6dso-4iaaa-aaac5-aaeqa-cai",
     "witnessController": "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
     "witnessControllerVerified": false,
-    "approverPublicKey": null,
+    "approverPublicKey": "90ccd92c72dbbe1d2ae9679698dd274e3296ce93a0095ad3f04b2c69fb4b2da6",
     "witnessModuleHash": null
   }
 }

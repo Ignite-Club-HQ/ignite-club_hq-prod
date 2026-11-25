@@ -1,6 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
 ## Provisioned OpenCloud DEV implementation — 25 November
+- [x] Received and validated Paul's generated DEV approver public key; recorded it in the isolated DEV configuration only. No private key accessed.
+- [ ] Rebuild witness and pinned identity artifacts: public key now supplied; effective independent witness controllers and live commissioning remain ChatGPT's verification tasks. No deployment authorized.
 - [x] Incorporated ChatGPT's 64 unique IDs as owner-supplied separate DEV/inactive-PROD configurations; no controller changes.
 - [x] Configured the separate chain-key proxy, matched its public API/subnet/funding binding and checked offline four-caller key separation; mainnet encryption retained, engine profile plaintext fallback refused.
 - [x] Prepared isolated mapping/manifest/staging/artifact tooling and standalone frontend target/origin isolation; no CI/live changes.
