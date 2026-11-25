@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { identityFromPem } from '../prod-connection-check.mjs';
 import { guard, activation, MANAGEMENT_PROXY } from './dev-auto.mjs';
-const [work, timerWork, mode] = process.argv.slice(2);
+const [work, timerWork, clubWork, mode] = process.argv.slice(2);
 if (!['check','commission'].includes(mode)) throw Error('Explicit mode required');
 const config = JSON.parse(fs.readFileSync('deploy/opencloud/dev.json'));
 const peer = JSON.parse(fs.readFileSync('deploy/opencloud/prod.json'));
@@ -36,9 +36,11 @@ const verifyControllers=s=>{if(JSON.stringify(s.settings.controllers.map(p=>p.to
 
 const timer=JSON.parse(fs.readFileSync(path.join(timerWork,'manifest.json')));
 if(timer.environment!==config.environment||timer.applicationKey!==config.applicationKey)throw Error('Wrong timer manifest');
+const club=JSON.parse(fs.readFileSync(path.join(clubWork,'manifest.json')));
+if(club.environment!==config.environment||club.applicationKey!==config.applicationKey||club.canisters.length!==32||club.engine.operatorId!==MANAGEMENT_PROXY)throw Error('Wrong club manifest');
 const modules=[];
 for(const r of rows.filter(r=>r.service!=='frontend')){
- const a=(r.service==='timer_jobs'?timer:m).canisters.find(x=>x.name===r.name);
+ const a=(r.service==='timer_jobs'?timer:r.service==='club_domain'?club:m).canisters.find(x=>x.name===r.name);
  if(!a||a.id!==r.id||a.service!==r.service||! /^[a-f0-9]{64}$/.test(a.moduleSha256))throw Error('Manifest mismatch '+r.name);
  const s=await status(r.id);verifyControllers(s);
  if(s.module_hash.length!==1||Buffer.from(s.module_hash[0]).toString('hex')!==a.moduleSha256)throw Error('Live module mismatch '+r.name);
