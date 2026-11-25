@@ -146,6 +146,7 @@ export function serviceSettings(config, row) {
   if (freshDev(config) && row.service === 'pii_access_control') Object.assign(variables, {
     IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE:'1', IGNITE_PRIVATE_PROFILE_IDENTITY:config.shared.identity_access,
     IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE:'1',
+    IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE:'1', IGNITE_SECURE_ADULT_NAME_IDENTITY:config.shared.identity_access,
   });
   // Lifecycle/recovery/admission/name-release flags are intentionally NOT synthesized.
   // Set them only using existing reviewed commissioning protocols, after live evidence.
