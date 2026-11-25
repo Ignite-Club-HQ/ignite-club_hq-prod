@@ -1,10 +1,11 @@
 # Roadmap — launch the live (PROD) system
 
 ## Provisioned OpenCloud DEV implementation — 25 November
+- [x] Assessed a distinct first-installation, admission-only commissioning path from source; recovery witness/key are current protocol dependencies, not intrinsic requirements for a genuinely fresh DEV installation. Assessment only; no implementation or live changes.
 - [x] Received and validated Paul's generated DEV approver public key; recorded it in the isolated DEV configuration only. No private key accessed.
 - [ ] Rebuild witness and pinned identity artifacts: public key now supplied; effective independent witness controllers and live commissioning remain ChatGPT's verification tasks. No deployment authorized.
 - [x] Built DEV witness with Paul's public key: 20 existing security tests passed, WASM/public-key and Candid endpoint checks passed; module hash recorded, install-only handover prepared.
-- [ ] Install DEV witness (Paul authorized 08:54 UTC): blocked on authenticated OpenCloud owner transport and live independent effective-controller/empty-module verification. No controller changes, mainnet or PROD actions performed.
+- [ ] DEV commissioning implementation awaits Paul's decision on the fresh-installation assessment; witness installation is paused by the 08:58 UTC assessment-only request. Existing witness artifact is built, not deployed.
 - [x] Incorporated ChatGPT's 64 unique IDs as owner-supplied separate DEV/inactive-PROD configurations; no controller changes.
 - [x] Configured the separate chain-key proxy, matched its public API/subnet/funding binding and checked offline four-caller key separation; mainnet encryption retained, engine profile plaintext fallback refused.
 - [x] Prepared isolated mapping/manifest/staging/artifact tooling and standalone frontend target/origin isolation; no CI/live changes.
