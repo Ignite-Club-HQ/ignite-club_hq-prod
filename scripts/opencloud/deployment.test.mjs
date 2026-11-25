@@ -75,7 +75,7 @@ test('identity commissioning stays held until owner signer and independent witne
   assert.throws(() => manifest(c), /independent/);
 });
 test('unverified infrastructure produces only a held manifest, never install arguments guessed as null principals', () => {
-  const c = source('dev'), m = manifest(c, source('prod'), undefined, true);
+  const c = source('dev'); c.controllers.governor = null; const m = manifest(c, source('prod'), undefined, true);
   assert.equal(m.executable, false); assert.equal(m.canisters.find(r => r.name === 'identity_access').initArgs, null);
   assert.throws(() => validate(c, source('prod')), /populated principal/);
 });
