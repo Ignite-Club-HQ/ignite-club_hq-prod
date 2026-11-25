@@ -22,7 +22,7 @@ if(cli(['identity','principal','--identity',identity]).trim()!==config.controlle
 function invoke(c,method,args){
  const row=rows.find(r=>r.id===c.target);
  const did=path.join(root,'backend',row.service,row.service+'.did');
- return cli(['canister','call',c.target,method,'--args',args,'--candid',did,'--network','ic','--identity',identity]);
+ return cli(['canister','call',c.target,method,args,'--candid',did,'--network','ic','--identity',identity]);
 }
 const unique=[...new Map(calls.map(c=>[c.target,c])).values()];
 for(const c of unique){const out=invoke(c,'read_group_opening_configuration','()');if(/\bErr\b/.test(out)||!out.trim())throw Error('Readback refused '+c.service);console.log(c.service+' readback: '+out);}
