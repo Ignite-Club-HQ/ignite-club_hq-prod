@@ -25,10 +25,10 @@ function invoke(c,method,args){
  return cli(['canister','call',c.target,method,args,'--candid',did,'--network','ic','--identity',identity]);
 }
 const unique=[...new Map(calls.map(c=>[c.target,c])).values()];
-for(const c of unique){const out=invoke(c,'read_group_opening_configuration','()');if(c.service.endsWith('_timer_jobs') && /Timer queue is not initialized/.test(out)){console.log(c.service+' awaiting initialize');continue;}if(/\bErr\b/.test(out)||!out.trim())throw Error('Readback refused '+c.service+': '+out);console.log(c.service+' readback: '+out);}
+for(const c of unique){const out=invoke(c,'read_group_opening_configuration','()');if(c.service.endsWith('_timer_jobs') && /Timer queue is not initialized|Governor required/.test(out)){console.log(c.service+' governor readback unavailable; controller-only initialize must succeed before wiring continues');continue;}if(/\bErr\b/.test(out)||!out.trim())throw Error('Readback refused '+c.service+': '+out);console.log(c.service+' readback: '+out);}
 console.log('Validated '+calls.length+' wiring calls');
 if(mode==='check')process.exit(0);
-for(const c of calls){
+for(const c of [...calls.filter(c=>c.method==='initialize'),...calls.filter(c=>c.method!=='initialize')]){
  console.log('Applying '+c.service+'.'+c.method);
  const out=invoke(c,c.method,c.candidArgs);
  if(/\bErr\b|\berr\b/.test(out)||!out.trim())throw Error('Uncertain reply: '+out);
