@@ -1,5 +1,19 @@
 # Grouped OpenCloud DEV: offline preparation
 
+## Updated direction — 25 November 2026
+
+The approved plan in `.lovable/plan/move-ignite-dev-and-prod-to-opencloud-2026-11-25.md`
+supersedes the earlier mainnet-only PROD destination below. Prefer OpenCloud's
+Git deployment, independent DEV/PROD on the initial engine, and fresh DEV on a
+second engine later without moving PROD or its key authority. Old ICP retention
+is optional and bounded; Supabase and paid subscriptions remain untouched.
+
+The current console access check still reaches sign-in. No authorized OpenCloud
+transport or generated Git setup is available here; controller/branch/upgrade
+behavior cannot yet be verified. Thirty existing grouped-preparation/controller
+tests passed, but this is local preparation evidence, not live acceptance.
+No workflows, controllers, data, hosting or deployment destinations were changed.
+
 ## Scope and layout
 
 This prepares the agreed two-group DEV alternative, not a deployment or switch.
