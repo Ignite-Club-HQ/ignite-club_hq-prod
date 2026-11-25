@@ -34,7 +34,7 @@ const expected=[MANAGEMENT_PROXY,config.controllers.owner,config.controllers.con
 const verifyControllers=s=>{if(JSON.stringify(s.settings.controllers.map(p=>p.toText()).sort())!==JSON.stringify(expected))throw Error('Controller mismatch');};
 const original=JSON.parse(fs.readFileSync(path.join(originalWork,'manifest.json')));
 const ids=['him2v-zqaaa-aaac5-aadta-cai','ed2mw-7iaaa-aaac5-aadzq-cai'];
-const targets=ids.map(id=>{const r=rows.find(x=>x.id===id),a=m.canisters.find(x=>x.id===id);if(r?.service!=='club_domain'||a?.service!=='club_domain')throw Error('Wrong club target');const gz=fs.readFileSync(path.join(work,a.wasm)),wasm=gunzipSync(gz);if(hash(gz)!==a.wasmSha256||hash(wasm)!==a.moduleSha256)throw Error('Artifact mismatch');return {...a,wasm,arg:I.encode([],[])};});
+const targets=ids.map(id=>{const r=rows.find(x=>x.id===id),a=m.canisters.find(x=>x.id===id);if(r?.service!=='club_domain'||a?.service!=='club_domain')throw Error('Wrong club target');const gz=fs.readFileSync(path.join(work,a.wasm)),wasm=gunzipSync(gz);if(hash(gz)!==a.wasmSha256||hash(wasm)!==a.moduleSha256)throw Error('Artifact mismatch');return {...a,wasm,arg:I.encode([P],[pid(config.controllers.governor)])};});
 for(const t of targets){const s=await status(t.id);verifyControllers(s);if(!s.module_hash.length||![t.moduleSha256,original.canisters.find(a=>a.id===t.id)?.moduleSha256].includes(Buffer.from(s.module_hash[0]).toString('hex')))throw Error('Unexpected club module');console.log(t.name+' current hash '+Buffer.from(s.module_hash[0]).toString('hex'));}
 if(mode==='check')process.exit(0);
 for(const t of targets){
