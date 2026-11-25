@@ -32,6 +32,7 @@ jobs:
           icp identity default opencloud-publisher
           expected="$(node -p 'require("./deploy/opencloud/dev.json").controllers.frontendPublisher')"
           test "$(icp identity principal)" = "$expected" || { echo "::error::Publisher key does not match the OpenCloud DEV publisher"; exit 1; }
+      - run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
       - name: Build the isolated OpenCloud DEV website
         run: |
           set -euo pipefail
