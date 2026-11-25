@@ -37,6 +37,7 @@ test('install commands are upgrade-only and keep Motoko memory', () => {
   const row = { id: config.groups[0].canisterIds.club_domain, service: 'club_domain', name: 'g1_club_domain' };
   const args = upgradeArgs(row, { ...row, moduleSha256: 'a'.repeat(64), upgradePersistence: 'keep' }, '/w.gz');
   assert.equal(args[args.indexOf('--mode') + 1], 'upgrade');
+  assert.equal(args[args.indexOf('--proxy') + 1], config.operatorId);
   assert.equal(args[args.indexOf('--wasm-memory-persistence') + 1], 'keep');
   assert.throws(() => upgradeArgs(row, { ...row, id: 'other', moduleSha256: 'a'.repeat(64) }, '/w'));
 });
@@ -46,7 +47,7 @@ test('execution stops at the first hash mismatch and reports commit and canister
   const targets = plan(rows, ['backend/club_domain/x']).targets;
   const manifest = { canisters: targets.map(t => ({ id: t.id, service: t.service, wasm: 'a.gz', moduleSha256: 'b'.repeat(64), upgradePersistence: 'keep' })) };
   const calls = [];
-  const run = (cmd, args) => { calls.push(args[1]); return args[1] === 'status' ? `{"module_hash":"${'c'.repeat(64)}"}` : ''; };
+  const run = (cmd, args) => { assert.equal(args[args.indexOf('--proxy') + 1], config.operatorId); calls.push(args[1]); return args[1] === 'status' ? `{"module_hash":"${'c'.repeat(64)}"}` : ''; };
   const r = execute({ targets, manifest, work: '/w', run });
   assert.equal(r.ok, false); assert.equal(r.results.length, 1); assert.equal(calls.filter(c => c === 'install').length, 1);
   const text = summary({ commit: 'abc123', results: r.results });

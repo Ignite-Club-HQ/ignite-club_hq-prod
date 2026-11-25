@@ -13,7 +13,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const load = file => JSON.parse(readFileSync(path.resolve(ROOT, file), 'utf8'));
 const HASH = /^[a-f0-9]{64}$/;
 /** Changes to the staging rules re-pin every module, so they upgrade everything. */
-// Engine canisters sit on an IC subnet; the existing DEV engine website already syncs with `-e ic`.
+// Management operations must use the authenticated OpenCloud operator relay.
+export const MANAGEMENT_PROXY = 's53an-5aaaa-aaac5-aaaaa-cai';
 const OPENCLOUD_SHARED = [/^scripts\/opencloud\/deployment\.mjs$/, /^deploy\/opencloud\/dev\.json$/];
 
 export function activation(config) {
@@ -28,6 +29,7 @@ export function guard({ config, peer, branch, forbidden = mainnetIds() }) {
   if (branch !== 'main') throw Error('OpenCloud DEV automation runs from main only');
   if (config?.environment !== 'opencloud-dev' || peer?.environment !== 'opencloud-prod') throw Error('OpenCloud DEV configuration required; PROD is never a target');
   const rows = validateMappings(config, peer, forbidden);
+  if (config.operatorId !== MANAGEMENT_PROXY) throw Error('Unexpected OpenCloud management operator');
   if (rows.length !== 32 || rows.some(r => !r.id)) throw Error('Exact 32-canister OpenCloud DEV inventory required');
   return rows;
 }
@@ -51,7 +53,7 @@ export function plan(rows, changedFiles) {
 /** Upgrade-only install arguments from the manifest. Motoko keeps its heap; Rust passes its init record. */
 export function upgradeArgs(row, manifestRow, wasmPath, network = 'ic') {
   if (!manifestRow || manifestRow.id !== row.id || manifestRow.service !== row.service || !HASH.test(manifestRow.moduleSha256 ?? '')) throw Error(`Manifest does not match ${row.name}`);
-  const args = ['canister', 'install', row.id, '-n', network, '--mode', 'upgrade', '--wasm', wasmPath, '-y'];
+  const args = ['canister', 'install', row.id, '-n', network, '--proxy', MANAGEMENT_PROXY, '--mode', 'upgrade', '--wasm', wasmPath, '-y'];
   if (manifestRow.upgradePersistence === 'keep') args.push('--wasm-memory-persistence', 'keep');
   if (manifestRow.initArgs) args.push('--args', manifestRow.initArgs);
   if (args.some(a => /^(install|reinstall|auto)$/.test(a) && args[args.indexOf(a) - 1] === '--mode')) throw Error('Upgrade mode only');
@@ -76,7 +78,7 @@ export function summary({ commit, results, frontend }) {
 }
 
 const statusHash = (id, run) => {
-  const out = run('icp', ['canister', 'status', id, '-n', 'ic', '--json']);
+  const out = run('icp', ['canister', 'status', id, '-n', 'ic', '--proxy', MANAGEMENT_PROXY, '--json']);
   const hash = /"module_hash"\s*:\s*"?(?:0x)?([a-f0-9]{64})/.exec(out)?.[1];
   if (!hash) throw Error(`Cannot read module hash for ${id}`);
   return hash;
