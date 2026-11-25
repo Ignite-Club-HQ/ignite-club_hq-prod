@@ -1,0 +1,39 @@
+name: OpenCloud DEV publisher access
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Check authenticated management access to exact DEV targets
+        env:
+          PEM_IN: ${{ secrets.DEPLOYER_PEM }}
+          ICP_HOME: ${{ runner.temp }}/opencloud-publisher-status
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$ICP_HOME"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
+          node scripts/normalize-dev-engine-publisher-pem.mjs > "$ICP_HOME/publisher.pem"
+          unset PEM_IN
+          icp identity import --from-pem "$ICP_HOME/publisher.pem" --storage plaintext opencloud-publisher
+          test "$(icp identity principal --identity opencloud-publisher)" = "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+          failed=0
+          for id in h2knm-vaaaa-aaac5-aadqa-cai h5lly-yyaaa-aaac5-aadqq-cai huiae-oqaaa-aaac5-aadra-cai htjgq-diaaa-aaac5-aadrq-cai hgox5-caaaa-aaac5-aadsa-cai hbprj-pyaaa-aaac5-aadsq-cai him2v-zqaaa-aaac5-aadta-cai hpn4b-uiaaa-aaac5-aadtq-cai gcdyp-3aaaa-aaac5-aadua-cai gfc63-wyaaa-aaac5-aaduq-cai gmbvh-aqaaa-aaac5-aadva-cai glatt-niaaa-aaac5-aadvq-cai g6hc6-maaaa-aaac5-aadwa-cai gzgek-byaaa-aaac5-aadwq-cai gqfpw-xqaaa-aaac5-aadxa-cai gxejc-2iaaa-aaac5-aadxq-cai ekzhk-jaaaa-aaac5-aadya-cai enyb6-eyaaa-aaac5-aadyq-cai ee3kc-sqaaa-aaac5-aadza-cai ed2mw-7iaaa-aaac5-aadzq-cai ew553-6aaaa-aaac5-aad2a-cai er43p-tyaaa-aaac5-aad2q-cai ey7qt-fqaaa-aaac5-aad3a-cai e76wh-iiaaa-aaac5-aad3q-cai fsqsj-haaaa-aaac5-aad4a-cai fvru5-kyaaa-aaac5-aad4q-cai f4s7b-4qaaa-aaac5-aad5a-cai f3tzv-riaaa-aaac5-aad5q-cai fouiy-qaaaa-aaac5-aad6a-cai fjvom-5yaaa-aaac5-aad6q-cai fawfq-lqaaa-aaac5-aad7a-cai fhxde-giaaa-aaac5-aad7q-cai; do
+            echo "DEV target: $id"
+            if icp canister settings show "$id" --network ic --proxy s53an-5aaaa-aaac5-aaaaa-cai --identity opencloud-publisher --json; then
+              echo "Authenticated settings access passed: $id"
+            else
+              failed=$((failed+1))
+            fi
+          done
+          echo "Failed targets: $failed / 32"
+          test "$failed" = 0
