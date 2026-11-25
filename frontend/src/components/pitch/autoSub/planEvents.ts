@@ -12,6 +12,8 @@ export type ReplaceReason = "regenerate" | "repair" | "injury" | "edit-dialog";
 export type PlanEvent =
   | { type: "START"; plan: SubstitutionEvent[] }
   | { type: "CANCEL" }
+  // Only for an authorized shared-board snapshot, not a local plan edit.
+  | { type: "RESTORE"; plan: SubstitutionEvent[]; active: boolean; paused: boolean }
   | { type: "PAUSE_TOGGLE" }
   | { type: "EXECUTE"; subKey: string }
   | { type: "CONFIRM_BATCH"; subKeys: string[] }

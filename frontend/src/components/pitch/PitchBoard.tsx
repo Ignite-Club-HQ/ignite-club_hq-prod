@@ -870,6 +870,8 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     nextSubInfo,
     subDueTimerRef,
     handleStartAutoSubPlan,
+    resetAutoSubs,
+    restoreAutoSubs,
     handleCancelAutoSubPlan,
     handleTogglePauseAutoSub,
     handleToggleLockPlayer,
@@ -1175,9 +1177,10 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
       if (state.teamSize) setTeamSize(state.teamSize);
       if (typeof state.selectedFormation === 'number') setSelectedFormation(state.selectedFormation);
       if (state.ballPosition) setBallPosition(state.ballPosition);
-      if (Array.isArray(state.autoSubPlan)) setAutoSubPlan(repairPitchPlaceholderNames(state.autoSubPlan, id => mockPlayerName(id) ?? playersRef.current.find(p => p.id === id)?.name));
-      if (typeof state.autoSubActive === 'boolean') setAutoSubActive(state.autoSubActive);
-      if (typeof state.autoSubPaused === 'boolean') setAutoSubPaused(state.autoSubPaused);
+      if (Array.isArray(state.autoSubPlan)) restoreAutoSubs(
+        repairPitchPlaceholderNames(state.autoSubPlan, id => mockPlayerName(id) ?? playersRef.current.find(p => p.id === id)?.name),
+        state.autoSubActive === true, state.autoSubPaused === true,
+      );
       if (Array.isArray(state.goals)) setGoals(state.goals);
       if ('linkedEventId' in state) setLinkedEventId(state.linkedEventId ?? null);
     },
@@ -1600,9 +1603,7 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     setTeamSize,
     setSelectedFormation,
     setPlayers,
-    setAutoSubPlan,
-    setAutoSubActive,
-    setAutoSubPaused,
+    resetAutoSubs,
     setSubMode,
     setSelectedOnPitch,
     setSelectedOnBench,
@@ -1617,7 +1618,7 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
   });
 
   // Helper: if the game is at full time, reset the clock before showing the
-  // lineup picker — but never wipe the coach's positions or auto-sub plan, so
+  // lineup picker — but never wipe the coach's positions, so
   // re-opening Set up game shows the current lineup rather than team defaults.
   const handleSetupGame = useCallback(() => {
     if (gameTimerRef.current?.isGameFinished()) {

@@ -61,6 +61,11 @@ export function autoSubReducer(
   });
 
   switch (ev.type) {
+    case "RESTORE": {
+      const err = validatePlanIntegrity(ev.plan, {});
+      if (err) return reject(err);
+      return accept({ plan: ev.plan, active: ev.active, paused: ev.paused });
+    }
     case "START": {
       const err = assertValidPlan(ev.plan, { players: ctx.players });
       if (err) return reject(err);

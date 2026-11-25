@@ -1485,7 +1485,7 @@ export default function PitchBoardPortraitLayout() {
         teamSize={parseInt(teamSize)}
         minutesPerHalf={minutesPerHalf}
         onStartPlan={(plan) => handleStartAutoSubPlan(plan, autoSubFromPreGame)}
-        existingPlan={autoSubActive ? autoSubPlan : undefined}
+        existingPlan={!autoSubFromPreGame && autoSubActive ? autoSubPlan : undefined}
         editMode={autoSubPlanEditMode}
         rotationSpeed={rotationSpeed}
         disablePositionSwaps={disablePositionSwaps}

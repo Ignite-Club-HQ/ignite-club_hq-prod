@@ -1,6 +1,6 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { clearPitchState } from "../pitchStateUtils";
-import { FORMATIONS, type Player, type SubstitutionEvent, type TeamSize } from "../types";
+import { FORMATIONS, type Player, type TeamSize } from "../types";
 import type { GameTimerRef } from "../GameTimer";
 
 export interface PitchBoardSavedDefaults {
@@ -34,9 +34,7 @@ interface PitchBoardResetGameArgs {
   setTeamSize: Dispatch<SetStateAction<TeamSize>>;
   setSelectedFormation: Dispatch<SetStateAction<number>>;
   setPlayers: Dispatch<SetStateAction<Player[]>>;
-  setAutoSubPlan: Dispatch<SetStateAction<SubstitutionEvent[]>>;
-  setAutoSubActive: Dispatch<SetStateAction<boolean>>;
-  setAutoSubPaused: Dispatch<SetStateAction<boolean>>;
+  resetAutoSubs: () => void;
   setSubMode: Dispatch<SetStateAction<boolean>>;
   setSelectedOnPitch: Dispatch<SetStateAction<string | null>>;
   setSelectedOnBench: Dispatch<SetStateAction<string | null>>;
@@ -72,9 +70,7 @@ export function usePitchBoardResetGame({
   setTeamSize,
   setSelectedFormation,
   setPlayers,
-  setAutoSubPlan,
-  setAutoSubActive,
-  setAutoSubPaused,
+  resetAutoSubs,
   setSubMode,
   setSelectedOnPitch,
   setSelectedOnBench,
@@ -85,6 +81,9 @@ export function usePitchBoardResetGame({
   return useCallback((silent = false, opts?: { preserveLineup?: boolean }) => {
     const preserveLineup = opts?.preserveLineup === true;
     gameTimerRef.current?.resetTimer();
+    // Preserving the lineup must never preserve the previous match's
+    // executed/skipped substitutions or pending confirmation state.
+    resetAutoSubs();
 
     if (!preserveLineup) {
       const savedDefaults = savedTeamDefaultsRef.current;
@@ -111,9 +110,6 @@ export function usePitchBoardResetGame({
         defaultFormationIndex,
       ));
 
-      setAutoSubPlan([]);
-      setAutoSubActive(false);
-      setAutoSubPaused(false);
     } else {
       setPlayers((currentPlayers) => currentPlayers.map((player) => ({
         ...player,
@@ -140,9 +136,7 @@ export function usePitchBoardResetGame({
     notifyReset,
     players,
     savedTeamDefaultsRef,
-    setAutoSubActive,
-    setAutoSubPaused,
-    setAutoSubPlan,
+    resetAutoSubs,
     setDisableBatchSubs,
     setDisablePositionSwaps,
     setGameInProgress,

@@ -44,9 +44,7 @@ function setup(players: Player[] = [
     setTeamSize: vi.fn(),
     setSelectedFormation: vi.fn(),
     setPlayers: vi.fn(),
-    setAutoSubPlan: vi.fn(),
-    setAutoSubActive: vi.fn(),
-    setAutoSubPaused: vi.fn(),
+    resetAutoSubs: vi.fn(),
     setSubMode: vi.fn(),
     setSelectedOnPitch: vi.fn(),
     setSelectedOnBench: vi.fn(),
@@ -134,9 +132,7 @@ describe("usePitchBoardResetGame", () => {
       { ...args.players[0], minutesPlayed: 0, position: { x: 50, y: 90 } },
       { ...args.players[1], minutesPlayed: 0, position: null },
     ]);
-    expect(setters.setAutoSubPlan).toHaveBeenCalledWith([]);
-    expect(setters.setAutoSubActive).toHaveBeenCalledWith(false);
-    expect(setters.setAutoSubPaused).toHaveBeenCalledWith(false);
+    expect(setters.resetAutoSubs).toHaveBeenCalledOnce();
     expect(mocks.clearPitchState).toHaveBeenCalledWith("team-1");
     expect(hasLoadedRef.current).toBe(false);
     expect(notifyReset).toHaveBeenCalledOnce();
@@ -164,7 +160,7 @@ describe("usePitchBoardResetGame", () => {
       .toBeLessThan(mocks.clearPitchState.mock.invocationCallOrder[0]);
   });
 
-  it("preserves lineup, settings, plan and persistence when only resetting a finished clock", () => {
+  it("preserves lineup and settings but clears previous substitutions when resetting a finished clock", () => {
     const currentPlayers = [
       player("starter", "Alex", { position: { x: 45, y: 70 }, minutesPlayed: 700 }),
       player("fill-in", "Casey", { isFillIn: true, position: { x: 55, y: 30 }, minutesPlayed: 320 }),
@@ -187,9 +183,7 @@ describe("usePitchBoardResetGame", () => {
     expect(setters.setMinutesPerHalf).not.toHaveBeenCalled();
     expect(setters.setTeamSize).not.toHaveBeenCalled();
     expect(setters.setSelectedFormation).not.toHaveBeenCalled();
-    expect(setters.setAutoSubPlan).not.toHaveBeenCalled();
-    expect(setters.setAutoSubActive).not.toHaveBeenCalled();
-    expect(setters.setAutoSubPaused).not.toHaveBeenCalled();
+    expect(setters.resetAutoSubs).toHaveBeenCalledOnce();
     expect(mocks.clearPitchState).not.toHaveBeenCalled();
     expect(hasLoadedRef.current).toBe(true);
   });
