@@ -71,8 +71,8 @@ for(const [i,g] of config.groups.entries()){
 }
 const binding={registry_revision:page.revision,host:config.apiHost,network_kind:'cloud_engine',deployment_revision:1n,target_alias:config.environment,registry:pid(router),deployment_id:config.environment};
 const media=[];
-for(const g of config.groups){const registry=await invoke(g.canisterIds.club_domain,'read_removal_media_registry',[],[],Media);if(registry.stores.length!==1||!eq(registry.stores[0],g.canisterIds.media_blob_store))throw Error('Media registry mismatch');media.push({club_authority:pid(g.canisterIds.club_domain),registry});}
-const supplemental=[{domain:'shard_router',group_id:'',subnet:pid(config.subnetId),canister:pid(router)},...config.groups.map((g,i)=>({domain:'media_blob_store',group_id:i===0?'base':'g2',subnet:pid(config.subnetId),canister:pid(g.canisterIds.media_blob_store)}))];
+for(const g of config.groups){const registry=await invoke(g.canisterIds.club_domain,'read_media_quota_store_registry',[],[],Media);if(registry.stores.length!==1||!eq(registry.stores[0],g.canisterIds.media_blob_store))throw Error('Media registry mismatch');media.push({club_authority:pid(g.canisterIds.club_domain),registry});}
+const supplemental=[{domain:'shard_router',group_id:'base',subnet:pid(config.subnetId),canister:pid(router)},...config.groups.map((g,i)=>({domain:'media_blob_store',group_id:i===0?'base':'g2',subnet:pid(config.subnetId),canister:pid(g.canisterIds.media_blob_store)}))];
 const history=await invoke(id,'read_production_account_history_revision',[],[],N);
 const expected={identity:pid(id),modules,inventory:{groups:{binding,history_revision:history,snapshot:{groups:page.groups,placements:page.placements,revision:page.revision}},supplemental,media}};
 if(mode==='check'){console.log('Live hashes and registry verified; no writes');process.exit(0);}
