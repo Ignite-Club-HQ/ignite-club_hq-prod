@@ -24,20 +24,25 @@ export function assertDevKeyContext(env) {
   return DEV_KEY;
 }
 
+let stage = 'checking settings';
+const SAFE = /^(Exact |Dedicated |Owner |[A-Z_]+ binding|Independent |Non-bypassable |Approval |Existing approval |Stored approval |Plaintext |Generated |Live repository |GitHub journal |Receipt )/;
 async function main() {
   const env = process.env;
   assertDevKeyContext(env);
+  stage = 'checking the protected environment';
   const r = await fetch(`https://api.github.com/repos/${env.GITHUB_REPOSITORY}/environments/${DEV_KEY.environment}`,
     { headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: 'application/vnd.github+json' } });
   if (!r.ok) throw Error('Independent environment protection could not be verified');
   assertIndependentProtection(await r.json(), env.OWNER_REVIEWER_ID);
+  stage = 'creating or reading the key';
   const require = createRequire(`${env.KEY_NODE_PATH}/resolve.js`);
   const { Ed25519KeyIdentity } = require('@icp-sdk/core/identity');
   const receipt = await mintOrReadAccountKey(env, githubJournal(env, fetch,
     { branch: DEV_KEY.branch, path: DEV_KEY.path, label: 'OpenCloud DEV approval key' }), Ed25519KeyIdentity, assertDevKeyContext);
   appendFileSync(env.GITHUB_STEP_SUMMARY, `## OpenCloud DEV approval key prepared\n\nPublic key (send this to Lovable):\n\n${receipt.publicKey}\n\nPrincipal: ${receipt.principal}\n\nThe private key exists only encrypted in the \`${DEV_KEY.path}\` receipt; its passphrase stays in the **${DEV_KEY.environment}** environment. Nothing was installed or activated.\n`);
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(() => {
-  console.error('DEV approval key setup stopped safely. Never retry an unresolved mint; re-running returns the existing key.');
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(e => {
+  const why = SAFE.test(e?.message ?? '') ? e.message : 'unexpected error (details withheld)';
+  console.error(`DEV approval key setup stopped safely while ${stage}: ${why}`);
   process.exitCode = 1;
 });
