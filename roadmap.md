@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## Duplicate ICP substitution alerts — 25 November
+- [x] Reproduced per-player duplicates; repaired same-time keys, shared-match relay namespace and the independent closed-board ICP producer; preserved email/Supabase delivery and sent rows.
+- [x] Eight focused files passed in each mode (65 email / 52 ICP checks); preview build OK. Checked-path inventory: docs/icp-sub-alert-duplicates-2026-11-25.md.
+- [ ] Installed-phone delivery requires a new phone build and physical device; no PROD deployment in this task.
+
 ## Fresh OpenCloud PROD plan — 25 November
 - [x] Revised the plan to prefer OpenCloud Deploy from Git, retain old ICP data only through one bounded straightforward review/rehearsal, otherwise launch fresh; no live changes.
 - [x] Paul confirmed ICP-only reset; email/Supabase customers, data and paid subscriptions stay untouched. No deletion or cutover executed.

@@ -33,6 +33,7 @@ import {
   STALE_SUB_GRACE_SECONDS,
 } from "./autoSubHelpers";
 import { acknowledgeHalftimePrompt, canShowHalftimePrompt, getHalftimePromptAckKey } from "./halftimePromptAck";
+import { shouldTriggerImmediatePitchCheck } from '@/lib/pitchBoardRepository';
 
 // Team ids are canister-generated as "team-<club_id>-<n>-<ns>" (see
 // live/features/events.ts clubIdFromTeamId); recovering the club id here lets
@@ -165,6 +166,9 @@ export default function GlobalSubMonitor() {
     dedupeKey?: string,
     icpAlert?: { teamId: string | null; message: string },
   ) => {
+    // The secure server timer already owns this due window; the closed-board
+    // monitor must not enqueue another alert with its own unrelated key.
+    if (!shouldTriggerImmediatePitchCheck(source, resolveAuthBackend() === 'icp')) return;
     if (resolveAuthBackend() === "icp") {
       // The `check-pending-subs` cron/edge function has no ICP equivalent, so
       // the client fans the alert out itself via notification_queue to the
