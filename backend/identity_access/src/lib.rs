@@ -680,6 +680,8 @@ async fn directory_lifecycle(binding:&group_inventory::Binding,sources:&[(String
 }
 async fn directory_lifecycle_checked(binding:&group_inventory::Binding,sources:&[(String,Principal)],recheck:impl Fn()->Outcome<()>)->Outcome<Vec<membership_acceptance::Lifecycle>>{
     if sources.len()>100{return Err("Directory lifecycle budget exceeded".into());}
+    // OpenCloud DEV refuses canister_info; install-only deployment verifies module hashes instead.
+    if fresh_dev_build(){recheck()?;return Ok(vec![]);}
     let mut targets=vec![ic_cdk::api::canister_self(),binding.registry];targets.extend(sources.iter().map(|(_,p)|*p));
     let mut result=vec![];
     for target in targets{
@@ -729,13 +731,13 @@ async fn configure_membership_directory(binding:group_inventory::Binding,authori
     // application counters or a same-Wasm snapshot cannot replay this pin.
     let lifecycle=directory_lifecycle(&binding,&sources).await?;
     let lifecycle_after=directory_lifecycle(&binding,&sources).await?;
-    membership_acceptance::check_lifecycle(&lifecycle,&lifecycle_after)?;
+    membership_acceptance::check_lifecycle_mode(fresh_dev_build(),&lifecycle,&lifecycle_after)?;
     if fresh_dev_enabled(){verify_fresh_dev_lifecycle(&fresh_dev_pin()?.backends).await?;}
     recheck()?;
     let config=match directory_config(){
         Ok(existing)=>{
             if existing.binding!=binding||existing.generation!=generation||existing.inventory_digest!=digest||existing.sources!=sources||!existing.enabled{return Err("Directory replacement requires fenced recovery; not released".into());}
-            membership_acceptance::check_lifecycle(&existing.lifecycle,&lifecycle)?;existing
+            membership_acceptance::check_lifecycle_mode(fresh_dev_build(),&existing.lifecycle,&lifecycle)?;existing
         },
         Err(_)=>membership_runtime::Config{binding,generation,inventory_digest:digest,sources,pending:Default::default(),enabled:true,next_source:0,lifecycle,release:None},
     };
@@ -988,7 +990,7 @@ async fn check_membership_directory_acceptance()->Outcome<DirectoryAcceptanceChe
 async fn verify_directory_snapshot(config:&membership_runtime::Config,recheck:impl Fn()->Outcome<()>)->Outcome<(group_inventory::Snapshot,Vec<(String,u64)>,Vec<(String,Option<Principal>)>)>{
     recheck()?;
     let before=directory_lifecycle_checked(&config.binding,&config.sources,&recheck).await?;
-    membership_acceptance::check_lifecycle(&config.lifecycle,&before)?;
+    membership_acceptance::check_lifecycle_mode(fresh_dev_build(),&config.lifecycle,&before)?;
     recheck()?;
     let registry_before=read_registry_pages(&config.binding,&recheck).await?;
     let photos_before=read_directory_photo_stores(&config.binding,&recheck).await?;
@@ -1010,7 +1012,7 @@ async fn verify_directory_snapshot(config:&membership_runtime::Config,recheck:im
     if photos_before!=photos_after||photos_after.iter().map(|(id,_)|id).collect::<Vec<_>>()!=registry_after.groups.iter().map(|g|&g.id).collect::<Vec<_>>(){return Err("Directory photo-store inventory changed".into());}
     if registry_before!=registry_after{return Err("Directory registry changed during acceptance".into());}
     let after=directory_lifecycle_checked(&config.binding,&config.sources,&recheck).await?;
-    membership_acceptance::check_lifecycle(&config.lifecycle,&after)?;
+    membership_acceptance::check_lifecycle_mode(fresh_dev_build(),&config.lifecycle,&after)?;
     recheck()?;
     let final_sources=DIRECTORY_COORDINATOR.with(|c|{let c=c.borrow();c.accepted_ownership()?;c.sources()})?;
     if expected!=final_sources.iter().map(|s|(s.id.clone(),s.binding.revision)).collect::<Vec<_>>(){return Err("Directory builds changed during acceptance".into());}
@@ -1431,7 +1433,7 @@ async fn collect_production_account_protection_inner(expected:production_account
     if closed {review_closed_production_groups(&binding,&recheck).await?;}
     let lifecycle=async {
         let mut result=Vec::new();
-        for (canister,_) in &expected.modules {
+        for (canister,_) in expected.modules.iter().filter(|_|!fresh_dev_build()) {
             let info=ic_cdk::management_canister::canister_info(&ic_cdk::management_canister::CanisterInfoArgs {
                 canister_id:*canister,num_requested_changes:Some(0) }).await.map_err(|_|"Production lifecycle unavailable")?;
             recheck()?;
@@ -1468,7 +1470,7 @@ async fn collect_production_account_protection_inner(expected:production_account
         configurations.push(config);
     }
     let mut after=Vec::new();
-    for (canister,_) in &expected.modules {
+    for (canister,_) in expected.modules.iter().filter(|_|!fresh_dev_build()) {
         let info=ic_cdk::management_canister::canister_info(&ic_cdk::management_canister::CanisterInfoArgs {
             canister_id:*canister,num_requested_changes:Some(0) }).await.map_err(|_|"Production lifecycle unavailable")?;
         recheck()?;
@@ -1487,6 +1489,8 @@ async fn collect_production_account_protection_inner(expected:production_account
 fn fresh_dev_state()->fresh_dev::State {
     FRESH_DEV.with(|m|if m.borrow().get().is_empty(){fresh_dev::State::default()}else{decode(m.borrow().get())})
 }
+/// Exact staged DEV build only; never true for mainnet or PROD sources.
+fn fresh_dev_build()->bool {option_env!("IGNITE_OPENCLOUD_DEV_FIRST_INSTALL").is_some()}
 fn fresh_dev_enabled()->bool {option_env!("IGNITE_OPENCLOUD_DEV_FIRST_INSTALL").is_some() || fresh_dev_state().initialized}
 fn fresh_dev_pin()->Outcome<fresh_dev::Pin> {
     fresh_dev::Pin::parse(option_env!("IGNITE_OPENCLOUD_DEV_FIRST_INSTALL").ok_or("Fresh DEV immutable pins unavailable")?)
@@ -1494,6 +1498,9 @@ fn fresh_dev_pin()->Outcome<fresh_dev::Pin> {
 async fn fresh_dev_lifecycle(canisters:&[Principal],first:bool)->Outcome<Vec<production_account_protection::Lifecycle>> {
     use ic_cdk::management_canister::{CanisterInfoArgs,ChangeDetails,CodeDeploymentMode};
     let mut rows=Vec::new();
+    // OpenCloud DEV has no canister_info: deployment-time empty-module and
+    // install-only hash checks replace management history. One-use receipt remains.
+    if fresh_dev_build(){return Ok(rows);}
     for canister in canisters {
         let info=ic_cdk::management_canister::canister_info(&CanisterInfoArgs{canister_id:*canister,num_requested_changes:Some(if first {100}else{0})})
             .await.map_err(|_|"Fresh DEV lifecycle unavailable")?;

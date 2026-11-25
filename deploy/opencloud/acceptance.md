@@ -14,9 +14,9 @@
 - The 32-target package contains no witness install or recovery signing action; leave `c6dso-4iaaa-aaac5-aaeqa-cai` empty and untouched.
 - Before commissioning, non-governor commissioning and ordinary registration/profile writes are denied. The initialized governor account alone is expected.
 - Wrong host/environment, role-swapped IDs, incomplete inventory, mismatched modules, removal-enabled/rehearsal receivers, pending work, prior user data and non-install history must be refused.
-- Save the successful `commission_fresh_opencloud_dev` receipt; identical retry returns it without replacing pins, conflicting retry refuses. Read it back through `read_fresh_opencloud_dev_commissioning`, which checks all 31 live backend lifecycles.
+- Save the successful `commission_fresh_opencloud_dev` receipt; identical retry returns it without replacing pins, conflicting retry refuses. Read it back through `read_fresh_opencloud_dev_commissioning`.
 - Global account erasure/recovery stay denied, including after ordinary member admission is disabled. No reset, snapshot load, reinstall or upgrade is authorized for testing the actual installation.
-- On separately authorized disposable local instances only, test pre-commission snapshot restore, post-commission single/joint restore and same-module upgrade: management lifecycle changes must deny access/recommissioning. Do not perform destructive lifecycle probes on these 32 DEV targets.
+- OpenCloud DEV has no `canister_info`: restore/reinstall detection is operational (install-only, `canister_status` hash checks, no snapshot loads). Do not perform destructive lifecycle probes on these 32 DEV targets.
 
 ## Functional flow
 

@@ -95,8 +95,11 @@ fn verify_mode(expected:&Expectation, observed:&RemovalInventory, before:&[Lifec
         } Ok(map)
     };
     let first=normalize(before)?;let last=normalize(after)?;
-    if first!=last || first.len()!=expected.modules.len() { return Err("Lifecycle changed or incomplete".into()); }
-    for (canister,hash) in &expected.modules {
+    // Fresh DEV engine refuses canister_info: require no lifecycle rows rather
+    // than fabricated ones; module hashes are verified by install-only deployment.
+    let lifecycle_free=fresh && first.is_empty() && last.is_empty();
+    if !lifecycle_free && (first!=last || first.len()!=expected.modules.len()) { return Err("Lifecycle changed or incomplete".into()); }
+    for (canister,hash) in expected.modules.iter().filter(|_|!lifecycle_free) {
         if first.get(canister).is_none_or(|r|&r.module_hash!=hash) { return Err("Live module differs from reviewed module".into()); }
     }
     let mut configs=BTreeMap::new();
@@ -148,7 +151,7 @@ fn verify_mode(expected:&Expectation, observed:&RemovalInventory, before:&[Lifec
             let mut bad=c.clone();bad[at].authority=None;assert!(verify(&e,&e.inventory,&l,&l,&bad).is_err());}
     }
     #[test] fn lifecycle_rollback_module_drift_and_omitted_router_fail(){
-        let(e,l,c)=fixture();let mut changed=l.clone();changed[0].changes-=1;assert!(verify(&e,&e.inventory,&l,&changed,&c).is_err());
+        let(e,l,c)=fixture();assert!(verify(&e,&e.inventory,&[],&[],&c).is_err());let mut changed=l.clone();changed[0].changes-=1;assert!(verify(&e,&e.inventory,&l,&changed,&c).is_err());
         let mut changed=l.clone();changed[0].module_hash[0]=9;assert!(verify(&e,&e.inventory,&changed,&changed,&c).is_err());
         let mut observed=e.inventory.clone();observed.supplemental.pop();assert!(verify(&e,&observed,&l,&l,&c).is_err());
     }
@@ -166,6 +169,9 @@ fn verify_mode(expected:&Expectation, observed:&RemovalInventory, before:&[Lifec
         for config in &mut c {config.removal_enabled=false;}
         assert!(verify_fresh_dev(&e,&e.inventory,&l,&l,&c).is_ok());
         assert!(verify(&e,&e.inventory,&l,&l,&c).is_err());
+        // DEV engine without canister_info: no rows at all, never partial rows.
+        assert!(verify_fresh_dev(&e,&e.inventory,&[],&[],&c).is_ok());
+        assert!(verify_fresh_dev(&e,&e.inventory,&l,&[],&c).is_err());
         c[0].removal_enabled=true;assert!(verify_fresh_dev(&e,&e.inventory,&l,&l,&c).is_err());
         c[0].removal_enabled=false;c[0].admission_required=false;assert!(verify_fresh_dev(&e,&e.inventory,&l,&l,&c).is_err());
         e.inventory.groups.binding.deployment_id="opencloud-prod".into();assert!(verify_fresh_dev(&e,&e.inventory,&l,&l,&c).is_err());
