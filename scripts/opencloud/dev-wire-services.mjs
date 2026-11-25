@@ -25,7 +25,7 @@ function invoke(c,method,args){
  return cli(['canister','call',c.target,method,args,'--candid',did,'--network','ic','--identity',identity]);
 }
 const unique=[...new Map(calls.map(c=>[c.target,c])).values()];
-for(const c of unique){const out=invoke(c,'read_group_opening_configuration','()');if(/\bErr\b/.test(out)||!out.trim())throw Error('Readback refused '+c.service);console.log(c.service+' readback: '+out);}
+for(const c of unique){const out=invoke(c,'read_group_opening_configuration','()');if(c.service.endsWith('_timer_jobs') && /Timer queue is not initialized/.test(out)){console.log(c.service+' awaiting initialize');continue;}if(/\bErr\b/.test(out)||!out.trim())throw Error('Readback refused '+c.service+': '+out);console.log(c.service+' readback: '+out);}
 console.log('Validated '+calls.length+' wiring calls');
 if(mode==='check')process.exit(0);
 for(const c of calls){
