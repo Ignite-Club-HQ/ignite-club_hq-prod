@@ -1,10 +1,10 @@
 # Exact supported deployment sequence for ChatGPT
 
-**Fresh-v3 supersedes the legacy held bootstrap sections below. Follow `commissioning.md` and the fresh-v3 manifest for exact installation flags and steps.** No witness install/signature is required; the existing empty witness stays untouched. All receiver admission modes and identity pins are immutable in the supplied fresh modules. Global erasure/recovery are unavailable, and initial commissioning cannot rearm restore/upgrade state. Complete group placements are emitted as `groups[].registerGroupPlacementCall` with explicitly reviewed/live revisions, never guessed zeros.
+**Use the complete fresh-v3 handover and `commissioning.md`.** No witness install/signature is required; the existing empty witness stays untouched. Receiver admission modes, DEV identity pins and shared-name encryption requirements are immutable in the supplied fresh modules. Global erasure/recovery are unavailable, and initial commissioning cannot rearm restore/upgrade state. Complete group placements are emitted as `groups[].registerGroupPlacementCall` with explicitly reviewed/live revisions, never guessed zeros.
 
 **Scope: the existing 32 provisioned DEV IDs in `dev.json` only. No new canisters, PROD installation, reinstall, CI, controller replacement, live routing/DNS changes, Supabase operations or data migration.**
 
-The generated `dev.manifest.json` contains every DEV target ID, constructor, candidate settings, group-domain link call and ordered install inventory. It remains `executable:false`. Use it as a review, not a runner.
+The handover's `manifest.json` contains every DEV target ID, constructor, settings, module/Candid hashes and 80 post-install calls. It remains `executable:false`: a reviewed specification, not a deployment runner. Run `python3 verify-package.py .` after extracting the handover; it performs no network operations. Read `initialization.md`, `commissioning-request-template.json` and `frontend-upload/README.md` together with this checklist.
 
 ## 1. Read-only identity and inventory confirmation
 
@@ -12,7 +12,7 @@ Use the OpenCloud/ICP connector's supported operations to open the engine operat
 
 Stop if any target is absent, duplicated, belongs to PROD/another app/subnet, already contains code unexpectedly, or lacks the expected existing operator/owner access. **Do not repair by creating a replacement, changing controllers or reinstalling.** Report the difference to Paul.
 
-Choose and verify the exact internal DEV governor principal and frontend-publishing principal; fill the config only after the owner confirms them. These are signing roles, not the operator/proxy IDs. Keep DEV and PROD governor/publisher identities separate. Never paste or package private keys or delegation tokens.
+Verify the configured DEV governor `tuhlj-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe` and existing DEV frontend publisher `jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe`. These are signing roles, not the operator/proxy IDs. No new key is needed. Keep DEV/PROD identities separate; never paste or package private keys/delegations. If either existing signer cannot be used through authorized transport, report that limitation rather than minting a replacement.
 
 ## 2. Chain-key proxy verification
 
@@ -20,11 +20,11 @@ Read `get_allowed_subnet` on `ynolw-eyaaa-aaaaj-qspkq-cai`; it must return the s
 
 The deployment operator is `s53an-5aaaa-aaac5-aaaaa-cai`. It must not replace `PROXY_CANISTER_ID`. Public proxy readback does not authorize paid derivations or prove encryption acceptance.
 
-## 3. Build and review artifact bytes
+## 3. Review the supplied rebuilt artifact bytes
 
-Build the staged original sources using the pinned existing recipes/compilers. Review the manifest's candidate artifact hashes and exact Candid files. There are eighteen unique backend implementations, applied to 31 backend IDs. Build the standalone frontend separately and check its assets/ID scan. Do not use ordinary mainnet or production workflows to do this.
+All eighteen backend implementations are rebuilt and reused across 31 exact backend IDs; the nineteenth artifact is the pinned official certified-assets v0.4.0 frontend module. The isolated frontend asset tree, matched plugin, Candid contracts and complete SHA-256 inventory are supplied. Verify both compressed-file and uncompressed-module hashes in the manifest. Do not rebuild or invoke ordinary mainnet/production workflows merely to install this exact reviewed package.
 
-Unknown constructor principals, resource inputs, public frontend configuration, unresolved name/bootstrap/resource policy, or a failed artifact audit keep installation held.
+Initial settings are explicit: 4 GiB per-canister Wasm limit, 3 GiB group heap budget, 100 clubs per group, genuine zero cycles/minimum cycles=0, both groups closed. Engine support/measurement, controller/caller verification and real encryption remain external acceptance requirements, not missing recovery credentials.
 
 ## 4. Settings BEFORE first installation
 
@@ -40,6 +40,9 @@ For **both** DEV PII canisters, also:
 ```text
 VETKD_KEY_NAME=key_1
 PROXY_CANISTER_ID=ynolw-eyaaa-aaaaj-qspkq-cai
+IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE=1
+IGNITE_PRIVATE_PROFILE_IDENTITY=<manifest shared identity_access ID>
+IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE=1
 ```
 
 `GOVERNOR_PRINCIPAL` is particularly required by `media_blob_store`. Set the reviewed DEV Wasm-memory limit separately when supported. Use the exact fresh-v3 admission/encrypted-name settings before install; never synthesize removal/rehearsal/push flags. Do not copy mainnet environment values or scheduler secrets.
@@ -82,14 +85,14 @@ Read `read_group_opening_configuration()` using each service's exact Candid retu
 
 ## 7. Shared identity, registry and group registration — fresh-v3
 
-Existing real methods are `identity_access.provision_production_account_inventory`, `pin_owner_test_deletion_registry`, and `configure_membership_directory`; they take the current generated Candid evidence/binding types, not bare principals invented here. `shard_router.set_deletion_authority` exists, but does not by itself commission all receivers. `placement_registry` uses `set_policy`/`set_target`; there is no fabricated `set_router` call. `secret_workload_identity.register_workload` needs a separately approved workload principal and scopes; migration_coordinator remains unused.
+Do **not** call legacy signed recovery provisioning or `pin_owner_test_deletion_registry` for fresh DEV. Set the account admission authority on router, both timers and shared workload using the real `set_account_removal_authority` calls emitted in the manifest; removal remains disabled despite the existing method name. `commission_fresh_opencloud_dev` commissions the complete inventory and membership directory atomically. `placement_registry` uses real `set_policy`/`set_target`; there is no `set_router` method. No workload grant or migration operation is required.
 
-The separate `commission_fresh_opencloud_dev` path resolves initial bootstrap without a recovery signature/witness; use `commissioning.md`. No empty proof, fixture receipt, local flag or sampled controller status substitutes for its full install-history, complete inventory and admission-only checks.
+Use `commissioning-request-template.json` and current Candid `ProductionAccountExpectation`: 29 authorization-relevant module hashes are prefilled; supply exact live registry/history acknowledgments before encoding. Identity additionally obtains and checks install history for **all 31** backends itself. No empty proof, fixture receipt, local flag or sampled controller status substitutes for those checks.
 
 The router's real calls are `register_group(group, live_revision)` then `register_group_placement(placement, acknowledged_revision)`, both CAS-bound, with `accepting=false`. Each has twelve group domains plus shared `secret_workload_identity` and its own separate `photo_store`. The explicit engine resource policy permits real zero cycles and requires `min_cycles=0`, retaining heap/capacity/fresh-health gates. Neither G1 nor G2 is opened by this package.
 
-## 8. Frontend upload, encryption and functional acceptance — HELD
+## 8. Frontend upload, encryption and functional acceptance — external actions
 
-After a supported asset uploader exists, upload only the isolated frontend's inventoried files to `h2knm-vaaaa-aaac5-aadqa-cai`. Verify its `.well-known` declarations and callbacks, canonical `.icp.net` II origin, network API host/certification and the absence of old deployment IDs.
+Use supplied certified-assets **v0.4.0** and its matched official plugin with the existing DEV publisher, targeting only `h2knm-vaaaa-aaac5-aadqa-cai`. The API is `start_sync`/`upload_chunks`/`execute_operations`; `_headers` and `_redirects` are configuration, not served assets. Do not use the legacy asset API or `.ic-assets.json5`. Follow `frontend-upload/README.md`, verify assets/HTTP policies and certification v2, and preserve `.well-known` callbacks. Unknown upload replies require readback, not reinstall.
 
 Run `acceptance.md` with real signed-in DEV users and real input. Enable no routing/admission or name release just because installation passed. **PROD remains inactive after DEV acceptance; its future release is a different approval.**

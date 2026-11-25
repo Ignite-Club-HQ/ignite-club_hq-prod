@@ -84,7 +84,12 @@ test('fresh DEV uses 32 targets without witness/key, with erasure and recovery u
   assert.equal(m.sharedCommissioning.some(c=>c.method==='provision_production_account_inventory'),false);
   const pii=m.canisters.find(r=>r.name==='g1_pii_access_control').settings.environmentVariables;
   assert.equal(pii.PROXY_CANISTER_ID,c.consoleProxyId);assert.equal(pii.IGNITE_ACCOUNT_ADMISSION_RELEASE,'1');
+  assert.equal(pii.IGNITE_PRIVATE_PROFILE_IDENTITY,c.shared.identity_access);
+  assert.equal(pii.IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE,'1');
   assert.equal(m.canisters.find(r=>r.name==='identity_access').settings.environmentVariables.IGNITE_SECURE_ADULT_NAME_PII,c.groups[0].canisterIds.pii_access_control);
+  assert.equal(m.canisters.find(r=>r.name==='g2_club_domain').settings.environmentVariables.IGNITE_NEW_CLUB_PLACEMENT_GROUP,'g2');
+  assert.equal(m.canisters.find(r=>r.name==='g1_club_domain').settings.environmentVariables.IGNITE_NEW_CLUB_PLACEMENT_GROUP,'base');
+  assert.equal(m.postInstallCalls.filter(r=>r.method==='link_display_identity_authority').length,2);
 });
 test('first-install mode never enables PROD or extra canisters',()=>{
   const c=source('prod');c.commissioningMode='fresh-install-admission-only';assert.throws(()=>manifest(c,undefined,undefined,true),/DEV-only/);
@@ -113,6 +118,7 @@ test('isolated staging changes only the encryption route sentinel, never origina
     assert.equal(readFileSync(path.join(ROOT, 'backend/pii_access_control/src/main.mo'), 'utf8'), before);
     assert.match(readFileSync(path.join(out, 'build/backend/pii_access_control/src/main.mo'), 'utf8'), /freshEngineBuild = true/);
     assert.match(readFileSync(path.join(out, 'build/backend/pii_access_control/src/main.mo'), 'utf8'), /accountProtectionMode : AccountProtection.Mode = #ProductionAdmission/);
+    assert.match(readFileSync(path.join(out, 'build/backend/pii_access_control/src/main.mo'), 'utf8'), /sharedClubNameEnforcement = true/);
     assert.match(readFileSync(path.join(out, 'build/backend/secret_workload_identity/src/main.mo'), 'utf8'), /removal_enabled = false/);
     assert.equal(existsSync(path.join(out, 'build/.icp/data')), false);
     const env = frontendEnv(c);

@@ -59,11 +59,12 @@ It uses the existing frontend, the shared dependency installer and isolated outp
 
 ## What is not complete
 
-No code has been installed on OpenCloud, no assets uploaded, no live routing changed and no production data moved. Real DEV sign-in → club → event/chat → encrypted photo/name readback requires owner-authorized transport and the compatibility blockers in the accompanying assessment to be resolved. Do not describe a passing offline fixture or a successful Wasm installation as that acceptance.
+No code has been installed on OpenCloud, no assets uploaded, no live routing changed and no production data moved. Real DEV sign-in → club → event/chat → encrypted photo/name readback requires owner-authorized transport, current inventory/lifecycle verification and successful acceptance; no recovery witness or approver signer is required by the implemented initial path. Do not describe a passing offline fixture or a successful Wasm installation as that acceptance.
 
 ## Checks completed
 
-- 20 offline package/artifact/hosting/key-isolation checks passed.
-- 51 focused frontend checks passed in each existing backend mode (102 total), including engine boot/profile fail-closed cases and existing email/mainnet compatibility.
+- 21 current offline package/artifact/hosting/key-isolation checks passed.
+- Backend regression suites passed: 261 identity, 59 router and 9 timer tests; first-install/fresh-admission/restore rejection cases are included.
+- 18 current focused encryption/environment frontend checks passed in each existing backend mode (36 total), alongside the earlier 51-per-mode preparation checks.
 - Existing local Motoko direct/proxy route policy ran successfully; the mainnet direct route remains unchanged.
 - The preview build reports OK. No real-user OpenCloud session, full engine encryption round trip or frontend asset installation has been exercised.

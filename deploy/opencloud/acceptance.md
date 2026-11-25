@@ -6,7 +6,7 @@
 
 - Exact 32-part DEV inventory/empty before-images/controllers/subnet reviewed.
 - Operator management transport, direct governor calls and frontend asset-upload transport are independently supported and authorized.
-- Engine-aware zero-cycle resource policy, fresh G1 identity/bootstrap, protection/lifecycle evidence and engine-specific private-name commissioning are resolved without weakening existing access.
+- The rebuilt engine-aware zero-cycle policy, fresh identity commissioning and immutable private-name authorization settings are installed from the exact reviewed artifacts; real management-history/controller/proxy acceptance remains required.
 - Both groups' reciprocal configuration is read back; admissions/routing remain held until the correct existing acceptance protocol authorizes the desired DEV test.
 
 ## Fresh-install safeguards

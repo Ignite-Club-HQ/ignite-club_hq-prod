@@ -136,7 +136,16 @@ export function serviceSettings(config, row) {
     IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE: '1', IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE: '1',
     IGNITE_SECURE_ADULT_NAME_PII: config.groups[0].canisterIds.pii_access_control,
   });
+  if (freshDev(config) && row.service === 'club_domain') Object.assign(variables, {
+    IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE:'1', IGNITE_NEW_CLUB_PLACEMENT_REQUIRED:'true',
+    IGNITE_NEW_CLUB_PLACEMENT_ROUTER:config.shared.shard_router,
+    IGNITE_NEW_CLUB_PLACEMENT_GROUP:routerGroupId(row.scope), IGNITE_NEW_CLUB_PLACEMENT_TARGET:config.environment,
+  });
   if (row.service === 'pii_access_control') Object.assign(variables, { VETKD_KEY_NAME: 'key_1', PROXY_CANISTER_ID: config.consoleProxyId });
+  if (freshDev(config) && row.service === 'pii_access_control') Object.assign(variables, {
+    IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE:'1', IGNITE_PRIVATE_PROFILE_IDENTITY:config.shared.identity_access,
+    IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE:'1',
+  });
   // Lifecycle/recovery/admission/name-release flags are intentionally NOT synthesized.
   // Set them only using existing reviewed commissioning protocols, after live evidence.
   return { environmentVariables: variables,
@@ -152,6 +161,9 @@ export function connectionCalls(config) {
   const lookup = (group, service) => rows.find(row => row.service === service && row.scope === (SHARED_SERVICES.includes(service) ? 'shared' : group));
   const calls = [];
   for (const group of config.groups) {
+    if (freshDev(config)) calls.push({target:group.canisterIds.club_domain,service:`${group.id}_club_domain`,
+      method:'link_display_identity_authority',candidArgs:`(principal "${config.shared.identity_access}")`,signer:'internal-governor',verify:'read_group_opening_configuration',
+      uncertainOutcome:'stop-readback-no-blind-replay'});
     for (const line of read(path.join(ROOT, 'scripts/engine-browser/links.txt')).trim().split('\n')) {
       const [service, method, shape, names] = line.split('|');
       // One complete multi-group authority write, not an intermediate
@@ -336,8 +348,17 @@ export function prepare(config, peer, output) {
       const mode=/transient let accountProtectionMode = AccountProtection\.mode\(accountRehearsalEnabled,\s*Runtime\.envVar<system>\("IGNITE_ACCOUNT_ADMISSION_RELEASE"\) == \?"1",\s*Runtime\.envVar<system>\("IGNITE_ACCOUNT_REMOVAL_RELEASE"\) == \?"1"\);/g;
       const authority='Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")';
       if ([...before.matchAll(mode)].length!==1 || before.split(authority).length!==2) throw Error(`Fresh DEV security source drift: ${service}`);
-      writeFileSync(file,before.replace(mode,'transient let accountProtectionMode : AccountProtection.Mode = #ProductionAdmission; // immutable fresh DEV build')
-        .replace(authority,`?"${config.shared.identity_access}"`));
+      let after=before.replace(mode,'transient let accountProtectionMode : AccountProtection.Mode = #ProductionAdmission; // immutable fresh DEV build')
+        .replace(authority,`?"${config.shared.identity_access}"`)
+        .replace('transient let newClubPlacementRequired = Runtime.envVar<system>("IGNITE_NEW_CLUB_PLACEMENT_REQUIRED") == ?"true";',
+          'transient let newClubPlacementRequired = true; // immutable fresh DEV placement required');
+      if(service==='pii_access_control') {
+        after=after.replace('Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_IDENTITY")',`?"${config.shared.identity_access}"`)
+          .replace('Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") == ?"1"','false')
+          .replace('Runtime.envVar<system>("IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE") == ?"1"','true')
+          .replace('Runtime.envVar<system>("IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE") == ?"1"','true');
+      }
+      writeFileSync(file,after);
     }
     const file=path.join(workspace,'backend/secret_workload_identity/src/main.mo');const before=read(file);
     const gate='RemovalReceiver.Gate(removal_authority != null, removal_authority, removal_intents, removal_subjects, removal_active)';

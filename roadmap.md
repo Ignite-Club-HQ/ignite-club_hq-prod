@@ -1,18 +1,18 @@
 # Roadmap — launch the live (PROD) system
 
 ## Provisioned OpenCloud DEV implementation — 25 November
-- [ ] Implement approved DEV-only one-use first-install commissioning, lifecycle/restore refusal and admission-only release; rebuild the complete offline package and frontend. Use the existing 32 targets; no live operations or witness/key dependency.
+- [x] Implement approved DEV-only one-use first-install commissioning, lifecycle/restore refusal and admission-only release; rebuild all 18 backend implementations, matched frontend hosting module/plugin and isolated frontend. Complete the 32-target offline handover with checksums and exact ChatGPT requirements; no live operations or witness/key dependency.
 - [x] Assessed a distinct first-installation, admission-only commissioning path from source; recovery witness/key are current protocol dependencies, not intrinsic requirements for a genuinely fresh DEV installation. Assessment only; no implementation or live changes.
 - [x] Received and validated Paul's generated DEV approver public key; recorded it in the isolated DEV configuration only. No private key accessed.
-- [ ] Rebuild witness and pinned identity artifacts: public key now supplied; effective independent witness controllers and live commissioning remain ChatGPT's verification tasks. No deployment authorized.
+- [x] Superseded witness commissioning: initial fresh DEV needs no witness or approver signer; retain existing empty witness untouched. Any future recovery enablement is a separate approval.
 - [x] Built DEV witness with Paul's public key: 20 existing security tests passed, WASM/public-key and Candid endpoint checks passed; module hash recorded, install-only handover prepared.
-- [ ] DEV commissioning implementation awaits Paul's decision on the fresh-installation assessment; witness installation is paused by the 08:58 UTC assessment-only request. Existing witness artifact is built, not deployed.
+- [x] Paul approved and implemented the separate fresh-installation path; existing witness artifact is not included or deployed.
 - [x] Incorporated ChatGPT's 64 unique IDs as owner-supplied separate DEV/inactive-PROD configurations; no controller changes.
 - [x] Configured the separate chain-key proxy, matched its public API/subnet/funding binding and checked offline four-caller key separation; mainnet encryption retained, engine profile plaintext fallback refused.
 - [x] Prepared isolated mapping/manifest/staging/artifact tooling and standalone frontend target/origin isolation; no CI/live changes.
 - [x] Built and hashed all eighteen backend implementations; delivered exact initialization/group wiring, compatibility and acceptance instructions.
 - [x] 20 package/hosting/key checks and 51 frontend checks per backend mode passed; local key-route policy passed and preview build OK.
-- [ ] Live DEV installation/functional acceptance: requires verified owner/governor/controllers/resource inputs, direct governor and asset-upload transports, engine-aware zero-cycle router policy and fresh identity/private-name commissioning. No PROD activation, mainnet or Supabase/email changes.
+- [ ] ChatGPT live DEV installation/functional acceptance: requires current full inventory/controllers/install-history verification, authorized operator/governor/publisher transport and real proxy/encrypted user acceptance. Supplied policy, immutable name/admission pins, modules and frontend are complete; no PROD/mainnet/Supabase/email operations authorized.
 
 ## Duplicate ICP substitution alerts — 25 November
 - [x] Reproduced per-player duplicates; repaired same-time keys, shared-match relay namespace and the independent closed-board ICP producer; preserved email/Supabase delivery and sent rows.
