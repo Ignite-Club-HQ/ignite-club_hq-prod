@@ -5,7 +5,8 @@
 - [x] Paul confirmed ICP-only reset; email/Supabase customers, data and paid subscriptions stay untouched. No deletion or cutover executed.
 - [x] Make the future split explicit: redeploy DEV fresh on a second engine; retain PROD canisters, proxy/key identity, routing and data on the original engine.
 - [x] Rechecked existing preparation: 30 group/controller checks passed; OpenCloud console still requires owner's sign-in. No deployment or live change.
-- [ ] Git integration/current inventory and real DEV acceptance: blocked on owner-accessible OpenCloud Deploy from CI instructions and authorized engine access; downstream PROD preparation waits for this.
+- [x] Assessed owner screenshots: prefer Add a controller with existing DEV governor/publisher; Deploy from CI mints an unnecessary new all-canister key. Git automation still needs engine-specific wiring.
+- [ ] Current inventory, engine Git upgrades and real DEV acceptance: blocked on owner adding existing DEV controllers and authorized readback; internal governors and independent Group 2 still need verification. Downstream PROD waits for this.
 
 ## New-game ICP auto-sub progress — 25 November
 - [x] Reproduced old 7/15 progress surviving fresh kickoff and cancellation; repaired lifecycle reset, setup planner reuse and authorized shared snapshot adoption. Same-game edit history stays guarded; saved stats unchanged.

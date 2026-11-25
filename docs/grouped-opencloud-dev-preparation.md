@@ -3,14 +3,24 @@
 ## Updated direction — 25 November 2026
 
 The approved plan in `.lovable/plan/move-ignite-dev-and-prod-to-opencloud-2026-11-25.md`
-supersedes the earlier mainnet-only PROD destination below. Prefer OpenCloud's
-Git deployment, independent DEV/PROD on the initial engine, and fresh DEV on a
+supersedes the earlier mainnet-only PROD destination below. Prefer Git-driven
+upgrades using existing DEV identities, independent DEV/PROD on the initial engine, and fresh DEV on a
 second engine later without moving PROD or its key authority. Old ICP retention
 is optional and bounded; Supabase and paid subscriptions remain untouched.
 
+Owner screenshots received at 05:50 UTC clarify the access choice: **Add a
+controller** accepts an existing principal and preserves other controllers;
+**Deploy from CI** creates a new key and grants it control of all nineteen
+selected canisters, including stop/delete/controller changes. The latter screen
+does not establish repository connection, branch gating or state-preserving
+automatic upgrades. Prefer the existing DEV governor on DEV targets and the
+existing website publisher on the frontend alone; do not mint a replacement CI
+identity. Neither action alone hands over internal governors or wires services.
+The nineteen selected parts do not certify the complete 32-part grouped inventory.
+
 The current console access check still reaches sign-in. No authorized OpenCloud
-transport or generated Git setup is available here; controller/branch/upgrade
-behavior cannot yet be verified. Thirty existing grouped-preparation/controller
+transport is available here; grants and live upgrades remain unverified.
+Thirty existing grouped-preparation/controller
 tests passed, but this is local preparation evidence, not live acceptance.
 No workflows, controllers, data, hosting or deployment destinations were changed.
 
