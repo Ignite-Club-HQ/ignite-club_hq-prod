@@ -790,10 +790,12 @@ function SupabaseUpgradeProPage() {
     return (
       <UpgradeOfferCard
         header={
-          <Badge className={`w-fit mx-auto mb-2 ${isPro ? "bg-yellow-500 text-yellow-950" : "bg-emerald-500 text-emerald-950"}`}>
-            {isPro ? "IGNITE PRO" : "IGNITE FOOTBALL PRO"}
-          </Badge>
-          <p className="text-center font-medium">Team <span className="text-muted-foreground font-normal">• 1 team</span></p>
+          <>
+            <Badge className={`w-fit mx-auto mb-2 ${isPro ? "bg-yellow-500 text-yellow-950" : "bg-emerald-500 text-emerald-950"}`}>
+              {isPro ? "IGNITE PRO" : "IGNITE FOOTBALL PRO"}
+            </Badge>
+            <p className="text-center font-medium">Team <span className="text-muted-foreground font-normal">• 1 team</span></p>
+          </>
         }
         appearance={{
           cardClassName: isPro ? "border-primary/30" : "border-emerald-500/30",
