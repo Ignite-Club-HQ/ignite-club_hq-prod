@@ -60,10 +60,11 @@ export function clubQuote(tier: PaidTier, plan: ClubPlan, extraTeams: number, an
 }
 export function clubProductId(tier: PaidTier, plan: ClubPlan, annual: boolean, extraTeams = 0): string {
   const quote = clubQuote(tier, plan, extraTeams, annual);
-  return `ignite_v2_${tier === "pro" ? "pro" : "pf"}_${plan}_${quote.teamLimit}_${annual ? "annual" : "monthly"}`;
+  const extra = extraTeams > 0 ? `_${quote.teamLimit}` : "";
+  return `ignite_v2_${tier === "pro" ? "pro" : "football"}_${CLUB_PLAN_NAMES[plan].toLowerCase()}${extra}_${annual ? "annual" : "monthly"}`;
 }
 export function teamProductId(tier: PaidTier, annual: boolean): string {
-  return `ignite_v2_team_${tier === "pro" ? "pro" : "pf"}_${annual ? "annual" : "monthly"}`;
+  return `ignite_v2_${tier === "pro" ? "pro" : "football"}_team_${annual ? "annual" : "monthly"}`;
 }
 /** Free retains existing team rules up to 20. No missing/expired row grants team 21. */
 export function effectiveTeamLimit(sub: { team_limit?: number | null; is_pro?: boolean; is_pro_football?: boolean;

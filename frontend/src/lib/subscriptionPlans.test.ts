@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLUB_PRICING, TEAM_PRICING, FREE_MEDIA_BYTES, CLUB_MEDIA_BYTES, TEAM_MEDIA_BYTES, clubQuote, clubProductId, effectiveTeamLimit, assertPurchaseCatalogReady, mediaAllowance } from "./subscriptionPlans";
+import { CLUB_PRICING, TEAM_PRICING, FREE_MEDIA_BYTES, CLUB_MEDIA_BYTES, TEAM_MEDIA_BYTES, clubQuote, clubProductId, teamProductId, effectiveTeamLimit, assertPurchaseCatalogReady, mediaAllowance } from "./subscriptionPlans";
 describe("Approved USD subscriptions", () => {
   it.each([
     ["small",3,45,499,60,649], ["growing",5,65,699,85,899],
@@ -28,14 +28,17 @@ describe("Approved USD subscriptions", () => {
     expect(effectiveTeamLimit({ is_trial:true, trial_ends_at:"2099-01-01", team_limit:21 })).toBe(20);
   });
   it("binds new SKUs to the purchased total instead of legacy prices", () => {
-    expect(clubProductId("pro", "standard", false,1)).toBe("ignite_v2_pro_standard_21_monthly");
+    expect(clubProductId("pro", "standard", false,1)).toBe("ignite_v2_pro_platinum_21_monthly");
+    expect(clubProductId("pro", "small", false)).toBe("ignite_v2_pro_bronze_monthly");
+    expect(clubProductId("pro_football", "starter", true)).toBe("ignite_v2_football_gold_annual");
+    expect(teamProductId("pro_football", false)).toBe("ignite_v2_football_team_monthly");
     expect(() => clubQuote("pro","small",1,false)).toThrow();
     expect(() => clubQuote("pro","standard",0.5,false)).toThrow();
   });
 });
 it("does not charge for an unconfigured new plan", () => {
-  expect(() => assertPurchaseCatalogReady("ignite_v2_pro_standard_21_monthly", [])).toThrow("not available");
-  expect(() => assertPurchaseCatalogReady("ignite_v2_pro_standard_21_monthly", ["ignite_v2_pro_standard_21_monthly"])).not.toThrow();
+  expect(() => assertPurchaseCatalogReady("ignite_v2_pro_platinum_21_monthly", [])).toThrow("not available");
+  expect(() => assertPurchaseCatalogReady("ignite_v2_pro_platinum_21_monthly", ["ignite_v2_pro_platinum_21_monthly"])).not.toThrow();
 });
 
 it("preserves active Unlimited grants without granting unlimited to expired promos", () => {
