@@ -2,7 +2,7 @@
 
 ## Recommendation
 
-Use one engine for independent **DEV and PROD**, with **OpenCloud Deploy from Git as the primary update route**. Prove DEV first; retain ICP data only if straightforward, otherwise launch fresh.
+Use one engine for independent **DEV and PROD**, with **direct canister creation on OpenCloud as the route** — no Git/CI connection. Prove DEV first; retain ICP data only if straightforward, otherwise launch fresh.
 
 **Confirmed: ICP only.** Email/Supabase customers, data, subscriptions and payment records stay untouched. Old ICP data retention is optional, not a release blocker. Prepare the replacement first; delete originals only after handover and exact-target confirmation.
 
@@ -13,7 +13,7 @@ Use one engine for independent **DEV and PROD**, with **OpenCloud Deploy from Gi
 - Reuse existing engine installation, controller, encryption, grouping and recovery preparation.
 - November 17 observations verified eighteen DEV modules and a responding public encryption-key path, **not** complete current setup or real-engine member decryption.
 - Prepared two-group DEV layout: six shared parts, including the website, plus thirteen per group — **32 canisters**. Group 2 IDs need independent verification.
-- Existing DEV website updates are manual and held. Replace that role with verified OpenCloud Git deployment, not another competing runner.
+- Existing DEV website updates are manual and held. Direct OpenCloud deployment replaces that role; no Git/CI auto-deployer is introduced.
 - PROD promotion targets mainnet and assumes mainnet funding. Replacing IDs alone is unsafe.
 
 ## Target arrangement
@@ -30,21 +30,21 @@ Use one engine for independent **DEV and PROD**, with **OpenCloud Deploy from Gi
 
 Keep each environment's website and backend together. Two groups per environment means **64 total canisters**, subject to measured engine capacity. Separate 32-canister environment apps fit the published 50-canister app-record limit; verify the actual operator's limit before provisioning. More groups may require a reviewed console organisation change.
 
-## Phase 1 — Connect OpenCloud Git deployment
+## Phase 1 — Create the combined DEV app directly on OpenCloud
 
 1. Obtain owner-authorized current DEV readback: engine/subnet/operator/proxy, every canister, modules, controllers, internal governors and service links. A new controller does not change an internal governor.
-2. Use DEV **Deploy from CI**, connect this repository and select `main` if supported. Verify signer/grants, branches, custom builds, existing-ID upgrades, memory preservation and website sync; do not assume undocumented behavior.
-3. Reuse Ignite's checks inside this Git entry point. Verify controller/internal-governor authority, retain owner access and protect credentials. Adapt missing controls in the generated workflow; no parallel auto-deployer.
+2. Create one new OpenCloud DEV app containing all **32 canisters** (six shared including the frontend, plus two independent thirteen-service groups) with fresh IDs and fresh DEV data — Paul has confirmed new IDs are acceptable. Creation happens directly on the engine (console or a connected assistant with owner sign-in), not through Git/CI and not through another bundle upload.
+3. Grant the existing DEV governor at engine level and the website publisher to the frontend canister only. Verify controller/internal-governor authority, retain owner access and protect credentials.
 4. Record old/new PROD infrastructure, identity, purchase and push dependencies. Make one bounded metadata/schema/encryption feasibility assessment; no broad customer-content export or Supabase migration.
 
-**Deliverable:** verified Git setup/access and retain-or-fresh recommendation. No controller shortcuts.
+**Deliverable:** one combined DEV app on OpenCloud and a retain-or-fresh recommendation. No controller shortcuts.
 
 ## Phase 2 — Finish DEV in one implementation batch
 
 1. Finish the combined DEV app and both independent groups. Preserve working IDs/encryption settings; verify shared/group links, permissions and registries.
 2. Complete bounded-wait, cycle-free cross-subnet calls in both directions, caller-isolated proxy VetKeys and direct HTTPS outcalls. Preserve mainnet/email behavior.
-3. Adapt Git build/deploy steps to exact engine inventory, subnet, controllers, governors and module fingerprints. Upgrade with memory preserved, then sync website files; start mapped canisters if needed. Never reinstall on failure.
-4. Prove a harmless `main` update through OpenCloud Git: both groups update as needed, then the website publishes with engine IDs; test data and decryption survive. Lovable source sync to GitHub triggers it, not Lovable Publish. Disable competing engine auto-upgrades only after acceptance.
+3. Deploy code directly to the exact engine inventory, subnet, controllers, governors and module fingerprints. Upgrade with memory preserved, then sync website files; start mapped canisters if needed. Never reinstall on failure.
+4. Prove a harmless `main` update through direct OpenCloud deployment: both groups update as needed, then the website publishes with engine IDs; test data and decryption survive. Updates are triggered deliberately, never automatically.
 5. Reuse durable receipts; uncertain mutations stop for authenticated readback, never blind replay.
 
 **Deliverable:** verified DEV automatic updates. Enable/repoint DEV only after your separate release approval; PROD stays untouched.
@@ -84,7 +84,7 @@ Preserve purchases/subscriptions; review entitlement restoration separately. Dis
 ## Phase 5 — Prepare PROD releases and the live handover
 
 1. Prepare verified, closed PROD engine groups with independent PROD credentials and database/public key.
-2. Connect PROD to **`prod`** through OpenCloud Git. Preserve promotion/database jobs; require exact-source database success, group upgrades, then website publication. No competing mainnet/engine runner or engine funding assumptions.
+2. Deploy PROD code directly to the OpenCloud PROD canisters from the **`prod`** source. Preserve promotion/database jobs; require exact-source database success, group upgrades, then website publication. No competing mainnet/engine runner or engine funding assumptions.
 3. Verify consistent web/native sign-in: old-account continuity if retaining data, fresh setup otherwise. Clear stale ICP account/club/key caches on deployment change without wiping email data. Pin the intended origin before fresh accounts.
 4. Review website/native destinations, routing snapshots, invites/universal links, purchase verification and push queues/workers/devices. Preserve store/package identity, product IDs, prices, subscriptions and email push.
 5. Rehearse stale-client handling: old installed apps must not continue writing to a retired service or silently reach DEV. Coordinate the required native release, old-source write closure and website switch; no unproven zero-downtime promise.
@@ -98,12 +98,12 @@ Retire old mainnet ICP targets only after handover and exact approval; no Supaba
 
 When separating environments:
 - Create engine 2's proxy and complete fresh DEV app/groups/test data; no encrypted snapshot migration.
-- Verify DEV, then repoint only `main` Git and DEV sites. Keep `prod`, PROD canisters, proxy/keys, hosting and data unchanged on engine 1.
+- Verify DEV, then repoint only DEV deployment targets and DEV sites. Keep `prod`, PROD canisters, proxy/keys, hosting and data unchanged on engine 1.
 - Retire exact old DEV targets only; preserve engine 1/proxy and PROD permissions/settings.
 - Grow capacity from measurements; add new groups elsewhere, never relocate encrypted clubs.
 
 ## Scope of approval and next implementation batch
 
-Approval starts **Git-first DEV setup, consolidated acceptance and a bounded retain-or-fresh assessment**. Controller changes, DEV release, PROD provisioning, transfer/cutover and old-canister deletion retain action approvals. No live reset now; Supabase is excluded.
+Approval starts **direct creation of the combined DEV app on OpenCloud, consolidated acceptance and a bounded retain-or-fresh assessment**. Controller changes, DEV release, PROD provisioning, transfer/cutover and old-canister deletion retain action approvals. No live reset now; Supabase is excluded.
 
-First result: working OpenCloud Git updates, one acceptance report and a simple data recommendation; then independent PROD on the same engine.
+First result: one working combined DEV app on OpenCloud, one acceptance report and a simple data recommendation; then independent PROD on the same engine.
