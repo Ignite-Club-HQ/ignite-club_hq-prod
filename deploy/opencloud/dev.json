@@ -3,6 +3,10 @@
   "environment": "opencloud-dev",
   "commissioningMode": "fresh-install-admission-only",
   "applicationKey": "ignite_dev_v2",
+  "activation": {
+    "lovableRouting": false,
+    "autoDeploy": false
+  },
   "branch": "main",
   "networkKind": "cloud_engine",
   "engineName": "ignite-prod",

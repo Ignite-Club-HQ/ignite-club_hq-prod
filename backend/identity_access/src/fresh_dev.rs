@@ -16,6 +16,19 @@ pub struct State { pub initialized: bool, pub receipt: Option<Receipt> }
 /// separators: identity, governor, host, then the exact 31 backend principals.
 #[derive(Clone, Debug)]
 pub struct Pin { pub identity: Principal, pub governor: Principal, pub host: String, pub backends: Vec<Principal>, pub services: Vec<(String,Principal)> }
+/// Normal code upgrades of a commissioned DEV identity keep the stored
+/// first-install state untouched; they never reset, re-arm or recommission.
+/// A non-DEV module over DEV state, a missing/foreign pin, or an uninitialized
+/// state are refused so upgrades cannot become a reset path.
+pub fn upgrade(build_pin:Option<&str>,state:&State,identity:Principal,governor:Principal)->Result<(),String>{
+    if !state.initialized {
+        return if build_pin.is_none() {Ok(())} else {Err("Fresh DEV upgrade requires initialized installation state".into())};
+    }
+    let pin=Pin::parse(build_pin.ok_or("Fresh DEV state requires the same immutable DEV build")?)?;
+    if pin.identity!=identity || pin.governor!=governor {return Err("Fresh DEV upgrade pins changed".into());}
+    if let Some(r)=&state.receipt {pin.binding(&r.expectation.inventory.groups.binding,identity,governor)?;}
+    Ok(())
+}
 impl Pin {
     pub fn parse(raw: &str) -> Result<Self, String> {
         let fields: Vec<_> = raw.lines().collect();
@@ -102,5 +115,25 @@ pub fn retry(prior:&Receipt,requested:&Expectation)->Result<(),String>{
         let (e,l,_)=crate::production_account_protection::tests::fixture();
         let receipt=Receipt{expectation:e.clone(),lifecycle:l};assert!(retry(&receipt,&e).is_ok());
         let mut changed=e;changed.inventory.groups.binding.registry_revision+=1;assert!(retry(&receipt,&changed).is_err());
+    }
+    #[test] fn upgrades_preserve_commissioning_and_never_reset(){
+        let id=|n:u8|Principal::from_slice(&[n,7,7]);
+        let mut lines=vec![id(1).to_text(),id(200).to_text(),"https://engine.example".to_string()];
+        for n in 1..=31u8 {lines.push(format!("svc{n}={}",id(n).to_text()));}
+        let raw=lines.join("\n");
+        let (e,l,_)=crate::production_account_protection::tests::fixture();
+        let fresh=State{initialized:true,receipt:None};
+        // Ordinary upgrade of the same DEV build keeps state (installed, not yet commissioned).
+        assert!(upgrade(Some(&raw),&fresh,id(1),id(200)).is_ok());
+        // Mainnet/PROD builds keep upgrading normally when no DEV state exists.
+        assert!(upgrade(None,&State::default(),id(1),id(200)).is_ok());
+        // A non-DEV module over DEV state, an uninitialized DEV state, or changed pins are refused.
+        assert!(upgrade(None,&fresh,id(1),id(200)).is_err());
+        assert!(upgrade(Some(&raw),&State::default(),id(1),id(200)).is_err());
+        assert!(upgrade(Some(&raw),&fresh,id(2),id(200)).is_err());
+        assert!(upgrade(Some(&raw),&fresh,id(1),id(201)).is_err());
+        // A commissioned receipt bound to another deployment is refused.
+        let foreign=State{initialized:true,receipt:Some(Receipt{expectation:e,lifecycle:l})};
+        assert!(upgrade(Some(&raw),&foreign,id(1),id(200)).is_err());
     }
 }

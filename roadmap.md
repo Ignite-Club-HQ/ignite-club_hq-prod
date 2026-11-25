@@ -693,3 +693,6 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] OpenCloud DEV commissioning — waiting on owner signer key + independent recovery witness pins, controllers/capacities in dev.json, ChatGPT live transport
 - [x] OpenCloud DEV controller tool/workflow; governor corrected to vk34m, connected II tuhjl; identity rebuilt (fresh-v5).
 - [ ] ChatGPT: apply controller updates (frontend first) via connector, then run access check workflow. Blocked on live execution.
+
+- [x] OpenCloud DEV automation implemented behind switched-off `activation` (auto upgrades, website, Lovable routing, cutover).
+- [ ] Turn on `activation` after ChatGPT completes initial installation and live acceptance (blocked: live acceptance; `opencloud-dev-deploy` GitHub environment with GOVERNOR_PEM/DEPLOYER_PEM).

@@ -31,3 +31,12 @@ export function opencloudPinnedTarget(): { host: string; canisterIds: Record<str
   return { host, canisterIds: Object.fromEntries([...shared.map(name => [name, full[name]]),
     ...services.map(name => [name, full[`g1_${name}`]])]) };
 }
+/** OpenCloud builds accept router-returned group services only from their own pinned inventory:
+ * router group "base" maps to g1_*, "g2" to g2_*; shared services keep their shared ID. */
+export function assertOpenCloudGroupCanister(groupId: string, domain: string, canisterId: string): void {
+  if (!opencloudEnvironment()) return;
+  const full = JSON.parse(import.meta.env.IGNITE_LIVE_OPENCLOUD_IDS_JSON || '{}') as Record<string, string>;
+  const prefix = groupId === 'base' ? 'g1' : groupId === 'g2' ? 'g2' : null;
+  const expected = full[domain] ?? (prefix ? full[`${prefix}_${domain}`] : undefined);
+  if (!expected || expected !== canisterId) throw new Error('Club group is outside the OpenCloud inventory');
+}

@@ -3162,7 +3162,8 @@ fn migrate_legacy_state(legacy: State) -> CoreState {
 
 #[ic_cdk::post_upgrade]
 fn post_upgrade() {
-    assert!(!fresh_dev_enabled(),"Fresh DEV upgrades require a separately reviewed lifecycle path; initial commissioning cannot reset or recover");
+    // Fresh DEV state is left byte-identical: upgrades never reset, re-arm or recommission.
+    fresh_dev::upgrade(option_env!("IGNITE_OPENCLOUD_DEV_FIRST_INSTALL"),&fresh_dev_state(),ic_cdk::api::canister_self(),state().governor).unwrap_or_else(|e|ic_cdk::trap(e));
     // The full legacy `State` shape (with `#[serde(default)]` on every field
     // added after schema 1) decodes both old full-blob schemas (1..4) and
     // the current slim `CoreState` blob (schema 5+, where accounts/

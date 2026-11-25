@@ -16,7 +16,7 @@ test('engine assistant declarations and sign-in callbacks contain only the 32-pa
     });
     const wk = join(out, '.well-known');
     assert.equal(readFileSync(join(wk, 'ii-derivation-origin'), 'utf8').trim(), `https://${config.shared.frontend}.icp.net`);
-    assert.deepEqual(JSON.parse(readFileSync(join(wk, 'ii-alternative-origins'), 'utf8')).alternativeOrigins, [`https://${config.shared.frontend}.icp.net`]);
+    assert.deepEqual(JSON.parse(readFileSync(join(wk, 'ii-alternative-origins'), 'utf8')).alternativeOrigins.slice(0, 1), [`https://${config.shared.frontend}.icp.net`]);
     const manifest = JSON.parse(readFileSync(join(wk, 'ic-architecture'), 'utf8'));
     const ids = new Set(inventory(config).map(r => r.id));
     for (const row of manifest.canisters) assert.ok(ids.has(row.id), row.id);

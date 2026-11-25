@@ -1,3 +1,4 @@
+import { assertOpenCloudGroupCanister } from './opencloudEnvironment';
 /** Pure assignment resolver; intentionally not connected to production actors.
  * Only accept tables returned by the authenticated authoritative control plane.
  * Resolution is not authorization and never falls back to another deployment.
@@ -35,6 +36,7 @@ export function resolveClubDomain(table: GroupRoutingTable, targetAlias: string,
   if (domains.size !== GROUP_DOMAINS.length) throw new Error('Incomplete club group');
   const canisterId = domains.get(domain);
   if (!canisterId) throw new Error('Unmapped group domain');
+  assertOpenCloudGroupCanister(group.id, domain, canisterId);
   return { groupId: group.id, canisterId, revision: assignment.revision };
 }
 /** Split requests deterministically without dropping duplicates or losing order. */

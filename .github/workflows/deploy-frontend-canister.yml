@@ -34,7 +34,19 @@ permissions:
   contents: read
 
 jobs:
+  # At OpenCloud DEV cutover (activation.autoDeploy) automatic mainnet DEV website pushes stop;
+  # manual runs stay available for rollback.
+  cutover:
+    runs-on: ubuntu-latest
+    outputs:
+      auto_deploy: ${{ steps.gate.outputs.auto_deploy }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: gate
+        run: node scripts/opencloud/dev-auto.mjs gate
   deploy:
+    needs: cutover
+    if: github.event_name != 'push' || needs.cutover.outputs.auto_deploy != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:

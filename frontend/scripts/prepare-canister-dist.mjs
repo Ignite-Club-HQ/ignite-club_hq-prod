@@ -8,6 +8,13 @@ import { reviewedDevGroup2Canisters, reviewedDevAssistantBaseCanisters } from ".
 import { PROD_MEMBER_II_ORIGIN, DEV_FRONTEND_II_CANISTER, alternativeOriginsForBuild, derivationOriginForBuild } from "./iiOriginPolicy.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
+// Lovable preview/Publish addresses sign in as the OpenCloud DEV website once routing is switched on.
+const OPENCLOUD_DEV_LOVABLE_ORIGINS = [
+  'https://ignite-club-launchpad.lovable.app',
+  'https://id-preview--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app',
+  'https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app',
+  'https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6-dev.lovable.app',
+];
 const engineBuild = ['opencloud-dev', 'opencloud-prod'].includes(process.env.IGNITE_LIVE_OPENCLOUD_ENV);
 if (process.env.IGNITE_LIVE_OPENCLOUD_ENV && !engineBuild) throw Error('Unknown OpenCloud environment');
 const src = process.env.IGNITE_CANISTER_SOURCE_DIR || `${root}dist-live`;
@@ -44,7 +51,7 @@ writeFileSync(
   `${out}/.well-known/ii-alternative-origins`,
   JSON.stringify(
     {
-      alternativeOrigins: engineBuild ? [`https://${frontendCanisterId}.icp.net`] : alternativeOriginsForBuild({ isProdBuild, frontendCanisterId }),
+      alternativeOrigins: engineBuild ? [`https://${frontendCanisterId}.icp.net`, ...(process.env.IGNITE_LIVE_OPENCLOUD_ENV === 'opencloud-dev' ? OPENCLOUD_DEV_LOVABLE_ORIGINS : [])] : alternativeOriginsForBuild({ isProdBuild, frontendCanisterId }),
     },
     null,
     2,
