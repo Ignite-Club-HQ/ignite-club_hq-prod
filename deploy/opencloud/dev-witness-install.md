@@ -1,5 +1,7 @@
 # OpenCloud DEV recovery witness — install-only handover
 
+> Superseded: the fresh-install path does not use the witness, and its canister stays untouched. The governor below was a mistyped identity (invalid checksum, corrected to `tuhjl-…`); the current DEV governor is `vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae`. Rebuild before any future use.
+
 The existing witness implementation was compiled with Paul's generated DEV approver public key. No private key was accessed. No canister call, controller change, deployment or activation was performed by Lovable.
 
 ## Exact target
@@ -7,7 +9,7 @@ The existing witness implementation was compiled with Paul's generated DEV appro
 - Host: `https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net`
 - Witness: `c6dso-4iaaa-aaac5-aaeqa-cai`
 - Expected sole effective controller: `4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae`
-- Internal governor: `tuhlj-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe`
+- Internal governor: `tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe`
 - Identity service: `h5lly-yyaaa-aaac5-aadqq-cai`
 - Raw installed module SHA-256: `6439de5416dac0dbd75da4c99ce4967572b7179686f8f6504687d8b5cb2029e2`
 
@@ -19,7 +21,7 @@ The existing witness implementation was compiled with Paul's generated DEV appro
 
 ```candid
 (record {
-  governor = principal "tuhlj-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe";
+  governor = principal "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe";
   identity = principal "h5lly-yyaaa-aaac5-aadqq-cai";
 })
 ```

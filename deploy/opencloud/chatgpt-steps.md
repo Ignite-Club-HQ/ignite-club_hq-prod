@@ -12,7 +12,7 @@ Use the OpenCloud/ICP connector's supported operations to open the engine operat
 
 Stop if any target is absent, duplicated, belongs to PROD/another app/subnet, already contains code unexpectedly, or lacks the expected existing operator/owner access. **Do not repair by creating a replacement, changing controllers or reinstalling.** Report the difference to Paul.
 
-Verify the configured DEV governor `tuhlj-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe` and existing DEV frontend publisher `jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe`. These are signing roles, not the operator/proxy IDs. No new key is needed. Keep DEV/PROD identities separate; never paste or package private keys/delegations. If either existing signer cannot be used through authorized transport, report that limitation rather than minting a replacement.
+Complete `controllers.md` first, then verify the configured DEV governor `vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae` and existing DEV frontend publisher `jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe`. These are signing roles, not the operator/proxy IDs. No new key is needed. Keep DEV/PROD identities separate; never paste or package private keys/delegations. If either existing signer cannot be used through authorized transport, report that limitation rather than minting a replacement.
 
 ## 2. Chain-key proxy verification
 

@@ -102,7 +102,8 @@ export function validate(config, peer, forbidden = mainnetIds()) {
   const host = new URL(config.apiHost);
   if (host.protocol !== 'https:' || host.username || host.password || host.origin !== config.apiHost ||
       ['icp-api.io', 'ic0.app', 'icp0.io'].includes(host.hostname)) throw Error('Explicit engine HTTPS API host required, no mainnet endpoint default');
-  const controllers = Object.values(config.controllers).map(principal);
+  const controllers = [config.controllers.owner, config.controllers.governor, config.controllers.frontendPublisher].map(principal);
+  if (config.controllers.connectedIdentity != null && [...controllers, config.operatorId].includes(principal(config.controllers.connectedIdentity))) throw Error('Connected identity must be distinct from signing roles');
   if (new Set(controllers).size !== 3 || controllers.includes(config.operatorId) || ids.some(id => controllers.includes(id))) throw Error('Distinct owner, internal governor and frontend publisher required');
   if (peer && [config.controllers.governor, config.controllers.frontendPublisher].some(p =>
       [peer.controllers.governor, peer.controllers.frontendPublisher].includes(p))) throw Error('DEV/PROD signing identities must be separate');

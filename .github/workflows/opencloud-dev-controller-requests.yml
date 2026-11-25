@@ -1,0 +1,55 @@
+name: '[TEST] OpenCloud DEV controller requests'
+# Offline only: builds/decodes Candid for ChatGPT's authenticated ICP connector. No secrets, no network calls to canisters.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: status | decode | update | update-from-list | verify | plan
+        required: true
+        default: status
+      target:
+        description: Canister ID, or "all" for status
+        required: false
+        default: h2knm-vaaaa-aaac5-aadqa-cai
+      reply:
+        description: canister_status reply (hex/base64), or comma list of controllers for update-from-list
+        required: false
+      after_reply:
+        description: canister_status reply after update (verify only)
+        required: false
+permissions:
+  contents: read
+jobs:
+  requests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Install official ICP SDK
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Test controller tool
+        run: node --test scripts/opencloud/controllers.test.mjs
+      - name: Generate or check request
+        env:
+          MODE: ${{ inputs.mode }}
+          TARGET: ${{ inputs.target }}
+          REPLY: ${{ inputs.reply }}
+          AFTER: ${{ inputs.after_reply }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in
+            status|plan) node scripts/opencloud/controllers.mjs "$MODE" "$TARGET" > out.json ;;
+            decode) node scripts/opencloud/controllers.mjs decode "$REPLY" > out.json ;;
+            update|update-from-list) node scripts/opencloud/controllers.mjs "$MODE" "$TARGET" "$REPLY" > out.json ;;
+            verify) node scripts/opencloud/controllers.mjs verify "$TARGET" "$REPLY" "$AFTER" > out.json ;;
+            *) echo "Unknown mode"; exit 2 ;;
+          esac
+          cat out.json
+          { echo '```json'; cat out.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: controller-request-${{ inputs.mode }}
+          path: out.json

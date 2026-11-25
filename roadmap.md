@@ -691,3 +691,5 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 
 - [x] OpenCloud v2: engine resource policy, engine-scoped identity commissioning, engine name sources, ID-free frontend bundle, rebuilt identity_access + shard_router
 - [ ] OpenCloud DEV commissioning — waiting on owner signer key + independent recovery witness pins, controllers/capacities in dev.json, ChatGPT live transport
+- [x] OpenCloud DEV controller tool/workflow; governor corrected to vk34m, connected II tuhjl; identity rebuilt (fresh-v5).
+- [ ] ChatGPT: apply controller updates (frontend first) via connector, then run access check workflow. Blocked on live execution.
