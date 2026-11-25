@@ -1,0 +1,1 @@
+import{k as e,am as r}from"./live-index-CWZghETN.js";function c(){if(e()!=="icp")return"supabase";try{const t=r();return JSON.stringify(["icp",t.host,t.canisterIds.club_domain??null])}catch{return"icp-unconfigured"}}export{c as a};

@@ -1,0 +1,45 @@
+{{! Deploy static assets to the dfinity/certified-assets canister. }}
+{{! `dir: string` Required. The single directory of built assets to synchronize. }}
+{{! `build: [string]` Optional. Commands run before sync to produce the asset directory. }}
+{{! `presync: [string]` Optional. Commands run at sync time (after the canister exists), before assets upload, with the deployed canister IDs in the environment: ICP_CLI_CID, ICP_CLI_CID_<NAME>, ICP_CLI_NETWORK, ICP_CLI_ENVIRONMENT. }}
+{{! `metadata: [{name, value, visibility}]` Optional. Entries injected into the canister wasm via ic-wasm. `visibility` is optional, `public` or `private`; omitted means private, ic-wasm's default. }}
+
+build:
+  steps:
+    {{#if metadata}}
+    - type: script
+      commands:
+        - sh -c 'command -v ic-wasm >/dev/null 2>&1 || { echo >&2 "ic-wasm not found. See https://github.com/dfinity/ic-wasm"; exit 1; }'
+    {{/if}}
+    {{#if build}}
+    - type: script
+      commands:
+        {{#each build}}
+        - {{ this }}
+        {{/each}}
+    {{/if}}
+    - type: pre-built
+      url: https://github.com/dfinity/certified-assets/releases/download/v0.4.0/canister-release.wasm.gz
+      sha256: b143d5526d180140593e8d61f1eca2d917d5761cf0b59fdc5bada947abb1d304
+    {{#if metadata}}
+    - type: script
+      commands:
+        {{#each metadata}}
+        - sh -c 'ic-wasm "$ICP_WASM_OUTPUT_PATH" -o "$ICP_WASM_OUTPUT_PATH" metadata "{{ name }}" -d "{{ value }}"{{#if visibility}} -v {{ visibility }}{{/if}} --keep-name-section'
+        {{/each}}
+    {{/if}}
+
+sync:
+  steps:
+    {{#if presync}}
+    - type: script
+      commands:
+        {{#each presync}}
+        - {{ this }}
+        {{/each}}
+    {{/if}}
+    - type: plugin
+      url: https://github.com/dfinity/certified-assets/releases/download/v0.4.0/plugin-release.wasm
+      sha256: 194a5653632a7298375978875e3d3cf89dbb50f983e1016a730bf6e663fcc6b1
+      dirs:
+        - {{ dir }}

@@ -1,0 +1,1 @@
+import{j as e,c7 as a}from"./live-index-CWZghETN.js";import{L as t}from"./LegalPageEmbed-Cs-F47UX.js";function i(){return e.jsx(t,{title:"Refund & Cancellation Policy",websiteUrl:a.cancellation})}export{i as default};

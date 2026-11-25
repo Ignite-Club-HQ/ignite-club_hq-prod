@@ -1,0 +1,2563 @@
+{
+  "schema": "ignite-opencloud-deployment/v1",
+  "environment": "opencloud-dev",
+  "applicationKey": "ignite_dev_v2",
+  "sourceMode": "existing-application-fresh-dev-data",
+  "engine": {
+    "id": "engine-789969b4-e8ba-41b0-90a2-47b4da69909f",
+    "operatorId": "s53an-5aaaa-aaac5-aaaaa-cai",
+    "subnetId": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+    "apiHost": "https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net",
+    "consoleProxyId": "ynolw-eyaaa-aaaaj-qspkq-cai"
+  },
+  "restrictions": {
+    "createCanisters": false,
+    "reinstall": false,
+    "deployProd": false,
+    "automateCI": false,
+    "changeControllers": false,
+    "changeMainnet": false,
+    "changeSupabase": false,
+    "changeDNS": false,
+    "migrateData": false
+  },
+  "executable": false,
+  "status": "complete-offline-package-live-commissioning-and-acceptance-required",
+  "tooling": {
+    "icpCli": "1.7.0",
+    "moc": "1.16.1",
+    "motokoRecipe": "@dfinity/motoko@v5.1.0",
+    "rustRecipe": "@dfinity/rust@v3.3.0",
+    "frontendRecipe": "@dfinity/static-site@v0.4.0"
+  },
+  "canisters": [
+    {
+      "name": "frontend",
+      "service": "frontend",
+      "scope": "shared",
+      "id": "h2knm-vaaaa-aaac5-aadqa-cai",
+      "wasm": "artifacts/frontend.wasm.gz",
+      "candid": "candid/frontend.did",
+      "wasmSha256": "b143d5526d180140593e8d61f1eca2d917d5761cf0b59fdc5bada947abb1d304",
+      "moduleSha256": "88fb9e040e1413ac90415ac1082fe11266e494b2a78d7d69ae29703523ee2415",
+      "initArgs": "()",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "frontend-publisher"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": null,
+      "candidSha256": "7f90fa7eea04568b6d03ffa3ad74f9b4f64855dfc4a348a835d081cd779920cc",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ],
+        "forbid": [
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ]
+      }
+    },
+    {
+      "name": "shard_router",
+      "service": "shard_router",
+      "scope": "shared",
+      "id": "htjgq-diaaa-aaac5-aadrq-cai",
+      "wasm": "artifacts/shard_router.wasm.gz",
+      "candid": "candid/shard_router.did",
+      "wasmSha256": "f6f640f8477aff17d18a25fec6aa9dd2075b34909420f0921094411eab3ae606",
+      "moduleSha256": "5b8993a0de68aa5e87211cb871e88686955c9dda3f4f6387b20f63711ab0d324",
+      "initArgs": "(record { governor = principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\" })",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": null,
+      "candidSha256": "5da513313f6067226f9314aaa554bf567187c32369504629b72c090cd384bb23",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "identity_access",
+      "service": "identity_access",
+      "scope": "shared",
+      "id": "h5lly-yyaaa-aaac5-aadqq-cai",
+      "wasm": "artifacts/identity_access.wasm.gz",
+      "candid": "candid/identity_access.did",
+      "wasmSha256": "e9b30ff3f9c0119f8de5a9e51f187878ec42a9dd97b3fb56c93cbe43d7899b16",
+      "moduleSha256": "5772bdcb0b1de988c8e794a393d913da0673ff22cb6b2b743461a3818bfbfd77",
+      "initArgs": "(record { governor = principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\" })",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE": "1",
+          "IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE": "1",
+          "IGNITE_SECURE_ADULT_NAME_PII": "ekzhk-jaaaa-aaac5-aadya-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": null,
+      "candidSha256": "99bca5aed6301466fdb81cdc59a1afa9f564dedc63c8be4cd48544236755d685",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "placement_registry",
+      "service": "placement_registry",
+      "scope": "shared",
+      "id": "huiae-oqaaa-aaac5-aadra-cai",
+      "wasm": "artifacts/placement_registry.wasm.gz",
+      "candid": "candid/placement_registry.did",
+      "wasmSha256": "45ab940aa65f523fa267d9c73c274838c159ef7bdcec2f301b9209bfb59e0450",
+      "moduleSha256": "bbdcb072bc1b59b1f88371ae6f31cf190ac6585811a8a29ded18ea35b2a851c3",
+      "initArgs": "(record { governor = principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\" })",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": null,
+      "candidSha256": "c54ea3cb08dfd11778b8b3a1d8936725822c04f32bfe617f6914e63ac124358e",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "migration_coordinator",
+      "service": "migration_coordinator",
+      "scope": "shared",
+      "id": "hgox5-caaaa-aaac5-aadsa-cai",
+      "wasm": "artifacts/migration_coordinator.wasm.gz",
+      "candid": "candid/migration_coordinator.did",
+      "wasmSha256": "78e19cc79677d188390a6948a84ce34f932534c1f2eb0f41f6093c90c07e3e69",
+      "moduleSha256": "27307e70a8dc8d1aa93a0df1ada8b4106fe6f403c55cc169dc43944b506cd863",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "1224fb3db588d5e99d6ab61326730bd53e4a22373f2512eb5234a36c2223e0ac",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "secret_workload_identity",
+      "service": "secret_workload_identity",
+      "scope": "shared",
+      "id": "hbprj-pyaaa-aaac5-aadsq-cai",
+      "wasm": "artifacts/secret_workload_identity.wasm.gz",
+      "candid": "candid/secret_workload_identity.did",
+      "wasmSha256": "109eb1f436f6c407a0c1535739ed230c447328c7bf74858144a2eb74d7b221b7",
+      "moduleSha256": "9ad56e42b4ef294e79c590582c98f73cc688a5a05c6d492d4ec6fceec6096281",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "c21a308980511a4ba6aeac4817436b3d7e94499509dffdcd549ae5c1968e9fca",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_club_domain",
+      "service": "club_domain",
+      "scope": "g1",
+      "id": "him2v-zqaaa-aaac5-aadta-cai",
+      "wasm": "artifacts/club_domain.wasm.gz",
+      "candid": "candid/club_domain.did",
+      "wasmSha256": "a166a18b97f406d52d8a36ef41a472ac49a6f1297710cf0f9c3a097cf609888c",
+      "moduleSha256": "7db1d601001b7c253f473c9afdf5b20b1c922960949541261141863feb1d2648",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai",
+          "IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE": "1",
+          "IGNITE_NEW_CLUB_PLACEMENT_REQUIRED": "true",
+          "IGNITE_NEW_CLUB_PLACEMENT_ROUTER": "htjgq-diaaa-aaac5-aadrq-cai",
+          "IGNITE_NEW_CLUB_PLACEMENT_GROUP": "base",
+          "IGNITE_NEW_CLUB_PLACEMENT_TARGET": "opencloud-dev"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_events_domain",
+      "service": "events_domain",
+      "scope": "g1",
+      "id": "gfc63-wyaaa-aaac5-aaduq-cai",
+      "wasm": "artifacts/events_domain.wasm.gz",
+      "candid": "candid/events_domain.did",
+      "wasmSha256": "2f0cc5bea1fe6fda33ffd58f23bc092d9c5a89717d714800b61514319ed75382",
+      "moduleSha256": "a81d94366fdf798f38f67fc85dece1ecb92d891b005c6b205cf5b193b22ed2c4",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "000a4ca8cb439867271352fc06a0a1c9c5c3165ee8f9dd90f93d1bee3afa0b86",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_messaging_domain",
+      "service": "messaging_domain",
+      "scope": "g1",
+      "id": "gzgek-byaaa-aaac5-aadwq-cai",
+      "wasm": "artifacts/messaging_domain.wasm.gz",
+      "candid": "candid/messaging_domain.did",
+      "wasmSha256": "eaa7c451b48bcdcdf72f795a4eb2dc0f9635c9d17abde1dd6005c72e1bfbacc1",
+      "moduleSha256": "615ca2d31f2ee26a95e08998ef3e7ef5479b59c2a0ff3af163b91a73c7e282c9",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "0ad6c07961102130b4e8789eeb151e03c2c09c5341260f35b2aa1c5a4315d138",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_vault_domain",
+      "service": "vault_domain",
+      "scope": "g1",
+      "id": "ee3kc-sqaaa-aaac5-aadza-cai",
+      "wasm": "artifacts/vault_domain.wasm.gz",
+      "candid": "candid/vault_domain.did",
+      "wasmSha256": "3305ef41885740f774fce607f918cfc3dd4e565d4851405eb627fd978fc1e50f",
+      "moduleSha256": "d8f77b442b372a07d402d599ae1a269fc8e370b90351a623d4966d8754bb4b06",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_competition_domain",
+      "service": "competition_domain",
+      "scope": "g1",
+      "id": "gcdyp-3aaaa-aaac5-aadua-cai",
+      "wasm": "artifacts/competition_domain.wasm.gz",
+      "candid": "candid/competition_domain.did",
+      "wasmSha256": "3af2378afbe2ae4af666db2a6d389e46bcdbf1f404624ce2add933b0ba4c714b",
+      "moduleSha256": "65689728ac8382ac257db7096d2e8fde3d7d9ede9c87f9ec3d8b53e04d408dda",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "8e6f4e481d513a37c0bc6352ea0c86e0e8cb8d001ad153bb9afe6df004ce01e1",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_club_points_domain",
+      "service": "club_points_domain",
+      "scope": "g1",
+      "id": "hpn4b-uiaaa-aaac5-aadtq-cai",
+      "wasm": "artifacts/club_points_domain.wasm.gz",
+      "candid": "candid/club_points_domain.did",
+      "wasmSha256": "992ace8a0dcfad0d310caf421f99560742ee22680a586000f92668b2ceca6c0d",
+      "moduleSha256": "e691ada1198c85da5dfe69a1bba665794a8d5395061d4572cc8aa4ee3387768f",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "8b6d3d2a16f5d03c0ae0c7aa74aba6fb484b34baafc83b1ca64b33d221dc04e8",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_mini_league_domain",
+      "service": "mini_league_domain",
+      "scope": "g1",
+      "id": "gqfpw-xqaaa-aaac5-aadxa-cai",
+      "wasm": "artifacts/mini_league_domain.wasm.gz",
+      "candid": "candid/mini_league_domain.did",
+      "wasmSha256": "e300c9aa83c6b03274913259dd7dae03295ec05b4a2064adcb9253380ecc5b9b",
+      "moduleSha256": "803deb64782cc6429056da3c759b217a558f4cefd4ebfe9a6dc5b55f3f505f7f",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "694df760c5f255e782a76b64f14d07d16d5c61496383a5f0762e4b154cefbb21",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_media_metadata",
+      "service": "media_metadata",
+      "scope": "g1",
+      "id": "g6hc6-maaaa-aaac5-aadwa-cai",
+      "wasm": "artifacts/media_metadata.wasm.gz",
+      "candid": "candid/media_metadata.did",
+      "wasmSha256": "389032ef46f3b0c339c05b37d70959e43e14a7a0f04b35903f6f7c6f0e970caa",
+      "moduleSha256": "904597172e84ee1fe9963c0c01d12b65da017d55a6d8c1db0d06ef9f3edaa9df",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "420a73ad6eb7cdef75ee1aa0e271659f18ff4b68fbff47d8804b979334e249fb",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_insights_domain",
+      "service": "insights_domain",
+      "scope": "g1",
+      "id": "gmbvh-aqaaa-aaac5-aadva-cai",
+      "wasm": "artifacts/insights_domain.wasm.gz",
+      "candid": "candid/insights_domain.did",
+      "wasmSha256": "a41dcc41d63dac2e13f78e5ba19427fa037d0cb11c67a32d31900ec03f53d66f",
+      "moduleSha256": "97ba3f46611a72282df71ce12cfb5c2c42e7f3d121791621723a6b3bebb4854a",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "6a14788e3e8a2fee7cded9bfdc39ac81add578d211aa52f1805a1c527cad71b4",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_notification_queue",
+      "service": "notification_queue",
+      "scope": "g1",
+      "id": "gxejc-2iaaa-aaac5-aadxq-cai",
+      "wasm": "artifacts/notification_queue.wasm.gz",
+      "candid": "candid/notification_queue.did",
+      "wasmSha256": "87a6771716812a094a7d4d494fd5a3207dc52e2e172e7dbdec9e2bdd6983f4ed",
+      "moduleSha256": "32df8835ef291b4974a427aa7c7ad30afc7141a3bd0e812562247fe20742e149",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "61ed0a033dca85ad52bd5806ec854147e0a552d329b46dce381a234a8f828a12",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_pii_access_control",
+      "service": "pii_access_control",
+      "scope": "g1",
+      "id": "ekzhk-jaaaa-aaac5-aadya-cai",
+      "wasm": "artifacts/pii_access_control.wasm.gz",
+      "candid": "candid/pii_access_control.did",
+      "wasmSha256": "42da99785e72adea274aed8dd576eb46d10896f13401cb1261c15d0b5e581444",
+      "moduleSha256": "1a2fceb2608c33df1c8df009bde9a3646619548e1dfa535d6c6dd48904806ecc",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai",
+          "VETKD_KEY_NAME": "key_1",
+          "PROXY_CANISTER_ID": "ynolw-eyaaa-aaaaj-qspkq-cai",
+          "IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE": "1",
+          "IGNITE_PRIVATE_PROFILE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai",
+          "IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE": "1"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "81626d5172298ade2839e0a381917d483a38aa7901582d76e602287b049c8cdd",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_timer_jobs",
+      "service": "timer_jobs",
+      "scope": "g1",
+      "id": "enyb6-eyaaa-aaac5-aadyq-cai",
+      "wasm": "artifacts/timer_jobs.wasm.gz",
+      "candid": "candid/timer_jobs.did",
+      "wasmSha256": "ac8bd192a2be2e28c88176ca591810780011f3f431498e7a7bd04381d4779524",
+      "moduleSha256": "f2885fe96cc7bafb4d4eedf8c9f17a79a176b4caf7eb3c798a76a16c0bba8f6e",
+      "initArgs": "()",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": null,
+      "candidSha256": "90481c6bc505c562207102de9910569b31611143d354ba12ef972c47dbc3a3a2",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g1_media_blob_store",
+      "service": "media_blob_store",
+      "scope": "g1",
+      "id": "glatt-niaaa-aaac5-aadvq-cai",
+      "wasm": "artifacts/media_blob_store.wasm.gz",
+      "candid": "candid/media_blob_store.did",
+      "wasmSha256": "b8d56c5cd084071d2b62c3980059051de6cb1c78cb36a9f245d4c48c44fbe99e",
+      "moduleSha256": "3d8ebe951964e8f71be8c1fc22cfd690d2fdf69be2706244160360d94721cdf9",
+      "initArgs": "()",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "d7a12af94fde68165067bab61e350997092ed7f73e93cd58c9fb68375fdd9770",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_club_domain",
+      "service": "club_domain",
+      "scope": "g2",
+      "id": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "wasm": "artifacts/club_domain.wasm.gz",
+      "candid": "candid/club_domain.did",
+      "wasmSha256": "a166a18b97f406d52d8a36ef41a472ac49a6f1297710cf0f9c3a097cf609888c",
+      "moduleSha256": "7db1d601001b7c253f473c9afdf5b20b1c922960949541261141863feb1d2648",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai",
+          "IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE": "1",
+          "IGNITE_NEW_CLUB_PLACEMENT_REQUIRED": "true",
+          "IGNITE_NEW_CLUB_PLACEMENT_ROUTER": "htjgq-diaaa-aaac5-aadrq-cai",
+          "IGNITE_NEW_CLUB_PLACEMENT_GROUP": "g2",
+          "IGNITE_NEW_CLUB_PLACEMENT_TARGET": "opencloud-dev"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_events_domain",
+      "service": "events_domain",
+      "scope": "g2",
+      "id": "ey7qt-fqaaa-aaac5-aad3a-cai",
+      "wasm": "artifacts/events_domain.wasm.gz",
+      "candid": "candid/events_domain.did",
+      "wasmSha256": "2f0cc5bea1fe6fda33ffd58f23bc092d9c5a89717d714800b61514319ed75382",
+      "moduleSha256": "a81d94366fdf798f38f67fc85dece1ecb92d891b005c6b205cf5b193b22ed2c4",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "000a4ca8cb439867271352fc06a0a1c9c5c3165ee8f9dd90f93d1bee3afa0b86",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_messaging_domain",
+      "service": "messaging_domain",
+      "scope": "g2",
+      "id": "f4s7b-4qaaa-aaac5-aad5a-cai",
+      "wasm": "artifacts/messaging_domain.wasm.gz",
+      "candid": "candid/messaging_domain.did",
+      "wasmSha256": "eaa7c451b48bcdcdf72f795a4eb2dc0f9635c9d17abde1dd6005c72e1bfbacc1",
+      "moduleSha256": "615ca2d31f2ee26a95e08998ef3e7ef5479b59c2a0ff3af163b91a73c7e282c9",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "0ad6c07961102130b4e8789eeb151e03c2c09c5341260f35b2aa1c5a4315d138",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_vault_domain",
+      "service": "vault_domain",
+      "scope": "g2",
+      "id": "fhxde-giaaa-aaac5-aad7q-cai",
+      "wasm": "artifacts/vault_domain.wasm.gz",
+      "candid": "candid/vault_domain.did",
+      "wasmSha256": "3305ef41885740f774fce607f918cfc3dd4e565d4851405eb627fd978fc1e50f",
+      "moduleSha256": "d8f77b442b372a07d402d599ae1a269fc8e370b90351a623d4966d8754bb4b06",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_competition_domain",
+      "service": "competition_domain",
+      "scope": "g2",
+      "id": "er43p-tyaaa-aaac5-aad2q-cai",
+      "wasm": "artifacts/competition_domain.wasm.gz",
+      "candid": "candid/competition_domain.did",
+      "wasmSha256": "3af2378afbe2ae4af666db2a6d389e46bcdbf1f404624ce2add933b0ba4c714b",
+      "moduleSha256": "65689728ac8382ac257db7096d2e8fde3d7d9ede9c87f9ec3d8b53e04d408dda",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "8e6f4e481d513a37c0bc6352ea0c86e0e8cb8d001ad153bb9afe6df004ce01e1",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_club_points_domain",
+      "service": "club_points_domain",
+      "scope": "g2",
+      "id": "ew553-6aaaa-aaac5-aad2a-cai",
+      "wasm": "artifacts/club_points_domain.wasm.gz",
+      "candid": "candid/club_points_domain.did",
+      "wasmSha256": "992ace8a0dcfad0d310caf421f99560742ee22680a586000f92668b2ceca6c0d",
+      "moduleSha256": "e691ada1198c85da5dfe69a1bba665794a8d5395061d4572cc8aa4ee3387768f",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "8b6d3d2a16f5d03c0ae0c7aa74aba6fb484b34baafc83b1ca64b33d221dc04e8",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_mini_league_domain",
+      "service": "mini_league_domain",
+      "scope": "g2",
+      "id": "f3tzv-riaaa-aaac5-aad5q-cai",
+      "wasm": "artifacts/mini_league_domain.wasm.gz",
+      "candid": "candid/mini_league_domain.did",
+      "wasmSha256": "e300c9aa83c6b03274913259dd7dae03295ec05b4a2064adcb9253380ecc5b9b",
+      "moduleSha256": "803deb64782cc6429056da3c759b217a558f4cefd4ebfe9a6dc5b55f3f505f7f",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "694df760c5f255e782a76b64f14d07d16d5c61496383a5f0762e4b154cefbb21",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_media_metadata",
+      "service": "media_metadata",
+      "scope": "g2",
+      "id": "fvru5-kyaaa-aaac5-aad4q-cai",
+      "wasm": "artifacts/media_metadata.wasm.gz",
+      "candid": "candid/media_metadata.did",
+      "wasmSha256": "389032ef46f3b0c339c05b37d70959e43e14a7a0f04b35903f6f7c6f0e970caa",
+      "moduleSha256": "904597172e84ee1fe9963c0c01d12b65da017d55a6d8c1db0d06ef9f3edaa9df",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "420a73ad6eb7cdef75ee1aa0e271659f18ff4b68fbff47d8804b979334e249fb",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_insights_domain",
+      "service": "insights_domain",
+      "scope": "g2",
+      "id": "e76wh-iiaaa-aaac5-aad3q-cai",
+      "wasm": "artifacts/insights_domain.wasm.gz",
+      "candid": "candid/insights_domain.did",
+      "wasmSha256": "a41dcc41d63dac2e13f78e5ba19427fa037d0cb11c67a32d31900ec03f53d66f",
+      "moduleSha256": "97ba3f46611a72282df71ce12cfb5c2c42e7f3d121791621723a6b3bebb4854a",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "6a14788e3e8a2fee7cded9bfdc39ac81add578d211aa52f1805a1c527cad71b4",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_notification_queue",
+      "service": "notification_queue",
+      "scope": "g2",
+      "id": "fouiy-qaaaa-aaac5-aad6a-cai",
+      "wasm": "artifacts/notification_queue.wasm.gz",
+      "candid": "candid/notification_queue.did",
+      "wasmSha256": "87a6771716812a094a7d4d494fd5a3207dc52e2e172e7dbdec9e2bdd6983f4ed",
+      "moduleSha256": "32df8835ef291b4974a427aa7c7ad30afc7141a3bd0e812562247fe20742e149",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "61ed0a033dca85ad52bd5806ec854147e0a552d329b46dce381a234a8f828a12",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_pii_access_control",
+      "service": "pii_access_control",
+      "scope": "g2",
+      "id": "fjvom-5yaaa-aaac5-aad6q-cai",
+      "wasm": "artifacts/pii_access_control.wasm.gz",
+      "candid": "candid/pii_access_control.did",
+      "wasmSha256": "42da99785e72adea274aed8dd576eb46d10896f13401cb1261c15d0b5e581444",
+      "moduleSha256": "1a2fceb2608c33df1c8df009bde9a3646619548e1dfa535d6c6dd48904806ecc",
+      "initArgs": "(principal \"vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\")",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai",
+          "VETKD_KEY_NAME": "key_1",
+          "PROXY_CANISTER_ID": "ynolw-eyaaa-aaaaj-qspkq-cai",
+          "IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE": "1",
+          "IGNITE_PRIVATE_PROFILE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai",
+          "IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE": "1"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "81626d5172298ade2839e0a381917d483a38aa7901582d76e602287b049c8cdd",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_timer_jobs",
+      "service": "timer_jobs",
+      "scope": "g2",
+      "id": "fawfq-lqaaa-aaac5-aad7a-cai",
+      "wasm": "artifacts/timer_jobs.wasm.gz",
+      "candid": "candid/timer_jobs.did",
+      "wasmSha256": "ac8bd192a2be2e28c88176ca591810780011f3f431498e7a7bd04381d4779524",
+      "moduleSha256": "f2885fe96cc7bafb4d4eedf8c9f17a79a176b4caf7eb3c798a76a16c0bba8f6e",
+      "initArgs": "()",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": null,
+      "candidSha256": "90481c6bc505c562207102de9910569b31611143d354ba12ef972c47dbc3a3a2",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    },
+    {
+      "name": "g2_media_blob_store",
+      "service": "media_blob_store",
+      "scope": "g2",
+      "id": "fsqsj-haaaa-aaac5-aad4a-cai",
+      "wasm": "artifacts/media_blob_store.wasm.gz",
+      "candid": "candid/media_blob_store.did",
+      "wasmSha256": "b8d56c5cd084071d2b62c3980059051de6cb1c78cb36a9f245d4c48c44fbe99e",
+      "moduleSha256": "3d8ebe951964e8f71be8c1fc22cfd690d2fdf69be2706244160360d94721cdf9",
+      "initArgs": "()",
+      "settings": {
+        "environmentVariables": {
+          "IGNITE_CLOUD_ENGINE": "1",
+          "GOVERNOR_PRINCIPAL": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+          "IGNITE_ACCOUNT_ADMISSION_RELEASE": "1",
+          "IGNITE_ACCOUNT_SERVICE_IDENTITY": "h5lly-yyaaa-aaac5-aadqq-cai"
+        },
+        "controllerPolicy": "preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation",
+        "requiredControllerRoles": [
+          "engine-operator",
+          "owner",
+          "internal-governor"
+        ],
+        "wasmMemoryLimit": "4294967296",
+        "attachedCycles": "0"
+      },
+      "installMode": "install-only-if-module-hash-null",
+      "upgradePersistence": "keep",
+      "candidSha256": "d7a12af94fde68165067bab61e350997092ed7f73e93cd58c9fb68375fdd9770",
+      "requiredControllers": {
+        "retain": [
+          "s53an-5aaaa-aaac5-aaaaa-cai",
+          "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe"
+        ],
+        "add": [
+          "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+          "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae"
+        ],
+        "forbid": [
+          "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+        ]
+      }
+    }
+  ],
+  "installOrder": [
+    "identity_access",
+    "placement_registry",
+    "migration_coordinator",
+    "secret_workload_identity",
+    "shard_router",
+    "g1_club_domain",
+    "g1_events_domain",
+    "g1_messaging_domain",
+    "g1_vault_domain",
+    "g1_competition_domain",
+    "g1_club_points_domain",
+    "g1_mini_league_domain",
+    "g1_media_metadata",
+    "g1_insights_domain",
+    "g1_notification_queue",
+    "g1_pii_access_control",
+    "g1_timer_jobs",
+    "g1_media_blob_store",
+    "g2_club_domain",
+    "g2_events_domain",
+    "g2_messaging_domain",
+    "g2_vault_domain",
+    "g2_competition_domain",
+    "g2_club_points_domain",
+    "g2_mini_league_domain",
+    "g2_media_metadata",
+    "g2_insights_domain",
+    "g2_notification_queue",
+    "g2_pii_access_control",
+    "g2_timer_jobs",
+    "g2_media_blob_store",
+    "frontend"
+  ],
+  "postInstallCalls": [
+    {
+      "target": "him2v-zqaaa-aaac5-aadta-cai",
+      "service": "g1_club_domain",
+      "method": "link_display_identity_authority",
+      "candidArgs": "(principal \"h5lly-yyaaa-aaac5-aadqq-cai\")",
+      "signer": "internal-governor",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "enyb6-eyaaa-aaac5-aadyq-cai",
+      "service": "g1_timer_jobs",
+      "method": "initialize",
+      "candidArgs": "()",
+      "signer": "internal-governor",
+      "interfaceSha256": "90481c6bc505c562207102de9910569b31611143d354ba12ef972c47dbc3a3a2",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "him2v-zqaaa-aaac5-aadta-cai",
+      "service": "g1_club_domain",
+      "method": "register_media_quota_store",
+      "candidArgs": "(principal \"glatt-niaaa-aaac5-aadvq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ekzhk-jaaaa-aaac5-aadya-cai",
+      "service": "g1_pii_access_control",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"him2v-zqaaa-aaac5-aadta-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "81626d5172298ade2839e0a381917d483a38aa7901582d76e602287b049c8cdd",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ekzhk-jaaaa-aaac5-aadya-cai",
+      "service": "g1_pii_access_control",
+      "method": "set_competition_domain_canister",
+      "candidArgs": "(principal \"gcdyp-3aaaa-aaac5-aadua-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "81626d5172298ade2839e0a381917d483a38aa7901582d76e602287b049c8cdd",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ee3kc-sqaaa-aaac5-aadza-cai",
+      "service": "g1_vault_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"him2v-zqaaa-aaac5-aadta-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "hpn4b-uiaaa-aaac5-aadtq-cai",
+      "service": "g1_club_points_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"him2v-zqaaa-aaac5-aadta-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "8b6d3d2a16f5d03c0ae0c7aa74aba6fb484b34baafc83b1ca64b33d221dc04e8",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "g6hc6-maaaa-aaac5-aadwa-cai",
+      "service": "g1_media_metadata",
+      "method": "set_gallery_authorities",
+      "candidArgs": "(principal \"him2v-zqaaa-aaac5-aadta-cai\", principal \"ee3kc-sqaaa-aaac5-aadza-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "420a73ad6eb7cdef75ee1aa0e271659f18ff4b68fbff47d8804b979334e249fb",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "him2v-zqaaa-aaac5-aadta-cai",
+      "service": "g1_club_domain",
+      "method": "set_gallery_media_authority",
+      "candidArgs": "(principal \"g6hc6-maaaa-aaac5-aadwa-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ee3kc-sqaaa-aaac5-aadza-cai",
+      "service": "g1_vault_domain",
+      "method": "set_messaging_domain_canister",
+      "candidArgs": "(principal \"gzgek-byaaa-aaac5-aadwq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gzgek-byaaa-aaac5-aadwq-cai",
+      "service": "g1_messaging_domain",
+      "method": "set_vault_domain_canister",
+      "candidArgs": "(principal \"ee3kc-sqaaa-aaac5-aadza-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "0ad6c07961102130b4e8789eeb151e03c2c09c5341260f35b2aa1c5a4315d138",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ee3kc-sqaaa-aaac5-aadza-cai",
+      "service": "g1_vault_domain",
+      "method": "set_gallery_media_authority",
+      "candidArgs": "(principal \"g6hc6-maaaa-aaac5-aadwa-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gzgek-byaaa-aaac5-aadwq-cai",
+      "service": "g1_messaging_domain",
+      "method": "set_notification_queue_canister",
+      "candidArgs": "(principal \"gxejc-2iaaa-aaac5-aadxq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "0ad6c07961102130b4e8789eeb151e03c2c09c5341260f35b2aa1c5a4315d138",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gxejc-2iaaa-aaac5-aadxq-cai",
+      "service": "g1_notification_queue",
+      "method": "set_messaging_domain_canister",
+      "candidArgs": "(principal \"gzgek-byaaa-aaac5-aadwq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "61ed0a033dca85ad52bd5806ec854147e0a552d329b46dce381a234a8f828a12",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "him2v-zqaaa-aaac5-aadta-cai",
+      "service": "g1_club_domain",
+      "method": "set_notification_queue_canister",
+      "candidArgs": "(principal \"gxejc-2iaaa-aaac5-aadxq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gfc63-wyaaa-aaac5-aaduq-cai",
+      "service": "g1_events_domain",
+      "method": "set_notification_queue_canister",
+      "candidArgs": "(principal \"gxejc-2iaaa-aaac5-aadxq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "000a4ca8cb439867271352fc06a0a1c9c5c3165ee8f9dd90f93d1bee3afa0b86",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gxejc-2iaaa-aaac5-aadxq-cai",
+      "service": "g1_notification_queue",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"him2v-zqaaa-aaac5-aadta-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "61ed0a033dca85ad52bd5806ec854147e0a552d329b46dce381a234a8f828a12",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gxejc-2iaaa-aaac5-aadxq-cai",
+      "service": "g1_notification_queue",
+      "method": "set_identity_access_canister",
+      "candidArgs": "(principal \"h5lly-yyaaa-aaac5-aadqq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "61ed0a033dca85ad52bd5806ec854147e0a552d329b46dce381a234a8f828a12",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "glatt-niaaa-aaac5-aadvq-cai",
+      "service": "g1_media_blob_store",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"him2v-zqaaa-aaac5-aadta-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "d7a12af94fde68165067bab61e350997092ed7f73e93cd58c9fb68375fdd9770",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "glatt-niaaa-aaac5-aadvq-cai",
+      "service": "g1_media_blob_store",
+      "method": "set_vault_authority",
+      "candidArgs": "(principal \"ee3kc-sqaaa-aaac5-aadza-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "d7a12af94fde68165067bab61e350997092ed7f73e93cd58c9fb68375fdd9770",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ee3kc-sqaaa-aaac5-aadza-cai",
+      "service": "g1_vault_domain",
+      "method": "set_vault_stores",
+      "candidArgs": "(vec { principal \"glatt-niaaa-aaac5-aadvq-cai\" })",
+      "signer": "internal-governor",
+      "interfaceSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "him2v-zqaaa-aaac5-aadta-cai",
+      "service": "g1_club_domain",
+      "method": "set_events_domain_canister",
+      "candidArgs": "(principal \"gfc63-wyaaa-aaac5-aaduq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "him2v-zqaaa-aaac5-aadta-cai",
+      "service": "g1_club_domain",
+      "method": "set_messaging_domain_canister",
+      "candidArgs": "(principal \"gzgek-byaaa-aaac5-aadwq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "him2v-zqaaa-aaac5-aadta-cai",
+      "service": "g1_club_domain",
+      "method": "set_pii_canister",
+      "candidArgs": "(principal \"ekzhk-jaaaa-aaac5-aadya-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gfc63-wyaaa-aaac5-aaduq-cai",
+      "service": "g1_events_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"him2v-zqaaa-aaac5-aadta-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "000a4ca8cb439867271352fc06a0a1c9c5c3165ee8f9dd90f93d1bee3afa0b86",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gcdyp-3aaaa-aaac5-aadua-cai",
+      "service": "g1_competition_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"him2v-zqaaa-aaac5-aadta-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "8e6f4e481d513a37c0bc6352ea0c86e0e8cb8d001ad153bb9afe6df004ce01e1",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gcdyp-3aaaa-aaac5-aadua-cai",
+      "service": "g1_competition_domain",
+      "method": "set_events_domain_canister",
+      "candidArgs": "(principal \"gfc63-wyaaa-aaac5-aaduq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "8e6f4e481d513a37c0bc6352ea0c86e0e8cb8d001ad153bb9afe6df004ce01e1",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gcdyp-3aaaa-aaac5-aadua-cai",
+      "service": "g1_competition_domain",
+      "method": "set_vault_domain_canister",
+      "candidArgs": "(principal \"ee3kc-sqaaa-aaac5-aadza-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "8e6f4e481d513a37c0bc6352ea0c86e0e8cb8d001ad153bb9afe6df004ce01e1",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gcdyp-3aaaa-aaac5-aadua-cai",
+      "service": "g1_competition_domain",
+      "method": "set_pii_access_control_canister",
+      "candidArgs": "(principal \"ekzhk-jaaaa-aaac5-aadya-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "8e6f4e481d513a37c0bc6352ea0c86e0e8cb8d001ad153bb9afe6df004ce01e1",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gfc63-wyaaa-aaac5-aaduq-cai",
+      "service": "g1_events_domain",
+      "method": "set_competition_domain_canister",
+      "candidArgs": "(principal \"gcdyp-3aaaa-aaac5-aadua-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "000a4ca8cb439867271352fc06a0a1c9c5c3165ee8f9dd90f93d1bee3afa0b86",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ee3kc-sqaaa-aaac5-aadza-cai",
+      "service": "g1_vault_domain",
+      "method": "set_competition_domain_canister",
+      "candidArgs": "(principal \"gcdyp-3aaaa-aaac5-aadua-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gzgek-byaaa-aaac5-aadwq-cai",
+      "service": "g1_messaging_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"him2v-zqaaa-aaac5-aadta-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "0ad6c07961102130b4e8789eeb151e03c2c09c5341260f35b2aa1c5a4315d138",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gzgek-byaaa-aaac5-aadwq-cai",
+      "service": "g1_messaging_domain",
+      "method": "set_competition_domain_canister",
+      "candidArgs": "(principal \"gcdyp-3aaaa-aaac5-aadua-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "0ad6c07961102130b4e8789eeb151e03c2c09c5341260f35b2aa1c5a4315d138",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gfc63-wyaaa-aaac5-aaduq-cai",
+      "service": "g1_events_domain",
+      "method": "set_mini_league_domain_canister",
+      "candidArgs": "(principal \"gqfpw-xqaaa-aaac5-aadxa-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "000a4ca8cb439867271352fc06a0a1c9c5c3165ee8f9dd90f93d1bee3afa0b86",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gqfpw-xqaaa-aaac5-aadxa-cai",
+      "service": "g1_mini_league_domain",
+      "method": "set_events_domain_canister",
+      "candidArgs": "(principal \"gfc63-wyaaa-aaac5-aaduq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "694df760c5f255e782a76b64f14d07d16d5c61496383a5f0762e4b154cefbb21",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "him2v-zqaaa-aaac5-aadta-cai",
+      "service": "g1_club_domain",
+      "method": "set_mini_league_domain_canister",
+      "candidArgs": "(principal \"gqfpw-xqaaa-aaac5-aadxa-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "him2v-zqaaa-aaac5-aadta-cai",
+      "service": "g1_club_domain",
+      "method": "set_competition_domain_canister",
+      "candidArgs": "(principal \"gcdyp-3aaaa-aaac5-aadua-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "gqfpw-xqaaa-aaac5-aadxa-cai",
+      "service": "g1_mini_league_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"him2v-zqaaa-aaac5-aadta-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "694df760c5f255e782a76b64f14d07d16d5c61496383a5f0762e4b154cefbb21",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "him2v-zqaaa-aaac5-aadta-cai",
+      "method": "set_competition_authorities",
+      "service": "g1_club_domain",
+      "candidArgs": "(vec { principal \"gcdyp-3aaaa-aaac5-aadua-cai\"; principal \"er43p-tyaaa-aaac5-aad2q-cai\" })",
+      "signer": "internal-governor",
+      "verify": "read_group_opening_configuration"
+    },
+    {
+      "target": "gcdyp-3aaaa-aaac5-aadua-cai",
+      "method": "set_participant_club_authorities",
+      "service": "g1_competition_domain",
+      "candidArgs": "(vec { principal \"him2v-zqaaa-aaac5-aadta-cai\"; principal \"ed2mw-7iaaa-aaac5-aadzq-cai\" })",
+      "signer": "internal-governor",
+      "verify": "read_group_opening_configuration"
+    },
+    {
+      "target": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "service": "g2_club_domain",
+      "method": "link_display_identity_authority",
+      "candidArgs": "(principal \"h5lly-yyaaa-aaac5-aadqq-cai\")",
+      "signer": "internal-governor",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fawfq-lqaaa-aaac5-aad7a-cai",
+      "service": "g2_timer_jobs",
+      "method": "initialize",
+      "candidArgs": "()",
+      "signer": "internal-governor",
+      "interfaceSha256": "90481c6bc505c562207102de9910569b31611143d354ba12ef972c47dbc3a3a2",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "service": "g2_club_domain",
+      "method": "register_media_quota_store",
+      "candidArgs": "(principal \"fsqsj-haaaa-aaac5-aad4a-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fjvom-5yaaa-aaac5-aad6q-cai",
+      "service": "g2_pii_access_control",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"ed2mw-7iaaa-aaac5-aadzq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "81626d5172298ade2839e0a381917d483a38aa7901582d76e602287b049c8cdd",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fjvom-5yaaa-aaac5-aad6q-cai",
+      "service": "g2_pii_access_control",
+      "method": "set_competition_domain_canister",
+      "candidArgs": "(principal \"er43p-tyaaa-aaac5-aad2q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "81626d5172298ade2839e0a381917d483a38aa7901582d76e602287b049c8cdd",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fhxde-giaaa-aaac5-aad7q-cai",
+      "service": "g2_vault_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"ed2mw-7iaaa-aaac5-aadzq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ew553-6aaaa-aaac5-aad2a-cai",
+      "service": "g2_club_points_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"ed2mw-7iaaa-aaac5-aadzq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "8b6d3d2a16f5d03c0ae0c7aa74aba6fb484b34baafc83b1ca64b33d221dc04e8",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fvru5-kyaaa-aaac5-aad4q-cai",
+      "service": "g2_media_metadata",
+      "method": "set_gallery_authorities",
+      "candidArgs": "(principal \"ed2mw-7iaaa-aaac5-aadzq-cai\", principal \"fhxde-giaaa-aaac5-aad7q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "420a73ad6eb7cdef75ee1aa0e271659f18ff4b68fbff47d8804b979334e249fb",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "service": "g2_club_domain",
+      "method": "set_gallery_media_authority",
+      "candidArgs": "(principal \"fvru5-kyaaa-aaac5-aad4q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fhxde-giaaa-aaac5-aad7q-cai",
+      "service": "g2_vault_domain",
+      "method": "set_messaging_domain_canister",
+      "candidArgs": "(principal \"f4s7b-4qaaa-aaac5-aad5a-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "f4s7b-4qaaa-aaac5-aad5a-cai",
+      "service": "g2_messaging_domain",
+      "method": "set_vault_domain_canister",
+      "candidArgs": "(principal \"fhxde-giaaa-aaac5-aad7q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "0ad6c07961102130b4e8789eeb151e03c2c09c5341260f35b2aa1c5a4315d138",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fhxde-giaaa-aaac5-aad7q-cai",
+      "service": "g2_vault_domain",
+      "method": "set_gallery_media_authority",
+      "candidArgs": "(principal \"fvru5-kyaaa-aaac5-aad4q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "f4s7b-4qaaa-aaac5-aad5a-cai",
+      "service": "g2_messaging_domain",
+      "method": "set_notification_queue_canister",
+      "candidArgs": "(principal \"fouiy-qaaaa-aaac5-aad6a-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "0ad6c07961102130b4e8789eeb151e03c2c09c5341260f35b2aa1c5a4315d138",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fouiy-qaaaa-aaac5-aad6a-cai",
+      "service": "g2_notification_queue",
+      "method": "set_messaging_domain_canister",
+      "candidArgs": "(principal \"f4s7b-4qaaa-aaac5-aad5a-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "61ed0a033dca85ad52bd5806ec854147e0a552d329b46dce381a234a8f828a12",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "service": "g2_club_domain",
+      "method": "set_notification_queue_canister",
+      "candidArgs": "(principal \"fouiy-qaaaa-aaac5-aad6a-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ey7qt-fqaaa-aaac5-aad3a-cai",
+      "service": "g2_events_domain",
+      "method": "set_notification_queue_canister",
+      "candidArgs": "(principal \"fouiy-qaaaa-aaac5-aad6a-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "000a4ca8cb439867271352fc06a0a1c9c5c3165ee8f9dd90f93d1bee3afa0b86",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fouiy-qaaaa-aaac5-aad6a-cai",
+      "service": "g2_notification_queue",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"ed2mw-7iaaa-aaac5-aadzq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "61ed0a033dca85ad52bd5806ec854147e0a552d329b46dce381a234a8f828a12",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fouiy-qaaaa-aaac5-aad6a-cai",
+      "service": "g2_notification_queue",
+      "method": "set_identity_access_canister",
+      "candidArgs": "(principal \"h5lly-yyaaa-aaac5-aadqq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "61ed0a033dca85ad52bd5806ec854147e0a552d329b46dce381a234a8f828a12",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fsqsj-haaaa-aaac5-aad4a-cai",
+      "service": "g2_media_blob_store",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"ed2mw-7iaaa-aaac5-aadzq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "d7a12af94fde68165067bab61e350997092ed7f73e93cd58c9fb68375fdd9770",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fsqsj-haaaa-aaac5-aad4a-cai",
+      "service": "g2_media_blob_store",
+      "method": "set_vault_authority",
+      "candidArgs": "(principal \"fhxde-giaaa-aaac5-aad7q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "d7a12af94fde68165067bab61e350997092ed7f73e93cd58c9fb68375fdd9770",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fhxde-giaaa-aaac5-aad7q-cai",
+      "service": "g2_vault_domain",
+      "method": "set_vault_stores",
+      "candidArgs": "(vec { principal \"fsqsj-haaaa-aaac5-aad4a-cai\" })",
+      "signer": "internal-governor",
+      "interfaceSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "service": "g2_club_domain",
+      "method": "set_events_domain_canister",
+      "candidArgs": "(principal \"ey7qt-fqaaa-aaac5-aad3a-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "service": "g2_club_domain",
+      "method": "set_messaging_domain_canister",
+      "candidArgs": "(principal \"f4s7b-4qaaa-aaac5-aad5a-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "service": "g2_club_domain",
+      "method": "set_pii_canister",
+      "candidArgs": "(principal \"fjvom-5yaaa-aaac5-aad6q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ey7qt-fqaaa-aaac5-aad3a-cai",
+      "service": "g2_events_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"ed2mw-7iaaa-aaac5-aadzq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "000a4ca8cb439867271352fc06a0a1c9c5c3165ee8f9dd90f93d1bee3afa0b86",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "er43p-tyaaa-aaac5-aad2q-cai",
+      "service": "g2_competition_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"ed2mw-7iaaa-aaac5-aadzq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "8e6f4e481d513a37c0bc6352ea0c86e0e8cb8d001ad153bb9afe6df004ce01e1",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "er43p-tyaaa-aaac5-aad2q-cai",
+      "service": "g2_competition_domain",
+      "method": "set_events_domain_canister",
+      "candidArgs": "(principal \"ey7qt-fqaaa-aaac5-aad3a-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "8e6f4e481d513a37c0bc6352ea0c86e0e8cb8d001ad153bb9afe6df004ce01e1",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "er43p-tyaaa-aaac5-aad2q-cai",
+      "service": "g2_competition_domain",
+      "method": "set_vault_domain_canister",
+      "candidArgs": "(principal \"fhxde-giaaa-aaac5-aad7q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "8e6f4e481d513a37c0bc6352ea0c86e0e8cb8d001ad153bb9afe6df004ce01e1",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "er43p-tyaaa-aaac5-aad2q-cai",
+      "service": "g2_competition_domain",
+      "method": "set_pii_access_control_canister",
+      "candidArgs": "(principal \"fjvom-5yaaa-aaac5-aad6q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "8e6f4e481d513a37c0bc6352ea0c86e0e8cb8d001ad153bb9afe6df004ce01e1",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ey7qt-fqaaa-aaac5-aad3a-cai",
+      "service": "g2_events_domain",
+      "method": "set_competition_domain_canister",
+      "candidArgs": "(principal \"er43p-tyaaa-aaac5-aad2q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "000a4ca8cb439867271352fc06a0a1c9c5c3165ee8f9dd90f93d1bee3afa0b86",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "fhxde-giaaa-aaac5-aad7q-cai",
+      "service": "g2_vault_domain",
+      "method": "set_competition_domain_canister",
+      "candidArgs": "(principal \"er43p-tyaaa-aaac5-aad2q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "5a6f3362ffaac7c9f9f7fd6ffca0b4bcb75bf17c41dabae8e798dc55af6ffd4b",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "f4s7b-4qaaa-aaac5-aad5a-cai",
+      "service": "g2_messaging_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"ed2mw-7iaaa-aaac5-aadzq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "0ad6c07961102130b4e8789eeb151e03c2c09c5341260f35b2aa1c5a4315d138",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "f4s7b-4qaaa-aaac5-aad5a-cai",
+      "service": "g2_messaging_domain",
+      "method": "set_competition_domain_canister",
+      "candidArgs": "(principal \"er43p-tyaaa-aaac5-aad2q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "0ad6c07961102130b4e8789eeb151e03c2c09c5341260f35b2aa1c5a4315d138",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ey7qt-fqaaa-aaac5-aad3a-cai",
+      "service": "g2_events_domain",
+      "method": "set_mini_league_domain_canister",
+      "candidArgs": "(principal \"f3tzv-riaaa-aaac5-aad5q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "000a4ca8cb439867271352fc06a0a1c9c5c3165ee8f9dd90f93d1bee3afa0b86",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "f3tzv-riaaa-aaac5-aad5q-cai",
+      "service": "g2_mini_league_domain",
+      "method": "set_events_domain_canister",
+      "candidArgs": "(principal \"ey7qt-fqaaa-aaac5-aad3a-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "694df760c5f255e782a76b64f14d07d16d5c61496383a5f0762e4b154cefbb21",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "service": "g2_club_domain",
+      "method": "set_mini_league_domain_canister",
+      "candidArgs": "(principal \"f3tzv-riaaa-aaac5-aad5q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "service": "g2_club_domain",
+      "method": "set_competition_domain_canister",
+      "candidArgs": "(principal \"er43p-tyaaa-aaac5-aad2q-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "bb0da5aca724ed0628bb848dd35c7e5e09ee3dc144a606c26913fe1caf255c60",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "f3tzv-riaaa-aaac5-aad5q-cai",
+      "service": "g2_mini_league_domain",
+      "method": "set_club_domain_canister",
+      "candidArgs": "(principal \"ed2mw-7iaaa-aaac5-aadzq-cai\")",
+      "signer": "internal-governor",
+      "interfaceSha256": "694df760c5f255e782a76b64f14d07d16d5c61496383a5f0762e4b154cefbb21",
+      "verify": "read_group_opening_configuration",
+      "uncertainOutcome": "stop-readback-no-blind-replay"
+    },
+    {
+      "target": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "method": "set_competition_authorities",
+      "service": "g2_club_domain",
+      "candidArgs": "(vec { principal \"gcdyp-3aaaa-aaac5-aadua-cai\"; principal \"er43p-tyaaa-aaac5-aad2q-cai\" })",
+      "signer": "internal-governor",
+      "verify": "read_group_opening_configuration"
+    },
+    {
+      "target": "er43p-tyaaa-aaac5-aad2q-cai",
+      "method": "set_participant_club_authorities",
+      "service": "g2_competition_domain",
+      "candidArgs": "(vec { principal \"him2v-zqaaa-aaac5-aadta-cai\"; principal \"ed2mw-7iaaa-aaac5-aadzq-cai\" })",
+      "signer": "internal-governor",
+      "verify": "read_group_opening_configuration"
+    }
+  ],
+  "groups": [
+    {
+      "groupId": "base",
+      "canisterPrefix": "g1",
+      "targetAlias": "opencloud-dev",
+      "deploymentId": "opencloud-dev",
+      "photoStore": "glatt-niaaa-aaac5-aadvq-cai",
+      "piiAuthority": "ekzhk-jaaaa-aaac5-aadya-cai",
+      "maxClubs": 100,
+      "heapBudgetBytes": "3221225472",
+      "domains": [
+        [
+          "club_domain",
+          "him2v-zqaaa-aaac5-aadta-cai"
+        ],
+        [
+          "club_points_domain",
+          "hpn4b-uiaaa-aaac5-aadtq-cai"
+        ],
+        [
+          "competition_domain",
+          "gcdyp-3aaaa-aaac5-aadua-cai"
+        ],
+        [
+          "events_domain",
+          "gfc63-wyaaa-aaac5-aaduq-cai"
+        ],
+        [
+          "insights_domain",
+          "gmbvh-aqaaa-aaac5-aadva-cai"
+        ],
+        [
+          "media_metadata",
+          "g6hc6-maaaa-aaac5-aadwa-cai"
+        ],
+        [
+          "messaging_domain",
+          "gzgek-byaaa-aaac5-aadwq-cai"
+        ],
+        [
+          "mini_league_domain",
+          "gqfpw-xqaaa-aaac5-aadxa-cai"
+        ],
+        [
+          "notification_queue",
+          "gxejc-2iaaa-aaac5-aadxq-cai"
+        ],
+        [
+          "pii_access_control",
+          "ekzhk-jaaaa-aaac5-aadya-cai"
+        ],
+        [
+          "timer_jobs",
+          "enyb6-eyaaa-aaac5-aadyq-cai"
+        ],
+        [
+          "vault_domain",
+          "ee3kc-sqaaa-aaac5-aadza-cai"
+        ],
+        [
+          "secret_workload_identity",
+          "hbprj-pyaaa-aaac5-aadsq-cai"
+        ]
+      ],
+      "minCycles": "0",
+      "accepting": false,
+      "resourcePolicy": "engine: IGNITE_CLOUD_ENGINE=1 on shard_router; min_cycles must be 0, heap/capacity/fresh health still gate admission",
+      "registerGroupCall": {
+        "target": "htjgq-diaaa-aaac5-aadrq-cai",
+        "method": "register_group",
+        "signer": "internal-governor",
+        "candidArgs": "(record { id = \"base\"; target_alias = \"opencloud-dev\"; domains = vec { record { domain = \"club_domain\"; canister = principal \"him2v-zqaaa-aaac5-aadta-cai\" }; record { domain = \"club_points_domain\"; canister = principal \"hpn4b-uiaaa-aaac5-aadtq-cai\" }; record { domain = \"competition_domain\"; canister = principal \"gcdyp-3aaaa-aaac5-aadua-cai\" }; record { domain = \"events_domain\"; canister = principal \"gfc63-wyaaa-aaac5-aaduq-cai\" }; record { domain = \"insights_domain\"; canister = principal \"gmbvh-aqaaa-aaac5-aadva-cai\" }; record { domain = \"media_metadata\"; canister = principal \"g6hc6-maaaa-aaac5-aadwa-cai\" }; record { domain = \"messaging_domain\"; canister = principal \"gzgek-byaaa-aaac5-aadwq-cai\" }; record { domain = \"mini_league_domain\"; canister = principal \"gqfpw-xqaaa-aaac5-aadxa-cai\" }; record { domain = \"notification_queue\"; canister = principal \"gxejc-2iaaa-aaac5-aadxq-cai\" }; record { domain = \"pii_access_control\"; canister = principal \"ekzhk-jaaaa-aaac5-aadya-cai\" }; record { domain = \"timer_jobs\"; canister = principal \"enyb6-eyaaa-aaac5-aadyq-cai\" }; record { domain = \"vault_domain\"; canister = principal \"ee3kc-sqaaa-aaac5-aadza-cai\" }; record { domain = \"secret_workload_identity\"; canister = principal \"hbprj-pyaaa-aaac5-aadsq-cai\" } }; accepting = false; max_clubs = 100 : nat32; assigned_clubs = 0 : nat32; heap_budget_bytes = 3221225472 : nat64; heap_bytes = 0 : nat64; min_cycles = 0 : nat64; cycles = 0 : nat64; observed_at_ns = 0 : nat64; photo_store = opt principal \"glatt-niaaa-aaac5-aadvq-cai\" }, <expected_revision> : nat64)",
+        "verify": "read_group_registry_page",
+        "uncertainOutcome": "stop-readback-no-blind-replay",
+        "ready": true
+      },
+      "registerGroupPlacementCall": {
+        "target": "htjgq-diaaa-aaac5-aadrq-cai",
+        "method": "register_group_placement",
+        "signer": "internal-governor",
+        "candidArgs": "(record { group_id = \"base\"; deployment_id = \"opencloud-dev\"; deployment_revision = <reviewed_deployment_revision> : nat64; host = \"https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net\"; network_kind = \"cloud_engine\"; primary_subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\"; approved_subnets = vec { principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; additional_subnets_enabled = false; domains = vec { record { domain = \"club_domain\"; canister = principal \"him2v-zqaaa-aaac5-aadta-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"club_points_domain\"; canister = principal \"hpn4b-uiaaa-aaac5-aadtq-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"competition_domain\"; canister = principal \"gcdyp-3aaaa-aaac5-aadua-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"events_domain\"; canister = principal \"gfc63-wyaaa-aaac5-aaduq-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"insights_domain\"; canister = principal \"gmbvh-aqaaa-aaac5-aadva-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"media_metadata\"; canister = principal \"g6hc6-maaaa-aaac5-aadwa-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"messaging_domain\"; canister = principal \"gzgek-byaaa-aaac5-aadwq-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"mini_league_domain\"; canister = principal \"gqfpw-xqaaa-aaac5-aadxa-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"notification_queue\"; canister = principal \"gxejc-2iaaa-aaac5-aadxq-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"pii_access_control\"; canister = principal \"ekzhk-jaaaa-aaac5-aadya-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"timer_jobs\"; canister = principal \"enyb6-eyaaa-aaac5-aadyq-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"vault_domain\"; canister = principal \"ee3kc-sqaaa-aaac5-aadza-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"secret_workload_identity\"; canister = principal \"hbprj-pyaaa-aaac5-aadsq-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" } } }, <acknowledged_registry_revision> : nat64)",
+        "verify": "read_group_registry_page",
+        "uncertainOutcome": "stop-readback-no-blind-replay"
+      },
+      "primarySubnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+      "additionalSubnetsEnabled": false
+    },
+    {
+      "groupId": "g2",
+      "canisterPrefix": "g2",
+      "targetAlias": "opencloud-dev",
+      "deploymentId": "opencloud-dev",
+      "photoStore": "fsqsj-haaaa-aaac5-aad4a-cai",
+      "piiAuthority": "fjvom-5yaaa-aaac5-aad6q-cai",
+      "maxClubs": 100,
+      "heapBudgetBytes": "3221225472",
+      "domains": [
+        [
+          "club_domain",
+          "ed2mw-7iaaa-aaac5-aadzq-cai"
+        ],
+        [
+          "club_points_domain",
+          "ew553-6aaaa-aaac5-aad2a-cai"
+        ],
+        [
+          "competition_domain",
+          "er43p-tyaaa-aaac5-aad2q-cai"
+        ],
+        [
+          "events_domain",
+          "ey7qt-fqaaa-aaac5-aad3a-cai"
+        ],
+        [
+          "insights_domain",
+          "e76wh-iiaaa-aaac5-aad3q-cai"
+        ],
+        [
+          "media_metadata",
+          "fvru5-kyaaa-aaac5-aad4q-cai"
+        ],
+        [
+          "messaging_domain",
+          "f4s7b-4qaaa-aaac5-aad5a-cai"
+        ],
+        [
+          "mini_league_domain",
+          "f3tzv-riaaa-aaac5-aad5q-cai"
+        ],
+        [
+          "notification_queue",
+          "fouiy-qaaaa-aaac5-aad6a-cai"
+        ],
+        [
+          "pii_access_control",
+          "fjvom-5yaaa-aaac5-aad6q-cai"
+        ],
+        [
+          "timer_jobs",
+          "fawfq-lqaaa-aaac5-aad7a-cai"
+        ],
+        [
+          "vault_domain",
+          "fhxde-giaaa-aaac5-aad7q-cai"
+        ],
+        [
+          "secret_workload_identity",
+          "hbprj-pyaaa-aaac5-aadsq-cai"
+        ]
+      ],
+      "minCycles": "0",
+      "accepting": false,
+      "resourcePolicy": "engine: IGNITE_CLOUD_ENGINE=1 on shard_router; min_cycles must be 0, heap/capacity/fresh health still gate admission",
+      "registerGroupCall": {
+        "target": "htjgq-diaaa-aaac5-aadrq-cai",
+        "method": "register_group",
+        "signer": "internal-governor",
+        "candidArgs": "(record { id = \"g2\"; target_alias = \"opencloud-dev\"; domains = vec { record { domain = \"club_domain\"; canister = principal \"ed2mw-7iaaa-aaac5-aadzq-cai\" }; record { domain = \"club_points_domain\"; canister = principal \"ew553-6aaaa-aaac5-aad2a-cai\" }; record { domain = \"competition_domain\"; canister = principal \"er43p-tyaaa-aaac5-aad2q-cai\" }; record { domain = \"events_domain\"; canister = principal \"ey7qt-fqaaa-aaac5-aad3a-cai\" }; record { domain = \"insights_domain\"; canister = principal \"e76wh-iiaaa-aaac5-aad3q-cai\" }; record { domain = \"media_metadata\"; canister = principal \"fvru5-kyaaa-aaac5-aad4q-cai\" }; record { domain = \"messaging_domain\"; canister = principal \"f4s7b-4qaaa-aaac5-aad5a-cai\" }; record { domain = \"mini_league_domain\"; canister = principal \"f3tzv-riaaa-aaac5-aad5q-cai\" }; record { domain = \"notification_queue\"; canister = principal \"fouiy-qaaaa-aaac5-aad6a-cai\" }; record { domain = \"pii_access_control\"; canister = principal \"fjvom-5yaaa-aaac5-aad6q-cai\" }; record { domain = \"timer_jobs\"; canister = principal \"fawfq-lqaaa-aaac5-aad7a-cai\" }; record { domain = \"vault_domain\"; canister = principal \"fhxde-giaaa-aaac5-aad7q-cai\" }; record { domain = \"secret_workload_identity\"; canister = principal \"hbprj-pyaaa-aaac5-aadsq-cai\" } }; accepting = false; max_clubs = 100 : nat32; assigned_clubs = 0 : nat32; heap_budget_bytes = 3221225472 : nat64; heap_bytes = 0 : nat64; min_cycles = 0 : nat64; cycles = 0 : nat64; observed_at_ns = 0 : nat64; photo_store = opt principal \"fsqsj-haaaa-aaac5-aad4a-cai\" }, <expected_revision> : nat64)",
+        "verify": "read_group_registry_page",
+        "uncertainOutcome": "stop-readback-no-blind-replay",
+        "ready": true
+      },
+      "registerGroupPlacementCall": {
+        "target": "htjgq-diaaa-aaac5-aadrq-cai",
+        "method": "register_group_placement",
+        "signer": "internal-governor",
+        "candidArgs": "(record { group_id = \"g2\"; deployment_id = \"opencloud-dev\"; deployment_revision = <reviewed_deployment_revision> : nat64; host = \"https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net\"; network_kind = \"cloud_engine\"; primary_subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\"; approved_subnets = vec { principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; additional_subnets_enabled = false; domains = vec { record { domain = \"club_domain\"; canister = principal \"ed2mw-7iaaa-aaac5-aadzq-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"club_points_domain\"; canister = principal \"ew553-6aaaa-aaac5-aad2a-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"competition_domain\"; canister = principal \"er43p-tyaaa-aaac5-aad2q-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"events_domain\"; canister = principal \"ey7qt-fqaaa-aaac5-aad3a-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"insights_domain\"; canister = principal \"e76wh-iiaaa-aaac5-aad3q-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"media_metadata\"; canister = principal \"fvru5-kyaaa-aaac5-aad4q-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"messaging_domain\"; canister = principal \"f4s7b-4qaaa-aaac5-aad5a-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"mini_league_domain\"; canister = principal \"f3tzv-riaaa-aaac5-aad5q-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"notification_queue\"; canister = principal \"fouiy-qaaaa-aaac5-aad6a-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"pii_access_control\"; canister = principal \"fjvom-5yaaa-aaac5-aad6q-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"timer_jobs\"; canister = principal \"fawfq-lqaaa-aaac5-aad7a-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"vault_domain\"; canister = principal \"fhxde-giaaa-aaac5-aad7q-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" }; record { domain = \"secret_workload_identity\"; canister = principal \"hbprj-pyaaa-aaac5-aadsq-cai\"; subnet = principal \"nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae\" } } }, <acknowledged_registry_revision> : nat64)",
+        "verify": "read_group_registry_page",
+        "uncertainOutcome": "stop-readback-no-blind-replay"
+      },
+      "primarySubnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+      "additionalSubnetsEnabled": false
+    }
+  ],
+  "accountProtectionBuild": {
+    "service": "identity_access",
+    "mode": "fresh-install-admission-only",
+    "ready": true,
+    "compileTimeEnv": {
+      "IGNITE_OPENCLOUD_DEV_FIRST_INSTALL": "h5lly-yyaaa-aaac5-aadqq-cai\nvk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae\nhttps://s53an-5aaaa-aaac5-aaaaa-cai.icp.net\nshard_router=htjgq-diaaa-aaac5-aadrq-cai\nidentity_access=h5lly-yyaaa-aaac5-aadqq-cai\nplacement_registry=huiae-oqaaa-aaac5-aadra-cai\nmigration_coordinator=hgox5-caaaa-aaac5-aadsa-cai\nsecret_workload_identity=hbprj-pyaaa-aaac5-aadsq-cai\ng1_club_domain=him2v-zqaaa-aaac5-aadta-cai\ng1_events_domain=gfc63-wyaaa-aaac5-aaduq-cai\ng1_messaging_domain=gzgek-byaaa-aaac5-aadwq-cai\ng1_vault_domain=ee3kc-sqaaa-aaac5-aadza-cai\ng1_competition_domain=gcdyp-3aaaa-aaac5-aadua-cai\ng1_club_points_domain=hpn4b-uiaaa-aaac5-aadtq-cai\ng1_mini_league_domain=gqfpw-xqaaa-aaac5-aadxa-cai\ng1_media_metadata=g6hc6-maaaa-aaac5-aadwa-cai\ng1_insights_domain=gmbvh-aqaaa-aaac5-aadva-cai\ng1_notification_queue=gxejc-2iaaa-aaac5-aadxq-cai\ng1_pii_access_control=ekzhk-jaaaa-aaac5-aadya-cai\ng1_timer_jobs=enyb6-eyaaa-aaac5-aadyq-cai\ng1_media_blob_store=glatt-niaaa-aaac5-aadvq-cai\ng2_club_domain=ed2mw-7iaaa-aaac5-aadzq-cai\ng2_events_domain=ey7qt-fqaaa-aaac5-aad3a-cai\ng2_messaging_domain=f4s7b-4qaaa-aaac5-aad5a-cai\ng2_vault_domain=fhxde-giaaa-aaac5-aad7q-cai\ng2_competition_domain=er43p-tyaaa-aaac5-aad2q-cai\ng2_club_points_domain=ew553-6aaaa-aaac5-aad2a-cai\ng2_mini_league_domain=f3tzv-riaaa-aaac5-aad5q-cai\ng2_media_metadata=fvru5-kyaaa-aaac5-aad4q-cai\ng2_insights_domain=e76wh-iiaaa-aaac5-aad3q-cai\ng2_notification_queue=fouiy-qaaaa-aaac5-aad6a-cai\ng2_pii_access_control=fjvom-5yaaa-aaac5-aad6q-cai\ng2_timer_jobs=fawfq-lqaaa-aaac5-aad7a-cai\ng2_media_blob_store=fsqsj-haaaa-aaac5-aad4a-cai",
+      "IGNITE_OPENCLOUD_DEV_ADMISSION_ONLY": "1"
+    },
+    "witnessRequired": false,
+    "approverKeyRequired": false,
+    "globalErasureEnabled": false,
+    "recoveryEnabled": false,
+    "owner": "Existing DEV governor commissions install-only inventory; empty witness and encrypted signer remain untouched"
+  },
+  "sharedCommissioning": [
+    {
+      "step": 1,
+      "action": "Apply manifest settings before install; never set rehearsal/removal release flags"
+    },
+    {
+      "step": 2,
+      "action": "Install all 32 existing empty targets, then execute postInstallCalls; no user-data imports"
+    },
+    {
+      "step": 3,
+      "target": "htjgq-diaaa-aaac5-aadrq-cai",
+      "action": "Register base/g2 closed with registerGroupCall and exact current revision"
+    },
+    {
+      "step": 4,
+      "target": "htjgq-diaaa-aaac5-aadrq-cai",
+      "method": "set_deletion_authority",
+      "candidArgs": "(principal \"h5lly-yyaaa-aaac5-aadqq-cai\")"
+    },
+    {
+      "step": 4,
+      "target": "htjgq-diaaa-aaac5-aadrq-cai",
+      "method": "set_account_removal_authority",
+      "candidArgs": "(principal \"h5lly-yyaaa-aaac5-aadqq-cai\")",
+      "effect": "immutable identity binding only; compiled removal remains unavailable"
+    },
+    {
+      "step": 4,
+      "target": "enyb6-eyaaa-aaac5-aadyq-cai",
+      "method": "set_account_removal_authority",
+      "candidArgs": "(principal \"h5lly-yyaaa-aaac5-aadqq-cai\")",
+      "effect": "immutable identity binding only; compiled removal remains unavailable"
+    },
+    {
+      "step": 4,
+      "target": "fawfq-lqaaa-aaac5-aad7a-cai",
+      "method": "set_account_removal_authority",
+      "candidArgs": "(principal \"h5lly-yyaaa-aaac5-aadqq-cai\")",
+      "effect": "immutable identity binding only; compiled removal remains unavailable"
+    },
+    {
+      "step": 4,
+      "target": "hbprj-pyaaa-aaac5-aadsq-cai",
+      "method": "set_account_removal_authority",
+      "candidArgs": "(principal \"h5lly-yyaaa-aaac5-aadqq-cai\")",
+      "effect": "readback binding only; fresh staged removal gate is disabled; no workload registered"
+    },
+    {
+      "step": 5,
+      "target": "h5lly-yyaaa-aaac5-aadqq-cai",
+      "method": "review_production_account_inventory",
+      "arguments": "Exact Expectation and current read_production_account_history_revision; read-only, no signature"
+    },
+    {
+      "step": 6,
+      "target": "h5lly-yyaaa-aaac5-aadqq-cai",
+      "method": "commission_fresh_opencloud_dev",
+      "arguments": "Same independently checked Expectation; verified live review, full install history and one-use commit",
+      "requires": "accountProtectionBuild.ready; all 31 backend lifecycle histories complete, install only, unchanged"
+    },
+    {
+      "step": 7,
+      "target": "h5lly-yyaaa-aaac5-aadqq-cai",
+      "method": "authorize_production_member_access",
+      "arguments": "Exact receipt.expectation.inventory.groups.binding",
+      "effect": "24 admission-only readers; no global erasure/recovery"
+    },
+    {
+      "step": 8,
+      "target": "h5lly-yyaaa-aaac5-aadqq-cai",
+      "method": "configure_membership_directory",
+      "arguments": "receipt Binding, vec { principal \"him2v-zqaaa-aaac5-aadta-cai\"; principal \"ed2mw-7iaaa-aaac5-aadzq-cai\" }, 1 : nat64"
+    },
+    {
+      "step": 9,
+      "target": "h5lly-yyaaa-aaac5-aadqq-cai",
+      "method": "read_fresh_opencloud_dev_commissioning",
+      "arguments": "()",
+      "effect": "Live readback of every backend lifecycle; then separately approve base opening via existing router mechanism. g2 remains closed."
+    }
+  ],
+  "placementPolicy": "g1-first; g2-closed-until-capacity-and-verified-opening; existing-assignments-immutable",
+  "prerequisites": [
+    "owner-verified-exact-empty-inventory-and-controllers",
+    "console-proxy-allowed-subnet-and-funding",
+    "engine-host-api-and-certification",
+    "artifacts-built-and-hashed",
+    "shared-identity-lifecycle-and-routing-commissioning",
+    "direct-governor-call-transport",
+    "frontend-asset-upload-transport",
+    "fresh-signed-in-functional-acceptance",
+    "exact-install-only-history; no imports; no settings/code changes after commissioning",
+    "fresh-DEV-receipt-and-live-lifecycle-readback; global-erasure-and-recovery-unavailable"
+  ],
+  "preparationSha256": "b49c02851e55941d7a38d7170709ab2b9d77773baf1efcbce8bcb701d6fa186e",
+  "frontendUpload": {
+    "recipe": "@dfinity/static-site@v0.4.0",
+    "canister": "certified-assets-v0.4.0",
+    "api": [
+      "upload_chunks",
+      "execute_operations"
+    ],
+    "plugin": "frontend-upload/plugin-v0.4.0.wasm",
+    "pluginSha256": "194a5653632a7298375978875e3d3cf89dbb50f983e1016a730bf6e663fcc6b1",
+    "configurationFiles": [
+      "_headers",
+      "_redirects"
+    ],
+    "signer": "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe",
+    "origin": "https://h2knm-vaaaa-aaac5-aadqa-cai.icp.net",
+    "certification": "v2-required; verify engine root key/management evidence externally",
+    "legacyAssetAPI": false
+  },
+  "controllerUpdate": {
+    "tool": "repo:scripts/opencloud/controllers.mjs via workflow [TEST] OpenCloud DEV controller requests",
+    "instructions": "controllers.md",
+    "policy": "union of existing and required controllers; all other settings null (unchanged)"
+  }
+}

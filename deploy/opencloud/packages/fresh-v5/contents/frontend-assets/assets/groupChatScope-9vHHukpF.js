@@ -1,0 +1,1 @@
+function s(i,n,t,o){if(o)return{clubId:o};if(n){const e=i.getQueryData(["my-chat-groups-with-messages",n])?.groups?.find(r=>r.id===t)?.club_id;if(e)return{clubId:e}}return{conversationId:t}}export{s as g};

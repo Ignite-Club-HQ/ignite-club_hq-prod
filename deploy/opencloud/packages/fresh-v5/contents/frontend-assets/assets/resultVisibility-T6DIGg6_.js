@@ -1,0 +1,1 @@
+function t(n,r){return n===null||r===null||!Number.isFinite(n)||!Number.isFinite(r)?null:n>r?"WIN":n<r?"LOSS":"DRAW"}function i(n){if(Array.isArray(n))return n.length?i(n[0]):null;if(n==null)return null;const r=Number(n);return Number.isFinite(r)?r:null}export{i as optionalScore,t as resultOutcome};

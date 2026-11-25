@@ -1,0 +1,1 @@
+import{r as s}from"./live-index-CWZghETN.js";function u(e,t){const[r,n]=s.useState(()=>{if(typeof window>"u")return t;try{return window.sessionStorage.getItem(e)??t}catch{return t}});return s.useEffect(()=>{if(!(typeof window>"u"))try{window.sessionStorage.setItem(e,r)}catch{}},[e,r]),[r,n]}export{u};

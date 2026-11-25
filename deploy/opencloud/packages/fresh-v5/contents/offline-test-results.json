@@ -1,0 +1,40 @@
+{
+  "identity": {
+    "passed": 261,
+    "failed": 0
+  },
+  "router": {
+    "passed": 59,
+    "failed": 0
+  },
+  "timer": {
+    "passed": 9,
+    "failed": 0
+  },
+  "package": {
+    "passed": 21,
+    "failed": 0
+  },
+  "frontend": {
+    "supabaseMode": {
+      "passed": 18,
+      "failed": 0
+    },
+    "icpMode": {
+      "passed": 18,
+      "failed": 0
+    }
+  },
+  "builds": {
+    "backend": "18 implementations built; final PII rebuild passed",
+    "frontend": "isolated build passed; 708 files inventoried",
+    "preview": "build OK"
+  },
+  "liveEngineAccepted": false,
+  "deploymentPerformed": false,
+  "limitations": [
+    "No real-engine installation/lifecycle/root-key evidence",
+    "No signed-in OpenCloud encryption or phone acceptance",
+    "Compiler success/unit tests do not authorize release"
+  ]
+}

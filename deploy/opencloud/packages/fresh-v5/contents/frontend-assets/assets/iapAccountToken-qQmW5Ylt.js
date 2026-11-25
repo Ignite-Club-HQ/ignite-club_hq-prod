@@ -1,0 +1,1 @@
+async function n(c){const e=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(`ignite-iap-account:v1:${c}`))).slice(0,16);e[6]=e[6]&15|80,e[8]=e[8]&63|128;const t=Array.from(e,i=>i.toString(16).padStart(2,"0")).join("");return`${t.slice(0,8)}-${t.slice(8,12)}-${t.slice(12,16)}-${t.slice(16,20)}-${t.slice(20)}`}export{n as iapAccountToken};

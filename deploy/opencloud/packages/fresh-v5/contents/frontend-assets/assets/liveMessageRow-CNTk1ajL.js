@@ -1,0 +1,1 @@
+function n(t){if(!t.id||!t.conversation_id)throw new Error("Missing acknowledged message identity");const i=t.attachment[0];return{id:t.id,text:t.body,author_id:t.sender.toText(),conversation_id:t.conversation_id,created_at:new Date(Number(t.created_at_ms)).toISOString(),reply_to_id:t.reply_to_id[0]??null,image_url:i?.kind==="image"?i.url[0]??null:null}}export{n as l};

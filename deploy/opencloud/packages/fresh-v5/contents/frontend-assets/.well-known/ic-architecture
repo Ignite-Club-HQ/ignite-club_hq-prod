@@ -1,0 +1,178 @@
+{
+  "version": "1.0.0",
+  "canisters": [
+    {
+      "id": "h2knm-vaaaa-aaac5-aadqa-cai",
+      "name": "frontend",
+      "role": "the frontend"
+    },
+    {
+      "id": "htjgq-diaaa-aaac5-aadrq-cai",
+      "name": "shard_router",
+      "role": "backend",
+      "description": "Internal shard routing."
+    },
+    {
+      "id": "h5lly-yyaaa-aaac5-aadqq-cai",
+      "name": "identity_access",
+      "role": "backend",
+      "description": "Account/principal binding, profiles and entitlements."
+    },
+    {
+      "id": "him2v-zqaaa-aaac5-aadta-cai",
+      "name": "g1_club_domain",
+      "role": "backend",
+      "description": "Clubs, teams, memberships and role grants. Call getApiDoc() first."
+    },
+    {
+      "id": "gfc63-wyaaa-aaac5-aaduq-cai",
+      "name": "g1_events_domain",
+      "role": "backend",
+      "description": "Club/team events, RSVPs, attendance and fixtures. Call getApiDoc() first."
+    },
+    {
+      "id": "gzgek-byaaa-aaac5-aadwq-cai",
+      "name": "g1_messaging_domain",
+      "role": "backend",
+      "description": "Club/team conversations and messages; participant-scoped."
+    },
+    {
+      "id": "ee3kc-sqaaa-aaac5-aadza-cai",
+      "name": "g1_vault_domain",
+      "role": "backend",
+      "description": "Club file vault: folders, files and backups; role-scoped."
+    },
+    {
+      "id": "gcdyp-3aaaa-aaac5-aadua-cai",
+      "name": "g1_competition_domain",
+      "role": "backend",
+      "description": "Competitions, seasons, matches and public competition pages."
+    },
+    {
+      "id": "hpn4b-uiaaa-aaac5-aadtq-cai",
+      "name": "g1_club_points_domain",
+      "role": "backend",
+      "description": "Club points, leaderboards and rewards."
+    },
+    {
+      "id": "gqfpw-xqaaa-aaac5-aadxa-cai",
+      "name": "g1_mini_league_domain",
+      "role": "backend",
+      "description": "Mini leagues, sessions, players and duties."
+    },
+    {
+      "id": "g6hc6-maaaa-aaac5-aadwa-cai",
+      "name": "g1_media_metadata",
+      "role": "backend",
+      "description": "Media asset metadata, galleries, reactions and comments."
+    },
+    {
+      "id": "gmbvh-aqaaa-aaac5-aadva-cai",
+      "name": "g1_insights_domain",
+      "role": "backend",
+      "description": "Club engagement analytics; club-admin scoped."
+    },
+    {
+      "id": "gxejc-2iaaa-aaac5-aadxq-cai",
+      "name": "g1_notification_queue",
+      "role": "backend",
+      "description": "Per-account notification inbox; reads are owner-only."
+    },
+    {
+      "id": "ekzhk-jaaaa-aaac5-aadya-cai",
+      "name": "g1_pii_access_control",
+      "role": "backend",
+      "description": "Encrypted PII access control and vetKey derivation grants."
+    },
+    {
+      "id": "enyb6-eyaaa-aaac5-aadyq-cai",
+      "name": "g1_timer_jobs",
+      "role": "backend",
+      "description": "Internal scheduled jobs."
+    },
+    {
+      "id": "glatt-niaaa-aaac5-aadvq-cai",
+      "name": "g1_media_blob_store",
+      "role": "backend",
+      "description": "Encrypted media blob storage; serves ciphertext only."
+    },
+    {
+      "id": "ed2mw-7iaaa-aaac5-aadzq-cai",
+      "name": "g2_club_domain",
+      "role": "backend",
+      "description": "Clubs, teams, memberships and role grants. Call getApiDoc() first."
+    },
+    {
+      "id": "ey7qt-fqaaa-aaac5-aad3a-cai",
+      "name": "g2_events_domain",
+      "role": "backend",
+      "description": "Club/team events, RSVPs, attendance and fixtures. Call getApiDoc() first."
+    },
+    {
+      "id": "f4s7b-4qaaa-aaac5-aad5a-cai",
+      "name": "g2_messaging_domain",
+      "role": "backend",
+      "description": "Club/team conversations and messages; participant-scoped."
+    },
+    {
+      "id": "fhxde-giaaa-aaac5-aad7q-cai",
+      "name": "g2_vault_domain",
+      "role": "backend",
+      "description": "Club file vault: folders, files and backups; role-scoped."
+    },
+    {
+      "id": "er43p-tyaaa-aaac5-aad2q-cai",
+      "name": "g2_competition_domain",
+      "role": "backend",
+      "description": "Competitions, seasons, matches and public competition pages."
+    },
+    {
+      "id": "ew553-6aaaa-aaac5-aad2a-cai",
+      "name": "g2_club_points_domain",
+      "role": "backend",
+      "description": "Club points, leaderboards and rewards."
+    },
+    {
+      "id": "f3tzv-riaaa-aaac5-aad5q-cai",
+      "name": "g2_mini_league_domain",
+      "role": "backend",
+      "description": "Mini leagues, sessions, players and duties."
+    },
+    {
+      "id": "fvru5-kyaaa-aaac5-aad4q-cai",
+      "name": "g2_media_metadata",
+      "role": "backend",
+      "description": "Media asset metadata, galleries, reactions and comments."
+    },
+    {
+      "id": "e76wh-iiaaa-aaac5-aad3q-cai",
+      "name": "g2_insights_domain",
+      "role": "backend",
+      "description": "Club engagement analytics; club-admin scoped."
+    },
+    {
+      "id": "fouiy-qaaaa-aaac5-aad6a-cai",
+      "name": "g2_notification_queue",
+      "role": "backend",
+      "description": "Per-account notification inbox; reads are owner-only."
+    },
+    {
+      "id": "fjvom-5yaaa-aaac5-aad6q-cai",
+      "name": "g2_pii_access_control",
+      "role": "backend",
+      "description": "Encrypted PII access control and vetKey derivation grants."
+    },
+    {
+      "id": "fawfq-lqaaa-aaac5-aad7a-cai",
+      "name": "g2_timer_jobs",
+      "role": "backend",
+      "description": "Internal scheduled jobs."
+    },
+    {
+      "id": "fsqsj-haaaa-aaac5-aad4a-cai",
+      "name": "g2_media_blob_store",
+      "role": "backend",
+      "description": "Encrypted media blob storage; serves ciphertext only."
+    }
+  ]
+}

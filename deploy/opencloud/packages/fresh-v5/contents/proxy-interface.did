@@ -1,0 +1,94 @@
+type Cycles = nat;
+
+// An inclusive range of canister IDs, ordered by principal byte representation
+// (the same ordering the IC routing table uses). One engine's canisters form a
+// single contiguous range.
+type CanisterIdRange = record {
+	start : principal;
+	end : principal;
+};
+
+// Who tops the proxy up, and when it asks. Every few minutes, while its
+// balance is below `low_threshold`, the proxy asks the engine canister that
+// made it (`requestProxyTopUp`), which decides whether to send cycles, and how
+// many, out of the engine's billing account. A proxy so funded relays for a
+// caller authorized only by `allowed_ranges` or `allowed_subnet` nothing but
+// the management canister's sign_with_ecdsa, ecdsa_public_key,
+// sign_with_schnorr, schnorr_public_key, vetkd_derive_key, vetkd_public_key,
+// http_request and bitcoin_* methods, and any method of the exchange-rate, EVM
+// RPC, SOL RPC, Bitcoin (mainnet, testnet) and Dogecoin canisters; anything
+// else comes back as `CallFailed`. Its controllers keep the blind relay.
+type FundingConfig = record {
+	engine_canister : principal;
+	// The proxy as the engine canister knows it.
+	engine_id : text;
+	proxy_id : text;
+	low_threshold : Cycles;
+};
+
+// Install / upgrade argument. Must be supplied on every install and upgrade;
+// the configuration is not persisted across upgrades (the engine canister
+// passes it again when it upgrades a proxy it made). Controllers are always
+// authorized, so an empty `allowed_ranges` and no `allowed_subnet` reproduce
+// the upstream controllers-only behaviour. Without `funding` the proxy is
+// topped up from outside.
+type InitArgs = record {
+	allowed_ranges : vec CanisterIdRange;
+	// A subnet whose canisters may use the proxy too, typically the engine's.
+	// The proxy asks the NNS registry which subnet each new caller is on, and
+	// remembers the answer until its next upgrade at the latest.
+	allowed_subnet : opt principal;
+	funding : opt FundingConfig;
+};
+
+type TopUpAttempt = record {
+	// When the proxy asked, in nanoseconds since the epoch.
+	at : nat64;
+	// The cycles the engine canister sent, or why it sent none.
+	outcome : variant { Ok : nat; Err : text };
+};
+
+type FundingStatus = record {
+	funding : opt FundingConfig;
+	balance : Cycles;
+	last_top_up : opt TopUpAttempt;
+};
+
+type ProxyArgs = record {
+	canister_id : principal;
+	method : text;
+	args : blob;
+	cycles : Cycles;
+};
+
+type ProxyResult = variant {
+	Ok : record {
+		result : blob;
+	};
+	Err : variant {
+		// The proxy canister does not have enough cycles to process the request.
+		InsufficientCycles : record {
+			available : Cycles;
+			required : Cycles;
+		};
+
+		// The call to the target canister failed, or was not relayed: a
+		// proxy its engine funds relays for a range or subnet caller only to
+		// the targets listed at `FundingConfig`; and a caller whose subnet
+		// the proxy could not verify with the NNS registry is told to retry.
+		CallFailed : record {
+			reason : text;
+		};
+
+		// The caller is neither a controller, nor within a configured
+		// canister-ID range, nor on the configured subnet.
+		UnauthorizedUser;
+	};
+};
+
+service : (InitArgs) -> {
+	proxy : (ProxyArgs) -> (ProxyResult);
+	get_allowed_ranges : () -> (vec CanisterIdRange) query;
+	get_allowed_subnet : () -> (opt principal) query;
+	get_funding : () -> (FundingStatus) query;
+};

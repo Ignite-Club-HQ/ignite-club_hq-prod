@@ -1,0 +1,1 @@
+async function r(a,e){try{for await(const t of a)await e.write(t);await e.close()}catch(t){try{await e.abort(t)}catch{}throw t}}function o(a){const e=window;return e.showSaveFilePicker?e.showSaveFilePicker({suggestedName:a}).then(t=>t.createWritable()):Promise.resolve(null)}export{o as c,r as w};

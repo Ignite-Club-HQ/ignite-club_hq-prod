@@ -1,0 +1,1429 @@
+{
+  "status": "NOT_READY: null values require exact authenticated live readbacks; never encode null or guess revisions",
+  "method": "commission_fresh_opencloud_dev",
+  "argumentType": "Expectation",
+  "argument": {
+    "identity": "h5lly-yyaaa-aaac5-aadqq-cai",
+    "inventory": {
+      "groups": {
+        "binding": {
+          "registry": "htjgq-diaaa-aaac5-aadrq-cai",
+          "registry_revision": null,
+          "target_alias": "opencloud-dev",
+          "deployment_id": "opencloud-dev",
+          "deployment_revision": null,
+          "host": "https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net",
+          "network_kind": "cloud_engine"
+        },
+        "history_revision": null,
+        "snapshot": {
+          "revision": null,
+          "groups": [
+            {
+              "id": "base",
+              "target_alias": "opencloud-dev",
+              "domains": [
+                {
+                  "domain": "club_domain",
+                  "canister": "him2v-zqaaa-aaac5-aadta-cai"
+                },
+                {
+                  "domain": "club_points_domain",
+                  "canister": "hpn4b-uiaaa-aaac5-aadtq-cai"
+                },
+                {
+                  "domain": "competition_domain",
+                  "canister": "gcdyp-3aaaa-aaac5-aadua-cai"
+                },
+                {
+                  "domain": "events_domain",
+                  "canister": "gfc63-wyaaa-aaac5-aaduq-cai"
+                },
+                {
+                  "domain": "insights_domain",
+                  "canister": "gmbvh-aqaaa-aaac5-aadva-cai"
+                },
+                {
+                  "domain": "media_metadata",
+                  "canister": "g6hc6-maaaa-aaac5-aadwa-cai"
+                },
+                {
+                  "domain": "messaging_domain",
+                  "canister": "gzgek-byaaa-aaac5-aadwq-cai"
+                },
+                {
+                  "domain": "mini_league_domain",
+                  "canister": "gqfpw-xqaaa-aaac5-aadxa-cai"
+                },
+                {
+                  "domain": "notification_queue",
+                  "canister": "gxejc-2iaaa-aaac5-aadxq-cai"
+                },
+                {
+                  "domain": "pii_access_control",
+                  "canister": "ekzhk-jaaaa-aaac5-aadya-cai"
+                },
+                {
+                  "domain": "timer_jobs",
+                  "canister": "enyb6-eyaaa-aaac5-aadyq-cai"
+                },
+                {
+                  "domain": "vault_domain",
+                  "canister": "ee3kc-sqaaa-aaac5-aadza-cai"
+                },
+                {
+                  "domain": "secret_workload_identity",
+                  "canister": "hbprj-pyaaa-aaac5-aadsq-cai"
+                }
+              ]
+            },
+            {
+              "id": "g2",
+              "target_alias": "opencloud-dev",
+              "domains": [
+                {
+                  "domain": "club_domain",
+                  "canister": "ed2mw-7iaaa-aaac5-aadzq-cai"
+                },
+                {
+                  "domain": "club_points_domain",
+                  "canister": "ew553-6aaaa-aaac5-aad2a-cai"
+                },
+                {
+                  "domain": "competition_domain",
+                  "canister": "er43p-tyaaa-aaac5-aad2q-cai"
+                },
+                {
+                  "domain": "events_domain",
+                  "canister": "ey7qt-fqaaa-aaac5-aad3a-cai"
+                },
+                {
+                  "domain": "insights_domain",
+                  "canister": "e76wh-iiaaa-aaac5-aad3q-cai"
+                },
+                {
+                  "domain": "media_metadata",
+                  "canister": "fvru5-kyaaa-aaac5-aad4q-cai"
+                },
+                {
+                  "domain": "messaging_domain",
+                  "canister": "f4s7b-4qaaa-aaac5-aad5a-cai"
+                },
+                {
+                  "domain": "mini_league_domain",
+                  "canister": "f3tzv-riaaa-aaac5-aad5q-cai"
+                },
+                {
+                  "domain": "notification_queue",
+                  "canister": "fouiy-qaaaa-aaac5-aad6a-cai"
+                },
+                {
+                  "domain": "pii_access_control",
+                  "canister": "fjvom-5yaaa-aaac5-aad6q-cai"
+                },
+                {
+                  "domain": "timer_jobs",
+                  "canister": "fawfq-lqaaa-aaac5-aad7a-cai"
+                },
+                {
+                  "domain": "vault_domain",
+                  "canister": "fhxde-giaaa-aaac5-aad7q-cai"
+                },
+                {
+                  "domain": "secret_workload_identity",
+                  "canister": "hbprj-pyaaa-aaac5-aadsq-cai"
+                }
+              ]
+            }
+          ],
+          "placements": [
+            {
+              "group_id": "base",
+              "deployment_id": "opencloud-dev",
+              "deployment_revision": null,
+              "host": "https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net",
+              "network_kind": "cloud_engine",
+              "primary_subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+              "approved_subnets": [
+                "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+              ],
+              "additional_subnets_enabled": false,
+              "domains": [
+                {
+                  "domain": "club_domain",
+                  "canister": "him2v-zqaaa-aaac5-aadta-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "club_points_domain",
+                  "canister": "hpn4b-uiaaa-aaac5-aadtq-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "competition_domain",
+                  "canister": "gcdyp-3aaaa-aaac5-aadua-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "events_domain",
+                  "canister": "gfc63-wyaaa-aaac5-aaduq-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "insights_domain",
+                  "canister": "gmbvh-aqaaa-aaac5-aadva-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "media_metadata",
+                  "canister": "g6hc6-maaaa-aaac5-aadwa-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "messaging_domain",
+                  "canister": "gzgek-byaaa-aaac5-aadwq-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "mini_league_domain",
+                  "canister": "gqfpw-xqaaa-aaac5-aadxa-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "notification_queue",
+                  "canister": "gxejc-2iaaa-aaac5-aadxq-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "pii_access_control",
+                  "canister": "ekzhk-jaaaa-aaac5-aadya-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "timer_jobs",
+                  "canister": "enyb6-eyaaa-aaac5-aadyq-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "vault_domain",
+                  "canister": "ee3kc-sqaaa-aaac5-aadza-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "secret_workload_identity",
+                  "canister": "hbprj-pyaaa-aaac5-aadsq-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                }
+              ]
+            },
+            {
+              "group_id": "g2",
+              "deployment_id": "opencloud-dev",
+              "deployment_revision": null,
+              "host": "https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net",
+              "network_kind": "cloud_engine",
+              "primary_subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+              "approved_subnets": [
+                "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+              ],
+              "additional_subnets_enabled": false,
+              "domains": [
+                {
+                  "domain": "club_domain",
+                  "canister": "ed2mw-7iaaa-aaac5-aadzq-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "club_points_domain",
+                  "canister": "ew553-6aaaa-aaac5-aad2a-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "competition_domain",
+                  "canister": "er43p-tyaaa-aaac5-aad2q-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "events_domain",
+                  "canister": "ey7qt-fqaaa-aaac5-aad3a-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "insights_domain",
+                  "canister": "e76wh-iiaaa-aaac5-aad3q-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "media_metadata",
+                  "canister": "fvru5-kyaaa-aaac5-aad4q-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "messaging_domain",
+                  "canister": "f4s7b-4qaaa-aaac5-aad5a-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "mini_league_domain",
+                  "canister": "f3tzv-riaaa-aaac5-aad5q-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "notification_queue",
+                  "canister": "fouiy-qaaaa-aaac5-aad6a-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "pii_access_control",
+                  "canister": "fjvom-5yaaa-aaac5-aad6q-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "timer_jobs",
+                  "canister": "fawfq-lqaaa-aaac5-aad7a-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "vault_domain",
+                  "canister": "fhxde-giaaa-aaac5-aad7q-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                },
+                {
+                  "domain": "secret_workload_identity",
+                  "canister": "hbprj-pyaaa-aaac5-aadsq-cai",
+                  "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "supplemental": [
+        {
+          "group_id": "base",
+          "domain": "media_blob_store",
+          "canister": "glatt-niaaa-aaac5-aadvq-cai",
+          "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+        },
+        {
+          "group_id": "g2",
+          "domain": "media_blob_store",
+          "canister": "fsqsj-haaaa-aaac5-aad4a-cai",
+          "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+        },
+        {
+          "group_id": "base",
+          "domain": "shard_router",
+          "canister": "htjgq-diaaa-aaac5-aadrq-cai",
+          "subnet": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae"
+        }
+      ],
+      "media": [
+        {
+          "club_authority": "him2v-zqaaa-aaac5-aadta-cai",
+          "registry": {
+            "active": null,
+            "stores": [
+              "glatt-niaaa-aaac5-aadvq-cai"
+            ]
+          }
+        },
+        {
+          "club_authority": "ed2mw-7iaaa-aaac5-aadzq-cai",
+          "registry": {
+            "active": null,
+            "stores": [
+              "fsqsj-haaaa-aaac5-aad4a-cai"
+            ]
+          }
+        }
+      ]
+    },
+    "modules": [
+      [
+        "htjgq-diaaa-aaac5-aadrq-cai",
+        [
+          91,
+          137,
+          147,
+          160,
+          222,
+          104,
+          170,
+          94,
+          135,
+          33,
+          28,
+          184,
+          113,
+          232,
+          134,
+          134,
+          149,
+          92,
+          157,
+          218,
+          63,
+          79,
+          99,
+          135,
+          178,
+          15,
+          99,
+          113,
+          26,
+          176,
+          211,
+          36
+        ]
+      ],
+      [
+        "h5lly-yyaaa-aaac5-aadqq-cai",
+        [
+          96,
+          129,
+          173,
+          156,
+          253,
+          34,
+          14,
+          80,
+          165,
+          131,
+          131,
+          193,
+          84,
+          101,
+          189,
+          112,
+          183,
+          104,
+          196,
+          172,
+          39,
+          115,
+          223,
+          156,
+          61,
+          231,
+          237,
+          192,
+          244,
+          156,
+          71,
+          194
+        ]
+      ],
+      [
+        "hbprj-pyaaa-aaac5-aadsq-cai",
+        [
+          154,
+          213,
+          110,
+          66,
+          180,
+          239,
+          41,
+          78,
+          121,
+          197,
+          144,
+          88,
+          44,
+          152,
+          247,
+          60,
+          198,
+          136,
+          165,
+          160,
+          92,
+          109,
+          73,
+          45,
+          78,
+          198,
+          252,
+          238,
+          198,
+          9,
+          98,
+          129
+        ]
+      ],
+      [
+        "him2v-zqaaa-aaac5-aadta-cai",
+        [
+          125,
+          177,
+          214,
+          1,
+          0,
+          27,
+          124,
+          37,
+          63,
+          71,
+          60,
+          154,
+          253,
+          245,
+          178,
+          11,
+          28,
+          146,
+          41,
+          96,
+          148,
+          149,
+          65,
+          38,
+          17,
+          65,
+          134,
+          63,
+          235,
+          29,
+          38,
+          72
+        ]
+      ],
+      [
+        "gfc63-wyaaa-aaac5-aaduq-cai",
+        [
+          168,
+          29,
+          148,
+          54,
+          111,
+          223,
+          121,
+          143,
+          56,
+          246,
+          127,
+          200,
+          93,
+          236,
+          225,
+          236,
+          185,
+          45,
+          137,
+          27,
+          0,
+          92,
+          107,
+          32,
+          92,
+          245,
+          177,
+          147,
+          178,
+          46,
+          210,
+          196
+        ]
+      ],
+      [
+        "gzgek-byaaa-aaac5-aadwq-cai",
+        [
+          97,
+          92,
+          162,
+          211,
+          31,
+          46,
+          226,
+          106,
+          149,
+          224,
+          137,
+          152,
+          239,
+          62,
+          126,
+          245,
+          71,
+          155,
+          89,
+          194,
+          160,
+          255,
+          58,
+          241,
+          99,
+          185,
+          26,
+          115,
+          199,
+          226,
+          130,
+          201
+        ]
+      ],
+      [
+        "ee3kc-sqaaa-aaac5-aadza-cai",
+        [
+          216,
+          247,
+          123,
+          68,
+          43,
+          55,
+          42,
+          7,
+          212,
+          2,
+          213,
+          153,
+          174,
+          26,
+          38,
+          159,
+          200,
+          227,
+          112,
+          185,
+          3,
+          81,
+          166,
+          35,
+          212,
+          150,
+          109,
+          135,
+          84,
+          187,
+          75,
+          6
+        ]
+      ],
+      [
+        "gcdyp-3aaaa-aaac5-aadua-cai",
+        [
+          101,
+          104,
+          151,
+          40,
+          172,
+          131,
+          130,
+          172,
+          37,
+          125,
+          183,
+          9,
+          109,
+          46,
+          143,
+          222,
+          61,
+          125,
+          158,
+          222,
+          156,
+          135,
+          249,
+          236,
+          61,
+          139,
+          83,
+          224,
+          77,
+          64,
+          141,
+          218
+        ]
+      ],
+      [
+        "hpn4b-uiaaa-aaac5-aadtq-cai",
+        [
+          230,
+          145,
+          173,
+          161,
+          25,
+          140,
+          133,
+          218,
+          93,
+          254,
+          105,
+          161,
+          187,
+          166,
+          101,
+          121,
+          74,
+          141,
+          83,
+          149,
+          6,
+          29,
+          69,
+          114,
+          204,
+          138,
+          164,
+          238,
+          51,
+          135,
+          118,
+          143
+        ]
+      ],
+      [
+        "gqfpw-xqaaa-aaac5-aadxa-cai",
+        [
+          128,
+          61,
+          235,
+          100,
+          120,
+          44,
+          198,
+          66,
+          144,
+          86,
+          218,
+          60,
+          117,
+          155,
+          33,
+          122,
+          85,
+          143,
+          76,
+          239,
+          212,
+          235,
+          254,
+          154,
+          109,
+          197,
+          181,
+          95,
+          63,
+          80,
+          95,
+          127
+        ]
+      ],
+      [
+        "g6hc6-maaaa-aaac5-aadwa-cai",
+        [
+          144,
+          69,
+          151,
+          23,
+          46,
+          132,
+          238,
+          31,
+          233,
+          150,
+          60,
+          12,
+          1,
+          209,
+          43,
+          101,
+          218,
+          1,
+          125,
+          85,
+          166,
+          216,
+          193,
+          219,
+          13,
+          6,
+          239,
+          159,
+          62,
+          218,
+          169,
+          223
+        ]
+      ],
+      [
+        "gmbvh-aqaaa-aaac5-aadva-cai",
+        [
+          151,
+          186,
+          63,
+          70,
+          97,
+          26,
+          114,
+          40,
+          45,
+          247,
+          28,
+          225,
+          44,
+          251,
+          92,
+          44,
+          66,
+          231,
+          243,
+          209,
+          33,
+          121,
+          22,
+          33,
+          114,
+          58,
+          107,
+          59,
+          235,
+          180,
+          133,
+          74
+        ]
+      ],
+      [
+        "gxejc-2iaaa-aaac5-aadxq-cai",
+        [
+          50,
+          223,
+          136,
+          53,
+          239,
+          41,
+          27,
+          73,
+          116,
+          164,
+          39,
+          170,
+          124,
+          122,
+          211,
+          10,
+          252,
+          113,
+          65,
+          163,
+          189,
+          14,
+          129,
+          37,
+          98,
+          36,
+          127,
+          226,
+          7,
+          66,
+          225,
+          73
+        ]
+      ],
+      [
+        "ekzhk-jaaaa-aaac5-aadya-cai",
+        [
+          26,
+          47,
+          206,
+          178,
+          96,
+          140,
+          51,
+          223,
+          28,
+          141,
+          240,
+          9,
+          189,
+          233,
+          163,
+          100,
+          102,
+          25,
+          84,
+          142,
+          29,
+          250,
+          83,
+          93,
+          108,
+          109,
+          212,
+          137,
+          4,
+          128,
+          110,
+          204
+        ]
+      ],
+      [
+        "enyb6-eyaaa-aaac5-aadyq-cai",
+        [
+          242,
+          136,
+          95,
+          233,
+          108,
+          199,
+          186,
+          251,
+          77,
+          78,
+          237,
+          248,
+          201,
+          241,
+          122,
+          121,
+          161,
+          118,
+          180,
+          202,
+          247,
+          235,
+          60,
+          121,
+          138,
+          118,
+          161,
+          108,
+          11,
+          186,
+          143,
+          110
+        ]
+      ],
+      [
+        "glatt-niaaa-aaac5-aadvq-cai",
+        [
+          61,
+          142,
+          190,
+          149,
+          25,
+          100,
+          232,
+          247,
+          27,
+          232,
+          193,
+          252,
+          34,
+          207,
+          214,
+          144,
+          210,
+          253,
+          246,
+          155,
+          226,
+          112,
+          98,
+          68,
+          22,
+          3,
+          96,
+          217,
+          71,
+          33,
+          205,
+          249
+        ]
+      ],
+      [
+        "ed2mw-7iaaa-aaac5-aadzq-cai",
+        [
+          125,
+          177,
+          214,
+          1,
+          0,
+          27,
+          124,
+          37,
+          63,
+          71,
+          60,
+          154,
+          253,
+          245,
+          178,
+          11,
+          28,
+          146,
+          41,
+          96,
+          148,
+          149,
+          65,
+          38,
+          17,
+          65,
+          134,
+          63,
+          235,
+          29,
+          38,
+          72
+        ]
+      ],
+      [
+        "ey7qt-fqaaa-aaac5-aad3a-cai",
+        [
+          168,
+          29,
+          148,
+          54,
+          111,
+          223,
+          121,
+          143,
+          56,
+          246,
+          127,
+          200,
+          93,
+          236,
+          225,
+          236,
+          185,
+          45,
+          137,
+          27,
+          0,
+          92,
+          107,
+          32,
+          92,
+          245,
+          177,
+          147,
+          178,
+          46,
+          210,
+          196
+        ]
+      ],
+      [
+        "f4s7b-4qaaa-aaac5-aad5a-cai",
+        [
+          97,
+          92,
+          162,
+          211,
+          31,
+          46,
+          226,
+          106,
+          149,
+          224,
+          137,
+          152,
+          239,
+          62,
+          126,
+          245,
+          71,
+          155,
+          89,
+          194,
+          160,
+          255,
+          58,
+          241,
+          99,
+          185,
+          26,
+          115,
+          199,
+          226,
+          130,
+          201
+        ]
+      ],
+      [
+        "fhxde-giaaa-aaac5-aad7q-cai",
+        [
+          216,
+          247,
+          123,
+          68,
+          43,
+          55,
+          42,
+          7,
+          212,
+          2,
+          213,
+          153,
+          174,
+          26,
+          38,
+          159,
+          200,
+          227,
+          112,
+          185,
+          3,
+          81,
+          166,
+          35,
+          212,
+          150,
+          109,
+          135,
+          84,
+          187,
+          75,
+          6
+        ]
+      ],
+      [
+        "er43p-tyaaa-aaac5-aad2q-cai",
+        [
+          101,
+          104,
+          151,
+          40,
+          172,
+          131,
+          130,
+          172,
+          37,
+          125,
+          183,
+          9,
+          109,
+          46,
+          143,
+          222,
+          61,
+          125,
+          158,
+          222,
+          156,
+          135,
+          249,
+          236,
+          61,
+          139,
+          83,
+          224,
+          77,
+          64,
+          141,
+          218
+        ]
+      ],
+      [
+        "ew553-6aaaa-aaac5-aad2a-cai",
+        [
+          230,
+          145,
+          173,
+          161,
+          25,
+          140,
+          133,
+          218,
+          93,
+          254,
+          105,
+          161,
+          187,
+          166,
+          101,
+          121,
+          74,
+          141,
+          83,
+          149,
+          6,
+          29,
+          69,
+          114,
+          204,
+          138,
+          164,
+          238,
+          51,
+          135,
+          118,
+          143
+        ]
+      ],
+      [
+        "f3tzv-riaaa-aaac5-aad5q-cai",
+        [
+          128,
+          61,
+          235,
+          100,
+          120,
+          44,
+          198,
+          66,
+          144,
+          86,
+          218,
+          60,
+          117,
+          155,
+          33,
+          122,
+          85,
+          143,
+          76,
+          239,
+          212,
+          235,
+          254,
+          154,
+          109,
+          197,
+          181,
+          95,
+          63,
+          80,
+          95,
+          127
+        ]
+      ],
+      [
+        "fvru5-kyaaa-aaac5-aad4q-cai",
+        [
+          144,
+          69,
+          151,
+          23,
+          46,
+          132,
+          238,
+          31,
+          233,
+          150,
+          60,
+          12,
+          1,
+          209,
+          43,
+          101,
+          218,
+          1,
+          125,
+          85,
+          166,
+          216,
+          193,
+          219,
+          13,
+          6,
+          239,
+          159,
+          62,
+          218,
+          169,
+          223
+        ]
+      ],
+      [
+        "e76wh-iiaaa-aaac5-aad3q-cai",
+        [
+          151,
+          186,
+          63,
+          70,
+          97,
+          26,
+          114,
+          40,
+          45,
+          247,
+          28,
+          225,
+          44,
+          251,
+          92,
+          44,
+          66,
+          231,
+          243,
+          209,
+          33,
+          121,
+          22,
+          33,
+          114,
+          58,
+          107,
+          59,
+          235,
+          180,
+          133,
+          74
+        ]
+      ],
+      [
+        "fouiy-qaaaa-aaac5-aad6a-cai",
+        [
+          50,
+          223,
+          136,
+          53,
+          239,
+          41,
+          27,
+          73,
+          116,
+          164,
+          39,
+          170,
+          124,
+          122,
+          211,
+          10,
+          252,
+          113,
+          65,
+          163,
+          189,
+          14,
+          129,
+          37,
+          98,
+          36,
+          127,
+          226,
+          7,
+          66,
+          225,
+          73
+        ]
+      ],
+      [
+        "fjvom-5yaaa-aaac5-aad6q-cai",
+        [
+          26,
+          47,
+          206,
+          178,
+          96,
+          140,
+          51,
+          223,
+          28,
+          141,
+          240,
+          9,
+          189,
+          233,
+          163,
+          100,
+          102,
+          25,
+          84,
+          142,
+          29,
+          250,
+          83,
+          93,
+          108,
+          109,
+          212,
+          137,
+          4,
+          128,
+          110,
+          204
+        ]
+      ],
+      [
+        "fawfq-lqaaa-aaac5-aad7a-cai",
+        [
+          242,
+          136,
+          95,
+          233,
+          108,
+          199,
+          186,
+          251,
+          77,
+          78,
+          237,
+          248,
+          201,
+          241,
+          122,
+          121,
+          161,
+          118,
+          180,
+          202,
+          247,
+          235,
+          60,
+          121,
+          138,
+          118,
+          161,
+          108,
+          11,
+          186,
+          143,
+          110
+        ]
+      ],
+      [
+        "fsqsj-haaaa-aaac5-aad4a-cai",
+        [
+          61,
+          142,
+          190,
+          149,
+          25,
+          100,
+          232,
+          247,
+          27,
+          232,
+          193,
+          252,
+          34,
+          207,
+          214,
+          144,
+          210,
+          253,
+          246,
+          155,
+          226,
+          112,
+          98,
+          68,
+          22,
+          3,
+          96,
+          217,
+          71,
+          33,
+          205,
+          249
+        ]
+      ]
+    ]
+  },
+  "excludedFromAuthorizationModulesButLifecycleChecked": [
+    "placement_registry",
+    "migration_coordinator"
+  ],
+  "additionalInputRules": [
+    "deployment_revision is owner-reviewed logical DEV revision, identical across binding/placements",
+    "registry_revision/history_revision/snapshot.revision come from current acknowledged registry snapshot/history; use u64-safe encoding",
+    "media.active comes from each real club quota registry",
+    "Principals are Candid principal values; modules second tuple item is vec nat8",
+    "no witness/signature/recovery evidence supplied"
+  ]
+}

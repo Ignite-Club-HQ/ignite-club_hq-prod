@@ -1,0 +1,1 @@
+class a extends Error{constructor(){super("That file couldn't be opened. Please pick it again."),this.name="PickedFileUnreadableError"}}async function t(e){try{const r=await e.arrayBuffer();return new File([r],e.name,{type:e.type,lastModified:e.lastModified})}catch{throw new a}}function i(e){return Promise.all(Array.from(e).map(t))}export{i as a,t as m};

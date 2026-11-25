@@ -1,0 +1,1 @@
+const r=(n,e=Date.now())=>n?Math.max(0,Math.floor((e-n)/1e3)):0,t=(n,e=Date.now())=>{if(!n)return 0;const a=n.minutesPerHalf*60,o=n.elapsedSeconds||0;if(!n.isRunning)return Math.min(o,a);const s=o+r(n.lastUpdateTime,e);return Math.min(s,a)};export{r as a,t as g};
