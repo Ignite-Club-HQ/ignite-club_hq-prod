@@ -272,7 +272,9 @@ async function startRedirectSignIn(target: IcpTargetConfig, returnTo?: string): 
 const PROVISIONED_KEY_PREFIX = "ignite_ii_provisioned_v1:";
 
 function provisionedKey(principal: string, target: IcpTargetConfig): string {
-  return `${PROVISIONED_KEY_PREFIX}${target.alias}:${principal}`;
+  return target.alias === "opencloud-dev"
+    ? `${PROVISIONED_KEY_PREFIX}${target.alias}:${target.host}:${target.canisterIds.identity_access}:${principal}`
+    : `${PROVISIONED_KEY_PREFIX}${target.alias}:${principal}`;
 }
 
 function isAccountProvisioned(principal: string, target: IcpTargetConfig): boolean {
