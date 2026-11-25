@@ -1,0 +1,39 @@
+name: OpenCloud DEV v4 credential preflight
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  credentials:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Verify existing DEV signing identities (offline only)
+        env:
+          GOVERNOR_IN: ${{ secrets.GOVERNOR_PEM }}
+          PUBLISHER_IN: ${{ secrets.DEPLOYER_PEM }}
+          ICP_HOME: ${{ runner.temp }}/opencloud-preflight
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$ICP_HOME"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
+          test -n "$GOVERNOR_IN" || { echo "::error::GOVERNOR_PEM missing"; exit 1; }
+          test -n "$PUBLISHER_IN" || { echo "::error::DEPLOYER_PEM missing"; exit 1; }
+          PEM_IN="$GOVERNOR_IN" node scripts/normalize-dev-engine-publisher-pem.mjs > "$ICP_HOME/governor.pem"
+          PEM_IN="$PUBLISHER_IN" node scripts/normalize-dev-engine-publisher-pem.mjs > "$ICP_HOME/publisher.pem"
+          icp identity import --from-pem "$ICP_HOME/governor.pem" --storage plaintext opencloud-governor
+          icp identity import --from-pem "$ICP_HOME/publisher.pem" --storage plaintext opencloud-publisher
+          governor="$(icp identity principal --identity opencloud-governor)"
+          publisher="$(icp identity principal --identity opencloud-publisher)"
+          echo "Governor public principal: $governor"
+          echo "Publisher public principal: $publisher"
+          test "$publisher" = "jfagr-a4uwo-nlikz-ysri5-ipbrt-k4qa2-vkofo-it7lz-eha3w-4wix6-oqe"
+          test "$governor" != "$publisher"
+          echo "Compare governor principal against independently verified v4 manifest before deployment."
+          echo "Offline only: no network canister calls or deployment performed."
