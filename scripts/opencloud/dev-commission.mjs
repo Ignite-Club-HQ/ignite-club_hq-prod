@@ -31,8 +31,8 @@ const Target=I.Record({canister_id:P});
 const Status=I.Record({module_hash:I.Opt(B),settings:I.Record({controllers:I.Vec(P),environment_variables:E,wasm_memory_limit:I.Nat})});
 const status=async id=>(await call('canister_status',Target,{canister_id:pid(id)},[Status]))[0];
 const hash=b=>createHash('sha256').update(b).digest('hex');
-const expected=[MANAGEMENT_PROXY,config.controllers.owner,config.controllers.connectedIdentity,config.controllers.governor].sort();
-const verifyControllers=s=>{if(JSON.stringify(s.settings.controllers.map(p=>p.toText()).sort())!==JSON.stringify(expected))throw Error('Controller mismatch');};
+const expectedControllers=[MANAGEMENT_PROXY,config.controllers.owner,config.controllers.connectedIdentity,config.controllers.governor].sort();
+const verifyControllers=s=>{if(JSON.stringify(s.settings.controllers.map(p=>p.toText()).sort())!==JSON.stringify(expectedControllers))throw Error('Controller mismatch');};
 
 const timer=JSON.parse(fs.readFileSync(path.join(timerWork,'manifest.json')));
 if(timer.environment!==config.environment||timer.applicationKey!==config.applicationKey)throw Error('Wrong timer manifest');
