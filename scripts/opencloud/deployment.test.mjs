@@ -63,7 +63,16 @@ test('every group wires to its own services plus the one shared identity', () =>
     assert.equal(identity.candidArgs, `(principal "${c.shared.identity_access}")`);
   }
   assert.equal(m.groups[0].domains.length, 13); assert.equal(m.groups[1].domains.length, 13);
-  assert.equal(m.groups[0].accepting, false); assert.equal(m.groups[0].registrationExecutable, false);
+  assert.equal(m.groups[0].accepting, false);
+  assert.deepEqual(m.groups.map(g => g.groupId), ['base', 'g2']);
+  assert.match(m.groups[0].registerGroupCall.candidArgs, /min_cycles = 0 : nat64; cycles = 0 : nat64/);
+  assert.match(m.groups[0].registerGroupCall.candidArgs, /accepting = false/);
+});
+test('identity commissioning stays held until owner signer and independent witness pins exist', () => {
+  const c = ready();
+  assert.equal(manifest(c).accountProtectionBuild.ready, false);
+  c.accountProtection = { approverPublicKey: 'k', witness: c.shared.frontend, witnessModuleHash: 'h', witnessController: 'c' };
+  assert.throws(() => manifest(c), /independent/);
 });
 test('unverified infrastructure produces only a held manifest, never install arguments guessed as null principals', () => {
   const c = source('dev'), m = manifest(c, source('prod'), undefined, true);

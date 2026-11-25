@@ -44,8 +44,7 @@ fn valid(p: Principal) -> bool { p != Principal::anonymous() && p != Principal::
 
 pub fn scope(expected: &Expectation) -> Result<(Vec<Principal>, Vec<Principal>), String> {
     let i=&expected.inventory; let b=&i.groups.binding;
-    if !valid(expected.identity) || b.target_alias != "mainnet" || b.deployment_id != "prod" ||
-        b.host != "https://icp-api.io" || b.network_kind != "public_mainnet" {
+    if !valid(expected.identity) || !crate::engine_scope::production_binding(b, crate::cloud_engine()) {
         return Err("Exact PROD account protection binding required".into());
     }
     let clubs: Vec<_>=i.groups.snapshot.groups.iter().flat_map(|g|g.domains.iter())

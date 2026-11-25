@@ -58,6 +58,7 @@ mod membership_acceptance;
 mod admin_accounts;
 mod guardian_search;
 mod private_name_audience;
+mod engine_scope;
 mod legacy_g1_private_name;
 mod dev_g2_private_name_source;
 mod private_name_conversion;
@@ -1652,6 +1653,19 @@ async fn verify_production_account_reader(caller:Principal,club_only:bool,subjec
     production_account_authorization::reader(&captured,caller,ic_cdk::api::time())?;
     Ok(())
 }
+pub(crate) fn cloud_engine() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    { ic_cdk::api::env_var_name_exists("IGNITE_CLOUD_ENGINE") && ic_cdk::api::env_var_value("IGNITE_CLOUD_ENGINE") == "1" }
+    #[cfg(not(target_arch = "wasm32"))]
+    { TEST_CLOUD_ENGINE.with(|v| v.get()) }
+}
+#[cfg(not(target_arch = "wasm32"))]
+thread_local! { static TEST_CLOUD_ENGINE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+/// Engine-only private-name service admission from the commissioned ordinary
+/// member reader inventory. Mainnet keeps its existing pins and allowlist.
+fn engine_member_name_service(service: Principal) -> bool {
+    cloud_engine() && !account_group_rehearsal_enabled() && member_reader_access(service, false).is_ok()
+}
 fn group2_admission() -> admission::Config {
     GROUP2_ADMISSION.with(|m| if m.borrow().get().is_empty() { admission::Config::default() } else { decode(m.borrow().get()) })
 }
@@ -2501,7 +2515,12 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         && !allowed_services.contains(&service) {
         allowed_services.push(service);
     }
-    if !allowed_services.contains(&service) && !dev_g2_candidate && !admin_source_candidate {
+    // OpenCloud engine: the governor-commissioned ordinary member reader
+    // inventory (not a mainnet pin, not the rehearsal allowlist) names the
+    // engine's own PII services. A registry same-group proof is still required
+    // below and the commissioning is re-checked after every await.
+    let engine_candidate = !allowed_services.contains(&service) && engine_member_name_service(service);
+    if !allowed_services.contains(&service) && !dev_g2_candidate && !admin_source_candidate && !engine_candidate {
         return Err("Configured private-name service required".into());
     }
     let viewer = membership_lookup_viewer(viewer_principal)?;
@@ -2532,6 +2551,9 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         g.domains.iter().any(|d| d.domain == "pii_access_control" && d.canister == service)
             && g.domains.iter().any(|d| d.domain == "club_domain" && d.canister == scope.authority)
     });
+    if engine_candidate && !(modern_pii_registered && (scope.kind == "app_admin" || dev_g2_registered_pair)) {
+        return Err("Engine private-name service must share a registered group with the audience".into());
+    }
     if !dev_g2_private_name_source::registered_same_group(
         dev_g2_candidate, modern_pii_registered && dev_g2_registered_pair,
     ) {
@@ -2615,6 +2637,9 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         dev_g2_shared_club_names_enabled(), private_club_name_displays_released(),
     ) {
         return Err("DEV G2 private-name release changed".into());
+    }
+    if engine_candidate && !engine_member_name_service(service) {
+        return Err("Engine private-name service commissioning changed".into());
     }
     // No await after these final subject/reference and caller rechecks.
     active()?;
@@ -5891,3 +5916,19 @@ fn memory_stats() -> MemoryStats {
 ic_cdk::export_candid!();
 /// Local interface generation only; not a canister endpoint.
 pub fn export_interface() -> String { __export_service() }
+
+#[cfg(test)]
+mod engine_name_service_tests {
+    use super::*;
+    #[test] fn engine_name_services_come_only_from_commissioned_member_readers() {
+        let pii = Principal::from_slice(&[77, 1]);
+        GROUP2_ADMISSION.with(|m| m.borrow_mut().set(encode(&admission::Config { enabled: true, readers: vec![pii], member_access: true, club_readers: vec![] })));
+        assert!(!engine_member_name_service(pii)); // mainnet: unchanged pins/allowlist
+        TEST_CLOUD_ENGINE.with(|v| v.set(true));
+        assert!(engine_member_name_service(pii));
+        assert!(!engine_member_name_service(Principal::from_slice(&[78, 1])));
+        GROUP2_ADMISSION.with(|m| m.borrow_mut().set(encode(&admission::Config { enabled: true, readers: vec![pii], member_access: false, club_readers: vec![] })));
+        assert!(!engine_member_name_service(pii)); // eligibility-only config grants nothing
+        TEST_CLOUD_ENGINE.with(|v| v.set(false));
+    }
+}

@@ -24,7 +24,7 @@ Club-wide photo encryption, club/team/role-scoped shared name identities, live a
 - External chain-key calls use the existing cycle-free bounded proxy path.
 - HTTPS outcalls remain direct, with their own response transformation; never route HTTP through the chain-key proxy. Existing `IGNITE_CLOUD_ENGINE=1` branches in club/notification code avoid hardcoded mainnet HTTP payments.
 - Engine canisters have zero cycles by design. Mainnet top-up/install/deploy scripts are unsuitable and remain untouched.
-- **Blocking:** `shard_router/src/groups.rs` currently rejects `min_cycles=0`, and admission depends on a positive cycles floor. A reviewed engine-aware resource/headroom policy is still needed. Do not set fake positive health balances or lower unrelated security gates to open either group.
+- **Resolved:** `shard_router` has an explicit resource policy. With its own setting `IGNITE_CLOUD_ENGINE=1` the router requires `min_cycles = 0` (a nonzero engine floor is rejected) and ignores the real zero balance; capacity, heap budget, accepting flag and fresh successful health reads still gate admission. Without the setting (mainnet) a zero floor is still rejected exactly as before. No balance is fabricated.
 - DEV memory limits and later PROD compute reservations need measured/reviewed values, not values inferred from mainnet capacity or the console's headline limits. The config validator retains the router's existing max-club and heap bounds.
 
 ## Frontend isolation prepared
@@ -33,7 +33,7 @@ Only an explicit `IGNITE_LIVE_OPENCLOUD_ENV` selects the standalone artifact pat
 
 The isolated Vite path removes generated mainnet canister defaults and the mainnet routing approval snapshot; asset metadata declares the engine groups and uses engine-only callback origins. It does **not** switch on `CLOUD_ENGINE_RELEASED`, fabricate a fresh routing snapshot or alter the live country's routing. The known-mainnet-ID artifact scan remains a hard stop.
 
-**Blocking:** current private-name routing/release helpers and membership bootstrap include existing DEV/mainnet authority and original-G1 pins. Examples: `devClubNameReleaseTarget`, original-source membership-directory acceptance and group opening/inventory protocols. Fresh IDs cannot simply replace those values; they require their existing authorization semantics and an engine-specific verified commissioning path. Name enforcement is fail-closed until that work is accepted.
+**Resolved in code:** engine builds replace every existing-deployment ID literal with a non-principal sentinel, so the legacy DEV name routes, push-queue pins and old frontend origin are inert and the artifact scan passes. On identity_access, the signed account-protection scope and ordinary member access accept an engine binding (`network_kind = cloud_engine`, target = deployment = `opencloud-dev|opencloud-prod`, non-mainnet HTTPS host) only when the canister itself runs with `IGNITE_CLOUD_ENGINE=1`; mainnet keeps its exact PROD pin and an engine never accepts a mainnet binding. Engine private-name reads admit a PII service only if it is in the governor-commissioned ordinary member reader inventory, registered in the same router group as the audience authority, and still commissioned after the last await. Mainnet name pins and allowlists are unchanged.
 
 ## Transport and initialization blockers
 

@@ -21,8 +21,7 @@ pub struct Config {
 /// Derive a complete ordinary-access inventory, including the independent PROD
 /// base group, without changing the legacy group2 eligibility release.
 pub fn member_readers(groups: &[Group], placements: &[Placement], binding: &Binding) -> Result<(Vec<Principal>, Vec<Principal>), String> {
-    if binding.target_alias != "mainnet" || binding.deployment_id != "prod" ||
-        binding.host != "https://icp-api.io" || binding.network_kind != "public_mainnet" ||
+    if !crate::engine_scope::production_binding(binding, crate::cloud_engine()) ||
         groups.len() != 2 || !groups.iter().any(|g|g.id=="base") || !groups.iter().any(|g|g.id=="g2") {
         return Err("Exact independent PROD base and g2 required".into());
     }

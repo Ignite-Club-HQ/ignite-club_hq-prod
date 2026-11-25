@@ -13,6 +13,9 @@ if (process.env.IGNITE_LIVE_BUILD !== "1") {
 }
 
 const root = process.cwd();
+const retiredIds: string[] = process.env.IGNITE_LIVE_OPENCLOUD_ENV
+  ? JSON.parse(process.env.OPENCLOUD_BUILD_RETIRED_IDS_JSON || 'null') ?? (() => { throw new Error('OpenCloud builds require the existing-deployment ID list'); })()
+  : [];
 const publicConnectorEnv = { ...loadEnv('live', path.resolve(root, '..'), 'VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_'), ...process.env };
 const devFirebaseFields = ['WEB_API_KEY', 'PROJECT_ID', 'APP_ID', 'VAPID_KEY'];
 const devFirebaseDefines = Object.fromEntries(devFirebaseFields.map(field => [
@@ -78,6 +81,15 @@ export default defineConfig({
           // Never ship a mainnet routing approval into an engine artifact.
           // Fresh engine acceptance must supply its own verified snapshot later.
           return 'export const ROUTING_GATES_SNAPSHOT = null;';
+        }
+        // Existing-deployment comparison pins (DEV legacy name routes, push
+        // queue pins, mainnet frontend origin) are inert on an engine but must
+        // not ship: replace them with non-principal sentinels so every such
+        // comparison stays false and any parse of them fails closed.
+        if (!id.includes('/node_modules/') && id.includes('/src/')) {
+          let out = _code;
+          retiredIds.forEach((retired, i) => { if (out.includes(retired)) out = out.split(retired).join(`retired-existing-deployment-${i}`); });
+          return out === _code ? null : out;
         }
         return null;
       },

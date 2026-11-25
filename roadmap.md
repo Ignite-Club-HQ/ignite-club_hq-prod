@@ -682,3 +682,6 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] Repoint DEV backend upgrade workflows to the 18 OpenCloud canisters — blocked: the DEV governor key must be a controller on all 19 engine canisters (Paul, OpenCloud)
 - [ ] 18 Nov: combined_v3 was wrong — jfagr is the web-app publishing key, not the key "[TEST] Upgrade backend" signs with (vk34m governor), and its init args handed internal governorship to the owner. built combined_v4 (Files, sha256 91ccd704…) = v3 with owner + governor controllers on all 19 (web-app key only on frontend) and governor init args on the 16 services that take one; all other bytes identical; awaiting Paul install and controller readback.
 - [ ] 18 Nov: combined_v5 (Files) = v4 with debug name sections stripped from all programs (raw total 40.5MB→28.6MB, largest failing six ~30% smaller); all other sections/settings identical, manifest hashes updated. Awaiting Paul install.
+
+- [x] OpenCloud v2: engine resource policy, engine-scoped identity commissioning, engine name sources, ID-free frontend bundle, rebuilt identity_access + shard_router
+- [ ] OpenCloud DEV commissioning — waiting on owner signer key + independent recovery witness pins, controllers/capacities in dev.json, ChatGPT live transport

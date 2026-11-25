@@ -171,6 +171,50 @@ export function connectionCalls(config) {
   return calls;
 }
 
+/** The identity protocols commission exactly a closed `base` + `g2` pair. Canister names keep g1_/g2_ prefixes. */
+export const routerGroupId = id => (id === 'g1' ? 'base' : id);
+
+export function registerGroupCall(config, g) {
+  const domains = Object.entries(g.canisterIds).filter(([service]) => service !== 'media_blob_store')
+    .concat([['secret_workload_identity', config.shared.secret_workload_identity]])
+    .map(([domain, id]) => `record { domain = "${domain}"; canister = principal "${id}" }`).join('; ');
+  return { target: config.shared.shard_router, method: 'register_group', signer: 'internal-governor',
+    candidArgs: `(record { id = "${routerGroupId(g.id)}"; target_alias = "${config.environment}"; domains = vec { ${domains} }; accepting = false; ` +
+      `max_clubs = ${g.maxClubs ?? 'null'} : nat32; assigned_clubs = 0 : nat32; heap_budget_bytes = ${g.heapBudgetBytes ?? 'null'} : nat64; heap_bytes = 0 : nat64; ` +
+      `min_cycles = 0 : nat64; cycles = 0 : nat64; observed_at_ns = 0 : nat64; photo_store = opt principal "${g.canisterIds.media_blob_store}" }, <expected_revision> : nat64)`,
+    verify: 'read_group_registry_page', uncertainOutcome: 'stop-readback-no-blind-replay',
+    ready: Number.isInteger(g.maxClubs) && /^[1-9][0-9]*$/.test(g.heapBudgetBytes || '') };
+}
+
+/** Compile-time pins identity_access needs for the existing signed/witnessed commissioning. Never invented. */
+export function accountProtectionBuild(config) {
+  const a = config.accountProtection || {};
+  const env = { IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY: a.approverPublicKey || null,
+    IGNITE_PRODUCTION_ACCOUNT_WITNESS: a.witness || null,
+    IGNITE_PRODUCTION_ACCOUNT_WITNESS_MODULE_HASH: a.witnessModuleHash || null,
+    IGNITE_PRODUCTION_ACCOUNT_WITNESS_CONTROLLER: a.witnessController || null };
+  if (a.witness && rowsInclude(config, a.witness)) throw Error('Recovery witness must be independent of the 32 application canisters');
+  return { service: 'identity_access', compileTimeEnv: env, ready: Object.values(env).every(Boolean),
+    owner: 'Paul supplies approver public key and an independent recovery witness; not part of the 32-canister inventory' };
+}
+const rowsInclude = (config, id) => inventory(config).some(row => row.id === id);
+
+export function commissioning(config) {
+  const id = config.shared.identity_access, router = config.shared.shard_router;
+  return [
+    { step: 1, target: config.shared.migration_coordinator, action: 'constructor-only-no-migration' },
+    { step: 2, target: config.shared.placement_registry, action: 'constructor-only; set_policy/set_target after reviewed semantics' },
+    { step: 3, target: router, action: 'register_group for base and g2 (closed, min_cycles 0) using groups[].registerGroupCall' },
+    { step: 4, target: router, method: 'set_deletion_authority', candidArgs: `(principal "${id}")` },
+    { step: 5, target: id, method: 'collect_production_account_protection (governor, read-only review) -> independent owner signature', requires: 'accountProtectionBuild.ready' },
+    { step: 6, target: id, method: 'provision_production_account_inventory', argument: 'SignedApproval over the engine binding (network_kind cloud_engine, target/deployment ' + config.environment + ')', requires: 'step 5 signature + live witness' },
+    { step: 7, target: id, method: 'authorize_production_member_access', candidArgs: 'pinned Binding from step 6', effect: 'commissions the 24 ordinary member readers incl. both PII services; on engine builds these PII services also become the private-name sources' },
+    { step: 8, target: id, method: 'configure_membership_directory', arguments: 'pinned Binding, both club_domain principals, generation 1' },
+    { step: 9, action: 'set IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE=1 and IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE=1 + IGNITE_SECURE_ADULT_NAME_PII=<g1 PII> on identity_access only after steps 6-8 read back' },
+    { step: 10, target: config.shared.secret_workload_identity, method: 'register_workload', status: 'held-until-approved-worker-and-scopes' },
+  ];
+}
+
 export function frontendEnv(config) {
   const rows = inventory(config);
   const ids = Object.fromEntries(rows.filter(row => row.scope === 'shared' && row.service !== 'frontend' || row.scope === 'g1').map(row => [row.service, row.id]));
@@ -207,27 +251,19 @@ export function manifest(config, peer, forbidden, allowUnresolved = false) {
     installOrder: [...SHARED_SERVICES.filter(s => s !== 'shard_router'), 'shard_router',
       ...config.groups.flatMap(g => GROUP_BUILD_SERVICES.map(s => `${g.id}_${s}`)), 'frontend'],
     postInstallCalls: connectionCalls(config),
-    groups: config.groups.map(g => ({ groupId: g.id, targetAlias: config.environment,
+    groups: config.groups.map(g => ({ groupId: routerGroupId(g.id), canisterPrefix: g.id, targetAlias: config.environment,
       deploymentId: config.environment, photoStore: g.canisterIds.media_blob_store,
       piiAuthority: g.canisterIds.pii_access_control, maxClubs: g.maxClubs, heapBudgetBytes: g.heapBudgetBytes,
       domains: Object.entries(g.canisterIds).filter(([service]) => service !== 'media_blob_store').concat([['secret_workload_identity', config.shared.secret_workload_identity]]),
-      minCycles: '0', accepting: false, registrationExecutable: false,
-      registrationBlocker: 'Current router rejects min_cycles=0. Do not substitute fake positive engine cycles; engine-aware resource admission requires implementation and validation.',
-      primarySubnet: config.subnetId, additionalSubnetsEnabled: false })),
-    sharedCommissioning: [
-      { target: config.shared.migration_coordinator, action: 'constructor-only-no-migration' },
-      { target: config.shared.placement_registry, action: 'constructor-only; set_policy/set_target after reviewed semantics; no invented set_router' },
-      { target: config.shared.identity_access, method: 'provision_production_account_inventory', status: 'held', reason: 'Independent witness/signed lifecycle evidence required; 32 provisioned canisters do not supply it' },
-      { target: config.shared.identity_access, method: 'pin_owner_test_deletion_registry', status: 'held', argumentType: 'Binding from identity_access.did' },
-      { target: config.shared.identity_access, method: 'configure_membership_directory', status: 'held', arguments: 'Binding, vec principal of all verified receiver services, nat64 capacity' },
-      { target: config.shared.shard_router, method: 'set_deletion_authority', status: 'held', candidArgs: `(principal "${config.shared.identity_access}")` },
-      { target: config.shared.secret_workload_identity, method: 'register_workload', status: 'held-until-approved-worker-and-scopes' },
-    ],
+      minCycles: '0', accepting: false, resourcePolicy: 'engine: IGNITE_CLOUD_ENGINE=1 on shard_router; min_cycles must be 0, heap/capacity/fresh health still gate admission',
+      registerGroupCall: registerGroupCall(config, g), primarySubnet: config.subnetId, additionalSubnetsEnabled: false })),
+    accountProtectionBuild: accountProtectionBuild(config),
+    sharedCommissioning: commissioning(config),
     placementPolicy: 'g1-first; g2-closed-until-capacity-and-verified-opening; existing-assignments-immutable',
     prerequisites: ['owner-verified-exact-empty-inventory-and-controllers', 'console-proxy-allowed-subnet-and-funding',
       'engine-host-api-and-certification', 'artifacts-built-and-hashed', 'shared-identity-lifecycle-and-routing-commissioning',
       'direct-governor-call-transport', 'frontend-asset-upload-transport', 'fresh-signed-in-functional-acceptance',
-      'zero-cycle-router-resource-policy', 'fresh-group1-signed-inventory-bootstrap', 'engine-specific-club-name-authority-commissioning'],
+      'owner-account-approver-key-and-recovery-witness (rebuild identity_access with accountProtectionBuild env)'],
   };
   return { ...base, preparationSha256: sha(json(base)) };
 }

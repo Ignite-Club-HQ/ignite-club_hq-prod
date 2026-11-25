@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { ensureFrontendDeps } from '../ensure-frontend-deps.mjs';
-import { ROOT, frontendEnv, validate, mainnetIds } from './deployment.mjs';
+import { ROOT, frontendEnv, validateMappings, mainnetIds } from './deployment.mjs';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 export function inventoryFrontend(directory, forbidden = mainnetIds()) {
   const entries = [];
@@ -32,11 +32,18 @@ export function buildFrontend(workDirectory, peerConfig) {
   if (!work.startsWith(path.join(ROOT, 'deploy/opencloud/work') + path.sep)) throw Error('Isolated work directory required');
   const config = JSON.parse(readFileSync(path.join(work, 'config.json'), 'utf8'));
   if (config.environment !== 'opencloud-dev') throw Error('PROD remains inactive');
-  validate(config, peerConfig);
+  // The website needs only the isolated inventory, engine host and the DEV
+  // publishable (never private) key; signer/controller fields are not inputs.
+  validateMappings(config, peerConfig);
+  const host = new URL(config.apiHost || 'invalid:');
+  if (host.protocol !== 'https:' || ['icp-api.io', 'ic0.app', 'icp0.io'].includes(host.hostname)) throw Error('Explicit engine HTTPS API host required');
+  if (!config.supabase.publishableKey && process.env.SUPABASE_URL === config.supabase.url) config.supabase.publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+  if (!config.supabase.publishableKey || config.supabase.publishableKey.startsWith('sb_secret_')) throw Error('Matching DEV publishable key required');
   ensureFrontendDeps();
   const frontend = path.join(ROOT, 'frontend');
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(IGNITE_|VITE_|PUBLIC_CANISTER_ID)/.test(key)));
   Object.assign(env, frontendEnv(config), {
+    OPENCLOUD_BUILD_RETIRED_IDS_JSON: JSON.stringify([...mainnetIds()]),
     IGNITE_CANISTER_SOURCE_DIR: path.join(work, 'frontend-dist'),
     IGNITE_CANISTER_OUTPUT_DIR: path.join(work, 'frontend-assets'),
   });
