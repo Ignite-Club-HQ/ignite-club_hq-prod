@@ -229,7 +229,7 @@ function SupabaseEventGroupPitchPage() {
     enabled: !!group?.event?.mini_league_id,
   });
 
-  // Check Pro Football subscription for the league's club
+  // Check Ignite Football Pro subscription for the league's club
   const { data: hasProFootball, isLoading: proLoading } = useQuery({
     queryKey: ["club-pro-football", leagueSettings?.club_id],
     queryFn: async () => {
@@ -486,9 +486,9 @@ function SupabaseEventGroupPitchPage() {
   if (hasProFootball === false) {
     return (
       <div className="container max-w-4xl py-6 text-center space-y-4">
-        <h2 className="text-xl font-semibold">Pro Football Required</h2>
+        <h2 className="text-xl font-semibold">Ignite Football Pro Required</h2>
         <p className="text-muted-foreground">
-          Mini League match days require an active Pro Football subscription.
+          Mini League match days require an active Ignite Football Pro subscription.
         </p>
         <Button variant="outline" onClick={() => navigate(-1)}>
           Go Back

@@ -44,6 +44,7 @@ export interface UpgradeOfferCardProps {
   checkout: {
     isPending: boolean;
     onSubscribe: () => void;
+    subscribeLabel?: string;
   };
   promo: {
     id: string;
@@ -239,7 +240,7 @@ export function UpgradeOfferCard({
               ) : (
                 <CreditCard className="h-4 w-4 mr-2" />
               )}
-              Subscribe Now
+              {checkout.subscribeLabel ?? "Subscribe Now"}
             </Button>
             <p className="text-xs text-center text-muted-foreground">
               {pricing.checkoutSummary} USD • Cancel anytime

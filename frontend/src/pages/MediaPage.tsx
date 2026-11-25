@@ -360,7 +360,7 @@ function SupabaseMediaPage() {
   );
 
   // Quick Pro check - check if user has any Pro club/team membership
-  // Logic: Club Pro → all teams inherit Pro; Free club → check team subscription
+  // Logic: Ignite Pro → all teams inherit Pro; Free club → check team subscription
 // NOTE(ICP pro-access): ICP/Internet Identity users resolve Pro from the
 // chain via isLiveClubPro (club subscription, then personal entitlement);
 // the Supabase query below only runs for email accounts.

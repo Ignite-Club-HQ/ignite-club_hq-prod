@@ -314,7 +314,7 @@ export default function CreateGroupDialog({
     enabled: isOpen && !!(clubInfo?.clubId || teamId || miniLeagueId),
   });
 
-  // Fetch admin mini-leagues (Pro Football) for league fallback when no clubId AND no scope
+  // Fetch admin mini-leagues (Ignite Football Pro) for league fallback when no clubId AND no scope
   const { data: adminMiniLeagues = [] } = useQuery({
     queryKey: ["admin-mini-leagues-for-groups", user?.id, activeClubFilter],
     queryFn: async () => {
@@ -522,7 +522,7 @@ export default function CreateGroupDialog({
       }
 
       if (finalClubId && !clubHasPro) {
-        throw new Error("Club-wide groups require a Club Pro subscription");
+        throw new Error("Club-wide groups require an Ignite Pro subscription");
       }
 
       const { data: inserted, error } = await supabase
@@ -943,7 +943,7 @@ export default function CreateGroupDialog({
                   {!selectedTeamId && !clubHasPro && (
                     <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                       <Crown className="h-3 w-3" />
-                      Whole-club groups need Club Pro. Pick a team to create now.
+                      Whole-club groups need Ignite Pro. Pick a team to create now.
                     </p>
                   )}
                 </section>

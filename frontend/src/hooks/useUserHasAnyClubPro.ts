@@ -6,7 +6,7 @@ import { resolveAuthBackend } from "@/live/authBackendMode";
 import { useIcpEntitlements } from "@/hooks/useIcpProAccess";
 
 /**
- * Returns whether the current user has active Pro (or Pro Football) access
+ * Returns whether the current user has active Pro (or Ignite Football Pro) access
  * on AT LEAST ONE club they belong to (directly or via a team in user_roles).
  * Used to gate user-level Pro features (e.g. scheduled messages).
  *
@@ -28,7 +28,7 @@ export function useUserHasAnyClubPro() {
   const { user } = useAuth();
   const isIcp = resolveAuthBackend() === "icp";
   const icp = useIcpEntitlements({ enabled: isIcp });
-  // Club Pro on ICP lives on each club's subscription record, which the
+  // Ignite Pro on ICP lives on each club's subscription record, which the
   // personal-entitlement lookup above never sees — check the caller's clubs.
   const icpClubs = useQuery({
     queryKey: ["icp-user-has-any-club-pro", user?.id],

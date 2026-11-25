@@ -9,7 +9,7 @@ export function ClubUpgradePending({ name, onBack }: { name?: string; onBack: ()
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={onBack} aria-label="Go back"><ArrowLeft className="h-5 w-5" /></Button>
         <Crown className="h-7 w-7 text-primary" />
-        <div><h1 className="text-2xl font-bold">Club Pro Plans</h1>{name && <p className="text-muted-foreground">{name}</p>}</div>
+        <div><h1 className="text-2xl font-bold">Ignite Pro Plans</h1>{name && <p className="text-muted-foreground">{name}</p>}</div>
       </div>
       <dl className="divide-y divide-border">
         {CLUB_PLAN_ORDER.map((plan) => (

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { subscriptionPlanLabel } from "@/lib/subscriptionPlans";
 
 interface ClubSubscriptionSummary {
   is_pro?: boolean | null;
@@ -11,6 +12,7 @@ interface ClubSubscriptionSummary {
   admin_pro_override?: boolean | null;
   admin_pro_football_override?: boolean | null;
   plan?: string | null;
+  pricing_version?: string | null;
 }
 
 interface ClubAdminNavigationSectionProps {
@@ -77,10 +79,10 @@ export function ClubAdminNavigationSection({
                   <Building2 className={`h-5 w-5 ${subscription?.is_pro ? "text-yellow-500" : "text-muted-foreground"}`} />
                 </div>
                 <div className="flex-1">
-                  <span className="font-medium">Club Pro Plans</span>
+                  <span className="font-medium">Ignite Pro Plans</span>
                   {subscription?.is_pro && (
                     <p className="text-xs text-muted-foreground">
-                      {subscription.is_pro_football ? "Pro Football" : "Pro"} • {subscription.plan?.charAt(0).toUpperCase()}{subscription.plan?.slice(1)}
+                      {subscription.is_pro_football ? "Ignite Football Pro" : "Ignite Pro"} – {subscriptionPlanLabel(subscription.plan, subscription.pricing_version)}
                     </p>
                   )}
                 </div>

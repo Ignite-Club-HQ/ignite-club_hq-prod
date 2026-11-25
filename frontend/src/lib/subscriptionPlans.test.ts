@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLUB_PRICING, TEAM_PRICING, FREE_MEDIA_BYTES, CLUB_MEDIA_BYTES, TEAM_MEDIA_BYTES, clubQuote, clubProductId, effectiveTeamLimit, assertPurchaseCatalogReady, mediaAllowance } from "./subscriptionPlans";
+import { CLUB_PRICING, TEAM_PRICING, FREE_MEDIA_BYTES, CLUB_MEDIA_BYTES, TEAM_MEDIA_BYTES, clubQuote, clubProductId, teamProductId, effectiveTeamLimit, assertPurchaseCatalogReady, mediaAllowance } from "./subscriptionPlans";
 describe("Approved USD subscriptions", () => {
   it.each([
     ["small",3,45,499,60,649], ["growing",5,65,699,85,899],
@@ -28,14 +28,17 @@ describe("Approved USD subscriptions", () => {
     expect(effectiveTeamLimit({ is_trial:true, trial_ends_at:"2099-01-01", team_limit:21 })).toBe(20);
   });
   it("binds new SKUs to the purchased total instead of legacy prices", () => {
-    expect(clubProductId("pro", "standard", false,1)).toBe("ignite_v2_pro_standard_21_monthly");
+    expect(clubProductId("pro", "standard", false,1)).toBe("ignite_v2_pro_platinum_21_monthly");
+    expect(clubProductId("pro", "small", false)).toBe("ignite_v2_pro_bronze_monthly");
+    expect(clubProductId("pro_football", "starter", true)).toBe("ignite_v2_football_gold_annual");
+    expect(teamProductId("pro_football", false)).toBe("ignite_v2_football_team_monthly");
     expect(() => clubQuote("pro","small",1,false)).toThrow();
     expect(() => clubQuote("pro","standard",0.5,false)).toThrow();
   });
 });
 it("does not charge for an unconfigured new plan", () => {
-  expect(() => assertPurchaseCatalogReady("ignite_v2_pro_standard_21_monthly", [])).toThrow("not available");
-  expect(() => assertPurchaseCatalogReady("ignite_v2_pro_standard_21_monthly", ["ignite_v2_pro_standard_21_monthly"])).not.toThrow();
+  expect(() => assertPurchaseCatalogReady("ignite_v2_pro_platinum_21_monthly", [])).toThrow("not available");
+  expect(() => assertPurchaseCatalogReady("ignite_v2_pro_platinum_21_monthly", ["ignite_v2_pro_platinum_21_monthly"])).not.toThrow();
 });
 
 it("preserves active Unlimited grants without granting unlimited to expired promos", () => {
@@ -63,4 +66,17 @@ it("enforces versioned ICP team bands without inheriting legacy Unlimited", () =
   expect(effectiveTeamLimit({ is_pro:true, plan:"usd_v2_standard", team_limit:21 })).toBe(21);
   expect(effectiveTeamLimit({ is_pro:true, plan:"usd_v2_standard", team_limit:3 })).toBe(20);
   expect(effectiveTeamLimit({ is_trial:true, trial_ends_at:"2099-01-01", plan:"usd_v2_standard", team_limit:21 })).toBe(20);
+});
+
+import { CLUB_PLAN_NAMES as N, fullPlanName, subscriptionPlanLabel } from "./subscriptionPlans";
+describe("customer-facing plan names", () => {
+  it("maps current club plans to Bronze–Platinum", () => {
+    expect(N).toEqual({ small: "Bronze", growing: "Silver", starter: "Gold", standard: "Platinum" });
+    expect(fullPlanName("pro_football", "usd_v2_starter")).toBe("Ignite Football Pro – Gold");
+    expect(fullPlanName("pro", "standard", "usd_v2")).toBe("Ignite Pro – Platinum");
+  });
+  it("labels retired plans as legacy", () => {
+    expect(fullPlanName("pro", "starter")).toBe("Ignite Pro – Starter (legacy)");
+    expect(subscriptionPlanLabel("unlimited")).toBe("Unlimited (legacy)");
+  });
 });

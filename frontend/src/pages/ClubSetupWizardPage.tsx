@@ -1314,7 +1314,7 @@ function ReviewStep({
             <Crown className="h-5 w-5 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold">Try Club Pro free for 30 days</p>
+            <p className="text-sm font-semibold">Try Ignite Pro free for 30 days</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               Unlock sponsors, branding, unlimited storage and more. Cancel anytime — no charge for 30 days.
             </p>

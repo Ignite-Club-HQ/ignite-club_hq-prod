@@ -38,7 +38,7 @@ export function ClubAppAdminSection({
           <CardContent className="p-4 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <Label className="font-medium">Club Pro</Label>
+                <Label className="font-medium">Ignite Pro</Label>
                 <p className="text-xs text-muted-foreground">Enable Pro features for all teams</p>
               </div>
               <Switch
@@ -51,7 +51,7 @@ export function ClubAppAdminSection({
             {isSoccerClub && (
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className="font-medium">Club Pro Football</Label>
+                  <Label className="font-medium">Ignite Football Pro</Label>
                   <p className="text-xs text-muted-foreground">Enable pitch board for all teams (includes Pro)</p>
                 </div>
                 <Switch

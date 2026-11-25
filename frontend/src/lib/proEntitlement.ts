@@ -28,7 +28,7 @@ export function resolveClubProAccess(
   };
 }
 
-/** True when the club has any active Pro (incl. Pro Football or overrides). */
+/** True when the club has any active Pro (incl. Ignite Football Pro or overrides). */
 export function isClubSubscriptionActive(
   sub: ClubSubscriptionEntitlements | null | undefined,
   now = new Date(),

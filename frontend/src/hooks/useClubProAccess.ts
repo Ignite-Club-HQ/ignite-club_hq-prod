@@ -7,7 +7,7 @@ import { useIcpEntitlements } from "@/hooks/useIcpProAccess";
 export { resolveClubProAccess, type ClubSubscriptionEntitlements } from "@/lib/proEntitlement";
 
 /**
- * Returns whether the given club has active Pro or Pro Football access,
+ * Returns whether the given club has active Pro or Ignite Football Pro access,
  * including admin overrides. Used to gate Pro-only features client-side.
  *
  * Resilience: the query throws on Supabase errors (so react-query keeps prior

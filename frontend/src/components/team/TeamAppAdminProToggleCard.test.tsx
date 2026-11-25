@@ -28,7 +28,7 @@ describe("TeamAppAdminProToggleCard", () => {
         onProFootballOverrideChange={vi.fn()}
       />,
     );
-    expect(screen.queryByText("Free Pro Football Access")).not.toBeInTheDocument();
+    expect(screen.queryByText("Free Ignite Football Pro Access")).not.toBeInTheDocument();
   });
 
   it("shows and toggles the Pro Football override for soccer clubs", () => {
@@ -42,7 +42,7 @@ describe("TeamAppAdminProToggleCard", () => {
         onProFootballOverrideChange={onProFootballOverrideChange}
       />,
     );
-    expect(screen.getByText("Free Pro Football Access")).toBeInTheDocument();
+    expect(screen.getByText("Free Ignite Football Pro Access")).toBeInTheDocument();
     const switches = screen.getAllByRole("switch");
     fireEvent.click(switches[1]);
     expect(onProFootballOverrideChange).toHaveBeenCalledWith(true);

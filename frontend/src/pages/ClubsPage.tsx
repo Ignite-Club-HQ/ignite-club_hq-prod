@@ -604,7 +604,7 @@ function ClubCard({ club, subscription, sponsors = [], isMember = false }: {
               <h3 className="font-semibold truncate">{club.name}</h3>
               {hasProFootball && (
                 <Badge className="bg-emerald-500 text-emerald-950 text-xs shrink-0">
-                  <Crown className="h-3 w-3 mr-1" /> Pro Football
+                  <Crown className="h-3 w-3 mr-1" /> Ignite Football Pro
                 </Badge>
               )}
               {hasPro && !hasProFootball && (

@@ -60,7 +60,7 @@ export async function resolveLiveProAccess(
   return fetchLiveCallerIapPro(ctx);
 }
 
-/** Pro Football gate: team subscription → club subscription → caller IAP. */
+/** Ignite Football Pro gate: team subscription → club subscription → caller IAP. */
 export async function resolveLiveProFootballAccess(
   ctx: FeatureBackendContext,
   scope: LiveProScope,

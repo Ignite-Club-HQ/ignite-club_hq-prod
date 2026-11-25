@@ -107,7 +107,7 @@ export function ClubProOverridesCard() {
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-2">
         <div className="space-y-1.5">
-          <CardTitle className="text-base">Club Pro (blockchain)</CardTitle>
+          <CardTitle className="text-base">Ignite Pro (blockchain)</CardTitle>
           <CardDescription>
             Every club on the blockchain backend. Turning Pro on unlocks desktop access and Pro
             features for that club. Platform admins only — the canister rejects anyone else.
@@ -132,7 +132,7 @@ export function ClubProOverridesCard() {
               {busyId === c.id ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Badge variant={c.pro ? "default" : "outline"}>{c.pro ? "Pro" : "Free"}</Badge>
+                <Badge variant={c.pro ? "default" : "outline"}>{c.pro ? "Ignite Pro" : "Ignite Free"}</Badge>
               )}
               <Switch
                 checked={c.pro}

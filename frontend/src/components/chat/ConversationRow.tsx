@@ -189,8 +189,8 @@ function ConversationRowImpl({
   if ((item.type === 'club' || item.type === 'group') && item.isLocked) {
     const lockSubtitle =
       item.type === 'club'
-        ? 'Club Pro required for club-wide chat'
-        : 'Club Pro required for this group';
+        ? 'Ignite Pro required for club-wide chat'
+        : 'Ignite Pro required for this group';
     return (
       <Link to={item.link} onClick={handleOpen} onPointerDown={handleWarm}>
         <Card className="opacity-70 hover:border-primary/50 transition-colors">

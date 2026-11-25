@@ -261,7 +261,7 @@ function IcpAdminAICatchUpPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium truncate">{c.name}</span>
-                      {c.is_pro_football && <Badge variant="secondary">Pro Football</Badge>}
+                      {c.is_pro_football && <Badge variant="secondary">Ignite Football Pro</Badge>}
                     </div>
                   </div>
                   {c.ai_catch_up_enabled ? (
@@ -469,7 +469,7 @@ function SupabaseAdminAICatchUpPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium truncate">{c.name}</span>
-                      {c.is_pro_football && <Badge variant="secondary">Pro Football</Badge>}
+                      {c.is_pro_football && <Badge variant="secondary">Ignite Football Pro</Badge>}
                     </div>
                   </div>
                   {c.ai_catch_up_enabled ? (

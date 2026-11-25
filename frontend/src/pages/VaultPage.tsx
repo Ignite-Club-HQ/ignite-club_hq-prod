@@ -261,7 +261,7 @@ function SupabaseVaultPage() {
     enabled: currentView.type === "club",
   });
 
-  // Fetch mini-leagues for the current club (Pro Football only)
+  // Fetch mini-leagues for the current club (Ignite Football Pro only)
   const { data: clubMiniLeagues } = useQuery({
     queryKey: ["vault-club-mini-leagues", currentView.type === "club" ? currentView.clubId : null, isClubAdmin, user?.id, userRoles?.length],
     queryFn: async () => {
@@ -279,7 +279,7 @@ function SupabaseVaultPage() {
 
           console.log("[Vault Mini-Leagues] Fresh roles for user:", user!.id, freshRoles);
 
-          // Check if club has Pro Football access
+          // Check if club has Ignite Football Pro access
           const { data: clubSub } = await supabase
             .from("club_subscriptions")
             .select("is_pro_football, admin_pro_football_override")
@@ -293,7 +293,7 @@ function SupabaseVaultPage() {
         },
         icp: async (ctx) => {
           // Reuse the already-routed access model's roles instead of
-          // re-fetching; Pro Football resolves from the club_domain
+          // re-fetching; Ignite Football Pro resolves from the club_domain
           // subscription row (member-readable), with the caller's own
           // entitlement as a fallback while club subscriptions are unmigrated.
           const sub = await getLiveClubSubscription(ctx, clubId).catch(() => null);
@@ -305,7 +305,7 @@ function SupabaseVaultPage() {
       }, { clubId });
 
       if (!hasProFootball && !isAppAdmin) {
-        console.log("[Vault Mini-Leagues] Club doesn't have Pro Football, returning empty");
+        console.log("[Vault Mini-Leagues] Club doesn't have Ignite Football Pro, returning empty");
         return [];
       }
       

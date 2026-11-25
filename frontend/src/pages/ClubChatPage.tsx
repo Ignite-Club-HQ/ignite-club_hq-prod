@@ -1892,8 +1892,8 @@ export default function ClubChatPage() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center py-12 px-4">
             <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-lg font-medium text-foreground mb-2">Club Pro Feature</p>
-            <p className="text-muted-foreground">Club chat is available with a Club Pro subscription</p>
+            <p className="text-lg font-medium text-foreground mb-2">Ignite Pro Feature</p>
+            <p className="text-muted-foreground">Club chat is available with an Ignite Pro subscription</p>
             <p className="text-sm text-muted-foreground mt-1">
               Contact your club admin to upgrade the club to Pro for club-wide messaging
             </p>

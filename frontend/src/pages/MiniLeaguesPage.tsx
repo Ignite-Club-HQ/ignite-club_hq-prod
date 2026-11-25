@@ -66,7 +66,7 @@ export default function MiniLeaguesPage() {
   const [newLeague, setNewLeague] = useState({ name: "", description: "", team_size: "5", club_id: "" });
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Fetch clubs where user is admin AND has Pro Football access
+  // Fetch clubs where user is admin AND has Ignite Football Pro access
   const { data: adminClubs, isLoading: clubsLoading } = useQuery({
     queryKey: ["admin-pro-football-clubs", user?.id, isFeatureRoutedToIcp("membership")],
     queryFn: async () => {
@@ -103,7 +103,7 @@ export default function MiniLeaguesPage() {
       
       if (clubs.length === 0) return [];
       
-      // Check which clubs have Pro Football access
+      // Check which clubs have Ignite Football Pro access
       const { data: subscriptions, error: subError } = await supabase
         .from("club_subscriptions")
         .select("club_id, is_pro_football, admin_pro_football_override, expires_at")
@@ -111,7 +111,7 @@ export default function MiniLeaguesPage() {
       
       if (subError) throw subError;
       
-      // Filter to only Pro Football clubs
+      // Filter to only Ignite Football Pro clubs
       const proFootballClubIds = new Set(
         subscriptions?.filter(s => 
           s.admin_pro_football_override || (s.is_pro_football && (!s.expires_at || new Date(s.expires_at) > new Date()))
@@ -356,14 +356,14 @@ export default function MiniLeaguesPage() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : !canCreate && miniLeagues?.length === 0 ? (
-        // No Pro Football access
+        // No Ignite Football Pro access
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
           <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <Crown className="h-8 w-8 text-primary" />
           </div>
-          <h3 className="text-lg font-semibold mb-1">Pro Football Required</h3>
+          <h3 className="text-lg font-semibold mb-1">Ignite Football Pro Required</h3>
           <p className="text-muted-foreground text-sm max-w-xs mb-6">
-            Mini Leagues is a Pro Football feature. Contact your club administrator to upgrade.
+            Mini Leagues is an Ignite Football Pro feature. Contact your club administrator to upgrade.
           </p>
         </div>
       ) : miniLeagues?.length === 0 ? (

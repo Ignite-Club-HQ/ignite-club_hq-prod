@@ -329,10 +329,10 @@ function SupabaseUpgradeProPage() {
 
       // Validate access_level matches selected tier
       if (tier === 'pro_football' && promoData.access_level === 'pro') {
-        throw new Error("This promo code is for Pro plan only. Please select the Pro plan or use a Pro Football code.");
+        throw new Error("This promo code is for Ignite Pro only. Please select Ignite Pro or use an Ignite Football Pro code.");
       }
       if (tier === 'pro' && promoData.access_level === 'pro_football') {
-        throw new Error("This promo code is for Pro Football plan only. Please select the Pro Football plan or use a Pro code.");
+        throw new Error("This promo code is for Ignite Football Pro only. Please select Ignite Football Pro or use an Ignite Pro code.");
       }
 
       // Use promo code expiry date if set, otherwise default to 1 month/year
@@ -341,7 +341,7 @@ function SupabaseUpgradeProPage() {
       const newExpiresAt = promoData.expires_at ? parseISO(promoData.expires_at) : defaultExpiry;
 
       // Create or update subscription based on tier
-      // Pro Football includes all Pro features, so we set both flags
+      // Ignite Football Pro includes all Pro features, so we set both flags
       const updateData = tier === "pro" 
         ? { is_pro: true } 
         : { is_pro: true, is_pro_football: true };
@@ -369,7 +369,7 @@ function SupabaseUpgradeProPage() {
     onSuccess: (tier) => {
       queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
       invalidateProAccessQueries(queryClient);
-      const tierName = tier === "pro" ? "Pro" : "Pro Football";
+      const tierName = tier === "pro" ? "Ignite Pro" : "Ignite Football Pro";
       toast({ title: `${tierName} Activated!`, description: `Your team now has ${tierName} features.` });
       setPromoCode("");
       setPromoCodeFootball("");
@@ -415,7 +415,7 @@ function SupabaseUpgradeProPage() {
           .eq("team_id", teamId!);
         if (error) throw error;
       } else if (targetTier === "pro") {
-        // Downgrade from Pro Football to Pro
+        // Downgrade from Ignite Football Pro to Pro
         const { error } = await supabase
           .from("team_subscriptions")
           .update({ is_pro_football: false })
@@ -428,8 +428,8 @@ function SupabaseUpgradeProPage() {
       queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
       invalidateProAccessQueries(queryClient);
       const message = targetTier === "free" 
-        ? "Subscription cancelled. Team is now on Free plan."
-        : "Downgraded to Pro plan.";
+        ? "Subscription cancelled. Team is now on Ignite Free."
+        : "Downgraded to Ignite Pro.";
       toast({ title: "Plan Updated", description: message });
     },
     onError: () => {
@@ -639,8 +639,8 @@ function SupabaseUpgradeProPage() {
     const Icon = isPro ? Crown : Target;
     const colorClass = isPro ? "yellow" : "emerald";
     const title = isOnTrial 
-      ? (isPro ? "Pro Trial Active" : "Pro Football Trial Active")
-      : (isPro ? "Pro Active" : "Pro Football Active");
+      ? (isPro ? "Ignite Pro Trial Active" : "Ignite Football Pro Trial Active")
+      : (isPro ? "Ignite Pro Active" : "Ignite Football Pro Active");
     const description = isOnTrial
       ? `Your free trial ${isPro ? "gives this team full Pro access" : "includes the Soccer Pitch Board"}.`
       : (isPro 
@@ -720,14 +720,14 @@ function SupabaseUpgradeProPage() {
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" className="text-muted-foreground">
                     <ArrowDown className="h-4 w-4 mr-2" />
-                    Downgrade to Pro ($25/mo)
+                    Downgrade to Ignite Pro – Team ($25/mo)
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Downgrade to Pro?</AlertDialogTitle>
+                    <AlertDialogTitle>Downgrade to Ignite Pro – Team?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will remove the Soccer Pitch Board feature but keep all other Pro features. You can upgrade back to Pro Football anytime.
+                      This will remove the Soccer Pitch Board feature but keep all other Pro features. You can upgrade back to Ignite Football Pro anytime.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -737,7 +737,7 @@ function SupabaseUpgradeProPage() {
                       disabled={downgradeMutation.isPending}
                     >
                       {downgradeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                      Downgrade to Pro
+                      Downgrade to Ignite Pro – Team
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -748,12 +748,12 @@ function SupabaseUpgradeProPage() {
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
                     <ArrowDown className="h-4 w-4 mr-2" />
-                    Downgrade to Free
+                    Downgrade to Ignite Free
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Downgrade to Free Plan?</AlertDialogTitle>
+                    <AlertDialogTitle>Downgrade to Ignite Free?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This will remove all Pro features from your team including Points & Rewards, club announcements, media uploads, and vault storage. This action can be reversed by upgrading again.
                     </AlertDialogDescription>
@@ -790,9 +790,12 @@ function SupabaseUpgradeProPage() {
     return (
       <UpgradeOfferCard
         header={
-          <Badge className={`w-fit mx-auto mb-2 ${isPro ? "bg-yellow-500 text-yellow-950" : "bg-emerald-500 text-emerald-950"}`}>
-            {isPro ? "PRO" : "PRO FOOTBALL"}
-          </Badge>
+          <>
+            <Badge className={`w-fit mx-auto mb-2 ${isPro ? "bg-yellow-500 text-yellow-950" : "bg-emerald-500 text-emerald-950"}`}>
+              {isPro ? "IGNITE PRO" : "IGNITE FOOTBALL PRO"}
+            </Badge>
+            <p className="text-center font-medium">Team <span className="text-muted-foreground font-normal">• 1 team</span></p>
+          </>
         }
         appearance={{
           cardClassName: isPro ? "border-primary/30" : "border-emerald-500/30",
@@ -812,6 +815,7 @@ function SupabaseUpgradeProPage() {
         features={features}
         checkout={{
           isPending: isCheckingOut,
+          subscribeLabel: "Choose Team",
           onSubscribe: () => {
             if (showIfDesktop()) return;
             if (isNativePlatform()) {
@@ -857,14 +861,14 @@ function SupabaseUpgradeProPage() {
       </div>
 
 
-      {/* Club Pro Banner */}
+      {/* Ignite Pro Banner */}
       {(hasClubProAccess || hasClubProFootballAccess) && (
         <Card className="border-yellow-500/30 bg-yellow-500/5">
           <CardContent className="p-4 flex items-center gap-3">
             <Building2 className="h-5 w-5 text-yellow-500 shrink-0" />
             <div className="flex-1">
               <p className="font-medium text-sm">
-                This team has {hasClubProFootballAccess ? "Pro Football" : "Pro"} access via Club subscription
+                This team has {hasClubProFootballAccess ? "Ignite Football Pro" : "Ignite Pro"} access via Club subscription
               </p>
               <p className="text-xs text-muted-foreground">
                 Manage your club subscription to change plans
@@ -899,7 +903,7 @@ function SupabaseUpgradeProPage() {
               Pro {(isProActive && !isExpired) && "✓"}
             </TabsTrigger>
             <TabsTrigger value="pro_football" disabled={(isProFootballActive && !isExpired) || hasClubProFootballAccess}>
-              Pro Football {(isProFootballActive && !isExpired) && "✓"}
+              Ignite Football Pro {(isProFootballActive && !isExpired) && "✓"}
             </TabsTrigger>
           </TabsList>
 
@@ -929,9 +933,9 @@ function SupabaseUpgradeProPage() {
                 <CardContent className="p-6 text-center space-y-3">
                   <Target className="h-12 w-12 text-muted-foreground mx-auto" />
                   <div>
-                    <h2 className="text-xl font-bold text-muted-foreground">Pro Football Included via Club</h2>
+                    <h2 className="text-xl font-bold text-muted-foreground">Ignite Football Pro Included via Club</h2>
                     <p className="text-muted-foreground mt-2">
-                      This team already has Pro Football access through the club subscription.
+                      This team already has Ignite Football Pro access through the club subscription.
                     </p>
                   </div>
                 </CardContent>

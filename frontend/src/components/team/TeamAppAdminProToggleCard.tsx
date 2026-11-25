@@ -34,7 +34,7 @@ export function TeamAppAdminProToggleCard({
           <Switch checked={isProOverride} onCheckedChange={onProOverrideChange} />
         </div>
 
-        {/* Pro Football Toggle - Only for Soccer Teams */}
+        {/* Ignite Football Pro Toggle - Only for Soccer Teams */}
         {isSoccerClub && (
           <div className="flex items-center justify-between pt-2 border-t">
             <div className="flex items-center gap-3">
@@ -42,8 +42,8 @@ export function TeamAppAdminProToggleCard({
                 <Target className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="font-medium text-sm">Free Pro Football Access</p>
-                <p className="text-xs text-muted-foreground">Grant free Pro Football features</p>
+                <p className="font-medium text-sm">Free Ignite Football Pro Access</p>
+                <p className="text-xs text-muted-foreground">Grant free Ignite Football Pro features</p>
               </div>
             </div>
             <Switch checked={isProFootballOverride} onCheckedChange={onProFootballOverrideChange} />

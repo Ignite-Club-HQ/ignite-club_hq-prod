@@ -26,25 +26,25 @@ function renderSection(overrides: Partial<Parameters<typeof ClubAppAdminSection>
 }
 
 describe("ClubAppAdminSection", () => {
-  it("renders the Club Pro toggle", () => {
+  it("renders the Ignite Pro toggle", () => {
     renderSection();
-    expect(screen.getByText("Club Pro")).toBeInTheDocument();
+    expect(screen.getByText("Ignite Pro")).toBeInTheDocument();
   });
 
-  it("calls onToggleClubPro when the Club Pro switch is toggled", () => {
+  it("calls onToggleClubPro when the Ignite Pro switch is toggled", () => {
     const { onToggleClubPro } = renderSection();
     fireEvent.click(screen.getAllByRole("switch")[0]);
     expect(onToggleClubPro).toHaveBeenCalledWith(true);
   });
 
-  it("shows the Club Pro Football toggle for soccer clubs", () => {
+  it("shows the Ignite Football Pro toggle for soccer clubs", () => {
     renderSection({ isSoccerClub: true });
-    expect(screen.getByText("Club Pro Football")).toBeInTheDocument();
+    expect(screen.getByText("Ignite Football Pro")).toBeInTheDocument();
   });
 
-  it("hides the Club Pro Football toggle for non-soccer clubs", () => {
+  it("hides the Ignite Football Pro toggle for non-soccer clubs", () => {
     renderSection({ isSoccerClub: false });
-    expect(screen.queryByText("Club Pro Football")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ignite Football Pro")).not.toBeInTheDocument();
   });
 
   it("calls onToggleClubProFootball when its switch is toggled", () => {

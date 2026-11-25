@@ -551,7 +551,7 @@ function SupabaseCreateEventPage() {
     enabled: !!clubId && !!user,
   });
 
-  // Check if club has Pro Football access - use placeholderData to prevent flash
+  // Check if club has Ignite Football Pro access - use placeholderData to prevent flash
   const { data: hasProFootball, isLoading: isLoadingProFootball } = useQuery({
     queryKey: ["club-pro-football", clubId],
     queryFn: async () =>
@@ -575,7 +575,7 @@ function SupabaseCreateEventPage() {
     placeholderData: false, // Prevent undefined state causing delayed render
   });
 
-  // Fetch mini leagues for the selected club (Pro Football only)
+  // Fetch mini leagues for the selected club (Ignite Football Pro only)
   const fetchMiniLeagues = async (): Promise<{ id: string; name: string }[]> =>
     withFeatureBackend("mini_leagues", {
       supabase: async () => {
