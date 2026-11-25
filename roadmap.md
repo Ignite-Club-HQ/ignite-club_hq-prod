@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## Fresh OpenCloud PROD plan — 25 November
+- [x] Revise the implementation plan for independent fresh DEV/PROD on one engine, with no transfer or re-encryption of old PROD ICP data and no live changes.
+- [x] Paul confirmed ICP-only reset; email/Supabase customers, data and paid subscriptions stay untouched. No deletion or cutover executed.
+
 ## New-game ICP auto-sub progress — 25 November
 - [x] Reproduced old 7/15 progress surviving fresh kickoff and cancellation; repaired lifecycle reset, setup planner reuse and authorized shared snapshot adoption. Same-game edit history stays guarded; saved stats unchanged.
 - [x] Focused new-game/reset/shared-board/timer regressions pass; preview build OK. No PROD deployment.
