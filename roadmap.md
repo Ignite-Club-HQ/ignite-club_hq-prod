@@ -3,6 +3,7 @@
 ## Fresh OpenCloud PROD plan — 25 November
 - [x] Revised the plan to prefer OpenCloud Deploy from Git, retain old ICP data only through one bounded straightforward review/rehearsal, otherwise launch fresh; no live changes.
 - [x] Paul confirmed ICP-only reset; email/Supabase customers, data and paid subscriptions stay untouched. No deletion or cutover executed.
+- [x] Make the future split explicit: redeploy DEV fresh on a second engine; retain PROD canisters, proxy/key identity, routing and data on the original engine.
 
 ## New-game ICP auto-sub progress — 25 November
 - [x] Reproduced old 7/15 progress surviving fresh kickoff and cancellation; repaired lifecycle reset, setup planner reuse and authorized shared snapshot adoption. Same-game edit history stays guarded; saved stats unchanged.

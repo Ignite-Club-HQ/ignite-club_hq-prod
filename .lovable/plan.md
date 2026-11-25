@@ -6,7 +6,7 @@ Use one engine for independent **DEV and PROD**, with **OpenCloud Deploy from Gi
 
 **Confirmed: ICP only.** Email/Supabase customers, data, subscriptions and payment records stay untouched. Old ICP data retention is optional, not a release blocker. Prepare the replacement first; delete originals only after handover and exact-target confirmation.
 
-When a second engine becomes worthwhile, leave PROD on this original OpenCloud engine and redeploy DEV fresh on the second one. Keep the existing club-group architecture; place future new groups on additional engines rather than relocating encrypted clubs just to balance capacity.
+**Future split: fresh DEV on engine 2; PROD stays on engine 1, canisters/keys unchanged.** No encrypted DEV migration; new groups may use other engines.
 
 ## What exists already
 
@@ -94,9 +94,13 @@ Preserve purchases/subscriptions; review entitlement restoration separately. Dis
 
 ## Phase 6 — Operate and scale
 
-After verified handover, use a separately reviewed exact old-ICP inventory to retire/delete originals with your confirmation. Never bulk-delete by label or touch Supabase. Monitor new PROD memory, instructions, latency, balance and readable backups; preserve its proxy/key identity for future data.
+Retire old mainnet ICP targets only after handover and exact approval; no Supabase changes. Monitor resources, balance and readable backups.
 
-Increase node capacity based on measurements; add new groups on other engines, keeping traffic local. Later redeploy DEV fresh; do not move PROD or rotate keys to split environments.
+When separating environments:
+- Create engine 2's proxy and complete fresh DEV app/groups/test data; no encrypted snapshot migration.
+- Verify DEV, then repoint only `main` Git and DEV sites. Keep `prod`, PROD canisters, proxy/keys, hosting and data unchanged on engine 1.
+- Retire exact old DEV targets only; preserve engine 1/proxy and PROD permissions/settings.
+- Grow capacity from measurements; add new groups elsewhere, never relocate encrypted clubs.
 
 ## Scope of approval and next implementation batch
 
