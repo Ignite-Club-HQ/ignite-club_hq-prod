@@ -35,6 +35,12 @@ jobs:
           path: deploy/opencloud/work/dev-timer
           run-id: 45710008446
           github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: opencloud-dev-backend-source-build
+          path: deploy/opencloud/work/dev-club
+          run-id: 45716305902
+          github-token: ${{ github.token }}
       - name: Verify and commission DEV inventory
         env:
           PEM_IN: ${{ secrets.GOVERNOR_PEM }}
@@ -47,4 +53,4 @@ jobs:
           test -n "$PEM_IN"
           node scripts/normalize-dev-engine-publisher-pem.mjs > "$GOVERNOR_PEM_FILE"
           unset PEM_IN
-          node scripts/opencloud/dev-commission.mjs deploy/opencloud/work/dev-candidate deploy/opencloud/work/dev-timer "$MODE"
+          node scripts/opencloud/dev-commission.mjs deploy/opencloud/work/dev-candidate deploy/opencloud/work/dev-timer deploy/opencloud/work/dev-club "$MODE"
