@@ -26,6 +26,7 @@ import {
   readAuthChoice,
 } from "./authBackendMode";
 import { shouldBootstrapFromIcp } from "./icpBootstrap";
+import { opencloudEnvironment } from './opencloudEnvironment';
 
 export { isSignedInWithEmail };
 
@@ -67,6 +68,13 @@ function decodeOnChain(raw: string | null): unknown {
 const ON_CHAIN_WAIT_WITH_ROW_MS = 1500;
 
 export async function fetchStoredBackendRoutingConfig(): Promise<BackendRoutingConfig | null> {
+  // Standalone engine artifacts cannot import a stored mainnet routing policy.
+  // Email sign-in still uses its existing environment; no stored row is changed.
+  if (opencloudEnvironment()) {
+    const config = getBuildTimeBackendRoutingConfig();
+    if (!config) throw new Error('OpenCloud build-time routing configuration required');
+    return config;
+  }
   // Restored II sessions must not depend on a Supabase row at startup.
   // Email users retain the existing dual-provider precedence.
   if (shouldBootstrapFromIcp()) {
@@ -106,6 +114,15 @@ export async function fetchStoredBackendRoutingConfig(): Promise<BackendRoutingC
 }
 
 export async function loadBackendRoutingConfig(): Promise<void> {
+  if (opencloudEnvironment()) {
+    // No cached/mainnet/on-chain fallback in a standalone engine artifact.
+    const config = getBuildTimeBackendRoutingConfig();
+    if (!config || config.defaultBackend !== 'icp' || config.targets.length || Object.keys(config.countryTargets).length) {
+      throw new Error('Standalone OpenCloud routing configuration required');
+    }
+    applyBackendRoutingConfig(config);
+    return;
+  }
   try {
     const stored = await fetchStoredBackendRoutingConfig();
     if (stored) {

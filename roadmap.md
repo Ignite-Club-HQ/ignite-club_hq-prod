@@ -1,5 +1,13 @@
 # Roadmap — launch the live (PROD) system
 
+## Provisioned OpenCloud DEV implementation — 25 November
+- [x] Incorporated ChatGPT's 64 unique IDs as owner-supplied separate DEV/inactive-PROD configurations; no controller changes.
+- [x] Configured the separate chain-key proxy, matched its public API/subnet/funding binding and checked offline four-caller key separation; mainnet encryption retained, engine profile plaintext fallback refused.
+- [x] Prepared isolated mapping/manifest/staging/artifact tooling and standalone frontend target/origin isolation; no CI/live changes.
+- [x] Built and hashed all eighteen backend implementations; delivered exact initialization/group wiring, compatibility and acceptance instructions.
+- [x] 20 package/hosting/key checks and 51 frontend checks per backend mode passed; local key-route policy passed and preview build OK.
+- [ ] Live DEV installation/functional acceptance: requires verified owner/governor/controllers/resource inputs, direct governor and asset-upload transports, engine-aware zero-cycle router policy and fresh identity/private-name commissioning. No PROD activation, mainnet or Supabase/email changes.
+
 ## Duplicate ICP substitution alerts — 25 November
 - [x] Reproduced per-player duplicates; repaired same-time keys, shared-match relay namespace and the independent closed-board ICP producer; preserved email/Supabase delivery and sent rows.
 - [x] Eight focused files passed in each mode (65 email / 52 ICP checks); preview build OK. Checked-path inventory: docs/icp-sub-alert-duplicates-2026-11-25.md.

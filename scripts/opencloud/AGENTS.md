@@ -1,0 +1,5 @@
+- OpenCloud preparation is offline and explicitly selected; stage source copies and map existing canisters only. Why: mainnet recipes, deployments, Supabase and CI must remain unchanged.
+- Pin fresh-engine encryption only in staged PII source and reuse EngineVetKd; never transform mainnet source or security flags. Why: proxy/caller identity is part of the encryption key.
+- Manifests separate install, governor wiring, verified registration and admission; unset evidence stays blocked. Why: prepared artifacts and transport access do not prove a working deployment.
+- Treat the chain-key proxy and deployment operator as different roles; environment-specific PII caller IDs, not an invented context prefix, isolate keys. Why: the proxy itself prefixes the caller and double-prefixing changes SDK derivation.
+- Standalone frontend artifacts pin their complete inventory/host/origin and ignore stored mainnet routing/overrides, without changing normal-build precedence. Why: isolation must survive cached settings and fail closed on malformed input.

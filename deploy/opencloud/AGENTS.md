@@ -1,0 +1,3 @@
+- OpenCloud DEV/PROD templates are separate from mainnet; provisioned IDs are inputs, never auto-created. Why: preparation must not retarget existing release workflows.
+- Work directories contain generated source/build output and are never committed or published. Why: artifacts are generated from reviewed input; credentials never belong in deployment packages.
+- Reported proxy and controller bindings remain unverified until owner-authorized live readback; PROD configurations are inactive documentation only. Why: a supplied principal does not prove installed API compatibility or access.

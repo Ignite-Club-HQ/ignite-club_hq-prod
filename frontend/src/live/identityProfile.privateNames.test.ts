@@ -64,6 +64,16 @@ it('other secure-name refusals still stop the save', async () => {
   await expect(saveIcpIdentityProfile(identity, subject, { displayName: 'After' }, target)).rejects.toThrow('not configured');
   expect(mocks.set).not.toHaveBeenCalled(); expect(mocks.cache).not.toHaveBeenCalled();
 });
+it('OpenCloud never falls back to a plaintext profile when encrypted saving is unreleased', async () => {
+  mocks.rehearsal.mockReturnValue(false); mocks.authority.mockRejectedValue(Error('Secure personal-name saving is not released'));
+  await expect(saveIcpIdentityProfile(identity, subject, { displayName: 'After' }, { ...target, networkKind: 'cloud_engine' })).rejects.toThrow('Encrypted name saving is not ready');
+  expect(mocks.set).not.toHaveBeenCalled(); expect(mocks.prepare).not.toHaveBeenCalled(); expect(mocks.cache).not.toHaveBeenCalled();
+});
+it('OpenCloud encryption or decryption failure never publishes an unencrypted name', async () => {
+  mocks.rehearsal.mockReturnValue(false); mocks.prepare.mockRejectedValue(Error('Decryption failed'));
+  await expect(saveIcpIdentityProfile(identity, subject, { displayName: 'After' }, { ...target, networkKind: 'cloud_engine' })).rejects.toThrow('Decryption failed');
+  expect(mocks.set).not.toHaveBeenCalled(); expect(mocks.cache).not.toHaveBeenCalled();
+});
 it('operator authority drift refuses before any encrypted or identity write', async () => {
   mocks.rehearsal.mockReturnValue(false); mocks.authority.mockResolvedValue(Principal.fromText('ryjl3-tyaaa-aaaaa-aaaba-cai'));
   await expect(saveIcpIdentityProfile(identity, subject, { displayName: 'After' }, target)).rejects.toThrow('authority');

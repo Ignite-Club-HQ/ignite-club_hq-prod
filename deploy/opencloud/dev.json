@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "environment": "opencloud-dev",
+  "applicationKey": "ignite_dev_v2",
+  "branch": "main",
+  "networkKind": "cloud_engine",
+  "engineName": "ignite-prod",
+  "engineId": "engine-789969b4-e8ba-41b0-90a2-47b4da69909f",
+  "subnetId": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+  "apiHost": "https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net",
+  "operatorId": "s53an-5aaaa-aaac5-aaaaa-cai",
+  "consoleProxyId": "ynolw-eyaaa-aaaaj-qspkq-cai",
+  "controllers": {
+    "owner": null,
+    "governor": null,
+    "frontendPublisher": null
+  },
+  "supabase": {
+    "url": "https://ecsdwrarzfexssxtrymj.supabase.co",
+    "publishableKey": null
+  },
+  "shared": {
+    "frontend": "h2knm-vaaaa-aaac5-aadqa-cai",
+    "identity_access": "h5lly-yyaaa-aaac5-aadqq-cai",
+    "placement_registry": "huiae-oqaaa-aaac5-aadra-cai",
+    "shard_router": "htjgq-diaaa-aaac5-aadrq-cai",
+    "migration_coordinator": "hgox5-caaaa-aaac5-aadsa-cai",
+    "secret_workload_identity": "hbprj-pyaaa-aaac5-aadsq-cai"
+  },
+  "groups": [
+    {
+      "id": "g1",
+      "maxClubs": null,
+      "heapBudgetBytes": null,
+      "canisterIds": {
+        "club_domain": "him2v-zqaaa-aaac5-aadta-cai",
+        "club_points_domain": "hpn4b-uiaaa-aaac5-aadtq-cai",
+        "competition_domain": "gcdyp-3aaaa-aaac5-aadua-cai",
+        "events_domain": "gfc63-wyaaa-aaac5-aaduq-cai",
+        "insights_domain": "gmbvh-aqaaa-aaac5-aadva-cai",
+        "media_blob_store": "glatt-niaaa-aaac5-aadvq-cai",
+        "media_metadata": "g6hc6-maaaa-aaac5-aadwa-cai",
+        "messaging_domain": "gzgek-byaaa-aaac5-aadwq-cai",
+        "mini_league_domain": "gqfpw-xqaaa-aaac5-aadxa-cai",
+        "notification_queue": "gxejc-2iaaa-aaac5-aadxq-cai",
+        "pii_access_control": "ekzhk-jaaaa-aaac5-aadya-cai",
+        "timer_jobs": "enyb6-eyaaa-aaac5-aadyq-cai",
+        "vault_domain": "ee3kc-sqaaa-aaac5-aadza-cai"
+      }
+    },
+    {
+      "id": "g2",
+      "maxClubs": null,
+      "heapBudgetBytes": null,
+      "canisterIds": {
+        "club_domain": "ed2mw-7iaaa-aaac5-aadzq-cai",
+        "club_points_domain": "ew553-6aaaa-aaac5-aad2a-cai",
+        "competition_domain": "er43p-tyaaa-aaac5-aad2q-cai",
+        "events_domain": "ey7qt-fqaaa-aaac5-aad3a-cai",
+        "insights_domain": "e76wh-iiaaa-aaac5-aad3q-cai",
+        "media_blob_store": "fsqsj-haaaa-aaac5-aad4a-cai",
+        "media_metadata": "fvru5-kyaaa-aaac5-aad4q-cai",
+        "messaging_domain": "f4s7b-4qaaa-aaac5-aad5a-cai",
+        "mini_league_domain": "f3tzv-riaaa-aaac5-aad5q-cai",
+        "notification_queue": "fouiy-qaaaa-aaac5-aad6a-cai",
+        "pii_access_control": "fjvom-5yaaa-aaac5-aad6q-cai",
+        "timer_jobs": "fawfq-lqaaa-aaac5-aad7a-cai",
+        "vault_domain": "fhxde-giaaa-aaac5-aad7q-cai"
+      }
+    }
+  ],
+  "engineSettings": {
+    "devWasmMemoryLimit": null,
+    "prodComputeAllocation": null
+  },
+  "push": {
+    "workerPrincipal": null,
+    "senderUrl": null,
+    "enabled": false
+  },
+  "routingSnapshot": null,
+  "provenance": {
+    "source": "owner-supplied-chatgpt-export",
+    "independentlyVerified": false,
+    "reported": "Successful create_canister and setApp responses; independent readback pending. No code installed.",
+    "controllerNote": "API documentation indicates caller is also a controller. Exact caller principal and effective controller lists have not been independently verified. Do not replace controllers based on this export.",
+    "proxyReview": "Anonymous public queries matched the supplied subnet; public proxy interface matches EngineVetKd types. Engine ID is reported by proxy funding metadata. Real engine-caller derivation and authorization remain unverified."
+  }
+}

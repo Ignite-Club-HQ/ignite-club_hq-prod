@@ -79,6 +79,21 @@ afterEach(() => {
 });
 
 describe("loadBackendRoutingConfig precedence", () => {
+  it('isolated engine boot never reads stored mainnet settings or email services', async () => {
+    vi.stubEnv('IGNITE_LIVE_OPENCLOUD_ENV', 'opencloud-dev');
+    vi.stubEnv('IGNITE_LIVE_BACKEND_ROUTING_JSON', JSON.stringify({ ...icpConfig, targets: [], countryTargets: {} }));
+    queryResult = { data: { value: supabaseConfig }, error: null };
+    await loadBackendRoutingConfig();
+    expect(getBackendRoutingConfig().defaultBackend).toBe('icp');
+    expect(maybeSingle).not.toHaveBeenCalled(); expect(onChainRead).not.toHaveBeenCalled();
+  });
+  it('invalid isolated engine boot rejects rather than using a cached mainnet policy', async () => {
+    vi.stubEnv('IGNITE_LIVE_OPENCLOUD_ENV', 'opencloud-dev');
+    vi.stubEnv('IGNITE_LIVE_BACKEND_ROUTING_JSON', '{not-json');
+    localStorage.setItem(BACKEND_ROUTING_CACHE_KEY, JSON.stringify(icpConfig));
+    await expect(loadBackendRoutingConfig()).rejects.toThrow();
+    expect(maybeSingle).not.toHaveBeenCalled(); expect(onChainRead).not.toHaveBeenCalled();
+  });
   it("a mounted ICP provider never consults Supabase when its session hint is absent", async () => {
     markMountedAuthProvider("icp");
     onChainRead.mockResolvedValue(null);

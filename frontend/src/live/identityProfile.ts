@@ -49,6 +49,9 @@ export async function saveIcpIdentityProfile(
   }
   const { client } = await connectLiveIdentityAccessClientWithIdentity(target, identity);
   try {
+    if (target.networkKind === 'cloud_engine' && privateProfileSearchRehearsalEnabled()) {
+      throw Error('Encrypted name saving must be verified before this server can be used.');
+    }
     let nameToSave = input.displayName;
     let privateNameMaintained = false;
     const sessionActive = capturePrivateProfileSession();
@@ -70,6 +73,10 @@ export async function saveIcpIdentityProfile(
       try {
         authorityText = (await client.readSecureNameAuthority()).toText();
       } catch (error) {
+        if (target.networkKind === 'cloud_engine') {
+          console.warn('[profile] Engine secure-name authority unavailable', error);
+          throw Error('Encrypted name saving is not ready on these servers. Please try again after setup is complete.');
+        }
         if (!(error instanceof Error && error.message === 'Secure personal-name saving is not released')) throw error;
       }
       active();

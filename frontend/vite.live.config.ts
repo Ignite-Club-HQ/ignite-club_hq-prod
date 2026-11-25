@@ -68,6 +68,20 @@ export default defineConfig({
     ],
   },
   plugins: [
+    ...(process.env.IGNITE_LIVE_OPENCLOUD_ENV ? [{
+      name: 'ignite-isolated-opencloud-defaults',
+      transform(_code: string, id: string) {
+        if (id.endsWith('/live/generated/deployedCanisterIds.ts')) {
+          return 'export const DEPLOYED_MAINNET_CANISTER_IDS = Object.freeze({});';
+        }
+        if (id.endsWith('/live/generated/routingGates.ts')) {
+          // Never ship a mainnet routing approval into an engine artifact.
+          // Fresh engine acceptance must supply its own verified snapshot later.
+          return 'export const ROUTING_GATES_SNAPSHOT = null;';
+        }
+        return null;
+      },
+    }] : []),
     {
       name: "ignite-test-assistant-discovery",
       // configureServer is DEV-only; production build assets are unchanged.

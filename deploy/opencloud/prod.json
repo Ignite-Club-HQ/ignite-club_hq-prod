@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "environment": "opencloud-prod",
+  "applicationKey": "ignite_prod_v2",
+  "branch": "prod",
+  "networkKind": "cloud_engine",
+  "engineName": "ignite-prod",
+  "engineId": "engine-789969b4-e8ba-41b0-90a2-47b4da69909f",
+  "subnetId": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+  "apiHost": "https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net",
+  "operatorId": "s53an-5aaaa-aaac5-aaaaa-cai",
+  "consoleProxyId": "ynolw-eyaaa-aaaaj-qspkq-cai",
+  "controllers": {
+    "owner": null,
+    "governor": null,
+    "frontendPublisher": null
+  },
+  "supabase": {
+    "url": "https://yabcfiuntwqjwvschnji.supabase.co",
+    "publishableKey": null
+  },
+  "shared": {
+    "frontend": "f7fgd-eiaaa-aaac5-aaeaa-cai",
+    "identity_access": "fyeax-jqaaa-aaac5-aaeaq-cai",
+    "placement_registry": "frhll-7yaaa-aaac5-aaeba-cai",
+    "shard_router": "fwgn7-saaaa-aaac5-aaebq-cai",
+    "migration_coordinator": "fdb4s-tiaaa-aaac5-aaeca-cai",
+    "secret_workload_identity": "fea2g-6qaaa-aaac5-aaecq-cai"
+  },
+  "groups": [
+    {
+      "id": "g1",
+      "maxClubs": null,
+      "heapBudgetBytes": null,
+      "canisterIds": {
+        "club_domain": "fndr2-iyaaa-aaac5-aaeda-cai",
+        "club_points_domain": "fkcxo-faaaa-aaac5-aaedq-cai",
+        "competition_domain": "ehmta-kiaaa-aaac5-aaeea-cai",
+        "events_domain": "eanvu-hqaaa-aaac5-aaeeq-cai",
+        "insights_domain": "ejo6i-ryaaa-aaac5-aaefa-cai",
+        "media_blob_store": "eopy4-4aaaa-aaac5-aaefq-cai",
+        "media_metadata": "e3ijr-5iaaa-aaac5-aaega-cai",
+        "messaging_domain": "e4jpf-qqaaa-aaac5-aaegq-cai",
+        "mini_league_domain": "evkez-gyaaa-aaac5-aaeha-cai",
+        "notification_queue": "eslcn-laaaa-aaac5-aaehq-cai",
+        "pii_access_control": "gpwmf-yiaaa-aaac5-aaeia-cai",
+        "timer_jobs": "gixkr-vqaaa-aaac5-aaeiq-cai",
+        "vault_domain": "gbubn-dyaaa-aaac5-aaeja-cai"
+      }
+    },
+    {
+      "id": "g2",
+      "maxClubs": null,
+      "heapBudgetBytes": null,
+      "canisterIds": {
+        "club_domain": "ggvhz-oaaaa-aaac5-aaejq-cai",
+        "club_points_domain": "gtswu-piaaa-aaac5-aaeka-cai",
+        "competition_domain": "gutqa-cqaaa-aaac5-aaekq-cai",
+        "events_domain": "g5q34-uyaaa-aaac5-aaela-cai",
+        "insights_domain": "g2r5i-zaaaa-aaac5-aaelq-cai",
+        "media_blob_store": "hx7zg-wiaaa-aaac5-aaema-cai",
+        "media_metadata": "hq67s-3qaaa-aaac5-aaemq-cai",
+        "messaging_domain": "hz5uo-nyaaa-aaac5-aaena-cai",
+        "mini_league_domain": "h64s2-aaaaa-aaac5-aaenq-cai",
+        "notification_queue": "hl3dx-biaaa-aaac5-aaeoa-cai",
+        "pii_access_control": "hm2fd-mqaaa-aaac5-aaeoq-cai",
+        "timer_jobs": "hfzo7-2yaaa-aaac5-aaepa-cai",
+        "vault_domain": "hcyil-xaaaa-aaac5-aaepq-cai"
+      }
+    }
+  ],
+  "engineSettings": {
+    "devWasmMemoryLimit": null,
+    "prodComputeAllocation": null
+  },
+  "push": {
+    "workerPrincipal": null,
+    "senderUrl": null,
+    "enabled": false
+  },
+  "routingSnapshot": null,
+  "provenance": {
+    "source": "owner-supplied-chatgpt-export",
+    "independentlyVerified": false,
+    "reported": "Successful create_canister and setApp responses; independent readback pending. No code installed.",
+    "controllerNote": "API documentation indicates caller is also a controller. Exact caller principal and effective controller lists have not been independently verified. Do not replace controllers based on this export.",
+    "proxyReview": "Anonymous public queries matched the supplied subnet; public proxy interface matches EngineVetKd types. Engine ID is reported by proxy funding metadata. Real engine-caller derivation and authorization remain unverified."
+  }
+}
