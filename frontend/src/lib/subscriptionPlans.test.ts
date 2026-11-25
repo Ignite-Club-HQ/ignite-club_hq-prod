@@ -64,3 +64,16 @@ it("enforces versioned ICP team bands without inheriting legacy Unlimited", () =
   expect(effectiveTeamLimit({ is_pro:true, plan:"usd_v2_standard", team_limit:3 })).toBe(20);
   expect(effectiveTeamLimit({ is_trial:true, trial_ends_at:"2099-01-01", plan:"usd_v2_standard", team_limit:21 })).toBe(20);
 });
+
+import { CLUB_PLAN_NAMES as N, fullPlanName, subscriptionPlanLabel } from "./subscriptionPlans";
+describe("customer-facing plan names", () => {
+  it("maps current club plans to Bronze–Platinum", () => {
+    expect(N).toEqual({ small: "Bronze", growing: "Silver", starter: "Gold", standard: "Platinum" });
+    expect(fullPlanName("pro_football", "usd_v2_starter")).toBe("Ignite Football Pro – Gold");
+    expect(fullPlanName("pro", "standard", "usd_v2")).toBe("Ignite Pro – Platinum");
+  });
+  it("labels retired plans as legacy", () => {
+    expect(fullPlanName("pro", "starter")).toBe("Ignite Pro – Starter (legacy)");
+    expect(subscriptionPlanLabel("unlimited")).toBe("Unlimited (legacy)");
+  });
+});

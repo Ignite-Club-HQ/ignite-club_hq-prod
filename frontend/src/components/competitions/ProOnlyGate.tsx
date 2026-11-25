@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
  */
 export const PRO_ONLY_TITLE = "Pro only";
 export const PRO_ONLY_DESCRIPTION =
-  "Managing competitions needs Club Pro on the organising club. Upgrade the club to use this.";
+  "Managing competitions needs Ignite Pro on the organising club. Upgrade the club to use this.";
 
 const ACTION_SELECTOR =
   'button, input, select, textarea, [role="button"], [role="switch"], [role="checkbox"], [role="combobox"], [role="menuitem"], [role="tab"]';

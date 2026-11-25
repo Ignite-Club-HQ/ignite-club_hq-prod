@@ -1626,7 +1626,7 @@ export default function ClubDetailPage() {
   };
 
   const handleToggleClubProFootball = (checked: boolean) => {
-    // Pro Football includes Pro - enabling Pro Football automatically enables Pro
+    // Ignite Football Pro includes Pro - enabling Ignite Football Pro automatically enables Pro
     toggleClubProMutation.mutate({
       isPro: checked ? true : (clubSubscription?.is_pro || false),
       isProFootball: checked,
@@ -1775,7 +1775,7 @@ export default function ClubDetailPage() {
                 <h2 className="text-xl font-bold">{club.name}</h2>
                 {(clubSubscription?.is_pro_football || clubSubscription?.admin_pro_football_override) && (
                   <Badge className="bg-emerald-500 text-emerald-950 text-xs">
-                    <Crown className="h-3 w-3 mr-1" /> Pro Football
+                    <Crown className="h-3 w-3 mr-1" /> Ignite Football Pro
                   </Badge>
                 )}
                 {(clubSubscription?.is_pro || clubSubscription?.admin_pro_override) && 
@@ -2050,7 +2050,7 @@ export default function ClubDetailPage() {
         );
       })()}
 
-      {/* Mini Leagues Section - Pro Football clubs only, hidden for class-mode clubs */}
+      {/* Mini Leagues Section - Ignite Football Pro clubs only, hidden for class-mode clubs */}
       {isSoccerClub && hasProFootball && !club?.class_mode_enabled && (isAdmin || miniLeagues.length > 0) && (
         <ClubMiniLeaguesSection clubId={id!} isAdmin={isAdmin} miniLeagues={miniLeagues} />
       )}

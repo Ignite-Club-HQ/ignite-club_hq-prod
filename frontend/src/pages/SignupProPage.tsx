@@ -370,12 +370,12 @@ function SupabaseSignupProPage() {
     // Validate access_level matches selected plan
     if (selectedPlan === 'pro_football' && promoData.access_level === 'pro') {
       setIsActivating(false);
-      toast({ title: "Plan Mismatch", description: "This promo code is for Pro plan only. Please select the Pro plan or use a Pro Football code.", variant: "destructive" });
+      toast({ title: "Plan Mismatch", description: "This promo code is for Ignite Pro only. Please select Ignite Pro or use an Ignite Football Pro code.", variant: "destructive" });
       return;
     }
     if (selectedPlan === 'pro' && promoData.access_level === 'pro_football') {
       setIsActivating(false);
-      toast({ title: "Plan Mismatch", description: "This promo code is for Pro Football plan only. Please select the Pro Football plan or use a Pro code.", variant: "destructive" });
+      toast({ title: "Plan Mismatch", description: "This promo code is for Ignite Football Pro only. Please select Ignite Football Pro or use an Ignite Pro code.", variant: "destructive" });
       return;
     }
 
@@ -384,7 +384,7 @@ function SupabaseSignupProPage() {
     const defaultExpiry = isAnnual ? addYears(now, 1) : addMonths(now, 1);
     const newExpiresAt = promoData.expires_at ? parseISO(promoData.expires_at) : defaultExpiry;
 
-    // Only allow Pro Football for soccer/football sports
+    // Only allow Ignite Football Pro for soccer/football sports
     const isSoccerSportCheck = (sport: string | null | undefined): boolean => {
       if (!sport) return false;
       const lowerSport = sport.toLowerCase();
@@ -421,7 +421,7 @@ function SupabaseSignupProPage() {
 
     setIsActivating(false);
     
-    const tierName = effectivePlan === "pro" ? "Pro" : "Pro Football";
+    const tierName = effectivePlan === "pro" ? "Ignite Pro" : "Ignite Football Pro";
     toast({ title: `Welcome to ${tierName}!`, description: `Your team is now activated with ${tierName} features.` });
     
     navigate(`/teams/${createdTeamId}`);
@@ -468,7 +468,7 @@ function SupabaseSignupProPage() {
           <p className="text-muted-foreground">Select the best plan for your team</p>
         </div>
 
-        {/* Plan Toggle - Only show Pro Football option for soccer/football sports */}
+        {/* Plan Toggle - Only show Ignite Football Pro option for soccer/football sports */}
         {showFootballOption ? (
           <Tabs value={selectedPlan} onValueChange={(v) => setSelectedPlan(v as PlanType)} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
@@ -478,7 +478,7 @@ function SupabaseSignupProPage() {
               </TabsTrigger>
               <TabsTrigger value="pro_football" className="gap-2">
                 <Target className="h-4 w-4" />
-                Pro Football
+                Ignite Football Pro
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -507,7 +507,7 @@ function SupabaseSignupProPage() {
         <Card className={effectivePlan === "pro" ? "border-primary/30" : "border-emerald-500/30"}>
           <CardHeader className="text-center pb-2">
             <Badge className={effectivePlan === "pro" ? "w-fit mx-auto bg-yellow-500 text-yellow-950" : "w-fit mx-auto bg-emerald-500 text-emerald-950"}>
-              {effectivePlan === "pro" ? "PRO" : "PRO FOOTBALL"}
+              {effectivePlan === "pro" ? "IGNITE PRO" : "IGNITE FOOTBALL PRO"}
             </Badge>
             <CardTitle className="text-3xl mt-2">
               ${price}{" "}
@@ -751,7 +751,7 @@ function SupabaseSignupProPage() {
     const effectivePlan = !showFootballOption && selectedPlan === "pro_football" ? "pro" : selectedPlan;
     const pricing = effectivePlan === "pro" ? PRICING.pro : PRICING.proFootball;
     const price = isAnnual ? pricing.annual : pricing.monthly;
-    const tierName = effectivePlan === "pro" ? "Pro" : "Pro Football";
+    const tierName = effectivePlan === "pro" ? "Ignite Pro" : "Ignite Football Pro";
 
     // On native platforms, skip promo code step per App Store Guideline 3.1.1
     if (isNativePlatform()) {

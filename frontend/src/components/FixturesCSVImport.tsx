@@ -459,11 +459,11 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         
         // Check if this is a Dribl export
         if (isDriblFormat(headers)) {
-          // Dribl imports are only available for Pro Football clubs
+          // Dribl imports are only available for Ignite Football Pro clubs
           if (!isProFootball) {
             setErrors([{ 
               row: 0, 
-              message: "Dribl imports require a Pro Football subscription. Please use the standard CSV format or upgrade to Pro Football." 
+              message: "Dribl imports require an Ignite Football Pro subscription. Please use the standard CSV format or upgrade to Ignite Football Pro." 
             }]);
             setFile(selectedFile);
             return;

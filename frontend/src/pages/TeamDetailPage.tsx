@@ -506,7 +506,7 @@ export default function TeamDetailPage() {
   };
 
   /**
-   * Persists an App Admin Pro/Pro Football access override change. The two
+   * Persists an App Admin Pro/Ignite Football Pro access override change. The two
    * fields cascade — see `computeAppAdminOverride` for the exact rules.
    */
   const saveAppAdminOverride = async (change: TeamAppAdminOverrideChange) => {
@@ -551,7 +551,7 @@ export default function TeamDetailPage() {
       toast({
         title: "admin_pro_override" in change
           ? change.admin_pro_override ? "Free Pro access granted" : "Free Pro access removed"
-          : change.admin_pro_football_override ? "Free Pro Football access granted" : "Free Pro Football access removed",
+          : change.admin_pro_football_override ? "Free Ignite Football Pro access granted" : "Free Ignite Football Pro access removed",
       });
       return;
     }
@@ -575,7 +575,7 @@ export default function TeamDetailPage() {
     toast({
       title: "admin_pro_override" in change
         ? change.admin_pro_override ? "Free Pro access granted" : "Free Pro access removed"
-        : change.admin_pro_football_override ? "Free Pro Football access granted" : "Free Pro Football access removed",
+        : change.admin_pro_football_override ? "Free Ignite Football Pro access granted" : "Free Ignite Football Pro access removed",
     });
   };
 

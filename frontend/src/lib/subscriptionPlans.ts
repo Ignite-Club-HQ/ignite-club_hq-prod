@@ -3,8 +3,28 @@ export type ClubPlan = "small" | "growing" | "starter" | "standard";
 export type PaidTier = "pro" | "pro_football";
 export const CLUB_PLAN_ORDER: readonly ClubPlan[] = ["small", "growing", "starter", "standard"];
 export const CLUB_PLAN_NAMES: Record<ClubPlan, string> = {
-  small: "Small Club", growing: "Growing Club", starter: "Established Club", standard: "Large Club",
+  small: "Bronze", growing: "Silver", starter: "Gold", standard: "Platinum",
 };
+export const PRODUCT_NAMES: Record<PaidTier, string> = { pro: "Ignite Pro", pro_football: "Ignite Football Pro" };
+export const FREE_PLAN_NAME = "Ignite Free";
+export const TEAM_PLAN_NAME = "Team";
+/** Retired club plans keep their IDs; only the customer-facing names changed. */
+const LEGACY_PLAN_NAMES: Record<string, string> = { starter: "Starter (legacy)", standard: "Standard (legacy)", unlimited: "Unlimited (legacy)" };
+/** Plan tier label (e.g. "Gold" or "Starter (legacy)") from a stored plan value. */
+export function subscriptionPlanLabel(plan?: string | null, pricingVersion?: string | null): string {
+  if (!plan) return "";
+  const v2 = plan.startsWith("usd_v2_") ? plan.slice(7) : pricingVersion === "usd_v2" ? plan : null;
+  if (v2 && v2 in CLUB_PLAN_NAMES) return CLUB_PLAN_NAMES[v2 as ClubPlan];
+  if (plan in LEGACY_PLAN_NAMES) return LEGACY_PLAN_NAMES[plan];
+  if (plan === "small" || plan === "growing") return CLUB_PLAN_NAMES[plan];
+  if (plan === "team_pro" || plan.startsWith("team_")) return TEAM_PLAN_NAME;
+  return plan.charAt(0).toUpperCase() + plan.slice(1);
+}
+/** Full name such as "Ignite Football Pro – Gold". */
+export function fullPlanName(tier: PaidTier, plan?: string | null, pricingVersion?: string | null): string {
+  const label = subscriptionPlanLabel(plan, pricingVersion);
+  return label ? `${PRODUCT_NAMES[tier]} – ${label}` : PRODUCT_NAMES[tier];
+}
 export const CLUB_PRICING = {
   pro: {
     small: { monthly: 45, annual: 499, teamLimit: 3 },
@@ -31,7 +51,7 @@ export function recommendedClubPlan(count: number): ClubPlan {
 }
 export function clubQuote(tier: PaidTier, plan: ClubPlan, extraTeams: number, annual: boolean) {
   if (!Number.isSafeInteger(extraTeams) || extraTeams < 0 || extraTeams > 99_980 || (extraTeams > 0 && plan !== "standard")) {
-    throw new Error("Additional teams require the Large Club plan.");
+    throw new Error("Additional teams require the Platinum plan.");
   }
   const pricing = tier === "pro" ? CLUB_PRICING.pro : CLUB_PRICING.proFootball;
   const extraPrice = tier === "pro" ? (annual ? 120 : 10) : (annual ? 180 : 15);

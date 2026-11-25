@@ -108,7 +108,7 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id && !!league?.club_id,
   });
 
-  // Check Pro Football subscription for the league's club
+  // Check Ignite Football Pro subscription for the league's club
   const { data: hasProFootball, isLoading: proLoading } = useQuery({
     queryKey: ["club-pro-football", league?.club_id],
     queryFn: async () => {
@@ -431,16 +431,16 @@ export default function MiniLeagueDetailPage() {
         <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto">
           <Trophy className="h-8 w-8 text-muted-foreground" />
         </div>
-        <h2 className="text-xl font-semibold">Pro Football Required</h2>
+        <h2 className="text-xl font-semibold">Ignite Football Pro Required</h2>
         <p className="text-muted-foreground max-w-md mx-auto">
-          Mini Leagues require an active Pro Football subscription. Upgrade to access match days, player management, and more.
+          Mini Leagues require an active Ignite Football Pro subscription. Upgrade to access match days, player management, and more.
         </p>
         <div className="flex gap-2 justify-center">
           <Button variant="outline" onClick={() => navigate(-1)}>
             Go Back
           </Button>
           <Button onClick={() => navigate(`/upgrade?teamId=${league.club_id}`)}>
-            Upgrade to Pro Football
+            Upgrade to Ignite Football Pro
           </Button>
         </div>
       </div>

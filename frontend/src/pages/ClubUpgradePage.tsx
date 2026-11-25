@@ -440,10 +440,10 @@ export default function ClubUpgradePage() {
 
       // Validate access_level matches selected tier
       if (tier === 'pro_football' && promoData.access_level === 'pro') {
-        throw new Error("This promo code is for Pro plan only. Please select the Pro plan or use a Pro Football code.");
+        throw new Error("This promo code is for Ignite Pro only. Please select Ignite Pro or use an Ignite Football Pro code.");
       }
       if (tier === 'pro' && promoData.access_level === 'pro_football') {
-        throw new Error("This promo code is for Pro Football plan only. Please select the Pro Football plan or use a Pro code.");
+        throw new Error("This promo code is for Ignite Football Pro only. Please select Ignite Football Pro or use an Ignite Pro code.");
       }
 
       // Use promo code expiry date if set, otherwise default to 1 month/year
@@ -490,9 +490,9 @@ export default function ClubUpgradePage() {
       queryClient.invalidateQueries({ queryKey: ["club", clubId] });
       queryClient.invalidateQueries({ queryKey: ["upgradable-clubs"] });
       queryClient.invalidateQueries({ queryKey: ["upgradable-teams"] });
-      const tierName = tier === "pro" ? "Pro" : "Pro Football";
+      const tierName = tier === "pro" ? "Ignite Pro" : "Ignite Football Pro";
       const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
-      toast({ title: `Club ${tierName} ${planName} Activated!`, description: `All teams now have ${tierName} features.` });
+      toast({ title: `${tierName} – ${planName} Activated!`, description: `All teams now have ${tierName} features.` });
       setPromoCode("");
       setPromoCodeFootball("");
     },
@@ -562,7 +562,7 @@ export default function ClubUpgradePage() {
           .update({ is_pro: false })
           .eq("id", clubId!);
       } else if (targetTier === "pro") {
-        // Downgrade from Pro Football to Pro
+        // Downgrade from Ignite Football Pro to Pro
         const { error } = await supabase
           .from("club_subscriptions")
           .update({ is_pro_football: false })
@@ -581,8 +581,8 @@ export default function ClubUpgradePage() {
         result === "free_scheduled"
           ? "Subscription cancelled. Pro features remain active until your paid period ends."
           : result === "free"
-            ? "Club subscription cancelled. All teams are now on Free plan."
-            : "Downgraded to Club Pro plan.";
+            ? "Club subscription cancelled. All teams are now on Ignite Free."
+            : "Downgraded to Ignite Pro.";
       toast({ title: "Plan Updated", description: message });
     },
     onError: () => {
@@ -774,7 +774,7 @@ export default function ClubUpgradePage() {
   if (!isClubAdmin) {
     return (
       <UpgradeAccessDeniedState
-        title="Club Pro Plans"
+        title="Ignite Pro Plans"
         description="Only club administrators can purchase club subscriptions."
         onBack={() => navigate(-1)}
       />
@@ -913,13 +913,13 @@ export default function ClubUpgradePage() {
     const isPro = tier === "pro";
     const Icon = isPro ? Crown : Target;
     const title = isOnTrial 
-      ? (isPro ? "Club Pro Trial Active" : "Club Pro Football Trial Active")
-      : (isPro ? "Club Pro Active" : "Club Pro Football Active");
+      ? (isPro ? "Ignite Pro Trial Active" : "Ignite Football Pro Trial Active")
+      : (isPro ? "Ignite Pro Active" : "Ignite Football Pro Active");
     const description = isOnTrial
-      ? `Your free trial ${isPro ? "gives all teams full Pro access" : "includes Pro Football features for all teams"}.`
+      ? `Your free trial ${isPro ? "gives all teams full Pro access" : "includes Ignite Football Pro features for all teams"}.`
       : (isPro 
         ? "All teams have full access to Pro features."
-        : "All teams have access to Pro Football features including Pitch Board.");
+        : "All teams have access to Ignite Football Pro features including Pitch Board.");
 
     return (
       <Card className={isPro ? "border-yellow-500/50 bg-yellow-500/10" : "border-emerald-500/50 bg-emerald-500/10"}>
@@ -1042,12 +1042,12 @@ export default function ClubUpgradePage() {
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" className="text-muted-foreground">
                     <ArrowDown className="h-4 w-4 mr-2" />
-                    Downgrade to Club Pro
+                    Downgrade to Ignite Pro
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Downgrade to Club Pro?</AlertDialogTitle>
+                    <AlertDialogTitle>Downgrade to Ignite Pro?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This will remove Pitch Board access from all teams but keep all other Pro features.
                     </AlertDialogDescription>
@@ -1059,7 +1059,7 @@ export default function ClubUpgradePage() {
                       disabled={downgradeMutation.isPending}
                     >
                       {downgradeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                      Downgrade to Pro
+                      Downgrade to Ignite Pro
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -1123,7 +1123,7 @@ export default function ClubUpgradePage() {
             <div className="flex items-center justify-center gap-2 mb-2">
               <Building2 className="h-5 w-5 text-muted-foreground" />
               <Badge className={isPro ? "bg-yellow-500 text-yellow-950" : "bg-emerald-500 text-emerald-950"}>
-                CLUB {isPro ? "PRO" : "PRO FOOTBALL"}
+                {isPro ? "IGNITE PRO" : "IGNITE FOOTBALL PRO"}
               </Badge>
             </div>
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mb-4">
@@ -1158,6 +1158,7 @@ export default function ClubUpgradePage() {
         features={features}
         checkout={{
           isPending: isCheckingOut,
+          subscribeLabel: `Choose ${CLUB_PLAN_NAMES[plan]}`,
           onSubscribe: () => {
             if (showIfDesktop()) return;
             if (isNativePlatform()) {
@@ -1196,7 +1197,7 @@ export default function ClubUpgradePage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">Club Pro Plans</h1>
+          <h1 className="text-2xl font-bold">Ignite Pro Plans</h1>
           <p className="text-sm text-muted-foreground">{club.name}</p>
         </div>
         <Building2 className="h-8 w-8 text-primary" />
@@ -1228,7 +1229,7 @@ export default function ClubUpgradePage() {
                 <Crown className="h-5 w-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-base">Try Club Pro free for 30 days</h3>
+                <h3 className="font-semibold text-base">Try Ignite Pro free for 30 days</h3>
                 <p className="text-sm text-muted-foreground mt-0.5">
                   Unlock sponsors, branding, 3 GB shared media storage, scheduled messages and more. No charge for 30 days — cancel anytime before the trial ends and you won't be billed.
                 </p>
@@ -1261,7 +1262,7 @@ export default function ClubUpgradePage() {
       <Card className="bg-muted/50">
         <CardContent className="p-4">
           <p className="text-sm text-muted-foreground">
-            <strong>Club Pro</strong> gives all teams in your club Pro access with one subscription. 
+            <strong>Ignite Pro</strong> gives all teams in your club Pro access with one subscription. 
             Great value for clubs with multiple teams!
           </p>
         </CardContent>
@@ -1337,10 +1338,10 @@ export default function ClubUpgradePage() {
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="pro" disabled={isProActive && !isProFootballActive && !isExpired}>
-              Club Pro {isProActive && !isProFootballActive && !isExpired && "✓"}
+              Ignite Pro {isProActive && !isProFootballActive && !isExpired && "✓"}
             </TabsTrigger>
             <TabsTrigger value="pro_football" disabled={isProFootballActive && !isExpired}>
-              Club Pro Football {isProFootballActive && !isExpired && "✓"}
+              Ignite Football Pro {isProFootballActive && !isExpired && "✓"}
             </TabsTrigger>
           </TabsList>
 

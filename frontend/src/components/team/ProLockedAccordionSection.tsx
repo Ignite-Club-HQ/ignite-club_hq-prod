@@ -14,9 +14,9 @@ interface ProLockedAccordionSectionProps {
   title: string;
   /** Whether the entitlement check (subscription/loading state) is still resolving. */
   isLoading: boolean;
-  /** Whether the section's Pro/Pro Football entitlement is satisfied. */
+  /** Whether the section's Pro/Ignite Football Pro entitlement is satisfied. */
   isUnlocked: boolean;
-  /** Badge label shown next to the title while locked, e.g. "Pro" or "Pro Football". */
+  /** Badge label shown next to the title while locked, e.g. "Pro" or "Ignite Football Pro". */
   lockBadgeLabel?: string;
   /** Message shown in place of the content while locked. */
   upgradeMessage?: string;
@@ -25,7 +25,7 @@ interface ProLockedAccordionSectionProps {
 }
 
 /**
- * Shared shell for the Pro/Pro Football-gated accordion sections (Fee
+ * Shared shell for the Pro/Ignite Football Pro-gated accordion sections (Fee
  * Payments, Team Sponsor, Team Rewards, Pitch Settings): a trigger with an
  * icon, title, and lock badge, and content that shows a loading spinner, the
  * unlocked feature, or an upgrade message depending on entitlement state.

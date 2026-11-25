@@ -1,8 +1,8 @@
 /**
- * Computes the cascading Pro / Pro Football admin-override pair for a single
- * toggle change. Turning the Pro override off also clears the Pro Football
- * override (a team can't have free Pro Football without free Pro); turning
- * the Pro Football override on implies Pro is on too. Pure and side-effect
+ * Computes the cascading Pro / Ignite Football Pro admin-override pair for a single
+ * toggle change. Turning the Pro override off also clears the Ignite Football Pro
+ * override (a team can't have free Ignite Football Pro without free Pro); turning
+ * the Ignite Football Pro override on implies Pro is on too. Pure and side-effect
  * free — the caller owns the actual Supabase upsert.
  */
 export interface TeamAppAdminOverrideSource {

@@ -709,7 +709,7 @@ export default function EventDetailPage() {
     enabled: !!user && !!event,
   });
 
-  // Check if team has Pro Football subscription (for pitch board) or club has Pro Football
+  // Check if team has Ignite Football Pro subscription (for pitch board) or club has Ignite Football Pro
   const { data: hasProFootball, isLoading: isLoadingTeamPro } = useQuery({
     queryKey: ["team-pro-football-status", event?.team_id, event?.club_id],
     queryFn: async () => {
@@ -841,7 +841,7 @@ export default function EventDetailPage() {
   });
   const isPitchBoardAccessLoading = isLoadingTeamPro || isDirectSubsManagerLoading || isDutiesLoading;
 
-  // Check if user can access pitch board (coach/admin/Subs Manager) - requires Pro Football for soccer.
+  // Check if user can access pitch board (coach/admin/Subs Manager) - requires Ignite Football Pro for soccer.
   // Netball + basketball game boards archived — football-only build.
   const canAccessSoccerBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
   const canAccessNetballBoard = false;

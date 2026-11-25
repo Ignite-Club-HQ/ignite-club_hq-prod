@@ -765,7 +765,7 @@ export default function ProfilePage() {
               <CollapsibleContent className="space-y-2 mt-2">
                 {upgradableClubs.map((club: any) => {
                    const sub = club.subscription;
-                   const currentPlan = sub?.is_pro_football ? "Pro Football" : sub?.is_pro ? "Pro" : "Free";
+                   const currentPlan = sub?.is_pro_football ? "Ignite Football Pro" : sub?.is_pro ? "Ignite Pro" : "Ignite Free";
                    const isOnClubTrial = sub?.is_trial && sub?.trial_ends_at && !isPast(parseISO(sub.trial_ends_at));
                    const sport = club.sport?.toLowerCase() || "";
                    const isSoccer = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
@@ -782,16 +782,16 @@ export default function ProfilePage() {
                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
                          </div>
                          <div className="flex items-center gap-2 flex-wrap">
-                           <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
+                           <Badge variant={currentPlan === "Ignite Free" ? "outline" : "default"} className={currentPlan === "Ignite Free" ? "text-muted-foreground" : ""}>
                              {currentPlan}
                            </Badge>
                            {isOnClubTrial && (
                              <Badge variant="outline" className="text-amber-600 border-amber-500">Free Trial</Badge>
                            )}
-                           {currentPlan === "Free" && !isOnClubTrial && (
+                           {currentPlan === "Ignite Free" && !isOnClubTrial && (
                              <>
                                <Badge variant="outline" className="text-primary border-primary">Pro $50/mo</Badge>
-                               {isSoccer && <Badge variant="outline" className="text-primary border-primary">Pro Football $75/mo</Badge>}
+                               {isSoccer && <Badge variant="outline" className="text-primary border-primary">Ignite Football Pro $75/mo</Badge>}
                              </>
                            )}
                          </div>
@@ -827,13 +827,13 @@ export default function ProfilePage() {
                    const effectiveIsProFootball = teamIsProFootball || clubHasProFootball;
                    const effectiveIsPro = teamIsPro || clubHasPro || clubHasProFootball;
                    
-                   let currentPlan = "Free";
+                   let currentPlan = "Ignite Free";
                    let planSource = "";
                    if (effectiveIsProFootball) {
-                     currentPlan = "Pro Football";
+                     currentPlan = "Ignite Football Pro";
                      planSource = (clubHasProFootball && !teamIsProFootball) ? " (via Club)" : "";
                    } else if (effectiveIsPro) {
-                     currentPlan = "Pro";
+                     currentPlan = "Ignite Pro";
                      planSource = ((clubHasPro || clubHasProFootball) && !teamIsPro) ? " (via Club)" : "";
                    }
                   
@@ -854,16 +854,16 @@ export default function ProfilePage() {
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                           <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
+                           <Badge variant={currentPlan === "Ignite Free" ? "outline" : "default"} className={currentPlan === "Ignite Free" ? "text-muted-foreground" : ""}>
                              {currentPlan}{planSource}
                            </Badge>
                            {teamIsOnTrial && (
                              <Badge variant="outline" className="text-amber-600 border-amber-500">Free Trial</Badge>
                            )}
-                           {!hasClubAccess && currentPlan === "Free" && !teamIsOnTrial && (
+                           {!hasClubAccess && currentPlan === "Ignite Free" && !teamIsOnTrial && (
                              <>
                                <Badge variant="outline" className="text-primary border-primary">Pro $25/mo</Badge>
-                               {isSoccerTeam && <Badge variant="outline" className="text-primary border-primary">Pro Football $40/mo</Badge>}
+                               {isSoccerTeam && <Badge variant="outline" className="text-primary border-primary">Ignite Football Pro $40/mo</Badge>}
                              </>
                            )}
                           {hasClubAccess && (

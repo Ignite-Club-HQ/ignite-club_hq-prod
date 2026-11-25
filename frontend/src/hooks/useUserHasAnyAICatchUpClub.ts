@@ -56,7 +56,7 @@ async function hasAnyLiveAICatchUpClub(scopedClubId?: string | null): Promise<bo
 }
 
 /**
- * Returns whether the current user belongs to at least one Pro (or Pro Football)
+ * Returns whether the current user belongs to at least one Pro (or Ignite Football Pro)
  * club that has AI Chat Recap enabled at the club level. Used to gate the
  * user-level AI Chat Recap toggle in Settings.
  */

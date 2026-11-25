@@ -402,7 +402,7 @@ function SupabaseManagePromoCodesPage() {
             </ToggleGroup>
             <p className="text-xs text-muted-foreground">
               {promoType === "subscription" 
-                ? "Code grants Pro/Pro Football subscription access" 
+                ? "Code grants Pro/Ignite Football Pro subscription access" 
                 : "Code grants additional vault storage"}
             </p>
           </div>
@@ -449,13 +449,13 @@ function SupabaseManagePromoCodesPage() {
                   </ToggleGroupItem>
                   <ToggleGroupItem value="pro_football" className="gap-2">
                     <Zap className="h-4 w-4" />
-                    Pro Football
+                    Ignite Football Pro
                   </ToggleGroupItem>
                 </ToggleGroup>
                 <p className="text-xs text-muted-foreground">
                   {accessLevel === "pro" 
                     ? "Standard Pro features (unlimited teams, storage, etc.)" 
-                    : "Pro Football features (includes pitch board, player stats, etc.)"}
+                    : "Ignite Football Pro features (includes pitch board, player stats, etc.)"}
                 </p>
               </div>
             </>
@@ -593,7 +593,7 @@ function SupabaseManagePromoCodesPage() {
                               {promo.access_level === "pro_football" ? (
                                 <>
                                   <Zap className="h-3 w-3" />
-                                  Pro Football
+                                  Ignite Football Pro
                                 </>
                               ) : (
                                 <>

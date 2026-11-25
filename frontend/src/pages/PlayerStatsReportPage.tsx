@@ -23,7 +23,7 @@ import { listLiveEvents } from "@/live/features/events";
 import { resolveLiveProFootballAccess } from "@/live/features/proAccess";
 
 // Player-stats reporting is backed canister-side by events_domain's
-// get_player_stats_report; team/game listing and the Pro Football gate
+// get_player_stats_report; team/game listing and the Ignite Football Pro gate
 // below dispatch through withFeatureBackend instead of disabling ICP
 // sessions outright.
 import PlayerStatsReportView from "@/components/reports/PlayerStatsReportView";
@@ -203,7 +203,7 @@ function SupabasePlayerStatsReportPage() {
     return readReportEvents(selectedTeamId);
   }
 
-  // Check if user has Pro Football access via team or club subscription
+  // Check if user has Ignite Football Pro access via team or club subscription
   const { data: hasProFootball, isLoading: proFootballLoading } = useQuery({
     queryKey: ["pro-football-access", user?.id, activeClubFilter, teams?.map((t) => t.id).join(",")],
     queryFn: () => withFeatureBackend("events", {
@@ -294,7 +294,7 @@ function SupabasePlayerStatsReportPage() {
     );
   }
 
-  // Check for Pro Football subscription
+  // Check for Ignite Football Pro subscription
   if (!hasProFootball) {
     return (
       <div className="py-6 space-y-4">
@@ -305,9 +305,9 @@ function SupabasePlayerStatsReportPage() {
           <CardContent className="py-8 text-center space-y-4">
             <Lock className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
             <div className="space-y-2">
-              <h2 className="text-lg font-semibold">Pro Football Feature</h2>
+              <h2 className="text-lg font-semibold">Ignite Football Pro Feature</h2>
               <p className="text-sm text-muted-foreground">
-                Player Stats Reports are available with a Pro Football subscription.
+                Player Stats Reports are available with an Ignite Football Pro subscription.
               </p>
             </div>
             <Button onClick={() => navigate("/profile")} variant="outline">

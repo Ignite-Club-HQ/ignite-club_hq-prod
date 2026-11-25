@@ -13,7 +13,7 @@ import { getCachedIcpEntitlements, type IcpEntitlementSummary } from "@/live/ide
  * SIMPLIFICATION: the identity_access canister has no club→product mapping
  * (unlike Supabase's per-club `club_subscriptions` rows), so this treats
  * "has any active entitlement" as Pro and "any entitlement whose product id
- * contains `_pf_`" (the Pro Football SKU family, see IAP_PRODUCT_IDS) as Pro
+ * contains `_pf_`" (the Ignite Football Pro SKU family, see IAP_PRODUCT_IDS) as Pro
  * Football, rather than resolving per-club. Revisit once ICP club-scoped
  * products exist.
  */

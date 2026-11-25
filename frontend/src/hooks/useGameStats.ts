@@ -290,7 +290,7 @@ export function useGameStats() {
         },
       }, { eventId: eventId });
 
-      // Send email notification to team admins/coaches (Pro Football only).
+      // Send email notification to team admins/coaches (Ignite Football Pro only).
       // Game-stats email stays Supabase-only (allowed exception) — skipped
       // under ICP since there is no Supabase session to authorize the RPC.
       if (!isIcp) {

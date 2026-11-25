@@ -624,7 +624,7 @@ export default function HomePage() {
       }
       return withFeatureBackend("home", {
         // Memberships + Next Up events only — see fetchLiveHomeFeed. Team
-        // subscriptions (Pro Football) and the recently-used pitch-board list
+        // subscriptions (Ignite Football Pro) and the recently-used pitch-board list
         // below have their own per-query ICP/Supabase branches; rewards route
         // through the "points" feature's existing canister wrapper
         // (fetchAvailableHomeRewardsForBackend -> listLiveClubRewards), and
@@ -1469,12 +1469,12 @@ export default function HomePage() {
     placeholderData: (prev) => prev,
   });
 
-  // Fetch user's soccer teams with Pro Football subscription where user is direct team member (coach/team_admin)
+  // Fetch user's soccer teams with Ignite Football Pro subscription where user is direct team member (coach/team_admin)
   // Club admins who are not explicit team members get read-only access (handled separately)
   const { data: mySoccerTeams } = useQuery({
     queryKey: ["my-soccer-teams-pro", user?.id],
     queryFn: async () => {
-      // ICP: roles, teams, club sports and Pro Football grants all resolve
+      // ICP: roles, teams, club sports and Ignite Football Pro grants all resolve
       // from the canisters (Supabase has no rows for II accounts).
       if (isFeatureRoutedToIcp("membership")) {
         return withFeatureBackend("membership", {
@@ -1560,7 +1560,7 @@ export default function HomePage() {
 
       if (!soccerTeams.length) return [];
 
-      // Check which teams have Pro Football subscription (team-level)
+      // Check which teams have Ignite Football Pro subscription (team-level)
       const { data: teamSubscriptions } = await supabase
         .from("team_subscriptions")
         .select("team_id, is_pro_football")
@@ -1569,7 +1569,7 @@ export default function HomePage() {
 
       const proFootballTeamIds = new Set(teamSubscriptions?.map(s => s.team_id) || []);
 
-      // Check which clubs have Pro Football subscription (club-level)
+      // Check which clubs have Ignite Football Pro subscription (club-level)
       const clubIds = [...new Set(soccerTeams.map(t => t.club_id).filter(Boolean))] as string[];
       if (clubIds.length > 0) {
         const { data: clubSubscriptions } = await supabase
@@ -1580,7 +1580,7 @@ export default function HomePage() {
         
         const proFootballClubIds = new Set(clubSubscriptions?.map(s => s.club_id) || []);
         
-        // Add teams from Pro Football clubs
+        // Add teams from Ignite Football Pro clubs
         soccerTeams.forEach(t => {
           if (t.club_id && proFootballClubIds.has(t.club_id)) {
             proFootballTeamIds.add(t.id);
@@ -1588,7 +1588,7 @@ export default function HomePage() {
         });
       }
 
-      // Coaches and team admins require Pro Football subscription for pitch board access
+      // Coaches and team admins require Ignite Football Pro subscription for pitch board access
       return soccerTeams.filter(t => proFootballTeamIds.has(t.id));
     },
     enabled: !!user && !!userMemberships && (userMemberships?.teamIds?.length ?? 0) > 0,
@@ -1600,7 +1600,7 @@ export default function HomePage() {
   const { data: readOnlySoccerTeams } = useQuery({
     queryKey: ["read-only-soccer-teams", user?.id],
     queryFn: async () => {
-      // ICP: roles, teams, club sports and Pro Football grants all resolve
+      // ICP: roles, teams, club sports and Ignite Football Pro grants all resolve
       // from the canisters (Supabase has no rows for II accounts).
       if (isFeatureRoutedToIcp("membership")) {
         return withFeatureBackend("membership", {
@@ -1723,7 +1723,7 @@ export default function HomePage() {
 
       if (!soccerTeams.length) return [];
 
-      // Check which teams have Pro Football subscription (team-level)
+      // Check which teams have Ignite Football Pro subscription (team-level)
       const { data: teamSubscriptions } = await supabase
         .from("team_subscriptions")
         .select("team_id, is_pro_football")
@@ -1732,7 +1732,7 @@ export default function HomePage() {
 
       const proFootballTeamIds = new Set(teamSubscriptions?.map(s => s.team_id) || []);
 
-      // Check which clubs have Pro Football subscription (club-level)
+      // Check which clubs have Ignite Football Pro subscription (club-level)
       const clubIds = [...new Set(soccerTeams.map(t => t.club_id).filter(Boolean))];
       if (clubIds.length > 0) {
         const { data: clubSubscriptions } = await supabase
@@ -1743,7 +1743,7 @@ export default function HomePage() {
         
         const proFootballClubIds = new Set(clubSubscriptions?.map(s => s.club_id) || []);
         
-        // Add teams from Pro Football clubs
+        // Add teams from Ignite Football Pro clubs
         soccerTeams.forEach(t => {
           if (t.club_id && proFootballClubIds.has(t.club_id)) {
             proFootballTeamIds.add(t.id);
@@ -1751,7 +1751,7 @@ export default function HomePage() {
         });
       }
 
-      // Return only teams with Pro Football
+      // Return only teams with Ignite Football Pro
       return soccerTeams.filter(t => proFootballTeamIds.has(t.id));
     },
     enabled: !!user && !!userMemberships && ((userMemberships?.teamIds?.length ?? 0) > 0 || (userMemberships?.clubIds?.length ?? 0) > 0),
@@ -1837,12 +1837,12 @@ export default function HomePage() {
     isAppAdmin: !!isAppAdmin,
     notifyProRequired: () =>
       toast({
-        title: "Pro Football Required",
-        description: "Pitch Board requires a Pro Football subscription.",
+        title: "Ignite Football Pro Required",
+        description: "Pitch Board requires an Ignite Football Pro subscription.",
         variant: "destructive",
       }),
     hasProFootballAccess: async (teamId) => {
-      // ICP: team/club Pro Football grants on club_domain + caller's IAP.
+      // ICP: team/club Ignite Football Pro grants on club_domain + caller's IAP.
       if (isFeatureRoutedToIcp("membership")) {
         return withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },

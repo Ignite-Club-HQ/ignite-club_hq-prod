@@ -53,8 +53,8 @@ function SupabaseAdminPage() {
   });
   const isTeamAdminOrCoach = teamAdminCoachTeamIds.length > 0;
 
-  // Player Stats Reports is Pro Football only — only show when at least one
-  // of the user's team-admin/coach teams belongs to a club with active Pro Football.
+  // Player Stats Reports is Ignite Football Pro only — only show when at least one
+  // of the user's team-admin/coach teams belongs to a club with active Ignite Football Pro.
   const { data: hasProFootballForAnyTeam = false } = useQuery({
     queryKey: ["has-pro-football-for-team-admin-teams", user?.id, teamAdminCoachTeamIds],
     enabled: !!user && teamAdminCoachTeamIds.length > 0,
@@ -152,7 +152,7 @@ function SupabaseAdminPage() {
         </div>
       </div>
 
-      {/* Team Admin Tools — Pro Football only */}
+      {/* Team Admin Tools — Ignite Football Pro only */}
       {isTeamAdminOrCoach && hasProFootballForAnyTeam && (
         <Card>
           <CardHeader>

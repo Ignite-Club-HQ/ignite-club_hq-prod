@@ -201,7 +201,7 @@ export function TeamDetailAccordionSections({
       )}
 
       {isAdmin && isSoccerClub && (
-        <ProLockedAccordionSection value="pitch-settings" icon={LayoutGrid} title="Pitch Settings" isLoading={isSubscriptionLoading} isUnlocked={hasProFootball || isAppAdmin} lockBadgeLabel="Pro Football" upgradeMessage="Upgrade to Pro Football to access this feature.">
+        <ProLockedAccordionSection value="pitch-settings" icon={LayoutGrid} title="Pitch Settings" isLoading={isSubscriptionLoading} isUnlocked={hasProFootball || isAppAdmin} lockBadgeLabel="Ignite Football Pro" upgradeMessage="Upgrade to Ignite Football Pro to access this feature.">
           <div className="pt-2 space-y-4">
             <DefaultPitchSettings
               teamSize={teamSubscription?.team_size || 7}

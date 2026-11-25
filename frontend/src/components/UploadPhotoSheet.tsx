@@ -355,7 +355,7 @@ export function UploadPhotoSheet({
     enabled: !!user && !!selectedClubId && userRoles !== undefined,
   });
 
-  // Fetch mini-leagues for selected club (Pro Football only)
+  // Fetch mini-leagues for selected club (Ignite Football Pro only)
   const { data: userMiniLeagues } = useQuery({
     queryKey: ["user-mini-leagues-upload-sheet", user?.id, selectedClubId, isAppAdmin, JSON.stringify(userRoles)],
     queryFn: async () => {
@@ -371,7 +371,7 @@ export function UploadPhotoSheet({
       const isLeagueAdmin = userRoles?.some(r => r.role === "league_admin" && r.club_id === selectedClubId);
       const isCoach = userRoles?.some(r => r.role === "coach" && r.club_id === selectedClubId);
       
-      // Check if club has Pro Football access
+      // Check if club has Ignite Football Pro access
       const { data: clubSub } = await supabase
         .from("club_subscriptions")
         .select("is_pro_football, admin_pro_football_override")

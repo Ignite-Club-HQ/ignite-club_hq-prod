@@ -25,7 +25,7 @@ interface TeamAdminAccordionSectionProps {
 /**
  * The "Admin" accordion section: team admin/captain management, PlayHQ
  * linking, and quick links to roles/attendance/player-stats (the latter two
- * gated on Pro/Pro Football). TeamDetailPage retains all query ownership;
+ * gated on Pro/Ignite Football Pro). TeamDetailPage retains all query ownership;
  * this component is purely presentational.
  */
 export function TeamAdminAccordionSection({
@@ -76,7 +76,7 @@ export function TeamAdminAccordionSection({
             to={`/reports/player-stats?teamId=${teamId}`}
             lockedTo={`/teams/${teamId}/upgrade`}
             unlocked={hasProFootball}
-            lockedBadgeLabel="Pro Football"
+            lockedBadgeLabel="Ignite Football Pro"
             icon={FileText}
             iconClassName="text-emerald-500"
             iconBgClassName="bg-emerald-500/10"
@@ -97,7 +97,7 @@ interface TeamAppAdminAccordionSectionProps {
 }
 
 /**
- * The "App Admin" accordion section: free Pro / Pro Football access
+ * The "App Admin" accordion section: free Pro / Ignite Football Pro access
  * override toggles, visible only to app admins. The upsert calls stay in
  * TeamDetailPage and are passed in as callbacks.
  */
