@@ -1,0 +1,28 @@
+name: PROD Internet Identity HTTP check
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/prod-ii-http-check.yml'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect public authentication endpoints
+        shell: bash
+        run: |
+          set -u
+          for host in https://igniteclubhq.app https://f7fgd-eiaaa-aaac5-aaeaa-cai.icp.net; do
+            for path in / .well-known/ii-alternative-origins .well-known/ii-auth-callbacks .well-known/ii-derivation-origin; do
+              if [ "$path" = / ]; then url="$host/"; else url="$host/$path"; fi
+              echo "::group::$url"
+              curl --silent --show-error --max-time 20 -H 'Origin: https://id.ai' -D /tmp/ii-headers -o /tmp/ii-body "$url" && {
+                grep -Ei '^(HTTP/|content-type:|access-control-|location:|cross-origin-|cache-control:|vary:)' /tmp/ii-headers || true
+                if [ "$path" != / ]; then head -c 8192 /tmp/ii-body; echo; fi
+              }
+              echo "::endgroup::"
+            done
+          done
