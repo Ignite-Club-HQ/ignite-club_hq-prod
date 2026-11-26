@@ -78,7 +78,7 @@ persistent actor class Main(governorInit : Principal) = this {
   // ICP MCP Layer 3: behavioral guide for AI agents (see
   // docs.internetcomputer.org/guides/frontends/service-discoverability).
   public query func getApiDoc() : async Text {
-    "# events_domain — club/team events, RSVPs, attendance, fixtures\n\n" #
+    "# events_domain — club/team events, RSVPs, attendance, fixtures\n\nService documentation covers event scheduling and attendance.\n\n" #
     "## Authentication\n" #
     "All methods require a signed (non-anonymous) principal. The caller's principal is resolved to an app account; event visibility is limited to the event's governor, its creator, and members of the owning club. You can only ever see events for clubs the signed-in user belongs to.\n\n" #
     "## Key reads (queries)\n" #
