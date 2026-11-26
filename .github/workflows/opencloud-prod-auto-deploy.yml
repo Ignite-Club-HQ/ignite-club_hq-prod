@@ -2,7 +2,7 @@ name: "[PROD] OpenCloud automatic backend deployment"
 on:
   push:
     branches: [prod]
-    paths: ['backend/**', 'Cargo.toml', 'Cargo.lock', 'mops.toml', 'mops.lock', 'scripts/opencloud/deployment.mjs']
+    paths: ['backend/**', 'Cargo.toml', 'Cargo.lock', 'mops.toml', 'mops.lock', 'scripts/opencloud/**', '.github/workflows/opencloud-prod-auto-deploy.yml', '.github/workflows/opencloud-prod-source-build.yml']
 permissions:
   contents: read
 concurrency:
