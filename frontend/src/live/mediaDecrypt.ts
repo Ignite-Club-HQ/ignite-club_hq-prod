@@ -193,7 +193,23 @@ async function resolveUncachedIcpBlobObjectUrl(url: string): Promise<string | nu
   // Overlap the club key (normally already warm) with the download.
   if (earlyClubId) prewarmClubMediaKey({ identity, target }, earlyClubId);
   // Always fetch via the routable raw subdomain, whatever form was stored.
-  const response = await fetch(blobAssetUrl(match.canisterId, match.path));
+  // Keep persisted blob references canonical for existing chat/vault contracts.
+  // Engine deployments serve encrypted bytes through the icp.net gateway.
+  const { opencloudEnvironment, assertOpenCloudGroupCanister } = await import("./opencloudEnvironment");
+  const engine = opencloudEnvironment();
+  if (engine) {
+    // Only the pinned engine store may be fetched; never fall back to mainnet.
+    const approved = ["base", "g2"].some(group => {
+      try { assertOpenCloudGroupCanister(group, "media_blob_store", match.canisterId); return true; }
+      catch { return false; }
+    });
+    if (!approved) throw new Error("Photo store is outside the pinned OpenCloud inventory");
+  }
+  const canonicalUrl = blobAssetUrl(match.canisterId, match.path);
+  const fetchUrl = engine
+    ? canonicalUrl.replace(`https://${match.canisterId}.raw.icp0.io/`, `https://${match.canisterId}.raw.icp.net/`)
+    : canonicalUrl;
+  const response = await fetch(fetchUrl);
   if (!response.ok) {
     throw new Error(`Blob store fetch failed (${response.status})`);
   }
