@@ -65,6 +65,7 @@ export function previewEnv(config = load('deploy/opencloud/dev.json'), fallbackA
   if (!activation(config).lovableRouting) return null;
   const env = frontendEnv(config);
   env.IGNITE_LIVE_SUPABASE_ANON_KEY ||= fallbackAnonKey;
+  env.OPENCLOUD_BUILD_RETIRED_IDS_JSON ||= JSON.stringify([...mainnetIds()]);
   if (!env.IGNITE_LIVE_SUPABASE_ANON_KEY) throw Error('DEV public database key required');
   return env;
 }
