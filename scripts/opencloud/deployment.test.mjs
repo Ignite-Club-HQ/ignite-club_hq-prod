@@ -136,3 +136,13 @@ test('PROD artifacts cannot be staged or deployed by the DEV preparer', () => {
   assert.throws(() => prepare(source('prod'), source('dev'), '/tmp/prod'), /PROD is template-only/);
   assert.equal(template('opencloud-prod').push.enabled, false);
 });
+test('DEV cannot share governor and publisher; PROD can with a distinct owner', () => {
+  const d = ready(); d.controllers.frontendPublisher = d.controllers.governor;
+  assert.throws(() => validate(d), /Distinct owner/);
+  const c = source('prod'); c.supabase.publishableKey = 'sb_publishable_OFFLINE_TEST_ONLY';
+  c.engineSettings.prodComputeAllocation = 1;
+  c.groups.forEach(g => { g.maxClubs = 10; g.heapBudgetBytes = '1073741824'; });
+  assert.equal(validate(c, source('dev')).length, 32);
+  c.controllers.owner = c.controllers.governor;
+  assert.throws(() => validate(c), /Distinct owner/);
+});
