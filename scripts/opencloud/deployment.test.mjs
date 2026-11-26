@@ -146,3 +146,16 @@ test('DEV cannot share governor and publisher; PROD can with a distinct owner', 
   c.controllers.owner = c.controllers.governor;
   assert.throws(() => validate(c), /Distinct owner/);
 });
+
+test('PROD compute reservation is optional but explicit reservations are validated', () => {
+  const c = source('prod'); c.supabase.publishableKey = 'sb_publishable_OFFLINE_TEST_ONLY';
+  c.groups.forEach(g => { g.maxClubs = 10; g.heapBudgetBytes = '1073741824'; });
+  c.engineSettings.prodComputeAllocation = null;
+  assert.equal(validate(c, source('dev')).length, 32);
+  for (const invalid of [0, 101, 1.5, '1']) {
+    c.engineSettings.prodComputeAllocation = invalid;
+    assert.throws(() => validate(c, source('dev')), /Explicit PROD compute reservation/);
+  }
+  c.engineSettings.prodComputeAllocation = 1;
+  assert.equal(validate(c, source('dev')).length, 32);
+});
