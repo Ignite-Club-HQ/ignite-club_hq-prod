@@ -5,6 +5,11 @@
 name: "[TEST] OpenCloud DEV automatic deployment"
 on:
   workflow_dispatch:
+    inputs:
+      since:
+        description: 'Deploy changes made after this commit (e.g. 889ea02ff)'
+        required: false
+        default: ''
   push:
     branches: [main]
     paths: ['backend/**', 'frontend/**', 'Cargo.toml', 'Cargo.lock', 'mops.toml', 'mops.lock', 'scripts/opencloud/**', 'deploy/opencloud/dev.json']
@@ -31,7 +36,7 @@ jobs:
         run: node scripts/opencloud/dev-auto.mjs gate
       - id: plan
         if: steps.gate.outputs.auto_deploy == 'true'
-        run: node scripts/opencloud/dev-auto.mjs plan "${{ github.event.before || github.sha }}" "${{ github.sha }}" opencloud-plan.json
+        run: node scripts/opencloud/dev-auto.mjs plan "${{ inputs.since || github.event.before || github.sha }}" "${{ github.sha }}" opencloud-plan.json
       - if: steps.gate.outputs.auto_deploy == 'true'
         uses: actions/upload-artifact@v4
         with: { name: opencloud-dev-plan, path: opencloud-plan.json, retention-days: 30 }
