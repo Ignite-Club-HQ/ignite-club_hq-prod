@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: status | decode | update | verify | plan
+        description: status | decode | update | verify | plan | batch
         required: true
         default: plan
       target:
@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$MODE" in
-            status|plan) node scripts/opencloud/prod-controllers.mjs "$MODE" "$TARGET" > out.json ;;
+            status|plan|batch) node scripts/opencloud/prod-controllers.mjs "$MODE" "$TARGET" > out.json ;;
             decode) node scripts/opencloud/prod-controllers.mjs decode "$REPLY" > out.json ;;
             update) node scripts/opencloud/prod-controllers.mjs "$MODE" "$TARGET" "$REPLY" > out.json ;;
             verify) node scripts/opencloud/prod-controllers.mjs verify "$TARGET" "$REPLY" "$AFTER" > out.json ;;
