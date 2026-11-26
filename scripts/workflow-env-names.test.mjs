@@ -82,7 +82,7 @@ test('only explicitly allowlisted PROD setup, checks, promotion, funding and iso
       continue;
     }
     if (workflow.file.startsWith('opencloud-prod-')) {
-      assert.match(workflow.text, /refs\/heads\/main/);
+      assert.match(workflow.text, workflow.file === 'opencloud-prod-commission.yml' ? /refs\/heads\/prod/ : /refs\/heads\/main/);
       assert.doesNotMatch(workflow.text, /secrets\.GOVERNOR_PEM\b/);
       const runner = {
         'opencloud-prod-first-install.yml': 'scripts/opencloud/prod-first-install.mjs',
@@ -94,7 +94,7 @@ test('only explicitly allowlisted PROD setup, checks, promotion, funding and iso
       const targetText = runner ? readFileSync(path.join(ROOT, runner), 'utf8') : workflow.text;
       assert.match(targetText, /deploy\/opencloud\/prod\.json/);
       if (runner) {
-        assert.match(targetText, /GITHUB_REF_NAME!=='main'/);
+        assert.match(targetText, workflow.file === 'opencloud-prod-commission.yml' ? /GITHUB_REF_NAME!=='prod'/ : /GITHUB_REF_NAME!=='main'/);
         assert.match(targetText, /applicationKey!=='ignite_prod_v2'/);
       }
       continue;
