@@ -11,9 +11,10 @@
   "operatorId": "s53an-5aaaa-aaac5-aaaaa-cai",
   "consoleProxyId": "ynolw-eyaaa-aaaaj-qspkq-cai",
   "controllers": {
-    "owner": null,
-    "governor": null,
-    "frontendPublisher": null
+    "owner": "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+    "governor": "kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae",
+    "connectedIdentity": "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe",
+    "frontendPublisher": "kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae"
   },
   "supabase": {
     "url": "https://yabcfiuntwqjwvschnji.supabase.co",
@@ -83,7 +84,7 @@
     "source": "owner-supplied-chatgpt-export",
     "independentlyVerified": false,
     "reported": "Successful create_canister and setApp responses; independent readback pending. No code installed.",
-    "controllerNote": "API documentation indicates caller is also a controller. Exact caller principal and effective controller lists have not been independently verified. Do not replace controllers based on this export.",
+    "controllerNote": "All 32 controller memberships verified via live operator canister_status readback on 2026-11-26; existing operator and connected identity retained, owner and PROD governor added. Other settings not fully compared.",
     "proxyReview": "Anonymous public queries matched the supplied subnet; public proxy interface matches EngineVetKd types. Engine ID is reported by proxy funding metadata. Real engine-caller derivation and authorization remain unverified."
   }
 }
