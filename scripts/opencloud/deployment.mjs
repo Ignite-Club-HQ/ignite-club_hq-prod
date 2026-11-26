@@ -327,6 +327,16 @@ export function manifest(config, peer, forbidden, allowUnresolved = false) {
 /** Only copies source. No spawn, signing credentials, agents, workflow or network. */
 export function prepare(config, peer, output) {
   if (config.environment !== 'opencloud-dev') throw Error('PROD is template-only; no PROD package generation');
+  return prepareOffline(config, peer, output);
+}
+
+export function prepareProd(config, peer, output) {
+  if (config.environment !== 'opencloud-prod' || peer.environment !== 'opencloud-dev') throw Error('Exact PROD and DEV configuration pair required');
+  if (!accountProtectionBuild(config).ready) throw Error('PROD account protection pins required');
+  return prepareOffline(config, peer, output);
+}
+
+function prepareOffline(config, peer, output) {
   // Compilation does not require a signing identity or funded/commissioned engine.
   // Preserve unresolved init/settings in the held manifest, never guess them.
   const m = manifest(config, peer, undefined, true); const out = path.resolve(output);
@@ -388,11 +398,13 @@ export function prepare(config, peer, output) {
   return m;
 }
 
-export function collect(output) {
+export function collect(output) { return collectOffline(output, 'opencloud-dev'); }
+export function collectProd(output) { return collectOffline(output, 'opencloud-prod'); }
+function collectOffline(output, environment) {
   const out = path.resolve(output);
   if (!out.startsWith(path.join(ROOT, 'deploy/opencloud/work') + path.sep)) throw Error('Only isolated OpenCloud work directories');
   const m = JSON.parse(read(path.join(out, 'manifest.json')));
-  if (m.environment !== 'opencloud-dev' || m.restrictions.createCanisters !== false) throw Error('DEV-only manifest required');
+  if (m.environment !== environment || m.restrictions.createCanisters !== false) throw Error('Exact environment manifest required');
   const artifacts = new Map();
   const { gzipSync, gunzipSync } = require('node:zlib');
   for (const service of [...SHARED_SERVICES, ...GROUP_BUILD_SERVICES]) {
@@ -424,6 +436,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   else if (cmd === 'check' && args.length === 2) { validate(load(args[0]), load(args[1])); console.log('Configuration isolated; live deployment still unverified'); }
   else if (cmd === 'manifest' && args.length === 2) console.log(json(manifest(load(args[0]), load(args[1]), undefined, true)));
   else if (cmd === 'prepare' && args.length === 3) { prepare(load(args[0]), load(args[1]), args[2]); console.log('Offline DEV build source prepared; unresolved install/signing fields remain held; no network operations'); }
+  else if (cmd === 'prepare-prod' && args.length === 3) { prepareProd(load(args[0]), load(args[1]), args[2]); console.log('Offline PROD candidate prepared; no live deployment authorized'); }
+  else if (cmd === 'collect-prod' && args.length === 1) { collectProd(args[0]); console.log('Offline PROD artifacts hashed; live acceptance pending'); }
   else if (cmd === 'collect' && args.length === 1) { collect(args[0]); console.log('Backend artifacts hashed; frontend and live acceptance still required'); }
   else throw Error('Usage: template <opencloud-dev|opencloud-prod> | check|manifest <config> <peer> | prepare <dev-config> <prod-config> <new-work-dir> | collect <work-dir>');
 }
