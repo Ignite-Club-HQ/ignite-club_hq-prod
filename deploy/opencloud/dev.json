@@ -5,7 +5,7 @@
   "applicationKey": "ignite_dev_v2",
   "activation": {
     "lovableRouting": false,
-    "autoDeploy": false
+    "autoDeploy": true
   },
   "branch": "main",
   "networkKind": "cloud_engine",
