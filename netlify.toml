@@ -59,6 +59,8 @@
   status = 302
   force = true
 
+# OpenCloud cutover target (inactive until explicitly authorised):
+# https://f7fgd-eiaaa-aaac5-aaeaa-cai.icp.net/:splat
 # Whole site is served from the PROD frontend canister; Netlify only proxies.
 # force = true so Netlify's own built files never shadow the canister.
 # Rollback: delete this rule to fall back to the SPA rule below.
@@ -95,4 +97,4 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "no-referrer"
-    Content-Security-Policy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.giphy.com https://ecsdwrarzfexssxtrymj.supabase.co https://yabcfiuntwqjwvschnji.supabase.co; font-src 'self'; connect-src 'self' https://api.giphy.com https://ecsdwrarzfexssxtrymj.supabase.co https://yabcfiuntwqjwvschnji.supabase.co wss://yabcfiuntwqjwvschnji.supabase.co wss://ecsdwrarzfexssxtrymj.supabase.co https://icp-api.io https://id.ai https://*.raw.icp0.io; frame-src https://id.ai https://www.google.com; object-src 'none'; worker-src 'self'; base-uri 'none'; form-action 'none'; manifest-src 'none'; media-src 'self' blob: https://ecsdwrarzfexssxtrymj.supabase.co https://yabcfiuntwqjwvschnji.supabase.co"
+    Content-Security-Policy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.giphy.com https://ecsdwrarzfexssxtrymj.supabase.co https://yabcfiuntwqjwvschnji.supabase.co; font-src 'self'; connect-src 'self' https://api.giphy.com https://ecsdwrarzfexssxtrymj.supabase.co https://yabcfiuntwqjwvschnji.supabase.co wss://yabcfiuntwqjwvschnji.supabase.co wss://ecsdwrarzfexssxtrymj.supabase.co https://icp-api.io https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net https://f7fgd-eiaaa-aaac5-aaeaa-cai.icp.net https://id.ai https://*.raw.icp0.io; frame-src https://id.ai https://www.google.com; object-src 'none'; worker-src 'self'; base-uri 'none'; form-action 'none'; manifest-src 'none'; media-src 'self' blob: https://ecsdwrarzfexssxtrymj.supabase.co https://yabcfiuntwqjwvschnji.supabase.co"
