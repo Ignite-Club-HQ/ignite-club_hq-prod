@@ -42,6 +42,7 @@ writeFileSync(`${out}/_redirects`, "/assets/*  /asset-not-found.txt  404\n/*  /i
 // PROD builds must name their own frontend canister: the DEV default here
 // once leaked into PROD's sign-in and AI-agent discovery files.
 const isProdBuild = !engineBuild && process.env.IGNITE_FRONTEND_ENV === "prod";
+const engineProd = process.env.IGNITE_LIVE_OPENCLOUD_ENV === 'opencloud-prod';
 if (isProdBuild && !process.env.FRONTEND_CANISTER_ID) {
   throw new Error("FRONTEND_CANISTER_ID is required for PROD frontend builds");
 }
@@ -51,7 +52,7 @@ writeFileSync(
   `${out}/.well-known/ii-alternative-origins`,
   JSON.stringify(
     {
-      alternativeOrigins: engineBuild ? [`https://${frontendCanisterId}.icp.net`, ...(process.env.IGNITE_LIVE_OPENCLOUD_ENV === 'opencloud-dev' ? OPENCLOUD_DEV_LOVABLE_ORIGINS : [])] : alternativeOriginsForBuild({ isProdBuild, frontendCanisterId }),
+      alternativeOrigins: engineProd ? alternativeOriginsForBuild({ isProdBuild: true, frontendCanisterId }) : engineBuild ? [`https://${frontendCanisterId}.icp.net`, ...(process.env.IGNITE_LIVE_OPENCLOUD_ENV === 'opencloud-dev' ? OPENCLOUD_DEV_LOVABLE_ORIGINS : [])] : alternativeOriginsForBuild({ isProdBuild, frontendCanisterId }),
     },
     null,
     2,
@@ -64,7 +65,7 @@ writeFileSync(
 const callbackHosts = engineBuild ? ['icp.net'] : ["icp0.io", "raw.icp0.io", "icp.net", "raw.icp.net", "ic0.app", "raw.ic0.app"];
 writeFileSync(
   `${out}/.well-known/ii-auth-callbacks`,
-  JSON.stringify({ callbacks: callbackHosts.flatMap((h) => ["/auth", "/native-sign-in.html", "/native-sign-in"].map((p) => `https://${frontendCanisterId}.${h}${p}`)).concat(isProdBuild ? ["/auth", "/native-sign-in.html", "/native-sign-in"].map((p) => `${PROD_MEMBER_II_ORIGIN}${p}`) : []) }, null, 2) + "\n",
+  JSON.stringify({ callbacks: callbackHosts.flatMap((h) => ["/auth", "/native-sign-in.html", "/native-sign-in"].map((p) => `https://${frontendCanisterId}.${h}${p}`)).concat((isProdBuild || engineProd) ? ["/auth", "/native-sign-in.html", "/native-sign-in"].map((p) => `${PROD_MEMBER_II_ORIGIN}${p}`) : []) }, null, 2) + "\n",
 );
 
 // ICP MCP Layer 1 (required): the canister manifest AI agents use to
@@ -155,7 +156,7 @@ writeFileSync(`${out}/.well-known/ic-architecture`, JSON.stringify(manifest, nul
 // empty account. Website/phone sign-in is unchanged.
 writeFileSync(
   `${out}/.well-known/ii-derivation-origin`,
-  `${engineBuild ? `https://${frontendCanisterId}.icp.net` : derivationOriginForBuild({ isProdBuild, frontendCanisterId })}\n`,
+  `${engineProd ? PROD_MEMBER_II_ORIGIN : engineBuild ? `https://${frontendCanisterId}.icp.net` : derivationOriginForBuild({ isProdBuild, frontendCanisterId })}\n`,
 );
 
 // The canister must reach the same database the bundle was built against
