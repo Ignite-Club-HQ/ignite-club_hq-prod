@@ -2,7 +2,7 @@
 # database migrations: merging main → prod upgrades the live canisters whose
 # code changed, keeping their data, then republishes the PROD frontend canister.
 #
-#   push to prod            -> promote (upgrade changed PROD canisters + PROD web app)
+#   Legacy mainnet promotion is manual-only during OpenCloud migration.
 #   Run workflow: provision -> one-off creation + wiring of the PROD canister set
 #
 # PROD uses its own keys and IDs only: PROD_GOVERNOR_PEM (secret),
@@ -14,8 +14,6 @@
 name: "[PROD] Promote ICP canisters to live"
 
 on:
-  push:
-    branches: [prod]
   workflow_dispatch:
     inputs:
       action:
@@ -29,7 +27,7 @@ on:
         required: false
         default: ""
       publish_frontend:
-        description: "Publish the PROD frontend canister now (also runs automatically on every push to prod once it exists)"
+        description: "Publish the PROD frontend canister now"
         type: boolean
         required: false
         default: false
