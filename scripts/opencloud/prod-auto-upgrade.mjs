@@ -78,7 +78,7 @@ if(new Set(targets.map(t=>t.id)).size!==targets.length)throw Error('Duplicate ta
 const moduleHash=s=>Buffer.from(s.module_hash[0]??[]).toString('hex');
 const settings=s=>JSON.stringify({controllers:s.settings.controllers.map(p=>p.toText()).sort(),env:s.settings.environment_variables.map(v=>[v.name,v.value]).sort(),limit:String(s.settings.wasm_memory_limit)});
 const before=new Map();
-for(const t of targets){const s=await status(t.id);verifyControllers(s);if(!moduleHash(s))throw Error('Empty target '+t.name);before.set(t.id,s);if(repairs.has(t.id)&&t.upgradePersistence!=='keep')throw Error('Secure-name repair requires keep persistence '+t.name);}
+for(const t of targets){const s=await status(t.id);verifyControllers(s);if(!moduleHash(s))throw Error('Empty target '+t.name);before.set(t.id,s);if(repairs.has(t.id)&&t.service!=='identity_access'&&t.upgradePersistence!=='keep')throw Error('Secure-name repair requires keep persistence '+t.name);}
 const Upgrade=I.Record({skip_pre_upgrade:I.Opt(I.Bool),wasm_memory_persistence:I.Opt(I.Variant({keep:I.Null,replace:I.Null}))});
 for(const t of targets){
  let old=before.get(t.id);
@@ -95,7 +95,7 @@ for(const t of targets){
   if(actual.size!==vars.size||env.some(x=>actual.get(x.name)!==x.value)||moduleHash(after)!==moduleHash(old)||after.settings.wasm_memory_limit!==old.settings.wasm_memory_limit)throw Error('Secure-name settings readback mismatch');
   old=after;
  }
- if(!repair&&moduleHash(old)===t.moduleSha256){console.log('Unchanged '+t.name);continue;}
+ if((!repair||t.service==='identity_access')&&moduleHash(old)===t.moduleSha256){console.log('Unchanged '+t.name);continue;}
  const check=async()=>{const s=await status(t.id);verifyControllers(s);if(settings(s)!==settings(old))throw Error('Settings changed '+t.name);return s;};
  if(moduleHash(await check())!==moduleHash(old))throw Error('Concurrent module change');
  const chunks=[];await call('clear_chunk_store',Target,{canister_id:pid(t.id)});
