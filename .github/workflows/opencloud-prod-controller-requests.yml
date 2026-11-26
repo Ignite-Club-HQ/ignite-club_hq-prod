@@ -1,0 +1,55 @@
+name: "[TEST] OpenCloud PROD controller requests"
+# Offline only: builds/decodes Candid for ChatGPT's authenticated ICP connector. No secrets, no network calls to canisters.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: status | decode | update | verify | plan
+        required: true
+        default: plan
+      target:
+        description: Canister ID, or "all" for status
+        required: false
+        default: f7fgd-eiaaa-aaac5-aaeaa-cai
+      reply:
+        description: canister_status reply (hex/base64)
+        required: false
+      after_reply:
+        description: canister_status reply after update (verify only)
+        required: false
+permissions:
+  contents: read
+jobs:
+  requests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Install official ICP SDK
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Test controller tool
+        run: node --test scripts/opencloud/controllers.test.mjs
+      - name: Generate or check request
+        env:
+          MODE: ${{ inputs.mode }}
+          TARGET: ${{ inputs.target }}
+          REPLY: ${{ inputs.reply }}
+          AFTER: ${{ inputs.after_reply }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in
+            status|plan) node scripts/opencloud/prod-controllers.mjs "$MODE" "$TARGET" > out.json ;;
+            decode) node scripts/opencloud/prod-controllers.mjs decode "$REPLY" > out.json ;;
+            update) node scripts/opencloud/prod-controllers.mjs "$MODE" "$TARGET" "$REPLY" > out.json ;;
+            verify) node scripts/opencloud/prod-controllers.mjs verify "$TARGET" "$REPLY" "$AFTER" > out.json ;;
+            *) echo "Unknown mode"; exit 2 ;;
+          esac
+          cat out.json
+          { echo '```json'; cat out.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: controller-request-${{ inputs.mode }}
+          path: out.json
