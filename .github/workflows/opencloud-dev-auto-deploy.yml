@@ -2,7 +2,7 @@
 # activation.autoDeploy is true (set only after ChatGPT's initial installation and acceptance).
 # Upgrade-only on the exact 32 DEV targets; never installs, reinstalls, creates canisters,
 # changes controllers, or touches PROD/mainnet. Reuses the source-build workflow.
-name: OpenCloud DEV automatic deployment
+name: "[TEST] OpenCloud DEV automatic deployment"
 on:
   workflow_dispatch:
   push:
