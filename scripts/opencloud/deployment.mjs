@@ -1,3 +1,4 @@
+import { PROPOSED_ROUTING } from '../prod-sign-in-routing-policy.mjs';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
@@ -284,7 +285,7 @@ export function frontendEnv(config) {
     IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN: config.environment === 'opencloud-prod' ? 'https://igniteclubhq.app' : `https://${config.shared.frontend}.icp.net`,
     IGNITE_LIVE_SUPABASE_URL: config.supabase.url, IGNITE_LIVE_SUPABASE_ANON_KEY: config.supabase.publishableKey,
     IGNITE_LIVE_BACKEND_ROUTING_JSON: JSON.stringify({ defaultBackend: 'icp', countryRules: {}, targets: [],
-      countryTargets: {}, clubBackendOverrides: {}, emailAuthClubs: [] }),
+      countryTargets: {}, clubBackendOverrides: {}, emailAuthClubs: config.environment === 'opencloud-prod' ? PROPOSED_ROUTING.emailAuthClubs : [] }),
     IGNITE_FRONTEND_ENV: config.environment, FRONTEND_CANISTER_ID: config.shared.frontend };
 }
 
