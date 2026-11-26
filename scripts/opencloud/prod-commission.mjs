@@ -7,7 +7,7 @@ const mode=process.argv[2];
 if(!['check','commission'].includes(mode))throw Error('Explicit mode required');
 const config=JSON.parse(fs.readFileSync('deploy/opencloud/prod.json'));
 const peer=JSON.parse(fs.readFileSync('deploy/opencloud/dev.json'));
-if(process.env.GITHUB_REF_NAME!=='main'||config.environment!=='opencloud-prod'||config.applicationKey!=='ignite_prod_v2'||config.apiHost!=='https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net')throw Error('Wrong PROD target');
+if(process.env.GITHUB_REF_NAME!=='prod'||config.environment!=='opencloud-prod'||config.applicationKey!=='ignite_prod_v2'||config.apiHost!=='https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net')throw Error('Wrong PROD target');
 const rows=validate({...config,supabase:{...config.supabase,publishableKey:config.supabase.publishableKey||'sb_publishable_OFFLINE_INSTALL_VALIDATION'}},peer);
 const root=process.cwd(), cwd=process.env.RUNNER_TEMP;
 const router=config.shared.shard_router;
