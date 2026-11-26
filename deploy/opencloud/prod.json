@@ -31,8 +31,8 @@
   "groups": [
     {
       "id": "g1",
-      "maxClubs": null,
-      "heapBudgetBytes": null,
+      "maxClubs": 100,
+      "heapBudgetBytes": "3221225472",
       "canisterIds": {
         "club_domain": "fndr2-iyaaa-aaac5-aaeda-cai",
         "club_points_domain": "fkcxo-faaaa-aaac5-aaedq-cai",
@@ -51,8 +51,8 @@
     },
     {
       "id": "g2",
-      "maxClubs": null,
-      "heapBudgetBytes": null,
+      "maxClubs": 100,
+      "heapBudgetBytes": "3221225472",
       "canisterIds": {
         "club_domain": "ggvhz-oaaaa-aaac5-aaejq-cai",
         "club_points_domain": "gtswu-piaaa-aaac5-aaeka-cai",
@@ -85,6 +85,7 @@
     "independentlyVerified": false,
     "reported": "Successful create_canister and setApp responses; independent readback pending. No code installed.",
     "controllerNote": "All 32 controller memberships verified via live operator canister_status readback on 2026-11-26; existing operator and connected identity retained, owner and PROD governor added. Other settings not fully compared.",
-    "proxyReview": "Anonymous public queries matched the supplied subnet; public proxy interface matches EngineVetKd types. Engine ID is reported by proxy funding metadata. Real engine-caller derivation and authorization remain unverified."
+    "proxyReview": "Anonymous public queries matched the supplied subnet; public proxy interface matches EngineVetKd types. Engine ID is reported by proxy funding metadata. Real engine-caller derivation and authorization remain unverified.",
+    "capacityNote": "Initial capacity mirrors working OpenCloud DEV; not a measured production load limit. Compute reservation remains unset pending engine review."
   }
 }
