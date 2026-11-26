@@ -178,7 +178,7 @@ const csp = [
   "worker-src 'self'",
   "base-uri 'none'",
   "form-action 'none'",
-  "media-src 'self' blob:",
+  `media-src 'self' blob: ${supabaseOrigin}`,
 ].join("; ");
 
 // Cache-Control must never come from "/*": rules merge, so hashed /assets/*
