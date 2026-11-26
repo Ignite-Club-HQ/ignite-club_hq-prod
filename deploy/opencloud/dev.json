@@ -4,7 +4,7 @@
   "commissioningMode": "fresh-install-admission-only",
   "applicationKey": "ignite_dev_v2",
   "activation": {
-    "lovableRouting": false,
+    "lovableRouting": true,
     "autoDeploy": true
   },
   "branch": "main",
