@@ -22,9 +22,9 @@ async function main() {
   const agent = await HttpAgent.create({ host: config.apiHost, identity });
   const result = type => IDL.Variant({ Ok: type, Err: IDL.Text });
   const role = IDL.Record({ account_id: IDL.Text, role: IDL.Text, club: IDL.Opt(IDL.Text), team: IDL.Opt(IDL.Text), site_id: IDL.Opt(IDL.Text) });
-  const account = IDL.Record({ account_id: IDL.Text, principals: IDL.Vec(IDL.Principal), status: IDL.Variant({ Active: IDL.Null, Suspended: IDL.Null }), roles: IDL.Vec(role) });
+  const accountType = IDL.Record({ account_id: IDL.Text, principals: IDL.Vec(IDL.Principal), status: IDL.Variant({ Active: IDL.Null, Suspended: IDL.Null }), roles: IDL.Vec(role) });
   const ia = Actor.createActor(() => IDL.Service({
-    list_admin_accounts: IDL.Func([IDL.Text, IDL.Opt(IDL.Text), IDL.Nat16], [result(IDL.Record({ items: IDL.Vec(account), next: IDL.Opt(IDL.Text) }))], []),
+    list_admin_accounts: IDL.Func([IDL.Text, IDL.Opt(IDL.Text), IDL.Nat16], [result(IDL.Record({ items: IDL.Vec(accountType), next: IDL.Opt(IDL.Text) }))], []),
     grant_role: IDL.Func([IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)], [result(IDL.Null)], []),
   }), { agent, canisterId: ADMIN_TARGETS.identity });
   const insights = id => Actor.createActor(() => IDL.Service({
