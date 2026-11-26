@@ -44,18 +44,20 @@ jobs:
           PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
           APPROVE_TIMER_UPGRADE: ${{ inputs.mode == 'upgrade' && 'YES' || 'NO' }}
           MODE: ${{ inputs.mode }}
-          GOVERNOR_PEM_FILE: ${{ runner.temp }}/opencloud-governor.pem
+          ICP_HOME: ${{ runner.temp }}/opencloud-prod-timer-recovery
+          GOVERNOR_PEM_FILE: ${{ runner.temp }}/opencloud-prod-timer-recovery/governor.pem
         run: |
           set -euo pipefail
           umask 077
-          trap 'rm -f "$GOVERNOR_PEM_FILE"' EXIT
+          mkdir -p "$ICP_HOME"
+          trap 'rm -rf "$ICP_HOME"' EXIT
           test -n "$PROD_GOVERNOR_PEM_ENC" && test -n "$PROD_GOVERNOR_PASSPHRASE"
-          trap 'rm -f "$GOVERNOR_PEM_FILE" "$GOVERNOR_PEM_FILE.enc" "$GOVERNOR_PEM_FILE.pass"' EXIT
           printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$GOVERNOR_PEM_FILE.enc"
           printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$GOVERNOR_PEM_FILE.pass"
           openssl enc -d -aes-256-cbc -pbkdf2 -in "$GOVERNOR_PEM_FILE.enc" -out "$GOVERNOR_PEM_FILE" -pass file:"$GOVERNOR_PEM_FILE.pass"
           rm -f "$GOVERNOR_PEM_FILE.enc" "$GOVERNOR_PEM_FILE.pass"
-          cd "$RUNNER_TEMP"
-          icp identity import opencloud-governor --pem-file "$GOVERNOR_PEM_FILE"
-          cd "$GITHUB_WORKSPACE"
+          unset PROD_GOVERNOR_PEM_ENC PROD_GOVERNOR_PASSPHRASE
+          icp identity import --from-pem "$GOVERNOR_PEM_FILE" --storage plaintext opencloud-governor
+          test "$(icp identity principal --identity opencloud-governor)" = "kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae"
+          node --check scripts/opencloud/prod-timer-recovery.mjs
           node scripts/opencloud/prod-timer-recovery.mjs deploy/opencloud/work/prod-candidate "$MODE" deploy/opencloud/work/prod-original
