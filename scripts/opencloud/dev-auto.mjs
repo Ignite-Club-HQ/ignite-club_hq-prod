@@ -38,7 +38,7 @@ export function guard({ config, peer, branch, forbidden = mainnetIds() }) {
 export function plan(rows, changedFiles) {
   const files = changedFiles === null ? null : changedFiles;
   let services = canistersForChangedFiles(files);
-  if (files && files.some(f => OPENCLOUD_SHARED.some(re => re.test(f)))) services = [...UPGRADE_ORDER];
+  if (files && files.some(f => f === 'scripts/opencloud/deployment.mjs')) services = [...UPGRADE_ORDER];
   const targets = [];
   for (const service of UPGRADE_ORDER) {
     if (!services.includes(service)) continue;
