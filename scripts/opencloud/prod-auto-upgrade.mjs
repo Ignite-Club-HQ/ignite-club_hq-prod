@@ -37,7 +37,8 @@ const hash=b=>createHash('sha256').update(b).digest('hex');
 const expected=[MANAGEMENT_PROXY,config.controllers.owner,config.controllers.connectedIdentity,config.controllers.governor].sort();
 const verifyControllers=s=>{if(JSON.stringify(s.settings.controllers.map(p=>p.toText()).sort())!==JSON.stringify(expected))throw Error('Controller mismatch');};
 
-// Read only: report secure-name configuration without exposing environment values.
+// Preflight all secure-name targets before any mutation.
+const repairs=new Map();
 const nameTargets=rows.filter(r=>['identity_access','pii_access_control'].includes(r.service));
 const g1=config.groups.find(g=>g.id==='g1');
 if(nameTargets.length!==3||!g1?.canisterIds?.pii_access_control)throw Error('Incomplete secure-name inventory');
@@ -51,12 +52,16 @@ for(const t of nameTargets){
  for(const [key,value] of Object.entries(desired)){
   const state=!vars.has(key)?'missing':vars.get(key)===value?'correct':'different';
   console.log('Secure-name settings '+t.name+' '+key+': '+state);
+  if(state==='different')throw Error('Conflicting secure-name setting '+t.name+' '+key);
+  if(state==='missing')repairs.set(t.id,desired);
  }
 }
 
 if(!/^[a-f0-9]{40}$/.test(beforeRef)||! /^[a-f0-9]{40}$/.test(afterRef)||/^0+$/.test(beforeRef)||afterRef!==process.env.GITHUB_SHA)throw Error('Explicit commit range required');
 const diff=spawnSync('git',['diff','--name-only',beforeRef,afterRef],{encoding:'utf8'});if(diff.status!==0)throw Error('Cannot determine changes');
-const targets=plan(rows,diff.stdout.split('\n').filter(Boolean)).targets.map(t=>{
+const planned=plan(rows,diff.stdout.split('\n').filter(Boolean)).targets;
+for(const t of nameTargets)if(repairs.has(t.id)&&!planned.some(x=>x.id===t.id))planned.push(t);
+const targets=planned.sort((a,b)=>Number(a.service==='identity_access')-Number(b.service==='identity_access')).map(t=>{
  const r=rows.find(x=>x.name===t.name&&x.id===t.id&&x.service===t.service&&x.scope===t.scope);
  const a=m.canisters.find(x=>x.name===t.name&&x.id===t.id&&x.service===t.service);
  if(!r||!a||r.service==='frontend')throw Error('Wrong target');
@@ -73,11 +78,24 @@ if(new Set(targets.map(t=>t.id)).size!==targets.length)throw Error('Duplicate ta
 const moduleHash=s=>Buffer.from(s.module_hash[0]??[]).toString('hex');
 const settings=s=>JSON.stringify({controllers:s.settings.controllers.map(p=>p.toText()).sort(),env:s.settings.environment_variables.map(v=>[v.name,v.value]).sort(),limit:String(s.settings.wasm_memory_limit)});
 const before=new Map();
-for(const t of targets){const s=await status(t.id);verifyControllers(s);if(!moduleHash(s))throw Error('Empty target '+t.name);before.set(t.id,s);}
+for(const t of targets){const s=await status(t.id);verifyControllers(s);if(!moduleHash(s))throw Error('Empty target '+t.name);before.set(t.id,s);if(repairs.has(t.id)&&t.upgradePersistence!=='keep')throw Error('Secure-name repair requires keep persistence '+t.name);}
 const Upgrade=I.Record({skip_pre_upgrade:I.Opt(I.Bool),wasm_memory_persistence:I.Opt(I.Variant({keep:I.Null,replace:I.Null}))});
 for(const t of targets){
- const old=before.get(t.id);
- if(moduleHash(old)===t.moduleSha256){console.log('Unchanged '+t.name);continue;}
+ let old=before.get(t.id);
+ const repair=repairs.get(t.id);
+ if(repair){
+  const live=await status(t.id);verifyControllers(live);
+  if(settings(live)!==settings(old)||moduleHash(live)!==moduleHash(old))throw Error('Concurrent settings change '+t.name);
+  const vars=new Map(live.settings.environment_variables.map(v=>[v.name,v.value]));
+  for(const [k,v] of Object.entries(repair)){if(vars.has(k)&&vars.get(k)!==v)throw Error('Conflicting secure-name setting');vars.set(k,v);}
+  const env=[...vars].map(([name,value])=>({name,value}));
+  await call('update_settings',I.Record({canister_id:P,settings:I.Record({environment_variables:I.Opt(E)})}),{canister_id:pid(t.id),settings:{environment_variables:[env]}});
+  const after=await status(t.id);verifyControllers(after);
+  const actual=new Map(after.settings.environment_variables.map(v=>[v.name,v.value]));
+  if(actual.size!==vars.size||env.some(x=>actual.get(x.name)!==x.value)||moduleHash(after)!==moduleHash(old)||after.settings.wasm_memory_limit!==old.settings.wasm_memory_limit)throw Error('Secure-name settings readback mismatch');
+  old=after;
+ }
+ if(!repair&&moduleHash(old)===t.moduleSha256){console.log('Unchanged '+t.name);continue;}
  const check=async()=>{const s=await status(t.id);verifyControllers(s);if(settings(s)!==settings(old))throw Error('Settings changed '+t.name);return s;};
  if(moduleHash(await check())!==moduleHash(old))throw Error('Concurrent module change');
  const chunks=[];await call('clear_chunk_store',Target,{canister_id:pid(t.id)});
