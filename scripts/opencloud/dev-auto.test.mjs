@@ -7,9 +7,14 @@ const config = JSON.parse(readFileSync(new URL('../../deploy/opencloud/dev.json'
 const peer = JSON.parse(readFileSync(new URL('../../deploy/opencloud/prod.json', import.meta.url)));
 const on = { ...config, activation: { lovableRouting: true, autoDeploy: true } };
 
-test('both switches stay off in the committed DEV configuration', () => {
-  assert.deepEqual(activation(config), { lovableRouting: false, autoDeploy: false });
-  assert.equal(previewEnv(config, 'k'), null);
+test('activation defaults off and explicit switches independently control DEV routing and deployment', () => {
+  const off = { ...config, activation: {} };
+  const autoOnly = { ...config, activation: { autoDeploy: true, lovableRouting: false } };
+  assert.deepEqual(activation(off), { lovableRouting: false, autoDeploy: false });
+  assert.deepEqual(activation(autoOnly), { lovableRouting: false, autoDeploy: true });
+  assert.equal(previewEnv(off, 'k'), null);
+  assert.equal(previewEnv(autoOnly, 'k'), null);
+  assert.deepEqual(activation(on), { lovableRouting: true, autoDeploy: true });
   assert.throws(() => activation({ activation: { autoDeploy: 'yes' } }));
 });
 
