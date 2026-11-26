@@ -29,7 +29,7 @@ impl GroupIndex {
         // Exclude only time-independent failures. Current health and growth
         // evidence are rechecked against stable records by the caller.
         if !group.accepting || group.max_clubs == 0 || !crate::groups::below_rollover(group) ||
-            group.cycles < group.min_cycles || group.heap_bytes >= group.heap_budget_bytes { return; }
+            !crate::groups::cycles_ok(group) || group.heap_bytes >= group.heap_budget_bytes { return; }
         let rank = Rank { assigned: group.assigned_clubs, maximum: group.max_clubs, id: group.id.clone() };
         self.targets.entry(group.target_alias.clone()).or_default().insert(rank.clone());
         self.ids.insert(group.id.clone(), (group.target_alias.clone(), rank));

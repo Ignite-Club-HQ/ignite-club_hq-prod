@@ -1,5 +1,38 @@
 # Roadmap — launch the live (PROD) system
 
+## OpenCloud PROD service wiring — 26 November
+- [x] Created manual `[PROD] OpenCloud PROD service wiring` workflow (check/wire modes, default check) reusing existing PROD governor credentials; verified CLI 1.7.0 positional Candid arguments and that all 78 generated calls target only allocated ignite_prod_v2 backend canisters with internal-governor signing.
+- [x] Check mode ran green (run 45791474975, commit f8da5b838, 26 Nov 09:23 UTC): live governor principal matched the configured PROD governor, every service's opening-configuration readback returned without refusal, and all 78 wiring calls validated against the allocated inventory. No service was configured.
+- [x] Paul approved wire mode; dispatched run 45792681401 against main commit 99ed40f46 on 26 Nov 09:30 UTC. Run failed safely at the first mutation, g1_timer_jobs.initialize, with `Err = "Already initialized"`; no configuration call succeeded and no later wiring call ran. Neither group was opened and routing was not activated.
+- [ ] Resolve the existing timer initialization/governor readback conflict before any wiring retry: both timer opening readbacks were unavailable to the configured governor, but g1 initialization reported already initialized. Verify installed timer authority/state through authorized read-only inspection; do not bypass initialization or readback safeguards or blindly replay the workflow. Evidence: https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/45792681401.
+
+## Provisioned OpenCloud DEV implementation — 25 November
+- [x] Implement approved DEV-only one-use first-install commissioning, lifecycle/restore refusal and admission-only release; rebuild all 18 backend implementations, matched frontend hosting module/plugin and isolated frontend. Complete the 32-target offline handover with checksums and exact ChatGPT requirements; no live operations or witness/key dependency.
+- [x] Assessed a distinct first-installation, admission-only commissioning path from source; recovery witness/key are current protocol dependencies, not intrinsic requirements for a genuinely fresh DEV installation. Assessment only; no implementation or live changes.
+- [x] Received and validated Paul's generated DEV approver public key; recorded it in the isolated DEV configuration only. No private key accessed.
+- [x] Superseded witness commissioning: initial fresh DEV needs no witness or approver signer; retain existing empty witness untouched. Any future recovery enablement is a separate approval.
+- [x] Built DEV witness with Paul's public key: 20 existing security tests passed, WASM/public-key and Candid endpoint checks passed; module hash recorded, install-only handover prepared.
+- [x] Paul approved and implemented the separate fresh-installation path; existing witness artifact is not included or deployed.
+- [x] Incorporated ChatGPT's 64 unique IDs as owner-supplied separate DEV/inactive-PROD configurations; no controller changes.
+- [x] Configured the separate chain-key proxy, matched its public API/subnet/funding binding and checked offline four-caller key separation; mainnet encryption retained, engine profile plaintext fallback refused.
+- [x] Prepared isolated mapping/manifest/staging/artifact tooling and standalone frontend target/origin isolation; no CI/live changes.
+- [x] Built and hashed all eighteen backend implementations; delivered exact initialization/group wiring, compatibility and acceptance instructions.
+- [x] 20 package/hosting/key checks and 51 frontend checks per backend mode passed; local key-route policy passed and preview build OK.
+- [ ] ChatGPT live DEV installation/functional acceptance: requires current full inventory/controllers/install-history verification, authorized operator/governor/publisher transport and real proxy/encrypted user acceptance. Supplied policy, immutable name/admission pins, modules and frontend are complete; no PROD/mainnet/Supabase/email operations authorized.
+
+## Duplicate ICP substitution alerts — 25 November
+- [x] Reproduced per-player duplicates; repaired same-time keys, shared-match relay namespace and the independent closed-board ICP producer; preserved email/Supabase delivery and sent rows.
+- [x] Eight focused files passed in each mode (65 email / 52 ICP checks); preview build OK. Checked-path inventory: docs/icp-sub-alert-duplicates-2026-11-25.md.
+- [ ] Installed-phone delivery requires a new phone build and physical device; no PROD deployment in this task.
+
+## Fresh OpenCloud PROD plan — 25 November
+- [x] Revised the plan to prefer OpenCloud Deploy from Git, retain old ICP data only through one bounded straightforward review/rehearsal, otherwise launch fresh; no live changes.
+- [x] Paul confirmed ICP-only reset; email/Supabase customers, data and paid subscriptions stay untouched. No deletion or cutover executed.
+- [x] Make the future split explicit: redeploy DEV fresh on a second engine; retain PROD canisters, proxy/key identity, routing and data on the original engine.
+- [x] Rechecked existing preparation: 30 group/controller checks passed; OpenCloud console still requires owner's sign-in. No deployment or live change.
+- [x] Assessed owner screenshots: prefer Add a controller with existing DEV governor/publisher; Deploy from CI mints an unnecessary new all-canister key. Git automation still needs engine-specific wiring.
+- [ ] Current inventory, engine Git upgrades and real DEV acceptance: blocked on owner adding existing DEV controllers and authorized readback; internal governors and independent Group 2 still need verification. Downstream PROD waits for this.
+
 ## New-game ICP auto-sub progress — 25 November
 - [x] Reproduced old 7/15 progress surviving fresh kickoff and cancellation; repaired lifecycle reset, setup planner reuse and authorized shared snapshot adoption. Same-game edit history stays guarded; saved stats unchanged.
 - [x] Focused new-game/reset/shared-board/timer regressions pass; preview build OK. No PROD deployment.
@@ -661,3 +694,11 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [ ] Repoint DEV backend upgrade workflows to the 18 OpenCloud canisters — blocked: the DEV governor key must be a controller on all 19 engine canisters (Paul, OpenCloud)
 - [ ] 18 Nov: combined_v3 was wrong — jfagr is the web-app publishing key, not the key "[TEST] Upgrade backend" signs with (vk34m governor), and its init args handed internal governorship to the owner. built combined_v4 (Files, sha256 91ccd704…) = v3 with owner + governor controllers on all 19 (web-app key only on frontend) and governor init args on the 16 services that take one; all other bytes identical; awaiting Paul install and controller readback.
 - [ ] 18 Nov: combined_v5 (Files) = v4 with debug name sections stripped from all programs (raw total 40.5MB→28.6MB, largest failing six ~30% smaller); all other sections/settings identical, manifest hashes updated. Awaiting Paul install.
+
+- [x] OpenCloud v2: engine resource policy, engine-scoped identity commissioning, engine name sources, ID-free frontend bundle, rebuilt identity_access + shard_router
+- [ ] OpenCloud DEV commissioning — waiting on owner signer key + independent recovery witness pins, controllers/capacities in dev.json, ChatGPT live transport
+- [x] OpenCloud DEV controller tool/workflow; governor corrected to vk34m, connected II tuhjl; identity rebuilt (fresh-v5).
+- [ ] ChatGPT: apply controller updates (frontend first) via connector, then run access check workflow. Blocked on live execution.
+
+- [x] OpenCloud DEV automation implemented behind switched-off `activation` (auto upgrades, website, Lovable routing, cutover).
+- [ ] Turn on `activation` after ChatGPT completes initial installation and live acceptance (blocked: live acceptance; `opencloud-dev-deploy` GitHub environment with GOVERNOR_PEM/DEPLOYER_PEM).

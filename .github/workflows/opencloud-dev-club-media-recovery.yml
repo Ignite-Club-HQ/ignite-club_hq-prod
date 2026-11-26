@@ -1,0 +1,51 @@
+name: "[TEST] OpenCloud DEV club media inventory"
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [check, upgrade]
+        default: check
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: opencloud-dev-deployment
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/opencloud-dev-source-build.yml
+  install:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22.12.0' }
+      - run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: opencloud-dev-backend-source-build
+          path: deploy/opencloud/work/dev-candidate
+      - uses: actions/download-artifact@v4
+        with:
+          name: opencloud-dev-backend-source-build
+          path: deploy/opencloud/work/dev-original
+          run-id: 45700163542
+          github-token: ${{ github.token }}
+      - name: Check or upgrade exact two DEV timers
+        env:
+          PEM_IN: ${{ secrets.GOVERNOR_PEM }}
+          MODE: ${{ inputs.mode }}
+          GOVERNOR_PEM_FILE: ${{ runner.temp }}/opencloud-governor.pem
+        run: |
+          set -euo pipefail
+          umask 077
+          trap 'rm -f "$GOVERNOR_PEM_FILE"' EXIT
+          test -n "$PEM_IN"
+          node scripts/normalize-dev-engine-publisher-pem.mjs > "$GOVERNOR_PEM_FILE"
+          unset PEM_IN
+          node scripts/opencloud/dev-club-media-recovery.mjs deploy/opencloud/work/dev-candidate deploy/opencloud/work/dev-original "$MODE"

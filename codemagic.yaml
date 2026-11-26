@@ -75,12 +75,16 @@ workflows:
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
           node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
-          node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
-          node ../scripts/sync-canister-ids.mjs
-          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
-          # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
-          export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
-          npm run build:live
+          if [ "${IGNITE_PROD_PUBLICATION_TARGET:-mainnet}" = "opencloud" ]; then
+            node ../scripts/host-build-env.mjs
+          else
+            node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
+            node ../scripts/sync-canister-ids.mjs
+            export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
+            # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
+            export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
+            npm run build:live
+          fi
       - name: Scaffold and sync Capacitor Android
         working_directory: frontend
         script: |
@@ -174,12 +178,16 @@ workflows:
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
           node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
-          node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
-          node ../scripts/sync-canister-ids.mjs
-          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
-          # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
-          export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
-          npm run build:live
+          if [ "${IGNITE_PROD_PUBLICATION_TARGET:-mainnet}" = "opencloud" ]; then
+            node ../scripts/host-build-env.mjs
+          else
+            node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
+            node ../scripts/sync-canister-ids.mjs
+            export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
+            # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
+            export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
+            npm run build:live
+          fi
       - name: Scaffold and sync Capacitor Android
         working_directory: frontend
         script: |
@@ -369,12 +377,16 @@ workflows:
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
           node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
-          node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
-          node ../scripts/sync-canister-ids.mjs
-          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
-          # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
-          export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
-          npm run build:live
+          if [ "${IGNITE_PROD_PUBLICATION_TARGET:-mainnet}" = "opencloud" ]; then
+            node ../scripts/host-build-env.mjs
+          else
+            node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
+            node ../scripts/sync-canister-ids.mjs
+            export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
+            # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
+            export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
+            npm run build:live
+          fi
       - name: Scaffold and sync Capacitor iOS
         working_directory: frontend
         script: |
@@ -460,12 +472,16 @@ workflows:
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
           node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
-          node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
-          node ../scripts/sync-canister-ids.mjs
-          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
-          # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
-          export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
-          npm run build:live
+          if [ "${IGNITE_PROD_PUBLICATION_TARGET:-mainnet}" = "opencloud" ]; then
+            node ../scripts/host-build-env.mjs
+          else
+            node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
+            node ../scripts/sync-canister-ids.mjs
+            export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
+            # Phone sign-in bridge on the members' address, so the app gets the same account as igniteclubhq.app.
+            export IGNITE_LIVE_NATIVE_II_BRIDGE_ORIGIN="https://igniteclubhq.app"
+            npm run build:live
+          fi
       - name: Scaffold and sync Capacitor iOS
         working_directory: frontend
         script: |

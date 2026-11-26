@@ -1,0 +1,58 @@
+name: "[PROD] OpenCloud offline source artifacts"
+on:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/prod'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Install build dependencies
+        run: |
+          npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm@0.9.11 ic-mops --no-fund --no-audit
+      - name: Test and stage existing PROD source
+        run: |
+          set -euo pipefail
+          node --test scripts/opencloud/*.test.mjs frontend/scripts/prepare-canister-dist-opencloud.test.mjs
+          node scripts/opencloud/deployment.mjs prepare-prod deploy/opencloud/prod.json deploy/opencloud/dev.json deploy/opencloud/work/prod-candidate
+      - name: Compile staged backend only
+        run: |
+          set -euo pipefail
+          node --input-type=module -e 'import fs from "node:fs"; import {spawnSync} from "node:child_process"; const dir="deploy/opencloud/work/prod-candidate"; const m=JSON.parse(fs.readFileSync(dir+"/manifest.json")); if(m.environment!=="opencloud-prod" || m.canisters.length!==32) throw Error("Wrong inventory"); const pins=m.accountProtectionBuild.compileTimeEnv; if(!m.accountProtectionBuild.ready || Object.values(pins).some(v=>!v) || pins.IGNITE_OPENCLOUD_DEV_FIRST_INSTALL || pins.IGNITE_OPENCLOUD_DEV_ADMISSION_ONLY) throw Error("Missing or invalid PROD pins"); const r=spawnSync("icp",["build"],{cwd:dir+"/build",env:{...process.env,...pins},stdio:"inherit"}); if(r.error || r.status!==0) process.exit(1);'
+          node scripts/opencloud/deployment.mjs collect-prod deploy/opencloud/work/prod-candidate
+      - name: Verify backend artifact hashes
+        run: |
+          python3 - <<'PY'
+          import pathlib,json,hashlib,gzip
+          p=pathlib.Path("deploy/opencloud/work/prod-candidate")
+          m=json.loads((p/"manifest.json").read_text())
+          rows=[r for r in m["canisters"] if r["service"]!="frontend"]
+          assert len(rows)==31 and len({r["id"] for r in rows})==31
+          assert len({r["service"] for r in rows})==18
+          for r in rows:
+              b=(p/r["wasm"]).read_bytes()
+              assert hashlib.sha256(b).hexdigest()==r["wasmSha256"]
+              assert hashlib.sha256(gzip.decompress(b)).hexdigest()==r["moduleSha256"]
+              assert hashlib.sha256((p/r["candid"]).read_bytes()).hexdigest()==r["candidSha256"]
+          print("31 backend targets / 18 implementations verified")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opencloud-prod-backend-source-build
+          path: |
+            deploy/opencloud/work/prod-candidate/artifacts/
+            deploy/opencloud/work/prod-candidate/candid/
+            deploy/opencloud/work/prod-candidate/manifest.json
+          if-no-files-found: error
+          retention-days: 30

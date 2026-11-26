@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "environment": "opencloud-prod",
+  "applicationKey": "ignite_prod_v2",
+  "branch": "prod",
+  "networkKind": "cloud_engine",
+  "engineName": "ignite-prod",
+  "engineId": "engine-789969b4-e8ba-41b0-90a2-47b4da69909f",
+  "subnetId": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
+  "apiHost": "https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net",
+  "operatorId": "s53an-5aaaa-aaac5-aaaaa-cai",
+  "consoleProxyId": "ynolw-eyaaa-aaaaj-qspkq-cai",
+  "controllers": {
+    "owner": "4sf7q-x5j7l-a3cwp-dt7rd-evzpu-gextt-cmqum-fmzsg-avqpp-wk7ga-sae",
+    "governor": "kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae",
+    "connectedIdentity": "tuhjl-zg657-opcmu-4fct6-uxbzv-4j725-r6k7s-yxj4h-4el4q-og5ow-jqe",
+    "frontendPublisher": "kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae"
+  },
+  "supabase": {
+    "url": "https://yabcfiuntwqjwvschnji.supabase.co",
+    "publishableKey": null
+  },
+  "shared": {
+    "frontend": "f7fgd-eiaaa-aaac5-aaeaa-cai",
+    "identity_access": "fyeax-jqaaa-aaac5-aaeaq-cai",
+    "placement_registry": "frhll-7yaaa-aaac5-aaeba-cai",
+    "shard_router": "fwgn7-saaaa-aaac5-aaebq-cai",
+    "migration_coordinator": "fdb4s-tiaaa-aaac5-aaeca-cai",
+    "secret_workload_identity": "fea2g-6qaaa-aaac5-aaecq-cai"
+  },
+  "groups": [
+    {
+      "id": "g1",
+      "maxClubs": 100,
+      "heapBudgetBytes": "3221225472",
+      "canisterIds": {
+        "club_domain": "fndr2-iyaaa-aaac5-aaeda-cai",
+        "club_points_domain": "fkcxo-faaaa-aaac5-aaedq-cai",
+        "competition_domain": "ehmta-kiaaa-aaac5-aaeea-cai",
+        "events_domain": "eanvu-hqaaa-aaac5-aaeeq-cai",
+        "insights_domain": "ejo6i-ryaaa-aaac5-aaefa-cai",
+        "media_blob_store": "eopy4-4aaaa-aaac5-aaefq-cai",
+        "media_metadata": "e3ijr-5iaaa-aaac5-aaega-cai",
+        "messaging_domain": "e4jpf-qqaaa-aaac5-aaegq-cai",
+        "mini_league_domain": "evkez-gyaaa-aaac5-aaeha-cai",
+        "notification_queue": "eslcn-laaaa-aaac5-aaehq-cai",
+        "pii_access_control": "gpwmf-yiaaa-aaac5-aaeia-cai",
+        "timer_jobs": "gixkr-vqaaa-aaac5-aaeiq-cai",
+        "vault_domain": "gbubn-dyaaa-aaac5-aaeja-cai"
+      }
+    },
+    {
+      "id": "g2",
+      "maxClubs": 100,
+      "heapBudgetBytes": "3221225472",
+      "canisterIds": {
+        "club_domain": "ggvhz-oaaaa-aaac5-aaejq-cai",
+        "club_points_domain": "gtswu-piaaa-aaac5-aaeka-cai",
+        "competition_domain": "gutqa-cqaaa-aaac5-aaekq-cai",
+        "events_domain": "g5q34-uyaaa-aaac5-aaela-cai",
+        "insights_domain": "g2r5i-zaaaa-aaac5-aaelq-cai",
+        "media_blob_store": "hx7zg-wiaaa-aaac5-aaema-cai",
+        "media_metadata": "hq67s-3qaaa-aaac5-aaemq-cai",
+        "messaging_domain": "hz5uo-nyaaa-aaac5-aaena-cai",
+        "mini_league_domain": "h64s2-aaaaa-aaac5-aaenq-cai",
+        "notification_queue": "hl3dx-biaaa-aaac5-aaeoa-cai",
+        "pii_access_control": "hm2fd-mqaaa-aaac5-aaeoq-cai",
+        "timer_jobs": "hfzo7-2yaaa-aaac5-aaepa-cai",
+        "vault_domain": "hcyil-xaaaa-aaac5-aaepq-cai"
+      }
+    }
+  ],
+  "engineSettings": {
+    "devWasmMemoryLimit": null,
+    "prodComputeAllocation": null
+  },
+  "push": {
+    "workerPrincipal": null,
+    "senderUrl": null,
+    "enabled": false
+  },
+  "routingSnapshot": null,
+  "provenance": {
+    "source": "owner-supplied-chatgpt-export",
+    "independentlyVerified": false,
+    "reported": "Successful create_canister and setApp responses; independent readback pending. No code installed.",
+    "controllerNote": "All 32 controller memberships verified via live operator canister_status readback on 2026-11-26; existing operator and connected identity retained, owner and PROD governor added. Other settings not fully compared.",
+    "proxyReview": "Anonymous public queries matched the supplied subnet; public proxy interface matches EngineVetKd types. Engine ID is reported by proxy funding metadata. Real engine-caller derivation and authorization remain unverified.",
+    "capacityNote": "Initial capacity mirrors working OpenCloud DEV; not a measured production load limit. Compute reservation remains unset pending engine review.",
+    "accountProtectionNote": "Reuse existing mainnet PROD safeguard pins per owner direction. Cross-engine reachability and live witness module/controller verification remain required before commissioning; no activation authorized."
+  },
+  "accountProtection": {
+    "approverPublicKey": "df0a3369283d9496256e1fbb2f98c3fc1214dcf47d3ba5bccc67b940b3a83bec",
+    "recoveryPublicKey": "d2ece0ae27186dc7800026535ec003f8304d7b07385ec4f9ed13f0b84913fa46",
+    "witness": "uhdvg-iiaaa-aaaai-aye5a-cai",
+    "witnessController": "ysgfn-64cqe-46sxo-bxfo4-wq7l2-ocfv6-fcwaj-zji5y-njien-bkeua-xqe",
+    "witnessModuleHash": "ee0ea1a4299185ac9adbd3f0ae9765d201dfa88f6325c51b530409f4ddc6585f",
+    "witnessControllerVerified": false
+  }
+}

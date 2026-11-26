@@ -2,7 +2,8 @@ import { ENVIRONMENTS, assertIsolated, loadIds } from './icp-environments.mjs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, cpSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { buildFrontend } from './opencloud/frontend-artifacts.mjs';
 import { verifyProdPublication } from './prod-publication-gate.mjs';
 import { PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 
@@ -47,6 +48,22 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   try {
     const env = resolveHostBuildEnv(process.env);
     if (env.IGNITE_ICP_ENV === 'prod') await verifyProdPublication(env, { waitMs: 12 * 60 * 1000 });
+    if (env.IGNITE_ICP_ENV === 'prod' && env.IGNITE_PROD_PUBLICATION_TARGET === 'opencloud') {
+      const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+      const workRoot = path.join(root, 'deploy/opencloud/work');
+      mkdirSync(workRoot, { recursive: true });
+      const work = mkdtempSync(path.join(workRoot, 'netlify-prod-'));
+      try {
+        cpSync(path.join(root, 'deploy/opencloud/prod.json'), path.join(work, 'config.json'));
+        process.env.OPENCLOUD_PROD_OFFLINE_BUILD = 'true';
+        process.env.SUPABASE_URL = env.IGNITE_LIVE_SUPABASE_URL;
+        process.env.SUPABASE_PUBLISHABLE_KEY = env.IGNITE_LIVE_SUPABASE_ANON_KEY;
+        buildFrontend(work, JSON.parse(readFileSync(path.join(root, 'deploy/opencloud/dev.json'), 'utf8')));
+        const output = path.join(root, 'frontend/dist-live');
+        rmSync(output, { recursive: true, force: true });
+        cpSync(path.join(work, 'frontend-assets'), output, { recursive: true });
+      } finally { rmSync(work, { recursive: true, force: true }); }
+    } else {
     const ids = assertIsolated(env.IGNITE_ICP_ENV, loadIds(env.IGNITE_ICP_ENV));
     if (env.IGNITE_ICP_ENV === 'prod') {
       assertProdIdsComplete(ids);
@@ -61,6 +78,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     ]) {
       const result = spawnSync(command, args, { cwd, env, stdio: 'inherit' });
       if (result.status !== 0 || result.error) throw new Error('Hosting build failed; publication must stop');
+    }
     }
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

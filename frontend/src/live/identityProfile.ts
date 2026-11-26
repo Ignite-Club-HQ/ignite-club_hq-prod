@@ -48,7 +48,11 @@ export async function saveIcpIdentityProfile(
     throw new Error(`Identity access canister is not configured for ICP target ${target.alias}.`);
   }
   const { client } = await connectLiveIdentityAccessClientWithIdentity(target, identity);
+  let stage = 'session';
   try {
+    if (target.networkKind === 'cloud_engine' && privateProfileSearchRehearsalEnabled()) {
+      throw Error('Encrypted name saving must be verified before this server can be used.');
+    }
     let nameToSave = input.displayName;
     let privateNameMaintained = false;
     const sessionActive = capturePrivateProfileSession();
@@ -64,12 +68,17 @@ export async function saveIcpIdentityProfile(
     // When the canister has not switched secure saving on, it accepts a plain
     // name itself (and refuses one once released), so the canister — not the
     // browser — decides; only that exact refusal falls through to a plain save.
+    stage = 'authority';
     let authorityText: string | null = null;
     if (!privateProfileSearchRehearsalEnabled()) {
       active();
       try {
         authorityText = (await client.readSecureNameAuthority()).toText();
       } catch (error) {
+        if (target.networkKind === 'cloud_engine') {
+          console.warn('[profile] Engine secure-name authority unavailable', error);
+          throw Error('Encrypted name saving is not ready on these servers. Please try again after setup is complete.');
+        }
         if (!(error instanceof Error && error.message === 'Secure personal-name saving is not released')) throw error;
       }
       active();
@@ -78,6 +87,7 @@ export async function saveIcpIdentityProfile(
       const authority = authorityText;
       if (authority !== target.canisterIds.pii_access_control) throw Error('The original secure name authority is not configured in this app; no name was changed.');
       const { preparePrivateOwnProfileName } = await import('./privateProfileNames');
+      stage = 'encrypted-name';
       nameToSave = await preparePrivateOwnProfileName({ identity, target }, input.displayName);
       active();
       const { refreshPrivateOwnClubNames } = await import('./privateProfileNames');
@@ -144,9 +154,11 @@ export async function saveIcpIdentityProfile(
         privateNameMaintained = true;
       }
     }
+    stage = 'publication';
     const canisterProfile = await client.setProfile(nameToSave, input.avatarRef ?? undefined);
     active();
     if (privateNameMaintained && canisterProfile?.display_name !== nameToSave) throw Error('Secure profile publication was not confirmed; check before retrying.');
+    stage = 'local-profile';
     const previous = getCachedIcpIdentityProfile(principal);
     const resolved: IcpIdentityProfile = {
       accountId: principal,
@@ -161,6 +173,9 @@ export async function saveIcpIdentityProfile(
     cacheIcpIdentityProfile(principal, resolved);
     if (privateNameMaintained) (await import('./ownPrivateName')).rememberOwnPrivateName(caller, input.displayName);
     return privateNameMaintained ? { ...resolved, privateNameMaintained: true } : resolved;
+  } catch (error) {
+    if (target.alias === 'opencloud-dev') throw new Error(`DEV profile save failed [${stage}].`);
+    throw error;
   } finally {
     client.dispose();
   }

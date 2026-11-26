@@ -33,9 +33,10 @@ pub struct Configuration {
     pub admission_required: bool, pub removal_enabled: bool, pub rehearsal: bool,
 }
 pub fn configuration(caller:Principal,receiver:Principal)->Result<Configuration,String> {
-    authorize(caller)?;
-    Ok(Configuration {receiver,authority:authority(),protocol:1,admission_required:false,removal_enabled:true,rehearsal:false})
+    if caller==Principal::anonymous() || authority()!=Some(caller){return Err("Configured account removal authority required".into());}
+    Ok(Configuration {receiver,authority:authority(),protocol:1,admission_required:false,removal_enabled:!dev_admission_only(),rehearsal:false})
 }
+fn dev_admission_only()->bool {option_env!("IGNITE_OPENCLOUD_DEV_ADMISSION_ONLY")==Some("1")}
 
 const MAX_INTENTS: u64 = 524_288;
 const MAX_SUBJECTS: u64 = 4_194_304;
@@ -94,6 +95,7 @@ pub fn recheck(subject: &Principal) -> Result<(), String> {
 }
 
 fn authorize(caller: Principal) -> Result<(), String> {
+    if dev_admission_only(){return Err("Global account removal is unavailable in fresh DEV".into());}
     if caller == Principal::anonymous() || authority() != Some(caller) { return Err("Configured account removal authority required".into()); }
     Ok(())
 }

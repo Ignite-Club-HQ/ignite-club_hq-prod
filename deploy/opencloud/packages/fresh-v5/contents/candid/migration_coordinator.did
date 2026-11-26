@@ -1,0 +1,38 @@
+type Phase = 
+ variant {
+   aborted;
+   committed;
+   exported;
+   imported;
+   started;
+   verified;
+ };
+type Migration = 
+ record {
+   checksum: text;
+   destination: principal;
+   domain: text;
+   id: nat;
+   phase: Phase;
+   recordCount: nat;
+   schemaVersion: nat;
+   source: principal;
+ };
+type Main = 
+ service {
+   abort: (id: nat) -> (Migration);
+   begin: (domain: text, source: principal, destination: principal,
+    schemaVersion: nat, checksum: text) -> (Migration);
+   commit: (id: nat) -> (Migration);
+   /// Public: remaining cycles (shown in admin settings).
+   cycles_balance: () -> (nat) query;
+   memory_stats: () -> (record { heap_bytes: nat; memory_bytes: nat; stable_bytes: nat }) query;
+   markExported: (id: nat, recordCount: nat, checksum: text) -> (Migration);
+   markImported: (id: nat, recordCount: nat, checksum: text) -> (Migration);
+   orchestrateExport: (id: nat) -> (Migration);
+   orchestrateVerify: (id: nat) -> (Migration);
+   status: () -> (opt Migration, vec Migration) query;
+   transfer_governorship: (new_governor: principal) -> ();
+   verify: (id: nat, recordCount: nat, checksum: text) -> (Migration);
+ };
+service : (governorInit: principal) -> Main

@@ -8,8 +8,19 @@ import { reviewedDevGroup2Canisters, reviewedDevAssistantBaseCanisters } from ".
 import { PROD_MEMBER_II_ORIGIN, DEV_FRONTEND_II_CANISTER, alternativeOriginsForBuild, derivationOriginForBuild } from "./iiOriginPolicy.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const src = `${root}dist-live`;
-const out = `${root}dist-canister`;
+// Lovable preview/Publish addresses sign in as the OpenCloud DEV website once routing is switched on.
+const OPENCLOUD_DEV_LOVABLE_ORIGINS = [
+  'https://ignite-club-launchpad.lovable.app',
+  'https://id-preview--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app',
+  'https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6.lovable.app',
+  'https://project--07e3017a-fabc-4c96-a9eb-f9d29146ffa6-dev.lovable.app',
+];
+const engineBuild = ['opencloud-dev', 'opencloud-prod'].includes(process.env.IGNITE_LIVE_OPENCLOUD_ENV);
+if (process.env.IGNITE_LIVE_OPENCLOUD_ENV && !engineBuild) throw Error('Unknown OpenCloud environment');
+const src = process.env.IGNITE_CANISTER_SOURCE_DIR || `${root}dist-live`;
+const out = process.env.IGNITE_CANISTER_OUTPUT_DIR || `${root}dist-canister`;
+if (engineBuild && (!process.env.FRONTEND_CANISTER_ID || !process.env.IGNITE_LIVE_OPENCLOUD_IDS_JSON ||
+    !process.env.IGNITE_LIVE_ICP_CANISTER_IDS_JSON || !process.env.IGNITE_CANISTER_OUTPUT_DIR)) throw Error('Complete isolated OpenCloud artifact configuration required');
 if (!existsSync(src)) throw new Error("dist-live missing — run `npm run build:live` first");
 
 rmSync(out, { recursive: true, force: true });
@@ -30,7 +41,8 @@ writeFileSync(`${out}/_redirects`, "/assets/*  /asset-not-found.txt  404\n/*  /i
 // others here — otherwise icp.net and icp0.io give one person two identities.
 // PROD builds must name their own frontend canister: the DEV default here
 // once leaked into PROD's sign-in and AI-agent discovery files.
-const isProdBuild = process.env.IGNITE_FRONTEND_ENV === "prod";
+const isProdBuild = !engineBuild && process.env.IGNITE_FRONTEND_ENV === "prod";
+const engineProd = process.env.IGNITE_LIVE_OPENCLOUD_ENV === 'opencloud-prod';
 if (isProdBuild && !process.env.FRONTEND_CANISTER_ID) {
   throw new Error("FRONTEND_CANISTER_ID is required for PROD frontend builds");
 }
@@ -40,7 +52,7 @@ writeFileSync(
   `${out}/.well-known/ii-alternative-origins`,
   JSON.stringify(
     {
-      alternativeOrigins: alternativeOriginsForBuild({ isProdBuild, frontendCanisterId }),
+      alternativeOrigins: engineProd ? alternativeOriginsForBuild({ isProdBuild: true, frontendCanisterId }) : engineBuild ? [`https://${frontendCanisterId}.icp.net`, ...(process.env.IGNITE_LIVE_OPENCLOUD_ENV === 'opencloud-dev' ? OPENCLOUD_DEV_LOVABLE_ORIGINS : [])] : alternativeOriginsForBuild({ isProdBuild, frontendCanisterId }),
     },
     null,
     2,
@@ -50,10 +62,10 @@ writeFileSync(
 // Phones sign in by sending the whole page to Internet Identity and back
 // (see shouldUseRedirectSignIn in src/live/internetIdentityAuth.ts). II only
 // returns to an address listed here, matched exactly, for each canister host.
-const callbackHosts = ["icp0.io", "raw.icp0.io", "icp.net", "raw.icp.net", "ic0.app", "raw.ic0.app"];
+const callbackHosts = engineBuild ? ['icp.net'] : ["icp0.io", "raw.icp0.io", "icp.net", "raw.icp.net", "ic0.app", "raw.ic0.app"];
 writeFileSync(
   `${out}/.well-known/ii-auth-callbacks`,
-  JSON.stringify({ callbacks: callbackHosts.flatMap((h) => ["/auth", "/native-sign-in.html", "/native-sign-in"].map((p) => `https://${frontendCanisterId}.${h}${p}`)).concat(isProdBuild ? ["/auth", "/native-sign-in.html", "/native-sign-in"].map((p) => `${PROD_MEMBER_II_ORIGIN}${p}`) : []) }, null, 2) + "\n",
+  JSON.stringify({ callbacks: callbackHosts.flatMap((h) => ["/auth", "/native-sign-in.html", "/native-sign-in"].map((p) => `https://${frontendCanisterId}.${h}${p}`)).concat((isProdBuild || engineProd) ? ["/auth", "/native-sign-in.html", "/native-sign-in"].map((p) => `${PROD_MEMBER_II_ORIGIN}${p}`) : []) }, null, 2) + "\n",
 );
 
 // ICP MCP Layer 1 (required): the canister manifest AI agents use to
@@ -102,6 +114,7 @@ const canisterIds = loadCanisterIds();
 // publishes addresses, not authorisation: the canisters must still enforce
 // caller-scoped access, and club creation must first pass shard_router placement.
 function devGroup2Discovery() {
+  if (engineBuild) return [];
   if (isProdBuild || frontendCanisterId !== DEV_FRONTEND_II_CANISTER ||
       process.env.IGNITE_MCP_DEV_GROUP2_DISCOVERY === "0") return [];
   return reviewedDevGroup2Canisters({
@@ -121,9 +134,12 @@ const manifest = {
     // The PROD artifact/manifest is a separate release and is unchanged.
     // DEV MCP discovery only advertises the reviewed caller-facing services;
     // privileged workload, migration and worker canisters remain outside the manifest.
-    ...(isProdBuild ? Object.entries(canisterIds) : reviewedDevAssistantBaseCanisters(canisterIds))
+    ...(engineBuild ? Object.entries(JSON.parse(process.env.IGNITE_LIVE_OPENCLOUD_IDS_JSON)).filter(([key]) =>
+      key !== 'frontend' && !['secret_workload_identity', 'migration_coordinator', 'placement_registry'].includes(key)) :
+      isProdBuild ? Object.entries(canisterIds) : reviewedDevAssistantBaseCanisters(canisterIds))
       .map(([key, id]) => {
-        const [name, description] = CANISTER_ROLES[key] ?? [key, undefined];
+        const [role, description] = CANISTER_ROLES[key.replace(/^g[0-9]+_/, '')] ?? [key, undefined];
+        const name = engineBuild ? key : role;
         return description ? { id, name, role: "backend", description } : { id, name, role: "backend" };
       }),
     ...devGroup2Discovery(),
@@ -140,7 +156,7 @@ writeFileSync(`${out}/.well-known/ic-architecture`, JSON.stringify(manifest, nul
 // empty account. Website/phone sign-in is unchanged.
 writeFileSync(
   `${out}/.well-known/ii-derivation-origin`,
-  `${derivationOriginForBuild({ isProdBuild, frontendCanisterId })}\n`,
+  `${engineProd ? PROD_MEMBER_II_ORIGIN : engineBuild ? `https://${frontendCanisterId}.icp.net` : derivationOriginForBuild({ isProdBuild, frontendCanisterId })}\n`,
 );
 
 // The canister must reach the same database the bundle was built against
@@ -156,13 +172,13 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self'",
-  `connect-src 'self' https://api.giphy.com ${supabaseOrigin} ${supabaseWs} https://icp-api.io https://*.icp0.io https://*.ic0.app https://*.icp.net https://id.ai https://api.country.is https://photon.komoot.io`,
+  `connect-src 'self' https://api.giphy.com ${supabaseOrigin} ${supabaseWs} ${engineBuild ? process.env.IGNITE_LIVE_ICP_HOST : 'https://icp-api.io https://*.icp0.io https://*.ic0.app'} https://*.icp.net https://id.ai https://api.country.is https://photon.komoot.io`,
   "frame-src https://id.ai https://www.google.com https://www.youtube.com",
   "object-src 'none'",
   "worker-src 'self'",
   "base-uri 'none'",
   "form-action 'none'",
-  "media-src 'self' blob:",
+  `media-src 'self' blob: ${supabaseOrigin}`,
 ].join("; ");
 
 // Cache-Control must never come from "/*": rules merge, so hashed /assets/*

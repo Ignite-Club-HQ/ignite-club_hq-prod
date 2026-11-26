@@ -1,0 +1,1 @@
+function n(e,a){if(a?.miniLeagueId)return"Match Day";switch(e){case"game":return"Game";case"training":return"Training";case"social":return"Social";case"mini_league":return"Match Day";default:return"Event"}}export{n as g};

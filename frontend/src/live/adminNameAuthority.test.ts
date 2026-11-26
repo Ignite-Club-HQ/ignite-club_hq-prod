@@ -4,6 +4,7 @@ import { GROUP_DOMAINS } from './groupRouting';
 import type { FeatureBackendContext } from './featureRouter';
 import { groupApprovalConfiguration, approvalConfigurationSha256 } from './groupApproval';
 import { createAdminNameAuthorityResolver } from './adminNameAuthority';
+import type { ShardGroup } from '../lab/bindings/shard_router/declarations/shard_router.did';
 
 const mocks = vi.hoisted(() => ({ page: vi.fn(), approval: vi.fn(), dev: vi.fn() }));
 vi.mock('./domains', () => ({ connectLiveShardRouter: async () => ({ actor: { read_group_registry_page: mocks.page, read_routing_approval: mocks.approval } }) }));
@@ -12,8 +13,8 @@ vi.mock('./generated/routingGates', () => ({ ROUTING_GATES_SNAPSHOT: { approved:
 const p = (n: number) => Principal.fromUint8Array(Uint8Array.from([n, 1]));
 async function setup() {
   const subnet = p(120);
-  const groups = ['base', 'g2', 'g3'].map((id, n) => ({ id, target_alias: 'mainnet', accepting: true, max_clubs: 100,
-    heap_budget_bytes: 10000n, min_cycles: 0n, photo_store: [],
+  const groups = ['base', 'g2', 'g3'].map((id, n): ShardGroup => ({ id, target_alias: 'mainnet', accepting: true, max_clubs: 100,
+    heap_budget_bytes: 10000n, min_cycles: 0n, photo_store: [], observed_at_ns: 0n, cycles: 0n, heap_bytes: 0n, assigned_clubs: 0,
     domains: GROUP_DOMAINS.map((domain, i) => ({ domain, canister: p(1 + n * 25 + i) })) }));
   const placements = groups.map(g => ({ group_id: g.id, deployment_id: 'mainnet', deployment_revision: 1n,
     host: 'https://icp-api.io', network_kind: 'public_mainnet', primary_subnet: subnet, approved_subnets: [subnet], additional_subnets_enabled: false,
@@ -21,7 +22,7 @@ async function setup() {
   const registry = { revision: 12n, configuration_revision: [3n], groups, placements, next_cursor: [] };
   mocks.page.mockImplementation(async () => ({ Ok: registry }));
   const approved = { target_alias: 'mainnet', configuration_revision: 3n, removal_wiring_group_ids: groups.map(g => g.id),
-    approved_configuration_sha256: await approvalConfigurationSha256(groupApprovalConfiguration(groups as Parameters<typeof groupApprovalConfiguration>[0], placements)) };
+    approved_configuration_sha256: await approvalConfigurationSha256(groupApprovalConfiguration(groups, placements)) };
   mocks.approval.mockImplementation(async () => ({ Ok: [approved] }));
   const ctx = { identity: { getPrincipal: () => p(110) }, target: { provider: 'icp', alias: 'icp-public-mainnet', host: 'https://icp-api.io', networkKind: 'public_mainnet',
     canisterIds: { identity_access: p(111).toText(), shard_router: 'jcdfe-vqaaa-aaaal-qxloq-cai', pii_access_control: groups[0].domains.find(d => d.domain === 'pii_access_control')?.canister.toText() } } } as unknown as FeatureBackendContext;

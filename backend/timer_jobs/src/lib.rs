@@ -637,11 +637,26 @@ fn authenticated() -> Outcome<()> {
     }
 }
 
+// The OpenCloud relay is the management install caller, not the application governor.
+fn opencloud_dev_governor() -> Option<Principal> {
+    if option_env!("IGNITE_OPENCLOUD_DEV_ADMISSION_ONLY") != Some("1") { return None; }
+    let id = ic_cdk::api::canister_self().to_text();
+    if id != "enyb6-eyaaa-aaac5-aadyq-cai" && id != "fawfq-lqaaa-aaac5-aad7a-cai" { return None; }
+    Some(Principal::from_text("vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae").unwrap())
+}
+
+// Restrict PROD recovery to the two allocated OpenCloud timer canisters.
+fn opencloud_prod_governor() -> Option<Principal> {
+    let id = ic_cdk::api::canister_self().to_text();
+    if id != "gixkr-vqaaa-aaac5-aaeiq-cai" && id != "hfzo7-2yaaa-aaac5-aaepa-cai" { return None; }
+    Some(Principal::from_text("kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae").unwrap())
+}
+
 #[ic_cdk::init]
 fn init() {
     // Capture install authority atomically; no first-call takeover window.
     let mut meta = metadata();
-    meta.governor = Some(caller());
+    meta.governor = Some(opencloud_dev_governor().or_else(opencloud_prod_governor).unwrap_or_else(caller));
     METADATA.with(|m| *m.borrow_mut() = meta);
     save_root();
 }
@@ -649,6 +664,19 @@ fn init() {
 #[ic_cdk::post_upgrade]
 fn post_upgrade() {
     load_state_into_thread_locals();
+    if let Some(expected) = opencloud_dev_governor().or_else(opencloud_prod_governor) {
+        let mut meta = metadata();
+        if meta.governor == Some(expected) { return; }
+        let relay = Principal::from_text("s53an-5aaaa-aaac5-aaaaa-cai").unwrap();
+        let state = queue_state();
+        assert!(meta.governor == Some(relay), "Unexpected previous timer governor");
+        assert!(ic_cdk::api::is_controller(&expected), "OpenCloud governor must be controller");
+        assert!(meta.workers.is_empty() && meta.callbacks.is_empty() && jobs_is_empty()
+            && FENCES.with(|f| f.borrow().is_empty()) && !state.armed && state.next_run_at_ms.is_none()
+            && account_removal_receiver::authority().is_none(), "Timer recovery requires pristine state");
+        meta.governor = Some(expected);
+        save_metadata(meta);
+    }
 }
 
 #[ic_cdk::update]

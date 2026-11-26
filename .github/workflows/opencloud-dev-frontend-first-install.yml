@@ -1,0 +1,65 @@
+name: "[TEST] OpenCloud DEV frontend deployment"
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: opencloud-dev-deployment
+  cancel-in-progress: false
+jobs:
+  frontend:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      ICP_HOME: ${{ github.workspace }}/.icp-home
+      SUPABASE_URL: https://ecsdwrarzfexssxtrymj.supabase.co
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22.12.0' }
+      - run: npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
+      - name: Use the existing DEV website publisher
+        env:
+          PUBLISHER_IN: ${{ secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLISHER_IN" || { echo "::error::DEPLOYER_PEM missing"; exit 1; }
+          mkdir -p "$ICP_HOME"
+          PEM_IN="$PUBLISHER_IN" node scripts/normalize-dev-engine-publisher-pem.mjs > "$ICP_HOME/publisher.pem"
+          icp identity import --from-pem "$ICP_HOME/publisher.pem" --storage plaintext opencloud-publisher
+          rm -f "$ICP_HOME/publisher.pem"
+          icp identity default opencloud-publisher
+          expected="$(node -p 'require("./deploy/opencloud/dev.json").controllers.frontendPublisher')"
+          test "$(icp identity principal)" = "$expected" || { echo "::error::Publisher key does not match the OpenCloud DEV publisher"; exit 1; }
+      - run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+      - name: Build the isolated OpenCloud DEV website
+        run: |
+          set -euo pipefail
+          W=deploy/opencloud/work/dev-web
+          mkdir -p "$W" && cp deploy/opencloud/dev.json "$W/config.json"
+          node scripts/opencloud/frontend-artifacts.mjs "$W" deploy/opencloud/prod.json
+          mkdir -p "$W/site/.icp/data/mappings"
+          cp -r "$W/frontend-assets" "$W/site/dist"
+          cp deploy/frontend-engine/icp.yaml "$W/site/icp.yaml"
+          printf '{"frontend":"%s"}\n' "$(node -p 'require("./deploy/opencloud/dev.json").shared.frontend')" > "$W/site/.icp/data/mappings/ic.ids.json"
+      - name: Install pinned static-site module if empty
+        env:
+          PEM_IN: ${{ secrets.DEPLOYER_PEM }}
+          PUBLISHER_PEM_FILE: ${{ runner.temp }}/opencloud-publisher.pem
+        run: |
+          set -euo pipefail
+          umask 077
+          trap 'rm -f "$PUBLISHER_PEM_FILE"' EXIT
+          node scripts/normalize-dev-engine-publisher-pem.mjs > "$PUBLISHER_PEM_FILE"
+          unset PEM_IN
+          W=deploy/opencloud/work/dev-web/site
+          (cd "$W" && icp build)
+          node scripts/opencloud/dev-frontend-first-install.mjs "$W/.icp/cache/artifacts/frontend" install
+      - name: Upload website files (sync only, no reinstall)
+        working-directory: deploy/opencloud/work/dev-web/site
+        run: |
+          set -euo pipefail
+          icp sync frontend -e ic
+          id=h2knm-vaaaa-aaac5-aadqa-cai
+          echo "### OpenCloud DEV website updated for commit \`${GITHUB_SHA}\`: https://$id.icp.net" >> "$GITHUB_STEP_SUMMARY"

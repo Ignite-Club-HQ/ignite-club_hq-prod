@@ -1,5 +1,29 @@
 # Grouped OpenCloud DEV: offline preparation
 
+## Updated direction — 25 November 2026
+
+The approved plan in `.lovable/plan/move-ignite-dev-and-prod-to-opencloud-2026-11-25.md`
+supersedes the earlier mainnet-only PROD destination below. Prefer Git-driven
+upgrades using existing DEV identities, independent DEV/PROD on the initial engine, and fresh DEV on a
+second engine later without moving PROD or its key authority. Old ICP retention
+is optional and bounded; Supabase and paid subscriptions remain untouched.
+
+Owner screenshots received at 05:50 UTC clarify the access choice: **Add a
+controller** accepts an existing principal and preserves other controllers;
+**Deploy from CI** creates a new key and grants it control of all nineteen
+selected canisters, including stop/delete/controller changes. The latter screen
+does not establish repository connection, branch gating or state-preserving
+automatic upgrades. Prefer the existing DEV governor on DEV targets and the
+existing website publisher on the frontend alone; do not mint a replacement CI
+identity. Neither action alone hands over internal governors or wires services.
+The nineteen selected parts do not certify the complete 32-part grouped inventory.
+
+The current console access check still reaches sign-in. No authorized OpenCloud
+transport is available here; grants and live upgrades remain unverified.
+Thirty existing grouped-preparation/controller
+tests passed, but this is local preparation evidence, not live acceptance.
+No workflows, controllers, data, hosting or deployment destinations were changed.
+
 ## Scope and layout
 
 This prepares the agreed two-group DEV alternative, not a deployment or switch.
@@ -104,6 +128,14 @@ OpenCloud's console explicitly reported that bundles cannot add controllers;
 do not try another package to grant GitHub permission. Support/owner access must
 retain the OpenCloud owner and add the DEV governor on backend parts, plus the
 publishing key on the frontend (the DEV governor also remains on the frontend).
+
+OpenCloud also offers controllers at **engine level**, which covers every
+canister in both DEV apps (and future additions) in one grant. While the engine
+hosts DEV only, prefer one engine-level grant of the DEV governor principal,
+plus the publishing principal on the frontend canister alone. Engine-level
+grants also cover the engine proxy canister, so they are DEV-only: if PROD ever
+shares this engine, the engine-level DEV keys must be removed and re-added
+per-canister before any PROD canister lands there.
 
 **Adding a management controller does not change a service's internal governor.**
 The successful v2 app was initialized under the owner identity. After support

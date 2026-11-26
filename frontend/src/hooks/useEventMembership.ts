@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { checkLiveEventMembership } from "@/live/features/events";
+import { getLiveMyRoleGrants } from "@/live/features/membership";
 
 /**
  * Whether the current user (or any of their children) is a member of the
@@ -38,6 +39,7 @@ export function useEventMembership(event: {
       event.id ?? null,
       event.team_id,
       event.club_id,
+      event.target_team_ids ?? null,
       user?.id,
     ],
     queryFn: async (): Promise<boolean> => {
@@ -49,9 +51,16 @@ export function useEventMembership(event: {
       // by club_domain reads as not-a-member here — see backend/AGENTS.md /
       // frontend/roadmap.md.
       if (isFeatureRoutedToIcp("events") && event.id) {
+        const targets = event.team_id ? [event.team_id] : (event.target_team_ids ?? []);
+        const member = await withFeatureBackend("membership", {
+          supabase: async () => false,
+          icp: async (ctx) => (await getLiveMyRoleGrants(ctx)).some(g =>
+            g.club[0] === event.club_id && (!targets.length || (!!g.team[0] && targets.includes(g.team[0])))),
+        }, { clubId: event.club_id });
+        if (member) return true;
         return withFeatureBackend("events", {
           supabase: async () => true,
-          icp: async (ctx) => checkLiveEventMembership(ctx, user.id, event.id!),
+          icp: async (ctx) => checkLiveEventMembership(ctx, user.id.replace(/^principal:/, ""), event.id!),
         }, { eventId: event.id! });
       }
       if (isFeatureRoutedToIcp("events")) return true;

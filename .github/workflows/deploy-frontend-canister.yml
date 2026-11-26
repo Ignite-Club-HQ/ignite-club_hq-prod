@@ -34,7 +34,22 @@ permissions:
   contents: read
 
 jobs:
+  # At OpenCloud DEV cutover (activation.autoDeploy) automatic mainnet DEV website pushes stop;
+  # manual runs stay available for rollback.
+  cutover:
+    runs-on: ubuntu-latest
+    outputs:
+      auto_deploy: ${{ steps.gate.outputs.auto_deploy }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: gate
+        # Dependency-free read of the activation switch (no frontend install in this job).
+        run: >-
+          node -e "const a=require('./deploy/opencloud/dev.json').activation||{};
+          require('fs').appendFileSync(process.env.GITHUB_OUTPUT,'auto_deploy='+(a.autoDeploy===true)+'\n')"
   deploy:
+    needs: cutover
+    if: github.event_name != 'push' || needs.cutover.outputs.auto_deploy != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:

@@ -1,0 +1,46 @@
+name: "[PROD] OpenCloud PROD group registration"
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [check, register]
+        default: check
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: opencloud-prod-deployment
+  cancel-in-progress: false
+jobs:
+  registration:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22.12.0' }
+      - run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+      - name: Check or register closed PROD groups
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+          ICP_HOME: ${{ runner.temp }}/opencloud-prod-registration
+          GOVERNOR_PEM_FILE: ${{ runner.temp }}/opencloud-prod-registration/governor.pem
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$ICP_HOME"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          test -n "$PROD_GOVERNOR_PEM_ENC" && test -n "$PROD_GOVERNOR_PASSPHRASE"
+          npm install -g @icp-sdk/icp-cli@1.7.0 --no-audit --no-fund
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$GOVERNOR_PEM_FILE.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$GOVERNOR_PEM_FILE.pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$GOVERNOR_PEM_FILE.enc" -out "$GOVERNOR_PEM_FILE" -pass file:"$GOVERNOR_PEM_FILE.pass"
+          rm -f "$GOVERNOR_PEM_FILE.enc" "$GOVERNOR_PEM_FILE.pass"
+          unset PROD_GOVERNOR_PEM_ENC PROD_GOVERNOR_PASSPHRASE
+          icp identity import --from-pem "$GOVERNOR_PEM_FILE" --storage plaintext opencloud-governor
+          rm -f "$GOVERNOR_PEM_FILE"
+          node scripts/opencloud/prod-register-groups.mjs "$MODE"

@@ -3,6 +3,7 @@ import type { Identity } from "@icp-sdk/core/agent";
 import { getActiveIcpTarget, type IcpTargetConfig } from "./targetRegistry";
 import { observePrivateProfilePrincipal, retirePrivateProfileSession } from './privateProfileSession';
 import type { IcpSessionHealth } from "./icpSessionErrors";
+import { opencloudDerivationOrigin } from './opencloudEnvironment';
 // NOTE: icpAgent/piiVetKeys are imported lazily at the call sites below so
 // this module — which sits on the boot path via featureRouter/useAuth — does
 // not drag the ICP agent/candid/vetKeys SDKs into the entry chunk.
@@ -111,6 +112,8 @@ const DEV_LOVABLE_ORIGIN_SET = new Set(DEV_LOVABLE_ORIGINS);
 const CANISTER_ALIAS_HOST = /^([a-z0-9]{5}(?:-[a-z0-9]{5}){3}-cai)\.(?:raw\.icp0\.io|icp\.net|raw\.icp\.net|ic0\.app|raw\.ic0\.app)$/;
 
 export function resolveDerivationOriginFor(origin: string): string | undefined {
+  const engineOrigin = opencloudDerivationOrigin();
+  if (engineOrigin) return engineOrigin;
   if (DEV_LOVABLE_ORIGIN_SET.has(origin)) return DEV_FRONTEND_II_ORIGIN;
   if (II_ALTERNATIVE_ORIGINS.has(origin)) return CANONICAL_II_ORIGIN;
   let host: string;
@@ -269,7 +272,9 @@ async function startRedirectSignIn(target: IcpTargetConfig, returnTo?: string): 
 const PROVISIONED_KEY_PREFIX = "ignite_ii_provisioned_v1:";
 
 function provisionedKey(principal: string, target: IcpTargetConfig): string {
-  return `${PROVISIONED_KEY_PREFIX}${target.alias}:${principal}`;
+  return target.alias === "opencloud-dev"
+    ? `${PROVISIONED_KEY_PREFIX}${target.alias}:${target.host}:${target.canisterIds.identity_access}:${principal}`
+    : `${PROVISIONED_KEY_PREFIX}${target.alias}:${principal}`;
 }
 
 function isAccountProvisioned(principal: string, target: IcpTargetConfig): boolean {

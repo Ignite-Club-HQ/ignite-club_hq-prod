@@ -47,7 +47,6 @@ import { isNativePlatform } from "@/lib/nativePush";
 import { z } from "zod";
 import { addMonths, addYears, isPast, parseISO } from "date-fns";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
-import { resolveAuthBackend } from "@/live/authBackendMode";
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
 

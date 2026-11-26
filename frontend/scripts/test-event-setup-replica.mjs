@@ -38,8 +38,11 @@ try {
   assert.ok('Err' in await events.actor.create_event_with_setup({...input,title:'conflict'}));
   assert.equal(ok(await events.actor.read_account_list_duties(created.first_event_id)).length,1);
   assert.equal(ok(await events.actor.read_account_list_duties(created.event_ids[1])).length,0);
-  ok(await events.actor.sync_active_game(['team-a'],'{}','{"sport":"basketball"}','device'));
-  assert.equal(JSON.parse(ok(await events.actor.get_active_game(['team-a']))[0].pitch_state_json).sport,'basketball');
+  assert.ok('Err' in await events.actor.sync_active_game(['team-a'],'{}','{"sport":"basketball"}','device'));
+  const board = ok(await events.actor.sync_shared_board('club-a','team-a',[],'{"sport":"basketball"}','device'));
+  assert.equal(JSON.parse(ok(await events.actor.read_shared_board('club-a','team-a'))[0].pitch_state_json).sport,'basketball');
+  assert.ok('Err' in await events.actor.sync_shared_board('club-a','team-a',[],'{}','device'));
+  ok(await events.actor.sync_shared_board('club-a','team-a',[board.updated_at_ms],'{"sport":"basketball"}','device'));
   assert.equal(ok(await events.actor.send_individual_event_reminder(created.first_event_id,[member.toText()],[])),1);
   assert.ok('Err' in await events.actor.send_individual_event_reminder(created.first_event_id,[member.toText()],[]));
   assert.ok('Err' in await events.actor.send_individual_event_reminder(created.first_event_id,[stranger.toText()],[]));

@@ -1,0 +1,39 @@
+name: "[TEST] OpenCloud DEV group registration"
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [check, register]
+        default: check
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: opencloud-dev-deployment
+  cancel-in-progress: false
+jobs:
+  wiring:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22.12.0' }
+      - run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+      - name: Run DEV wiring
+        env:
+          PEM_IN: ${{ secrets.GOVERNOR_PEM }}
+          ICP_HOME: ${{ runner.temp }}/opencloud-wiring
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$ICP_HOME"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          npm install -g @icp-sdk/icp-cli@1.7.0 --no-audit --no-fund
+          node scripts/normalize-dev-engine-publisher-pem.mjs > "$ICP_HOME/governor.pem"
+          unset PEM_IN
+          icp identity import --from-pem "$ICP_HOME/governor.pem" --storage plaintext opencloud-governor
+          node scripts/opencloud/dev-register-groups.mjs "$MODE"

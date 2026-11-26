@@ -454,6 +454,7 @@ function SupabaseCompleteProfilePage() {
     const isIcpLive = resolveAuthBackend() === "icp";
 
     setSaving(true);
+    let devStage = "identity-session";
 
     try {
       let savedIcpProfile: IcpIdentityProfile | undefined;
@@ -466,12 +467,31 @@ function SupabaseCompleteProfilePage() {
         if (!identity) {
           throw new Error("Your sign-in session could not be verified. Please sign in again.");
         }
+        if (import.meta.env.IGNITE_LIVE_OPENCLOUD_ENV === "opencloud-dev") {
+          devStage = "legal-acceptance";
+          if (!policiesAccepted) throw new Error("Policy acceptance is required.");
+          const [{ readLiveAppConfig }, { fetchMyIcpTermsAcceptance, setIcpTermsAcceptance }, { icpTermsVersionFromSetting }] = await Promise.all([
+            import("@/live/appConfig"),
+            import("@/live/legalTerms"),
+            import("@/hooks/useLegalReacceptance"),
+          ]);
+          const release = await readLiveAppConfig("legal_document_release");
+          const version = release ? icpTermsVersionFromSetting({ required: true, version: release, effective_at: release + "T00:00:00.000Z", summary: null }) : 0;
+          if (!version) throw new Error("No valid published legal document release is configured.");
+          const previous = await fetchMyIcpTermsAcceptance(identity);
+          if (!previous || previous.termsVersion < version) {
+            await setIcpTermsAcceptance(identity, version);
+          }
+          const verified = await fetchMyIcpTermsAcceptance(identity);
+          if (!verified || verified.termsVersion < version) throw new Error("Legal acceptance could not be verified.");
+        }
         // A photo picked on this screen is a base64 data URL; the canister
         // profile stores it as the avatar reference directly. Skip only
         // pathological sizes so a huge image can't blow the ingress limit.
         // The canister refuses avatar references over 512 characters, so a
         // picked photo (base64) is left out rather than failing the save.
         const avatarRef = avatarUrl && avatarUrl.length <= 512 ? avatarUrl : null;
+        devStage = "profile-save";
         savedIcpProfile = await saveIcpIdentityProfile(identity, user.id, {
           displayName: displayName.trim(),
           avatarRef,
@@ -566,6 +586,7 @@ function SupabaseCompleteProfilePage() {
       }
       }
 
+      devStage = "onboarding-completion";
       // Set light theme as default for new users (only if no theme is already active)
       const existingTheme = localStorage.getItem('app-theme');
       if (!existingTheme) {
@@ -1251,6 +1272,7 @@ function SupabaseCompleteProfilePage() {
       }
       
       // Force refresh profile in auth context so theme is picked up
+      devStage = "profile-refresh";
       await refreshProfile(savedIcpProfile);
       
       // Navigate to home - all invites were already processed above
@@ -1272,7 +1294,13 @@ function SupabaseCompleteProfilePage() {
               ? err.message
               : err instanceof Error && err.message.startsWith("This invitation")
                 ? err.message
-                : "Something went wrong. Please try again.";
+                : isIcpLive && err instanceof Error && err.message === "Encrypted name saving is not ready on these servers. Please try again after setup is complete."
+                  ? err.message
+                  : isIcpLive && import.meta.env.IGNITE_LIVE_OPENCLOUD_ENV === "opencloud-dev"
+                    ? err instanceof Error && /^DEV profile save failed \[(session|authority|encrypted-name|publication|local-profile)\]\.$/.test(err.message)
+                      ? err.message
+                      : `DEV profile setup failed [${devStage}].`
+                    : "Something went wrong. Please try again.";
       toast({
         title: "Error",
         description: friendlyMessage,
@@ -1451,7 +1479,7 @@ function SupabaseCompleteProfilePage() {
             )}
 
             {/* Install App Button - shown when browser supports PWA install or on iOS */}
-            {!isInstalled && (canPrompt || isIOS) && (
+            {!isIcpAccount && !isInstalled && (canPrompt || isIOS) && (
               <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
                 <div className="flex items-center gap-3">
                   <Download className="h-5 w-5 text-primary" />
@@ -1530,7 +1558,7 @@ function SupabaseCompleteProfilePage() {
                     return;
                   }
                   // If user wants to install, save profile first then trigger install
-                  if (installAndContinue && canPrompt) {
+                  if (installAndContinue && canPrompt && !isIcpAccount) {
                     setSaving(true);
                     try {
                       // Save profile first

@@ -1,3 +1,4 @@
+import { opencloudEnvironment } from './opencloudEnvironment';
 import { supabase } from "@/integrations/supabase/client";
 import {
   ICP_CANISTER_CONFIG_KEY,
@@ -18,6 +19,8 @@ import { shouldBootstrapFromIcp } from "./icpBootstrap";
  * Supabase import must not live on that path (module cycle).
  */
 export async function loadIcpAdminOverrides(): Promise<void> {
+  // OpenCloud builds never adopt stored (mainnet) canister overrides.
+  if (opencloudEnvironment()) { applyIcpAdminOverrides(null); return; }
   try {
     if ((!isSignedInWithEmail() && hasStoredInternetIdentitySession()) || shouldBootstrapFromIcp()) {
       const raw = await readLiveAppConfig(ICP_CANISTER_CONFIG_KEY);

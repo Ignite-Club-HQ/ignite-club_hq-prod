@@ -1,0 +1,7 @@
+{
+  "callbacks": [
+    "https://h2knm-vaaaa-aaac5-aadqa-cai.icp.net/auth",
+    "https://h2knm-vaaaa-aaac5-aadqa-cai.icp.net/native-sign-in.html",
+    "https://h2knm-vaaaa-aaac5-aadqa-cai.icp.net/native-sign-in"
+  ]
+}

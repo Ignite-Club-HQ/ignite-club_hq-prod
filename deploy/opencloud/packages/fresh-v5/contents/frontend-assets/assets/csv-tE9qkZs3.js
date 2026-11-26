@@ -1,0 +1,1 @@
+function n(e){const t=[];let s="",r=!1;for(const i of e)i==='"'?r=!r:i===","&&!r?(t.push(s.trim()),s=""):s+=i;return t.push(s.trim()),t}function a(e){return/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)}export{a as i,n as p};

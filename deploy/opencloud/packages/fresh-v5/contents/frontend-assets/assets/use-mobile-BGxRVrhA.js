@@ -1,0 +1,1 @@
+import{r}from"./live-index-CWZghETN.js";const e=768;function d(){const[o,n]=r.useState(()=>typeof window<"u"?window.innerWidth<e:!0);return r.useEffect(()=>{const t=window.matchMedia(`(max-width: ${e-1}px)`),i=()=>{n(window.innerWidth<e)};return t.addEventListener("change",i),n(window.innerWidth<e),()=>t.removeEventListener("change",i)},[]),o}export{d as u};

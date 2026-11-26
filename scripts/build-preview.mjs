@@ -8,6 +8,7 @@ import { readFileSync, existsSync, rmSync, cpSync, writeFileSync, mkdirSync } fr
 import path from "node:path";
 import { ensureFrontendDeps } from "./ensure-frontend-deps.mjs";
 import { syncCanisterIds } from "./sync-canister-ids.mjs";
+const previewEnv = async (...a) => (await import("./opencloud/dev-auto.mjs")).previewEnv(...a);
 import { writeTestAssistantDiscovery } from "./test-assistant-discovery.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -84,6 +85,8 @@ const result = spawnSync(
       NODE_OPTIONS: [process.env.NODE_OPTIONS, "--max-old-space-size=4096"].filter(Boolean).join(" "),
       IGNITE_LIVE_SUPABASE_URL: supabaseUrl,
       IGNITE_LIVE_SUPABASE_ANON_KEY: supabaseAnonKey,
+      // OpenCloud DEV routing (deploy/opencloud/dev.json activation.lovableRouting); off keeps mainnet DEV.
+      ...((await previewEnv(undefined, supabaseAnonKey)) ?? {}),
     },
     stdio: "inherit",
   },

@@ -2,14 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 
 const mocks = vi.hoisted(() => ({
-  from: vi.fn(), positions: vi.fn(), preferences: vi.fn(), team: vi.fn(), fanOut: vi.fn(), route: vi.fn(), recipients: vi.fn(),
+  from: vi.fn(), positions: vi.fn(), preferences: vi.fn(), team: vi.fn(), fanOut: vi.fn(), route: vi.fn(), recipients: vi.fn(), schedule: vi.fn(), groupNotify: vi.fn(),
 }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { from: mocks.from } }));
 vi.mock('@/live/featureRouter', () => ({ withFeatureBackend: mocks.route }));
 vi.mock('@/live/features/club', () => ({ getLiveTeamPlayerPositionsV2: mocks.positions, getLiveTeam: mocks.team }));
 vi.mock('@/components/pitch/hooks/livePitchNotifications', () => ({ livePitchRecipients: mocks.recipients }));
 vi.mock('@/live/features/notifications', () => ({ getLiveNotificationPreferences: mocks.preferences, fanOutLiveNotifications: mocks.fanOut }));
-import { pitchPlayerPositionsQuery, readPitchNotificationPreference, notifyIcpSubstitutionDue } from './pitchBoardRepository';
+vi.mock('@/live/domains', () => ({ connectLiveNotificationQueue: async () => ({ actor: { schedule_pitch_sub_alerts: mocks.schedule } }) }));
+vi.mock('@/live/features/events', () => ({ notifyLiveGroupPitch: mocks.groupNotify }));
+import { pitchPlayerPositionsQuery, readPitchNotificationPreference, notifyIcpSubstitutionDue, scheduleIcpSubAlerts, pitchSubAlertKey } from './pitchBoardRepository';
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -18,10 +20,28 @@ beforeEach(() => {
   mocks.team.mockResolvedValue([{ club_id: 'club-g2' }]);
   mocks.preferences.mockResolvedValue({ pitchBoardEnabled: false });
   mocks.fanOut.mockResolvedValue(1);
+  mocks.schedule.mockResolvedValue({ Ok: 1 });
+  mocks.groupNotify.mockResolvedValue(1);
   mocks.recipients.mockResolvedValue({ userIds: ['caller'], clubId: 'club-g2', event: null });
 });
 
 describe('pitch-board on-chain gaps', () => {
+  it('registers two simultaneous changes as one server alert using the open-board key', async () => {
+    const key = pitchSubAlertKey('run', { half: 1, time: 300, playerOut: { id: 'a' }, playerIn: { id: 'b' } });
+    await scheduleIcpSubAlerts('team-g2', 'event', 'caller', [{ key, dueMs: 1000 }, { key, dueMs: 1000 }]);
+    await notifyIcpSubstitutionDue('team-g2', 'event', 'caller', key);
+    expect(mocks.schedule.mock.calls[0][4]).toEqual([{ key, due_ms: 1000n }]);
+    expect(mocks.fanOut.mock.calls[0][1].idempotencyKeyPrefix).toBe(key);
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('matches the shared-match relay namespace instead of producing a second alert', async () => {
+    await scheduleIcpSubAlerts('event-group-match', 'event', 'caller', [{ key: 'window', dueMs: 1000 }]);
+    await notifyIcpSubstitutionDue('event-group-match', 'event', 'caller', 'window');
+    expect(mocks.schedule.mock.calls[0][4]).toEqual([{ key: 'pitch-match-window', due_ms: 1000n }]);
+    expect(mocks.groupNotify).toHaveBeenCalledWith(expect.any(Object), 'match', 'substitution', '', 'window');
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
   it('loads jerseys and canonical preferred positions from the exact team, including child IDs', async () => {
     mocks.positions.mockResolvedValue([
       { member_id: 'principal:caller', positions: ['GK', 'invalid', 'DEF'], jersey_number: [12] },

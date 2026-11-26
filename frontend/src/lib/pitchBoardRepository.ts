@@ -108,7 +108,12 @@ export async function scheduleIcpSubAlerts(
       }
       const result = await actor.schedule_pitch_sub_alerts(
         teamId, clubId, userIds, teamId,
-        alerts.map(a => ({ key: a.key, due_ms: BigInt(Math.max(0, Math.round(a.dueMs))) })),
+        // The shared-match relay adds this namespace to the open-board key.
+        // Use the identical ID for its server timer, not a second notification.
+        [...new Map(alerts.map(a => [a.key, a])).values()].map(a => ({
+          key: teamId.startsWith('event-group-') ? `pitch-${teamId.slice('event-group-'.length)}-${a.key}` : a.key,
+          due_ms: BigInt(Math.max(0, Math.round(a.dueMs))),
+        })),
       );
       if ('Err' in result) throw new Error(result.Err);
       return Number(result.Ok);
@@ -116,7 +121,12 @@ export async function scheduleIcpSubAlerts(
   }, writeOnce(teamId.startsWith('event-group-') ? { eventGroupId: teamId.slice('event-group-'.length) } : { teamId }));
 }
 
-/** Stable alert key shared by the open board and the server timer so one sub alerts once. */
+/** One alert per due window, even when multiple players change together. */
 export function pitchSubAlertKey(runId: string, sub: { half: number; time: number; playerOut: { id: string }; playerIn: { id: string } }) {
-  return `pitch-sub-${runId}-${sub.half}-${Math.round(sub.time)}-${sub.playerOut.id}-${sub.playerIn.id}`.slice(0, 200);
+  return `pitch-sub-${runId}-${sub.half}-${Math.round(sub.time)}`.slice(0, 128);
+}
+
+/** ICP's registered server timer owns closed-board substitution delivery. */
+export function shouldTriggerImmediatePitchCheck(source: string, icp: boolean): boolean {
+  return !(icp && source === 'client-pending-sub-sync');
 }

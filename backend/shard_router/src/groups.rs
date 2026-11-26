@@ -50,6 +50,32 @@ pub struct GroupAssignment {
     pub revision: u64,
 }
 
+/// Resource model of the hosting platform. Mainnet canisters pay with their own
+/// cycles, so admission keeps a positive governor floor. OpenCloud engine
+/// canisters are funded by the engine and report a real zero balance: their
+/// floor must be exactly zero and cycles never gate admission, while capacity,
+/// heap budget, accepting flags and fresh successful health reads still do.
+/// Engine mode is only the canister's own IGNITE_CLOUD_ENGINE=1 setting.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResourcePolicy { Cycles, Engine }
+
+#[cfg(test)]
+thread_local! { pub static TEST_POLICY: std::cell::Cell<ResourcePolicy> = const { std::cell::Cell::new(ResourcePolicy::Cycles) }; }
+
+pub fn resource_policy() -> ResourcePolicy {
+    #[cfg(test)] { TEST_POLICY.with(|p| p.get()) }
+    #[cfg(not(test))] {
+        if ic_cdk::api::env_var_name_exists("IGNITE_CLOUD_ENGINE") && ic_cdk::api::env_var_value("IGNITE_CLOUD_ENGINE") == "1" { ResourcePolicy::Engine } else { ResourcePolicy::Cycles }
+    }
+}
+
+pub fn cycles_ok(group: &ShardGroup) -> bool {
+    match resource_policy() {
+        ResourcePolicy::Cycles => group.min_cycles > 0 && group.cycles >= group.min_cycles,
+        ResourcePolicy::Engine => group.min_cycles == 0,
+    }
+}
+
 pub fn validate(group: &ShardGroup) -> Result<(), String> {
     for id in [&group.id, &group.target_alias] {
         if id.is_empty() || id.len() > 64 || !id.bytes().all(|c| c.is_ascii_alphanumeric() || b"-_.:".contains(&c)) {
@@ -59,7 +85,8 @@ pub fn validate(group: &ShardGroup) -> Result<(), String> {
     if group.max_clubs == 0 || group.max_clubs > MAX_CLUBS || group.assigned_clubs > group.max_clubs {
         return Err("Invalid club capacity".into());
     }
-    if group.heap_budget_bytes == 0 || group.heap_budget_bytes > 3 * 1024 * 1024 * 1024 || group.min_cycles == 0 {
+    if group.heap_budget_bytes == 0 || group.heap_budget_bytes > 3 * 1024 * 1024 * 1024 ||
+        (group.min_cycles == 0) != (resource_policy() == ResourcePolicy::Engine) {
         return Err("Invalid memory or cycle budget".into());
     }
     let mut names = std::collections::HashSet::new();
@@ -82,7 +109,7 @@ pub fn validate(group: &ShardGroup) -> Result<(), String> {
 
 pub fn has_headroom(group: &ShardGroup, target: &str, now: u64) -> bool {
     group.target_alias == target && group.accepting && group.assigned_clubs < group.max_clubs &&
-        group.heap_bytes < group.heap_budget_bytes && group.cycles >= group.min_cycles &&
+        group.heap_bytes < group.heap_budget_bytes && cycles_ok(group) &&
         group.observed_at_ns <= now && now - group.observed_at_ns <= MAX_READING_AGE_NS
 }
 
@@ -188,6 +215,18 @@ pub(crate) mod tests {
         let g = group("a", 0);
         assert!(!has_headroom(&g, "mainnet", MAX_READING_AGE_NS + 2));
         assert!(!has_headroom(&g, "mainnet", 0));
+    }
+    #[test] fn engine_policy_requires_zero_floor_and_keeps_other_gates() {
+        let mut g = group("e", 1);
+        g.min_cycles = 0; g.cycles = 0;
+        assert!(validate(&g).is_err()); // mainnet never accepts a zero floor
+        TEST_POLICY.with(|p| p.set(ResourcePolicy::Engine));
+        assert!(validate(&g).is_ok());
+        assert!(has_headroom(&g, &g.target_alias.clone(), 1));
+        g.heap_bytes = g.heap_budget_bytes; assert!(!has_headroom(&g, &g.target_alias.clone(), 1));
+        g.heap_bytes = 0; assert!(!has_headroom(&g, &g.target_alias.clone(), g.observed_at_ns + MAX_READING_AGE_NS + 1));
+        g.min_cycles = 1; assert!(validate(&g).is_err()); // no fabricated engine floors
+        TEST_POLICY.with(|p| p.set(ResourcePolicy::Cycles));
     }
     #[test] fn memory_and_cycles_gate_admission() {
         let mut g = group("a", 0); g.heap_bytes = g.heap_budget_bytes;

@@ -1,0 +1,1 @@
+const c="ignite-feedback-v2:";function r(e){return c+JSON.stringify({description:e.trim()||null})}function o(e,i){if(i.startsWith(c))try{const t=JSON.parse(i.slice(c.length));if(t&&typeof t=="object"&&"description"in t){const n=t.description;if(n===null||typeof n=="string")return{title:e??"Feedback",description:n}}}catch{}return{title:i,description:e??null}}export{o as d,r as e};

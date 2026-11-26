@@ -1,5 +1,6 @@
 import { mergeIcpTargetWithAdminOverrides } from "./icpAdminOverrides";
 import { DEPLOYED_MAINNET_CANISTER_IDS } from "./generated/deployedCanisterIds";
+import { opencloudEnvironment, opencloudPinnedTarget } from './opencloudEnvironment';
 
 type BackendProvider = "supabase" | "icp";
 
@@ -156,6 +157,9 @@ function defaultSupabaseTargets(): SupabaseTargetConfig[] {
 
 function defaultIcpTargets(): IcpTargetConfig[] {
   const canisterIds = optionalEnv("IGNITE_LIVE_ICP_CANISTER_IDS_JSON");
+  if (opencloudEnvironment() && (!canisterIds || !optionalEnv('IGNITE_LIVE_ICP_HOST'))) {
+    throw new Error('OpenCloud requires its own explicit host and canister mappings');
+  }
   return [
     {
       provider: "icp",
@@ -199,7 +203,9 @@ export function getLiveBackendTargetRegistry(): LiveBackendTargetRegistry {
 
 export function getActiveSupabaseTarget(): SupabaseTargetConfig {
   const registry = getLiveBackendTargetRegistry();
-  return registry.supabaseTargets.find(target => target.alias === registry.activeSupabaseAlias)!;
+  const target = registry.supabaseTargets.find(target => target.alias === registry.activeSupabaseAlias);
+  if (!target) throw new Error('Active email service is not configured');
+  return target;
 }
 
 /** Cloud Engine assignment for the current user, as resolved by the routing layer. */
@@ -223,6 +229,17 @@ export function registerIcpEngineResolver(resolver: (() => IcpEngineAssignment |
 }
 
 export function getActiveIcpTarget(): IcpTargetConfig {
+  // An isolated OpenCloud artifact must never adopt mainnet IDs from an admin
+  // row or the existing country resolver. Existing builds retain their precedence.
+  if (opencloudEnvironment()) {
+    const registry = getLiveBackendTargetRegistry();
+    const target = registry.icpTargets.find(candidate => candidate.alias === registry.activeIcpAlias);
+    const pinned = opencloudPinnedTarget();
+    if (!target || target.alias !== opencloudEnvironment() || target.networkKind !== 'cloud_engine' ||
+        !pinned || target.host !== pinned.host || Object.keys(target.canisterIds).length !== 18 ||
+        Object.entries(pinned.canisterIds).some(([name, id]) => target.canisterIds[name] !== id)) throw new Error('Incomplete isolated OpenCloud target');
+    return validateIcpTarget(target);
+  }
   let engine: IcpEngineAssignment | null = null;
   try {
     engine = icpEngineResolver?.() ?? null;
@@ -244,7 +261,8 @@ export function getActiveIcpTarget(): IcpTargetConfig {
     };
   }
   const registry = getLiveBackendTargetRegistry();
-  const target = registry.icpTargets.find(candidate => candidate.alias === registry.activeIcpAlias)!;
+  const target = registry.icpTargets.find(candidate => candidate.alias === registry.activeIcpAlias);
+  if (!target) throw new Error('Active secure service is not configured');
   // App-admin canister overrides (stored in the `icp_canister_config` app_settings
   // row) take precedence over the build-time env values; re-validate the merged
   // target so a bad stored value can never produce an unapproved target.
