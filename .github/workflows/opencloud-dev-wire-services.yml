@@ -1,4 +1,4 @@
-name: '[INIT] OpenCloud DEV service wiring'
+name: "[TEST] OpenCloud DEV service wiring"
 on:
   workflow_dispatch:
     inputs:

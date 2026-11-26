@@ -1,4 +1,4 @@
-name: '[FIX] OpenCloud DEV club media inventory'
+name: "[TEST] OpenCloud DEV club media inventory"
 on:
   workflow_dispatch:
     inputs:

@@ -1,4 +1,4 @@
-name: '[TEST] OpenCloud DEV controller requests'
+name: "[TEST] OpenCloud DEV controller requests"
 # Offline only: builds/decodes Candid for ChatGPT's authenticated ICP connector. No secrets, no network calls to canisters.
 on:
   workflow_dispatch:

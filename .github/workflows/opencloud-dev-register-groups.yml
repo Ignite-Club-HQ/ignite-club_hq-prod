@@ -1,4 +1,4 @@
-name: '[INIT] OpenCloud DEV group registration'
+name: "[TEST] OpenCloud DEV group registration"
 on:
   workflow_dispatch:
     inputs:

@@ -1,4 +1,4 @@
-name: '[FIX] OpenCloud DEV PII settings'
+name: "[TEST] OpenCloud DEV PII settings"
 on:
   workflow_dispatch:
     inputs:

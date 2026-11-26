@@ -1,4 +1,4 @@
-name: OpenCloud DEV v4 credential preflight
+name: "[TEST] OpenCloud DEV v4 credential preflight"
 on:
   workflow_dispatch:
 permissions:

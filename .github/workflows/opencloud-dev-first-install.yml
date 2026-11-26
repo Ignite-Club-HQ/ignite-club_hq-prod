@@ -1,4 +1,4 @@
-name: '[INSTALL] OpenCloud DEV backend first install'
+name: "[TEST] OpenCloud DEV backend first install"
 on:
   workflow_dispatch:
     inputs:

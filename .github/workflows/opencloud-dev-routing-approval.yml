@@ -1,4 +1,4 @@
-name: '[INIT] OpenCloud DEV routing approval'
+name: "[TEST] OpenCloud DEV routing approval"
 on:
   workflow_dispatch:
     inputs:

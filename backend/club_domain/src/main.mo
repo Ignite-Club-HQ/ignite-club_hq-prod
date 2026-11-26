@@ -508,22 +508,22 @@ persistent actor class Main(governorInit : Principal) = this {
 
   /// Governor-only: moves every stored reference of one user's sign-in ID (old) to a new one.
   /// Any NEW stored principal / principal-text field added to this canister must be added here.
-  public shared ({ caller }) func rekey_principal(old : Principal, new : Principal, dry_run : Bool) : async { #ok : Nat; #err : Text } {
+  public shared ({ caller }) func rekey_principal(old : Principal, new_principal : Principal, dry_run : Bool) : async { #ok : Nat; #err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
 
-    rekeyImpl(caller, old, new, dry_run, false)
+    rekeyImpl(caller, old, new_principal, dry_run, false)
   
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Same as rekey_principal, but allowed when the new sign-in ID already has data:
   // both IDs' records end up under the new one (keyed duplicates keep the new row).
-  public shared ({ caller }) func merge_principal(old : Principal, new : Principal, dry_run : Bool) : async { #ok : Nat; #err : Text } {
+  public shared ({ caller }) func merge_principal(old : Principal, new_principal : Principal, dry_run : Bool) : async { #ok : Nat; #err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
 
-    rekeyImpl(caller, old, new, dry_run, true)
+    rekeyImpl(caller, old, new_principal, dry_run, true)
   
     } finally { privateNameWriterGate.leave(privateWriterLease) };
   };

@@ -1,4 +1,4 @@
-name: '[FIX] OpenCloud DEV timer governors'
+name: "[TEST] OpenCloud DEV timer governors"
 on:
   workflow_dispatch:
     inputs:

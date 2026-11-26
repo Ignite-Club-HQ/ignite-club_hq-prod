@@ -1,4 +1,4 @@
-name: '[BUILD] OpenCloud DEV source artifacts'
+name: "[TEST] OpenCloud DEV source artifacts"
 on:
   workflow_dispatch:
   workflow_call:

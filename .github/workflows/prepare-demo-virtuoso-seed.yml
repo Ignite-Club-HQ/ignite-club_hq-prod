@@ -1,4 +1,4 @@
-name: Prepare Ignite Soccer Demo Virtuoso chat seed
+name: "[TEST] Prepare Ignite Soccer Demo Virtuoso chat seed"
 
 on:
   workflow_dispatch:

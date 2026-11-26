@@ -1,4 +1,4 @@
-name: '[INIT] OpenCloud DEV publish legal release'
+name: "[TEST] OpenCloud DEV publish legal release"
 on:
   workflow_dispatch:
     inputs:

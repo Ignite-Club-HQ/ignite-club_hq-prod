@@ -1,4 +1,4 @@
-name: '[TEST] OpenCloud DEV publisher and governor access'
+name: "[TEST] OpenCloud DEV publisher and governor access"
 on:
   workflow_dispatch:
 permissions:

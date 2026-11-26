@@ -1,4 +1,4 @@
-name: '[FIX] OpenCloud DEV G2 PII reload'
+name: "[TEST] OpenCloud DEV G2 PII reload"
 on:
   workflow_dispatch:
     inputs:

@@ -1,4 +1,4 @@
-name: '[TEST] OpenCloud DEV deployment preflight'
+name: "[TEST] OpenCloud DEV deployment preflight"
 on:
   workflow_dispatch:
 permissions:
