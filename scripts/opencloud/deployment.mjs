@@ -104,7 +104,8 @@ export function validate(config, peer, forbidden = mainnetIds()) {
       ['icp-api.io', 'ic0.app', 'icp0.io'].includes(host.hostname)) throw Error('Explicit engine HTTPS API host required, no mainnet endpoint default');
   const controllers = [config.controllers.owner, config.controllers.governor, config.controllers.frontendPublisher].map(principal);
   if (config.controllers.connectedIdentity != null && [...controllers, config.operatorId].includes(principal(config.controllers.connectedIdentity))) throw Error('Connected identity must be distinct from signing roles');
-  if (new Set(controllers).size !== 3 || controllers.includes(config.operatorId) || ids.some(id => controllers.includes(id))) throw Error('Distinct owner, internal governor and frontend publisher required');
+  const sharedProdSigner = config.environment === 'opencloud-prod' && controllers[1] === controllers[2] && controllers[0] !== controllers[1];
+  if ((!sharedProdSigner && new Set(controllers).size !== 3) || controllers.includes(config.operatorId) || ids.some(id => controllers.includes(id))) throw Error('Distinct owner, internal governor and frontend publisher required (PROD may share governor and publisher)');
   if (peer && [config.controllers.governor, config.controllers.frontendPublisher].some(p =>
       [peer.controllers.governor, peer.controllers.frontendPublisher].includes(p))) throw Error('DEV/PROD signing identities must be separate');
   if (config.supabase?.url !== `https://${env.databaseRef}.supabase.co` ||
