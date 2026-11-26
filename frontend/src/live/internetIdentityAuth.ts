@@ -147,12 +147,12 @@ const II_REDIRECT_PENDING_KEY = "ignite_ii_redirect_pending";
 const II_REDIRECT_MAX_AGE_MS = 10 * 60 * 1000;
 const CANISTER_HOST = /^[a-z0-9]{5}(?:-[a-z0-9]{5}){3}-cai\.(?:icp0\.io|raw\.icp0\.io|icp\.net|raw\.icp\.net|ic0\.app|raw\.ic0\.app)$/;
 
-// igniteclubhq.app must NEVER use the redirect: the installed phone apps claim
-// every igniteclubhq.app link (Android App Links / iOS Universal Links), so
-// Internet Identity's return to https://igniteclubhq.app/auth is captured by
-// the app instead of finishing in the browser. The website uses the second-tab
-// sign-in there; only canister addresses (not claimed by any app) redirect.
-const REDIRECT_SIGN_IN_HOSTS = new Set<string>();
+// Current Android App Links claim only shared app paths (codemagic.yaml),
+// explicitly excluding /auth and /native-sign-in. Android Chrome can therefore
+// return to /auth in the same tab, avoiding the suspended opener channel.
+// Keep the iOS custom-domain policy unchanged until its installed Universal
+// Link exclusions have been phone-verified. Native Capacitor uses its own bridge.
+const ANDROID_REDIRECT_ORIGIN = "https://igniteclubhq.app";
 
 export function shouldUseRedirectSignIn(origin: string, userAgent: string, maxTouchPoints = 0): boolean {
   let host: string;
@@ -163,7 +163,9 @@ export function shouldUseRedirectSignIn(origin: string, userAgent: string, maxTo
   } catch {
     return false;
   }
-  if (!CANISTER_HOST.test(host) && !REDIRECT_SIGN_IN_HOSTS.has(host)) return false;
+  if (!CANISTER_HOST.test(host)) {
+    return origin === ANDROID_REDIRECT_ORIGIN && /Android/i.test(userAgent);
+  }
   // iPadOS reports a desktop Mac user agent; touch points give it away.
   const iPadOs = /Macintosh/.test(userAgent) && maxTouchPoints > 1;
   return iPadOs || /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent);

@@ -702,3 +702,6 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 
 - [x] OpenCloud DEV automation implemented behind switched-off `activation` (auto upgrades, website, Lovable routing, cutover).
 - [ ] Turn on `activation` after ChatGPT completes initial installation and live acceptance (blocked: live acceptance; `opencloud-dev-deploy` GitHub environment with GOVERNOR_PEM/DEPLOYER_PEM).
+
+- [x] Repair PROD II discovery headers and Android website same-tab transport without changing derivation, native auth, email policy, proxy target or backend data; 152 frontend and 8 manifest tests passed, Deno execution passed, preview builds OK. The real II provider reproduced Unverified origin before the isolated header repair and rendered passkey sign-in afterwards; the latest local DEV source also reached II in one tab.
+- [ ] Production deployment/real existing-member and physical Android/iOS acceptance remain held on Paul's deployment approval, an authorized II session and physical devices; no PROD deployment or data-access continuity claim made.
