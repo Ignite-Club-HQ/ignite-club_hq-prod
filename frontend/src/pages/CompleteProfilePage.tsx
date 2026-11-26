@@ -467,6 +467,24 @@ function SupabaseCompleteProfilePage() {
         if (!identity) {
           throw new Error("Your sign-in session could not be verified. Please sign in again.");
         }
+        if (import.meta.env.IGNITE_LIVE_OPENCLOUD_ENV === "opencloud-dev") {
+          devStage = "legal-acceptance";
+          if (!policiesAccepted) throw new Error("Policy acceptance is required.");
+          const [{ readLiveAppConfig }, { fetchMyIcpTermsAcceptance, setIcpTermsAcceptance }, { icpTermsVersionFromSetting }] = await Promise.all([
+            import("@/live/appConfig"),
+            import("@/live/legalTerms"),
+            import("@/hooks/useLegalReacceptance"),
+          ]);
+          const release = await readLiveAppConfig("legal_document_release");
+          const version = release ? icpTermsVersionFromSetting({ required: true, version: release, effective_at: release + "T00:00:00.000Z", summary: null }) : 0;
+          if (!version) throw new Error("No valid published legal document release is configured.");
+          const previous = await fetchMyIcpTermsAcceptance(identity);
+          if (!previous || previous.termsVersion < version) {
+            await setIcpTermsAcceptance(identity, version);
+          }
+          const verified = await fetchMyIcpTermsAcceptance(identity);
+          if (!verified || verified.termsVersion < version) throw new Error("Legal acceptance could not be verified.");
+        }
         // A photo picked on this screen is a base64 data URL; the canister
         // profile stores it as the avatar reference directly. Skip only
         // pathological sizes so a huge image can't blow the ingress limit.
