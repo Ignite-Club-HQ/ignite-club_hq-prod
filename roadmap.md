@@ -1,5 +1,10 @@
 # Roadmap — launch the live (PROD) system
 
+## OpenCloud PROD service wiring — 26 November
+- [x] Created manual `[PROD] OpenCloud PROD service wiring` workflow (check/wire modes, default check) reusing existing PROD governor credentials; verified CLI 1.7.0 positional Candid arguments and that all 78 generated calls target only allocated ignite_prod_v2 backend canisters with internal-governor signing.
+- [x] Check mode ran green (run 45791474975, commit f8da5b838, 26 Nov 09:23 UTC): live governor principal matched the configured PROD governor, every service's opening-configuration readback returned without refusal, and all 78 wiring calls validated against the allocated inventory. No service was configured.
+- [ ] Run wire mode to apply service configuration to the installed PROD backend services: held pending Paul's explicit go-ahead. Each call is followed by a mandatory configuration readback, and a refused readback stops later wiring.
+
 ## Provisioned OpenCloud DEV implementation — 25 November
 - [x] Implement approved DEV-only one-use first-install commissioning, lifecycle/restore refusal and admission-only release; rebuild all 18 backend implementations, matched frontend hosting module/plugin and isolated frontend. Complete the 32-target offline handover with checksums and exact ChatGPT requirements; no live operations or witness/key dependency.
 - [x] Assessed a distinct first-installation, admission-only commissioning path from source; recovery witness/key are current protocol dependencies, not intrinsic requirements for a genuinely fresh DEV installation. Assessment only; no implementation or live changes.
