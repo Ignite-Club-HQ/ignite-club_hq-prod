@@ -118,7 +118,7 @@ export function validate(config, peer, forbidden = mainnetIds()) {
         !/^[1-9][0-9]*$/.test(group.heapBudgetBytes || '') || BigInt(group.heapBudgetBytes) > 3n * 1024n ** 3n) throw Error('Measured group capacities required within existing router bounds (heap bytes as decimal text)');
   }
   if (config.environment === 'opencloud-dev' && (!/^[1-9][0-9]*$/.test(config.engineSettings.devWasmMemoryLimit || ''))) throw Error('Reviewed DEV wasm memory limit required');
-  if (config.environment === 'opencloud-prod' && (!Number.isInteger(config.engineSettings.prodComputeAllocation) || config.engineSettings.prodComputeAllocation < 1 || config.engineSettings.prodComputeAllocation > 100)) throw Error('Reviewed PROD compute reservation required');
+  if (config.environment === 'opencloud-prod' && config.engineSettings.prodComputeAllocation != null && (!Number.isInteger(config.engineSettings.prodComputeAllocation) || config.engineSettings.prodComputeAllocation < 1 || config.engineSettings.prodComputeAllocation > 100)) throw Error('Explicit PROD compute reservation must be an integer from 1 to 100');
   if (config.push?.enabled !== false || config.push.workerPrincipal || config.push.senderUrl) throw Error('Push commissioning is separate; no shared sender or automatic activation');
   return rows;
 }
@@ -155,7 +155,7 @@ export function serviceSettings(config, row) {
     controllerPolicy: 'preserve-effective-controller-list; verify-operator-and-approved-signer-access; no-controller-mutation',
     requiredControllerRoles: row.service === 'frontend' ? ['engine-operator', 'owner', 'frontend-publisher'] : ['engine-operator', 'owner', 'internal-governor'],
     ...(config.environment === 'opencloud-dev' ? { wasmMemoryLimit: config.engineSettings.devWasmMemoryLimit } :
-      { computeAllocation: config.engineSettings.prodComputeAllocation }),
+      (config.engineSettings.prodComputeAllocation == null ? {} : { computeAllocation: config.engineSettings.prodComputeAllocation })),
     attachedCycles: '0' };
 }
 
