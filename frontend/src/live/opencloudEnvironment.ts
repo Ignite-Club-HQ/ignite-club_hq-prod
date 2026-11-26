@@ -10,7 +10,8 @@ export function opencloudDerivationOrigin(): string | undefined {
   if (!opencloudEnvironment()) return undefined;
   const ids = JSON.parse(import.meta.env.IGNITE_LIVE_OPENCLOUD_IDS_JSON || '{}') as Record<string, string>;
   const origin = import.meta.env.IGNITE_LIVE_II_DERIVATION_ORIGIN;
-  if (!ids.frontend || origin !== `https://${ids.frontend}.icp.net`) throw new Error('OpenCloud sign-in origin is not bound to its frontend');
+  const expected = opencloudEnvironment() === 'opencloud-prod' ? 'https://igniteclubhq.app' : `https://${ids.frontend}.icp.net`;
+  if (!ids.frontend || origin !== expected) throw new Error('OpenCloud sign-in origin is not bound to its frontend');
   return origin;
 }
 
