@@ -47,7 +47,8 @@ test('only explicitly allowlisted PROD setup, checks, promotion, funding and iso
   const prod = workflows.filter(({ name }) => name.startsWith('[PROD] '));
   assert.deepEqual(prod.map(({ file }) => file).sort(),
     ['apply-prod-lifecycle-wiring.yml', 'check-prod-canister-connections.yml', 'check-prod-routing-gates.yml', 'create-prod-second-group.yml', 'execute-prod-cycles-topup.yml', 'fund-prod-canisters-by-card.yml', 'icp-push-deliver-prod.yml',
-      'link-prod-account-service.yml', 'prod-app-admin.yml', 'prod-native-push-rollout.yml', 'prod-native-push-sender.yml', 'prod-sign-in-routing.yml',
+      'link-prod-account-service.yml', 'opencloud-prod-first-install.yml', 'opencloud-prod-source-build.yml', 'opencloud-prod-wire-services.yml',
+      'prod-app-admin.yml', 'prod-native-push-rollout.yml', 'prod-native-push-sender.yml', 'prod-sign-in-routing.yml',
       'plan-prod-cycles-topup.yml', 'plan-prod-second-group.yml', 'prod-create-governor.yml', 'prod-create-push-key.yml', 'promote-icp-prod.yml',
       'register-prod-second-group.yml', 'reload-prod-member-services.yml', 'report-prod-group-health.yml', 'prod-enable-secure-name-save.yml', 'check-prod-group-opening.yml', 'open-prod-group.yml', 'publish-prod-routing-approval.yml', 'set-prod-group-settings.yml', 'setup-prod-base-group.yml',
       'check-prod-control-record.yml', 'prod-activate-protections.yml', 'prod-create-account-approval-key.yml', 'prod-enable-member-access.yml', 'prod-setup-safeguard.yml', 'prod-verify-account-approval-key.yml'].sort());
@@ -68,6 +69,21 @@ test('only explicitly allowlisted PROD setup, checks, promotion, funding and iso
       assert.match(workflow.text, /PROD_REF:\s*yabcfiuntwqjwvschnji/);
       assert.match(workflow.text, /inputs\.action == 'deploy' && github\.ref == 'refs\/heads\/prod'/);
       assert.match(workflow.text, /inputs\.action == 'commission' && github\.ref == 'refs\/heads\/prod'/);
+      continue;
+    }
+    if (workflow.file.startsWith('opencloud-prod-')) {
+      assert.match(workflow.text, /refs\/heads\/main/);
+      assert.doesNotMatch(workflow.text, /secrets\.GOVERNOR_PEM\b/);
+      const runner = {
+        'opencloud-prod-first-install.yml': 'scripts/opencloud/prod-first-install.mjs',
+        'opencloud-prod-wire-services.yml': 'scripts/opencloud/prod-wire-services.mjs',
+      }[workflow.file];
+      const targetText = runner ? readFileSync(path.join(ROOT, runner), 'utf8') : workflow.text;
+      assert.match(targetText, /deploy\/opencloud\/prod\.json/);
+      if (runner) {
+        assert.match(targetText, /GITHUB_REF_NAME!=='main'/);
+        assert.match(targetText, /applicationKey!=='ignite_prod_v2'/);
+      }
       continue;
     }
     assert.match(workflow.text, /IGNITE_ICP_ENV:\s*prod/);
