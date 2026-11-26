@@ -86,6 +86,10 @@
     "reported": "Successful create_canister and setApp responses; independent readback pending. No code installed.",
     "controllerNote": "All 32 controller memberships verified via live operator canister_status readback on 2026-11-26; existing operator and connected identity retained, owner and PROD governor added. Other settings not fully compared.",
     "proxyReview": "Anonymous public queries matched the supplied subnet; public proxy interface matches EngineVetKd types. Engine ID is reported by proxy funding metadata. Real engine-caller derivation and authorization remain unverified.",
-    "capacityNote": "Initial capacity mirrors working OpenCloud DEV; not a measured production load limit. Compute reservation remains unset pending engine review."
+    "capacityNote": "Initial capacity mirrors working OpenCloud DEV; not a measured production load limit. Compute reservation remains unset pending engine review.",
+    "accountProtectionNote": "Existing PROD account approval public key reused from prod-group-setup/safeguard.json; witness and controller pins intentionally unresolved pending cross-engine compatibility. No activation authorized."
+  },
+  "accountProtection": {
+    "approverPublicKey": "df0a3369283d9496256e1fbb2f98c3fc1214dcf47d3ba5bccc67b940b3a83bec"
   }
 }
