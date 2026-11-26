@@ -1,15 +1,16 @@
-name: "[PROD] Align Paul's app-admin access"
+name: "[PROD] Align Paul’s OpenCloud app-admin access"
 on:
   workflow_dispatch:
     inputs:
+      target:
+        type: choice
+        options: [dev, prod]
+        default: dev
       action:
         description: "Check existing permissions or grant the owner-approved exact login"
         type: choice
         options: [check, grant]
         default: check
-      confirmation:
-        description: "Grant requires: GRANT PAUL PROD APP ADMIN"
-        required: false
 permissions:
   contents: read
 concurrency:
@@ -17,7 +18,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   admin:
-    environment: production
+    if: github.ref == 'refs/heads/main'
+    environment: ${{ inputs.target == 'prod' && 'production' || 'development' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -25,7 +27,7 @@ jobs:
       PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
       DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
       ADMIN_ACTION: ${{ inputs.action }}
-      ADMIN_CONFIRMATION: ${{ inputs.confirmation }}
+      ADMIN_ENV: ${{ inputs.target }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,6 +39,7 @@ jobs:
         run: npm install --prefix "$RUNNER_TEMP/prod-admin-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
       - name: Read or align Paul's existing production account
         env:
+          PEM_IN: ${{ secrets.GOVERNOR_PEM }}
           PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
           PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
         run: |
@@ -45,6 +48,10 @@ jobs:
           export ICP_HOME="$RUNNER_TEMP/prod-admin-key"
           export CHECK_DEPS_DIR="$RUNNER_TEMP/prod-admin-deps"
           trap 'rm -rf "$ICP_HOME"' EXIT
+          mkdir -p "$ICP_HOME"
+          if [ "$ADMIN_ENV" = dev ]; then
+            node scripts/normalize-dev-engine-publisher-pem.mjs > "$ICP_HOME/key.pem"
+          else
           test -n "$PROD_GOVERNOR_PEM_ENC"
           test -n "$PROD_GOVERNOR_PASSPHRASE"
           mkdir -p "$ICP_HOME"
@@ -52,5 +59,7 @@ jobs:
           printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
           openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
           rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
+          fi
+          unset PEM_IN PROD_GOVERNOR_PEM_ENC PROD_GOVERNOR_PASSPHRASE
           export CHECK_KEY_PEM="$ICP_HOME/key.pem"
-          node scripts/prod-app-admin.mjs
+          node scripts/opencloud-app-admin.mjs
