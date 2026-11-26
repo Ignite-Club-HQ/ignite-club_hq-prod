@@ -233,7 +233,8 @@ export function accountProtectionBuild(config) {
   const env = { IGNITE_PRODUCTION_ACCOUNT_APPROVER_PUBLIC_KEY: a.approverPublicKey || null,
     IGNITE_PRODUCTION_ACCOUNT_WITNESS: a.witness || null,
     IGNITE_PRODUCTION_ACCOUNT_WITNESS_MODULE_HASH: a.witnessModuleHash || null,
-    IGNITE_PRODUCTION_ACCOUNT_WITNESS_CONTROLLER: a.witnessController || null };
+    IGNITE_PRODUCTION_ACCOUNT_WITNESS_CONTROLLER: a.witnessController || null,
+    ...(config.environment === 'opencloud-prod' ? { IGNITE_RECOVERY_APPROVER_PUBLIC_KEY: a.recoveryPublicKey || null } : {}) };
   if (a.witness && rowsInclude(config, a.witness)) throw Error('Recovery witness must be independent of the 32 application canisters');
   return { service: 'identity_access', compileTimeEnv: env, ready: Object.values(env).every(Boolean),
     owner: 'Paul supplies approver public key and an independent recovery witness; not part of the 32-canister inventory' };
