@@ -50,12 +50,19 @@ class DocumentWiring(unittest.TestCase):
             write('android/app/src/main/assets/capacitor.plugins.json', '[{"classpath":"FileOpenerPlugin"}]')
             write('android/app/src/main/AndroidManifest.xml', '<manifest><application /></manifest>')
             write('android/app/build.gradle', 'dependencies {\n}\n')
+            # Capacitor 8 ships SystemBars.java with exactly one window-backdrop reset,
+            # which configure-android-status-bar.py replaces with its marker.
+            system_bars = write('node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/plugin/SystemBars.java',
+                                'class SystemBars { void style() { getActivity().getWindow().getDecorView()'
+                                '.setBackgroundColor(getThemeColor(getContext(), android.R.attr.windowBackground)); } }\n')
             write('node_modules/@capacitor-community/file-opener/android/src/main/java/com/ryltsov/alex/plugins/file/opener/FileOpenerPlugin.java',
                   'if (openWithDefault) { }')
             statusbar.configure(front)
             module.configure(front, 'android')
             push.configure(front)
             content = activity.read_text()
+            self.assertIn('owned by StatusBarBackdrop', system_bars.read_text())
+            self.assertNotIn('setBackgroundColor', system_bars.read_text())
             registrations = [
                 'registerPlugin(StatusBarBackdropPlugin.class);',
                 'registerPlugin(app.ignite.documents.NativeFileExportPlugin.class);',

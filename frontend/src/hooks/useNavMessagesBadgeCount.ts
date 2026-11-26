@@ -173,7 +173,7 @@ export function useNavMessagesBadgeCount(): number {
         try {
           // club_domain `list_role_grants` is club-admin gated, so this
           // throws for a regular member viewing their own club filter.
-          const grants = (await readMembershipInScope(ctx, "membership", { clubId: activeClubFilter },
+          const grants = (await readMembershipInScope(ctx, { clubId: activeClubFilter },
             (scoped) => membership.listLiveRoleGrants(scoped, activeClubFilter))) as Array<{ account_id: string }>;
           const inClub = new Set(grants.map((g) => g.account_id));
           return Array.from(peerByConv.entries())

@@ -90,7 +90,7 @@ test('combined proof verifies reader before reconstruction and fail-closed club 
 test('one signed first-content RPC returns only currently authorised indexed clubs and roles', () => {
   const body = between('func read_account_my_clubs_and_roles_indexed(', 'public shared func read_account_has_club_staff_role(');
   const did = readFileSync(new URL('../backend/club_domain/club_domain.did', import.meta.url), 'utf8');
-  assert.match(did, /read_account_my_clubs_and_roles_indexed: \(after: opt text, limit: nat16\)/);
+  assert.match(did, /read_account_my_clubs_and_roles_indexed: \(after: opt text, limit:\s+nat16\)/);
   assert.match(body, /await admitAccountForFirstContent\(caller\)/);
   assert.equal((body.match(/await /g) ?? []).length, 1, 'no second consensus read or service round trip');
   assert.match(body, /privateNameWriterGate\.enter\(\)/);
