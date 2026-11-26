@@ -55,7 +55,19 @@ test('only explicitly allowlisted PROD setup, checks, promotion, funding and iso
   for (const workflow of prod) {
     // Existing explicit operator workflows validate their branch in the runner;
     // the isolated native sender pins PROD IDs and gates deploy/commission here.
-    const operatorRunner = { 'prod-app-admin.yml': 'scripts/prod-app-admin.mjs', 'prod-sign-in-routing.yml': 'scripts/prod-sign-in-routing.mjs' }[workflow.file];
+    if (workflow.file === 'prod-app-admin.yml') {
+      assert.match(workflow.text, /refs\/heads\/main/);
+      assert.match(workflow.text, /options: \[dev, prod\]/);
+      assert.match(workflow.text, /ADMIN_ENV: \$\{\{ inputs.target \}\}/);
+      assert.match(workflow.text, /scripts\/opencloud-app-admin\.mjs/);
+      const runner = readFileSync(path.join(ROOT, 'scripts/opencloud-app-admin.mjs'), 'utf8');
+      assert.match(runner, /env\.GITHUB_REF !== 'refs\/heads\/main'/);
+      assert.match(runner, /!\['dev','prod'\]\.includes\(env\.ADMIN_ENV\)/);
+      assert.match(runner, /config\.applicationKey !== 'ignite_'\+env\.ADMIN_ENV\+'_v2'/);
+      assert.match(runner, /identity\.getPrincipal\(\)\.toText\(\) !== config\.controllers\.governor/);
+      continue;
+    }
+    const operatorRunner = { 'prod-sign-in-routing.yml': 'scripts/prod-sign-in-routing.mjs' }[workflow.file];
     if (operatorRunner) {
       assert.match(workflow.text, /IGNITE_ICP_ENV:\s*prod/);
       assert.match(workflow.text, new RegExp(operatorRunner.replaceAll('.', '\\.')));
