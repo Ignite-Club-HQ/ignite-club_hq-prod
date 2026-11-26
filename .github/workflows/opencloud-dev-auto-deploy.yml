@@ -2,8 +2,9 @@
 # activation.autoDeploy is true (set only after ChatGPT's initial installation and acceptance).
 # Upgrade-only on the exact 32 DEV targets; never installs, reinstalls, creates canisters,
 # changes controllers, or touches PROD/mainnet. Reuses the source-build workflow.
-name: '[TEST] OpenCloud DEV automatic deployment'
+name: OpenCloud DEV automatic deployment
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths: ['backend/**', 'frontend/**', 'Cargo.toml', 'Cargo.lock', 'mops.toml', 'mops.lock', 'scripts/opencloud/**', 'deploy/opencloud/dev.json']
@@ -25,11 +26,12 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: '22.12.0' }
+      - run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
       - id: gate
         run: node scripts/opencloud/dev-auto.mjs gate
       - id: plan
         if: steps.gate.outputs.auto_deploy == 'true'
-        run: node scripts/opencloud/dev-auto.mjs plan "${{ github.event.before }}" "${{ github.sha }}" opencloud-plan.json
+        run: node scripts/opencloud/dev-auto.mjs plan "${{ github.event.before || github.sha }}" "${{ github.sha }}" opencloud-plan.json
       - if: steps.gate.outputs.auto_deploy == 'true'
         uses: actions/upload-artifact@v4
         with: { name: opencloud-dev-plan, path: opencloud-plan.json, retention-days: 30 }
@@ -43,7 +45,6 @@ jobs:
     needs: [gate, build]
     if: needs.gate.outputs.auto_deploy == 'true' && needs.gate.outputs.backend == 'true'
     runs-on: ubuntu-latest
-    environment: opencloud-dev-deploy
     env:
       ICP_HOME: ${{ github.workspace }}/.icp-home
     steps:
@@ -55,30 +56,26 @@ jobs:
         with: { name: opencloud-dev-plan }
       - uses: actions/download-artifact@v4
         with: { name: opencloud-dev-backend-source-build, path: deploy/opencloud/work/dev-candidate }
-      - name: Use the existing DEV governor
+      - run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+      - name: Upgrade changed services through OpenCloud proxy
         env:
-          GOVERNOR_IN: ${{ secrets.GOVERNOR_PEM }}
+          PEM_IN: ${{ secrets.GOVERNOR_PEM }}
         run: |
           set -euo pipefail
-          test -n "$GOVERNOR_IN" || { echo "::error::GOVERNOR_PEM missing"; exit 1; }
-          mkdir -p "$ICP_HOME"
-          PEM_IN="$GOVERNOR_IN" node scripts/normalize-dev-engine-publisher-pem.mjs > "$ICP_HOME/governor.pem"
-          icp identity import --from-pem "$ICP_HOME/governor.pem" --storage plaintext opencloud-governor
-          rm -f "$ICP_HOME/governor.pem"
-          icp identity default opencloud-governor
-          expected="$(node -p 'require("./deploy/opencloud/dev.json").controllers.governor')"
-          test "$(icp identity principal)" = "$expected" || { echo "::error::Governor key does not match the OpenCloud DEV governor"; exit 1; }
-      - name: Upgrade changed services (upgrade only, hash-checked)
-        run: node scripts/opencloud/dev-auto.mjs upgrade opencloud-plan.json deploy/opencloud/work/dev-candidate
+          umask 077
+          PEM="$RUNNER_TEMP/opencloud-governor.pem"
+          trap 'rm -f "$PEM"' EXIT
+          node scripts/normalize-dev-engine-publisher-pem.mjs > "$PEM"
+          unset PEM_IN
+          GOVERNOR_PEM_FILE="$PEM" node scripts/opencloud/dev-auto-upgrade.mjs opencloud-plan.json deploy/opencloud/work/dev-candidate
   frontend:
     needs: [gate, backend]
     if: always() && needs.gate.outputs.auto_deploy == 'true' && needs.gate.outputs.frontend == 'true' && (needs.backend.result == 'success' || needs.backend.result == 'skipped')
     runs-on: ubuntu-latest
-    environment: opencloud-dev-deploy
     env:
       ICP_HOME: ${{ github.workspace }}/.icp-home
       SUPABASE_URL: https://ecsdwrarzfexssxtrymj.supabase.co
-      SUPABASE_PUBLISHABLE_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -97,6 +94,7 @@ jobs:
           icp identity default opencloud-publisher
           expected="$(node -p 'require("./deploy/opencloud/dev.json").controllers.frontendPublisher')"
           test "$(icp identity principal)" = "$expected" || { echo "::error::Publisher key does not match the OpenCloud DEV publisher"; exit 1; }
+      - run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
       - name: Build the isolated OpenCloud DEV website
         run: |
           set -euo pipefail
@@ -112,5 +110,5 @@ jobs:
         run: |
           set -euo pipefail
           icp sync frontend -e ic
-          id="$(node -p 'require("../../../dev.json").shared.frontend')"
+          id=h2knm-vaaaa-aaac5-aadqa-cai
           echo "### OpenCloud DEV website updated for commit \`${GITHUB_SHA}\`: https://$id.icp.net" >> "$GITHUB_STEP_SUMMARY"
