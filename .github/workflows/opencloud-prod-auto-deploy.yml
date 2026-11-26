@@ -2,7 +2,6 @@ name: "[PROD] OpenCloud automatic deployment"
 on:
   push:
     branches: [prod]
-    paths: ['frontend/**', 'deploy/frontend-engine/**', 'deploy/opencloud/prod.json', 'backend/**', 'Cargo.toml', 'Cargo.lock', 'mops.toml', 'mops.lock', 'scripts/opencloud/**', '.github/workflows/opencloud-prod-auto-deploy.yml', '.github/workflows/opencloud-prod-source-build.yml']
 permissions:
   contents: read
 concurrency:
@@ -49,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      ICP_HOME: ${{ runner.temp }}/opencloud-prod-icp
+      ICP_HOME: ${{ github.workspace }}/.icp-home-prod
       OPENCLOUD_PROD_OFFLINE_BUILD: 'true'
       SUPABASE_URL: https://yabcfiuntwqjwvschnji.supabase.co
       SUPABASE_PUBLISHABLE_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY }}
