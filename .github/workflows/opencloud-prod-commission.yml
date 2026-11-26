@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   registration:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/prod'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
