@@ -37,6 +37,23 @@ const hash=b=>createHash('sha256').update(b).digest('hex');
 const expected=[MANAGEMENT_PROXY,config.controllers.owner,config.controllers.connectedIdentity,config.controllers.governor].sort();
 const verifyControllers=s=>{if(JSON.stringify(s.settings.controllers.map(p=>p.toText()).sort())!==JSON.stringify(expected))throw Error('Controller mismatch');};
 
+// Read only: report secure-name configuration without exposing environment values.
+const nameTargets=rows.filter(r=>['identity_access','pii_access_control'].includes(r.service));
+const g1=config.groups.find(g=>g.id==='g1');
+if(nameTargets.length!==3||!g1?.canisterIds?.pii_access_control)throw Error('Incomplete secure-name inventory');
+for(const t of nameTargets){
+ const live=await status(t.id);verifyControllers(live);
+ if(!live.module_hash.length)throw Error('Missing installed module '+t.name);
+ const vars=new Map(live.settings.environment_variables.map(v=>[v.name,v.value]));
+ const desired=t.service==='identity_access'
+  ? {IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE:'1',IGNITE_SECURE_ADULT_NAME_PII:g1.canisterIds.pii_access_control}
+  : {IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE:'1',IGNITE_SECURE_ADULT_NAME_IDENTITY:config.shared.identity_access};
+ for(const [key,value] of Object.entries(desired)){
+  const state=!vars.has(key)?'missing':vars.get(key)===value?'correct':'different';
+  console.log('Secure-name settings '+t.name+' '+key+': '+state);
+ }
+}
+
 if(!/^[a-f0-9]{40}$/.test(beforeRef)||! /^[a-f0-9]{40}$/.test(afterRef)||/^0+$/.test(beforeRef)||afterRef!==process.env.GITHUB_SHA)throw Error('Explicit commit range required');
 const diff=spawnSync('git',['diff','--name-only',beforeRef,afterRef],{encoding:'utf8'});if(diff.status!==0)throw Error('Cannot determine changes');
 const targets=plan(rows,diff.stdout.split('\n').filter(Boolean)).targets.map(t=>{
