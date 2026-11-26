@@ -31,14 +31,15 @@ export function buildFrontend(workDirectory, peerConfig) {
   const work = path.resolve(workDirectory);
   if (!work.startsWith(path.join(ROOT, 'deploy/opencloud/work') + path.sep)) throw Error('Isolated work directory required');
   const config = JSON.parse(readFileSync(path.join(work, 'config.json'), 'utf8'));
-  if (config.environment !== 'opencloud-dev') throw Error('PROD remains inactive');
+  if (!['opencloud-dev', 'opencloud-prod'].includes(config.environment)) throw Error('Unknown OpenCloud environment');
+  if (config.environment === 'opencloud-prod' && (peerConfig.environment !== 'opencloud-dev' || process.env.OPENCLOUD_PROD_OFFLINE_BUILD !== 'true')) throw Error('Explicit offline PROD build required');
   // The website needs only the isolated inventory, engine host and the DEV
   // publishable (never private) key; signer/controller fields are not inputs.
   validateMappings(config, peerConfig);
   const host = new URL(config.apiHost || 'invalid:');
   if (host.protocol !== 'https:' || ['icp-api.io', 'ic0.app', 'icp0.io'].includes(host.hostname)) throw Error('Explicit engine HTTPS API host required');
   if (!config.supabase.publishableKey && process.env.SUPABASE_URL === config.supabase.url) config.supabase.publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
-  if (!config.supabase.publishableKey || config.supabase.publishableKey.startsWith('sb_secret_')) throw Error('Matching DEV publishable key required');
+  if (!config.supabase.publishableKey || config.supabase.publishableKey.startsWith('sb_secret_')) throw Error('Matching environment publishable key required');
   ensureFrontendDeps();
   const frontend = path.join(ROOT, 'frontend');
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(IGNITE_|VITE_|PUBLIC_CANISTER_ID)/.test(key)));
@@ -65,5 +66,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   const [, , directory, peerFile] = process.argv;
   if (!directory || !peerFile) throw Error('Usage: frontend-artifacts.mjs <work-dir> <prod-config.json>');
   buildFrontend(directory, JSON.parse(readFileSync(peerFile, 'utf8')));
-  console.log('DEV frontend files inventoried; no install/upload/admission performed');
+  console.log('OpenCloud frontend files inventoried; no install/upload/admission performed');
 }
