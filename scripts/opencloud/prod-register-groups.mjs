@@ -20,17 +20,19 @@ function read(){return invoke('read_group_registry','("opencloud-prod")');}
 function revision(out){const m=[...out.matchAll(/\brevision\s*=\s*([\d_]+)\s*:\s*nat64/g)];if(m.length!==1)throw Error('Ambiguous registry revision');return BigInt(m[0][1].replaceAll('_',''));}
 const plans=config.groups.map(g=>({group:registerGroupCall(config,g),placement:registerGroupPlacementCall(config,g),g}));
 if(plans.some(p=>!p.group.ready||p.group.target!==router||p.placement.target!==router))throw Error('Incomplete registration plan');
-let snapshot=read(), rev=revision(snapshot);
-if(!/groups\s*=\s*vec\s*\{\s*\}/.test(snapshot)||!/placements\s*=\s*vec\s*\{\s*\}/.test(snapshot))throw Error('Registry not empty; review before any replay');
-for(const p of plans){console.log(p.group.candidArgs);console.log(p.placement.candidArgs);}
-if(mode==='check')process.exit(0);
-for(const p of plans){
- const args=p.group.candidArgs.replace('<expected_revision>',String(rev));
- invoke(p.group.method,args);
- snapshot=read();const next=revision(snapshot);
- if(next!==rev+1n||!snapshot.includes('"' +(p.g.id==='g1'?'base':'g2')+'"')||/accepting\s*=\s*true/.test(snapshot))throw Error('Unexpected registration readback');
- for(const id of Object.values(p.g.canisterIds))if(!snapshot.includes(id))throw Error('Missing registered endpoint '+id);
- rev=next;
-}
-// Placement requires an independently reviewed deployment revision; do not invent it.
-console.log('Both groups registered closed; placement registration remains separate pending reviewed deployment revision.');
+// Owner-approved initial deployment revision, independent of router revision.
+const deploymentRevision=1n;
+function rawRead(){return cli(['canister','call',router,'read_group_registry','("opencloud-prod")','--candid',path.join(root,'backend/shard_router/shard_router.did'),'--network','ic','--identity',identity]);}
+function ack(method,args,expected){const out=invoke(method,args);const m=out.match(/Ok\s*=\s*([\d_]+)\s*:\s*nat64/);if(!m||BigInt(m[1].replaceAll('_',''))!==expected)throw Error('Unexpected acknowledgement');}
+function verify(expected,count){const out=read();if(revision(out)!==expected||/accepting\s*=\s*true/.test(out))throw Error('Unexpected registry state');for(const p of plans.slice(0,count)){for(const id of Object.values(p.g.canisterIds))if(!out.includes(id))throw Error('Missing endpoint '+id);if(!out.includes('"'+(p.g.id==='g1'?'base':'g2')+'"'))throw Error('Missing group');}if((out.match(/deployment_revision\s*=\s*1\s*:\s*nat64/g)||[]).length!==count)throw Error('Unexpected placement revision');return out;}
+const initial=rawRead();console.log(initial);
+if(!/Err\s*=\s*"Incomplete group placement registry"/.test(initial))throw Error('Not the reviewed partial registration state; stop');
+for(const p of plans)console.log(p.placement.candidArgs.replace('<reviewed_deployment_revision>',String(deploymentRevision)));
+if(mode==='check'){console.log('Recovery plan only; exact revision enforced by placement write');process.exit(0);}
+function place(p,rev){ack(p.placement.method,p.placement.candidArgs.replace('<reviewed_deployment_revision>',String(deploymentRevision)).replace('<acknowledged_registry_revision>',String(rev)),rev+1n);}
+place(plans[0],1n);
+verify(2n,1);
+ack(plans[1].group.method,plans[1].group.candidArgs.replace('<expected_revision>','2'),3n);
+place(plans[1],3n);
+verify(4n,2);
+console.log('Both groups registered and placed closed at registry revision 4.');
