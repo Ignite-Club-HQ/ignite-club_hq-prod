@@ -17,6 +17,7 @@ if(cmd==='status')result=(id==='all'?all:[target(id).id]).map(statusRequest);
 else if(cmd==='decode')result=decodeStatus(id);
 else if(cmd==='update')result=updateRequest(target(id),decodeStatus(before).controllers);
 else if(cmd==='verify'){result=verifyAfter(target(id),decodeStatus(before),decodeStatus(after));if(!result.ok)process.exitCode=1;}
+else if(cmd==='batch')result=all.filter(x=>x!==config.shared.frontend).map(x=>({id:x,status:statusRequest(x),update:updateRequest(target(x),retain)}));
 else if(cmd==='plan')result=all.map(target);
 else throw Error('Unknown command');
 console.log(JSON.stringify(result,null,2));
