@@ -1,4 +1,4 @@
-name: "Align Paul’s OpenCloud app-admin access"
+name: "[PROD] Align Paul’s OpenCloud app-admin access"
 on:
   workflow_dispatch:
     inputs:
