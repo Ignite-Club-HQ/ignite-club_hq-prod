@@ -8,6 +8,6 @@ export function AuthBrand({ compact = false }: { compact?: boolean }) {
       </span>
       <h1 className="text-3xl font-semibold text-foreground">Ignite</h1>
     </div>
-    <p className={`${compact ? "mt-2" : "mt-3"} text-sm leading-relaxed text-muted-foreground`}>Manage your club, all in one place.</p>
+    <p className={`${compact ? "mt-2" : "mt-3"} text-sm leading-relaxed text-muted-foreground`}>Manage your club in one place.</p>
   </header>;
 }
