@@ -93,7 +93,12 @@ export async function verifyProdPublication(env, { databaseOnly = false, fetcher
     console.log(`Verified production release receipt ${evidenceSha.slice(0, 7)} -> ${next.slice(0, 7)}`);
     evidenceSha = next;
   }
-  for (const [workflow, job] of databaseOnly ? requirements.slice(0, 1) : requirements) {
+  const target = env.IGNITE_PROD_PUBLICATION_TARGET || 'mainnet';
+  if (!['mainnet', 'opencloud'].includes(target)) throw new Error('Unknown production publication target');
+  const selected = databaseOnly ? requirements.slice(0, 1) : target === 'opencloud'
+    ? [requirements[0], ['opencloud-prod-auto-deploy.yml', 'upgrade'], ['opencloud-prod-auto-deploy.yml', 'frontend']]
+    : requirements;
+  for (const [workflow, job] of selected) {
    for (;;) {
     // GitHub workflow-list branch/head_sha filters occasionally return empty lists
     // despite an existing successful run. Read bounded unfiltered history and
