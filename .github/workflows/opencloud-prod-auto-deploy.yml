@@ -51,7 +51,7 @@ jobs:
       ICP_HOME: ${{ github.workspace }}/.icp-home-prod
       OPENCLOUD_PROD_OFFLINE_BUILD: 'true'
       SUPABASE_URL: https://yabcfiuntwqjwvschnji.supabase.co
-      SUPABASE_PUBLISHABLE_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.PROD_SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
