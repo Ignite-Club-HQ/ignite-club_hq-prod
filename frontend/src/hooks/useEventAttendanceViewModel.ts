@@ -45,6 +45,7 @@ export function useEventAttendanceViewModel({
   currentUser,
 }: UseEventAttendanceViewModelArgs) {
   return useMemo(() => {
+    const adultKey = (id: string) => id.replace(/^principal:/, "");
     const playerUserIds = new Set(playerMembers?.map((member) => member.id) || []);
     const attendanceAudience = resolveRsvpAudience(
       event?.rsvp_audience,
@@ -77,7 +78,7 @@ export function useEventAttendanceViewModel({
     });
 
     const respondedUserIds = new Set(
-      rsvps?.filter((rsvp) => !rsvp.child_id).map((rsvp) => rsvp.user_id) || [],
+      rsvps?.filter((rsvp) => !rsvp.child_id).map((rsvp) => adultKey(rsvp.user_id)) || [],
     );
     const respondedChildIds = new Set(
       rsvps?.filter((rsvp) => rsvp.child_id).map((rsvp) => rsvp.child_id) || [],
@@ -99,7 +100,7 @@ export function useEventAttendanceViewModel({
       });
       if (effectiveShowAll) {
         notResponded = (miniLeagueAdults || []).filter(
-          (adult) => !respondedUserIds.has(adult.id),
+          (adult) => !respondedUserIds.has(adultKey(adult.id)),
         );
       }
     } else {
@@ -132,7 +133,7 @@ export function useEventAttendanceViewModel({
       }
       notResponded = membersToShow?.filter(
         (member) =>
-          !respondedUserIds.has(member.id) &&
+          !respondedUserIds.has(adultKey(member.id)) &&
           !parentIdsWithRespondedChildren.has(member.id),
       ) || [];
       notRespondedChildren = allChildrenOnTeam?.filter(
@@ -152,10 +153,10 @@ export function useEventAttendanceViewModel({
     ]);
 
     const allNotRespondedForReminders = isMiniLeagueEvent
-      ? (miniLeagueAdults || []).filter((adult) => !respondedUserIds.has(adult.id))
+      ? (miniLeagueAdults || []).filter((adult) => !respondedUserIds.has(adultKey(adult.id)))
       : reminderMembers?.filter(
           (member) =>
-            !respondedUserIds.has(member.id) &&
+            !respondedUserIds.has(adultKey(member.id)) &&
             !respondedChildGuardianIds.has(member.id),
         ) || [];
 
