@@ -5,6 +5,7 @@ import type { FeatureBackendContext } from "./featureRouter";
 export async function unlockAdminUserNames(
   ctx: FeatureBackendContext,
   rows: ReadonlyArray<{ account_id: string; principal?: Principal; principals?: readonly Principal[]; display_name: string | null }>,
+  reasons?: Map<string, string>,
 ): Promise<Map<string, string>> {
   const identity = ctx.target.canisterIds.identity_access;
   const wanted = rows.flatMap(row => {
@@ -14,6 +15,7 @@ export async function unlockAdminUserNames(
     // never accept a profile pointer to an unrelated person's name.
     const subject = row.display_name.split(":").at(-1);
     const principal = row.principals ? row.principals.find(alias => alias.toText() === subject) : row.principal;
+    if (!principal) reasons?.set(row.account_id, "Private-name reference does not match this member.");
     return principal ? [{ ...row, principal }] : [];
   });
   if (!identity || wanted.length === 0) return new Map();
@@ -27,7 +29,10 @@ export async function unlockAdminUserNames(
   const names = new Map<string, string>();
   out.forEach((r, i) => {
     if (r.display_name && !r.display_name.startsWith("pii-display-name:")) names.set(wanted[i].account_id, r.display_name);
-    else if (r.name_error) console.warn("[admin-names] name not unlocked", wanted[i].account_id, r.name_error);
+    else if (r.name_error) {
+      console.warn("[admin-names] name not unlocked", wanted[i].account_id, r.name_error);
+      reasons?.set(wanted[i].account_id, r.name_error);
+    }
   });
   return names;
 }
