@@ -413,6 +413,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
   // carries a diagnostic instead of a silent placeholder.
   const partial = Boolean(options.audience && options.partialNames);
   const failures = new Map<string, unknown>();
+  const subjectFailures = new Map<string, unknown>();
   // Cross-group routes (pinned DEV team, or the club-key release) do several
   // consensus checks across groups; 6s is too short for a cold route.
   const devTeam = (options.audience?.kind === 'team' &&
@@ -456,7 +457,29 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
         routeGuards.get(authority)?.();
       };
       options.onStep?.('ciphertext');
-      const part = await boundedRead(route, subjects, routeActive, options.audience, options.onStep);
+      let part: Map<string, string>;
+      try {
+        part = await boundedRead(route, subjects, routeActive, options.audience, options.onStep);
+      } catch (error) {
+        // Partial mode: the server refuses a whole batch when any one subject
+        // fails (e.g. a moved or unfinished account). Re-ask for each person
+        // separately so one refusal cannot blank everybody else. Each retry is
+        // still fully authorized server-side; nothing is widened.
+        if (!partial || subjects.length < 2) throw error;
+        part = new Map<string, string>();
+        for (let start = 0; start < subjects.length; start += 4) {
+          await Promise.all(subjects.slice(start, start + 4).map(async subject => {
+            try {
+              const one = await boundedRead(route, [subject], routeActive, options.audience, options.onStep);
+              const name = one.get(subject);
+              if (name) part.set(subject, name);
+            } catch (single) {
+              subjectFailures.set(`${authority}\u0000${subject}`, single);
+            }
+          }));
+          active();
+        }
+      }
       if (options.audience && !partial && part.size !== subjects.length) throw new Error('Private-name audience is incomplete or unavailable.');
       active();
       const group = names.get(authority) ?? new Map<string, string>();
@@ -497,7 +520,7 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
       if (ref === undefined) return profile;
       const name = ref ? names.get(ref.authority)?.get(ref.subject) : undefined;
       if (name) return { ...profile, display_name: name };
-      const failure = ref ? failures.get(ref.authority) : undefined;
+      const failure = ref ? (failures.get(ref.authority) ?? subjectFailures.get(`${ref.authority}\u0000${ref.subject}`)) : undefined;
       const name_error = ref === null ? 'Private-name reference does not match this member.'
         : failure !== undefined ? (failure instanceof Error ? failure.message : String(failure))
         : NAME_NOT_SHARED_YET;

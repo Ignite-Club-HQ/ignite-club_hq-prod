@@ -25,6 +25,9 @@ export async function unlockAdminUserNames(
     resolveAuthority: createAdminNameAuthorityResolver(ctx),
   });
   const names = new Map<string, string>();
-  out.forEach((r, i) => { if (r.display_name && !r.display_name.startsWith("pii-display-name:")) names.set(wanted[i].account_id, r.display_name); });
+  out.forEach((r, i) => {
+    if (r.display_name && !r.display_name.startsWith("pii-display-name:")) names.set(wanted[i].account_id, r.display_name);
+    else if (r.name_error) console.warn("[admin-names] name not unlocked", wanted[i].account_id, r.name_error);
+  });
   return names;
 }
