@@ -6,8 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getCurrentInternetIdentity } from "@/live/internetIdentityAuth";
-import { tryGetActiveIcpTarget } from "@/live/loadBackendRouting";
+import { getAdminCanisterTracking } from "@/live/adminCanisterTracking";
 import { withFeatureBackend, type FeatureBackendContext } from "@/live/featureRouter";
 import { listLiveClubs, listLiveTeams, listLiveNews, listLiveSponsors } from "@/live/features/club";
 import { listLiveEvents } from "@/live/features/events";
@@ -18,14 +17,6 @@ import { listLiveRoleGrants } from "@/live/features/membership";
  * Supabase table editor. Every read runs as the signed-in Internet Identity,
  * so canister access rules still apply.
  */
-
-async function getCtx(): Promise<FeatureBackendContext> {
-  const target = tryGetActiveIcpTarget();
-  if (!target) throw new Error("No Internet Computer connection is configured.");
-  const identity = await getCurrentInternetIdentity().catch(() => null);
-  if (!identity) throw new Error("Sign in with Internet Identity to browse on-chain data.");
-  return { target, identity } as FeatureBackendContext;
-}
 
 function fmt(v: unknown): string {
   if (v === null || v === undefined) return "";
@@ -70,7 +61,7 @@ function DataTable({ rows, filter }: { rows: Record<string, unknown>[]; filter: 
 
 function ClubTable({ name, clubId, load, filter }: { name: string; clubId: string; load: (ctx: FeatureBackendContext, id: string) => Promise<unknown[]>; filter: string }) {
   const q = useQuery({
-    queryKey: ["admin-icp-data", name, clubId],
+    queryKey: ["admin-icp-data", getAdminCanisterTracking().cacheKey, name, clubId],
     enabled: !!clubId,
     // Read from the group that owns this club (Group 2 clubs refuse on Group 1).
     queryFn: async () => (await withFeatureBackend(name === "events" ? "events" : "membership", {
@@ -90,9 +81,10 @@ export default function AdminIcpDataPage() {
   const [filter, setFilter] = useState("");
 
   const clubs = useQuery({
-    queryKey: ["admin-icp-data", "clubs"],
-    queryFn: async () => {
-      const ctx = await getCtx();
+    queryKey: ["admin-icp-data", getAdminCanisterTracking().cacheKey, "clubs"],
+    queryFn: () => withFeatureBackend("membership", {
+      supabase: async () => { throw new Error("Sign in with Internet Identity to browse on-chain data."); },
+      icp: async ctx => {
       const all: Record<string, unknown>[] = [];
       let cursor: string | null = null;
       for (let i = 0; i < 20; i++) {
@@ -104,7 +96,8 @@ export default function AdminIcpDataPage() {
         cursor = next;
       }
       return all;
-    },
+      },
+    }, { everyGroup: true, requireComplete: true, merge: parts => [...new Map((parts.flat() as Record<string, unknown>[]).map(row => [row.id, row])).values()] }) as Promise<Record<string, unknown>[]>,
   });
 
   const tables: { key: string; label: string; load: (ctx: FeatureBackendContext, id: string) => Promise<unknown[]> }[] = [

@@ -3,7 +3,7 @@ import { RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getActiveIcpTarget } from "@/live/targetRegistry";
+import { getAdminCanisterTracking } from "@/live/adminCanisterTracking";
 
 type Balance = { key: string; canisterId: string; cycles: bigint | null; error?: string };
 
@@ -11,7 +11,7 @@ type Balance = { key: string; canisterId: string; cycles: bigint | null; error?:
 // no cycles_balance query of its own, so its balance is read through
 // club_domain's canister_cycles proxy (club_domain is added as a controller by
 // the frontend deploy workflow).
-const FRONTEND_CANISTER_ID = "proe7-kqaaa-aaaas-qg6gq-cai";
+
 
 const T = 1_000_000_000_000n;
 const LOW = 500_000_000_000n; // 0.5T
@@ -24,7 +24,7 @@ function formatCycles(c: bigint): string {
 
 // 1T cycles = 1 XDR (fixed by the protocol). XDR→USD drifts; ~1.35 is close enough for an estimate.
 const USD_PER_T = 1.35;
-const HISTORY_KEY = "admin-canister-cycle-history-v1";
+const HISTORY_KEY = "ignite_admin_canister_cycle_history_v1";
 const MIN_SPAN_MS = 6 * 3600_000; // need 6h of history before estimating
 type Snap = { t: number; c: string };
 
@@ -53,8 +53,8 @@ function usdPerMonth(perDay: number): number {
 }
 
 async function loadBalances(): Promise<Balance[]> {
-  const target = getActiveIcpTarget();
-  const entries = Object.entries(target.canisterIds ?? {}).filter(([, id]) => !!id);
+  const { target, frontendId, groups, engine } = getAdminCanisterTracking();
+  const entries = Object.entries(target.canisterIds ?? {}).filter(([key, id]) => key !== "frontend" && !!id);
   if (entries.length === 0) return [];
   const [{ HttpAgent, Actor, AnonymousIdentity }, { IDL }] = await Promise.all([
     import("@icp-sdk/core/agent"),
@@ -64,23 +64,23 @@ async function loadBalances(): Promise<Balance[]> {
   const idl = () => IDL.Service({ cycles_balance: IDL.Func([], [IDL.Nat], ["query"]) });
   const proxyIdl = () =>
     IDL.Service({ canister_cycles: IDL.Func([IDL.Principal], [IDL.Nat], []) });
-  const clubDomainId = target.canisterIds?.["club_domain"];
+  const clubDomainId = groups[0]?.canisters.find(c => c.key === "club_domain")?.canisterId;
   const frontendBalance = async (): Promise<Balance> => {
     try {
-      if (!clubDomainId) throw new Error("no club_domain");
+      if (engine || !clubDomainId || !frontendId) throw new Error("Balance unavailable");
       const { Principal } = await import("@icp-sdk/core/principal");
       const proxy = Actor.createActor<{ canister_cycles: (id: unknown) => Promise<bigint> }>(proxyIdl, {
         agent,
         canisterId: clubDomainId,
       });
-      const cycles = await proxy.canister_cycles(Principal.fromText(FRONTEND_CANISTER_ID));
-      return { key: "frontend (web app)", canisterId: FRONTEND_CANISTER_ID, cycles };
+      const cycles = await proxy.canister_cycles(Principal.fromText(frontendId ?? "Not configured"));
+      return { key: "frontend (web app)", canisterId: frontendId ?? "Not configured", cycles };
     } catch {
       return {
         key: "frontend (web app)",
-        canisterId: FRONTEND_CANISTER_ID,
+        canisterId: frontendId ?? "Not configured",
         cycles: null,
-        error: "Available after the next backend + web app deploys",
+        error: engine ? "Engine funded" : "Frontend balance is unavailable",
       };
     }
   };
@@ -96,7 +96,7 @@ async function loadBalances(): Promise<Balance[]> {
           canisterId,
           cycles: null,
           error: /cycles_balance|has no query method|IC0302|IC0536/.test(text)
-            ? "Needs the next mainnet deploy to report its balance"
+            ? "Balance reporting is unavailable"
             : /out of cycles|IC0207|frozen/i.test(text)
               ? "Out of cycles — top up now"
               : "Couldn't reach this canister",
@@ -110,12 +110,13 @@ async function loadBalances(): Promise<Balance[]> {
 /** Cycle (credit) balance of every configured canister, read via its public cycles_balance query. */
 export function CanisterBalancesCard() {
   const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["admin-canister-balances"],
+    queryKey: ["admin-canister-balances", getAdminCanisterTracking().cacheKey],
     queryFn: loadBalances,
     staleTime: 60_000,
   });
+  const { engine } = getAdminCanisterTracking();
   const rates = new Map<string, number | null>();
-  for (const b of data ?? []) if (b.cycles !== null) rates.set(b.canisterId, burnPerDay(b.canisterId, b.cycles));
+  for (const b of data ?? []) if (!engine && b.cycles !== null) rates.set(b.canisterId, burnPerDay(b.canisterId, b.cycles));
   const known = [...rates.values()].filter((r): r is number => r !== null);
   const totalUsd = known.reduce((sum, r) => sum + usdPerMonth(r), 0);
   const sorted = [...(data ?? [])].sort((a, b) => {
@@ -130,8 +131,7 @@ export function CanisterBalancesCard() {
         <div className="space-y-1.5">
           <CardTitle className="text-base">Canister balances</CardTitle>
           <CardDescription>
-            Cycles left in each canister (lowest first), including the web-app canister. Top up anything under 2T —
-            cycle.express sends cycles straight to a canister ID. A canister at zero stops working.
+            {engine ? "OpenCloud canisters are funded by the engine; zero canister cycles does not mean the service is stopped." : "Cycles left in each canister (lowest first), including the web-app canister. Top up anything under 2T."}
           </CardDescription>
         </div>
         <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isFetching} aria-label="Refresh balances">
@@ -143,7 +143,7 @@ export function CanisterBalancesCard() {
         {!isLoading && sorted.length === 0 && (
           <p className="text-sm text-muted-foreground">No canister IDs configured.</p>
         )}
-        {data && data.length > 0 && (
+        {!engine && data && data.length > 0 && (
           <div className="rounded-md bg-muted p-2 text-sm">
             {known.length > 0 ? (
               <>
@@ -159,30 +159,32 @@ export function CanisterBalancesCard() {
             </p>
           </div>
         )}
-        {sorted.map((b) => (
+        {sorted.map((b) => {
+          const rate = rates.get(b.canisterId);
+          return (
           <div key={b.key} className="flex items-center justify-between gap-3 rounded-md border p-2">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{b.key}</p>
               <p className="truncate font-mono text-xs text-muted-foreground">{b.canisterId}</p>
-              {rates.get(b.canisterId) != null && (
+              {rate != null && (
                 <p className="text-xs text-muted-foreground">
-                  ~${usdPerMonth(rates.get(b.canisterId)!).toFixed(2)}/month ·{" "}
-                  {formatCycles(BigInt(Math.round(rates.get(b.canisterId)! * 30)))} per 30 days
-                  {b.cycles !== null && rates.get(b.canisterId)! > 0 &&
-                    ` · lasts ~${Math.floor(Number(b.cycles) / rates.get(b.canisterId)!)} days`}
+                  ~${usdPerMonth(rate).toFixed(2)}/month ·{" "}
+                  {formatCycles(BigInt(Math.round(rate * 30)))} per 30 days
+                  {b.cycles !== null && rate > 0 &&
+                    ` · lasts ~${Math.floor(Number(b.cycles) / rate)} days`}
                 </p>
               )}
               {b.error && <p className="text-xs text-muted-foreground">{b.error}</p>}
             </div>
             {b.cycles !== null ? (
-              <Badge variant={b.cycles < LOW ? "destructive" : b.cycles < WARN ? "secondary" : "outline"}>
+              <Badge variant={!engine && b.cycles < LOW ? "destructive" : !engine && b.cycles < WARN ? "secondary" : "outline"}>
                 {formatCycles(b.cycles)}
               </Badge>
             ) : (
               <Badge variant="outline">—</Badge>
             )}
           </div>
-        ))}
+        ); })}
       </CardContent>
     </Card>
   );

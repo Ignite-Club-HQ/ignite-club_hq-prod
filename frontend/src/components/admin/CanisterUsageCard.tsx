@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getActiveIcpTarget } from "@/live/targetRegistry";
+import { getAdminCanisterTracking } from "@/live/adminCanisterTracking";
 
 type UsageRow = { label: string; value: number | null };
 
@@ -43,7 +43,7 @@ const STATS: StatsSpec[] = [
 ];
 
 async function loadUsage(): Promise<{ rows: UsageRow[]; pending: boolean }> {
-  const target = getActiveIcpTarget();
+  const { target, groups } = getAdminCanisterTracking();
   const [{ HttpAgent, Actor, AnonymousIdentity }, { IDL }] = await Promise.all([
     import("@icp-sdk/core/agent"),
     import("@icp-sdk/core/candid"),
@@ -53,22 +53,21 @@ async function loadUsage(): Promise<{ rows: UsageRow[]; pending: boolean }> {
   let pending = false;
   await Promise.all(
     STATS.map(async (spec) => {
-      const canisterId = target.canisterIds?.[spec.canisterKey];
+      const canisterIds = groups.flatMap(g => g.canisters.filter(c => c.key === spec.canisterKey).map(c => c.canisterId));
       const idl = () =>
         IDL.Service({
           usage_stats: IDL.Func([], [IDL.Record(Object.fromEntries(spec.fields.map(f => [f.field, IDL.Nat])))], ["query"]),
         });
       let stats: Record<string, bigint> | null = null;
-      if (canisterId) {
+      if (canisterIds.length) {
         try {
-          const actor = Actor.createActor<{ usage_stats: () => Promise<Record<string, bigint>> }>(idl, { agent, canisterId });
-          stats = await actor.usage_stats();
-        } catch {
-          pending = true; // method not deployed yet, or canister unreachable
-        }
-      } else {
-        pending = true;
-      }
+          const results = await Promise.all(canisterIds.map(canisterId => {
+            const actor = Actor.createActor<{ usage_stats: () => Promise<Record<string, bigint>> }>(idl, { agent, canisterId });
+            return actor.usage_stats();
+          }));
+          stats = Object.fromEntries(spec.fields.map(f => [f.field, results.reduce((sum, result) => sum + (result[f.field] ?? 0n), 0n)]));
+        } catch { pending = true; }
+      } else { pending = true; }
       for (const f of spec.fields) {
         rows.push({ label: f.label, value: stats ? Number(stats[f.field] ?? 0n) : null });
       }
@@ -80,7 +79,7 @@ async function loadUsage(): Promise<{ rows: UsageRow[]; pending: boolean }> {
 /** Aggregate usage counts across the ICP domain canisters, for capacity planning. */
 export function CanisterUsageCard() {
   const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["admin-canister-usage"],
+    queryKey: ["admin-canister-usage", getAdminCanisterTracking().cacheKey],
     queryFn: loadUsage,
     staleTime: 5 * 60_000,
   });

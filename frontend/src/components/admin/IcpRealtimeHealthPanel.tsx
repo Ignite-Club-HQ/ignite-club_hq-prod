@@ -4,7 +4,7 @@ import { ArrowLeft, Activity, RefreshCw, CheckCircle2, XCircle } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getActiveIcpTarget } from "@/live/targetRegistry";
+import { getAdminCanisterTracking } from "@/live/adminCanisterTracking";
 import { DOMAIN_LABELS } from "@/live/domains";
 import {
   CHAT_POLL_INTERVAL_VISIBLE_MS,
@@ -21,8 +21,8 @@ type CanisterProbe = {
 };
 
 async function probeCanisters(): Promise<CanisterProbe[]> {
-  const target = getActiveIcpTarget();
-  const entries = Object.entries(target.canisterIds ?? {}).filter(([, id]) => !!id);
+  const target = getAdminCanisterTracking().target;
+  const entries = Object.entries(target.canisterIds ?? {}).filter(([key, id]) => key !== "frontend" && !!id);
   if (entries.length === 0) return [];
 
   const [{ HttpAgent, Actor, AnonymousIdentity }, { IDL }] = await Promise.all([
@@ -37,7 +37,8 @@ async function probeCanisters(): Promise<CanisterProbe[]> {
 
   return Promise.all(
     entries.map(async ([key, canisterId]): Promise<CanisterProbe> => {
-      const label = DOMAIN_LABELS[key] ?? key;
+      const serviceKey = key.replace(/^g[12]_/, "");
+      const label = DOMAIN_LABELS[serviceKey] ?? key;
       const started = performance.now();
       try {
         const actor = Actor.createActor<{ cycles_balance: () => Promise<bigint> }>(idl, { agent, canisterId });
@@ -68,7 +69,7 @@ export function IcpRealtimeHealthPanel() {
   const navigate = useNavigate();
 
   const { data: probes, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["icp-realtime-health-probes"],
+    queryKey: ["icp-realtime-health-probes", getAdminCanisterTracking().cacheKey],
     queryFn: probeCanisters,
     refetchInterval: 30_000,
   });
@@ -100,7 +101,7 @@ export function IcpRealtimeHealthPanel() {
             Canister health
           </CardTitle>
           <CardDescription>
-            Times a lightweight query against each configured canister on {getActiveIcpTarget().alias}
+            Times a lightweight query against each configured canister on {getAdminCanisterTracking().target.alias}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

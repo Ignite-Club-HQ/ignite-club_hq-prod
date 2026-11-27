@@ -2,8 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { getActiveIcpTarget } from "@/live/targetRegistry";
-import { listBlobStoreKeys } from "@/live/mediaStorage";
+import { getAdminCanisterTracking } from "@/live/adminCanisterTracking";
 
 type StoreUsage = {
   key: string;
@@ -21,8 +20,8 @@ function formatBytes(bytes: number): string {
 }
 
 async function loadUsage(): Promise<StoreUsage[]> {
-  const target = getActiveIcpTarget();
-  const keys = listBlobStoreKeys(target);
+  const target = getAdminCanisterTracking().target;
+  const keys = Object.keys(target.canisterIds).filter(key => /^(g[12]_)?media_blob_store(?:_\d+)?$/.test(key));
   if (keys.length === 0) return [];
   const [{ getLiveBlobStoreUsage }, { getCurrentInternetIdentity }, { AnonymousIdentity }] = await Promise.all([
     import("@/live/blobStoreUpload"),
@@ -50,7 +49,7 @@ async function loadUsage(): Promise<StoreUsage[]> {
           limitBytes: 0,
           accepting: true,
           error: /get_usage|has no query method|IC0302|IC0536/.test(String(error))
-            ? "Needs the next mainnet deploy to report fullness"
+            ? "Storage reporting is unavailable"
             : "Couldn't reach this store",
         };
       }
@@ -66,7 +65,7 @@ async function loadUsage(): Promise<StoreUsage[]> {
  */
 export function PhotoStoresCard() {
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-photo-stores"],
+    queryKey: ["admin-photo-stores", getAdminCanisterTracking().cacheKey],
     queryFn: loadUsage,
     staleTime: 60_000,
   });
