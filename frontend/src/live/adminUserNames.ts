@@ -18,6 +18,7 @@ export async function unlockAdminUserNames(
     if (!principal) reasons?.set(row.account_id, "Private-name reference does not match this member.");
     return principal ? [{ ...row, principal }] : [];
   });
+  if (!identity) wanted.forEach(w => reasons?.set(w.account_id, "diagnostic: identity service id missing from active target"));
   if (!identity || wanted.length === 0) return new Map();
   const { hydratePrivateProfileNames } = await import("./privateProfileNames");
   const { createAdminNameAuthorityResolver } = await import("./adminNameAuthority");
@@ -32,7 +33,7 @@ export async function unlockAdminUserNames(
     else if (r.name_error) {
       console.warn("[admin-names] name not unlocked", wanted[i].account_id, r.name_error);
       reasons?.set(wanted[i].account_id, r.name_error);
-    }
+    } else reasons?.set(wanted[i].account_id, `diagnostic: no name and no error returned (value ${r.display_name ? "still locked reference" : "empty"})`);
   });
   return names;
 }
