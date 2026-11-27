@@ -42,16 +42,58 @@ const targets=[
  ['g2_club_domain','ggvhz-oaaaa-aaac5-aaejq-cai',{[release]:'1'},false]
 ];
 const forbidden=['IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE','IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE','IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256'];
-let failed=false;
+
+const [work,mode]=process.argv.slice(2);
+if(!['check','apply'].includes(mode))throw Error('Explicit mode required');
+const m=JSON.parse(fs.readFileSync(path.join(work,'manifest.json')));
+if(m.environment!=='opencloud-prod'||m.applicationKey!=='ignite_prod_v2'||m.engine.operatorId!==MANAGEMENT_PROXY||m.canisters.length!==32)throw Error('Wrong manifest');
+const pins={g1_pii_access_control:'3742ea1edc52245445b945d58a63b612182aa9b6954df1f7bbe41da0d6745587',g2_pii_access_control:'3742ea1edc52245445b945d58a63b612182aa9b6954df1f7bbe41da0d6745587',identity_access:'385f83a3d7e1fbad5426c1121bc07008cb86b925ed695cb40052d9b5e7648b80',g1_club_domain:'e55b66bf5d52dfd1fe3ab3dd3dfd883e8467cf3309a637116b38d9bdb51de198',g2_club_domain:'e55b66bf5d52dfd1fe3ab3dd3dfd883e8467cf3309a637116b38d9bdb51de198'};
+const repairs=new Map(),before=new Map(),prepared=[];
+const moduleHash=s=>Buffer.from(s.module_hash[0]??[]).toString('hex');
+const settings=s=>JSON.stringify({controllers:s.settings.controllers.map(p=>p.toText()).sort(),env:s.settings.environment_variables.map(v=>[v.name,v.value]).sort(),limit:String(s.settings.wasm_memory_limit)});
 for(const [name,id,desired,isPii] of targets){
- if(!rows.some(r=>r.name===name&&r.id===id))throw Error('Inventory mismatch '+name);
- const s=await status(id);verifyControllers(s);
- const env=new Map(s.settings.environment_variables.map(x=>[x.name,x.value]));
- if(env.size!==s.settings.environment_variables.length||!s.module_hash[0])throw Error('Invalid status '+name);
- const prerequisites=!isPii||(env.get('VETKD_KEY_NAME')==='key_1'&&env.get('IGNITE_SECURE_ADULT_NAME_IDENTITY')===identityId);
- const forbiddenPresent=forbidden.filter(k=>env.has(k));
- console.log(JSON.stringify({name,id,moduleHash:Buffer.from(s.module_hash[0]).toString('hex'),controllers:s.settings.controllers.map(p=>p.toText()),environmentCount:env.size,environmentDigest:hash(JSON.stringify([...env].sort())),settings:Object.entries(desired).map(([key,value])=>({key,status:!env.has(key)?'missing':env.get(key)===value?'correct':'different'})),prerequisites,forbiddenPresent}));
- if(!prerequisites||forbiddenPresent.length)failed=true;
+ const r=rows.find(x=>x.name===name&&x.id===id),a=m.canisters.find(x=>x.name===name&&x.id===id);
+ if(!r||!a||a.service!==r.service)throw Error('Inventory mismatch '+name);
+ const live=await status(id);verifyControllers(live);
+ const vars=new Map(live.settings.environment_variables.map(v=>[v.name,v.value]));
+ if(vars.size!==live.settings.environment_variables.length||forbidden.some(k=>vars.has(k))||isPii&&(vars.get('VETKD_KEY_NAME')!=='key_1'||vars.get('IGNITE_SECURE_ADULT_NAME_IDENTITY')!==identityId))throw Error('Prerequisite failed '+name);
+ for(const [k,v] of Object.entries(desired))if(vars.has(k)&&vars.get(k)!==v)throw Error('Conflicting setting '+name+' '+k);
+ const gz=fs.readFileSync(path.join(work,a.wasm)),wasm=gunzipSync(gz);
+ if(moduleHash(live)!==pins[name]||a.moduleSha256!==pins[name]||hash(wasm)!==pins[name]||hash(gz)!==a.wasmSha256)throw Error('Exact live artifact mismatch '+name+' live='+moduleHash(live)+' candidate='+a.moduleSha256);
+ if(r.service!=='identity_access'&&a.upgradePersistence!=='keep')throw Error('Keep persistence required '+name);
+ const g=config.controllers.governor;let arg;
+ if(a.initArgs==='()')arg=I.encode([],[]);
+ else if(a.initArgs===`(principal "${g}")`)arg=I.encode([P],[pid(g)]);
+ else if(a.initArgs===`(record { governor = principal "${g}" })`)arg=I.encode([I.Record({governor:P})],[{governor:pid(g)}]);
+ else throw Error('Unknown constructor '+name);
+ before.set(id,live);repairs.set(id,desired);prepared.push({...a,wasm,arg});
+ console.log(JSON.stringify({name,id,moduleHash:moduleHash(live),missing:Object.keys(desired).filter(k=>!vars.has(k)),environmentDigest:hash(settings(live))}));
 }
-if(failed)throw Error('Private-name prerequisite failed; no changes made');
-console.log('Read-only private-name preflight complete; no changes made');
+if(mode==='check'){console.log('All five exact artifacts verified; no writes');process.exit(0);}
+if(process.env.APPROVE_PRIVATE_NAME_REPAIR!=='YES')throw Error('Explicit approval required');
+const Upgrade=I.Record({skip_pre_upgrade:I.Opt(I.Bool),wasm_memory_persistence:I.Opt(I.Variant({keep:I.Null,replace:I.Null}))});
+for(const t of prepared){
+ let old=before.get(t.id);
+ const repair=repairs.get(t.id);
+ if(repair){
+  const live=await status(t.id);verifyControllers(live);
+  if(settings(live)!==settings(old)||moduleHash(live)!==moduleHash(old))throw Error('Concurrent settings change '+t.name);
+  const vars=new Map(live.settings.environment_variables.map(v=>[v.name,v.value]));
+  for(const [k,v] of Object.entries(repair)){if(vars.has(k)&&vars.get(k)!==v)throw Error('Conflicting secure-name setting');vars.set(k,v);}
+  const env=[...vars].map(([name,value])=>({name,value}));
+  await call('update_settings',I.Record({canister_id:P,settings:I.Record({environment_variables:I.Opt(E)})}),{canister_id:pid(t.id),settings:{environment_variables:[env]}});
+  const after=await status(t.id);verifyControllers(after);
+  const actual=new Map(after.settings.environment_variables.map(v=>[v.name,v.value]));
+  if(actual.size!==vars.size||env.some(x=>actual.get(x.name)!==x.value)||moduleHash(after)!==moduleHash(old)||after.settings.wasm_memory_limit!==old.settings.wasm_memory_limit)throw Error('Secure-name settings readback mismatch');
+  old=after;
+ }
+
+ const check=async()=>{const s=await status(t.id);verifyControllers(s);if(settings(s)!==settings(old))throw Error('Settings changed '+t.name);return s;};
+ if(moduleHash(await check())!==moduleHash(old))throw Error('Concurrent module change');
+ const chunks=[];await call('clear_chunk_store',Target,{canister_id:pid(t.id)});
+ for(let i=0;i<t.wasm.length;i+=1000000){const chunk=t.wasm.subarray(i,i+1000000);const [r]=await call('upload_chunk',I.Record({canister_id:P,chunk:B}),{canister_id:pid(t.id),chunk},[I.Record({hash:B})]);if(Buffer.from(r.hash).toString('hex')!==hash(chunk))throw Error('Chunk mismatch');chunks.push({hash:r.hash});}
+ if(moduleHash(await check())!==moduleHash(old))throw Error('Concurrent module change');
+ await call('install_chunked_code',I.Record({mode:I.Variant({upgrade:I.Opt(Upgrade)}),target_canister:P,store_canister:I.Opt(P),chunk_hashes_list:I.Vec(I.Record({hash:B})),wasm_module_hash:B,arg:B,sender_canister_version:I.Opt(I.Nat64)}),{mode:{upgrade:[{skip_pre_upgrade:[false],wasm_memory_persistence:t.upgradePersistence==='keep'?[{keep:null}]:[]}]},target_canister:pid(t.id),store_canister:[],chunk_hashes_list:chunks,wasm_module_hash:Buffer.from(t.moduleSha256,'hex'),arg:new Uint8Array(t.arg),sender_canister_version:[]});
+ if(moduleHash(await check())!==t.moduleSha256)throw Error('Upgrade hash mismatch '+t.name);
+ console.log(JSON.stringify({name:t.name,beforeHash:t.moduleSha256,afterHash:moduleHash(await check()),environmentDigest:hash(settings(await check())),settings:Object.keys(repair)}));
+}
