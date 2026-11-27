@@ -78,7 +78,7 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
         });
         return rows.map((r) => ({
           ...r,
-          profiles: r.user_id ? profileMap.get(r.user_id) : null,
+          profiles: r.user_id && !r.child_id ? profileMap.get(r.user_id) : null,
           children: r.child_id ? childMap.get(r.child_id) : null,
         }));
       },
