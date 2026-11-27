@@ -9,7 +9,7 @@ import { validate } from './deployment.mjs';
 import { groupApprovalConfiguration } from '../../frontend/src/live/groupApproval.ts';
 import { verifyRemovalWiring } from '../../frontend/src/live/groupRemovalWiring.ts';
 const mode=process.argv[2];
-if (!['check','approve'].includes(mode)) throw Error('Explicit mode required');
+if (!['check','approve','repair-bindings'].includes(mode)) throw Error('Explicit mode required');
 const config = JSON.parse(fs.readFileSync('deploy/opencloud/prod.json'));
 const peer = JSON.parse(fs.readFileSync('deploy/opencloud/dev.json'));
 if(process.env.GITHUB_REF_NAME!=='prod'||config.environment!=='opencloud-prod'||config.applicationKey!=='ignite_prod_v2'||config.apiHost!=='https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net')throw Error('Wrong PROD target');
@@ -64,11 +64,31 @@ for(const r of rows.filter(r=>r.service!=='frontend')){
  statuses.set(r.id,s.settings.environment_variables);
  evidence.push({id:r.id,moduleHash:Buffer.from(s.module_hash[0]).toString('hex')});
 }
+const bindingPlans=[];
 for(const g of page.groups){
  const club=g.domains.find(d=>d.domain==='club_domain').canister.toText();
  const env=new Map(statuses.get(club).map(e=>[e.name,e.value]));
- if(env.get('IGNITE_NEW_CLUB_PLACEMENT_ROUTER')!==router||env.get('IGNITE_NEW_CLUB_PLACEMENT_GROUP')!==g.id||env.get('IGNITE_NEW_CLUB_PLACEMENT_TARGET')!=='opencloud-prod')throw Error('Creator binding mismatch '+g.id);
+ const desired={IGNITE_NEW_CLUB_PLACEMENT_ROUTER:router,IGNITE_NEW_CLUB_PLACEMENT_GROUP:g.id,IGNITE_NEW_CLUB_PLACEMENT_TARGET:'opencloud-prod'};
+ const mismatches=Object.keys(desired).filter(k=>env.get(k)!==desired[k]);
+ for(const k of mismatches) console.log(g.id+' '+k+': '+(env.has(k)?'different':'missing'));
+ if(mismatches.length) bindingPlans.push({club,desired,env});
 }
+if(mode==='repair-bindings'){
+ const canonical=entries=>JSON.stringify([...entries].sort(([a],[b])=>a.localeCompare(b)));
+ for(const p of bindingPlans){
+  if(!['fndr2-iyaaa-aaac5-aaeda-cai','ggvhz-oaaaa-aaac5-aaejq-cai'].includes(p.club))throw Error('Unexpected repair target');
+  const before=await status(p.club);verifyControllers(before);
+  const current=new Map(before.settings.environment_variables.map(e=>[e.name,e.value]));
+  if(canonical(current)!==canonical(p.env))throw Error('Settings changed; retry');
+  for(const [k,v] of Object.entries(p.desired))current.set(k,v);
+  await call('update_settings',I.Record({canister_id:P,settings:I.Record({environment_variables:I.Opt(E)})}),{canister_id:pid(p.club),settings:{environment_variables:[[...current].map(([name,value])=>({name,value}))]}});
+  const after=await status(p.club);verifyControllers(after);
+  if(canonical(after.settings.environment_variables.map(e=>[e.name,e.value]))!==canonical(current)||hash(before.module_hash[0])!==hash(after.module_hash[0]))throw Error('Settings readback mismatch');
+  console.log('Creator bindings verified '+p.club);
+ }
+ process.exit(0);
+}
+if(bindingPlans.length)throw Error('Creator binding mismatch; explicit repair required');
 const wiring=await verifyRemovalWiring({revision:page.revision,groups:page.groups.map(g=>({id:g.id,targetAlias:g.target_alias,photoStore:g.photo_store[0].toText(),domains:g.domains.map(d=>({domain:d.domain,canisterId:d.canister.toText()}))}))},id,async cid=>{if(!statuses.has(cid))throw Error('Unknown service');return statuses.get(cid);},Date.now());
 if(!wiring.evidence)throw Error(wiring.problems.join('; '));
 const approvedConfiguration=groupApprovalConfiguration(page.groups,page.placements);
