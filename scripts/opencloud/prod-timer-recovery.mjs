@@ -10,7 +10,7 @@ const [work, mode, originalWork] = process.argv.slice(2);
 if (!['check','upgrade'].includes(mode)) throw Error('Explicit mode required');
 const config = JSON.parse(fs.readFileSync('deploy/opencloud/prod.json'));
 const peer = JSON.parse(fs.readFileSync('deploy/opencloud/dev.json'));
-if(process.env.GITHUB_REF_NAME!=='main'||config.environment!=='opencloud-prod'||config.applicationKey!=='ignite_prod_v2'||config.operatorId!==MANAGEMENT_PROXY||config.apiHost!=='https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net') throw Error('Wrong PROD target');
+if(process.env.GITHUB_REF_NAME!=='prod'||config.environment!=='opencloud-prod'||config.applicationKey!=='ignite_prod_v2'||config.operatorId!==MANAGEMENT_PROXY||config.apiHost!=='https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net') throw Error('Wrong PROD target');
 const rows = validate({...config,supabase:{...config.supabase,publishableKey:config.supabase.publishableKey||'sb_publishable_OFFLINE_INSTALL_VALIDATION'}},peer);
 const m = JSON.parse(fs.readFileSync(path.join(work,'manifest.json')));
 if(m.environment!=='opencloud-prod'||m.applicationKey!=='ignite_prod_v2'||m.canisters.length!==32||m.engine.operatorId!==MANAGEMENT_PROXY) throw Error('Wrong manifest');
@@ -53,12 +53,26 @@ const read=async t=>{
  console.log(t.name+' readback: '+r.stdout);
  return r.stdout;
 };
+const readPublic=async(t,method)=>{
+ const {spawnSync}=await import('node:child_process');
+ const r=spawnSync('icp',['canister','call',t.id,method,'()','--candid',path.resolve('backend/timer_jobs/timer_jobs.did'),'--network','ic','--identity','opencloud-governor'],{encoding:'utf8',cwd:process.env.RUNNER_TEMP});
+ if(r.status!==0) throw Error('Readback transport failed '+t.name+' '+method);
+ console.log(t.name+' '+method+': '+r.stdout);
+ return r.stdout.trim();
+};
+const pristinePublic=async t=>{
+ const state=await readPublic(t,'get_state');
+ if(!/\barmed\s*=\s*false\b/.test(state)||!/\bnext_run_at_ms\s*=\s*null\b/.test(state)) throw Error('Timer not pristine '+t.name);
+ const authority=await readPublic(t,'read_account_removal_authority');
+ if(!/^\(\s*null\s*,?\s*\)$/.test(authority)) throw Error('Removal authority not empty '+t.name);
+};
 const verify=async(t,h)=>{const s=await status(t.id);verifyControllers(s);if(Buffer.from(s.module_hash[0]??[]).toString('hex')!==h)throw Error('Module mismatch '+t.name);return s;};
-for(const t of targets){await verify(t,t.oldHash);const out=await read(t);if(!/Governor required/.test(out)||!/\bErr\b/.test(out))throw Error('Unexpected original authority response '+t.name);console.log('Verified original module '+t.name+' '+t.oldHash);}
+for(const t of targets){await verify(t,t.oldHash);await pristinePublic(t);const out=await read(t);if(!/Governor required/.test(out)||!/\bErr\b/.test(out))throw Error('Unexpected original authority response '+t.name);console.log('Verified original module '+t.name+' '+t.oldHash);}
 if(mode==='check')process.exit(0);
 if(process.env.APPROVE_TIMER_UPGRADE!=='YES')throw Error('Explicit upgrade approval required');
 for(const t of targets){
  await verify(t,t.oldHash);
+ await pristinePublic(t);
  const chunks=[];
  await call('clear_chunk_store',Target,{canister_id:pid(t.id)});
  for(let i=0;i<t.wasm.length;i+=1000000){const chunk=t.wasm.subarray(i,i+1000000);const [r]=await call('upload_chunk',I.Record({canister_id:P,chunk:B}),{canister_id:pid(t.id),chunk},[I.Record({hash:B})]);if(Buffer.from(r.hash).toString('hex')!==hash(chunk))throw Error('Chunk mismatch');chunks.push({hash:r.hash});}
