@@ -51,7 +51,9 @@ import { CanisterUsageCard } from "@/components/admin/CanisterUsageCard";
 import { SpeedComparisonCard } from "@/components/admin/SpeedComparisonCard";
 import { ClubProOverridesCard } from "@/components/admin/ClubProOverridesCard";
 import { SeedTestDataCard } from "@/components/admin/SeedTestDataCard";
-import { getLiveBackendTargetRegistry, getActiveIcpTarget, type IcpTargetConfig } from "@/live/targetRegistry";
+import { getAdminCanisterTracking } from "@/live/adminCanisterTracking";
+import { getActiveIcpTarget, type IcpTargetConfig } from "@/live/targetRegistry";
+import { opencloudEnvironment } from "@/live/opencloudEnvironment";
 import {
   ICP_CANISTER_CONFIG_KEY,
   applyIcpAdminOverrides,
@@ -136,9 +138,7 @@ const KNOWN_CANISTER_KEYS = [
 
 function envBaselineCanisterIds(): Record<string, string> {
   try {
-    const registry = getLiveBackendTargetRegistry();
-    const target = registry.icpTargets.find(t => t.alias === registry.activeIcpAlias);
-    return target?.canisterIds ?? {};
+    return getAdminCanisterTracking().target.canisterIds;
   } catch {
     return {};
   }
@@ -799,7 +799,7 @@ export default function PlacementAdminSettingsPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 max-w-2xl mx-auto w-full">
-        <Card>
+        {!opencloudEnvironment() && <Card>
           <CardHeader>
             <CardTitle className="text-base">Canister configuration</CardTitle>
             <CardDescription>
@@ -873,14 +873,13 @@ export default function PlacementAdminSettingsPage() {
               </Button>
             </div>
           </CardContent>
-        </Card>
+        </Card>}
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Build-time defaults</CardTitle>
+            <CardTitle className="text-base">Tracked canisters</CardTitle>
             <CardDescription>
-              Canister IDs baked into this build via <code className="text-xs">IGNITE_LIVE_ICP_CANISTER_IDS_JSON</code>.
-              Any key you configure above replaces the matching value here.
+              Canisters in the current environment, including shared services and both groups. OpenCloud uses its pinned inventory; saved mainnet overrides are ignored.
             </CardDescription>
           </CardHeader>
           <CardContent>

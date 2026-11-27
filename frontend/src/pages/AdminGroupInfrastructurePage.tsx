@@ -12,11 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
-import { ROUTING_GATES_SNAPSHOT } from "@/live/generated/routingGates";
-import { DEPLOYED_MAINNET_CANISTER_IDS } from "@/live/generated/deployedCanisterIds";
-import { GROUP_TESTED_LIMITS } from "@/live/groupTestedLimits";
+import { getAdminCanisterTracking } from "@/live/adminCanisterTracking";
 import {
-  buildGroupSpecs,
   computeGroupRollup,
   formatBytes,
   formatT,
@@ -47,7 +44,7 @@ import { CanisterMemoryForecastCard } from "@/components/admin/CanisterMemoryFor
 const REFRESH_MS = 30_000;
 // The web-app (asset) canister has no cycles_balance query of its own, so its
 // balance is read through club_domain's canister_cycles proxy.
-const FRONTEND_CANISTER_ID = "proe7-kqaaa-aaaas-qg6gq-cai";
+
 
 const statsIdl: IDL.InterfaceFactory = ({ IDL }) =>
   IDL.Service({
@@ -79,8 +76,9 @@ type FetchResult = {
   frontendCyclesT: number | null;
 };
 
-async function fetchUtilization(groups: GroupSpec[], globalCanisters: { key: string; canisterId: string }[]): Promise<FetchResult> {
-  const host = ROUTING_GATES_SNAPSHOT?.host ?? "https://icp-api.io";
+async function fetchUtilization(tracking: ReturnType<typeof getAdminCanisterTracking>): Promise<FetchResult> {
+  const { groups, globalCanisters, frontendId, engine } = tracking;
+  const host = tracking.target.host;
   const agent = await HttpAgent.create({
     host,
     identity: new AnonymousIdentity(),
@@ -148,7 +146,8 @@ async function fetchUtilization(groups: GroupSpec[], globalCanisters: { key: str
     groups
       .filter((g) => g.photoStoreId)
       .map(async (g) => {
-        const id = g.photoStoreId!;
+        const id = g.photoStoreId;
+        if (!id) return;
         try {
           const actor = Actor.createActor<{
             get_usage: () => Promise<{ total_bytes: bigint; capacity_limit_bytes: bigint; accepting_uploads: boolean }>;
@@ -168,14 +167,14 @@ async function fetchUtilization(groups: GroupSpec[], globalCanisters: { key: str
 
   // Web-app canister fuel via the shared club_domain proxy.
   let frontendCyclesT: number | null = null;
-  const sharedClubDomain = DEPLOYED_MAINNET_CANISTER_IDS["club_domain"];
-  const frontendRead = (async () => { if (sharedClubDomain) {
+  const sharedClubDomain = groups[0]?.canisters.find(c => c.key === "club_domain")?.canisterId;
+  const frontendRead = (async () => { if (sharedClubDomain && frontendId && !engine) {
     try {
       const proxy = Actor.createActor<{ canister_cycles: (id: Principal) => Promise<bigint> }>(proxyIdl, {
         agent,
         canisterId: Principal.fromText(sharedClubDomain),
       });
-      frontendCyclesT = Number(await within(proxy.canister_cycles(Principal.fromText(FRONTEND_CANISTER_ID)))) / 1e12;
+      frontendCyclesT = Number(await within(proxy.canister_cycles(Principal.fromText(frontendId)))) / 1e12;
     } catch {
       frontendCyclesT = null;
     }
@@ -197,19 +196,12 @@ export default function AdminGroupInfrastructurePage() {
 
 function GroupInfrastructureContent() {
   const navigate = useNavigate();
-  const { groups, globalCanisters } = useMemo(
-    () =>
-      buildGroupSpecs({
-        snapshot: ROUTING_GATES_SNAPSHOT ?? null,
-        sharedCanisterIds: DEPLOYED_MAINNET_CANISTER_IDS,
-        testedLimits: GROUP_TESTED_LIMITS,
-      }),
-    [],
-  );
+  const tracking = getAdminCanisterTracking();
+  const { groups, globalCanisters, frontendId, engine } = tracking;
 
   const q = useQuery({
-    queryKey: ["admin-group-infrastructure"],
-    queryFn: () => fetchUtilization(groups, globalCanisters),
+    queryKey: ["admin-group-infrastructure", tracking.cacheKey],
+    queryFn: () => fetchUtilization(tracking),
     refetchInterval: REFRESH_MS,
     staleTime: REFRESH_MS / 2,
   });
@@ -217,13 +209,13 @@ function GroupInfrastructureContent() {
   // Keep the memory history growing so the trend/forecast cards below keep
   // working (this used to happen on the old Canister Health page).
   const qc = useQueryClient();
-  const reports = useQuery({ queryKey: ["canister-memory-reports"], queryFn: () => listMemoryReports(200) });
+  const reports = useQuery({ queryKey: ["canister-memory-reports", tracking.cacheKey], queryFn: () => listMemoryReports(200) });
   const autoSaved = useRef(false);
   useEffect(() => {
     if (autoSaved.current || !reports.isSuccess || !q.data) return;
     const readings = [...q.data.readings.values()]
       .filter((r) => r.memoryBytes != null)
-      .map((r) => ({ name: r.key, memory_mb: Math.round(r.memoryBytes! / 1e6), cycles_t: r.cyclesT ?? undefined }));
+      .map((r) => ({ name: `${groups.find(g => g.canisters.some(c => c.canisterId === r.canisterId))?.id ?? "shared"}/${r.key}`, memory_mb: Math.round((r.memoryBytes ?? 0) / 1e6), cycles_t: r.cyclesT ?? undefined }));
     if (!readings.length) return;
     autoSaved.current = true;
     const latest = Math.max(0, ...(reports.data ?? []).map((r) => Date.parse(r.at) || 0));
@@ -237,7 +229,7 @@ function GroupInfrastructureContent() {
     () =>
       [...(q.data?.readings.values() ?? [])]
         .filter((r) => r.memoryBytes != null)
-        .map((r) => ({ key: r.key, mb: r.memoryBytes! / 1e6 })),
+        .map((r) => ({ key: `${groups.find(g => g.canisters.some(c => c.canisterId === r.canisterId))?.id ?? "shared"}/${r.key}`, mb: (r.memoryBytes ?? 0) / 1e6 })),
     [q.data],
   );
   const liveMem = useMemo(() => liveRows.map((r) => ({ key: r.key, memoryMb: r.mb })), [liveRows]);
@@ -278,9 +270,9 @@ function GroupInfrastructureContent() {
       ) : (
         <>
           {groups.map((g) => (
-            <GroupCard key={g.id} spec={g} data={q.data} />
+            <GroupCard key={g.id} spec={g} data={q.data} engine={engine} />
           ))}
-          <GlobalServicesCard canisters={globalCanisters} data={q.data} frontendCyclesT={q.data?.frontendCyclesT ?? null} />
+          <GlobalServicesCard canisters={globalCanisters} data={q.data} frontendCyclesT={q.data?.frontendCyclesT ?? null} frontendId={frontendId} engine={engine} />
         </>
       )}
 
@@ -295,7 +287,7 @@ function GroupInfrastructureContent() {
   );
 }
 
-function GroupCard({ spec, data }: { spec: GroupSpec; data: FetchResult | undefined }) {
+function GroupCard({ spec, data, engine }: { spec: GroupSpec; data: FetchResult | undefined; engine: boolean }) {
   const readings = spec.canisters
     .map((c) => data?.readings.get(c.canisterId))
     .filter((r): r is CanisterReading => !!r);
@@ -345,11 +337,11 @@ function GroupCard({ spec, data }: { spec: GroupSpec; data: FetchResult | undefi
           </div>
           <div className="rounded-md border p-3 space-y-1">
             <p className="text-xs text-muted-foreground">Lowest fuel</p>
-            <p className={`text-sm font-medium ${rollup.minCyclesT != null && rollup.minCyclesT < LOW_FUEL_T ? "text-destructive" : ""}`}>
-              {rollup.minCyclesT != null ? `${formatT(rollup.minCyclesT)}T cycles` : "—"}
+            <p className={`text-sm font-medium ${!engine && rollup.minCyclesT != null && rollup.minCyclesT < LOW_FUEL_T ? "text-destructive" : ""}`}>
+              {engine ? "Engine funded" : rollup.minCyclesT != null ? `${formatT(rollup.minCyclesT)}T cycles` : "—"}
             </p>
             <p className="text-xs text-muted-foreground">
-              Below {LOW_FUEL_T}T needs a top-up (GitHub → Top up canister cycles).
+              {engine ? "Canister cycles are supplied by the OpenCloud engine." : `Below ${LOW_FUEL_T}T needs a top-up (GitHub → Top up canister cycles).`}
             </p>
           </div>
           <div className="rounded-md border p-3 space-y-1">
@@ -387,7 +379,7 @@ function GroupCard({ spec, data }: { spec: GroupSpec; data: FetchResult | undefi
                 const limit = spec.testedLimitBytes[c.key];
                 const memMb = r?.memoryBytes != null ? r.memoryBytes / 1e6 : null;
                 const pct = r?.memoryBytes != null && limit > 0 ? (r.memoryBytes / limit) * 100 : null;
-                const lowFuel = r?.cyclesT != null && r.cyclesT < LOW_FUEL_T;
+                const lowFuel = !engine && r?.cyclesT != null && r.cyclesT < LOW_FUEL_T;
                 const highMem = pct != null ? pct >= 80 : memMb != null && memMb > WARN_MEMORY_MB;
                 return (
                   <tr key={c.key} className="border-t">
@@ -425,10 +417,14 @@ function GlobalServicesCard({
   canisters,
   data,
   frontendCyclesT,
+  frontendId,
+  engine,
 }: {
   canisters: { key: string; canisterId: string }[];
   data: FetchResult | undefined;
   frontendCyclesT: number | null;
+  frontendId: string | undefined;
+  engine: boolean;
 }) {
   return (
     <Card>
@@ -452,7 +448,7 @@ function GlobalServicesCard({
             <tbody>
               {canisters.map((c) => {
                 const r = data?.readings.get(c.canisterId);
-                const lowFuel = r?.cyclesT != null && r.cyclesT < LOW_FUEL_T;
+                const lowFuel = !engine && r?.cyclesT != null && r.cyclesT < LOW_FUEL_T;
                 return (
                   <tr key={c.key} className="border-t">
                     <td className="px-2 py-1 font-medium">{c.key}</td>
@@ -474,10 +470,10 @@ function GlobalServicesCard({
               })}
               <tr className="border-t">
                 <td className="px-2 py-1 font-medium">frontend (web app)</td>
-                <td className="px-2 py-1 text-muted-foreground">{FRONTEND_CANISTER_ID}</td>
+                <td className="px-2 py-1 text-muted-foreground">{frontendId ?? "Not configured"}</td>
                 <td className="px-2 py-1 text-right">—</td>
-                <td className={`px-2 py-1 text-right ${frontendCyclesT != null && frontendCyclesT < LOW_FUEL_T ? "text-destructive font-medium" : ""}`}>
-                  {frontendCyclesT != null ? formatT(frontendCyclesT) : "—"}
+                <td className={`px-2 py-1 text-right ${!engine && frontendCyclesT != null && frontendCyclesT < LOW_FUEL_T ? "text-destructive font-medium" : ""}`}>
+                  {engine ? "Engine funded" : frontendCyclesT != null ? formatT(frontendCyclesT) : "—"}
                 </td>
               </tr>
             </tbody>

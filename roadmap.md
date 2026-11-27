@@ -705,3 +705,8 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 
 - [x] Repair PROD II discovery headers and Android website same-tab transport without changing derivation, native auth, email policy, proxy target or backend data; 152 frontend and 8 manifest tests passed, Deno execution passed, preview builds OK. The real II provider reproduced Unverified origin before the isolated header repair and rendered passkey sign-in afterwards; the latest local DEV source also reached II in one tab.
 - [ ] Production deployment/real existing-member and physical Android/iOS acceptance remain held on Paul's deployment approval, an authorized II session and physical devices; no PROD deployment or data-access continuity claim made.
+
+## Admin OpenCloud tracking — 27 November
+- [x] Replace mainnet monitoring defaults with the active pinned OpenCloud host and all 32 shared/group/frontend IDs; update group health, usage, connection probes, photo stores, balances and placement inventory. Keep engine funding separate from mainnet cycles warnings and preserve authorized data-browser group routing.
+- [x] Tracking regressions pass in email and ICP modes (25 each); preview build OK. Running-preview inventory matches all 32 DEV targets and both event canisters answer read-only engine queries with zero cycles, as expected for engine funding.
+- [ ] Signed-in admin page/readback requires an authorized admin session unavailable in this sandbox (user-managed backend refuses session minting). No production deployment or configuration writes performed.
