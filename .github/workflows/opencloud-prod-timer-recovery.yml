@@ -15,10 +15,10 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/prod'
     uses: ./.github/workflows/opencloud-prod-source-build.yml
   recover:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/prod'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
