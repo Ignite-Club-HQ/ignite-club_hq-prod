@@ -32,9 +32,13 @@ export function resolveHostBuildEnv(env) {
   const expected = `https://${ENVIRONMENTS[target].supabaseRef}.supabase.co`;
   const urls = [env.IGNITE_LIVE_SUPABASE_URL, env.VITE_SUPABASE_URL, env.SUPABASE_URL].filter(Boolean);
   if (urls.some(url => url.replace(/\/$/, '') !== expected)) throw new Error('Conflicting hosting database; scope variables separately for main and prod');
-  const keys = [env.IGNITE_LIVE_SUPABASE_ANON_KEY, env.VITE_SUPABASE_PUBLISHABLE_KEY, env.VITE_SUPABASE_ANON_KEY, env.SUPABASE_PUBLISHABLE_KEY].filter(Boolean);
-  if (!keys.length || keys.some(key => key !== keys[0])) throw new Error('Missing or conflicting public hosting key');
-  const key = keys[0];
+  const keyNames = ['IGNITE_LIVE_SUPABASE_ANON_KEY', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SUPABASE_ANON_KEY', 'SUPABASE_PUBLISHABLE_KEY'];
+  const configured = keyNames.filter(name => env[name]);
+  if (!configured.length) throw new Error(`Missing public hosting key: set IGNITE_LIVE_SUPABASE_ANON_KEY to the ${target.toUpperCase()} public key in the build environment`);
+  const key = env[configured[0]];
+  if (configured.some(name => env[name] !== key)) {
+    throw new Error(`Conflicting public hosting key settings: ${configured.join(', ')}. Keep IGNITE_LIVE_SUPABASE_ANON_KEY as the ${target.toUpperCase()} public key and remove duplicate key variables from the build environment (Codemagic: supabase_prod and application/team variables). Do not use a private key.`);
+  }
   if (!key.startsWith('sb_publishable_')) {
     let payload;
     try { payload = JSON.parse(Buffer.from(key.split('.')[1] || '', 'base64url').toString()); }

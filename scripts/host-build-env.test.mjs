@@ -14,6 +14,24 @@ test('production requires prod and binds only its database', () => {
   assert.equal(result.IGNITE_ICP_ENV, 'prod');
   assert.throws(() => resolveHostBuildEnv({ CONTEXT: 'production', BRANCH: 'main', IGNITE_LIVE_SUPABASE_ANON_KEY: 'sb_publishable_fixture' }));
 });
+test('public key conflicts name the settings without exposing their values', () => {
+  const env = { CM_BRANCH: 'prod', IGNITE_ICP_ENV: 'prod', IGNITE_LIVE_SUPABASE_ANON_KEY: 'sb_publishable_prod_fixture', VITE_SUPABASE_ANON_KEY: 'different-private-fixture' };
+  assert.throws(() => resolveHostBuildEnv(env), error => {
+    assert.match(error.message, /Conflicting public hosting key settings: IGNITE_LIVE_SUPABASE_ANON_KEY, VITE_SUPABASE_ANON_KEY/);
+    assert.match(error.message, /Codemagic: supabase_prod/);
+    assert.equal(error.message.includes(env.IGNITE_LIVE_SUPABASE_ANON_KEY), false);
+    assert.equal(error.message.includes(env.VITE_SUPABASE_ANON_KEY), false);
+    return true;
+  });
+});
+test('identical public key aliases remain accepted', () => {
+  const key = 'sb_publishable_prod_fixture';
+  const result = resolveHostBuildEnv({ CM_BRANCH: 'prod', IGNITE_ICP_ENV: 'prod', IGNITE_LIVE_SUPABASE_ANON_KEY: key, VITE_SUPABASE_ANON_KEY: key });
+  assert.equal(result.IGNITE_LIVE_SUPABASE_ANON_KEY, key);
+});
+test('missing public key gives a separate actionable error', () => {
+  assert.throws(() => resolveHostBuildEnv({ CM_BRANCH: 'prod', IGNITE_ICP_ENV: 'prod' }), /Missing public hosting key: set IGNITE_LIVE_SUPABASE_ANON_KEY to the PROD public key/);
+});
 test('cross-environment urls and private or conflicting keys refuse', () => {
   const env = { BRANCH: 'main', IGNITE_LIVE_SUPABASE_ANON_KEY: 'sb_publishable_fixture' };
   assert.throws(() => resolveHostBuildEnv({ ...env, SUPABASE_URL: 'https://yabcfiuntwqjwvschnji.supabase.co' }));
