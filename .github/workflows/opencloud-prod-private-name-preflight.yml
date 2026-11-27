@@ -1,6 +1,12 @@
 name: "[PROD] OpenCloud private-name preflight"
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [check, apply]
+        default: check
+        required: true
 permissions:
   contents: read
   actions: read
@@ -8,7 +14,11 @@ concurrency:
   group: opencloud-prod-deployment
   cancel-in-progress: false
 jobs:
+  build:
+    if: github.ref == 'refs/heads/prod'
+    uses: ./.github/workflows/opencloud-prod-source-build.yml
   inspect:
+    needs: build
     if: github.ref == 'refs/heads/prod'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -17,12 +27,18 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22.12.0' }
       - run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: opencloud-prod-backend-source-build
+          path: deploy/opencloud/work/prod-candidate
       - name: Install ICP CLI
         run: npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
       - name: Inspect exact PROD private-name inventory
         env:
           PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
           PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+          MODE: ${{ inputs.mode }}
+          APPROVE_PRIVATE_NAME_REPAIR: ${{ inputs.mode == 'apply' && 'YES' || 'NO' }}
           ICP_HOME: ${{ runner.temp }}/opencloud-prod-private-name-preflight
           GOVERNOR_PEM_FILE: ${{ runner.temp }}/opencloud-prod-private-name-preflight/governor.pem
         run: |
@@ -39,4 +55,4 @@ jobs:
           icp identity import --from-pem "$GOVERNOR_PEM_FILE" --storage plaintext opencloud-governor
           test "$(icp identity principal --identity opencloud-governor)" = "kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae"
           node --check scripts/opencloud/prod-private-name-preflight.mjs
-          node scripts/opencloud/prod-private-name-preflight.mjs
+          node scripts/opencloud/prod-private-name-preflight.mjs deploy/opencloud/work/prod-candidate "$MODE"
