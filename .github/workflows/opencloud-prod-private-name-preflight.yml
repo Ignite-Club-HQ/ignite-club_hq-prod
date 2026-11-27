@@ -31,6 +31,12 @@ jobs:
         with:
           name: opencloud-prod-backend-source-build
           path: deploy/opencloud/work/prod-candidate
+      - uses: actions/download-artifact@v4
+        with:
+          name: opencloud-prod-backend-source-build
+          run-id: 45784653124
+          github-token: ${{ github.token }}
+          path: deploy/opencloud/work/prod-original
       - name: Install ICP CLI
         run: npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
       - name: Inspect exact PROD private-name inventory
@@ -55,4 +61,4 @@ jobs:
           icp identity import --from-pem "$GOVERNOR_PEM_FILE" --storage plaintext opencloud-governor
           test "$(icp identity principal --identity opencloud-governor)" = "kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae"
           node --check scripts/opencloud/prod-private-name-preflight.mjs
-          node scripts/opencloud/prod-private-name-preflight.mjs deploy/opencloud/work/prod-candidate "$MODE"
+          node scripts/opencloud/prod-private-name-preflight.mjs deploy/opencloud/work/prod-candidate "$MODE" deploy/opencloud/work/prod-original
