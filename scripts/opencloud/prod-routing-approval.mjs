@@ -7,9 +7,9 @@ import { gunzipSync } from 'node:zlib';
 import { identityFromPem } from '../prod-connection-check.mjs';
 import { validate } from './deployment.mjs';
 import { groupApprovalConfiguration } from '../../frontend/src/live/groupApproval.ts';
-import { verifyRemovalWiring } from '../../frontend/src/live/groupRemovalWiring.ts';
+import { verifyRemovalWiring, ADMISSION_DOMAINS, admissionSwitchPatch, mergeEnvironment } from '../../frontend/src/live/groupRemovalWiring.ts';
 const mode=process.argv[2];
-if (!['check','approve','repair-bindings'].includes(mode)) throw Error('Explicit mode required');
+if (!['check','approve','repair-bindings','repair-admission'].includes(mode)) throw Error('Explicit mode required');
 const config = JSON.parse(fs.readFileSync('deploy/opencloud/prod.json'));
 const peer = JSON.parse(fs.readFileSync('deploy/opencloud/dev.json'));
 if(process.env.GITHUB_REF_NAME!=='prod'||config.environment!=='opencloud-prod'||config.applicationKey!=='ignite_prod_v2'||config.apiHost!=='https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net')throw Error('Wrong PROD target');
@@ -89,6 +89,30 @@ if(mode==='repair-bindings'){
  process.exit(0);
 }
 if(bindingPlans.length)throw Error('Creator binding mismatch; explicit repair required');
+const admissionTargets=page.groups.flatMap(g=>[...ADMISSION_DOMAINS.map(d=>g.domains.find(x=>x.domain===d)?.canister.toText()),g.photo_store[0].toText()]);
+if(admissionTargets.length!==24||new Set(admissionTargets).size!==24||admissionTargets.some(cid=>!statuses.has(cid)))throw Error('Unexpected admission inventory');
+const canonicalEnv=rows=>JSON.stringify(rows.map(e=>[e.name,e.value]).sort(([a],[b])=>a.localeCompare(b)));
+const admissionPlans=admissionTargets.map(cid=>{
+ const env=statuses.get(cid), map=new Map(env.map(e=>[e.name,e.value]));
+ if(map.size!==env.length)throw Error('Duplicate environment keys');
+ if(map.has('IGNITE_ACCOUNT_SERVICE_IDENTITY')&&map.get('IGNITE_ACCOUNT_SERVICE_IDENTITY')!==id)throw Error('Foreign account authority '+cid);
+ const patch=admissionSwitchPatch(env,true);
+ const desired=mergeEnvironment(env,{...patch.set,IGNITE_ACCOUNT_SERVICE_IDENTITY:id},patch.remove);
+ return {cid,env,desired};
+}).filter(p=>canonicalEnv(p.env)!==canonicalEnv(p.desired));
+if(mode==='repair-admission'){
+ for(const p of admissionPlans){
+  const before=await status(p.cid);verifyControllers(before);
+  if(canonicalEnv(before.settings.environment_variables)!==canonicalEnv(p.env))throw Error('Settings changed; retry');
+  await call('update_settings',I.Record({canister_id:P,settings:I.Record({environment_variables:I.Opt(E)})}),{canister_id:pid(p.cid),settings:{environment_variables:[p.desired]}});
+  const after=await status(p.cid);verifyControllers(after);
+  if(canonicalEnv(after.settings.environment_variables)!==canonicalEnv(p.desired)||hash(before.module_hash[0])!==hash(after.module_hash[0]))throw Error('Admission readback mismatch');
+  console.log('Admission settings verified '+p.cid);
+ }
+ console.log('Admission settings repair complete; rerun routing-check');
+ process.exit(0);
+}
+if(admissionPlans.length)throw Error('PROD admission settings require explicit repair: '+admissionPlans.length);
 const wiring=await verifyRemovalWiring({revision:page.revision,groups:page.groups.map(g=>({id:g.id,targetAlias:g.target_alias,photoStore:g.photo_store[0].toText(),domains:g.domains.map(d=>({domain:d.domain,canisterId:d.canister.toText()}))}))},id,async cid=>{if(!statuses.has(cid))throw Error('Unknown service');return statuses.get(cid);},Date.now());
 if(!wiring.evidence)throw Error(wiring.problems.join('; '));
 const approvedConfiguration=groupApprovalConfiguration(page.groups,page.placements);
