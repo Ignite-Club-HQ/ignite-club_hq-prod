@@ -4,7 +4,7 @@ on:
     inputs:
       mode:
         type: choice
-        options: [check, commission]
+        options: [check, commission, routing-check, routing-approve]
         default: check
         required: true
 permissions:
@@ -41,6 +41,10 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -in "$GOVERNOR_PEM_FILE.enc" -out "$GOVERNOR_PEM_FILE" -pass file:"$GOVERNOR_PEM_FILE.pass"
           rm -f "$GOVERNOR_PEM_FILE.enc" "$GOVERNOR_PEM_FILE.pass"
           unset PROD_GOVERNOR_PEM_ENC PROD_GOVERNOR_PASSPHRASE
+          if [[ "$MODE" == routing-check || "$MODE" == routing-approve ]]; then
+            npx --yes tsx@4 scripts/opencloud/prod-routing-approval.mjs "${MODE#routing-}"
+            exit 0
+          fi
           icp identity import --from-pem "$GOVERNOR_PEM_FILE" --storage plaintext opencloud-governor
           rm -f "$GOVERNOR_PEM_FILE"
           node scripts/opencloud/prod-commission.mjs "$MODE"
