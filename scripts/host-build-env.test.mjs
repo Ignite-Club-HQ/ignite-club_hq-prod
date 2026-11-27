@@ -29,6 +29,21 @@ test('identical public key aliases remain accepted', () => {
   const result = resolveHostBuildEnv({ CM_BRANCH: 'prod', IGNITE_ICP_ENV: 'prod', IGNITE_LIVE_SUPABASE_ANON_KEY: key, VITE_SUPABASE_ANON_KEY: key });
   assert.equal(result.IGNITE_LIVE_SUPABASE_ANON_KEY, key);
 });
+test('Codemagic uses the explicitly configured PROD key despite unused aliases', () => {
+  const key = 'sb_publishable_prod_fixture';
+  const result = resolveHostBuildEnv({ CM_BUILD_ID: 'fixture-build', CM_BRANCH: 'prod', IGNITE_ICP_ENV: 'prod', IGNITE_LIVE_SUPABASE_ANON_KEY: key, VITE_SUPABASE_ANON_KEY: 'legacy-unused-fixture' });
+  assert.equal(result.IGNITE_LIVE_SUPABASE_ANON_KEY, key);
+  assert.equal(result.IGNITE_LIVE_SUPABASE_URL, 'https://yabcfiuntwqjwvschnji.supabase.co');
+});
+test('Codemagic still refuses private or DEV canonical keys and conflicting URLs', () => {
+  const env = { CM_BUILD_ID: 'fixture-build', CM_BRANCH: 'prod', IGNITE_ICP_ENV: 'prod', VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_unused' };
+  const jwt = payload => `fixture.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.fixture`;
+  for (const key of ['sb_secret_private', jwt({ role: 'service_role', ref: 'yabcfiuntwqjwvschnji' }), jwt({ role: 'anon', ref: 'ecsdwrarzfexssxtrymj' })]) {
+    assert.throws(() => resolveHostBuildEnv({ ...env, IGNITE_LIVE_SUPABASE_ANON_KEY: key }), /Public publishable or anon key required|Hosting key is private or belongs to another database/);
+  }
+  assert.throws(() => resolveHostBuildEnv({ ...env, IGNITE_LIVE_SUPABASE_ANON_KEY: 'sb_publishable_prod', SUPABASE_URL: 'https://ecsdwrarzfexssxtrymj.supabase.co' }), /Conflicting hosting database/);
+  assert.throws(() => resolveHostBuildEnv({ ...env, CM_BRANCH: 'main', IGNITE_LIVE_SUPABASE_ANON_KEY: 'sb_publishable_prod' }), /Production hosting must build only the prod branch/);
+});
 test('missing public key gives a separate actionable error', () => {
   assert.throws(() => resolveHostBuildEnv({ CM_BRANCH: 'prod', IGNITE_ICP_ENV: 'prod' }), /Missing public hosting key: set IGNITE_LIVE_SUPABASE_ANON_KEY to the PROD public key/);
 });

@@ -36,7 +36,10 @@ export function resolveHostBuildEnv(env) {
   const configured = keyNames.filter(name => env[name]);
   if (!configured.length) throw new Error(`Missing public hosting key: set IGNITE_LIVE_SUPABASE_ANON_KEY to the ${target.toUpperCase()} public key in the build environment`);
   const key = env[configured[0]];
-  if (configured.some(name => env[name] !== key)) {
+  // Codemagic explicitly exports the retained PROD key before this check.
+  // Other aliases are not inputs to that build; validate the selected key below.
+  const codemagicCanonical = Boolean(env.CM_BUILD_ID && target === 'prod' && env.IGNITE_LIVE_SUPABASE_ANON_KEY);
+  if (!codemagicCanonical && configured.some(name => env[name] !== key)) {
     throw new Error(`Conflicting public hosting key settings: ${configured.join(', ')}. Keep IGNITE_LIVE_SUPABASE_ANON_KEY as the ${target.toUpperCase()} public key and remove duplicate key variables from the build environment (Codemagic: supabase_prod and application/team variables). Do not use a private key.`);
   }
   if (!key.startsWith('sb_publishable_')) {
