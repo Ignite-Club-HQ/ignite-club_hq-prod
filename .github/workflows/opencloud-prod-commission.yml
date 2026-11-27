@@ -4,7 +4,7 @@ on:
     inputs:
       mode:
         type: choice
-        options: [check, commission, routing-check, routing-approve, routing-repair-bindings]
+        options: [check, commission, routing-check, routing-approve, routing-repair-bindings, routing-repair-admission]
         default: check
         required: true
 permissions:
@@ -41,7 +41,7 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -in "$GOVERNOR_PEM_FILE.enc" -out "$GOVERNOR_PEM_FILE" -pass file:"$GOVERNOR_PEM_FILE.pass"
           rm -f "$GOVERNOR_PEM_FILE.enc" "$GOVERNOR_PEM_FILE.pass"
           unset PROD_GOVERNOR_PEM_ENC PROD_GOVERNOR_PASSPHRASE
-          if [[ "$MODE" == routing-check || "$MODE" == routing-approve || "$MODE" == routing-repair-bindings ]]; then
+          if [[ "$MODE" == routing-check || "$MODE" == routing-approve || "$MODE" == routing-repair-bindings || "$MODE" == routing-repair-admission ]]; then
             npx --yes tsx@4 scripts/opencloud/prod-routing-approval.mjs "${MODE#routing-}"
             exit 0
           fi
