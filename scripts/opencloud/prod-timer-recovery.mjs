@@ -67,6 +67,7 @@ const pristinePublic=async t=>{
  if(!/^\(\s*null\s*,?\s*\)$/.test(authority)) throw Error('Removal authority not empty '+t.name);
 };
 const verify=async(t,h)=>{const s=await status(t.id);verifyControllers(s);if(Buffer.from(s.module_hash[0]??[]).toString('hex')!==h)throw Error('Module mismatch '+t.name);return s;};
+for(const t of targets){const s=await status(t.id);verifyControllers(s);console.log(JSON.stringify({name:t.name,id:t.id,liveHash:Buffer.from(s.module_hash[0]??[]).toString('hex'),originalHash:t.oldHash,candidateHash:t.moduleSha256}));}
 for(const t of targets){await verify(t,t.oldHash);await pristinePublic(t);const out=await read(t);if(!/Governor required/.test(out)||!/\bErr\b/.test(out))throw Error('Unexpected original authority response '+t.name);console.log('Verified original module '+t.name+' '+t.oldHash);}
 if(mode==='check')process.exit(0);
 if(process.env.APPROVE_TIMER_UPGRADE!=='YES')throw Error('Explicit upgrade approval required');
