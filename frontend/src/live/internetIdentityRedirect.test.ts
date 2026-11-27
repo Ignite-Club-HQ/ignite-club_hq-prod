@@ -22,10 +22,17 @@ describe("phone sign-in uses a full-page redirect instead of a second tab", () =
   it("other canister addresses also redirect", () => {
     expect(shouldUseRedirectSignIn("https://proe7-kqaaa-aaaas-qg6gq-cai.icp.net", ANDROID)).toBe(true);
   });
-  it("phones on the live website never redirect (installed apps capture igniteclubhq.app links)", () => {
-    expect(shouldUseRedirectSignIn("https://igniteclubhq.app", ANDROID)).toBe(false);
+  it("Android Chrome on the live website uses the browser-only /auth callback", () => {
+    expect(shouldUseRedirectSignIn("https://igniteclubhq.app", ANDROID)).toBe(true);
+  });
+  it("iOS and desktop custom-domain transport remain unchanged", () => {
     expect(shouldUseRedirectSignIn("https://igniteclubhq.app", IPHONE)).toBe(false);
     expect(shouldUseRedirectSignIn("https://igniteclubhq.app", MAC, 0)).toBe(false);
+  });
+  it("does not opt native private origins or lookalike domains into website redirects", () => {
+    for (const origin of ["https://localhost", "capacitor://localhost", "http://igniteclubhq.app", "https://igniteclubhq.app.evil", "https://www.igniteclubhq.app"]) {
+      expect(shouldUseRedirectSignIn(origin, ANDROID)).toBe(false);
+    }
   });
   it("addresses without a return allow-list keep the sign-in window", () => {
     expect(shouldUseRedirectSignIn("https://ignite-canister-connect.lovable.app", ANDROID)).toBe(false);
@@ -39,5 +46,17 @@ describe("live website return allow-list", () => {
     const { resolve } = await import("node:path");
     const file = JSON.parse(readFileSync(resolve(__dirname, "../../public/.well-known/ii-auth-callbacks"), "utf8"));
     expect(file.callbacks).toContain("https://igniteclubhq.app/auth");
+  });
+  it("both current Android scaffolds keep /auth out of claimed shared links", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync("../codemagic.yaml", "utf8");
+    const filters = source.match(/a = \('[\s\S]*?android:pathPrefix[\s\S]*?\)\n/g) ?? [];
+    expect(filters).toHaveLength(2);
+    for (const filter of filters) {
+      const prefixes = [...filter.matchAll(/android:pathPrefix="([^"]+)"/g)].map(match => match[1]);
+      expect(prefixes).toContain('/join');
+      expect(prefixes.some(prefix => '/auth'.startsWith(prefix))).toBe(false);
+      expect(prefixes.some(prefix => '/native-sign-in.html'.startsWith(prefix))).toBe(false);
+    }
   });
 });

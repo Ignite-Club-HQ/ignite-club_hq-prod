@@ -32,6 +32,7 @@ function run(env) {
     return {
       derivation: readFileSync(join(wk, "ii-derivation-origin"), "utf8").trim(),
       alts: JSON.parse(readFileSync(join(wk, "ii-alternative-origins"), "utf8")).alternativeOrigins,
+      callbacks: JSON.parse(readFileSync(join(wk, "ii-auth-callbacks"), "utf8")).callbacks,
     };
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -55,3 +56,32 @@ test("TEST keeps the DEV canister identity", () => {
   assert.ok(!r.alts.includes("https://proe7-kqaaa-aaaas-qg6gq-cai.icp0.io"));
   assert.ok(!r.alts.includes("https://igniteclubhq.app"));
 });
+
+for (const environment of ['dev', 'prod']) {
+  test(`OpenCloud ${environment} manifests bind the correct origin and browser/native callbacks`, () => {
+    const config = JSON.parse(readFileSync(new URL(`../../deploy/opencloud/${environment}.json`, import.meta.url), 'utf8'));
+    const frontend = config.shared.frontend;
+    const ids = { ...config.shared, ...Object.fromEntries(config.groups.flatMap(g =>
+      Object.entries(g.canisterIds).map(([name, id]) => [`${g.id}_${name}`, id]))) };
+    const r = run({
+      IGNITE_LIVE_OPENCLOUD_ENV: `opencloud-${environment}`,
+      FRONTEND_CANISTER_ID: frontend,
+      IGNITE_LIVE_OPENCLOUD_IDS_JSON: JSON.stringify(ids),
+      IGNITE_LIVE_ICP_CANISTER_IDS_JSON: JSON.stringify(ids),
+      IGNITE_CANISTER_OUTPUT_DIR: 'dist-canister',
+    });
+    assert.equal(r.derivation, environment === 'prod' ? 'https://igniteclubhq.app' : `https://${frontend}.icp.net`);
+    assert.ok(r.alts.includes(`https://${frontend}.icp.net`));
+    assert.ok(r.alts.length <= 100, 'Current II rejects the entire list above 100 origins');
+    assert.ok(r.callbacks.includes(`https://${frontend}.icp.net/auth`));
+    assert.ok(r.callbacks.includes(`https://${frontend}.icp.net/native-sign-in.html`));
+    if (environment === 'prod') {
+      assert.ok(r.callbacks.includes('https://igniteclubhq.app/auth'));
+      assert.ok(r.callbacks.includes('https://igniteclubhq.app/native-sign-in.html'));
+      assert.ok(!r.alts.includes('https://ignite-club-launchpad.lovable.app'));
+    } else {
+      assert.ok(r.alts.includes('https://ignite-club-launchpad.lovable.app'));
+      assert.ok(!r.alts.includes('https://igniteclubhq.app'));
+    }
+  });
+}

@@ -33,6 +33,12 @@
   function = "share"
   path = "/share"
 
+# II discovers the preserved custom derivation origin with HEAD /.
+# Proxy responses lose the gateway discovery headers; restore public metadata only.
+[[edge_functions]]
+  function = "ii-origin"
+  path = "/"
+
 [[redirects]]
   from = "/api/fetch-link-preview"
   to = "/.netlify/functions/fetch-link-preview"
