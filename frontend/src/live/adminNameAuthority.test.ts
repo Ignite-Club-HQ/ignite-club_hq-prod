@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Principal } from '@icp-sdk/core/principal';
 import { GROUP_DOMAINS } from './groupRouting';
 import type { FeatureBackendContext } from './featureRouter';
 import { groupApprovalConfiguration, approvalConfigurationSha256 } from './groupApproval';
 import { createAdminNameAuthorityResolver } from './adminNameAuthority';
 import type { ShardGroup } from '../lab/bindings/shard_router/declarations/shard_router.did';
+import opencloud from '../../../deploy/opencloud/dev.json';
 
 const mocks = vi.hoisted(() => ({ page: vi.fn(), approval: vi.fn(), dev: vi.fn() }));
 vi.mock('./domains', () => ({ connectLiveShardRouter: async () => ({ actor: { read_group_registry_page: mocks.page, read_routing_approval: mocks.approval } }) }));
@@ -30,6 +31,7 @@ async function setup() {
   return { ctx, registry, approved, authorities, resolve: createAdminNameAuthorityResolver(ctx) };
 }
 beforeEach(() => { vi.clearAllMocks(); mocks.dev.mockReturnValue(undefined); });
+afterEach(() => vi.unstubAllEnvs());
 describe('app-admin original names across every registered group', () => {
   it('routes base, group two and group three without changing name ownership or shared identity', async () => {
     const f = await setup();
@@ -83,5 +85,67 @@ describe('app-admin original names across every registered group', () => {
     }
     expect(mocks.dev).toHaveBeenLastCalledWith(expect.objectContaining({ target: expect.objectContaining({ canisterIds: expect.objectContaining({ club_domain: 'yfwyv-nyaaa-aaaal-qxpyq-cai', pii_access_control: 'zt5a6-yiaaa-aaaal-qxp5q-cai' }) }) }));
     expect(f.ctx.target.canisterIds.pii_access_control).toBe('iui5p-aaaaa-aaaal-qxllq-cai');
+  });
+});
+
+async function setupOpenCloud() {
+  const full = { ...opencloud.shared, ...Object.fromEntries(opencloud.groups.flatMap(group =>
+    Object.entries(group.canisterIds).map(([name, id]) => [`${group.id}_${name}`, id]))) };
+  vi.stubEnv('IGNITE_LIVE_OPENCLOUD_ENV', opencloud.environment);
+  vi.stubEnv('IGNITE_LIVE_OPENCLOUD_IDS_JSON', JSON.stringify(full));
+  vi.stubEnv('IGNITE_LIVE_ICP_HOST', opencloud.apiHost);
+  const subnet = Principal.fromText(opencloud.subnetId);
+  const groups = opencloud.groups.map((configured, index): ShardGroup => {
+    const domains = [...Object.entries(configured.canisterIds).filter(([name]) => name !== 'media_blob_store'),
+      ['secret_workload_identity', opencloud.shared.secret_workload_identity] as const]
+      .map(([domain, canister]) => ({ domain, canister: Principal.fromText(canister) }));
+    return { id: index === 0 ? 'base' : 'g2', target_alias: opencloud.environment, accepting: index === 0,
+      max_clubs: configured.maxClubs, heap_budget_bytes: BigInt(configured.heapBudgetBytes), min_cycles: 0n,
+      photo_store: [Principal.fromText(configured.canisterIds.media_blob_store)], observed_at_ns: 0n,
+      cycles: 0n, heap_bytes: 0n, assigned_clubs: 0, domains };
+  });
+  const placements = groups.map(group => ({ group_id: group.id, deployment_id: opencloud.environment,
+    deployment_revision: 1n, host: opencloud.apiHost, network_kind: 'cloud_engine', primary_subnet: subnet,
+    approved_subnets: [subnet], additional_subnets_enabled: false,
+    domains: group.domains.map(domain => ({ ...domain, subnet })) }));
+  const registry = { revision: 4n, configuration_revision: [2n], groups, placements, next_cursor: [] };
+  mocks.page.mockImplementation(async () => ({ Ok: registry }));
+  const approved = { target_alias: opencloud.environment, configuration_revision: 2n,
+    removal_wiring_group_ids: groups.map(group => group.id),
+    approved_configuration_sha256: await approvalConfigurationSha256(groupApprovalConfiguration(groups, placements)) };
+  mocks.approval.mockImplementation(async () => ({ Ok: [approved] }));
+  const { frontend: _frontend, ...shared } = opencloud.shared;
+  const canisterIds = { ...shared, ...opencloud.groups[0].canisterIds };
+  const ctx = { identity: { getPrincipal: () => p(110) }, target: { provider: 'icp', alias: opencloud.environment,
+    host: opencloud.apiHost, networkKind: 'cloud_engine', canisterIds } } as unknown as FeatureBackendContext;
+  return { ctx, registry, approved, resolve: createAdminNameAuthorityResolver(ctx) };
+}
+
+describe('OpenCloud app-admin names', () => {
+  it('uses the pinned OpenCloud registry and live approval for both groups', async () => {
+    const f = await setupOpenCloud();
+    for (const configured of opencloud.groups) {
+      const authority = configured.canisterIds.pii_access_control;
+      const lease = await f.resolve(authority);
+      expect(lease.context.target.canisterIds.pii_access_control).toBe(authority);
+      expect(lease.context.target.canisterIds.identity_access).toBe(opencloud.shared.identity_access);
+      expect(lease.context.identity).toBe(f.ctx.identity);
+      await lease.confirm();
+    }
+    expect(mocks.approval).toHaveBeenCalledWith(opencloud.environment);
+  });
+  it('does not substitute the build pin for current governor approval', async () => {
+    const f = await setupOpenCloud();
+    mocks.approval.mockResolvedValue({ Ok: [] });
+    await expect(f.resolve(opencloud.groups[0].canisterIds.pii_access_control)).rejects.toThrow('not been approved');
+  });
+  it('rejects a router inventory outside the pinned OpenCloud canisters even with matching approval', async () => {
+    const f = await setupOpenCloud();
+    const replacement = p(116);
+    f.registry.groups[1].domains[0].canister = replacement;
+    f.registry.placements[1].domains[0].canister = replacement;
+    f.approved.approved_configuration_sha256 = await approvalConfigurationSha256(
+      groupApprovalConfiguration(f.registry.groups, f.registry.placements));
+    await expect(f.resolve(opencloud.groups[1].canisterIds.pii_access_control)).rejects.toThrow('outside the OpenCloud inventory');
   });
 });

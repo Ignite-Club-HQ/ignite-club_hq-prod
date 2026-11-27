@@ -694,3 +694,27 @@ describe("original-authority display rehearsal", () => {
     expect(peak).toBe(3);
   });
 });
+describe('partial name lists survive one refused member', () => {
+  const other = "rdmx6-jaaaa-aaaaa-aaadq-cai";
+  const adminScope = { kind: 'app_admin' as const, authority: Principal.fromText(authority), resource: 'all', profile_revision: 0n };
+  it('re-asks per member when the server refuses the whole batch, so readable names still show', async () => {
+    mocks.scopedRead.mockImplementation(async (ids: string[]) => ids.length > 1 || ids[0] === other
+      ? { Err: 'Private profile not found' }
+      : { Ok: [{ pii_id: subject, field_id: 'display_name', master_key_id: 'vetkey-ibe-v1', ciphertext: [9] }] });
+    const rows = await hydratePrivateProfileNames(ctx, [
+      { principal: Principal.fromText(subject), display_name: reference },
+      { principal: Principal.fromText(other), display_name: privateProfileNameReference(authority, other) },
+    ], { audience: adminScope, partialNames: true });
+    expect(rows[0].display_name).toBe('Paul Cranwell');
+    expect(rows[1].display_name).toBeNull();
+    expect(rows[1].name_error).toContain('Private profile not found');
+  });
+  it('without partial mode one refusal still refuses the whole list', async () => {
+    mocks.scopedRead.mockResolvedValue({ Err: 'Private profile not found' });
+    await expect(hydratePrivateProfileNames(ctx, [
+      { principal: Principal.fromText(subject), display_name: reference },
+      { principal: Principal.fromText(other), display_name: privateProfileNameReference(authority, other) },
+    ], { audience: adminScope })).rejects.toThrow('Private profile not found');
+    expect(mocks.scopedRead).toHaveBeenCalledTimes(1);
+  });
+});

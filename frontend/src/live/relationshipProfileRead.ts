@@ -79,7 +79,9 @@ export async function readRelationshipProfiles(
       const rows = await listLiveProfilesByIds(shared, ids, {
         signal,
         audience: { ...relationship, authority, profile_revision: 0n },
-        ...(options.partialNames ? { partialNames: true } : {}),
+        // One refused or unfinished member must not blank everyone else's
+        // name; each unnamed person carries a diagnostic instead.
+        ...(options.partialNames !== false ? { partialNames: true } : {}),
         ...(options.onStep ? { onStep: options.onStep } : {}),
         ...(devTeamResolver && !rehearsal
           ? { resolveAuthority: devTeamResolver }
