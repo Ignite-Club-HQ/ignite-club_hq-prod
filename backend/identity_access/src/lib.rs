@@ -2644,10 +2644,15 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
         }
         Ok(())
     };
-    let inventory = read_registry_pages(&config.binding, active).await?;
+    // Name reads prove membership against the CURRENT router inventory: the
+    // directory pin keeps registry/alias/deployment/host fixed and refuses an
+    // older revision, but later governed registry changes must not lock every
+    // name behind "Revision conflict". The full inventory is re-validated here.
+    let live_binding = live_member_binding(&config.binding, &active).await?;
+    let inventory = read_registry_pages(&live_binding, active).await?;
     active()?;
     let registry_clubs = inventory.groups.iter().flat_map(|g| g.domains.iter().filter(|d| d.domain == "club_domain").map(|d| d.canister)).collect::<Vec<_>>();
-    group_inventory::validate(&inventory, &config.binding, &registry_clubs, &[])?;
+    group_inventory::validate(&inventory, &live_binding, &registry_clubs, &[])?;
     let modern_pii_registered = private_name_audience::registered_pii_source(&inventory, service);
     // Registration is a source proof, never an admin grant. Unknown callers
     // must still pass the separately pinned legacy-origin path below.
@@ -4669,6 +4674,16 @@ fn check_field_access(account_id: String, section: String) -> Outcome<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn name_reads_follow_newer_router_revision_but_refuse_rollback() {
+        let pinned=group_inventory::Binding{registry:Principal::from_slice(&[9,9]),target_alias:"opencloud-dev".into(),registry_revision:5,
+            deployment_id:"opencloud-dev".into(),deployment_revision:1,host:"https://example.icp.net".into(),network_kind:"cloud_engine".into()};
+        let live=advance_member_binding(&pinned,9).unwrap();
+        assert_eq!(live.registry_revision,9);
+        let mut same=live.clone();same.registry_revision=5;assert_eq!(same,pinned);
+        assert_eq!(advance_member_binding(&pinned,5).unwrap(),pinned);
+        assert!(advance_member_binding(&pinned,4).is_err());
+    }
     #[test]
     fn guardian_storage_traversal_is_bounded_ordered_and_preserves_private_references() {
         for n in 0..130 {
