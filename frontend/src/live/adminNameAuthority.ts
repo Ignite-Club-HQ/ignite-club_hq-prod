@@ -6,6 +6,7 @@ import { capturePrivateProfileSession } from './privateProfileSession';
 import { createDevCrossGroupTeamNameResolver } from './devCrossGroupTeamNameRoute';
 import { ROUTING_GATES_SNAPSHOT } from './generated/routingGates';
 import { groupApprovalConfiguration, approvalConfigurationSha256 } from './groupApproval';
+import { assertOpenCloudGroupCanister, opencloudEnvironment, opencloudPinnedTarget } from './opencloudEnvironment';
 
 /** Location only: every original PII endpoint delegates names-only permission
  * to the shared identity authority, which checks the current global admin role.
@@ -33,7 +34,19 @@ export function createAdminNameAuthorityResolver(ctx: FeatureBackendContext): Pr
       return { context: lease.context, confirm: async () => { active(); await lease.confirm(); active(); } };
     };
   }
-  const anchor = ROUTING_GATES_SNAPSHOT;
+  const engine = opencloudEnvironment();
+  const pinned = engine ? opencloudPinnedTarget() : null;
+  if (engine && pinned && (ctx.target.alias !== engine || ctx.target.networkKind !== 'cloud_engine' ||
+      Object.entries(pinned.canisterIds).some(([name, id]) => ctx.target.canisterIds[name] !== id))) {
+    throw new Error('The OpenCloud name-store target is not the pinned shared deployment.');
+  }
+  // OpenCloud artifacts carry their own complete inventory, not the mainnet
+  // snapshot. This is only a location pin: inspect() still requires the
+  // router's current governor-recorded approval before releasing any name.
+  const anchor: { approved: boolean; targetAlias: string; host: string; routerCanisterId?: string;
+    configurationRevision?: string; approvedConfiguration?: string } = engine && pinned
+    ? { approved: true, targetAlias: engine, host: pinned.host, routerCanisterId: pinned.canisterIds.shard_router }
+    : ROUTING_GATES_SNAPSHOT;
   const session = capturePrivateProfileSession();
   const identity = ctx.identity;
   const target = JSON.stringify(ctx.target);
@@ -57,6 +70,17 @@ export function createAdminNameAuthorityResolver(ctx: FeatureBackendContext): Pr
     active();
     if (!anchor) throw new Error('The approved name-store directory is unavailable.');
     const registry = await readPinnedGroupRegistry((revision, cursor, limit) => actor.read_group_registry_page(anchor.targetAlias, revision, cursor, limit), undefined, active);
+    if (engine) {
+      const full = JSON.parse(import.meta.env.IGNITE_LIVE_OPENCLOUD_IDS_JSON || '{}') as Record<string, string>;
+      if (registry.groups.length !== 2) throw new Error('The complete OpenCloud name-store inventory is required.');
+      for (const group of registry.groups) {
+        const prefix = group.id === 'base' ? 'g1' : group.id === 'g2' ? 'g2' : null;
+        if (!prefix || group.target_alias !== engine || group.photo_store[0]?.toText() !== full[`${prefix}_media_blob_store`]) {
+          throw new Error('The OpenCloud name-store group is outside the pinned deployment.');
+        }
+        for (const domain of group.domains) assertOpenCloudGroupCanister(group.id, domain.domain, domain.canister.toText());
+      }
+    }
     const configuration = groupApprovalConfiguration(registry.groups, registry.placements);
     if (anchor.configurationRevision !== undefined && anchor.approvedConfiguration && registry.configurationRevision === BigInt(anchor.configurationRevision)) {
       if (configuration !== anchor.approvedConfiguration) throw new Error('Name-store configuration changed.');
