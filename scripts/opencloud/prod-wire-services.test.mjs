@@ -56,7 +56,7 @@ console.log('(variant { Ok })');
       env: {
         ...process.env,
         PATH: `${bin}:${process.env.PATH}`,
-        GITHUB_REF_NAME: 'main',
+        GITHUB_REF_NAME: 'prod',
         RUNNER_TEMP: temp,
         MOCK_LOG: log,
         MOCK_STATE: path.join(temp, 'state.json'),
@@ -138,7 +138,7 @@ test('workflow is manual, reuses PROD governor secrets, and adds no environment 
   assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch']);
   assert.deepEqual(workflow.on.workflow_dispatch.inputs.mode.options, ['check', 'wire']);
   assert.equal(workflow.on.workflow_dispatch.inputs.mode.default, 'check');
-  assert.equal(workflow.jobs.wiring.if, "github.ref == 'refs/heads/main'");
+  assert.equal(workflow.jobs.wiring.if, "github.ref == 'refs/heads/prod'");
   assert.equal(workflow.jobs.wiring.environment, undefined);
   assert.equal(workflow.concurrency.group, 'opencloud-prod-deployment');
   assert.match(text, /@icp-sdk\/icp-cli@1\.7\.0/);
