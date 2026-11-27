@@ -37,9 +37,9 @@ export function SeedTestDataCard() {
   if (!isIcpSession()) return null;
 
   const fillVirtuosoDemo = async () => {
-    if (!window.confirm("Add sample messages ONLY to Ignite Soccer Demo Club's nine chats until each contains at least 150 messages?")) return;
+    if (!window.confirm("Add sample messages ONLY to the demo club's chats you belong to until each contains at least 150 messages?")) return;
     setRunning(true);
-    setDemoProgress({done:0,total:1350});
+    setDemoProgress({done:0,total:1});
     try {
       const { fillDemoVirtuosoChats } = await import("@/live/fillDemoVirtuosoChats");
       await fillDemoVirtuosoChats((done,total)=>setDemoProgress({done,total}));
@@ -109,7 +109,7 @@ export function SeedTestDataCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="space-y-2 rounded-md border border-border p-3">
-          <Label>Virtuoso scrolling test — Ignite Soccer Demo Club only</Label>
+          <Label>Virtuoso scrolling test — demo club only</Label>
           <p className="text-sm text-muted-foreground">
             Add fictional chat messages to the nine existing demo conversations until each has at least 150 messages.
             Uses your current signed-in ICP identity. Does not create clubs, teams or events.

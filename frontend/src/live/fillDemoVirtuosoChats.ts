@@ -1,25 +1,13 @@
 /**
  * One-off, logged-in app-admin Virtuoso test data filler.
  * No credentials, new clubs, teams, polls, events or deployments required.
- * Strictly scoped to the existing Ignite Soccer Demo Club conversations.
+ * Strictly scoped to the chats you belong to in the demo club you manage.
  */
-import { icpCtx } from "@/lib/icpClubTeamLookup";
+import { icpCtx, icpListMyAdminClubs, icpListTeams } from "@/lib/icpClubTeamLookup";
 import { sendLiveMessage } from "./features/messaging";
 import { connectLiveMessagingDomain } from "./domains";
 import { unwrapCandid } from "./features/candid";
 
-const CLUB = "9c5fa204-6cbe-49d5-a3d2-26b98b0419de";
-const THREADS = [
-  `default-club-chat:${CLUB}:coaches`,
-  `default-club-chat:${CLUB}:club_committee`,
-  `default-club-chat:${CLUB}:team_admins`,
-  `chat-${CLUB}-13`,
-  CLUB,
-  "b13954cf-a9f8-4b51-9cb1-0f7ec6a31820",
-  "d4f22f68-26a0-4868-a0aa-2b28dcd01933",
-  "e813df04-63bd-4dcb-bdf9-bccfa8c57d21",
-  "f04f188b-8cb4-475e-9f31-0cf0f83ab20c",
-] as const;
 const LINES = [
   "Please confirm your availability for Saturday's game.",
   "Great effort at training today! ⚽",
@@ -40,23 +28,18 @@ export async function fillDemoVirtuosoChats(
   if (target !== 150) throw Error("Only the approved 150-message target is supported");
   const ctx = await icpCtx();
   const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
+  // Find the demo club in this deployment by name (IDs differ per environment).
+  const club = (await icpListMyAdminClubs()).find(c => /demo/i.test(c.name));
+  if (!club) throw Error("No demo club found among the clubs you manage");
+  const CLUB = club.id;
   const groups = await unwrapCandid(actor.read_account_list_groups_by_club(CLUB), "Read demo club groups");
-  const clubGroups = new Set(groups.filter(g => g.club_id[0] === CLUB && g.is_member).map(g => g.conversation_id));
-  // Team conversations are not returned by list_groups_by_club; their exact IDs
-  // are fixed and checked separately against their live team groups.
-  const teamIds = [
-    "b13954cf-a9f8-4b51-9cb1-0f7ec6a31820",
-    "d4f22f68-26a0-4868-a0aa-2b28dcd01933",
-    "e813df04-63bd-4dcb-bdf9-bccfa8c57d21",
-    "f04f188b-8cb4-475e-9f31-0cf0f83ab20c",
-  ];
-  for (const id of THREADS.slice(0, 5)) if (!clubGroups.has(id)) throw Error("Missing demo club chat; refusing to seed");
-  for (const id of teamIds) {
-    const teamGroups = await unwrapCandid(actor.read_account_list_groups_by_team(id), "Read demo team groups");
-    if (!teamGroups.some(g => g.conversation_id === id && g.club_id[0] === CLUB && g.is_member)) {
-      throw Error("Missing demo team chat; refusing to seed");
-    }
+  const threads = new Set(groups.filter(g => g.club_id[0] === CLUB && g.is_member).map(g => g.conversation_id));
+  for (const team of await icpListTeams(CLUB)) {
+    const teamGroups = await unwrapCandid(actor.read_account_list_groups_by_team(team.id), "Read demo team groups");
+    for (const g of teamGroups) if (g.club_id[0] === CLUB && g.is_member) threads.add(g.conversation_id);
   }
+  const THREADS = [...threads];
+  if (!THREADS.length) throw Error(`No chats you belong to in ${club.name}; nothing to seed`);
 
   const total = THREADS.length * target;
   let done = 0;
