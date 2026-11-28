@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { isAuthorizedCronCaller } from "../_shared/cron-auth.ts";
 import { fmtWhen } from "../_shared/clubChatBot.ts";
+import { joinedRelation } from "../_shared/joinedRelation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -174,9 +175,11 @@ serve(async (req) => {
             }
           }
           const eventLocation = event.location_name || event.address || event.location || undefined;
-          const teamName = event.teams?.name || "Your Team";
-          const clubName = event.teams?.clubs?.name || "Your Club";
-          const clubLogoUrl = event.teams?.clubs?.logo_url || undefined;
+          const team = joinedRelation(event.teams);
+          const club = joinedRelation(team?.clubs);
+          const teamName = team?.name || "Your Team";
+          const clubName = club?.name || "Your Club";
+          const clubLogoUrl = club?.logo_url || undefined;
           const eventLink = `https://igniteclubhq.app/events/${event.id}`;
 
           // Get user emails and profiles
@@ -296,8 +299,9 @@ serve(async (req) => {
           continue;
         }
 
-        const pointsName = (event.teams?.clubs as any)?.points_display_name || 'reward points';
-        const clubName = event.teams?.clubs?.name || "Your Club";
+        const club = joinedRelation(joinedRelation(event.teams)?.clubs);
+        const pointsName = club?.points_display_name || 'reward points';
+        const clubName = club?.name || "Your Club";
 
         // Get users who haven't RSVP'd "going"
         const { data: rsvps } = await supabase
@@ -411,9 +415,11 @@ serve(async (req) => {
           }
         }
         const eventLocation = event.location_name || event.address || event.location || undefined;
-        const teamName = event.teams?.name || "Your Team";
-        const clubName = event.teams?.clubs?.name || "Your Club";
-        const clubLogoUrl = event.teams?.clubs?.logo_url || undefined;
+        const team = joinedRelation(event.teams);
+        const club = joinedRelation(team?.clubs);
+        const teamName = team?.name || "Your Team";
+        const clubName = club?.name || "Your Club";
+        const clubLogoUrl = club?.logo_url || undefined;
         const eventLink = `https://igniteclubhq.app/events/${event.id}`;
         
         for (const duty of duties) {

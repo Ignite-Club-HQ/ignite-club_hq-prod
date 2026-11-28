@@ -60,6 +60,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --ignore-scripts --no-fund --no-audit
+      - name: Verify OpenCloud admission commissioning and isolated staged guards
+        run: node --test ../scripts/opencloud/prod-commission.test.mjs ../scripts/opencloud/deployment.test.mjs
       - run: npm run check:step1
       - run: node --test scripts/generated-contract-syntax.test.mjs
       - run: npm run lint
@@ -119,3 +121,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace --locked
+      - name: Verify identity admission and infrastructure receiver regressions
+        run: cargo test --locked -j2 -p identity_access -p shard_router -p timer_jobs
+      - name: Verify compiled OpenCloud infrastructure removal remains disabled
+        run: IGNITE_OPENCLOUD_ADMISSION_ONLY=1 cargo test --locked -j2 -p shard_router -p timer_jobs compiled_engine_mode

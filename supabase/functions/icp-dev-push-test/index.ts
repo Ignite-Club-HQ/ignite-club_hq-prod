@@ -29,7 +29,7 @@ Deno.serve(async request => {
     if (!body || typeof body.id !== 'string' || Object.keys(body).some(k => k !== 'id')) return reply(400, { error: 'Invalid test request' });
     const identity = Ed25519KeyIdentity.fromSecretKey(await browserTestSigningSeed(signingKey));
     const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
-    const factory = ({ IDL }: { IDL: typeof CandidIDL }) => {
+    const factory: CandidIDL.InterfaceFactory = ({ IDL }) => {
       const row = IDL.Record({ owner: IDL.Principal, token: IDL.Text, id: IDL.Text, expires: IDL.Nat64, status: IDL.Text, worker: IDL.Opt(IDL.Principal) });
       return IDL.Service({ claim_browser_push_test: IDL.Func([IDL.Text], [IDL.Variant({ Ok: IDL.Opt(row), Err: IDL.Text })], []),
         settle_browser_push_test: IDL.Func([IDL.Text, IDL.Text], [IDL.Variant({ Ok: IDL.Null, Err: IDL.Text })], []) });
