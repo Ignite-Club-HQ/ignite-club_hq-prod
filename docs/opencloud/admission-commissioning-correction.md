@@ -25,13 +25,52 @@ The existing PROD commissioning workflow is reconciled exactly from PROD, preser
 - The existing club media-inventory exception already pins the two DEV clubs to DEV identity and the two PROD clubs to PROD identity. It is preserved, not replaced with a broad governor or arbitrary identity exception. Staged guard correctness fixes its captured authority/mode prerequisite.
 - Directory transport uses exactly the registered base/g2 club authorities and immutable admission receipt. Mainnet legacy-source exceptions remain mainnet-only. `app_enabled=false` remains mandatory; configuration does not release public directory reads, certify current membership freshness or authorize opening.
 
+### Exact PROD receiver inventory
+
+Application: `ignite_prod_v2`; engine: `ignite-prod`; API host: `https://s53an-5aaaa-aaac5-aaaaa-cai.icp.net`. All receivers trust only PROD identity `fyeax-jqaaa-aaac5-aaeaq-cai` for the configuration read; DEV builds instead pin DEV identity `h5lly-yyaaa-aaac5-aadqq-cai` from their separate inventory. Internal governor authorization stays separate from these service-caller identities.
+
+| Receiver | Classification | Canister |
+|---|---|---|
+| `shard_router` | infrastructure | `fwgn7-saaaa-aaac5-aaebq-cai` |
+| `secret_workload_identity` | infrastructure | `fea2g-6qaaa-aaac5-aaecq-cai` |
+| `g1_club_domain` | member | `fndr2-iyaaa-aaac5-aaeda-cai` |
+| `g1_events_domain` | member | `eanvu-hqaaa-aaac5-aaeeq-cai` |
+| `g1_messaging_domain` | member | `e4jpf-qqaaa-aaac5-aaegq-cai` |
+| `g1_vault_domain` | member | `gbubn-dyaaa-aaac5-aaeja-cai` |
+| `g1_competition_domain` | member | `ehmta-kiaaa-aaac5-aaeea-cai` |
+| `g1_club_points_domain` | member | `fkcxo-faaaa-aaac5-aaedq-cai` |
+| `g1_mini_league_domain` | member | `evkez-gyaaa-aaac5-aaeha-cai` |
+| `g1_media_metadata` | member | `e3ijr-5iaaa-aaac5-aaega-cai` |
+| `g1_insights_domain` | member | `ejo6i-ryaaa-aaac5-aaefa-cai` |
+| `g1_notification_queue` | member | `eslcn-laaaa-aaac5-aaehq-cai` |
+| `g1_pii_access_control` | member | `gpwmf-yiaaa-aaac5-aaeia-cai` |
+| `g1_timer_jobs` | infrastructure | `gixkr-vqaaa-aaac5-aaeiq-cai` |
+| `g1_media_blob_store` | member | `eopy4-4aaaa-aaac5-aaefq-cai` |
+| `g2_club_domain` | member | `ggvhz-oaaaa-aaac5-aaejq-cai` |
+| `g2_events_domain` | member | `g5q34-uyaaa-aaac5-aaela-cai` |
+| `g2_messaging_domain` | member | `hz5uo-nyaaa-aaac5-aaena-cai` |
+| `g2_vault_domain` | member | `hcyil-xaaaa-aaac5-aaepq-cai` |
+| `g2_competition_domain` | member | `gutqa-cqaaa-aaac5-aaekq-cai` |
+| `g2_club_points_domain` | member | `gtswu-piaaa-aaac5-aaeka-cai` |
+| `g2_mini_league_domain` | member | `h64s2-aaaaa-aaac5-aaenq-cai` |
+| `g2_media_metadata` | member | `hq67s-3qaaa-aaac5-aaemq-cai` |
+| `g2_insights_domain` | member | `g2r5i-zaaaa-aaac5-aaelq-cai` |
+| `g2_notification_queue` | member | `hl3dx-biaaa-aaac5-aaeoa-cai` |
+| `g2_pii_access_control` | member | `hm2fd-mqaaa-aaac5-aaeoq-cai` |
+| `g2_timer_jobs` | infrastructure | `hfzo7-2yaaa-aaac5-aaepa-cai` |
+| `g2_media_blob_store` | member | `hx7zg-wiaaa-aaac5-aaema-cai` |
+
 ## Validation
 
 - All OpenCloud Node regressions: **61 passed**, including the actual adapter-injected runner's full commissioning path, pre-receipt check, all 28 refusal/mode/identity cases, missing reader, wrong store/group, stale inventory/receipt, unknown callbacks and no-mutation completed retry.
 - Offline database/workflow policy regressions: **40 passed**, after installing the existing pinned `pglast==7.22` dependency. No SQL/migration/database files changed and no database was contacted.
-- Rust regressions: **368 passed** (268 identity, 80 router/unit/integration, 20 timer/unit/integration), plus **4 compiled admission-flag tests** across common and legacy DEV modes. Exported identity Candid still matches the checked-in contract.
-- Pinned Motoko shared admission/protection/removal suites: **3 passed**. Full staged Motoko WASM compilation is in progress with each service's existing dependencies; results will be recorded before completion.
+- Rust regressions: **369 passed** (269 identity, 80 router/unit/integration, 20 timer/unit/integration), plus **4 compiled admission-flag tests** across common and legacy DEV modes. Exported identity Candid still matches the checked-in contract.
+- Pinned Motoko shared admission/protection/removal suites: **3 passed**. **All 14 staged Motoko implementations compiled to WASM** with moc 1.16.1 and their existing per-service dependencies. **All 14 original → staged stable-layout compatibility checks passed**. Existing compiler warnings were not suppressed.
 - Offline tests are not live acceptance. No claim is made that production commissioning or name unlocking is now complete.
+
+## PR and CI status
+
+Exactly one `gitremote_pr--create_pull_request` request was issued for branch `thr_4y08kp8u4tfq` targeting **main**. The tool returned **“Pull request creation initiated”**, not a PR URL. Read-only GitHub checks did not yet list that PR or any Actions runs for the branch. URL and remote CI confirmation therefore remain pending the platform completing this request; no second PR request, merge, dispatch or direct main commit was made. Existing CI jobs include the new regression commands and will run on PR creation. Local validation above is complete, but is not described as successful remote CI.
 
 ## Exact later deployment and commissioning procedure — NOT executed
 

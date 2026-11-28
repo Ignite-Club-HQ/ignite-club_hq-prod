@@ -1988,13 +1988,13 @@ async fn authorize_production_member_access(binding:group_inventory::Binding)->O
     for receiver in &readers {
         recheck()?;
         let reply=ic_cdk::call::Call::bounded_wait(*receiver,"read_account_protection_configuration")
-            .await.map_err(|_|"Member receiver configuration unavailable")?;
+            .await.map_err(|_|format!("Receiver {receiver} (member) read_account_protection_configuration: unavailable"))?;
         recheck()?;
         let observed:Outcome<production_account_protection::ReceiverConfiguration>=reply.candid().map_err(|_|"Invalid member receiver configuration")?;
-        let observed=observed?;
+        let observed=observed.map_err(|reason|format!("Receiver {receiver} (member) read_account_protection_configuration: {reason}"))?;
         if observed.receiver!=*receiver || observed.authority!=Some(ic_cdk::api::canister_self()) || observed.protocol!=1 ||
             !observed.admission_required || observed.removal_enabled || observed.rehearsal {
-            return Err("Exact production admission-only receiver required".into());
+            return Err(format!("Receiver {receiver} (member) read_account_protection_configuration: exact admission-only mode required"));
         }
     }
     recheck()?;

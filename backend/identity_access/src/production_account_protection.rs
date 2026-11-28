@@ -116,9 +116,14 @@ fn verify_mode(expected:&Expectation, observed:&RemovalInventory, before:&[Lifec
     }
     let mut configs=BTreeMap::new();
     for row in configurations {
-        if configs.insert(row.receiver,row.clone()).is_some() || row.authority!=Some(expected.identity) || row.protocol!=1 ||
-            row.rehearsal || (if fresh {row.removal_enabled} else {!row.removal_enabled}) || (if fresh {row.admission_required!=readers.contains(&row.receiver)} else {readers.contains(&row.receiver) && !row.admission_required}) {
-            return Err("Production receiver protection incomplete".into());
+        if configs.insert(row.receiver,row.clone()).is_some() {
+            return Err(format!("Receiver {} read_account_protection_configuration: duplicate reply",row.receiver));
+        }
+        if row.authority!=Some(expected.identity) || row.protocol!=1 || row.rehearsal ||
+            (if fresh {row.removal_enabled} else {!row.removal_enabled}) ||
+            (if fresh {row.admission_required!=readers.contains(&row.receiver)} else {readers.contains(&row.receiver) && !row.admission_required}) {
+            let role=if readers.contains(&row.receiver){"member"}else{"infrastructure"};
+            return Err(format!("Receiver {} ({role}) read_account_protection_configuration: authority or protection mode mismatch",row.receiver));
         }
     }
     if configs.keys().copied().collect::<BTreeSet<_>>()!=targets.iter().copied().collect() {
@@ -161,6 +166,13 @@ fn verify_mode(expected:&Expectation, observed:&RemovalInventory, before:&[Lifec
         let(e,l,c)=fixture();for at in 0..c.len(){let mut bad=c.clone();bad.remove(at);assert!(verify(&e,&e.inventory,&l,&l,&bad).is_err());
             let mut bad=c.clone();bad[at].rehearsal=true;assert!(verify(&e,&e.inventory,&l,&l,&bad).is_err());
             let mut bad=c.clone();bad[at].authority=None;assert!(verify(&e,&e.inventory,&l,&l,&bad).is_err());}
+    }
+    #[test] fn configuration_refusals_identify_only_the_public_receiver_role_and_operation(){
+        let(e,l,mut c)=fixture();c[0].authority=None;
+        let error=verify(&e,&e.inventory,&l,&l,&c).unwrap_err();
+        assert!(error.contains(&c[0].receiver.to_text()));
+        assert!(error.contains("read_account_protection_configuration"));
+        assert!(error.contains("member") || error.contains("infrastructure"));
     }
     #[test] fn lifecycle_rollback_module_drift_and_omitted_router_fail(){
         let(e,l,c)=fixture();assert!(verify(&e,&e.inventory,&[],&[],&c).is_err());let mut changed=l.clone();changed[0].changes-=1;assert!(verify(&e,&e.inventory,&l,&changed,&c).is_err());
