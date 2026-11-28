@@ -21,18 +21,26 @@ pub struct Pin { pub identity: Principal, pub governor: Principal, pub host: Str
 /// A non-DEV module over DEV state, a missing/foreign pin, or an uninitialized
 /// state are refused so upgrades cannot become a reset path.
 pub fn upgrade(build_pin:Option<&str>,state:&State,identity:Principal,governor:Principal)->Result<(),String>{
+    upgrade_for(build_pin,state,identity,governor,"opencloud-dev")
+}
+/// Ordinary upgrades retain the additive engine receipt. A commissioned PROD
+/// deployment never becomes fresh or pristine: its existing accounts are not
+/// part of this receipt and are neither rewritten nor required to be empty.
+pub fn upgrade_for(build_pin:Option<&str>,state:&State,identity:Principal,governor:Principal,deployment:&str)->Result<(),String>{
     if !state.initialized {
-        return if build_pin.is_none() {Ok(())} else {Err("Fresh DEV upgrade requires initialized installation state".into())};
+        return if build_pin.is_none() {Ok(())} else {Err("Engine admission upgrade requires initialized installation state".into())};
     }
-    let pin=Pin::parse(build_pin.ok_or("Fresh DEV state requires the same immutable DEV build")?)?;
-    if pin.identity!=identity || pin.governor!=governor {return Err("Fresh DEV upgrade pins changed".into());}
-    if let Some(r)=&state.receipt {pin.binding(&r.expectation.inventory.groups.binding,identity,governor)?;}
+    let pin=Pin::parse_for(build_pin.ok_or("Engine admission state requires the same immutable build")?,deployment)?;
+    if pin.identity!=identity || pin.governor!=governor {return Err("Engine admission upgrade pins changed".into());}
+    if let Some(r)=&state.receipt {pin.binding_for(&r.expectation.inventory.groups.binding,identity,governor,deployment)?;}
     Ok(())
 }
 impl Pin {
-    pub fn parse(raw: &str) -> Result<Self, String> {
+    pub fn parse(raw: &str) -> Result<Self, String> { Self::parse_for(raw,"opencloud-dev") }
+    pub fn parse_for(raw: &str,deployment:&str) -> Result<Self, String> {
+        if !crate::engine_scope::ENGINE_DEPLOYMENTS.contains(&deployment) {return Err("Exact OpenCloud deployment required".into());}
         let fields: Vec<_> = raw.lines().collect();
-        if fields.len()!=34 { return Err("Exact 31 DEV backend pins required".into()); }
+        if fields.len()!=34 { return Err("Exact 31 engine backend pins required".into()); }
         let p=|s:&str|->Result<Principal,String>{
             let p=Principal::from_text(s).map_err(|_|"Invalid DEV principal")?;
             if p==Principal::anonymous() || p==Principal::management_canister() || p.to_text()!=s {return Err("Invalid DEV principal".into());} Ok(p)
@@ -49,9 +57,12 @@ impl Pin {
         Ok(result)
     }
     pub fn binding(&self,b:&Binding,identity:Principal,governor:Principal)->Result<(),String>{
-        if identity!=self.identity || governor!=self.governor || b.deployment_id!="opencloud-dev" ||
-            b.target_alias!="opencloud-dev" || b.host!=self.host || !crate::engine_scope::engine_binding(b) || !self.backends.contains(&b.registry) {
-            return Err("Exact fresh OpenCloud DEV installation required".into());
+        self.binding_for(b,identity,governor,"opencloud-dev")
+    }
+    pub fn binding_for(&self,b:&Binding,identity:Principal,governor:Principal,deployment:&str)->Result<(),String>{
+        if identity!=self.identity || governor!=self.governor || b.deployment_id!=deployment ||
+            b.target_alias!=deployment || b.host!=self.host || !crate::engine_scope::engine_binding(b) || !self.backends.contains(&b.registry) {
+            return Err("Exact immutable OpenCloud admission deployment required".into());
         } Ok(())
     }
     pub fn inventory(&self,expected:&Expectation)->Result<(),String>{
@@ -110,6 +121,15 @@ pub fn retry(prior:&Receipt,requested:&Expectation)->Result<(),String>{
         assert!(p.binding(&b,p.identity,p.governor).is_ok());
         for env in ["opencloud-prod","mainnet","prod"] {b.target_alias=env.into();b.deployment_id=env.into();assert!(p.binding(&b,p.identity,p.governor).is_err());}
         b.target_alias="opencloud-dev".into();b.deployment_id="opencloud-dev".into();assert!(p.binding(&b,p.identity,Principal::anonymous()).is_err());
+    }
+    #[test] fn prod_admission_pin_never_crosses_dev_or_mainnet(){
+        let (_,mut b,_)=crate::group_inventory::tests::fixture();
+        let p=Pin{identity:Principal::from_slice(&[97,1]),governor:Principal::from_slice(&[96,1]),host:"https://engine.example".into(),backends:vec![b.registry],services:vec![]};
+        b.host=p.host.clone();b.network_kind="cloud_engine".into();b.target_alias="opencloud-prod".into();b.deployment_id="opencloud-prod".into();
+        assert!(p.binding_for(&b,p.identity,p.governor,"opencloud-prod").is_ok());
+        assert!(p.binding(&b,p.identity,p.governor).is_err());
+        b.target_alias="mainnet".into();b.deployment_id="prod".into();b.host="https://icp-api.io".into();b.network_kind="public_mainnet".into();
+        assert!(p.binding_for(&b,p.identity,p.governor,"opencloud-prod").is_err());
     }
     #[test] fn consumed_commissioning_refuses_different_inventory(){
         let (e,l,_)=crate::production_account_protection::tests::fixture();
