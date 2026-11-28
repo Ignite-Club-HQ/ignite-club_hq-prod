@@ -132,20 +132,23 @@ export function initArgs(service, governor) {
 
 export function serviceSettings(config, row) {
   const variables = { IGNITE_CLOUD_ENGINE: '1', GOVERNOR_PRINCIPAL: config.controllers.governor };
-  if (freshDev(config) && row.service !== 'frontend' && row.service !== 'identity_access') Object.assign(variables, {
+  const memberReader = row.scope !== 'shared' && (row.service === 'media_blob_store' ||
+    ['club_domain','events_domain','messaging_domain','vault_domain','competition_domain','club_points_domain',
+      'mini_league_domain','media_metadata','insights_domain','notification_queue','pii_access_control'].includes(row.service));
+  if ((freshDev(config) && row.service !== 'frontend' && row.service !== 'identity_access') || (prodAdmission(config) && memberReader)) Object.assign(variables, {
     IGNITE_ACCOUNT_ADMISSION_RELEASE: '1', IGNITE_ACCOUNT_SERVICE_IDENTITY: config.shared.identity_access,
   });
-  if (freshDev(config) && row.service === 'identity_access') Object.assign(variables, {
+  if ((freshDev(config) || prodAdmission(config)) && row.service === 'identity_access') Object.assign(variables, {
     IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE: '1', IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE: '1',
     IGNITE_SECURE_ADULT_NAME_PII: config.groups[0].canisterIds.pii_access_control,
   });
-  if (freshDev(config) && row.service === 'club_domain') Object.assign(variables, {
+  if ((freshDev(config) || prodAdmission(config)) && row.service === 'club_domain') Object.assign(variables, {
     IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE:'1', IGNITE_NEW_CLUB_PLACEMENT_REQUIRED:'true',
     IGNITE_NEW_CLUB_PLACEMENT_ROUTER:config.shared.shard_router,
     IGNITE_NEW_CLUB_PLACEMENT_GROUP:routerGroupId(row.scope), IGNITE_NEW_CLUB_PLACEMENT_TARGET:config.environment,
   });
   if (row.service === 'pii_access_control') Object.assign(variables, { VETKD_KEY_NAME: 'key_1', PROXY_CANISTER_ID: config.consoleProxyId });
-  if (freshDev(config) && row.service === 'pii_access_control') Object.assign(variables, {
+  if ((freshDev(config) || prodAdmission(config)) && row.service === 'pii_access_control') Object.assign(variables, {
     IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE:'1', IGNITE_PRIVATE_PROFILE_IDENTITY:config.shared.identity_access,
     IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE:'1',
     IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE:'1', IGNITE_SECURE_ADULT_NAME_IDENTITY:config.shared.identity_access,
@@ -218,8 +221,19 @@ export function registerGroupPlacementCall(config,g) {
     verify:'read_group_registry_page',uncertainOutcome:'stop-readback-no-blind-replay'};
 }
 export const freshDev = config => config.environment === 'opencloud-dev' && config.commissioningMode === 'fresh-install-admission-only';
+export const prodAdmission = config => config.environment === 'opencloud-prod' && config.commissioningMode === 'existing-accounts-admission-only';
 export function accountProtectionBuild(config) {
   if (config.commissioningMode === 'fresh-install-admission-only' && config.environment !== 'opencloud-dev') throw Error('Fresh commissioning is DEV-only');
+  if (config.commissioningMode === 'existing-accounts-admission-only' && config.environment !== 'opencloud-prod') throw Error('Existing-account admission commissioning is PROD-only');
+  if (prodAdmission(config)) {
+    if (inventory(config).length !== 32) throw Error('OpenCloud PROD admission requires the existing exact 32 canisters');
+    const named = inventory(config).filter(r => r.service !== 'frontend').map(r => `${r.name}=${r.id}`);
+    const ready = !!config.controllers.governor && !!config.apiHost;
+    return { service: 'identity_access', mode: 'existing-accounts-admission-only', ready,
+      compileTimeEnv: { IGNITE_OPENCLOUD_PROD_ADMISSION: ready ? [config.shared.identity_access, config.controllers.governor, config.apiHost, ...named].join('\n') : null },
+      witnessRequired: false, approverKeyRequired: false, globalErasureEnabled: false, recoveryEnabled: false,
+      owner: 'Existing PROD governor commissions exact live modules and closed registry; existing accounts and PII are preserved' };
+  }
   if (freshDev(config)) {
     if (inventory(config).length !== 32) throw Error('Fresh DEV requires the existing exact 32 canisters');
     const named = inventory(config).filter(r => r.service !== 'frontend').map(r => `${r.name}=${r.id}`);
@@ -256,6 +270,19 @@ export function commissioning(config) {
     { step: 7, target: id, method: 'authorize_production_member_access', arguments: 'Exact receipt.expectation.inventory.groups.binding', effect: '24 admission-only readers; no global erasure/recovery' },
     { step: 8, target: id, method: 'configure_membership_directory', arguments: `receipt Binding, vec { principal "${config.groups[0].canisterIds.club_domain}"; principal "${config.groups[1].canisterIds.club_domain}" }, 1 : nat64` },
     { step: 9, target: id, method: 'read_fresh_opencloud_dev_commissioning', arguments: '()', effect: 'Live readback of every backend lifecycle; then separately approve base opening via existing router mechanism. g2 remains closed.' },
+  ];
+  if (prodAdmission(config)) return [
+    { step: 1, action: 'Build the reviewed PR artifacts; upgrade only identity_access and any other changed modules with keep persistence; never reinstall' },
+    { step: 2, action: 'Run commissioning check: authenticate all 31 live module hashes/controllers, registry revision 4, 24 reader settings and bounded account/PII diagnostics' },
+    { step: 3, target: router, method: 'set_deletion_authority', candidArgs: `(principal "${id}")`, effect: 'authority binding only; global removal and recovery remain compiled off' },
+    ...[router,...config.groups.map(g=>g.canisterIds.timer_jobs)].map(target=>({step:3,target,method:'set_account_removal_authority',candidArgs:`(principal "${id}")`,effect:'immutable identity binding only; no removal release'})),
+    { step: 3, target: config.shared.secret_workload_identity, method: 'set_account_removal_authority', candidArgs: `(principal "${id}")`, effect: 'readback binding only; no workload or removal release' },
+    { step: 4, action: 'Merge only IGNITE_ACCOUNT_SERVICE_IDENTITY and IGNITE_ACCOUNT_ADMISSION_RELEASE=1 onto the exact 24 member readers; read every setting back' },
+    { step: 5, target: id, method: 'review_production_account_inventory', arguments: 'Exact Expectation and current read_production_account_history_revision; read-only, no signature or witness' },
+    { step: 6, target: id, method: 'commission_opencloud_prod_admission', arguments: 'Same independently checked Expectation; additive receipt preserves every existing account/profile/PII record' },
+    { step: 7, target: id, method: 'authorize_production_member_access', arguments: 'Exact receipt.expectation.inventory.groups.binding', effect: '24 ordinary member readers; global erasure/recovery unavailable' },
+    { step: 8, target: id, method: 'configure_membership_directory', arguments: `receipt Binding, vec { principal "${config.groups[0].canisterIds.club_domain}"; principal "${config.groups[1].canisterIds.club_domain}" }, 1 : nat64` },
+    { step: 9, target: id, method: 'read_opencloud_prod_admission_commissioning', arguments: '()', effect: 'Receipt, 24 readers, both closed groups and directory readback; no routing or group opening' },
   ];
   return [
     { step: 1, target: config.shared.migration_coordinator, action: 'constructor-only-no-migration' },
@@ -320,6 +347,7 @@ export function manifest(config, peer, forbidden, allowUnresolved = false) {
       'engine-host-api-and-certification', 'artifacts-built-and-hashed', 'shared-identity-lifecycle-and-routing-commissioning',
       'direct-governor-call-transport', 'frontend-asset-upload-transport', 'fresh-signed-in-functional-acceptance',
       ...(freshDev(config) ? ['exact-install-only-history; no imports; no settings/code changes after commissioning', 'fresh-DEV-receipt-and-live-lifecycle-readback; global-erasure-and-recovery-unavailable'] :
+        prodAdmission(config) ? ['reviewed-source-run-and-exact-live-module/controller-readback', 'existing-accounts-preserved; additive-PROD-admission-receipt; global-erasure-and-recovery-unavailable'] :
         ['owner-account-approver-key-and-recovery-witness (rebuild identity_access with accountProtectionBuild env)'])],
   };
   return { ...base, preparationSha256: sha(json(base)) };
