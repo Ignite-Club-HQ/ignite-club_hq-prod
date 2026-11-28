@@ -165,7 +165,7 @@ for(const target of plannedTargets){
   const live=await status(target.id);readerPhase='before-controller-verification';verifyControllers(live);
   readerPhase='environment-plan';
   const next=admissionEnvironment(live.settings.environment_variables,id);
-  const canonical=values=>JSON.stringify([...values].sort((a,b)=>a.name.localeCompare(b.name)));
+  const canonical=values=>JSON.stringify(values.map(({name,value})=>[name,value]).sort((a,b)=>a[0].localeCompare(b[0])));
   if(canonical(next)!==canonical(live.settings.environment_variables)){
     readerPhase='update-settings';attemptedSettings.push(target.id);
     await management('update_settings',R({canister_id:P,settings:R({environment_variables:I.Opt(E)})}),
