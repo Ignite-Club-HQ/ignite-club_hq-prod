@@ -31,12 +31,44 @@ jobs:
         with:
           name: opencloud-prod-backend-source-build
           path: deploy/opencloud/work/prod-candidate
-      - uses: actions/download-artifact@v4
-        with:
-          name: opencloud-prod-backend-source-build
-          run-id: 45784653124
-          github-token: ${{ github.token }}
-          path: deploy/opencloud/work/prod-original
+      - name: Discover retained PROD build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          root=deploy/opencloud/work/prod-original
+          mkdir -p "$root"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '.artifacts[] | select(.expired == false and (.name == "opencloud-prod-backend-source-build" or .name == "opencloud-prod-timer-validation")) | .id' > "$RUNNER_TEMP/prod-artifacts.txt"
+          while read -r id; do
+            test -n "$id" || continue
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "$RUNNER_TEMP/prod-artifact.zip"
+            python3 - "$RUNNER_TEMP/prod-artifact.zip" "$root/$id" <<'PY'
+          import sys, zipfile, pathlib, json, hashlib, gzip
+          z=zipfile.ZipFile(sys.argv[1])
+          dest=pathlib.Path(sys.argv[2])
+          pins={"385f83a3d7e1fbad5426c1121bc07008cb86b925ed695cb40052d9b5e7648b80","e55b66bf5d52dfd1fe3ab3dd3dfd883e8467cf3309a637116b38d9bdb51de198","3742ea1edc52245445b945d58a63b612182aa9b6954df1f7bbe41da0d6745587"}
+          if "manifest.json" not in z.namelist(): sys.exit(0)
+          m=json.loads(z.read("manifest.json"))
+          if m.get("environment")!="opencloud-prod" or m.get("applicationKey")!="ignite_prod_v2": sys.exit(0)
+          selected=[]
+          for a in m.get("canisters",[]):
+              if a.get("moduleSha256") not in pins: continue
+              p=a.get("wasm","")
+              if not p or pathlib.PurePosixPath(p).is_absolute() or ".." in pathlib.PurePosixPath(p).parts or p not in z.namelist(): continue
+              b=z.read(p)
+              if hashlib.sha256(b).hexdigest()!=a.get("wasmSha256") or hashlib.sha256(gzip.decompress(b)).hexdigest()!=a["moduleSha256"]: continue
+              selected.append((p,b))
+          if selected:
+              dest.mkdir(parents=True,exist_ok=True)
+              (dest/"manifest.json").write_text(json.dumps(m))
+              for p,b in selected:
+                  f=dest/p
+                  f.parent.mkdir(parents=True,exist_ok=True)
+                  f.write_bytes(b)
+              print("Verified matching artifact",dest.name)
+          PY
+            rm -f "$RUNNER_TEMP/prod-artifact.zip"
+          done < "$RUNNER_TEMP/prod-artifacts.txt"
       - name: Install ICP CLI
         run: npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
       - name: Inspect exact PROD private-name inventory

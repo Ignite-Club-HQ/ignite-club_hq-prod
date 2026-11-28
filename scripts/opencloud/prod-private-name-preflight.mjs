@@ -47,15 +47,14 @@ const [work,mode,originalWork]=process.argv.slice(2);
 if(!['check','apply'].includes(mode))throw Error('Explicit mode required');
 const m=JSON.parse(fs.readFileSync(path.join(work,'manifest.json')));
 if(m.environment!=='opencloud-prod'||m.applicationKey!=='ignite_prod_v2'||m.engine.operatorId!==MANAGEMENT_PROXY||m.canisters.length!==32)throw Error('Wrong manifest');
-const original=JSON.parse(fs.readFileSync(path.join(originalWork,'manifest.json')));
-if(original.environment!==m.environment||original.applicationKey!==m.applicationKey||original.engine.operatorId!==MANAGEMENT_PROXY||original.canisters.length!==32)throw Error('Wrong original manifest');
+const archives=fs.readdirSync(originalWork,{withFileTypes:true}).filter(e=>e.isDirectory()).map(e=>path.join(originalWork,e.name)).flatMap(dir=>{const file=path.join(dir,'manifest.json');if(!fs.existsSync(file))return [];const manifest=JSON.parse(fs.readFileSync(file));return manifest.environment===m.environment&&manifest.applicationKey===m.applicationKey&&manifest.engine?.operatorId===MANAGEMENT_PROXY&&manifest.canisters?.length===32?[[manifest,dir]]:[];});
 const pins={g1_pii_access_control:'3742ea1edc52245445b945d58a63b612182aa9b6954df1f7bbe41da0d6745587',g2_pii_access_control:'3742ea1edc52245445b945d58a63b612182aa9b6954df1f7bbe41da0d6745587',identity_access:'385f83a3d7e1fbad5426c1121bc07008cb86b925ed695cb40052d9b5e7648b80',g1_club_domain:'e55b66bf5d52dfd1fe3ab3dd3dfd883e8467cf3309a637116b38d9bdb51de198',g2_club_domain:'e55b66bf5d52dfd1fe3ab3dd3dfd883e8467cf3309a637116b38d9bdb51de198'};
 const repairs=new Map(),before=new Map(),prepared=[];
 const moduleHash=s=>Buffer.from(s.module_hash[0]??[]).toString('hex');
 const settings=s=>JSON.stringify({controllers:s.settings.controllers.map(p=>p.toText()).sort(),env:s.settings.environment_variables.map(v=>[v.name,v.value]).sort(),limit:String(s.settings.wasm_memory_limit)});
 for(const [name,id,desired,isPii] of targets){
  const r=rows.find(x=>x.name===name&&x.id===id);
- const candidates=[[m,work],[original,originalWork]].flatMap(([manifest,dir])=>manifest.canisters.filter(x=>x.name===name&&x.id===id&&x.moduleSha256===pins[name]).map(a=>({a,dir})));
+ const candidates=[[m,work],...archives].flatMap(([manifest,dir])=>manifest.canisters.filter(x=>x.name===name&&x.id===id&&x.moduleSha256===pins[name]).map(a=>({a,dir})));
  if(!candidates.length)throw Error('No exact pinned artifact '+name);
  const {a,dir}=candidates[0];
  if(!r||!a||a.service!==r.service)throw Error('Inventory mismatch '+name);
@@ -72,7 +71,7 @@ for(const [name,id,desired,isPii] of targets){
  else if(a.initArgs===`(record { governor = principal "${g}" })`)arg=I.encode([I.Record({governor:P})],[{governor:pid(g)}]);
  else throw Error('Unknown constructor '+name);
  before.set(id,live);repairs.set(id,desired);prepared.push({...a,wasm,arg});
- console.log(JSON.stringify({name,id,moduleHash:moduleHash(live),artifactSource:dir===work?'current':'original',missing:Object.keys(desired).filter(k=>!vars.has(k)),environmentDigest:hash(settings(live))}));
+ console.log(JSON.stringify({name,id,moduleHash:moduleHash(live),artifactSource:dir===work?'current':path.basename(dir),missing:Object.keys(desired).filter(k=>!vars.has(k)),environmentDigest:hash(settings(live))}));
 }
 if(mode==='check'){console.log('All five exact artifacts verified; no writes');process.exit(0);}
 if(process.env.APPROVE_PRIVATE_NAME_REPAIR!=='YES')throw Error('Explicit approval required');
