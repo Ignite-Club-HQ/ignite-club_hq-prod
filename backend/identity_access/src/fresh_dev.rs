@@ -86,6 +86,15 @@ impl Pin {
     }
 }
 
+/// Readback advances only the local history watermark; every authority,
+/// module, role, group, store and deployment commitment must remain exact.
+pub fn review_receipt(prior:&Receipt,requested:&Expectation,history:u64)->Result<(),String>{
+    let mut current=prior.expectation.clone();
+    current.inventory.groups.history_revision=history;
+    if &current!=requested {return Err("OpenCloud receipt differs from current inventory".into());}
+    Ok(())
+}
+
 pub fn first_install(total:u64, returned:usize, installs:usize, other_code_or_restore:bool)->Result<(),String>{
     if total==0 || total>100 || total!=returned as u64 || installs!=1 || other_code_or_restore {
         return Err("Fresh install history required; restore, reinstall or upgrade refused".into());
@@ -101,6 +110,17 @@ pub fn retry(prior:&Receipt,requested:&Expectation)->Result<(),String>{
 
 #[cfg(test)] mod tests {
     use super::*;
+    #[test] fn post_receipt_readback_only_advances_history_never_changes_inventory(){
+        let (e,l,_)=crate::production_account_protection::tests::fixture();
+        let r=Receipt{expectation:e.clone(),lifecycle:l};let mut requested=e;
+        requested.inventory.groups.history_revision=9;
+        review_receipt(&r,&requested,9).unwrap();
+        assert_eq!(r.expectation.inventory.groups.history_revision,7);
+        let mut bad=requested.clone();bad.modules[0].1[0]^=1;assert!(review_receipt(&r,&bad,9).is_err());
+        let mut bad=requested.clone();bad.inventory.groups.binding.registry_revision+=1;assert!(review_receipt(&r,&bad,9).is_err());
+        let mut bad=requested.clone();bad.inventory.media[0].registry.stores.clear();assert!(review_receipt(&r,&bad,9).is_err());
+        let mut bad=requested;bad.inventory.groups.snapshot.groups[0].domains[0].canister=Principal::anonymous();assert!(review_receipt(&r,&bad,9).is_err());
+    }
     #[test] fn fresh_install_is_not_restore_or_reset(){
         assert!(first_install(6,6,1,false).is_ok());
         assert!(first_install(6,6,1,true).is_err());

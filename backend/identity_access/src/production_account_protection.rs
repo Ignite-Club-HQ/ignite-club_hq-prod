@@ -117,7 +117,7 @@ fn verify_mode(expected:&Expectation, observed:&RemovalInventory, before:&[Lifec
     let mut configs=BTreeMap::new();
     for row in configurations {
         if configs.insert(row.receiver,row.clone()).is_some() || row.authority!=Some(expected.identity) || row.protocol!=1 ||
-            row.rehearsal || (if fresh {row.removal_enabled} else {!row.removal_enabled}) || (readers.contains(&row.receiver) && !row.admission_required) {
+            row.rehearsal || (if fresh {row.removal_enabled} else {!row.removal_enabled}) || (if fresh {row.admission_required!=readers.contains(&row.receiver)} else {readers.contains(&row.receiver) && !row.admission_required}) {
             return Err("Production receiver protection incomplete".into());
         }
     }
@@ -178,11 +178,18 @@ fn verify_mode(expected:&Expectation, observed:&RemovalInventory, before:&[Lifec
         let b=&mut e.inventory.groups.binding;b.target_alias="opencloud-prod".into();b.deployment_id="opencloud-prod".into();b.network_kind="cloud_engine".into();b.host="https://engine.example".into();
         for g in &mut e.inventory.groups.snapshot.groups {g.target_alias=b.target_alias.clone();}
         for p in &mut e.inventory.groups.snapshot.placements {p.deployment_id=b.deployment_id.clone();p.host=b.host.clone();p.network_kind=b.network_kind.clone();}
-        for config in &mut c {config.removal_enabled=false;}
+        let readers=scope(&e).unwrap().0;
+        for config in &mut c {config.removal_enabled=false;config.admission_required=readers.contains(&config.receiver);}
         // Accounts/profiles are deliberately absent from this inventory: the
         // admission receipt neither requires empty state nor rewrites members.
         assert!(verify_engine_admission(&e,&e.inventory,&[],&[],&c).is_ok());
         assert!(verify_engine_admission(&e,&e.inventory,&l,&l,&c).is_err());
+        for at in 0..c.len() {
+            let mut bad=c.clone();bad[at].authority=Some(Principal::anonymous());
+            assert!(verify_engine_admission(&e,&e.inventory,&[],&[],&bad).is_err());
+            let mut bad=c.clone();bad[at].admission_required=!bad[at].admission_required;
+            assert!(verify_engine_admission(&e,&e.inventory,&[],&[],&bad).is_err());
+        }
         c[0].removal_enabled=true;assert!(verify_engine_admission(&e,&e.inventory,&[],&[],&c).is_err());
         c[0].removal_enabled=false;e.inventory.groups.binding.deployment_id="prod".into();
         assert!(verify_engine_admission(&e,&e.inventory,&[],&[],&c).is_err());
@@ -194,7 +201,8 @@ fn verify_mode(expected:&Expectation, observed:&RemovalInventory, before:&[Lifec
         let b=&mut e.inventory.groups.binding;b.target_alias="opencloud-dev".into();b.deployment_id="opencloud-dev".into();b.network_kind="cloud_engine".into();b.host="https://engine.example".into();
         for g in &mut e.inventory.groups.snapshot.groups {g.target_alias=b.target_alias.clone();}
         for p in &mut e.inventory.groups.snapshot.placements {p.deployment_id=b.deployment_id.clone();p.host=b.host.clone();p.network_kind=b.network_kind.clone();}
-        for config in &mut c {config.removal_enabled=false;}
+        let readers=scope(&e).unwrap().0;
+        for config in &mut c {config.removal_enabled=false;config.admission_required=readers.contains(&config.receiver);}
         assert!(verify_fresh_dev(&e,&e.inventory,&l,&l,&c).is_ok());
         assert!(verify(&e,&e.inventory,&l,&l,&c).is_err());
         // DEV engine without canister_info: no rows at all, never partial rows.

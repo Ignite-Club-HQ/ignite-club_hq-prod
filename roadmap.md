@@ -710,3 +710,7 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Replace mainnet monitoring defaults with the active pinned OpenCloud host and all 32 shared/group/frontend IDs; update group health, usage, connection probes, photo stores, balances and placement inventory. Keep engine funding separate from mainnet cycles warnings and preserve authorized data-browser group routing.
 - [x] Tracking regressions pass in email and ICP modes (25 each); preview build OK. Running-preview inventory matches all 32 DEV targets and both event canisters answer read-only engine queries with zero cycles, as expected for engine funding.
 - [ ] Signed-in admin page/readback requires an authorized admin session unavailable in this sandbox (user-managed backend refuses session minting). No production deployment or configuration writes performed.
+
+## OpenCloud admission commissioning correction — isolated draft
+- [ ] Reconcile the existing PROD runner, pin all admission-only receiver guards, and validate identity-authenticated inventory and resumable completion.
+- [ ] Run offline regressions and backend checks, document exact causes/procedure, and create one PR to main; no merge, deployment or live writes.
