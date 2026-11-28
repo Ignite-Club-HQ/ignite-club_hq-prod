@@ -1,6 +1,8 @@
 import {memberReaders,admissionEnvironment,assertAdmissionEnvironment,planDigest,sanitizeAccountDiagnostics} from './prod-commission-policy.mjs';
 export async function runProdCommission({config,rows,manifest,mode,sourceCommit,I,pid,status,verifyControllers,invoke,optional,query,management,saveReport=()=>{}}){
 let failureContext={target:null,method:null},lastReport={},complete=false,inventoryVerified=false;
+const verifiedReaders=[],attemptedSettings=[];
+let readerPhase=null;
 const sendReport=report=>{lastReport=report;saveReport(report);};
 const rawInvoke=invoke,rawQuery=query,rawManagement=management,rawStatus=status,rawOptional=optional;
 invoke=async(target,method,...args)=>{failureContext={target,method};return rawInvoke(target,method,...args);};
@@ -159,15 +161,20 @@ if(mode==='check'){
 // Skip matching settings. Every uncertain write stops; a new invocation reads
 // authoritative state independently before deciding whether anything remains.
 for(const target of plannedTargets){
-  const live=await status(target.id);verifyControllers(live);
+  readerPhase='before-status';
+  const live=await status(target.id);readerPhase='before-controller-verification';verifyControllers(live);
+  readerPhase='environment-plan';
   const next=admissionEnvironment(live.settings.environment_variables,id);
   const canonical=values=>JSON.stringify([...values].sort((a,b)=>a.name.localeCompare(b.name)));
   if(canonical(next)!==canonical(live.settings.environment_variables)){
+    readerPhase='update-settings';attemptedSettings.push(target.id);
     await management('update_settings',R({canister_id:P,settings:R({environment_variables:I.Opt(E)})}),
       {canister_id:pid(target.id),settings:{environment_variables:[next]}});
   }
-  const after=await status(target.id);verifyControllers(after);assertAdmissionEnvironment(after.settings.environment_variables,id);
+  readerPhase='after-status';const after=await status(target.id);readerPhase='after-controller-verification';verifyControllers(after);readerPhase='environment-readback';assertAdmissionEnvironment(after.settings.environment_variables,id);
+  readerPhase='module-readback';
   if(Buffer.from(after.module_hash[0]??[]).toString('hex')!==Buffer.from(live.module_hash[0]).toString('hex'))throw Error('Module changed during reader configuration '+target.id);
+  verifiedReaders.push(target.id);readerPhase=null;
 }
 if(deletion!==id){
   await invoke(router,'set_deletion_authority',[P],[pid(id)]);
@@ -193,5 +200,5 @@ await verifyCommissionedReadback();
 sendReport({...report(),authenticatedInventoryVerified:true});
 return report();
 
-}catch(error){sendReport({...lastReport,status:lastReport.status==='blocked-needs-configuration'?lastReport.status:'failed',mode,sourceCommit,failedTarget:failureContext.target,failedMethod:failureContext.method,errorCode:'COMMISSIONING_STOPPED',removalRelease:false,recoveryRelease:false,routingApproval:false,groupOpening:false});throw error;}
+}catch(error){sendReport({...lastReport,status:lastReport.status==='blocked-needs-configuration'?lastReport.status:'failed',mode,sourceCommit,failedTarget:failureContext.target,failedMethod:failureContext.method,errorCode:'COMMISSIONING_STOPPED',readerPhase,verifiedReaders,attemptedSettings,safeError:['Current reader environment required','Duplicate reader environment names','Removal and rehearsal must remain off','Foreign account authority','Reader admission readback mismatch'].includes(error.message)?error.message:'Unclassified failure; see readerPhase',removalRelease:false,recoveryRelease:false,routingApproval:false,groupOpening:false});throw error;}
 }
