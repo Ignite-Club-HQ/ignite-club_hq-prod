@@ -3,44 +3,98 @@ on:
   workflow_dispatch:
     inputs:
       mode:
+        description: "Admission check is read-only; commission requires the reviewed source run and exact confirmation"
         type: choice
-        options: [check, commission]
+        options: [check, commission, routing-check, routing-approve, routing-repair-bindings, routing-repair-admission]
         default: check
         required: true
+      source_run_id:
+        description: "Admission only: successful offline source artifact run ID for this exact PROD commit"
+        required: false
+      confirmation:
+        description: "Admission commission only: COMMISSION OPENCLOUD PROD ADMISSION"
+        required: false
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: opencloud-prod-deployment
   cancel-in-progress: false
 jobs:
-  registration:
+  admission:
     if: github.ref == 'refs/heads/prod'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    environment: production
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '22.12.0' }
       - run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
-      - name: Inspect and configure PROD identity authority
+      - name: Test admission-only scope and diagnostics
+        if: inputs.mode == 'check' || inputs.mode == 'commission'
+        run: node --test scripts/opencloud/prod-commission.test.mjs scripts/opencloud/deployment.test.mjs
+      - name: Bind artifacts to this exact source commit
+        if: inputs.mode == 'check' || inputs.mode == 'commission'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = await github.rest.actions.getWorkflowRun({owner: context.repo.owner, repo: context.repo.repo, run_id: Number('${{ inputs.source_run_id }}')});
+            if (run.data.head_sha !== context.sha || run.data.conclusion !== 'success' || run.data.path !== '.github/workflows/opencloud-prod-source-build.yml') {
+              core.setFailed('Source run must be the successful offline source build for this exact prod commit');
+            }
+      - name: Download the reviewed source-run artifacts
+        if: inputs.mode == 'check' || inputs.mode == 'commission'
+        uses: actions/download-artifact@v4
+        with:
+          name: opencloud-prod-backend-source-build
+          path: deploy/opencloud/work/prod-candidate
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+      - name: Verify artifact source and commissioning policy
+        if: inputs.mode == 'check' || inputs.mode == 'commission'
+        env:
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          MODE: ${{ inputs.mode }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test -n "$SOURCE_RUN_ID"
+          test "$MODE" = check || test "$CONFIRMATION" = 'COMMISSION OPENCLOUD PROD ADMISSION'
+          node --input-type=module -e 'import fs from "node:fs"; const m=JSON.parse(fs.readFileSync("deploy/opencloud/work/prod-candidate/manifest.json")); if(m.environment!=="opencloud-prod"||m.applicationKey!=="ignite_prod_v2"||m.accountProtectionBuild.mode!=="existing-accounts-admission-only"||m.canisters.length!==32||m.restrictions.reinstall||m.restrictions.createCanisters)throw Error("Wrong reviewed artifact");'
+      - name: Inspect, commission or use existing routing controls
         env:
           PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
           PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
           ICP_HOME: ${{ runner.temp }}/opencloud-prod-commission
           GOVERNOR_PEM_FILE: ${{ runner.temp }}/opencloud-prod-commission/governor.pem
+          CHECK_REPORT_DIR: ${{ runner.temp }}/opencloud-prod-admission-report
           MODE: ${{ inputs.mode }}
+          CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
           umask 077
           mkdir -p "$ICP_HOME"
           trap 'rm -rf "$ICP_HOME"' EXIT
           test -n "$PROD_GOVERNOR_PEM_ENC" && test -n "$PROD_GOVERNOR_PASSPHRASE"
-          npm install -g @icp-sdk/icp-cli@1.7.0 --no-audit --no-fund
           printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$GOVERNOR_PEM_FILE.enc"
           printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$GOVERNOR_PEM_FILE.pass"
           openssl enc -d -aes-256-cbc -pbkdf2 -in "$GOVERNOR_PEM_FILE.enc" -out "$GOVERNOR_PEM_FILE" -pass file:"$GOVERNOR_PEM_FILE.pass"
           rm -f "$GOVERNOR_PEM_FILE.enc" "$GOVERNOR_PEM_FILE.pass"
           unset PROD_GOVERNOR_PEM_ENC PROD_GOVERNOR_PASSPHRASE
-          icp identity import --from-pem "$GOVERNOR_PEM_FILE" --storage plaintext opencloud-governor
-          rm -f "$GOVERNOR_PEM_FILE"
-          node scripts/opencloud/prod-commission.mjs "$MODE"
+          if [[ "$MODE" == routing-* ]]; then
+            npm install -g @icp-sdk/icp-cli@1.7.0 --no-audit --no-fund
+            icp identity import --from-pem "$GOVERNOR_PEM_FILE" --storage plaintext opencloud-governor
+            rm -f "$GOVERNOR_PEM_FILE"
+            npx --yes tsx@4 scripts/opencloud/prod-routing-approval.mjs "${MODE#routing-}"
+          else
+            node scripts/opencloud/prod-commission.mjs deploy/opencloud/work/prod-candidate "$MODE"
+          fi
+      - name: Save sanitized admission evidence
+        if: always() && (inputs.mode == 'check' || inputs.mode == 'commission')
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencloud-prod-admission-${{ inputs.mode }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/opencloud-prod-admission-report/*.json
+          if-no-files-found: ignore
+          retention-days: 30

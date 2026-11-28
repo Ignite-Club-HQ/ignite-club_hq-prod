@@ -230,7 +230,7 @@ export function accountProtectionBuild(config) {
     const named = inventory(config).filter(r => r.service !== 'frontend').map(r => `${r.name}=${r.id}`);
     const ready = !!config.controllers.governor && !!config.apiHost;
     return { service: 'identity_access', mode: 'existing-accounts-admission-only', ready,
-      compileTimeEnv: { IGNITE_OPENCLOUD_PROD_ADMISSION: ready ? [config.shared.identity_access, config.controllers.governor, config.apiHost, ...named].join('\n') : null },
+      compileTimeEnv: { IGNITE_OPENCLOUD_ADMISSION_ONLY: '1', IGNITE_OPENCLOUD_PROD_ADMISSION: ready ? [config.shared.identity_access, config.controllers.governor, config.apiHost, ...named].join('\n') : null },
       witnessRequired: false, approverKeyRequired: false, globalErasureEnabled: false, recoveryEnabled: false,
       owner: 'Existing PROD governor commissions exact live modules and closed registry; existing accounts and PII are preserved' };
   }
@@ -240,7 +240,7 @@ export function accountProtectionBuild(config) {
     const ready = !!config.controllers.governor && !!config.apiHost;
     return { service: 'identity_access', mode: 'fresh-install-admission-only', ready,
       compileTimeEnv: { IGNITE_OPENCLOUD_DEV_FIRST_INSTALL: ready ? [config.shared.identity_access, config.controllers.governor, config.apiHost, ...named].join('\n') : null,
-        IGNITE_OPENCLOUD_DEV_ADMISSION_ONLY: '1' },
+        IGNITE_OPENCLOUD_DEV_ADMISSION_ONLY: '1', IGNITE_OPENCLOUD_ADMISSION_ONLY: '1' },
       witnessRequired: false, approverKeyRequired: false, globalErasureEnabled: false, recoveryEnabled: false,
       owner: 'Existing DEV governor commissions install-only inventory; empty witness and encrypted signer remain untouched' };
   }
@@ -381,8 +381,8 @@ function prepareOffline(config, peer, output) {
   const text = read(source);
   if (text.split(marker).length !== 2) throw Error('Fresh engine source sentinel drift');
   writeFileSync(source, text.replace(marker, 'let freshEngineBuild = true; // IGNITE_FRESH_ENGINE_BUILD'));
-  if (freshDev(config)) {
-    // Immutable admission-only modes in these DEV artifacts: clearing runtime
+  if (freshDev(config) || prodAdmission(config)) {
+    // Immutable environment-specific admission-only modes in staged artifacts: clearing runtime
     // settings or restoring old environment values cannot turn protection off.
     principal(config.shared.identity_access);
     for (const service of GROUP_BUILD_SERVICES.filter(s=>!RUST.has(s))) {
@@ -390,12 +390,12 @@ function prepareOffline(config, peer, output) {
       const before=read(file);
       const mode=/transient let accountProtectionMode = AccountProtection\.mode\(accountRehearsalEnabled,\s*Runtime\.envVar<system>\("IGNITE_ACCOUNT_ADMISSION_RELEASE"\) == \?"1",\s*Runtime\.envVar<system>\("IGNITE_ACCOUNT_REMOVAL_RELEASE"\) == \?"1"\);/g;
       const authority='Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")';
-      if ([...before.matchAll(mode)].length!==1 || before.split(authority).length!==2) throw Error(`Fresh DEV security source drift: ${service}`);
-      let after=before.replace(mode,'transient let accountProtectionMode : AccountProtection.Mode = #ProductionAdmission; // immutable fresh DEV build')
+      if ([...before.matchAll(mode)].length!==1 || before.split(authority).length!==2) throw Error(`OpenCloud admission security source drift: ${service}`);
+      let after=before.replace('transient let accountRehearsalEnabled = Runtime.envVar<system>("IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL") == ?"1";', 'transient let accountRehearsalEnabled = false; // immutable OpenCloud rehearsal OFF').replace(mode,'transient let accountProtectionMode : AccountProtection.Mode = #ProductionAdmission; // immutable OpenCloud admission-only build')
         .replace(authority,`?"${config.shared.identity_access}"`)
-        .replace('transient let newClubPlacementRequired = Runtime.envVar<system>("IGNITE_NEW_CLUB_PLACEMENT_REQUIRED") == ?"true";',
+        .replace(freshDev(config) ? 'transient let newClubPlacementRequired = Runtime.envVar<system>("IGNITE_NEW_CLUB_PLACEMENT_REQUIRED") == ?"true";' : '__NO_PROD_PLACEMENT_REWRITE__',
           'transient let newClubPlacementRequired = true; // immutable fresh DEV placement required');
-      if(service==='pii_access_control') {
+      if(freshDev(config) && service==='pii_access_control') {
         after=after.replace('Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_IDENTITY")',`?"${config.shared.identity_access}"`)
           .replace('Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") == ?"1"','false')
           .replace('Runtime.envVar<system>("IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE") == ?"1"','true')

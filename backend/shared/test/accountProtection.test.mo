@@ -21,3 +21,12 @@ let invalid = Protection.configuration(#Invalid, ?identity, receiver);
 assert invalid.admission_required and not invalid.removal_enabled;
 let legacy = Protection.configuration(#Legacy, null, receiver);
 assert not legacy.admission_required and not legacy.removal_enabled and not legacy.rehearsal;
+// DEV and PROD admission-only guards keep the same modes but distinct trust.
+let devIdentity = Principal.fromText("h5lly-yyaaa-aaac5-aadqq-cai");
+let prodIdentity = Principal.fromText("fyeax-jqaaa-aaac5-aaeaq-cai");
+assert devIdentity != prodIdentity;
+for (authority in [devIdentity, prodIdentity].values()) {
+  let admission = Protection.configuration(#ProductionAdmission, ?authority, receiver);
+  assert admission.authority == ?authority;
+  assert admission.admission_required and not admission.removal_enabled and not admission.rehearsal;
+};
