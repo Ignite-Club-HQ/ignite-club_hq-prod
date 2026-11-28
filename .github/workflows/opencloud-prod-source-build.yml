@@ -1,12 +1,14 @@
 name: "[PROD] OpenCloud offline source artifacts"
 on:
+  pull_request:
+    branches: [prod]
   workflow_dispatch:
   workflow_call:
 permissions:
   contents: read
 jobs:
   build:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/prod'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/prod' || (github.event_name == 'pull_request' && github.base_ref == 'prod')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -24,6 +26,7 @@ jobs:
       - name: Test and stage existing PROD source
         run: |
           set -euo pipefail
+          cargo test -p identity_access --locked
           node --test scripts/opencloud/*.test.mjs frontend/scripts/prepare-canister-dist-opencloud.test.mjs
           node scripts/opencloud/deployment.mjs prepare-prod deploy/opencloud/prod.json deploy/opencloud/dev.json deploy/opencloud/work/prod-candidate
       - name: Compile staged backend only

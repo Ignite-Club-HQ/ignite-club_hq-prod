@@ -83,6 +83,18 @@ pub fn verify_fresh_dev(expected:&Expectation, observed:&RemovalInventory, befor
     if expected.inventory.groups.binding.deployment_id!="opencloud-dev" {return Err("Fresh DEV only".into());}
     verify_mode(expected,observed,before,after,configurations,true)
 }
+/// OpenCloud cannot expose mainnet management history or the independent
+/// mainnet recovery witness. Admission-only commissioning instead binds the
+/// immutable deployment inventory and the deployment-time canister_status
+/// hash/controller checks. It never accepts lifecycle rows fabricated locally.
+pub fn verify_engine_admission(expected:&Expectation, observed:&RemovalInventory, before:&[Lifecycle], after:&[Lifecycle],
+    configurations:&[ReceiverConfiguration]) -> Result<Draft,String> {
+    if !crate::engine_scope::ENGINE_DEPLOYMENTS.contains(&expected.inventory.groups.binding.deployment_id.as_str()) {
+        return Err("OpenCloud admission-only deployment required".into());
+    }
+    if !before.is_empty() || !after.is_empty() {return Err("OpenCloud admission cannot consume management history".into());}
+    verify_mode(expected,observed,before,after,configurations,true)
+}
 fn verify_mode(expected:&Expectation, observed:&RemovalInventory, before:&[Lifecycle], after:&[Lifecycle],
     configurations:&[ReceiverConfiguration],fresh:bool) -> Result<Draft,String> {
     let (readers,targets)=scope(expected)?;
@@ -159,6 +171,22 @@ fn verify_mode(expected:&Expectation, observed:&RemovalInventory, before:&[Lifec
         let(e,l,c)=fixture();let mut bad=e.clone();bad.inventory.groups.binding.deployment_id="mainnet".into();assert!(scope(&bad).is_err());
         let mut bad=e.clone();bad.modules.push(bad.modules[0].clone());assert!(scope(&bad).is_err());
         let mut c=c; c[0].removal_enabled=false;assert!(verify(&e,&e.inventory,&l,&l,&c).is_err());
+    }
+    #[test] fn opencloud_prod_admission_preserves_existing_account_scope_without_management_history(){
+        crate::TEST_CLOUD_ENGINE.with(|v|v.set(true));
+        let (mut e,l,mut c)=fixture();
+        let b=&mut e.inventory.groups.binding;b.target_alias="opencloud-prod".into();b.deployment_id="opencloud-prod".into();b.network_kind="cloud_engine".into();b.host="https://engine.example".into();
+        for g in &mut e.inventory.groups.snapshot.groups {g.target_alias=b.target_alias.clone();}
+        for p in &mut e.inventory.groups.snapshot.placements {p.deployment_id=b.deployment_id.clone();p.host=b.host.clone();p.network_kind=b.network_kind.clone();}
+        for config in &mut c {config.removal_enabled=false;}
+        // Accounts/profiles are deliberately absent from this inventory: the
+        // admission receipt neither requires empty state nor rewrites members.
+        assert!(verify_engine_admission(&e,&e.inventory,&[],&[],&c).is_ok());
+        assert!(verify_engine_admission(&e,&e.inventory,&l,&l,&c).is_err());
+        c[0].removal_enabled=true;assert!(verify_engine_admission(&e,&e.inventory,&[],&[],&c).is_err());
+        c[0].removal_enabled=false;e.inventory.groups.binding.deployment_id="prod".into();
+        assert!(verify_engine_admission(&e,&e.inventory,&[],&[],&c).is_err());
+        crate::TEST_CLOUD_ENGINE.with(|v|v.set(false));
     }
     #[test] fn fresh_dev_requires_admission_only_and_never_weakens_prod(){
         crate::TEST_CLOUD_ENGINE.with(|v|v.set(true));

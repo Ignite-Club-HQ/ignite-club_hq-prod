@@ -252,6 +252,17 @@ type MemoryStats = record {
   stable_bytes : nat;
   heap_bytes : nat;
 };
+type OpenCloudAccountNameDiagnostic = record {
+  account_id : text;
+  presence : vec OpenCloudNamePresence;
+  opaque_name_reference : bool;
+  profile_present : bool;
+};
+type OpenCloudNamePresence = record {
+  subject : principal;
+  authority : principal;
+  valid_owned_ciphertext : bool;
+};
 type OriginalNameAuthority = variant {
   NoName;
   Existing : record { subject : principal; sink : principal };
@@ -450,26 +461,30 @@ type Result_33 = variant { Ok : MemberAdmission; Err : text };
 type Result_34 = variant { Ok : DirectoryConfigurationReadback; Err : text };
 type Result_35 = variant { Ok : ReleasedReply; Err : text };
 type Result_36 = variant { Ok : Reply; Err : text };
-type Result_37 = variant { Ok : vec PrincipalEligibility; Err : text };
-type Result_38 = variant { Ok : PrincipalEligibility; Err : text };
-type Result_39 = variant { Ok : AccountInventoryPage; Err : text };
+type Result_37 = variant {
+  Ok : vec OpenCloudAccountNameDiagnostic;
+  Err : text;
+};
+type Result_38 = variant { Ok : vec PrincipalEligibility; Err : text };
+type Result_39 = variant { Ok : PrincipalEligibility; Err : text };
 type Result_4 = variant { Ok : OwnershipProgress; Err : text };
-type Result_40 = variant { Ok : opt ApprovalReceipt; Err : text };
-type Result_41 = variant { Ok : WriterReceipt; Err : text };
-type Result_42 = variant { Ok : RemovalInventory; Err : text };
-type Result_43 = variant { Ok : State_1; Err : text };
-type Result_44 = variant { Ok : ProductionCommissioningEvidence; Err : text };
-type Result_45 = variant { Ok : Lifecycle; Err : text };
-type Result_46 = variant { Ok : RemovalHistoryManifest; Err : text };
-type Result_47 = variant { Ok : RemovalHistoryPage; Err : text };
-type Result_48 = variant { Ok : principal; Err : text };
-type Result_49 = variant { Ok : DirectoryCleanup; Err : text };
+type Result_40 = variant { Ok : AccountInventoryPage; Err : text };
+type Result_41 = variant { Ok : opt ApprovalReceipt; Err : text };
+type Result_42 = variant { Ok : WriterReceipt; Err : text };
+type Result_43 = variant { Ok : RemovalInventory; Err : text };
+type Result_44 = variant { Ok : State_1; Err : text };
+type Result_45 = variant { Ok : ProductionCommissioningEvidence; Err : text };
+type Result_46 = variant { Ok : Lifecycle; Err : text };
+type Result_47 = variant { Ok : RemovalHistoryManifest; Err : text };
+type Result_48 = variant { Ok : RemovalHistoryPage; Err : text };
+type Result_49 = variant { Ok : principal; Err : text };
 type Result_5 = variant { Ok : Progress; Err : text };
-type Result_50 = variant { Ok : nat16; Err : text };
-type Result_51 = variant { Ok : Entitlement; Err : text };
-type Result_52 = variant { Ok : PrivacyConsent; Err : text };
-type Result_53 = variant { Ok : TermsAcceptance; Err : text };
-type Result_54 = variant { Ok : vec Receipt; Err : text };
+type Result_50 = variant { Ok : DirectoryCleanup; Err : text };
+type Result_51 = variant { Ok : nat16; Err : text };
+type Result_52 = variant { Ok : Entitlement; Err : text };
+type Result_53 = variant { Ok : PrivacyConsent; Err : text };
+type Result_54 = variant { Ok : TermsAcceptance; Err : text };
+type Result_55 = variant { Ok : vec Receipt; Err : text };
 type Result_6 = variant { Ok : WriteWindow; Err : text };
 type Result_7 = variant { Ok : CleanupAccount; Err : text };
 type Result_8 = variant { Ok : nat64; Err : text };
@@ -646,6 +661,13 @@ service : (Init) -> {
   check_membership_directory_acceptance : () -> (Result_14);
   close_private_name_write_window : (text) -> (Result_6);
   commission_fresh_opencloud_dev : (Expectation) -> (Result_15);
+  // Existing-account PROD commissioning is deliberately narrower than the
+  // mainnet signed inventory protocol: it releases ordinary admission only.
+  // The governor, immutable 31-backend build pins, two identical closed live
+  // registry inventories and every authenticated receiver are still required.
+  // Accounts, profiles, roles, aliases and PII are never reset or inspected as
+  // commissioning evidence, so the three existing accounts remain intact.
+  commission_opencloud_prod_admission : (Expectation) -> (Result_15);
   commit_account_deletion : (text) -> (Result_2);
   commit_private_name_suspension : (text) -> (Result_11);
   // Terminal fencing evidence only. Retain all data, intent, subject fences,
@@ -758,54 +780,60 @@ service : (Init) -> {
   // accepts another account ID or aliases. Source/ownership and fresh account
   // checks precede every persisted page/replay, with no intervening await.
   read_my_membership_directory_diagnostic : (nat64, opt Token) -> (Result_36);
+  read_opencloud_prod_admission_commissioning : () -> (Result_15);
+  // Governor-only, bounded PROD diagnostics for incomplete sign-ups. It returns
+  // no plaintext, ciphertext, vetKey or avatar and never registers a profile.
+  // Both PII stores are checked so a missing profile cannot be mistaken for a
+  // missing name record; `false` means no valid owned record was found there.
+  read_opencloud_prod_name_diagnostics : (vec text) -> (Result_37);
   // Only the pinned router may check a human before owner-test creation. This
   // narrow predicate neither registers a reader nor releases global admission.
   read_owner_test_creation_eligible : (principal) -> (Result_13);
-  read_principal_eligibilities : (vec principal) -> (Result_37);
+  read_principal_eligibilities : (vec principal) -> (Result_38);
   // Consensus reads; never create an account or grant resource permissions.
   // Versions are account-scoped evidence, NOT globally atomic access tokens.
-  read_principal_eligibility : (principal) -> (Result_38);
+  read_principal_eligibility : (principal) -> (Result_39);
   read_private_name_account_inventory : (
       text,
       Request_1,
       opt AccountInventoryCursor,
       nat16,
-    ) -> (Result_39);
+    ) -> (Result_40);
   read_private_name_cleanup_account : (principal) -> (Result_7);
-  read_private_name_conversion_approval : (text) -> (Result_40);
-  read_private_name_preparation : (Request_1) -> (Result_41);
-  read_private_name_preparation_topology : () -> (Result_42);
+  read_private_name_conversion_approval : (text) -> (Result_41);
+  read_private_name_preparation : (Request_1) -> (Result_42);
+  read_private_name_preparation_topology : () -> (Result_43);
   read_private_name_source_digest : (text) -> (Result_27);
   read_private_name_suspension : (text) -> (Result_11);
   read_private_name_write_window : (text) -> (Result_6);
-  read_private_name_writer_window : (Request_1) -> (Result_41);
+  read_private_name_writer_window : (Request_1) -> (Result_42);
   read_private_profile_name_authorization : (
       principal,
       vec principal,
       Scope,
     ) -> (Result_29);
-  read_production_account_authorization : () -> (Result_43);
+  read_production_account_authorization : () -> (Result_44);
   read_production_account_history_revision : () -> (Result_8);
   read_production_account_removal_generation : () -> (Result_8);
   read_production_account_runtime_version : () -> (Result_8);
   // Bounded, governor-only commissioning evidence; never grants recovery or reads.
-  read_production_commissioning_evidence : () -> (Result_44);
+  read_production_commissioning_evidence : () -> (Result_45);
   // Governor-only management lifecycle read; no control mutation or user data.
-  read_production_receiver_lifecycle : (principal) -> (Result_45);
+  read_production_receiver_lifecycle : (principal) -> (Result_46);
   // Local-only consensus recovery evidence. Reader lists/club receipts are NOT
   // a complete deployment inventory or an in-flight drain acknowledgement.
-  read_removal_history_manifest : () -> (Result_46);
+  read_removal_history_manifest : () -> (Result_47);
   read_removal_history_page : (nat64, RemovalHistoryCursor, nat16) -> (
-      Result_47,
+      Result_48,
     );
-  read_removal_inventory_evidence : (nat64) -> (Result_42);
+  read_removal_inventory_evidence : (nat64) -> (Result_43);
   // Authenticated consensus capability: returns only the operator-pinned own-name
   // authority, never a browser-selected sink or authorization for other people.
-  read_secure_name_authority : () -> (Result_48);
+  read_secure_name_authority : () -> (Result_49);
   // Subject-bound consensus ownership read; never implicitly registers an account.
   read_service_account : (principal) -> (Result);
-  reclaim_membership_directory : () -> (Result_49);
-  reconcile_pending_recovery_records : (nat16) -> (Result_50);
+  reclaim_membership_directory : () -> (Result_50);
+  reconcile_pending_recovery_records : (nat16) -> (Result_51);
   // Caller-authenticated: redeems a signed attestation minted by the
   // session-free IAP verification endpoint after it confirms an Apple
   // receipt/transaction with the App Store. The endpoint has no Internet
@@ -817,7 +845,7 @@ service : (Init) -> {
   // verified before the entitlement is written. A different principal cannot
   // replay the signature because it is bound to the principal that produced
   // it (changing the principal changes the signed message).
-  redeem_entitlement : (text, text, nat64, text, text) -> (Result_51);
+  redeem_entitlement : (text, text, nat64, text, text) -> (Result_52);
   register_account : () -> (Result);
   // Governor-only: moves one user's sign-in ID (`old`) to a new one (`new`).
   // Everything here except entitlements and link challenges is keyed by
@@ -877,12 +905,12 @@ service : (Init) -> {
   // Governor- or verifier-only: records a Pro entitlement for an arbitrary
   // principal. Used by a trusted server-side writer; client-submitted IAP
   // receipts instead go through `redeem_entitlement` below.
-  set_entitlement : (principal, text, text, nat64, text) -> (Result_51);
+  set_entitlement : (principal, text, text, nat64, text) -> (Result_52);
   set_exclusion : (text, text, opt text) -> (Result_2);
   set_exclusion_scoped : (text, opt text, text, opt text) -> (Result_2);
   set_family : (text, text) -> (Result_2);
   set_group_inventory_binding : (Binding, nat64) -> (Result_2);
-  set_privacy_consent : (text, text, bool) -> (Result_52);
+  set_privacy_consent : (text, text, bool) -> (Result_53);
   set_profile : (text, opt text) -> (Result_18);
   set_removal_supplemental_inventory : (vec Supplemental, nat64) -> (Result_2);
   set_service_authorities : (vec principal) -> (Result_2);
@@ -890,7 +918,7 @@ service : (Init) -> {
   // version. Monotonic per-account: a version lower than (or equal to) the
   // caller's currently recorded version is rejected, so a stale client can
   // never roll the recorded acceptance backwards.
-  set_terms_acceptance : (nat32) -> (Result_53);
+  set_terms_acceptance : (nat32) -> (Result_54);
   // Sets (or clears) the caller's UI theme preference, so it follows the
   // account across devices. Creates a blank profile entry if the caller has
   // never called `set_profile`.
@@ -898,7 +926,7 @@ service : (Init) -> {
   settle_account_deletion : (text) -> (Result_2);
   // Fresh, authenticated full-inventory seal verification. This does not erase
   // data, release registry locks, restore histories or activate a group.
-  verify_account_removal_seals : (text) -> (Result_54);
+  verify_account_removal_seals : (text) -> (Result_55);
   verify_private_name_preparation : (text) -> (Result_6);
   whoami : () -> (Result) query;
   write_approved_private_name : (text, text, opt text) -> (Result_2);
