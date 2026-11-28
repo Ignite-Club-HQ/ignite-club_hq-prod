@@ -55,12 +55,19 @@ if(process.argv[3]==='check'){
  const Profile=I.Record({display_name:I.Text});
  const Row=I.Record({account_id:I.Text,principals:I.Vec(P),profile:I.Opt(Profile),status:I.Variant({Active:I.Null,Suspended:I.Null})});
  const Page=I.Variant({Ok:I.Record({items:I.Vec(Row),next:I.Opt(I.Text)}),Err:I.Text});
- const reader=Actor.createActor(()=>I.Service({read_group_opening_configuration:I.Func([],[R],[]),list_admin_accounts:I.Func([I.Text,I.Opt(I.Text),I.Nat16],[Page],['query'])}),{agent,canisterId:identityId});
+ const reader=Actor.createActor(()=>I.Service({read_group_opening_configuration:I.Func([],[R],[]),list_admin_accounts:I.Func([I.Text,I.Opt(I.Text),I.Nat16],[Page],[])}),{agent,canisterId:identityId});
  try{
   const result=await reader.read_group_opening_configuration();
   if('Err' in result)console.log(JSON.stringify({identityConfigurationError:result.Err}));
   else {const rows=result.Ok;const readers=rows.filter(([k])=>k==='eligibility_authority').map(([,v])=>v);console.log(JSON.stringify({identityConfiguration:rows.filter(([k])=>k!=='eligibility_authority'),readerCount:readers.length,piiReaders:targets.filter(t=>t[3]).map(([name,id])=>({name,authorized:readers.includes(id)}))}));}
  }catch(e){console.log('Identity configuration read failed: '+e.message);}
+ try{
+  const RegistryPage=I.Variant({Ok:I.Record({revision:I.Nat64,groups:I.Vec(I.Record({id:I.Text,accepting:I.Bool})),next_cursor:I.Opt(I.Text)}),Err:I.Text});
+  const router=Actor.createActor(()=>I.Service({read_group_registry_page:I.Func([I.Text,I.Opt(I.Nat64),I.Opt(I.Text),I.Nat32],[RegistryPage],[])}),{agent,canisterId:config.shared.shard_router});
+  const result=await router.read_group_registry_page(config.environment,[],[],64);
+  if('Err' in result)console.log(JSON.stringify({registryError:result.Err}));
+  else console.log(JSON.stringify({registryRevision:String(result.Ok.revision),groups:result.Ok.groups,complete:result.Ok.next_cursor.length===0}));
+ }catch(e){console.log('Registry read failed: '+e.message);}
  try{
   let cursor=[],pages=0;const counts={total:0,missingProfile:0,emptyName:0,encryptedReference:0,referenceAliasMismatch:0,otherName:0};
   do{const result=await reader.list_admin_accounts('',cursor,100);if('Err' in result)throw Error(result.Err);
