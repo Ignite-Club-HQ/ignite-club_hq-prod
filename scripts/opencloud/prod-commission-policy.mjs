@@ -18,7 +18,7 @@ export function admissionEnvironment(current,identity) {
 }
 export function assertAdmissionEnvironment(current,identity) {
   const expected=admissionEnvironment(current,identity);
-  const canonical=items=>JSON.stringify([...items].sort((a,b)=>a.name.localeCompare(b.name)));
+  const canonical=items=>JSON.stringify(items.map(({name,value})=>[name,value]).sort((a,b)=>a[0].localeCompare(b[0])));
   if(canonical(current)!==canonical(expected))throw Error('Reader admission readback mismatch');
 }
 export function planDigest({sourceCommit,registryRevision,modules,targets}) {
