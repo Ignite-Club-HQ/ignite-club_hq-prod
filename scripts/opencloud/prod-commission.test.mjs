@@ -125,3 +125,13 @@ test('reviewed plan binds source/revision/modules and exact admission confirmati
   const targets=memberReaders(inventory(config)).map(r=>({...r,environment:[],identity:config.shared.identity_access})),input={sourceCommit:'a'.repeat(40),registryRevision:4n,modules:[['id','b'.repeat(64)]],targets};
   assert.match(planDigest(input),/^[a-f0-9]{64}$/);assert.notEqual(planDigest(input),planDigest({...input,registryRevision:5n}));assert.equal(ADMISSION_CONFIRMATION,'COMMISSION OPENCLOUD PROD ADMISSION');
 });
+
+ test('admission readback ignores Candid record property order but rejects changed values',()=>{
+  const id=config.shared.identity_access;
+  const expected=admissionEnvironment([{name:'VETKD_KEY_NAME',value:'key_1'}],id);
+  const E=I.Vec(I.Record({name:I.Text,value:I.Text}));
+  const [decoded]=I.decode([E],I.encode([E],[expected]));
+  assert.doesNotThrow(()=>assertAdmissionEnvironment(decoded,id));
+  assert.doesNotThrow(()=>assertAdmissionEnvironment(expected.map(({name,value})=>({value,name})).reverse(),id));
+  assert.throws(()=>assertAdmissionEnvironment(expected.map(x=>x.name==='IGNITE_ACCOUNT_ADMISSION_RELEASE'?{...x,value:'0'}:x),id),/readback mismatch/);
+});
