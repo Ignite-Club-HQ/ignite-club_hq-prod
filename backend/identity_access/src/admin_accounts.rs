@@ -41,10 +41,14 @@ pub fn page(core: &CoreState, query: String, after: Option<String>, limit: u16) 
     let mut next = None;
     for (index, account) in accounts.iter().take(1000).enumerate() {
         let profile = get_profile_entry(&account.id);
+        // A governor-only account is infrastructure, not an application user.
+        // Preserve linked human accounts and governors with actual profiles.
+        let infrastructure_only = account.principals.as_slice() == [core.governor]
+            && profile.is_none();
         let matches = search.is_empty() || account.id.to_lowercase().contains(&search)
             || account.principals.iter().any(|p| p.to_text().contains(&search))
             || profile.as_ref().is_some_and(|p| p.display_name.to_lowercase().contains(&search));
-        if matches { items.push(AdminAccountRow {
+        if matches && !infrastructure_only { items.push(AdminAccountRow {
             roles: core.roles.iter().filter(|r| r.account_id == account.id).cloned().collect(),
             account_id: account.id.clone(), principals: account.principals.clone(), status: account.status.clone(), profile,
         }); }
@@ -81,6 +85,18 @@ mod tests {
         account.status = AccountStatus::Suspended;
         put_account(&account);
         assert!(authorize(&core, admin).is_err());
+    }
+    #[test]
+    fn admin_directory_excludes_profileless_governor_but_keeps_other_users() {
+        let governor = Principal::self_authenticating(b"directory-infrastructure-governor");
+        let user = Principal::self_authenticating(b"directory-incomplete-user");
+        let core = empty_core_state(governor);
+        for (id, principal) in [("infra-filter-a", governor), ("infra-filter-b", user)] {
+            put_account(&Account { id: id.into(), principals: vec![principal], version: 1, status: AccountStatus::Active });
+        }
+        let result = page(&core, "infra-filter".into(), None, 100).unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].account_id, "infra-filter-b");
     }
     #[test]
     fn admin_directory_pages_actual_status_and_only_target_roles() {
