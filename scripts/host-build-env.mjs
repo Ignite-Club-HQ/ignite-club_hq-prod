@@ -57,6 +57,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (env.IGNITE_ICP_ENV === 'prod') await verifyProdPublication(env, { waitMs: 12 * 60 * 1000 });
     if (env.IGNITE_ICP_ENV === 'prod' && env.IGNITE_PROD_PUBLICATION_TARGET === 'opencloud') {
       const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+      const canonical = JSON.parse(readFileSync(path.join(root, 'deploy/opencloud/prod.json'), 'utf8'));
+      const edgeSource = readFileSync(path.join(root, 'frontend/netlify/edge-functions/ii-origin.ts'), 'utf8');
+      const edgePin = /const PROD_FRONTEND_CANISTER_ID = '([^']+)'/.exec(edgeSource)?.[1];
+      if (!edgePin || edgePin !== canonical.shared.frontend) throw new Error('PROD Edge Function frontend pin mismatch; publication must stop');
       const workRoot = path.join(root, 'deploy/opencloud/work');
       mkdirSync(workRoot, { recursive: true });
       const work = mkdtempSync(path.join(workRoot, 'netlify-prod-'));
