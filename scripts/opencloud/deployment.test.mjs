@@ -91,27 +91,6 @@ test('fresh DEV uses 32 targets without witness/key, with erasure and recovery u
   assert.equal(m.canisters.find(r=>r.name==='g1_club_domain').settings.environmentVariables.IGNITE_NEW_CLUB_PLACEMENT_GROUP,'base');
   assert.equal(m.postInstallCalls.filter(r=>r.method==='link_display_identity_authority').length,2);
 });
-test('existing-account PROD admission uses exact pins, 24 readers and no witness or recovery',()=>{
-  const c=source('prod'),m=manifest(c,source('dev'),undefined,true);
-  assert.equal(m.accountProtectionBuild.mode,'existing-accounts-admission-only');
-  assert.equal(m.accountProtectionBuild.ready,true);
-  assert.equal(m.accountProtectionBuild.witnessRequired,false);
-  assert.equal(m.accountProtectionBuild.approverKeyRequired,false);
-  assert.equal(m.accountProtectionBuild.globalErasureEnabled,false);
-  assert.equal(m.accountProtectionBuild.recoveryEnabled,false);
-  assert.ok(m.accountProtectionBuild.compileTimeEnv.IGNITE_OPENCLOUD_PROD_ADMISSION.includes(c.shared.identity_access));
-  assert.equal(Object.keys(m.accountProtectionBuild.compileTimeEnv).some(k=>/WITNESS|APPROVER|DEV_FIRST/.test(k)),false);
-  assert.equal(m.sharedCommissioning.some(r=>r.method==='commission_opencloud_prod_admission'),true);
-  assert.equal(m.sharedCommissioning.some(r=>r.method==='provision_production_account_inventory'),false);
-  const readers=m.canisters.filter(r=>r.settings.environmentVariables.IGNITE_ACCOUNT_ADMISSION_RELEASE==='1');
-  assert.equal(readers.length,24);
-  assert.equal(new Set(readers.map(r=>r.id)).size,24);
-  for(const r of readers){
-    assert.equal(r.settings.environmentVariables.IGNITE_ACCOUNT_SERVICE_IDENTITY,c.shared.identity_access);
-    assert.notEqual(r.settings.environmentVariables.IGNITE_ACCOUNT_REMOVAL_RELEASE,'1');
-    assert.notEqual(r.settings.environmentVariables.IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL,'1');
-  }
-});
 test('first-install mode never enables PROD or extra canisters',()=>{
   const c=source('prod');c.commissioningMode='fresh-install-admission-only';assert.throws(()=>manifest(c,undefined,undefined,true),/DEV-only/);
   const d=ready();d.groups.push({...d.groups[1],id:'g3',canisterIds:Object.fromEntries(Object.keys(d.groups[1].canisterIds).map((s,i)=>[s,p(120+i)]))});

@@ -129,9 +129,6 @@ const MEM_RECOVERY_PENDING: u8 = 36;
 const MEM_RECOVERY_ACKS: u8 = 37;
 const MEM_PRODUCTION_INVENTORY_RECEIPT: u8 = 38;
 const MEM_FRESH_DEV: u8 = 39;
-// Existing-account OpenCloud PROD admission receipt; additive and disjoint
-// from fresh DEV, signed recovery, accounts, profiles and encrypted PII.
-const MEM_OPENCLOUD_PROD_ADMISSION: u8 = 40;
 // Directory-specific additive storage: never share lifecycle/admission maps.
 const MEM_DIRECTORY_POOL_META:u8=18;
 const MEM_DIRECTORY_POOL_BLOCKS:u8=19;
@@ -666,8 +663,6 @@ thread_local! {
         RefCell::new(StableCell::init(memory(MEM_PRODUCTION_INVENTORY_RECEIPT),Vec::new()));
     static FRESH_DEV: RefCell<StableCell<Vec<u8>,Memory>> =
         RefCell::new(StableCell::init(memory(MEM_FRESH_DEV),Vec::new()));
-    static OPENCLOUD_PROD_ADMISSION: RefCell<StableCell<Vec<u8>,Memory>> =
-        RefCell::new(StableCell::init(memory(MEM_OPENCLOUD_PROD_ADMISSION),Vec::new()));
     static DIRECTORY_CONFIG:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(memory(MEM_DIRECTORY_CONFIG),Vec::new()));
     static DIRECTORY_COORDINATOR:RefCell<membership_coordinator::Coordinator<Memory>>=RefCell::new(
         membership_coordinator::Coordinator::open(memory(MEM_DIRECTORY_COORDINATOR),
@@ -685,9 +680,8 @@ async fn directory_lifecycle(binding:&group_inventory::Binding,sources:&[(String
 }
 async fn directory_lifecycle_checked(binding:&group_inventory::Binding,sources:&[(String,Principal)],recheck:impl Fn()->Outcome<()>)->Outcome<Vec<membership_acceptance::Lifecycle>>{
     if sources.len()>100{return Err("Directory lifecycle budget exceeded".into());}
-    // OpenCloud refuses canister_info; the authenticated deployment runner
-    // verifies every live module hash and controller before commissioning.
-    if engine_admission_build(){recheck()?;return Ok(vec![]);}
+    // OpenCloud DEV refuses canister_info; install-only deployment verifies module hashes instead.
+    if fresh_dev_build(){recheck()?;return Ok(vec![]);}
     let mut targets=vec![ic_cdk::api::canister_self(),binding.registry];targets.extend(sources.iter().map(|(_,p)|*p));
     let mut result=vec![];
     for target in targets{
@@ -737,13 +731,13 @@ async fn configure_membership_directory(binding:group_inventory::Binding,authori
     // application counters or a same-Wasm snapshot cannot replay this pin.
     let lifecycle=directory_lifecycle(&binding,&sources).await?;
     let lifecycle_after=directory_lifecycle(&binding,&sources).await?;
-    membership_acceptance::check_lifecycle_mode(engine_admission_build(),&lifecycle,&lifecycle_after)?;
-    if engine_admission_enabled(){verify_engine_admission_lifecycle(&engine_admission_pin()?.backends).await?;}
+    membership_acceptance::check_lifecycle_mode(fresh_dev_build(),&lifecycle,&lifecycle_after)?;
+    if fresh_dev_enabled(){verify_fresh_dev_lifecycle(&fresh_dev_pin()?.backends).await?;}
     recheck()?;
     let config=match directory_config(){
         Ok(existing)=>{
             if existing.binding!=binding||existing.generation!=generation||existing.inventory_digest!=digest||existing.sources!=sources||!existing.enabled{return Err("Directory replacement requires fenced recovery; not released".into());}
-            membership_acceptance::check_lifecycle_mode(engine_admission_build(),&existing.lifecycle,&lifecycle)?;existing
+            membership_acceptance::check_lifecycle_mode(fresh_dev_build(),&existing.lifecycle,&lifecycle)?;existing
         },
         Err(_)=>membership_runtime::Config{binding,generation,inventory_digest:digest,sources,pending:Default::default(),enabled:true,next_source:0,lifecycle,release:None},
     };
@@ -996,7 +990,7 @@ async fn check_membership_directory_acceptance()->Outcome<DirectoryAcceptanceChe
 async fn verify_directory_snapshot(config:&membership_runtime::Config,recheck:impl Fn()->Outcome<()>)->Outcome<(group_inventory::Snapshot,Vec<(String,u64)>,Vec<(String,Option<Principal>)>)>{
     recheck()?;
     let before=directory_lifecycle_checked(&config.binding,&config.sources,&recheck).await?;
-    membership_acceptance::check_lifecycle_mode(engine_admission_build(),&config.lifecycle,&before)?;
+    membership_acceptance::check_lifecycle_mode(fresh_dev_build(),&config.lifecycle,&before)?;
     recheck()?;
     let registry_before=read_registry_pages(&config.binding,&recheck).await?;
     let photos_before=read_directory_photo_stores(&config.binding,&recheck).await?;
@@ -1018,7 +1012,7 @@ async fn verify_directory_snapshot(config:&membership_runtime::Config,recheck:im
     if photos_before!=photos_after||photos_after.iter().map(|(id,_)|id).collect::<Vec<_>>()!=registry_after.groups.iter().map(|g|&g.id).collect::<Vec<_>>(){return Err("Directory photo-store inventory changed".into());}
     if registry_before!=registry_after{return Err("Directory registry changed during acceptance".into());}
     let after=directory_lifecycle_checked(&config.binding,&config.sources,&recheck).await?;
-    membership_acceptance::check_lifecycle_mode(engine_admission_build(),&config.lifecycle,&after)?;
+    membership_acceptance::check_lifecycle_mode(fresh_dev_build(),&config.lifecycle,&after)?;
     recheck()?;
     let final_sources=DIRECTORY_COORDINATOR.with(|c|{let c=c.borrow();c.accepted_ownership()?;c.sources()})?;
     if expected!=final_sources.iter().map(|s|(s.id.clone(),s.binding.revision)).collect::<Vec<_>>(){return Err("Directory builds changed during acceptance".into());}
@@ -1439,7 +1433,7 @@ async fn collect_production_account_protection_inner(expected:production_account
     if closed {review_closed_production_groups(&binding,&recheck).await?;}
     let lifecycle=async {
         let mut result=Vec::new();
-        for (canister,_) in expected.modules.iter().filter(|_|!engine_admission_build()) {
+        for (canister,_) in expected.modules.iter().filter(|_|!fresh_dev_build()) {
             let info=ic_cdk::management_canister::canister_info(&ic_cdk::management_canister::CanisterInfoArgs {
                 canister_id:*canister,num_requested_changes:Some(0) }).await.map_err(|_|"Production lifecycle unavailable")?;
             recheck()?;
@@ -1476,7 +1470,7 @@ async fn collect_production_account_protection_inner(expected:production_account
         configurations.push(config);
     }
     let mut after=Vec::new();
-    for (canister,_) in expected.modules.iter().filter(|_|!engine_admission_build()) {
+    for (canister,_) in expected.modules.iter().filter(|_|!fresh_dev_build()) {
         let info=ic_cdk::management_canister::canister_info(&ic_cdk::management_canister::CanisterInfoArgs {
             canister_id:*canister,num_requested_changes:Some(0) }).await.map_err(|_|"Production lifecycle unavailable")?;
         recheck()?;
@@ -1486,8 +1480,8 @@ async fn collect_production_account_protection_inner(expected:production_account
     if closed {review_closed_production_groups(&binding,&recheck).await?;}
     recheck()?;
     let observed=prior.ok_or("Production inventory missing")?;
-    if provision && engine_admission_enabled() {
-        production_account_protection::verify_engine_admission(&expected,&observed,&lifecycle,&after,&configurations)
+    if provision && fresh_dev_enabled() {
+        production_account_protection::verify_fresh_dev(&expected,&observed,&lifecycle,&after,&configurations)
     } else {
         production_account_protection::verify(&expected,&observed,&lifecycle,&after,&configurations)
     }
@@ -1501,27 +1495,12 @@ fn fresh_dev_enabled()->bool {option_env!("IGNITE_OPENCLOUD_DEV_FIRST_INSTALL").
 fn fresh_dev_pin()->Outcome<fresh_dev::Pin> {
     fresh_dev::Pin::parse(option_env!("IGNITE_OPENCLOUD_DEV_FIRST_INSTALL").ok_or("Fresh DEV immutable pins unavailable")?)
 }
-fn opencloud_prod_admission_state()->fresh_dev::State {
-    OPENCLOUD_PROD_ADMISSION.with(|m|if m.borrow().get().is_empty(){fresh_dev::State::default()}else{decode(m.borrow().get())})
-}
-/// Exact staged PROD admission-only build. This is not a runtime switch and
-/// cannot be enabled by environment mutation after deployment.
-fn opencloud_prod_admission_build()->bool {option_env!("IGNITE_OPENCLOUD_PROD_ADMISSION").is_some()}
-fn opencloud_prod_admission_enabled()->bool {opencloud_prod_admission_build() || opencloud_prod_admission_state().initialized}
-fn engine_admission_build()->bool {fresh_dev_build() || opencloud_prod_admission_build()}
-fn engine_admission_enabled()->bool {fresh_dev_enabled() || opencloud_prod_admission_enabled()}
-fn opencloud_prod_admission_pin()->Outcome<fresh_dev::Pin> {
-    fresh_dev::Pin::parse_for(option_env!("IGNITE_OPENCLOUD_PROD_ADMISSION").ok_or("OpenCloud PROD admission pins unavailable")?,"opencloud-prod")
-}
-fn engine_admission_pin()->Outcome<fresh_dev::Pin> {
-    if opencloud_prod_admission_enabled(){opencloud_prod_admission_pin()}else{fresh_dev_pin()}
-}
 async fn fresh_dev_lifecycle(canisters:&[Principal],first:bool)->Outcome<Vec<production_account_protection::Lifecycle>> {
     use ic_cdk::management_canister::{CanisterInfoArgs,ChangeDetails,CodeDeploymentMode};
     let mut rows=Vec::new();
     // OpenCloud DEV has no canister_info: deployment-time empty-module and
     // install-only hash checks replace management history. One-use receipt remains.
-    if engine_admission_build(){return Ok(rows);}
+    if fresh_dev_build(){return Ok(rows);}
     for canister in canisters {
         let info=ic_cdk::management_canister::canister_info(&CanisterInfoArgs{canister_id:*canister,num_requested_changes:Some(if first {100}else{0})})
             .await.map_err(|_|"Fresh DEV lifecycle unavailable")?;
@@ -1537,26 +1516,19 @@ async fn fresh_dev_lifecycle(canisters:&[Principal],first:bool)->Outcome<Vec<pro
         rows.push(production_account_protection::Lifecycle {canister:*canister,changes:info.total_num_changes,module_hash:info.module_hash.ok_or("Fresh DEV module missing")?});
     } Ok(rows)
 }
-/// Mainnet checks live management history. OpenCloud instead requires the
-/// immutable deployment receipt whose module hashes and controllers were
-/// verified through authenticated canister_status by the deployment runner.
-/// No receipt is fabricated from account state, and upgrades never re-arm it.
-async fn verify_engine_admission_lifecycle(services:&[Principal])->Outcome<()> {
-    if !engine_admission_enabled(){return Ok(());}
-    let prod=opencloud_prod_admission_enabled();
-    let pin=engine_admission_pin()?;
-    let state=if prod{opencloud_prod_admission_state()}else{fresh_dev_state()};
-    let before=encode(&state);
-    let receipt=state.receipt.as_ref().ok_or("OpenCloud admission commissioning required")?;
-    pin.binding_for(&receipt.expectation.inventory.groups.binding,ic_cdk::api::canister_self(),crate::state().governor,
-        if prod{"opencloud-prod"}else{"opencloud-dev"})?;
+/// Each authorization checks identity and its consuming service against live
+/// management history. Restoring both cannot restore those management counts.
+async fn verify_fresh_dev_lifecycle(services:&[Principal])->Outcome<()> {
+    if !fresh_dev_enabled(){return Ok(());}
+    let pin=fresh_dev_pin()?;let state=fresh_dev_state();
+    let receipt=state.receipt.as_ref().ok_or("Fresh DEV commissioning required")?;
+    pin.binding(&receipt.expectation.inventory.groups.binding,ic_cdk::api::canister_self(),crate::state().governor)?;
     let mut ids=services.to_vec();ids.push(pin.identity);ids.sort();ids.dedup();
     for live in fresh_dev_lifecycle(&ids,false).await? {
-        let armed=receipt.lifecycle.iter().find(|r|r.canister==live.canister).ok_or("Uncommissioned engine service")?;
+        let armed=receipt.lifecycle.iter().find(|r|r.canister==live.canister).ok_or("Uncommissioned DEV service")?;
         fresh_dev::lifecycle(armed,&live)?;
     }
-    let after=if prod{opencloud_prod_admission_state()}else{fresh_dev_state()};
-    if encode(&after)!=before{return Err("OpenCloud admission commissioning changed during verification".into());}
+    if encode(&fresh_dev_state())!=encode(&state){return Err("Fresh DEV commissioning changed during lifecycle check".into());}
     Ok(())
 }
 fn fresh_dev_pristine()->Outcome<()> {
@@ -1579,7 +1551,7 @@ async fn commission_fresh_opencloud_dev(expected:production_account_protection::
     if !cloud_engine() || account_group_rehearsal_enabled(){return Err("Fresh DEV engine without rehearsal required".into());}
     pin.binding(&expected.inventory.groups.binding,ic_cdk::api::canister_self(),operator)?;pin.inventory(&expected)?;
     if let Some(prior)=fresh_dev_state().receipt {
-        fresh_dev::retry(&prior,&expected)?;verify_engine_admission_lifecycle(&pin.backends).await?;
+        fresh_dev::retry(&prior,&expected)?;verify_fresh_dev_lifecycle(&pin.backends).await?;
         require_governor(&state(),operator)?;return Ok(prior);
     }
     fresh_dev_pristine()?;
@@ -1604,62 +1576,8 @@ async fn commission_fresh_opencloud_dev(expected:production_account_protection::
 #[ic_cdk::update]
 async fn read_fresh_opencloud_dev_commissioning()->Outcome<fresh_dev::Receipt> {
     require_governor(&state(),ic_cdk::api::msg_caller())?;
-    let pin=fresh_dev_pin()?;verify_engine_admission_lifecycle(&pin.backends).await?;
+    let pin=fresh_dev_pin()?;verify_fresh_dev_lifecycle(&pin.backends).await?;
     fresh_dev_state().receipt.ok_or("Fresh DEV commissioning required".into())
-}
-/// Existing-account PROD commissioning is deliberately narrower than the
-/// mainnet signed inventory protocol: it releases ordinary admission only.
-/// The governor, immutable 31-backend build pins, two identical closed live
-/// registry inventories and every authenticated receiver are still required.
-/// Accounts, profiles, roles, aliases and PII are never reset or inspected as
-/// commissioning evidence, so the three existing accounts remain intact.
-#[ic_cdk::update]
-async fn commission_opencloud_prod_admission(expected:production_account_protection::Expectation)->Outcome<fresh_dev::Receipt> {
-    let _lease=private_name_writer_window::enter()?;
-    let operator=ic_cdk::api::msg_caller();require_governor(&state(),operator)?;
-    let pin=opencloud_prod_admission_pin()?;
-    if !opencloud_prod_admission_build() || !cloud_engine() || fresh_dev_enabled() || account_group_rehearsal_enabled(){
-        return Err("Exact OpenCloud PROD admission-only engine required".into());
-    }
-    pin.binding_for(&expected.inventory.groups.binding,ic_cdk::api::canister_self(),operator,"opencloud-prod")?;
-    pin.inventory(&expected)?;
-    if let Some(prior)=opencloud_prod_admission_state().receipt {
-        fresh_dev::retry(&prior,&expected)?;
-        verify_engine_admission_lifecycle(&pin.backends).await?;
-        require_governor(&state(),operator)?;return Ok(prior);
-    }
-    if !opencloud_prod_admission_state().initialized || production_authorization().approval.is_some() ||
-        PRODUCTION_INVENTORY_RECEIPT.with(|m|!m.borrow().get().is_empty()) || group2_admission().enabled ||
-        group_inventory_binding().as_ref().is_some_and(|b|b!=&expected.inventory.groups.binding) ||
-        supplemental_inventory().iter().any(|row|!expected.inventory.supplemental.contains(row)) {
-        return Err("Uncommissioned OpenCloud PROD admission state required".into());
-    }
-    admission_configuration_clear()?;
-    let revision=removal_history_revision();
-    let first=fresh_dev_lifecycle(&pin.backends,false).await?;
-    let review=collect_production_account_protection_inner(expected.clone(),revision,true,true,false).await?;
-    let after=fresh_dev_lifecycle(&pin.backends,false).await?;
-    if first!=after || review.lifecycle.iter().any(|row|!after.contains(row)){return Err("OpenCloud PROD modules changed during commissioning".into());}
-    review_closed_production_groups(&expected.inventory.groups.binding,||{
-        admission_configuration_clear()?;
-        if removal_history_revision()!=revision{return Err("OpenCloud PROD history changed".into());}Ok(())
-    }).await?;
-    require_governor(&state(),operator)?;admission_configuration_clear()?;
-    if group_inventory_binding().as_ref().is_some_and(|b|b!=&expected.inventory.groups.binding) ||
-        production_authorization().approval.is_some() || group2_admission().enabled || removal_history_revision()!=revision {
-        return Err("OpenCloud PROD admission configuration changed".into());
-    }
-    let receipt=fresh_dev::Receipt{expectation:expected.clone(),lifecycle:after};
-    GROUP_INVENTORY_BINDING.with(|m|m.borrow_mut().set(encode(&expected.inventory.groups.binding)));
-    SUPPLEMENTAL_INVENTORY.with(|m|m.borrow_mut().set(encode(&expected.inventory.supplemental)));
-    OPENCLOUD_PROD_ADMISSION.with(|m|m.borrow_mut().set(encode(&fresh_dev::State{initialized:true,receipt:Some(receipt.clone())})));
-    bump_removal_history();Ok(receipt)
-}
-#[ic_cdk::update]
-async fn read_opencloud_prod_admission_commissioning()->Outcome<fresh_dev::Receipt> {
-    require_governor(&state(),ic_cdk::api::msg_caller())?;
-    let pin=opencloud_prod_admission_pin()?;verify_engine_admission_lifecycle(&pin.backends).await?;
-    opencloud_prod_admission_state().receipt.ok_or("OpenCloud PROD admission commissioning required".into())
 }
 fn production_authorization()->production_account_authorization::State {
     PRODUCTION_ACCOUNT_AUTHORIZATION.with(|m|if m.borrow().get().is_empty(){production_account_authorization::State::default()}else{decode(m.borrow().get())})
@@ -1716,7 +1634,6 @@ async fn check_production_subject_witness(approval:&production_account_authoriza
 async fn authorize_production_account_readers(approval:production_account_authorization::SignedApproval)->Outcome<u64> {
     let _lease=private_name_writer_window::enter()?;
     let operator=ic_cdk::api::msg_caller();require_governor(&state(),operator)?;
-    if engine_admission_enabled(){return Err("OpenCloud admission-only mode keeps signed global readers disabled".into());}
     if account_group_rehearsal_enabled(){return Err("Production authorization cannot use rehearsal".into());}
     let prior=production_authorization();
     let next=production_account_authorization::authorize(&prior,&approval,ic_cdk::api::canister_self(),operator,ic_cdk::api::time(),&production_account_authorization::key()?)?;
@@ -1904,7 +1821,7 @@ fn advance_member_binding(binding:&group_inventory::Binding,revision:u64) -> Out
 }
 async fn verify_member_reader(caller:Principal,club_only:bool)->Outcome<()> {
     let captured=member_reader_access(caller,club_only)?;
-    verify_engine_admission_lifecycle(&[caller]).await?;
+    verify_fresh_dev_lifecycle(&[caller]).await?;
     let binding=group_inventory_binding().ok_or("Member registry not pinned")?;
     let recheck=||->Outcome<()> {
         if encode(&member_reader_access(caller,club_only)?)!=encode(&captured) || group_inventory_binding().as_ref()!=Some(&binding) {
@@ -1922,7 +1839,7 @@ async fn verify_member_reader(caller:Principal,club_only:bool)->Outcome<()> {
     let mut expected_clubs=captured.club_readers.clone();expected_clubs.sort();
     let mut observed_clubs=clubs;observed_clubs.sort();
     if readers!=captured.readers || observed_clubs!=expected_clubs {return Err("Member reader inventory changed".into());}
-    verify_engine_admission_lifecycle(&[caller,binding.registry]).await?;
+    verify_fresh_dev_lifecycle(&[caller,binding.registry]).await?;
     recheck()
 }
 #[ic_cdk::update]
@@ -1962,12 +1879,12 @@ async fn authorize_production_member_access(binding:group_inventory::Binding)->O
         }
     }
     recheck()?;
-    if engine_admission_enabled(){verify_engine_admission_lifecycle(&engine_admission_pin()?.backends).await?;recheck()?;}
+    if fresh_dev_enabled(){verify_fresh_dev_lifecycle(&fresh_dev_pin()?.backends).await?;recheck()?;}
     GROUP2_ADMISSION.with(|m|m.borrow_mut().set(encode(&admission::Config {enabled:true,readers,member_access:true,club_readers})));
     bump_removal_history();Ok(())
 }
 fn deferred_account_operations_clear()->Outcome<()> {
-    if engine_admission_enabled() || group2_admission().member_access {return Err("Global account erasure and recovery are deferred".into());}
+    if fresh_dev_enabled() || group2_admission().member_access {return Err("Global account erasure and recovery are deferred".into());}
     Ok(())
 }
 // Retained removal locks prevent reconfiguration, not other accounts' reads.
@@ -2002,7 +1919,7 @@ fn removal_control_access()->Outcome<()> {
 /// Signed closed-only inventory bootstrap: inspect candidate pins before any write.
 #[ic_cdk::update]
 async fn provision_production_account_inventory(approval:production_account_authorization::SignedApproval)->Outcome<u64> {
-    if engine_admission_enabled(){return Err("OpenCloud admission-only mode cannot authorize signed recovery provisioning".into());}
+    if fresh_dev_enabled(){return Err("Fresh DEV cannot authorize signed recovery provisioning".into());}
     let _lease=private_name_writer_window::enter()?;
     let operator=ic_cdk::api::msg_caller();require_governor(&state(),operator)?;
     if account_group_rehearsal_enabled(){return Err("Production provisioning cannot use rehearsal".into());}
@@ -2472,8 +2389,8 @@ async fn read_owner_test_creation_eligible(subject: Principal) -> Outcome<bool> 
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 
     let binding = group_inventory_binding().ok_or("Deletion registry not pinned")?;
-    if ic_cdk::api::msg_caller() != binding.registry || (!engine_admission_enabled() && !bound_deletion_released()) { return Err("Pinned router and bound deletion release required".into()); }
-    verify_engine_admission_lifecycle(&[binding.registry]).await?;
+    if ic_cdk::api::msg_caller() != binding.registry || (!fresh_dev_enabled() && !bound_deletion_released()) { return Err("Pinned router and bound deletion release required".into()); }
+    verify_fresh_dev_lifecycle(&[binding.registry]).await?;
     let account = match account_for_write(subject) { Ok(a) => a, Err(_) => return Ok(false) };
     Ok(!DELETION_TICKETS.with(|m| m.borrow().contains_key(&account.id)) && removal_intent(&account.id).is_none())
 }
@@ -2839,7 +2756,7 @@ async fn read_private_profile_name_authorization(viewer_principal: Principal, su
     if engine_candidate && !engine_member_name_service(service) {
         return Err("Engine private-name service commissioning changed".into());
     }
-    if engine_admission_enabled(){verify_engine_admission_lifecycle(&[service,scope.authority,config.binding.registry]).await?;}
+    if fresh_dev_enabled(){verify_fresh_dev_lifecycle(&[service,scope.authority,config.binding.registry]).await?;}
     // No await after these final subject/reference and caller rechecks.
     active()?;
     if scope.kind == "app_admin" { admin_accounts::authorize(&state(), viewer_principal)?; }
@@ -2944,7 +2861,6 @@ fn account_for(principal: Principal) -> Outcome<Account> {
 /// manage or clean up a suspended account.
 fn account_for_write(principal: Principal) -> Outcome<Account> {
     if fresh_dev_enabled() && fresh_dev_state().receipt.is_none(){return Err("Fresh DEV commissioning required".into());}
-    if opencloud_prod_admission_enabled() && opencloud_prod_admission_state().receipt.is_none(){return Err("OpenCloud PROD admission commissioning required".into());}
     let account = account_for(principal)?;
     if account.status == AccountStatus::Suspended {
         return Err("Account suspended".into());
@@ -3206,11 +3122,6 @@ fn init(init: Init) {
         assert!(pin.identity==ic_cdk::api::canister_self() && pin.governor==init.governor,"Exact DEV initialization required");
         FRESH_DEV.with(|m|m.borrow_mut().set(encode(&fresh_dev::State{initialized:true,receipt:None})));
     }
-    if option_env!("IGNITE_OPENCLOUD_PROD_ADMISSION").is_some() {
-        let pin=opencloud_prod_admission_pin().expect("Valid immutable PROD admission pins");
-        assert!(pin.identity==ic_cdk::api::canister_self() && pin.governor==init.governor,"Exact PROD admission initialization required");
-        OPENCLOUD_PROD_ADMISSION.with(|m|m.borrow_mut().set(encode(&fresh_dev::State{initialized:true,receipt:None})));
-    }
     arm_directory_timer();
 }
 
@@ -3258,15 +3169,6 @@ fn migrate_legacy_state(legacy: State) -> CoreState {
 fn post_upgrade() {
     // Fresh DEV state is left byte-identical: upgrades never reset, re-arm or recommission.
     fresh_dev::upgrade(option_env!("IGNITE_OPENCLOUD_DEV_FIRST_INSTALL"),&fresh_dev_state(),ic_cdk::api::canister_self(),state().governor).unwrap_or_else(|e|ic_cdk::trap(e));
-    // The first admission-only PROD upgrade adds memory 40 to an already
-    // installed identity. Initialize only that empty additive cell; all
-    // existing account/profile/registry memories stay byte-identical.
-    if opencloud_prod_admission_build() && !opencloud_prod_admission_state().initialized {
-        let pin=opencloud_prod_admission_pin().unwrap_or_else(|e|ic_cdk::trap(e));
-        if pin.identity!=ic_cdk::api::canister_self() || pin.governor!=state().governor{ic_cdk::trap("PROD admission upgrade pins changed");}
-        OPENCLOUD_PROD_ADMISSION.with(|m|m.borrow_mut().set(encode(&fresh_dev::State{initialized:true,receipt:None})));
-    }
-    fresh_dev::upgrade_for(option_env!("IGNITE_OPENCLOUD_PROD_ADMISSION"),&opencloud_prod_admission_state(),ic_cdk::api::canister_self(),state().governor,"opencloud-prod").unwrap_or_else(|e|ic_cdk::trap(e));
     // The full legacy `State` shape (with `#[serde(default)]` on every field
     // added after schema 1) decodes both old full-blob schemas (1..4) and
     // the current slim `CoreState` blob (schema 5+, where accounts/
@@ -3298,7 +3200,7 @@ async fn register_account() -> Outcome<Account> {
 
     let caller = ic_cdk::api::msg_caller();
     authenticated(caller)?;
-    verify_engine_admission_lifecycle(&[]).await?;
+    verify_fresh_dev_lifecycle(&[]).await?;
     let account_id = ensure_account(caller)?;
     get_account(&account_id).ok_or("Account unavailable".into())
 }
@@ -3311,7 +3213,7 @@ fn valid_display_name(value: &str) -> bool {
 /// Sets (or replaces) the caller's profile. The account must already exist —
 /// sign-in provisioning calls register_account first.
 fn secure_name_save_released() -> bool {
-    if engine_admission_enabled(){return true;}
+    if fresh_dev_enabled(){return true;}
     #[cfg(target_arch = "wasm32")]
     { ic_cdk::api::env_var_name_exists("IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE") && ic_cdk::api::env_var_value("IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE") == "1" }
     #[cfg(not(target_arch = "wasm32"))]
@@ -3328,10 +3230,10 @@ fn secure_name_authority(caller: Principal, existing: Option<&Profile>) -> Outco
     let configured = if ic_cdk::api::env_var_name_exists("IGNITE_SECURE_ADULT_NAME_PII") { Some(ic_cdk::api::env_var_value("IGNITE_SECURE_ADULT_NAME_PII")) } else { None };
     #[cfg(not(target_arch = "wasm32"))]
     let configured: Option<String> = None;
-    if engine_admission_enabled(){
-        let pin=engine_admission_pin()?;
-        let authority=pin.services.iter().find(|(n,_)|n=="g1_pii_access_control").map(|(_,p)|*p).ok_or("Engine name authority unavailable")?;
-        if configured.as_deref()!=Some(authority.to_text().as_str()){return Err("Engine encrypted-name authority changed".into());}
+    if fresh_dev_enabled(){
+        let pin=fresh_dev_pin()?;
+        let authority=pin.services.iter().find(|(n,_)|n=="g1_pii_access_control").map(|(_,p)|*p).ok_or("Fresh DEV name authority unavailable")?;
+        if configured.as_deref()!=Some(authority.to_text().as_str()){return Err("Fresh DEV encrypted-name authority changed".into());}
     }
     secure_name_save::authority(secure_name_save_released(), configured.as_deref(), existing.map(|p|p.display_name.as_str()), caller)
 }
@@ -3377,7 +3279,7 @@ async fn set_profile(display_name: String, avatar_ref: Option<String>) -> Outcom
             .with_args(&(caller,)).await.map_err(|_|"Encrypted personal-name verification unavailable")?;
         let verified: Outcome<bool>=reply.candid().map_err(|_|"Invalid encrypted-name verification reply")?;
         if !verified? { return Err("Encrypted personal name is not saved".into()); }
-        verify_engine_admission_lifecycle(&[authority]).await?;
+        verify_fresh_dev_lifecycle(&[authority]).await?;
         if account_for_write(caller)? != account || profile_search_revision()!=revision || removal_history_revision()!=history
             || get_profile_entry(&account_id)!=existing || secure_name_authority(caller,existing.as_ref())?!=authority {
             return Err("Profile changed during secure saving; check before retrying".into());
@@ -3654,55 +3556,6 @@ fn list_admin_accounts(query: String, after: Option<String>, limit: u16) -> Outc
     let core = state();
     admin_accounts::authorize(&core, ic_cdk::api::msg_caller())?;
     admin_accounts::page(&core, query, after, limit)
-}
-
-#[derive(Clone,Debug,CandidType,Serialize,Deserialize,PartialEq,Eq)]
-struct OpenCloudNamePresence {
-    subject:Principal,
-    authority:Principal,
-    valid_owned_ciphertext:bool,
-}
-#[derive(Clone,Debug,CandidType,Serialize,Deserialize,PartialEq,Eq)]
-struct OpenCloudAccountNameDiagnostic {
-    account_id:String,
-    profile_present:bool,
-    opaque_name_reference:bool,
-    presence:Vec<OpenCloudNamePresence>,
-}
-/// Governor-only, bounded PROD diagnostics for incomplete sign-ups. It returns
-/// no plaintext, ciphertext, vetKey or avatar and never registers a profile.
-/// Both PII stores are checked so a missing profile cannot be mistaken for a
-/// missing name record; `false` means no valid owned record was found there.
-#[ic_cdk::update]
-async fn read_opencloud_prod_name_diagnostics(account_ids:Vec<String>)->Outcome<Vec<OpenCloudAccountNameDiagnostic>> {
-    let caller=ic_cdk::api::msg_caller();require_governor(&state(),caller)?;
-    if !opencloud_prod_admission_build() || account_ids.is_empty() || account_ids.len()>10 ||
-        account_ids.iter().any(|id|!valid_id(id)) || account_ids.iter().collect::<std::collections::BTreeSet<_>>().len()!=account_ids.len() {
-        return Err("Exact bounded OpenCloud PROD account diagnostics required".into());
-    }
-    let pin=opencloud_prod_admission_pin()?;
-    let authorities:Vec<_>=pin.services.iter().filter(|(name,_)|name.ends_with("_pii_access_control")).map(|(_,p)|*p).collect();
-    if authorities.len()!=2{return Err("Exact two OpenCloud PROD name stores required".into());}
-    let accounts=account_ids.iter().map(|id|get_account(id).ok_or_else(||"Diagnostic account not found".to_string())).collect::<Outcome<Vec<_>>>()?;
-    if accounts.iter().map(|a|a.principals.len()).sum::<usize>()>32{return Err("Diagnostic subject budget exceeded".into());}
-    let profiles:Vec<_>=accounts.iter().map(|a|get_profile_entry(&a.id)).collect();
-    let mut out=Vec::new();
-    for (index,account) in accounts.iter().enumerate() {
-        let mut presence=Vec::new();
-        for subject in &account.principals {for authority in &authorities {
-            let reply=ic_cdk::call::Call::bounded_wait(*authority,"verify_secure_profile_name").with_args(&(*subject,))
-                .await.map_err(|_|"Encrypted-name presence check unavailable")?;
-            let verified:Outcome<bool>=reply.candid().map_err(|_|"Invalid encrypted-name presence reply")?;
-            presence.push(OpenCloudNamePresence{subject:*subject,authority:*authority,valid_owned_ciphertext:verified?});
-            require_governor(&state(),caller)?;
-            if get_account(&account.id).as_ref()!=Some(account) || encode(&get_profile_entry(&account.id))!=encode(&profiles[index]){
-                return Err("Account changed during encrypted-name diagnostics".into());
-            }
-        }}
-        out.push(OpenCloudAccountNameDiagnostic{account_id:account.id.clone(),profile_present:profiles[index].is_some(),
-            opaque_name_reference:profiles[index].as_ref().is_some_and(|p|p.display_name.starts_with("pii-display-name:")),presence});
-    }
-    Ok(out)
 }
 
 #[ic_cdk::query]

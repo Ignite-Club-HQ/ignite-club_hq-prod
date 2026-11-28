@@ -4,7 +4,6 @@
   "applicationKey": "ignite_prod_v2",
   "branch": "prod",
   "networkKind": "cloud_engine",
-  "commissioningMode": "existing-accounts-admission-only",
   "engineName": "ignite-prod",
   "engineId": "engine-789969b4-e8ba-41b0-90a2-47b4da69909f",
   "subnetId": "nwgxr-6ses4-xcorg-yudu5-ag37q-hzicn-7hxoz-3nx5u-yk6gv-tupik-rae",
@@ -88,7 +87,7 @@
     "controllerNote": "All 32 controller memberships verified via live operator canister_status readback on 2026-11-26; existing operator and connected identity retained, owner and PROD governor added. Other settings not fully compared.",
     "proxyReview": "Anonymous public queries matched the supplied subnet; public proxy interface matches EngineVetKd types. Engine ID is reported by proxy funding metadata. Real engine-caller derivation and authorization remain unverified.",
     "capacityNote": "Initial capacity mirrors working OpenCloud DEV; not a measured production load limit. Compute reservation remains unset pending engine review.",
-    "accountProtectionNote": "Existing-account admission-only commissioning uses immutable OpenCloud PROD backend pins and authenticated live module/controller readback. Mainnet management history and recovery witness are not applicable to ordinary admission. Global removal, erasure and recovery remain disabled; legacy witness fields are retained only as inactive historical configuration."
+    "accountProtectionNote": "Reuse existing mainnet PROD safeguard pins per owner direction. Cross-engine reachability and live witness module/controller verification remain required before commissioning; no activation authorized."
   },
   "accountProtection": {
     "approverPublicKey": "df0a3369283d9496256e1fbb2f98c3fc1214dcf47d3ba5bccc67b940b3a83bec",

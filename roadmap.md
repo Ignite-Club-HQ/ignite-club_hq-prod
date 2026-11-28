@@ -1,11 +1,5 @@
 # Roadmap — launch the live (PROD) system
 
-## OpenCloud PROD admission-only commissioning — 28 November
-- [x] Add a governor-authorized, existing-account OpenCloud PROD commissioning path with immutable 31-backend pins, additive receipt storage, exact closed-registry and 24-reader verification, and no management-history or recovery-witness dependency.
-- [x] Extend the existing PROD source-build and commissioning workflow to verify live modules/controllers, apply only admission settings, commission member access, configure membership discovery, and emit readback evidence; stop before live mutations.
-- [x] Add bounded read-only account/profile and encrypted-name-presence diagnostics; never invent, import, decrypt for reporting, or overwrite names.
-- [x] Run focused Rust, deployment-policy, workflow, interface, and regression validation; prepare the PR and exact reviewed deployment procedure.
-
 ## OpenCloud PROD service wiring — 26 November
 - [x] Created manual `[PROD] OpenCloud PROD service wiring` workflow (check/wire modes, default check) reusing existing PROD governor credentials; verified CLI 1.7.0 positional Candid arguments and that all 78 generated calls target only allocated ignite_prod_v2 backend canisters with internal-governor signing.
 - [x] Check mode ran green (run 45791474975, commit f8da5b838, 26 Nov 09:23 UTC): live governor principal matched the configured PROD governor, every service's opening-configuration readback returned without refusal, and all 78 wiring calls validated against the allocated inventory. No service was configured.
