@@ -140,12 +140,14 @@ for(const target of infrastructure){
 const routerConfig=new Map(await invoke(router,'read_group_opening_configuration',[],[],V(I.Tuple(T,T))));
 const deletion=routerConfig.get('deletion_authority');
 if(deletion===undefined||(deletion!==''&&deletion!==id))throw Error('Foreign or missing deletion authority readback');
-const settingsReady=plannedTargets.every(target=>{
-  try{assertAdmissionEnvironment(target.environment,id);return true;}catch{return false;}
-});
+const incompleteReaders=plannedTargets.filter(target=>{
+  try{assertAdmissionEnvironment(target.environment,id);return false;}catch{return true;}
+}).map(target=>({name:target.name,canister:target.id}));
+const configurationDiagnostics={incompleteReaders,missingInfrastructureAuthorities:[...authorities].filter(([,ready])=>!ready).map(([target])=>target),routerDeletionAuthority:deletion===id?'matching':deletion===''?'missing':'unexpected'};
+const settingsReady=incompleteReaders.length===0;
 if(mode==='check'){
   if(!settingsReady||[...authorities.values()].some(v=>!v)||deletion!==id){
-    sendReport({...report(),status:'blocked-needs-configuration',authenticatedInventoryVerified:false});
+    sendReport({...report(),status:'blocked-needs-configuration',authenticatedInventoryVerified:false,configurationDiagnostics});
     throw Error('Admission check blocked: settings or immutable authority configuration incomplete; no writes performed');
   }
   await reviewInventory();
