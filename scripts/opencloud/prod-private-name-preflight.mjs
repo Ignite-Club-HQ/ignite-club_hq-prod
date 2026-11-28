@@ -43,6 +43,34 @@ const targets=[
 ];
 const forbidden=['IGNITE_DEV_G2_SHARED_CLUB_NAMES_RELEASE','IGNITE_DEV_LEGACY_G1_TEAM_NAME_RELEASE','IGNITE_DEV_LEGACY_G1_OBSERVED_KEY_SHA256'];
 
+// Read-only admission and directory evidence; never log profile names or principals.
+if(process.argv[3]==='check'){
+ const fields=['IGNITE_ACCOUNT_SERVICE_IDENTITY','IGNITE_ACCOUNT_ADMISSION_RELEASE','IGNITE_ACCOUNT_REMOVAL_RELEASE','IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL','IGNITE_CLOUD_ENGINE'];
+ for(const [name,id] of targets){
+  const live=await status(id);verifyControllers(live);
+  const vars=new Map(live.settings.environment_variables.map(v=>[v.name,v.value]));
+  console.log(JSON.stringify({name,admission:Object.fromEntries(fields.map(k=>[k,k==='IGNITE_ACCOUNT_SERVICE_IDENTITY'?(vars.has(k)?(vars.get(k)===identityId?'correct':'different'):'missing'):(vars.has(k)?(vars.get(k)==='1'?'enabled':'other'):'missing')]))}));
+ }
+ const R=I.Variant({Ok:I.Vec(I.Tuple(I.Text,I.Text)),Err:I.Text});
+ const Profile=I.Record({display_name:I.Text});
+ const Row=I.Record({account_id:I.Text,principals:I.Vec(P),profile:I.Opt(Profile),status:I.Variant({Active:I.Null,Suspended:I.Null})});
+ const Page=I.Variant({Ok:I.Record({items:I.Vec(Row),next:I.Opt(I.Text)}),Err:I.Text});
+ const reader=Actor.createActor(()=>I.Service({read_group_opening_configuration:I.Func([],[R],[]),list_admin_accounts:I.Func([I.Text,I.Opt(I.Text),I.Nat16],[Page],['query'])}),{agent,canisterId:identityId});
+ try{
+  const result=await reader.read_group_opening_configuration();
+  if('Err' in result)console.log(JSON.stringify({identityConfigurationError:result.Err}));
+  else {const rows=result.Ok;const readers=rows.filter(([k])=>k==='eligibility_authority').map(([,v])=>v);console.log(JSON.stringify({identityConfiguration:rows.filter(([k])=>k!=='eligibility_authority'),readerCount:readers.length,piiReaders:targets.filter(t=>t[3]).map(([name,id])=>({name,authorized:readers.includes(id)}))}));}
+ }catch(e){console.log('Identity configuration read failed: '+e.message);}
+ try{
+  let cursor=[],pages=0;const counts={total:0,missingProfile:0,emptyName:0,encryptedReference:0,referenceAliasMismatch:0,otherName:0};
+  do{const result=await reader.list_admin_accounts('',cursor,100);if('Err' in result)throw Error(result.Err);
+   for(const row of result.Ok.items){counts.total++;const profile=row.profile[0];if(!profile)counts.missingProfile++;else if(!profile.display_name)counts.emptyName++;else if(profile.display_name.startsWith('pii-display-name:')){counts.encryptedReference++;if(!row.principals.some(p=>p.toText()===profile.display_name.split(':').at(-1)))counts.referenceAliasMismatch++;}else counts.otherName++;}
+   const next=result.Ok.next;if(next.length&&next[0]===cursor[0])throw Error('Directory cursor did not advance');cursor=next;pages++;
+  }while(cursor.length&&pages<100);
+  console.log(JSON.stringify({directoryCounts:counts,pages,complete:cursor.length===0}));
+ }catch(e){console.log('Directory diagnostic failed: '+e.message);}
+ console.log('Read-only admission and directory diagnostic finished; no writes');process.exit(0);
+}
 const [work,mode,originalWork]=process.argv.slice(2);
 if(!['check','apply'].includes(mode))throw Error('Explicit mode required');
 const m=JSON.parse(fs.readFileSync(path.join(work,'manifest.json')));
