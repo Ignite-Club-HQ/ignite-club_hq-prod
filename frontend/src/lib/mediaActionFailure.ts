@@ -2,6 +2,9 @@
 export function mediaActionFailure(error: unknown, fallback: string): string {
   const message = error instanceof Error ? error.message : String(error);
   console.warn("[media] action refused", message);
+  if (/^You've used your 10 free (photo uploads|chat photos) this cycle\./.test(message)
+    || message === "We couldn't check your club's photo allowance. Please try again shortly."
+    || message === "This file is larger than 10 MB. Please choose a smaller file.") return message;
   if (/Account admission denied or unavailable/i.test(message)) return "We couldn't confirm your account just now. Please try again in a moment.";
   if (/temporarily locked/i.test(message)) return "This club is being updated. Please try again shortly.";
   if (/forbidden|not authorized|access denied/i.test(message)) return "You don't have access to do that on this photo.";

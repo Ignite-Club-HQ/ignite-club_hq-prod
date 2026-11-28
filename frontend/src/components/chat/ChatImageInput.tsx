@@ -126,11 +126,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   // Resolve the clubId for upgrade navigation when only teamId is known.
   const { data: upgradeClubId } = useQuery({
-    queryKey: ["chat-input-upgrade-club", clubId, teamId],
-    enabled: !clubId && !!teamId && !isIcp,
+    queryKey: ["chat-input-upgrade-club", clubId, teamId, user?.id, isIcp],
+    enabled: !clubId && !!teamId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data } = await supabase.from("teams").select("club_id").eq("id", teamId!).maybeSingle();
+      if (!teamId) return null;
+      if (isIcp) return withFeatureBackend('membership', {
+        supabase: async () => { throw new Error('Internet Identity required'); },
+        icp: async ctx => {
+          const { getLiveTeam } = await import('@/live/features/club');
+          const [team] = await getLiveTeam(ctx, teamId);
+          return team?.club_id ?? null;
+        },
+      }, { teamId });
+      const { data } = await supabase.from("teams").select("club_id").eq("id", teamId).maybeSingle();
       return (data?.club_id as string) ?? null;
     },
   });
@@ -311,6 +320,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       : mimeToExtension(contentType);
 
     const timestamp = Date.now();
+    let uploadClubId = effectiveClubId;
+    if (isIcp && teamId && !uploadClubId) {
+      uploadClubId = await withFeatureBackend('membership', {
+        supabase: async () => { throw new Error('Internet Identity required'); },
+        icp: async ctx => {
+          const { getLiveTeam } = await import('@/live/features/club');
+          const [team] = await getLiveTeam(ctx, teamId);
+          return team?.club_id ?? null;
+        },
+      }, { teamId });
+      if (!uploadClubId) throw new Error("We couldn't check this team's photo allowance. Please try again shortly.");
+    }
     // ICP blob-store path: keep it SHORT. An Internet Identity principal is
     // ~63 chars and would push the path past the blob store's path limit
     // (the gallery upload hit exactly that "Invalid asset" rejection), and
@@ -319,10 +340,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     // read grant.
     const rand = Math.random().toString(36).slice(2, 8);
     let icpPath: string;
-    if (teamId && clubId) {
-      icpPath = `clubs/${clubId}/teams/${teamId}/chat/${timestamp}-${rand}.${extension}`;
-    } else if (clubId) {
-      icpPath = `clubs/${clubId}/chat/${timestamp}-${rand}.${extension}`;
+    if (teamId && uploadClubId) {
+      icpPath = `clubs/${uploadClubId}/teams/${teamId}/chat/${timestamp}-${rand}.${extension}`;
+    } else if (uploadClubId) {
+      icpPath = `clubs/${uploadClubId}/chat/${timestamp}-${rand}.${extension}`;
     } else {
       icpPath = `general/chat/${timestamp}-${rand}.${extension}`;
     }
@@ -342,6 +363,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     let publicUrl: string;
     if (blobUpload) {
       publicUrl = blobUpload.url;
+      refreshClubFreeUsage(uploadClubId);
     } else {
       if (isIcp) throw new Error("Media uploads are not available yet for Internet Identity accounts");
       // Supabase auth is only required on the Supabase fallback path — an

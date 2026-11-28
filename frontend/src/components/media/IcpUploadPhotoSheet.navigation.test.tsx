@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ upload: vi.fn(), register: vi.fn(), scope: vi.fn(), copy: vi.fn() }));
+const mocks = vi.hoisted(() => ({ upload: vi.fn(), register: vi.fn(), scope: vi.fn(), copy: vi.fn(), allowance: vi.fn() }));
+vi.mock('@/live/mediaPhotoAllowance', () => ({ checkLivePhotoUpload: mocks.allowance, MEDIA_PHOTO_CYCLE_LIMIT: 10 }));
 vi.mock('@/hooks/useClubTheme', () => ({ useClubTheme: () => ({ activeClubFilter: null }) }));
 vi.mock('@/live/internetIdentityAuth', () => ({ getCurrentInternetIdentity: async () => null }));
 vi.mock('@/live/featureRouter', () => ({ withFeatureBackend: async (_: unknown, providers: any) => providers.icp({}) }));
@@ -26,11 +27,28 @@ function Upload() {
     clubs={[{ id: 'riverdogs', name: 'Riverdogs' }]} teams={[]} miniLeagues={[]} competitions={[]} />;
 }
 beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.allowance.mockResolvedValue(undefined);
   mocks.register.mockResolvedValue({ id: 'saved-photo' }); mocks.scope.mockResolvedValue(undefined);
   mocks.copy.mockResolvedValue(undefined);
   vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:local-photo') }));
 });
 describe('actual upload workflow across navigation', () => {
+  it('refuses an over-limit album before any upload or gallery registration', async () => {
+    mocks.allowance.mockRejectedValueOnce(new Error("You've used your 10 free photo uploads this cycle. Upgrade to Pro for unlimited uploads."));
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const page = render(<Upload />, { wrapper });
+    const input = page.container.querySelector('input[type="file"]');
+    if (!input) throw new Error('File picker missing');
+    fireEvent.change(input, { target: { files: [new File(['photo'], 'one.jpg', { type: 'image/jpeg' }), new File(['photo'], 'two.jpg', { type: 'image/jpeg' })] } });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Share/ })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: /Share/ }));
+    await waitFor(() => expect(mocks.allowance).toHaveBeenCalledWith({}, 'clubs/riverdogs/gallery/photo.jpg', 2));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Share/ })).toBeEnabled());
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.register).not.toHaveBeenCalled();
+  });
   it('continues after leaving, restores pending previews and refreshes the inactive feed on completion', async () => {
     let resolveUpload: (value: unknown) => void = () => {};
     mocks.upload.mockReturnValue(new Promise(resolve => { resolveUpload = resolve; }));

@@ -1,5 +1,9 @@
 # Roadmap — launch the live (PROD) system
 
+## ICP gallery and chat image allowance parity — 28 November
+- [x] Compared email/ICP checks; added whole-album and pre-encryption photo admission, complete counters, authoritative club/team entitlement, team-chat club paths and usage refresh. Ten focused files passed in each mode (130 checks); preview build OK. No live deployment or data changes. Evidence: docs/icp-photo-upload-limit-parity-2026-11-28.md.
+- [ ] Signed-in gallery/chat upload and installed-phone acceptance: blocked by unavailable member session/device; no live upload result claimed.
+
 ## Preview compatibility errors — 28 November
 - [x] Corrected SDK factory, joined-relation, notification payload and RPC promise typing; affected Deno checks and 36 regressions passed, preview build OK; no live operations performed.
 

@@ -65,17 +65,22 @@ export interface ClubMediaUsage {
   bytesLimit: number | null;
 }
 
-/** Free-plan media usage for a club this cycle, summed across photo stores. */
+/** Complete Free-plan usage; an unreadable configured store must never become zero. */
 export async function getLiveClubMediaUsage(
   target: IcpTargetConfig,
   identity: Identity,
   clubId: string,
 ): Promise<Record<string, ClubMediaUsage>> {
   const out: Record<string, ClubMediaUsage> = {};
-  for (const key of listBlobStoreKeys(target)) {
-    try {
+  const keys = listBlobStoreKeys(target);
+  if (!keys.length) throw new Error("We couldn't check your club's photo allowance. Please try again shortly.");
+  const categories = ["gallery_photo", "chat_photo", "chat_file", "vault"];
+  for (const key of keys) {
       const { actor } = await connectLiveBlobStore(target, identity, key);
       const rows = await actor.get_club_media_usage(clubId);
+      if (categories.some(category => rows.filter(row => row.category === category).length !== 1)) {
+        throw new Error("We couldn't check your club's photo allowance. Please try again shortly.");
+      }
       for (const r of rows) {
         const prev = out[r.category];
         out[r.category] = {
@@ -86,9 +91,6 @@ export async function getLiveClubMediaUsage(
           bytesLimit: r.bytes_limit.length ? Number(r.bytes_limit[0]) : null,
         };
       }
-    } catch {
-      // Store not upgraded yet / unreachable — skip it.
-    }
   }
   return out;
 }

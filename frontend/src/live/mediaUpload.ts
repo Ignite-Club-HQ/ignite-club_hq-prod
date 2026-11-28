@@ -11,6 +11,7 @@ import { MEDIA_BLOB_PII_FIELD } from "./mediaDecrypt";
 import type { LiveBlobRef } from "./mediaStorage";
 import { sha256Hex } from "./blobStoreProtocol";
 import { clubLogoUploadPath, isClubLogoUploadPath } from "./clubLogoUploadPath";
+import { checkLivePhotoUpload } from "./mediaPhotoAllowance";
 
 /**
  * Upload-side routing for media bytes: the mirror of resolveMediaSource on
@@ -91,6 +92,7 @@ export async function tryUploadMediaToBlobStore(args: {
   if (!args.context && pathClub) {
     return readContentInScope(ctx, "media", writeOnce({ clubId: pathClub }), scoped => tryUploadMediaToBlobStore({ ...args, context: scoped }));
   }
+  await checkLivePhotoUpload(ctx, args.storagePath);
   const bytes = new Uint8Array(await args.file.arrayBuffer());
   // Club photos (clubs/<clubId>/...) share one per-club lock when the
   // deployed canister supports it: no per-photo record, and readers need one

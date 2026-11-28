@@ -20,6 +20,8 @@ import { mimeToExtension } from "@/lib/binaryUtils";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { creationClubChoices } from "@/lib/creationClubChoices";
 import { recordTestingIssue } from '@/lib/testingIssues';
+import { checkLivePhotoUpload } from '@/live/mediaPhotoAllowance';
+import { notifyClubFreeUsageChanged } from '@/hooks/useClubFreeUsage';
 
 export interface IcpUploadClubOption {
   id: string;
@@ -187,6 +189,17 @@ export function IcpUploadPhotoSheet({
       return;
     }
     setUploading(true);
+    // Reject an over-limit album before publishing any photo or closing the sheet.
+    try {
+      await withFeatureBackend('media', {
+        supabase: async () => { throw new Error('Internet Identity required'); },
+        icp: ctx => checkLivePhotoUpload(ctx, `clubs/${clubId}/gallery/photo.jpg`, files.length),
+      }, { clubId });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "We couldn't check your club's photo allowance. Please try again shortly.");
+      setUploading(false);
+      return;
+    }
     setProgress({ done: 0, total: files.length });
     // Show the photos in the feed instantly (like chat); no "shared" toast.
     // Carry the club/team names so the placeholder card looks like a real
@@ -336,6 +349,8 @@ export function IcpUploadPhotoSheet({
     } catch (err) {
       toast.error(mediaActionFailure(err, "Your photo wasn't uploaded. Please try again."));
     } finally {
+      notifyClubFreeUsageChanged(clubId);
+      void queryClient.invalidateQueries({ queryKey: ['club-free-usage', clubId] });
       await finishGalleryUpload(queryClient, principal, batchId).catch(() => undefined);
       onPendingChange?.([]);
       setUploading(false);

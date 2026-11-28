@@ -3,8 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { isLiveClubPro } from "@/live/features/club";
-import { getLiveClubMediaUsage } from "@/live/blobStoreUpload";
+import { MEDIA_PHOTO_CYCLE_LIMIT } from "@/live/mediaPhotoAllowance";
 
 const REFRESH_EVENT = "club-free-usage:refresh";
 
@@ -19,8 +18,8 @@ export function notifyClubFreeUsageChanged(clubId?: string | null) {
   window.dispatchEvent(new CustomEvent(REFRESH_EVENT, { detail: { clubId: clubId ?? null } }));
 }
 
-export const FREE_PHOTO_UPLOADS_PER_CYCLE = 10;
-export const FREE_CHAT_PHOTOS_PER_CYCLE = 10;
+export const FREE_PHOTO_UPLOADS_PER_CYCLE = MEDIA_PHOTO_CYCLE_LIMIT;
+export const FREE_CHAT_PHOTOS_PER_CYCLE = MEDIA_PHOTO_CYCLE_LIMIT;
 export const FREE_FILE_COUNT = 10;
 export const FREE_FILE_STORAGE_BYTES = 25 * 1024 * 1024; // 25 MB
 export const FREE_CHAT_FILE_COUNT = 10;
@@ -138,40 +137,38 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
     queryFn: async (): Promise<ClubFreeUsage | null> => {
+      if (!clubId) return null;
       if (resolveAuthBackend() === "icp") {
-        const live = await withFeatureBackend("membership", {
+        const live = await withFeatureBackend("media", {
           icp: async (ctx) => {
-            const [isPro, media] = await Promise.all([
-              isLiveClubPro(ctx, clubId!).catch(() => false),
-              getLiveClubMediaUsage(ctx.target, ctx.identity, clubId!),
-            ]);
-            return { isPro, media };
+            const { readLivePhotoAllowance } = await import("@/live/mediaPhotoAllowance");
+            return readLivePhotoAllowance(ctx, clubId);
           },
-          supabase: async () => null,
-        }, { clubId: clubId! });
+          supabase: async () => { throw new Error("Internet Identity required"); },
+        }, { clubId });
         if (!live) return null;
 
         // Media caps are enforced by the photo-store canister per 30-day
         // cycle; polls are not capped on-chain.
         const { isPro, media } = live;
-        const count = (c: string) => (isPro ? 0 : media[c]?.count ?? 0);
-        const bytes = (c: string) => (isPro ? 0 : media[c]?.bytes ?? 0);
+        const count = (c: string) => media[c]?.count ?? 0;
+        const bytes = (c: string) => media[c]?.bytes ?? 0;
         const photoUsed = count("gallery_photo");
         const chatPhotoUsed = count("chat_photo");
         const fileUsed = count("vault");
         const fileBytes = bytes("vault");
         const chatFileUsed = count("chat_file");
         const chatFileBytes = bytes("chat_file");
-        const fileCountCap = fileUsed >= FREE_FILE_COUNT;
-        const fileStoreCap = fileBytes >= FREE_FILE_STORAGE_BYTES;
-        const chatFileCountCap = chatFileUsed >= FREE_CHAT_FILE_COUNT;
-        const chatFileStoreCap = chatFileBytes >= FREE_CHAT_FILE_STORAGE_BYTES;
+        const fileCountCap = !isPro && fileUsed >= FREE_FILE_COUNT;
+        const fileStoreCap = !isPro && fileBytes >= FREE_FILE_STORAGE_BYTES;
+        const chatFileCountCap = !isPro && chatFileUsed >= FREE_CHAT_FILE_COUNT;
+        const chatFileStoreCap = !isPro && chatFileBytes >= FREE_CHAT_FILE_STORAGE_BYTES;
         return {
           isPro,
           cycleStart: null,
           cycleEnd: null,
-          photo: { used: photoUsed, limit: FREE_PHOTO_UPLOADS_PER_CYCLE, atCountCap: photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE, atCap: photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE },
-          chatPhoto: { used: chatPhotoUsed, limit: FREE_CHAT_PHOTOS_PER_CYCLE, atCap: chatPhotoUsed >= FREE_CHAT_PHOTOS_PER_CYCLE },
+          photo: { used: photoUsed, limit: FREE_PHOTO_UPLOADS_PER_CYCLE, atCountCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE, atCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE },
+          chatPhoto: { used: chatPhotoUsed, limit: FREE_CHAT_PHOTOS_PER_CYCLE, atCap: !isPro && chatPhotoUsed >= FREE_CHAT_PHOTOS_PER_CYCLE },
           file: { used: fileUsed, limit: FREE_FILE_COUNT, storageUsed: fileBytes, storageLimit: FREE_FILE_STORAGE_BYTES, atCountCap: fileCountCap, atStorageCap: fileStoreCap, atCap: fileCountCap || fileStoreCap },
           chatFile: { used: chatFileUsed, limit: FREE_CHAT_FILE_COUNT, storageUsed: chatFileBytes, storageLimit: FREE_CHAT_FILE_STORAGE_BYTES, atCountCap: chatFileCountCap, atStorageCap: chatFileStoreCap, atCap: chatFileCountCap || chatFileStoreCap },
           poll: { used: 0, limit: FREE_POLLS_PER_CYCLE, atCap: false },

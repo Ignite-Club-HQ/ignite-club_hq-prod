@@ -16,7 +16,9 @@ const mocks = vi.hoisted(() => ({
   registerLivePii: vi.fn(),
   sha256Hex: vi.fn(() => "hash"),
   resolveAuthBackend: vi.fn(() => "icp"),
+  checkLivePhotoUpload: vi.fn(),
 }));
+vi.mock('./mediaPhotoAllowance', () => ({ checkLivePhotoUpload: mocks.checkLivePhotoUpload }));
 
 vi.mock("./internetIdentityAuth", () => ({
   getCurrentInternetIdentity: mocks.getCurrentInternetIdentity,
@@ -55,6 +57,7 @@ describe("tryUploadMediaToBlobStore competition scope", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.resolveAuthBackend.mockReturnValue("icp");
+    mocks.checkLivePhotoUpload.mockResolvedValue(undefined);
     mocks.getActiveIcpTarget.mockReturnValue(target);
     mocks.getCurrentInternetIdentity.mockResolvedValue(identity);
     mocks.isBlobStoreConfigured.mockReturnValue(true);
@@ -168,6 +171,14 @@ describe("tryUploadMediaToBlobStore competition scope", () => {
     })).rejects.toThrow("larger than 10 MB");
     expect(mocks.encryptPiiValue).not.toHaveBeenCalled();
     expect(mocks.uploadBytesToBlobStore).not.toHaveBeenCalled();
+  });
+
+  it.each(['clubs/club-1/photo.jpg', 'clubs/club-1/chat/photo.jpg'])('rejects exhausted photo allowance for %s before encryption or upload', async storagePath => {
+    mocks.checkLivePhotoUpload.mockRejectedValueOnce(new Error('Photo allowance exhausted'));
+    await expect(tryUploadMediaToBlobStore({ context: { target, identity: identity as never }, storagePath, file: new Blob(['photo']), mime: 'image/jpeg' })).rejects.toThrow('Photo allowance exhausted');
+    expect(mocks.encryptClubMedia).not.toHaveBeenCalled();
+    expect(mocks.uploadBytesToBlobStore).not.toHaveBeenCalled();
+    expect(mocks.registerLivePii).not.toHaveBeenCalled();
   });
 
   it("accepts a file exactly 10 MiB before encryption framing", async () => {

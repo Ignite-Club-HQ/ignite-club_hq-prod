@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
-  begin_upload: vi.fn(), put_chunk: vi.fn(), finalize_upload: vi.fn(), abort_upload: vi.fn(), get_club_media_bytes: vi.fn(),
+  begin_upload: vi.fn(), put_chunk: vi.fn(), finalize_upload: vi.fn(), abort_upload: vi.fn(), get_club_media_bytes: vi.fn(), get_club_media_usage: vi.fn(),
+  stores: ['media_blob_store'],
 }));
 vi.mock("./icpAgent", () => ({ createLiveActor: vi.fn(async () => ({ actor: mocks, canisterId: { toText: () => "store" } })) }));
 vi.mock("./mediaStorage", () => ({
-  MEDIA_BLOB_STORE_KEY: "media_blob_store", listBlobStoreKeys: () => ["media_blob_store"],
+  MEDIA_BLOB_STORE_KEY: "media_blob_store", listBlobStoreKeys: () => mocks.stores,
   orderBlobStoresForPath: () => ["media_blob_store"], blobAssetUrl: (_id: string, path: string) => `https://store/${path}`,
 }));
 import { uploadBytesToBlobStore } from "./blobStoreUpload";
@@ -18,6 +19,7 @@ const path = "clubs/c/photo.jpg";
 describe("recoverable shared-quota uploads", () => {
   beforeEach(async () => {
     vi.resetAllMocks();
+    mocks.stores = ['media_blob_store'];
     mocks.begin_upload.mockResolvedValue({ Ok: "upload-1" });
     mocks.put_chunk.mockResolvedValue({ Ok: null });
     mocks.abort_upload.mockResolvedValue({ Ok: null });
@@ -61,6 +63,29 @@ describe("recoverable shared-quota uploads", () => {
     await expect(uploadBytesToBlobStore(target, identity, path, bytes, "image/jpeg")).rejects.toThrow("chunk failed");
     expect(mocks.abort_upload).toHaveBeenCalledWith("upload-1");
     expect(mocks.finalize_upload).not.toHaveBeenCalled();
+  });
+});
+describe('complete photo usage reads', () => {
+  const rows = ['gallery_photo', 'chat_photo', 'chat_file', 'vault'].map(category => ({ category, count: 5n, bytes: 100n, count_limit: 10n, bytes_limit: [] }));
+  it('sums both configured stores rather than granting a fresh allowance on failover', async () => {
+    mocks.stores = ['media_blob_store', 'media_blob_store_2'];
+    mocks.get_club_media_usage.mockResolvedValue(rows);
+    const { getLiveClubMediaUsage } = await import('./blobStoreUpload');
+    const usage = await getLiveClubMediaUsage(target, identity, 'club-a');
+    expect(usage.gallery_photo.count).toBe(10);
+    expect(usage.chat_photo.count).toBe(10);
+  });
+  it('refuses partial inventory when any configured store is unreachable', async () => {
+    mocks.stores = ['media_blob_store', 'media_blob_store_2'];
+    mocks.get_club_media_usage.mockResolvedValueOnce(rows).mockRejectedValueOnce(new Error('store unavailable'));
+    const { getLiveClubMediaUsage } = await import('./blobStoreUpload');
+    await expect(getLiveClubMediaUsage(target, identity, 'club-a')).rejects.toThrow('store unavailable');
+  });
+  it('refuses a missing category instead of displaying zero usage', async () => {
+    mocks.stores = ['media_blob_store'];
+    mocks.get_club_media_usage.mockResolvedValue(rows.slice(1));
+    const { getLiveClubMediaUsage } = await import('./blobStoreUpload');
+    await expect(getLiveClubMediaUsage(target, identity, 'club-a')).rejects.toThrow('allowance');
   });
 });
 describe("Pro media allowance", () => {
