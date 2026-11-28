@@ -8302,8 +8302,11 @@ persistent actor class Main(governorInit : Principal) = this {
   // Separate, read-only identity inventory relay. Never broadens the existing
   // operator endpoint and remains absent from ordinary deployment authority.
   public shared ({ caller }) func read_removal_media_registry() : async { #Ok : { active : Bool; stores : [Principal] }; #Err : Text } {
-    let freshDevInventory = (Principal.fromActor(this) == Principal.fromText("him2v-zqaaa-aaac5-aadta-cai") or Principal.fromActor(this) == Principal.fromText("ed2mw-7iaaa-aaac5-aadzq-cai")) and accountAdmissionEnabled and caller == Principal.fromText("h5lly-yyaaa-aaac5-aadqq-cai");
-    if ((not AccountProtection.removalEnabled(accountProtectionMode) and not freshDevInventory) or Principal.isAnonymous(caller) or accountAdmissionAuthority != ?caller) return #Err("Configured removal identity required");
+    let engineAdmissionInventory = accountAdmissionEnabled and (
+      ((Principal.fromActor(this) == Principal.fromText("him2v-zqaaa-aaac5-aadta-cai") or Principal.fromActor(this) == Principal.fromText("ed2mw-7iaaa-aaac5-aadzq-cai")) and caller == Principal.fromText("h5lly-yyaaa-aaac5-aadqq-cai")) or
+      ((Principal.fromActor(this) == Principal.fromText("fndr2-iyaaa-aaac5-aaeda-cai") or Principal.fromActor(this) == Principal.fromText("ggvhz-oaaaa-aaac5-aaejq-cai")) and caller == Principal.fromText("fyeax-jqaaa-aaac5-aaeaq-cai"))
+    );
+    if ((not AccountProtection.removalEnabled(accountProtectionMode) and not engineAdmissionInventory) or Principal.isAnonymous(caller) or accountAdmissionAuthority != ?caller) return #Err("Configured removal identity required");
     #Ok({ active = mediaQuotaCutover.active; stores = mediaQuotaStores })
   };
   public shared ({ caller }) func reserve_media_quota(token : Text, club_id : Text, category : Text, bytes : Nat, cycle : Nat) : async MediaQuota.Result {
