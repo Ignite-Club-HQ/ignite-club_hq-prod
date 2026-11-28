@@ -70,7 +70,16 @@ Application: `ignite_prod_v2`; engine: `ignite-prod`; API host: `https://s53an-5
 
 ## PR and CI status
 
-Exactly one `gitremote_pr--create_pull_request` request was issued for branch `thr_4y08kp8u4tfq` targeting **main**. The tool returned **“Pull request creation initiated”**, not a PR URL. Read-only GitHub checks did not yet list that PR or any Actions runs for the branch. URL and remote CI confirmation therefore remain pending the platform completing this request; no second PR request, merge, dispatch or direct main commit was made. Existing CI jobs include the new regression commands and will run on PR creation. Local validation above is complete, but is not described as successful remote CI.
+Single PR: [#1721 → main](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/pull/1721), open and unmerged. The Lovable PR helper returned “creation initiated” and pushed the initial draft snapshot without opening a PR; after verifying none existed, the existing GitHub connection created this one PR for the same branch/base. No draft acceptance, merge, commissioning dispatch or live mutation occurred.
+
+28 November rerun: **85** commissioning/staging/DEV-upgrade/workflow/database-safety tests and **369** identity/router/timer regressions passed. Preview reports build OK. These are local results, not a claim of successful remote CI.
+
+Automatic PR checks started, without manual dispatch:
+- [Source checks (CI)](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/46132234620).
+- [DEV original G1 PII team-name authority security (offline)](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/46132234545).
+- [DEV-only disposable membership directory reset](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/46132234551).
+
+At observation these runs were in progress on initial snapshot `c84258ff1`. Final diagnostic/stable-layout evidence commit `301102afe` and this PR-status update must also be synchronized into the same PR; verify its remote head equals the final draft head before treating review/CI as complete. No second PR is needed or authorized.
 
 ## Exact later deployment and commissioning procedure — NOT executed
 

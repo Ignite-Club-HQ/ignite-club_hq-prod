@@ -717,4 +717,5 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 ## OpenCloud admission commissioning correction — isolated draft
 - [x] Reconcile the existing PROD runner, pin all admission-only receiver guards, and validate identity-authenticated inventory and resumable completion.
 - [x] Complete offline regressions (61 OpenCloud, 40 safety, 369 Rust + 4 compiled-flag tests), 14 Motoko WASM/stable-layout checks and documented causes/procedure; request exactly one PR to main, without merge/deployment/live writes.
-- [ ] Confirm the requested main-targeted PR URL and remote CI; blocked on platform PR creation completion (tool returned initiated; GitHub lists no PR/run yet).
+- [x] Create and verify the single open PR #1721 targeting main; rerun 85 policy/safety and 369 backend tests successfully, without accepting, merging, deploying or dispatching commissioning.
+- [ ] Confirm final draft-head synchronization and remote CI for PR #1721; automatic checks started on c84258ff1, while the verified follow-up/status commits await platform branch synchronization.
