@@ -23,7 +23,7 @@ type JobResult = { Ok: WelcomeJob } | { Err: string };
 
 const INVITE_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
-const idlFactory = ({ IDL }: { IDL: typeof import("npm:@icp-sdk/core@5/candid").IDL }) => {
+const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   const Job = IDL.Record({
     invite_id: IDL.Text,
     to: IDL.Text,
@@ -47,7 +47,7 @@ interface CompetitionWelcomeJob {
 
 type CompetitionJobResult = { Ok: CompetitionWelcomeJob } | { Err: string };
 
-const competitionIdlFactory = ({ IDL }: { IDL: typeof import("npm:@icp-sdk/core@5/candid").IDL }) => {
+const competitionIdlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   const Job = IDL.Record({
     competition_id: IDL.Text,
     to: IDL.Text,
@@ -179,12 +179,12 @@ Deno.serve(async (request: Request) => {
     return json({ sent: true });
   } catch (error) {
     if (claimedInviteId) {
-      await admin.rpc("finish_icp_welcome_email", {
+      await Promise.resolve(admin.rpc("finish_icp_welcome_email", {
         _invite_id: claimedInviteId,
         _sent: false,
         _provider_message_id: null,
         _error: error instanceof Error ? error.message : "Delivery failed",
-      }).catch(() => undefined);
+      })).catch(() => undefined);
     }
     console.error("[send-welcome-email-icp] delivery failed", error);
     return json({ error: "Welcome email could not be sent" }, 502);

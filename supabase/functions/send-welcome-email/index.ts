@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { buildWelcomeEmail, sendWithResend } from "../_shared/welcomeEmail.ts";
 
@@ -26,7 +26,7 @@ function json(body: unknown, status = 200): Response {
 }
 
 async function getScopeDetails(
-  admin: ReturnType<typeof createClient>,
+  admin: SupabaseClient,
   kind: ScopeKind,
   scopeId: string,
 ): Promise<ScopeDetails> {
@@ -162,12 +162,12 @@ Deno.serve(async (request: Request) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Welcome email delivery failed";
     if (deliveryId) {
-      await admin.rpc("finish_welcome_email_delivery", {
+      await Promise.resolve(admin.rpc("finish_welcome_email_delivery", {
         _delivery_id: deliveryId,
         _sent: false,
         _provider_message_id: null,
         _error: message,
-      }).catch(() => undefined);
+      })).catch(() => undefined);
     }
     console.error("[send-welcome-email] delivery failed", error);
     return json({ error: "Welcome email could not be sent" }, 502);

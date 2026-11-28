@@ -50,6 +50,17 @@ pub fn verify_inventory(snapshot:&group_inventory::Snapshot,pin:&group_inventory
     let digest=Sha256::digest(encode(&(pin,snapshot,&sources,generation))).into();
     Ok(VerifiedInventory(Inventory{generation,digest,sources}))
 }
+/// No-write verification of the exact saved directory commitment. This is
+/// transport configuration evidence, never ownership/freshness or release.
+pub fn verify_configuration_readback(snapshot:&group_inventory::Snapshot,pin:&group_inventory::Binding,
+    generation:u64,digest:&[u8],sources:&[(String,Principal)])->Outcome<()> {
+    let authorities=sources.iter().map(|(_,p)|*p).collect::<Vec<_>>();
+    let verified=verify_inventory(snapshot,pin,&authorities,generation)?;
+    if verified.digest().as_slice()!=digest || verified.source_bindings()!=sources {
+        return Err("Directory inventory commitment mismatch".into());
+    }
+    Ok(())
+}
 /// A separately trusted original writer can participate without manufacturing
 /// a router group or placement. This establishes transport inventory ONLY;
 /// missing club assignments still block private pages and release.
@@ -337,6 +348,21 @@ impl<M:Memory+Clone> Coordinator<M>{
     type Mem=VirtualMemory<VectorMemory>;
     fn open(m:&MemoryManager<VectorMemory>)->Coordinator<Mem>{Coordinator::open(m.get(MemoryId::new(0)),Pool::open(m.get(MemoryId::new(1)),m.get(MemoryId::new(2)),10000,32).unwrap(),m.get(MemoryId::new(3)))}
     fn viewer(p:Principal)->Viewer{Viewer{account:"member".into(),version:1,aliases:vec![p]}}
+    #[test]fn exact_directory_configuration_rejects_digest_source_generation_and_registry_drift(){
+        let (snapshot,pin,authorities)=group_inventory::tests::fixture();
+        let verified=verify_inventory(&snapshot,&pin,&authorities,1).unwrap();
+        let sources=verified.source_bindings();let digest=verified.digest();
+        verify_configuration_readback(&snapshot,&pin,1,&digest,&sources).unwrap();
+        let mut wrong=digest;wrong[0]^=1;
+        assert!(verify_configuration_readback(&snapshot,&pin,1,&wrong,&sources).is_err());
+        assert!(verify_configuration_readback(&snapshot,&pin,2,&digest,&sources).is_err());
+        let mut wrong=sources.clone();wrong[0].1=wrong[1].1;
+        assert!(verify_configuration_readback(&snapshot,&pin,1,&digest,&wrong).is_err());
+        let mut wrong=sources.clone();wrong[0].0="foreign".into();
+        assert!(verify_configuration_readback(&snapshot,&pin,1,&digest,&wrong).is_err());
+        let mut stale=pin.clone();stale.registry_revision+=1;
+        assert!(verify_configuration_readback(&snapshot,&stale,1,&digest,&sources).is_err());
+    }
     #[test]fn disposable_test_directory_rebinds_cleanly_without_erasing_other_stable_memory(){
         use ic_stable_structures::StableBTreeMap;
         let manager=MemoryManager::init(VectorMemory::default());

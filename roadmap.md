@@ -1,10 +1,7 @@
 # Roadmap — launch the live (PROD) system
 
-## OpenCloud PROD admission-only commissioning — 28 November
-- [x] Add a governor-authorized, existing-account OpenCloud PROD commissioning path with immutable 31-backend pins, additive receipt storage, exact closed-registry and 24-reader verification, and no management-history or recovery-witness dependency.
-- [x] Extend the existing PROD source-build and commissioning workflow to verify live modules/controllers, apply only admission settings, commission member access, configure membership discovery, and emit readback evidence; stop before live mutations.
-- [x] Add bounded read-only account/profile and encrypted-name-presence diagnostics; never invent, import, decrypt for reporting, or overwrite names.
-- [x] Run focused Rust, deployment-policy, workflow, interface, and regression validation; prepare the PR and exact reviewed deployment procedure.
+## Preview compatibility errors — 28 November
+- [x] Corrected SDK factory, joined-relation, notification payload and RPC promise typing; affected Deno checks and 36 regressions passed, preview build OK; no live operations performed.
 
 ## OpenCloud PROD service wiring — 26 November
 - [x] Created manual `[PROD] OpenCloud PROD service wiring` workflow (check/wire modes, default check) reusing existing PROD governor credentials; verified CLI 1.7.0 positional Candid arguments and that all 78 generated calls target only allocated ignite_prod_v2 backend canisters with internal-governor signing.
@@ -716,3 +713,17 @@ reinstalls, no safeguard work below. Groups stay closed until Paul says "open gr
 - [x] Replace mainnet monitoring defaults with the active pinned OpenCloud host and all 32 shared/group/frontend IDs; update group health, usage, connection probes, photo stores, balances and placement inventory. Keep engine funding separate from mainnet cycles warnings and preserve authorized data-browser group routing.
 - [x] Tracking regressions pass in email and ICP modes (25 each); preview build OK. Running-preview inventory matches all 32 DEV targets and both event canisters answer read-only engine queries with zero cycles, as expected for engine funding.
 - [ ] Signed-in admin page/readback requires an authorized admin session unavailable in this sandbox (user-managed backend refuses session minting). No production deployment or configuration writes performed.
+
+## OpenCloud admission commissioning correction — isolated draft
+- [x] Reconcile the existing PROD runner, pin all admission-only receiver guards, and validate identity-authenticated inventory and resumable completion.
+- [x] Complete offline regressions (61 OpenCloud, 40 safety, 369 Rust + 4 compiled-flag tests), 14 Motoko WASM/stable-layout checks and documented causes/procedure; request exactly one PR to main, without merge/deployment/live writes.
+- [x] Create and verify the single open PR #1721 targeting main; rerun 85 policy/safety and 369 backend tests successfully, without accepting, merging, deploying or dispatching commissioning.
+- [x] Reproduce frontend CI's fixture-path failure and correct module-relative inventory loading; exact frontend command now passes 39/39, root focused checks 85/85.
+- [ ] Confirm final draft-head synchronization and remote CI for PR #1721; initial c84258ff1 passed both security workflows and authorization/Rust jobs, but frontend CI reproduced a test inventory working-directory error. Corrected module-relative fixture loading; follow-up commits await platform branch synchronization and automatic CI rerun.
+
+
+## OpenCloud PROD admission-only commissioning — 28 November
+- [x] Add a governor-authorized, existing-account OpenCloud PROD commissioning path with immutable 31-backend pins, additive receipt storage, exact closed-registry and 24-reader verification, and no management-history or recovery-witness dependency.
+- [x] Extend the existing PROD source-build and commissioning workflow to verify live modules/controllers, apply only admission settings, commission member access, configure membership discovery, and emit readback evidence; stop before live mutations.
+- [x] Add bounded read-only account/profile and encrypted-name-presence diagnostics; never invent, import, decrypt for reporting, or overwrite names.
+- [x] Run focused Rust, deployment-policy, workflow, interface, and regression validation; prepare the PR and exact reviewed deployment procedure.
