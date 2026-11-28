@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { template, inventory, validateMappings, validate, manifest, prepare, collect, frontendEnv, ROOT } from './deployment.mjs';
+import { template, inventory, validateMappings, validate, manifest, prepare, prepareProd, collect, frontendEnv, ROOT } from './deployment.mjs';
 const require = createRequire(path.join(ROOT, 'frontend/package.json'));
 const { Principal } = require('@icp-sdk/core/principal');
 const source = name => JSON.parse(readFileSync(path.join(ROOT, `deploy/opencloud/${name}.json`), 'utf8'));
@@ -179,4 +179,30 @@ test('PROD compute reservation is optional but explicit reservations are validat
   }
   c.engineSettings.prodComputeAllocation = 1;
   assert.equal(validate(c, source('dev')).length, 32);
+});
+
+test('both engine environments stage all 24 member guards with their own identity and all four infrastructure gates removal-off',()=>{
+  for(const env of ['dev','prod']){
+    const c=source(env),out=path.join(ROOT,'deploy/opencloud/work',`admission-${env}-${process.pid}`);
+    rmSync(out,{recursive:true,force:true});
+    try{
+      const m=(env==='dev'?prepare:prepareProd)(c,source(env==='dev'?'prod':'dev'),out);
+      assert.equal(m.accountProtectionBuild.compileTimeEnv.IGNITE_OPENCLOUD_ADMISSION_ONLY,'1');
+      const members=m.canisters.filter(r=>r.scope!=='shared'&&r.service!=='timer_jobs');assert.equal(members.length,24);
+      for(const row of members){
+        const text=readFileSync(path.join(out,`build/backend/${row.service}/src/main.mo`),'utf8');
+        assert.match(text,/accountProtectionMode : AccountProtection.Mode = #ProductionAdmission/);
+        assert.ok(text.includes(`switch (?"${c.shared.identity_access}")`),row.name);
+        assert.match(text,/accountRehearsalEnabled = false/);
+        assert.ok(!text.includes('Runtime.envVar<system>("IGNITE_ACCOUNT_SERVICE_IDENTITY")'));
+      }
+      const workload=readFileSync(path.join(out,'build/backend/secret_workload_identity/src/main.mo'),'utf8');
+      assert.match(workload,/RemovalReceiver.Gate\(false,/);assert.match(workload,/removal_enabled = false/);
+      if(env==='prod'){
+        const original=readFileSync(path.join(ROOT,'backend/pii_access_control/src/main.mo'),'utf8');
+        const staged=readFileSync(path.join(out,'build/backend/pii_access_control/src/main.mo'),'utf8');
+        for(const setting of ['IGNITE_PRIVATE_PROFILE_IDENTITY','IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE','IGNITE_SHARED_CLUB_NAME_ENFORCEMENT_RELEASE'])assert.equal(staged.includes(setting),original.includes(setting));
+      }
+    }finally{rmSync(out,{recursive:true,force:true});}
+  }
 });

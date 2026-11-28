@@ -34,9 +34,14 @@ pub struct Configuration {
 }
 pub fn configuration(caller:Principal,receiver:Principal)->Result<Configuration,String> {
     if caller==Principal::anonymous() || authority()!=Some(caller){return Err("Configured account removal authority required".into());}
-    Ok(Configuration {receiver,authority:authority(),protocol:1,admission_required:false,removal_enabled:!dev_admission_only(),rehearsal:false})
+    Ok(Configuration {receiver,authority:authority(),protocol:1,admission_required:false,removal_enabled:!engine_admission_only(),rehearsal:false})
 }
-fn dev_admission_only()->bool {option_env!("IGNITE_OPENCLOUD_DEV_ADMISSION_ONLY")==Some("1")}
+fn engine_admission_only()->bool {
+    admission_only_flags(option_env!("IGNITE_OPENCLOUD_ADMISSION_ONLY"), option_env!("IGNITE_OPENCLOUD_DEV_ADMISSION_ONLY"))
+}
+fn admission_only_flags(engine:Option<&str>,legacy_dev:Option<&str>)->bool {
+    engine==Some("1") || legacy_dev==Some("1")
+}
 
 const MAX_INTENTS: u64 = 524_288;
 const MAX_SUBJECTS: u64 = 4_194_304;
@@ -95,7 +100,7 @@ pub fn recheck(subject: &Principal) -> Result<(), String> {
 }
 
 fn authorize(caller: Principal) -> Result<(), String> {
-    if dev_admission_only(){return Err("Global account removal is unavailable in fresh DEV".into());}
+    if engine_admission_only(){return Err("Global account removal is unavailable in OpenCloud admission-only mode".into());}
     if caller == Principal::anonymous() || authority() != Some(caller) { return Err("Configured account removal authority required".into()); }
     Ok(())
 }
@@ -147,6 +152,24 @@ mod tests {
     fn p(n: u8) -> Principal { Principal::from_slice(&[n; 29]) }
     fn req(subjects: Vec<Principal>) -> Request { Request { account_id: "acct".into(), generation: 1, inventory_digest: vec![7; 32], subjects } }
 
+    #[test] fn both_engine_environments_and_legacy_dev_keep_removal_off() {
+        assert!(admission_only_flags(Some("1"),None));
+        assert!(admission_only_flags(None,Some("1")));
+        assert!(!admission_only_flags(None,None));
+        assert!(!admission_only_flags(Some("0"),Some("0")));
+    }
+    #[test] fn compiled_engine_mode_exposes_only_identity_readback_and_never_removal(){
+        reset_for_tests();set_authority(p(1)).unwrap();
+        assert!(configuration(p(2),p(3)).is_err());
+        let observed=configuration(p(1),p(3)).unwrap();
+        assert_eq!(observed.removal_enabled,!engine_admission_only());
+        if engine_admission_only(){
+            assert!(prepare(p(1),req(vec![p(9)])).is_err());
+            assert!(receipt(p(1),req(vec![p(9)]),p(3),0).is_err());
+            assert!(seal(p(1),req(vec![p(9)]),p(3),0).is_err());
+            assert!(!denied(&p(9)) && intent("acct").is_none());
+        }
+    }
     #[test] fn unconfigured_and_wrong_callers_are_refused() {
         reset_for_tests();
         assert!(prepare(p(1), req(vec![p(9)])).is_err());

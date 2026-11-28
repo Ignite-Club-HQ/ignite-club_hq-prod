@@ -839,11 +839,21 @@ async fn reset_disposable_dev_membership_directory(
 #[derive(CandidType,Deserialize)]
 struct DirectoryConfigurationReadback { binding:group_inventory::Binding,generation:u64,inventory_digest:Vec<u8>,sources:Vec<(String,Principal)>,enabled:bool,app_enabled:bool }
 #[ic_cdk::update]
-fn read_membership_directory_configuration()->Outcome<DirectoryConfigurationReadback>{
+async fn read_membership_directory_configuration()->Outcome<DirectoryConfigurationReadback>{
     let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
 
     require_governor(&state(),ic_cdk::api::msg_caller())?;
     let c=directory_config()?;
+    if engine_admission_enabled() {
+        let operator=ic_cdk::api::msg_caller();
+        let recheck=||->Outcome<()>{require_governor(&state(),operator)?;recheck_directory(&c)};
+        verify_engine_admission_lifecycle(&engine_admission_pin()?.backends).await?;recheck()?;
+        let first=read_registry_pages(&c.binding,&recheck).await?;
+        let second=read_registry_pages(&c.binding,&recheck).await?;
+        if first!=second {return Err("Directory registry changed during readback".into());}
+        membership_coordinator::verify_configuration_readback(&first,&c.binding,c.generation,&c.inventory_digest,&c.sources)?;
+        recheck()?;
+    }
     Ok(DirectoryConfigurationReadback{binding:c.binding,generation:c.generation,inventory_digest:c.inventory_digest,sources:c.sources,enabled:c.enabled,app_enabled:c.release.is_some()})
 }
 /// Caller-private diagnostic, not the release/current reader. The actor never
@@ -1402,6 +1412,20 @@ async fn review_production_account_inventory(expected: production_account_protec
         supplemental_inventory().iter().any(|e|!expected.inventory.supplemental.contains(e)) {
         return Err("Production inventory cannot substitute or drop pinned authorities".into());
     }
+    if engine_admission_enabled() {
+        // Exact environment/build pins on BOTH bootstrap and post-receipt review.
+        // No governor exception at receivers: identity makes every consensus call.
+        let pin=engine_admission_pin()?;
+        pin.binding_for(&expected.inventory.groups.binding,ic_cdk::api::canister_self(),state().governor,
+            if opencloud_prod_admission_enabled(){"opencloud-prod"}else{"opencloud-dev"})?;
+        pin.inventory(&expected)?;
+        let receipt=if opencloud_prod_admission_enabled(){opencloud_prod_admission_state().receipt}else{fresh_dev_state().receipt};
+        if let Some(receipt)=receipt {
+            fresh_dev::review_receipt(&receipt,&expected,expected_history_revision)?;
+            verify_engine_admission_lifecycle(&pin.backends).await?;
+            require_governor(&state(),ic_cdk::api::msg_caller())?;
+        }
+    }
     collect_production_account_protection_inner(expected,expected_history_revision,true,true,false).await
 }
 async fn collect_production_account_protection(expected:production_account_protection::Expectation, expected_history_revision:u64,closed:bool)
@@ -1418,6 +1442,16 @@ async fn collect_production_account_protection_inner(expected:production_account
     -> Outcome<production_account_protection::Draft> {
     let clear=||if reads_only {production_account_reads_clear()} else {production_read_configuration_clear()};
     clear()?;
+    let engine_state=if opencloud_prod_admission_enabled(){opencloud_prod_admission_state()}else{fresh_dev_state()};
+    let engine_snapshot=encode(&engine_state);
+    if engine_admission_enabled() {
+        let pin=engine_admission_pin()?;
+        pin.binding_for(&expected.inventory.groups.binding,ic_cdk::api::canister_self(),state().governor,
+            if opencloud_prod_admission_enabled(){"opencloud-prod"}else{"opencloud-dev"})?;
+        pin.inventory(&expected)?;
+        if let Some(receipt)=&engine_state.receipt {fresh_dev::review_receipt(receipt,&expected,expected_history_revision)?;}
+        else if !provision {return Err("OpenCloud admission commissioning required".into());}
+    }
     let operator=state().governor;
     let history_at_start=removal_history_revision();
     if (closed || provision) && history_at_start!=expected_history_revision {return Err("Production acceptance history changed".into());}
@@ -1431,6 +1465,8 @@ async fn collect_production_account_protection_inner(expected:production_account
     if extra!=expected.inventory.supplemental { return Err("Pinned supplemental expectation mismatch".into()); }
     let recheck=||->Outcome<()> {
         clear()?;
+        let current_engine=if opencloud_prod_admission_enabled(){opencloud_prod_admission_state()}else{fresh_dev_state()};
+        if engine_admission_enabled() && encode(&current_engine)!=engine_snapshot {return Err("OpenCloud admission receipt changed during review".into());}
         if state().governor!=operator || production_authorization()!=authorization || removal_history_revision()!=history_at_start || group_inventory_binding()!=pinned ||
             supplemental_inventory()!=pinned_extra { return Err("Production review configuration changed".into()); }
         Ok(())
@@ -1456,8 +1492,8 @@ async fn collect_production_account_protection_inner(expected:production_account
             let club=group.domains.iter().find(|d|d.domain=="club_domain").ok_or("Missing expected club")?.canister;
             let response=ic_cdk::call::Call::bounded_wait(club,"read_removal_media_registry").await.map_err(|_|"Production media inventory unavailable")?;
             recheck()?;
-            let registry:Outcome<group_inventory::MediaRegistry>=response.candid().map_err(|_|"Invalid production media inventory")?;
-            media.push(group_inventory::MediaEvidence {club_authority:club,registry:registry?});
+            let registry:Outcome<group_inventory::MediaRegistry>=response.candid().map_err(|_|format!("Receiver {club} read_removal_media_registry: invalid reply"))?;
+            media.push(group_inventory::MediaEvidence {club_authority:club,registry:registry.map_err(|reason|format!("Receiver {club} read_removal_media_registry: {reason}"))?});
         }
         let clubs=media.iter().map(|m|m.club_authority).collect::<Vec<_>>();
         group_inventory::validate_complete(&snapshot,&binding,&clubs,&readers,&extra,&media)?;
@@ -1468,10 +1504,10 @@ async fn collect_production_account_protection_inner(expected:production_account
     }
     let mut configurations=Vec::new();
     for target in targets {
-        let reply=ic_cdk::call::Call::bounded_wait(target,"read_account_protection_configuration").await.map_err(|_|"Receiver production configuration unavailable")?;
+        let reply=ic_cdk::call::Call::bounded_wait(target,"read_account_protection_configuration").await.map_err(|_|format!("Receiver {target} read_account_protection_configuration: unavailable"))?;
         recheck()?;
-        let config:Outcome<production_account_protection::ReceiverConfiguration>=reply.candid().map_err(|_|"Invalid receiver production configuration")?;
-        let config=config?;
+        let config:Outcome<production_account_protection::ReceiverConfiguration>=reply.candid().map_err(|_|format!("Receiver {target} read_account_protection_configuration: invalid reply"))?;
+        let config=config.map_err(|reason|format!("Receiver {target} read_account_protection_configuration: {reason}"))?;
         if config.receiver!=target {return Err("Receiver configuration sender mismatch".into());}
         configurations.push(config);
     }
@@ -1486,7 +1522,7 @@ async fn collect_production_account_protection_inner(expected:production_account
     if closed {review_closed_production_groups(&binding,&recheck).await?;}
     recheck()?;
     let observed=prior.ok_or("Production inventory missing")?;
-    if provision && engine_admission_enabled() {
+    if engine_admission_enabled() {
         production_account_protection::verify_engine_admission(&expected,&observed,&lifecycle,&after,&configurations)
     } else {
         production_account_protection::verify(&expected,&observed,&lifecycle,&after,&configurations)
@@ -1963,7 +1999,9 @@ async fn authorize_production_member_access(binding:group_inventory::Binding)->O
     }
     recheck()?;
     if engine_admission_enabled(){verify_engine_admission_lifecycle(&engine_admission_pin()?.backends).await?;recheck()?;}
-    GROUP2_ADMISSION.with(|m|m.borrow_mut().set(encode(&admission::Config {enabled:true,readers,member_access:true,club_readers})));
+    let next=admission::Config {enabled:true,readers,member_access:true,club_readers};
+    if encode(&prior)==encode(&next) {return Ok(());}
+    GROUP2_ADMISSION.with(|m|m.borrow_mut().set(encode(&next)));
     bump_removal_history();Ok(())
 }
 fn deferred_account_operations_clear()->Outcome<()> {
