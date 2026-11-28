@@ -1,5 +1,8 @@
 # Roadmap — launch the live (PROD) system
 
+## Preview compatibility errors — 28 November
+- [x] Corrected SDK factory, joined-relation, notification payload and RPC promise typing; affected Deno checks and 36 regressions passed, preview build OK; no live operations performed.
+
 ## OpenCloud PROD service wiring — 26 November
 - [x] Created manual `[PROD] OpenCloud PROD service wiring` workflow (check/wire modes, default check) reusing existing PROD governor credentials; verified CLI 1.7.0 positional Candid arguments and that all 78 generated calls target only allocated ignite_prod_v2 backend canisters with internal-governor signing.
 - [x] Check mode ran green (run 45791474975, commit f8da5b838, 26 Nov 09:23 UTC): live governor principal matched the configured PROD governor, every service's opening-configuration readback returned without refusal, and all 78 wiring calls validated against the allocated inventory. No service was configured.

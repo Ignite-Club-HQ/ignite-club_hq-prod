@@ -27,6 +27,7 @@ export interface Job {
     url: string;
     tag: string;
     notificationType: string;
+    data?: Record<string, unknown>;
   };
   attempt_count: number;
 }
