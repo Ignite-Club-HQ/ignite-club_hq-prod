@@ -10,3 +10,4 @@
 
 - Both OpenCloud admission-only stagers pin each member guard to that environment's identity, disable infrastructure removal, and preserve unrelated encryption/name settings; normal mainnet sources are not transformed. Why: management settings do not refresh installed transient Motoko guards.
 - PROD commissioning uses one adapter-injected runner with identity-authenticated 28-receiver consensus review before and after the receipt, and independent state readback before resume writes. Why: a governor cannot call identity-only receiver endpoints, and unknown writes must not replay automatically.
+- Commissioning test inventories resolve relative to the test module URL, not the working directory. Why: frontend CI and root offline checks must read the same reviewed DEV/PROD mappings.

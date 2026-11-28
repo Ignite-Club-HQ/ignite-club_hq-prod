@@ -7,7 +7,7 @@ import {runProdCommission} from './prod-commission-runner.mjs';
 import {memberReaders,admissionEnvironment,assertAdmissionEnvironment,planDigest,sanitizeAccountDiagnostics,ADMISSION_CONFIRMATION} from './prod-commission-policy.mjs';
 const require=createRequire(new URL('../../frontend/package.json',import.meta.url));
 const {IDL:I}=require('@icp-sdk/core/candid'),{Principal}=require('@icp-sdk/core/principal');
-const pid=s=>Principal.fromText(s),load=s=>JSON.parse(readFileSync(`deploy/opencloud/${s}.json`));
+const pid=s=>Principal.fromText(s),load=s=>JSON.parse(readFileSync(new URL(`../../deploy/opencloud/${s}.json`,import.meta.url)));
 const config=load('prod');
 function fixture({settings=true,authorities=true,receipt=false,members=false,directory=false}={}){
   const rows=inventory(config),readers=memberReaders(rows),m=manifest(config,load('dev'),undefined,true);

@@ -79,7 +79,7 @@ Automatic PR checks started, without manual dispatch:
 - [DEV original G1 PII team-name authority security (offline)](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/46132234545).
 - [DEV-only disposable membership directory reset](https://github.com/Ignite-Club-HQ/ignite-club_hq-prod/actions/runs/46132234551).
 
-At observation these runs were in progress on initial snapshot `c84258ff1`. Final diagnostic/stable-layout evidence commit `301102afe` and this PR-status update must also be synchronized into the same PR; verify its remote head equals the final draft head before treating review/CI as complete. No second PR is needed or authorized.
+On initial snapshot `c84258ff1`, both DEV security workflows and CI's authorization/Rust jobs passed. CI's frontend job failed in the new commissioning tests: `prod-commission.test.mjs` loaded `deploy/opencloud/prod.json` relative to the frontend working directory. This exact failure was reproduced locally. The test inventory loader now resolves relative to its module URL, like the existing deployment tests, without changing live code, weakening assertions or changing the workflow. The exact previously failing frontend CI command now passes **39/39** locally; the root focused rerun remains **85/85**. Final diagnostic/stable-layout evidence commit `301102afe`, this path correction and PR-status updates must be synchronized into the same PR; verify its remote head equals the final draft head and automatic CI reruns before treating review/CI as complete. No second PR is needed or authorized.
 
 ## Exact later deployment and commissioning procedure — NOT executed
 
