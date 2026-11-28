@@ -264,9 +264,14 @@ export default function MatchCaptainSelector({
   const displayedRsvp = displayedCaptain ? rsvps.find(r => displayedCaptain.child_id
     ? r.child_id === displayedCaptain.child_id
     : !r.child_id && r.user_id?.replace(/^principal:/, "") === displayedCaptain.user_id?.replace(/^principal:/, "")) : null;
-  const displayedName = displayedCaptain?.profiles?.display_name || displayedRsvp?.profiles?.display_name ||
-    displayedCaptain?.children?.name || displayedRsvp?.children?.name || adultName(displayedCaptain?.user_id) || "Team captain";
-  const displayedAvatar = displayedCaptain?.profiles?.avatar_url || displayedRsvp?.profiles?.avatar_url || adultAvatar(displayedCaptain?.user_id);
+  // A child's RSVP row also carries the guardian's profile (the guardian
+  // answered for them), so a child captain must show the child's own name.
+  const captainIsChild = !!displayedCaptain?.child_id;
+  const displayedName = (captainIsChild
+    ? displayedCaptain?.children?.name || displayedRsvp?.children?.name
+    : displayedCaptain?.profiles?.display_name || displayedRsvp?.profiles?.display_name || adultName(displayedCaptain?.user_id)) || "Team captain";
+  const displayedAvatar = captainIsChild ? undefined
+    : displayedCaptain?.profiles?.avatar_url || displayedRsvp?.profiles?.avatar_url || adultAvatar(displayedCaptain?.user_id);
 
   return (
     <>

@@ -180,11 +180,15 @@ export default function PlayerOfMatchSelector({
     const fallbackChildName = playerOfMatch.child_id
       ? childNameFallbacks.get(playerOfMatch.child_id) || ""
       : "";
-    const name = profileName || childName || fallbackProfileName || fallbackChildName || "Unknown player";
+    // A child's row can also carry the guardian who answered for them;
+    // a child pick must always show the child's own name.
+    const name = (playerOfMatch.child_id
+      ? childName || fallbackChildName
+      : profileName || fallbackProfileName) || "Unknown player";
 
     return {
       name,
-      avatarUrl: playerOfMatch.profiles?.avatar_url || fallbackProfile?.avatar_url || null,
+      avatarUrl: playerOfMatch.child_id ? null : playerOfMatch.profiles?.avatar_url || fallbackProfile?.avatar_url || null,
       initial: name.charAt(0).toUpperCase(),
       isChild: !!playerOfMatch.child_id,
     };
